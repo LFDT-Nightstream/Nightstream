@@ -39,6 +39,10 @@
 
 #![allow(non_snake_case)]
 
+use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use neo_ccs::Mat;
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
@@ -50,6 +54,8 @@ use neo_fold_clean::engine::decider::{
     },
     synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
 };
+use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, EncInst, State, TRIVIAL_PC};
 use neo_fold_clean::paper::decider::{self, PublicImage};
@@ -62,6 +68,20 @@ use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use serde_json::{json, Value};
+
+const FULL_HISTORY_MANIFEST_PATH: &str = "formal/nightstream-lean/assurance/fprime-full-history-program-manifest.json";
+const FULL_HISTORY_LEAN_PATH: &str =
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryManifestData.lean";
+const FULL_HISTORY_TOP_LEVEL: &[&str] = &[
+    "decider.step.base",
+    "decider.step.recursive",
+    "decider.state_link",
+    "decider.terminal_fold",
+    "decider.terminal_continuity",
+    "decider.public_pins",
+    "decider.terminal_ce",
+];
 
 // ── Fixture helpers ─────────────────────────────────────────────────────────
 
@@ -82,6 +102,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
@@ -91,6 +112,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        None,
     ))
 }
 
@@ -123,6 +145,7 @@ fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut
     public.x_out = EncInst::from_digest(state_x_out_digest_with_mode(
         mode,
         public.vk_fs_digest,
+        prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         public.chunk_count,
         public.step_count,
@@ -132,6 +155,7 @@ fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut
         public.semantic_state_digest,
         public.acc_digest,
         public.public_trace,
+        None,
     ));
 }
 
@@ -1268,6 +1292,8 @@ fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
     assert_eq!(statement.public.step_count, 5, "total ops folded = 2 + 3 = 5");
 }
 
+#[path = "decider_r1cs_manifest.rs"]
+mod m4_manifest;
 // The previous end-to-end "tamper Z, bypass preflight, expect
 // `!is_satisfied`" test has been replaced by the gadget-level
 // isolation tests in `tests/system/decider_ce_relation_isolation.rs`.

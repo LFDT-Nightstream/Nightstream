@@ -48,12 +48,15 @@ impl CcsInstance {
         let c = log.commit(&z_mat);
         Ok(Self {
             claim: CcsClaim {
+                adv: None,
                 c,
                 x: z[..m_in].to_vec(),
                 m_in,
             },
             witness: CcsWitness {
-                w: z[m_in..].to_vec(),
+                // Z is the authoritative low-norm assignment and already
+                // contains the private suffix. Avoid retaining it twice.
+                w: Vec::new(),
                 Z: z_mat,
             },
         })

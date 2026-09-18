@@ -39,6 +39,7 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, build_semantic_state_preimage_fields, state_x_out_preimage_sources,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
+use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvc, R1csIvcPreprocessing};
 use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder, R1csCompilerError};
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{ProofState, FINAL_FOLD_TRANSCRIPT_LABEL};
@@ -219,6 +220,7 @@ fn sha256_lifecycle_plan_with_ce_shape(
         boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,
@@ -1061,21 +1063,20 @@ fn sha256_production_core_bellpepper_ivc_chain_two_steps_perf_snapshot() {
         params.T(),
     );
 
-    let prep = phase("prod preprocess R1CS-F'", || {
-        r1cs_f_prime::preprocess_sparse_seeded_with_params(&artifact_a.sparse_r1cs, &plan, params, SHA256_AJTAI_SEED)
-            .expect("production-core SHA-256 R1CS-F' preprocess")
+    let prep = phase("prod preprocess authoritative F'", || {
+        R1csIvcPreprocessing::new_seeded(params, &artifact_a.sparse_r1cs, plan, SHA256_AJTAI_SEED)
+            .expect("production-core authoritative SHA-256 F' preprocess")
     });
     eprintln!(
-        "[sha-prod-ivc]   structure.n={}, structure.m={}, plan.limbs={}",
+        "[sha-prod-ivc]   structure.n={}, structure.m={}",
         prep.prep.structure().n,
         prep.prep.structure().m,
-        plan.limbs,
     );
 
-    let mut chain = R1csChainBuilder::new(&prep).expect("start chain");
-    let compiled_a = phase("prod step 0 append (base)", || {
+    let mut chain = R1csIvc::new(&prep);
+    phase("prod step 0 append (base)", || {
         chain
-            .append_assignment(artifact_a.assignment.clone())
+            .extend(artifact_a.assignment.clone())
             .expect("base step appends")
     });
     let artifact_b = phase("prod synth B (Bellpepper SHA)", || {
@@ -1088,40 +1089,92 @@ fn sha256_production_core_bellpepper_ivc_chain_two_steps_perf_snapshot() {
         artifact_b.shape, artifact_a.shape,
         "same-length preimages must produce the same R1CS shape"
     );
-    let compiled_b = phase("prod step 1 append (recursive)", || {
+    phase("prod step 1 append (recursive)", || {
         chain
-            .append_assignment(artifact_b.assignment.clone())
+            .extend(artifact_b.assignment.clone())
             .expect("recursive step appends")
     });
-    assert!(std::sync::Arc::ptr_eq(
-        &compiled_a.encoded.structure,
-        &compiled_b.encoded.structure
-    ));
-    drop(compiled_a);
-    drop(compiled_b);
 
-    let audit = phase("prod chain.finish_with_audit()", || {
+    let proof = phase("prod chain.finish()", || {
         chain
-            .finish_with_audit()
-            .expect("finish production-core SHA chain with audit")
+            .finish()
+            .expect("finish compact production-core SHA chain")
     });
-    phase("prod verify_uncompressed_audit", || {
-        lifecycle::verify_uncompressed_audit(&prep.prep, &audit)
-            .expect("audit verifier accepts production-core SHA chain")
-    });
-    phase("prod verify_uncompressed (expected reject)", || {
-        let err = lifecycle::verify_uncompressed(&prep.prep, &audit.proof)
-            .expect_err("terminal-only verifier must reject production-core multi-chunk F' SHA chain");
-        expect_f_prime_non_replay_unsupported(err, 2);
+    assert!(
+        proof.final_fold.is_none(),
+        "HyperNova keeps running and latest separate"
+    );
+    phase("prod verify running + latest", || {
+        lifecycle::verify_uncompressed(&prep.prep, &proof)
+            .expect("terminal verifier accepts production-core SHA accumulator plus latest F'")
     });
 
-    drop(audit);
+    drop(proof);
     drop(prep);
     drop(artifact_a);
     drop(artifact_b);
     eprintln!(
         "[sha-prod-ivc] {:<32} {:>7.2}s",
         "TOTAL (incl. drops)",
+        total.elapsed().as_secs_f64()
+    );
+}
+
+#[test]
+#[ignore = "production-core steady-state IVC perf snapshot; run manually"]
+fn sha256_production_core_authoritative_ivc_chain_five_steps_perf_snapshot() {
+    const STEPS: usize = 5;
+
+    let total = Instant::now();
+    let reference = synthesize_to_ccs(Sha256Circuit {
+        preimage: nth_preimage(0),
+    })
+    .expect("reference SHA synth");
+    let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&reference.sparse_r1cs);
+    let params = Params::for_ccs_shape(
+        structure_probe.ccs.n,
+        structure_probe.ccs.t(),
+        structure_probe.ccs.max_degree(),
+    )
+    .expect("production-core params");
+    let prep = phase("prod-ivc-5 preprocess authoritative F'", || {
+        R1csIvcPreprocessing::new_seeded(params, &reference.sparse_r1cs, plan, SHA256_AJTAI_SEED)
+            .expect("production-core authoritative SHA-256 F' preprocess")
+    });
+
+    let mut chain = R1csIvc::new(&prep);
+    let mut recursive_s = 0.0;
+    for step in 0..STEPS {
+        let assignment = if step == 0 {
+            reference.assignment.clone()
+        } else {
+            synthesize_to_ccs(Sha256Circuit {
+                preimage: nth_preimage(step),
+            })
+            .expect("same-shape SHA synth")
+            .assignment
+        };
+        let started = Instant::now();
+        chain
+            .extend(assignment)
+            .expect("append authoritative SHA step");
+        let elapsed = started.elapsed().as_secs_f64();
+        if step > 0 {
+            recursive_s += elapsed;
+        }
+        eprintln!("[sha-prod-ivc-5] step {step} append {elapsed:>7.2}s");
+    }
+
+    let proof = chain.finish().expect("finish compact five-step SHA chain");
+    phase("prod-ivc-5 verify running + latest", || {
+        lifecycle::verify_uncompressed(&prep.prep, &proof).expect("verify compact five-step SHA chain")
+    });
+    eprintln!(
+        "[sha-prod-ivc-5] recursive append avg {:>7.2}s/op",
+        recursive_s / (STEPS - 1) as f64
+    );
+    eprintln!(
+        "[sha-prod-ivc-5] TOTAL               {:>7.2}s",
         total.elapsed().as_secs_f64()
     );
 }

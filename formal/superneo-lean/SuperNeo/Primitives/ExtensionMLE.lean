@@ -1,4 +1,4 @@
-import SuperNeo.Primitives.ExtensionFieldInterface
+import SuperNeo.Primitives.ExtensionField
 import Mathlib.Data.Nat.Bitwise
 
 /-!

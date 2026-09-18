@@ -23,14 +23,43 @@ pub fn verify(
     running: &RunningInstance,
     proof: &NifsProof,
 ) -> Result<RunningInstance, Error> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let parent_started = std::time::Instant::now();
     validate_running_parent_authority(pp, s, combine_b_pows, running)?;
+    #[cfg(feature = "perf-timers")]
+    let parent_elapsed = parent_started.elapsed();
 
     // 1. Π_CCS — re-run the sumcheck and terminal identity check; the K+k
     //    output claims live inside `proof.pi_ccs.outputs`, so the verifier
     //    sees them on the wire (no placeholder, no replay).
+    #[cfg(feature = "perf-timers")]
+    let pi_ccs_started = std::time::Instant::now();
     let ccs_out_claims = pi_ccs::verify(tr, pp, s, cache, fresh_claims, running, &proof.pi_ccs)?;
+    #[cfg(feature = "perf-timers")]
+    let pi_ccs_elapsed = pi_ccs_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let pi_rlc_started = std::time::Instant::now();
     let combined = pi_rlc::verify(tr, pp, s, mix_rhos_commits, &ccs_out_claims, &proof.pi_rlc)?;
+    #[cfg(feature = "perf-timers")]
+    let pi_rlc_elapsed = pi_rlc_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let pi_dec_started = std::time::Instant::now();
     let children = pi_dec::verify(pp, s, combine_b_pows, &combined, &proof.pi_dec)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[nifs-verify] parent={:.3}s pi_ccs={:.3}s pi_rlc={:.3}s pi_dec={:.3}s total={:.3}s fresh={} running={} outputs={} children={}",
+        parent_elapsed.as_secs_f64(),
+        pi_ccs_elapsed.as_secs_f64(),
+        pi_rlc_elapsed.as_secs_f64(),
+        pi_dec_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+        fresh_claims.len(),
+        running.claims.len(),
+        ccs_out_claims.len(),
+        children.len(),
+    );
     Ok(RunningInstance {
         claims: children,
         witnesses: Vec::new(),

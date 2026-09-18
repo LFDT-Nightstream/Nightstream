@@ -196,7 +196,15 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     me_input_accumulator_handle: [F; 4],
     log: &L,
     cache: &OptimizedStructureCache,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        PiCcsProvePerf,
+        super::PiDecProverPrecompute,
+    ),
+    PiCcsError,
+> {
     let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
         tr,
         params,
@@ -224,7 +232,12 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     proof.sumcheck_final_nc = terminal_state.sumcheck_final_nc;
     proof.header_digest = terminal_state.fold_digest.to_vec();
 
-    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+    Ok((
+        terminal_state.me_outputs,
+        proof,
+        terminal_state.perf,
+        terminal_state.pi_dec_precompute,
+    ))
 }
 
 pub fn optimized_replay_terminal_state_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
@@ -958,6 +971,7 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         fold_digest,
         log,
     );
+    let pi_dec_precompute = oracle.take_pi_dec_precompute();
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!("optimized_prove: 6. output             {output_materialize_ms:>9.2}ms");
@@ -984,6 +998,7 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         sumcheck_final_nc: running_sum_nc,
         fold_digest,
         perf,
+        pi_dec_precompute,
     };
     let rounds = mode.captures_rounds().then(|| OptimizedProofRounds {
         sumcheck_rounds: sumcheck_rounds.expect("prove mode must capture FE rounds"),

@@ -6,8 +6,9 @@
 //! inside `paper::construction2::prove_final_fold`.
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{self, SemanticStateAdvance, State};
+use crate::paper::construction2::{self, NebulaAdvance, NebulaLane, SemanticStateAdvance, State};
 use crate::paper::relations::{CcsClaim, CcsInstance};
+use neo_math::F;
 
 /// Drive the IVC over a sequence of batches, top-down. Each batch is
 /// `Vec<CcsInstance>` — typically produced by
@@ -38,7 +39,23 @@ pub fn extend(
     audit: UncompressedAudit,
     batch: Vec<CcsInstance>,
 ) -> Result<UncompressedAudit, Error> {
-    extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless)
+    extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless, None)
+}
+
+/// Extend a Nebula chain with the step that **opens a segment**: `d_pre`
+/// is the prover's claimed per-lane chain digests over the segment's
+/// forthcoming lane-commitment leaves (spec §6.2, L0b — computed by the
+/// segment prover's precommit pass). γ is squeezed inside the lane
+/// transition; the payload rides `StepProof.nebula_open` so the verifier
+/// replays the identical open. Mid-segment continuation steps use plain
+/// [`extend`].
+pub fn extend_nebula_open(
+    prep: &Preprocessing,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    d_pre: [[F; 4]; 3],
+) -> Result<UncompressedAudit, Error> {
+    extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless, Some(d_pre))
 }
 
 /// Begin a stateful proof: seed the base state with
@@ -66,6 +83,7 @@ pub fn prove_one_with_semantic_state(
         audit,
         batch,
         SemanticStateAdvance::Stateful(semantic_state_digest_next),
+        None,
     )
 }
 
@@ -88,6 +106,7 @@ pub fn extend_with_semantic_state(
         audit,
         batch,
         SemanticStateAdvance::Stateful(semantic_state_digest_next),
+        None,
     )
 }
 
@@ -96,12 +115,16 @@ fn extend_inner(
     mut audit: UncompressedAudit,
     batch: Vec<CcsInstance>,
     semantic_advance: SemanticStateAdvance,
+    nebula_open: Option<[[F; 4]; 3]>,
 ) -> Result<UncompressedAudit, Error> {
     if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
     }
     if batch.is_empty() {
         return Err(Error::EmptyBatch);
+    }
+    if prep.enforces_terminal_induction() && batch.len() != 1 {
+        return Err(Error::TerminalInductionArity { got: batch.len() });
     }
     let max_fresh = prep.params.max_fresh_count();
     if batch.len() > max_fresh {
@@ -112,6 +135,38 @@ fn extend_inner(
     }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
+    // Nebula lane transition (spec §6.3): the prover runs the same shared
+    // decode-and-advance the verifiers replay, so a malformed segment
+    // fails here — at the named §6.3 check — instead of at verification.
+    let nebula_advance = if prep.enforces_terminal_induction() {
+        delayed_nebula_advance(prep, &audit.proof.state, nebula_open)?
+    } else {
+        match (prep.nebula(), &audit.proof.state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let state = &audit.proof.state;
+                let mut lane_out = lane.clone();
+                lane_out.advance_for_batch(
+                    cfg,
+                    prep.vk.digest(),
+                    state.z_i,
+                    state.acc_digest,
+                    nebula_open,
+                    &public_batch,
+                )?;
+                Some(NebulaAdvance {
+                    lane_out,
+                    open: nebula_open,
+                })
+            }
+            (None, None) => {
+                if nebula_open.is_some() {
+                    return Err(Error::NebulaNotConfigured);
+                }
+                None
+            }
+            _ => return Err(Error::NebulaLanePresenceMismatch),
+        }
+    };
     let (next_state, step_proof) = construction2::step_with_semantic_state(
         &prep.params,
         prep.structure(),
@@ -124,11 +179,44 @@ fn extend_inner(
         audit.proof.state,
         batch,
         semantic_advance,
+        prep.nebula().map(|cfg| &cfg.scheme),
+        nebula_advance,
     )?;
     audit.proof.state = next_state;
     audit.steps.push(step_proof);
     audit.public_batches.push(public_batch);
     Ok(audit)
+}
+
+fn delayed_nebula_advance(
+    prep: &Preprocessing,
+    state: &State,
+    external_open: Option<[[F; 4]; 3]>,
+) -> Result<Option<NebulaAdvance>, Error> {
+    if external_open.is_some() {
+        return Err(Error::TerminalInductionExternalNebulaOpen);
+    }
+    match (prep.nebula(), &state.nebula) {
+        (Some(cfg), Some(lane)) => {
+            let mut lane_out = lane.clone();
+            if let crate::paper::construction2::ProofState::Active { latest, .. } = &state.proof {
+                let claims = latest.claims();
+                if !claims.is_empty() {
+                    lane_out.advance_for_delayed_claims(
+                        cfg,
+                        prep.vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN,
+                        &claims,
+                    )?;
+                }
+            }
+            Ok(Some(NebulaAdvance { lane_out, open: None }))
+        }
+        (None, None) => Ok(None),
+        _ => Err(Error::NebulaLanePresenceMismatch),
+    }
 }
 
 /// Base-case `UncompressedAudit`: empty steps, empty `public_batches`,
@@ -143,9 +231,15 @@ fn start_proof_with_semantic_state(prep: &Preprocessing, semantic_state_digest: 
     let z_0 = crate::paper::digest::initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = crate::paper::digest::public_trace_seed_digest(&structure);
     let acc_digest = crate::paper::digest::AccumulatorHandle::empty().digest();
+    let mut state = State::base(z_0, public_trace, acc_digest, semantic_state_digest);
+    // A Nebula preprocessing carries the lane from the very first state:
+    // counters at zero, products at 1_K, memory bound to the plan's D_init.
+    if let Some(cfg) = prep.nebula() {
+        state.nebula = Some(NebulaLane::base(cfg));
+    }
     UncompressedAudit {
         proof: Uncompressed {
-            state: State::base(z_0, public_trace, acc_digest, semantic_state_digest),
+            state,
             final_fold: None,
         },
         steps: Vec::new(),

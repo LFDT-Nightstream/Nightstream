@@ -1,20 +1,21 @@
 # Twist/Shout Lean (Standalone)
 
-This package is intentionally separate from [superneo-lean](/Users/nicolasarqueros/.codex/worktrees/fec7/halo3/formal/superneo-lean/README.md).
+This package is intentionally separate from [superneo-lean](../superneo-lean/README.md).
 Its job is a paper-faithful, proof-complete Lean formalization of Setty-Thaler's
 Twist/Shout paper, as a standalone mathematical artifact rather than a SuperNeo specialization.
 
 ## Design Rules
 
 - The package mirrors the paper's theorem dependency graph before it mirrors any downstream integration.
-- Each theorem-bearing component uses the same 3-layer layout:
+- Each theorem-bearing component uses a 2-layer layout:
   - human spec: `specs/<Name>.spec.md`
-  - typed interface: `TwistShout/<Name>Interface.lean`
   - implementation: `TwistShout/<Name>.lean`
+  `<Name>Interface.lean` files exist only where they declare boundary content of
+  their own; do not add per-module re-export façades.
 - Specs are stateless. They describe the timeless mathematical target, not current proof status.
 - Shared-core extraction from SuperNeo is deferred. Common modules such as `EqPoly`, `MLE`, and `SumCheck`
   are named and documented so they can move later without changing their theorem-facing intent.
-- SuperNeo/Nightstream integration belongs in a separate bridge layer, not in this package.
+- SuperNeo integration belongs in a separate bridge layer, not in this package.
 
 ## Layout
 

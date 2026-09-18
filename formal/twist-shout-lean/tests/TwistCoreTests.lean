@@ -1,6 +1,6 @@
-import TwistShout.TwistCoreInterface
+import TwistShout.TwistCore
 
-open TwistShout.TwistCoreInterface
+open TwistShout
 
 namespace tests.twistcore
 

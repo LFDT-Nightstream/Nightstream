@@ -111,6 +111,7 @@ fn build_test_ce_claim(rng: &mut Rng, m_in: usize, t: usize, d_sz: usize, kappa:
     let r = rng.next_k_vec(r_len);
     let y_ring: Vec<Vec<K>> = (0..t).map(|_| rng.next_k_vec(d_sz)).collect();
     CeClaim {
+        adv: None,
         c,
         X: x,
         r,

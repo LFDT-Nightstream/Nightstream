@@ -1,7 +1,7 @@
 /-!
 Contract boundary for parent-bound direct CCS F' accumulator authorization.
 
-Spec: `specs/ProofSystem/PrivatePiDec/Spec/DecAuthorization.spec.md`
+Spec: `specs/PrivatePiDec/Spec/DecAuthorization.spec.md`
 -/
 
 namespace DirectCcsFPrime

@@ -1,10 +1,15 @@
 # AGENTS.md
 
 ## Formal Lean Subproject
-- Use this 3-layer layout for each formalized component:
+- Use this 2-layer layout for each formalized component:
   - Human spec: `specs/<Name>.spec.md`
-  - Typed Lean interface: `SuperNeo/<Section>/<Name>Interface.lean` (colocated with the implementation; top-level barrels keep `SuperNeo/<Name>Interface.lean`)
   - Lean implementation: `SuperNeo/<Section>/<Name>.lean`
+- `<Name>Interface.lean` files exist only where they are a real consumed boundary:
+  - a downstream package imports the module (e.g. `PiCCSInterface`, `PiRLCInterface`,
+    `PiDECInterface`, `DecompInterface` consumed by `direct-ccs-fprime-lean`), or
+  - the file declares boundary content of its own instead of re-exporting the implementation.
+  Do not add per-module interface façades that merely `abbrev`/delegate to the
+  implementation; they double the file count without adding a checked boundary.
 - File-size cap exceptions (owner-confirmed): `SuperNeo/Primitives/Ring.lean`, `SuperNeo/EmbeddingTheory/Thm3Core.lean`, and `SuperNeo/Primitives/Decomp.lean` exceed the repo's 1,500-line cap as single cohesive proof developments over file-spanning `private` lemma substrates. Do not split them mechanically (that would force de-privatizing their helpers); revisit a split only when one of them is reopened for substantive work.
 - Lean build discipline:
   - During iteration, build only the target module(s) you changed and their dependencies, not the whole package.
@@ -24,13 +29,11 @@
     concrete closure plan in the module spec and README.
 - Project-local skill for this workflow:
   - Path: `../../.codex/skills/superneo-lean-interface-spec/SKILL.md`
-  - Purpose: create/update per-module Lean contract pairs
-    (`SuperNeo/<Section>/<Name>Interface.lean` + `specs/<Name>.spec.md`).
-  - Use when: standardizing specs, adding missing interface/spec files, or
-    auditing assumptions/consumers against `./SuperNeo.pdf.md`.
-- Keep interface files colocated with implementations (Objective-C style), not in a separate top-level folder.
-- `*.spec.md` is the external/human-facing specification; `*Interface.lean` is the machine-checked boundary.
+  - Purpose: create/update per-module specs (`specs/<Name>.spec.md`) and, only at
+    consumed boundaries, `SuperNeo/<Section>/<Name>Interface.lean`.
+  - Use when: standardizing specs or auditing assumptions/consumers against `./SuperNeo.pdf.md`.
+- Keep the remaining interface files colocated with implementations (Objective-C style), not in a separate top-level folder.
+- `*.spec.md` is the external/human-facing specification.
 - Specs must be **stateless**: they describe the timeless mathematical target (what the module must achieve), never the current implementation progress. Do not use language like "currently proved", "not yet implemented", "scaffold", "pending", or "in progress" in specs. A spec should read identically whether the module is 0% or 100% complete.
 - Avoid naming Lean boundary files as `*Spec.lean` or `*Contract.lean` to prevent confusion with prose specs and crypto terminology.
-- Interfaces should expose theorem/definition shapes and boundary assumptions clearly; implementations should satisfy or instantiate those interfaces.
-- Prefer thin/stable interfaces and keep implementation details out of `*Interface.lean`.
+- Where an interface file exists, keep it thin: theorem/definition shapes and boundary assumptions only, no implementation details.

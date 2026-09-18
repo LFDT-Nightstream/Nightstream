@@ -45,13 +45,13 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::{
-    self, FoldProof, LatestInstance, ProofState, RunningInstance, SemanticStateAdvance, SemanticStateMode, State,
-    StepProof, VerifierKey,
+    self, FoldProof, LatestInstance, NebulaAdvance, ProofState, RunningInstance, SemanticStateAdvance,
+    SemanticStateMode, State, StepProof, VerifierKey,
 };
 use crate::paper::digest::digest32_as_fields;
 use crate::paper::nifs;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance, DecMixer, RlcMixer, Structure};
+use crate::paper::relations::{CcsClaim, CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
 
 pub use construction2::Error;
 
@@ -74,12 +74,12 @@ pub const F_PRIME_STEP_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/f_prime/step/v
 fn absorb_f_prime_step_context(
     tr: &mut Transcript,
     vk: &VerifierKey,
-    structure_digest: &[F; 4],
+    _structure_digest: &[F; 4],
     state: &State,
     chunk_digest: [F; 4],
 ) {
     tr.append_fields(b"f_prime/vk_fs", &digest32_as_fields(vk.digest()));
-    tr.append_fields(b"f_prime/structure", structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &vk.pi_ccs_header_bundle());
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count)]);
     tr.append_fields(b"f_prime/z_0", &digest32_as_fields(state.z_0));
@@ -91,6 +91,12 @@ fn absorb_f_prime_step_context(
     );
     tr.append_fields(b"f_prime/acc_digest_in", &digest32_as_fields(state.acc_digest));
     tr.append_fields(b"f_prime/public_trace_in", &digest32_as_fields(state.public_trace));
+    // Present-only (spec §6.1): plain chains keep the pre-Nebula absorb
+    // sequence, so the in-circuit transcript prefix stays in parity until
+    // the F′ R1CS carries the lane (spec §13 step 9).
+    if let Some(lane) = &state.nebula {
+        tr.append_fields(b"f_prime/nebula_lane_in", &lane.digest());
+    }
     tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
 }
 
@@ -154,6 +160,8 @@ pub fn prove(
         state,
         next_latest,
         SemanticStateAdvance::Stateless,
+        None,
+        None,
     )
 }
 
@@ -170,6 +178,8 @@ pub fn prove_with_semantic_state(
     state: State,
     next_latest: Vec<CcsInstance>,
     semantic_advance: SemanticStateAdvance,
+    lanes: Option<&LaneScheme>,
+    nebula_advance: Option<NebulaAdvance>,
 ) -> Result<(State, StepProof), Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
@@ -193,6 +203,7 @@ pub fn prove_with_semantic_state(
         acc_digest,
         public_trace,
         proof: prev_proof,
+        nebula,
     } = state;
 
     // F' fold step — branch on the tagged ProofState.
@@ -215,18 +226,20 @@ pub fn prove_with_semantic_state(
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
+                nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
-            let (next_running, nifs_proof) = nifs::prove(
+            let (next_running, nifs_proof) = nifs::prove_owned(
                 &mut tr,
                 pp,
                 s,
                 cache,
                 log,
+                lanes,
                 mix_rhos_commits,
                 combine_b_pows,
                 latest.instances,
-                &running,
+                running,
             )?;
             (next_running, FoldProof::Recursive(nifs_proof))
         }
@@ -250,7 +263,9 @@ pub fn prove_with_semantic_state(
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance_state reads new_proof for the new state
+        nebula: nebula.clone(),
     };
+    let nebula_open = nebula_advance.as_ref().and_then(|adv| adv.open);
     let next_state = construction2::advance_state(
         pp,
         prev_state_for_advance,
@@ -258,18 +273,21 @@ pub fn prove_with_semantic_state(
         fresh_count,
         chunk_digest,
         semantic_advance,
-    );
+        nebula_advance.map(|adv| adv.lane_out),
+    )?;
     let semantic_mode = match semantic_advance {
         SemanticStateAdvance::Stateless => SemanticStateMode::Stateless,
         SemanticStateAdvance::Stateful(_) => SemanticStateMode::Stateful,
     };
     let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state, semantic_mode);
+    let semantic_state_digest = next_state.semantic_state_digest;
 
     Ok((
-        next_state.clone(),
+        next_state,
         StepProof {
             fold,
-            semantic_state_digest: next_state.semantic_state_digest,
+            nebula_open,
+            semantic_state_digest,
             x_out,
         },
     ))
@@ -311,6 +329,7 @@ pub fn verify(
     next_latest_claims: &[CcsClaim],
     proof: &StepProof,
     semantic_mode: SemanticStateMode,
+    nebula_advance: Option<NebulaAdvance>,
 ) -> Result<State, Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
@@ -332,6 +351,7 @@ pub fn verify(
         acc_digest,
         public_trace,
         proof: prev_proof,
+        nebula,
     } = state;
 
     // F' fold-step verifier — branch on (prev_proof, proof.fold).
@@ -353,6 +373,7 @@ pub fn verify(
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
+                nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             nifs::verify(
@@ -388,6 +409,7 @@ pub fn verify(
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance reads new_proof
+        nebula: nebula.clone(),
     };
     let semantic_advance = match semantic_mode {
         // Stateless plans have no F' image binding rows for the semantic
@@ -401,6 +423,9 @@ pub fn verify(
         SemanticStateMode::Stateless => SemanticStateAdvance::Stateless,
         SemanticStateMode::Stateful => SemanticStateAdvance::Stateful(proof.semantic_state_digest),
     };
+    if proof.nebula_open != nebula_advance.as_ref().and_then(|adv| adv.open) {
+        return Err(Error::NebulaOpenMismatch);
+    }
     let next_state = construction2::advance_state(
         pp,
         prev_state_for_advance,
@@ -408,7 +433,8 @@ pub fn verify(
         fresh_count,
         chunk_digest,
         semantic_advance,
-    );
+        nebula_advance.map(|adv| adv.lane_out),
+    )?;
     if matches!(semantic_mode, SemanticStateMode::Stateless)
         && next_state.semantic_state_digest != proof.semantic_state_digest
     {

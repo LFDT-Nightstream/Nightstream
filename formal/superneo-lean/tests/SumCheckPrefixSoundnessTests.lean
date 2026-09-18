@@ -1,4 +1,4 @@
-import SuperNeo.ProofSystem.SumCheck.PrefixSoundnessEndpoint
+import SuperNeo.SumCheck.PrefixSoundnessEndpoint
 
 open SuperNeo
 open SuperNeo.ProofSystem

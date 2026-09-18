@@ -33,28 +33,30 @@ Operationally:
 
 ## Layout
 
-The directory structure mirrors the paper's four main sections. Each section
-directory is paired with a same-named top-level barrel module that re-exports
-it, and every implementation module `X.lean` sits next to its machine-checked
-boundary `XInterface.lean` (human spec in `specs/X.spec.md`).
+The directory structure mirrors the paper's sections. Each section directory
+is paired with a same-named top-level barrel module that re-exports it, and
+every module has a human spec in `specs/<Name>.spec.md`. `<Name>Interface.lean`
+files exist only at consumed boundaries (see `AGENTS.md`).
 
-All modules under `SuperNeo/` — including every `*Interface.lean` — are part
-of the default `lake build` (recursive lib glob), so a drifted interface fails
-the build instead of rotting silently.
+All modules under `SuperNeo/` — including the remaining `*Interface.lean`
+files — are part of the default `lake build` (recursive lib glob), so a
+drifted boundary fails the build instead of rotting silently.
 
 | Directory | Barrel | Paper section | Contents |
 |---|---|---|---|
-| `SuperNeo/Primitives/` | `SuperNeo/Primitives.lean` | Section 4 (Preliminaries) | Goldilocks field/extension, ring `R_q`, coefficient maps, norms, balanced decomposition, `eq`/MLE/sum-check cores, interpolation, Appendix B.2 parameters |
+| `SuperNeo/Primitives/` | `SuperNeo/Primitives.lean` | Section 4 (Preliminaries) | Goldilocks field/extension, ring `R_q`, coefficient maps, norms, balanced decomposition, `eq`/MLE, interpolation, Appendix B.2 parameters |
+| `SuperNeo/SumCheck/` | `SuperNeo/SumCheck.lean` | Section 4 (Definition 6) | Sum-check protocol scaffold and Definition-6 paper closure (`Core`/`Paper`), the `KExt` mirror (`Extension`/`ExtensionPaper`), and the round-by-round soundness development (`Defs`..`General`, prefix-soundness endpoints) |
+| `SuperNeo/Commitment/` | `SuperNeo/Commitment.lean` | Section 4 (Def 4, Thm 2) | Ajtai/MSIS surfaces, binding and relaxed-binding boundaries, MSIS-to-Ajtai reductions and extractors |
 | `SuperNeo/EmbeddingTheory/` | `SuperNeo/EmbeddingTheory.lean` | Section 5 (Defs 7-8, Thms 3-5) | Definition 7 embeddings, Theorem 3 core, Definition 8 bar-lift, Theorem 4 matrix transform, Remark 2 eval linkage, Definition 15 module homs, Theorem 5 eval homomorphism |
-| `SuperNeo/SecurityModel/` | `SuperNeo/SecurityModel.lean` | Section 6 (Defs 9-10, 16-18, Thms 2, 6, 8-9) | Weak/strong interactive reductions, Theorem 8 invertibility (axioms + constructive Goldilocks), Definition 17/Theorem 9 sampling sets |
-| `SuperNeo/FoldingProtocol/` | `SuperNeo/FoldingProtocol.lean` | Section 7 (Defs 11-14, Lemmas 3-4, Thm 7) | Section 7.1 relations/data/context owners, Π_CCS, Π_RLC, Π_DEC, arithmetic bundle/obligations, protocol target(s), final protocol theorem, parent-authority Fiat-Shamir reroute lemma |
-| `SuperNeo/ProofSystem/` | `SuperNeo/ProofSystem.lean` | Proof-system facade | Types, probability/error model, lattice assumptions (MSIS/Ajtai), CCS constraint system, sum-check facade, protocol entrypoint |
+| `SuperNeo/SecurityModel/` | `SuperNeo/SecurityModel.lean` | Section 6 (Defs 9-10, 16-18, Thms 2, 6, 8-9) | Weak/strong interactive reductions, protocol vocabulary (`Types`), probability/negligible surfaces, Theorem 8 invertibility (axioms + constructive Goldilocks), Definition 17/Theorem 9 sampling sets |
+| `SuperNeo/FoldingProtocol/` | `SuperNeo/FoldingProtocol.lean` | Section 7 (Defs 11-14, Lemmas 3-4, Thm 7) | Section 7.1 relations (`ConstraintSystem/CCS`), data/context owners, Π_CCS, Π_RLC, Π_DEC, arithmetic bundle/obligations, protocol target(s), final protocol theorem, parent-authority Fiat-Shamir reroute lemma |
+| `SuperNeo/Protocol.lean` | (top-level module) | Capstone facade | Client-facing entrypoint names over `FoldingProtocol/ProtocolTheorem` |
 | `SuperNeo/Golden/` | — (separate `goldilocks-golden` exe) | — | Golden-value executable, excluded from the theorem import wall |
 
-To locate a paper claim: pick the section directory, open the module named
+To locate a paper claim: pick the section directory and open the module named
 after the construction (for example `FoldingProtocol/PiDEC.lean` for Section
-7.5), and read its `...Interface.lean` neighbor for the curated theorem
-surface with paper line anchors.
+7.5); paper line anchors live in the module and, where one exists, its
+`...Interface.lean` neighbor.
 
 ## Run Lean checks
 
@@ -199,8 +201,9 @@ closure standard's "quantified theorem level" bar remains open for them.
 ## Opening-Convergence Follow-On Frontier
 
 The tracked SuperNeo milestone set is closed, but there is one historical
-follow-on theorem frontier from `formal/deprecated/opening-convergence-lean`,
-which reached its own local closure:
+follow-on theorem frontier from the retired `opening-convergence-lean` package
+(removed from the tree; recoverable from git history), which reached its own
+local closure:
 
 - the existing SumCheck formalization is still base-field (`SuperNeo.F`) only
 - Nightstream opening convergence Phase 1 is over the extension field
@@ -211,7 +214,7 @@ The first two prerequisite layers are now in place:
 1. `SuperNeo/Primitives/ExtensionField.lean` provides the quadratic extension carrier,
 2. `SuperNeo/Primitives/ExtensionMLE.lean` provides the extension-field MLE/equality +
    linearity layer,
-3. `SuperNeo/Primitives/ExtensionSumCheck.lean` provides the extension-field
+3. `SuperNeo/SumCheck/Extension.lean` provides the extension-field
    Definition-6 protocol surface and verifier-side acceptance scaffold.
 
 So the next paper-faithful closure target is the **soundness/completeness
@@ -219,10 +222,10 @@ closure of extension-field SumCheck**:
 
 1. accepted-transcript to claim-truth closure over `SuperNeo.KExt`,
 2. the terminal-value / honest-table theorem needed to replace the carried
-   `sumcheckTerminalCorrect` hypothesis in the deprecated
+   `sumcheckTerminalCorrect` hypothesis from the retired
    `opening-convergence-lean` package,
 3. the proof-system-level generalization or specialization needed to connect
-   that closure into `ProofSystem/SumCheck/General.lean`
+   that closure into `SumCheck/General.lean`
 
 This is not a regression in the tracked SuperNeo milestone table. It is a new
 consumer-driven generalization frontier opened by the now-closed
@@ -244,7 +247,7 @@ If you only need the conclusion, read in this order:
    - `specs/SumCheck.spec.md`
    - `specs/ProtocolRelations.spec.md`
    - `specs/InteractiveReductions.spec.md`
-   - `specs/ProofSystem/LatticeReductions.spec.md`
+   - `specs/LatticeReductions.spec.md`
 
 Operationally:
 - `lake build` + `lake exe check` show the repo is green.
@@ -320,16 +323,16 @@ paper Definition, Theorem, or Lemma.
 | `S5.5` | Remark 2 + Def 15 | `EvalLink.lean`, `ModuleHom.lean` | Eval/`ct` linkage; module-hom linearity. | S4.1, S5.4 | S5.6 | Done (Proof-Complete): eval-link and module-hom quantified theorem/check bridges are proved in-module; remaining generic gaps are upstream, not in these local shells. |
 | `S5.6` | Thm 5 (eval homomorphism) | `EvalHom.lean` | Linear-combination preservation under evaluation. | S5.4, S5.5 | S7.5 | Done (Proof-Complete): theorem-native closure is proved constructively from MLE linearity, and all eval-hom boundary constructors are derived in-module. |
 | `S6.1` | Defs 5, 9-10, Thm 6 | `InteractiveReductions.lean` | Weak/strong reductions compose correctly. | - | S7.6 | Done (Witness-Level): strong/weak composition theorems are proved from `InteractiveReductionAssumptions` (one `ProtocolTargetAssumptions` bundle plus one accepted SumCheck transition witness) by composing the Π_CCS/Π_RLC/Π_DEC theorems; the Definition-5/9/10 adversary-extractor model that Theorem 6 quantifies over is not formalized. |
-| `S6.2` | Defs 4, 16, 18, Thm 2 | `ProofSystem/Lattice.lean`, `ProofSystem/LatticeReductions.lean`, `ProofSystem/LatticePaper.lean` | Ajtai commitment properties, MSIS hardness, binding reductions. | - | S6.3, S7.6 | Done (Proof-Complete): Defs 4/16/18 and Theorem 2 are proved constructively; the generic carrier route leaves only the paper's intended `samplingCarrier` + strong-sampling inputs explicit, and the active Goldilocks `paperCarrier` route reconstructs the full Ajtai reduction package directly from theorem-level MSIS hardness. |
+| `S6.2` | Defs 4, 16, 18, Thm 2 | `Commitment/Lattice.lean`, `Commitment/LatticeReductions.lean`, `Commitment/LatticePaper.lean` | Ajtai commitment properties, MSIS hardness, binding reductions. | - | S6.3, S7.6 | Done (Proof-Complete): Defs 4/16/18 and Theorem 2 are proved constructively; the generic carrier route leaves only the paper's intended `samplingCarrier` + strong-sampling inputs explicit, and the active Goldilocks `paperCarrier` route reconstructs the full Ajtai reduction package directly from theorem-level MSIS hardness. |
 | `S6.3` | Thm 8 (invertibility) | `InvertibilityAxioms.lean`, `InvertibilityGoldilocks.lean` | Low-norm invertibility preconditions and interface. | S4.2, S4.6, S6.2 | S6.4, S7.5 | Done (Proof-Complete): the theorem surface is shape-aware (`hasRingDegreeShape a → 0 < ‖a‖∞ < B → invertibleRq a`), `InvertibilityGoldilocks.lean` proves the concrete Goldilocks theorem at the paper floor `goldilocksPaperBInv = 383`, the narrower threshold-`5` route is a corollary, and the active `paperCarrier`-difference route is derived from that constructive theorem in-repo. |
 | `S6.4` | Def 17 + Thm 9 (sampling) | `SamplingSet.lean` | Strong-sampling + expansion-factor interface. | S4.2, S6.3 | S7.5 | Done (Proof-Complete) for module-level contract surfaces (`samplingDiffSet`, `strongSamplingExpansionProp`, and associated theorem wrappers). |
-| `S6.5` | Error/negligible model | `ProofSystem/{Types,Security,Negligible}.lean` | `ProbModel`, `ErrorModel`, `IsNegligible`. | - | S7.6 | Done (Proof-Complete): the canonical `ErrorModel` now derives `epsTotal` and its negligibility internally from the five component boundaries, and the final theorem consumes that model directly on the active protocol path. |
-| `S7.1` | Defs 11-14 (CCS) | `ProofSystem/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean`, `ProtocolSection71Context.lean` | Norm-bounded CCS structure and evaluation relations. | - | S7.2, S7.3 | Done (Proof-Complete): `ProofSystem/ConstraintSystem/CCS.lean` formalizes the paper-facing Section 7.1 structure / CCS / CE / global-parameter objects with explicit statement and witness predicates; `ProtocolRelations.lean` owns the compact relation predicates and the single theorem-native Definition-14 owner `ProtocolSection71TheoremInstance` with two-way relation bridges; `ProtocolSection71Context.lean` packages that owner with its target context as the single-object owner consumed externally. |
+| `S6.5` | Error/negligible model | `SecurityModel/{Types,Security,Negligible}.lean` | `ProbModel`, `ErrorModel`, `IsNegligible`. | - | S7.6 | Done (Proof-Complete): the canonical `ErrorModel` now derives `epsTotal` and its negligibility internally from the five component boundaries, and the final theorem consumes that model directly on the active protocol path. |
+| `S7.1` | Defs 11-14 (CCS) | `FoldingProtocol/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean`, `ProtocolSection71Context.lean` | Norm-bounded CCS structure and evaluation relations. | - | S7.2, S7.3 | Done (Proof-Complete): `FoldingProtocol/ConstraintSystem/CCS.lean` formalizes the paper-facing Section 7.1 structure / CCS / CE / global-parameter objects with explicit statement and witness predicates; `ProtocolRelations.lean` owns the compact relation predicates and the single theorem-native Definition-14 owner `ProtocolSection71TheoremInstance` with two-way relation bridges; `ProtocolSection71Context.lean` packages that owner with its target context as the single-object owner consumed externally. |
 | `S7.2` | Sec 7.3, Lemma 3 (Π_CCS) | `PiCCS.lean` | Π_CCS is a strong interactive reduction. | S4.4, S7.1 | S7.4 | Done (Witness-Level): the relation-level content of Lemma 3 is proved from compact `ceRelation` (`piCCSStrong_of_ce`) and from `ProtocolTargetAssumptions` plus a SumCheck transition witness (`piCCSStrong_of_assumptions`); the probabilistic strong-reduction statement (adversary, `⟨P*, V⟩`, extractor) is not formalized. |
 | `S7.3` | Sec 7.4, Lemma 4 (Π_RLC) | `PiRLC.lean` | Π_RLC is a weak interactive reduction. | S7.2 | S7.4 | Done (Witness-Level): the relation-level content of Lemma 4 is proved from compact `ceRelation` (`piRLCWeak_of_ce`) and from `ProtocolTargetAssumptions` plus a transition witness (`piRLCWeak_of_assumptions`); the probabilistic weak-reduction statement is not formalized. |
 | `S7.4` | Sec 7.5, Thm 7 (Π_DEC) | `PiDEC.lean` | Π_DEC is a reduction of knowledge. | S7.3 | S7.6 | Done (Witness-Level): the relation-level content of Theorem 7 is proved from the weak `Π_RLC` statement (`piDEC_of_weak`), from compact `ceRelation` (`piDEC_of_ce`), and from `ProtocolTargetAssumptions` plus a transition witness (`piDEC_of_assumptions`); the reduction-of-knowledge statement itself is not formalized. |
 | `S7.5` | Arithmetic obligations | `ArithmeticBundle.lean`, `ArithmeticObligations.lean`, `ProtocolTarget.lean` | Side-conditions compose cleanly for protocol reduction. | S4.2, S4.5, S5.4, S5.6, S6.3, S6.4 | S7.6 | Done (Proof-Complete): theorem-native arithmetic bundles and protocol-target derivations are proved; `ProtocolTargetAssumptions` is the single protocol-side owner, with `ofPaperCarrierDiff` internalizing the proved Goldilocks invertibility bridge on the active route. |
-| `S7.6` | Thm 1 (protocol theorem) | `ProtocolTheorem.lean`, `ProofSystem/Protocol.lean` | End-to-end completeness + knowledge-soundness. | S5.2, S6.1, S6.2, S6.5, S7.2, S7.3, S7.4, S7.5 | Final claim | Done (Witness-Level): theorem shape and canonical final-assumption assembly are proved; knowledge-soundness is stated as witness-level composition plus advantage bounds for the carried failure events rather than as a quantification over PPT adversaries with an extractor. On the active `paperCarrier` path the final package derives Ajtai reduction data directly from the theorem-level MSIS hardness assumption, the narrowed Goldilocks Appendix B.2 route fixes the concrete paper lattice constants while leaving only message length explicit, the active `paperCarrier`-difference route consumes the proved Goldilocks invertibility theorem directly rather than an external invertibility boundary, and the active native-bar Goldilocks route derives the witness-level SumCheck and local Schwartz-Zippel packages internally from the accepted transition witness plus arithmetic obligations while reconstructing the internal MSIS boundary from the theorem-level hardness assumption. |
+| `S7.6` | Thm 1 (protocol theorem) | `ProtocolTheorem.lean`, `Protocol.lean` | End-to-end completeness + knowledge-soundness. | S5.2, S6.1, S6.2, S6.5, S7.2, S7.3, S7.4, S7.5 | Final claim | Done (Witness-Level): theorem shape and canonical final-assumption assembly are proved; knowledge-soundness is stated as witness-level composition plus advantage bounds for the carried failure events rather than as a quantification over PPT adversaries with an extractor. On the active `paperCarrier` path the final package derives Ajtai reduction data directly from the theorem-level MSIS hardness assumption, the narrowed Goldilocks Appendix B.2 route fixes the concrete paper lattice constants while leaving only message length explicit, the active `paperCarrier`-difference route consumes the proved Goldilocks invertibility theorem directly rather than an external invertibility boundary, and the active native-bar Goldilocks route derives the witness-level SumCheck and local Schwartz-Zippel packages internally from the accepted transition witness plus arithmetic obligations while reconstructing the internal MSIS boundary from the theorem-level hardness assumption. |
 
 ### Tracked Status and Exit Criteria
 
@@ -407,10 +410,10 @@ Source references:
 | M20 | Definition 5 (interactive reductions) | `InteractiveReductions.lean` | S6.1 | Done (Witness-Level) |
 | M21 | Definitions 9-10 (weak/strong reductions) | `InteractiveReductions.lean` | S6.1 | Done (Witness-Level) |
 | M22 | Theorem 6 (strong-weak composition) | `InteractiveReductions.lean` | S6.1 | Done (Witness-Level) |
-| M23 | Definition 4 (ring commitment scheme) | `ProofSystem/Lattice.lean` | S6.2 | Done (Proof-Complete) |
-| M24 | Definition 16 (MSIS) | `ProofSystem/Lattice.lean` | S6.2 | Done (Proof-Complete) |
-| M25 | Definition 18 (Ajtai commitment) | `ProofSystem/Lattice.lean` | S6.2 | Done (Proof-Complete) |
-| M26 | Theorem 2 (Ajtai properties) | `ProofSystem/LatticeReductions.lean`, `ProofSystem/LatticePaper.lean` | S6.2 | Done (Proof-Complete) |
+| M23 | Definition 4 (ring commitment scheme) | `Commitment/Lattice.lean` | S6.2 | Done (Proof-Complete) |
+| M24 | Definition 16 (MSIS) | `Commitment/Lattice.lean` | S6.2 | Done (Proof-Complete) |
+| M25 | Definition 18 (Ajtai commitment) | `Commitment/Lattice.lean` | S6.2 | Done (Proof-Complete) |
+| M26 | Theorem 2 (Ajtai properties) | `Commitment/LatticeReductions.lean`, `Commitment/LatticePaper.lean` | S6.2 | Done (Proof-Complete) |
 | M27 | Theorem 8 (low-norm invertibility) | `InvertibilityAxioms.lean`, `InvertibilityGoldilocks.lean` | S6.3 | Done (Proof-Complete) |
 | M28 | Definition 17 (strong sampling sets) | `SamplingSet.lean` | S6.4 | Done (Proof-Complete) |
 | M29 | Theorem 9 (expansion factors) | `SamplingSet.lean` | S6.4 | Done (Proof-Complete) |
@@ -419,15 +422,15 @@ Source references:
 
 | ID | Math item (paper) | Lean target | Milestone | Status |
 |---|---|---|---|---|
-| M30 | Definition 11 (structure) | `ProofSystem/ConstraintSystem/CCS.lean` | S7.1 | Done (Proof-Complete) |
-| M31 | Definition 12 (norm-bounded CCS) | `ProofSystem/ConstraintSystem/CCS.lean` | S7.1 | Done (Proof-Complete) |
-| M32 | Definition 13 (CCS evaluation relation) | `ProofSystem/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean` | S7.1 | Done (Proof-Complete) |
-| M33 | Definition 14 (global parameters) | `ProofSystem/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean` | S7.1 | Done (Proof-Complete) |
+| M30 | Definition 11 (structure) | `FoldingProtocol/ConstraintSystem/CCS.lean` | S7.1 | Done (Proof-Complete) |
+| M31 | Definition 12 (norm-bounded CCS) | `FoldingProtocol/ConstraintSystem/CCS.lean` | S7.1 | Done (Proof-Complete) |
+| M32 | Definition 13 (CCS evaluation relation) | `FoldingProtocol/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean` | S7.1 | Done (Proof-Complete) |
+| M33 | Definition 14 (global parameters) | `FoldingProtocol/ConstraintSystem/CCS.lean`, `ProtocolRelations.lean` | S7.1 | Done (Proof-Complete) |
 | M34 | Lemma 3 (Π_CCS is strong) | `PiCCS.lean` | S7.2 | Done (Witness-Level) |
 | M35 | Lemma 4 (Π_RLC is weak) | `PiRLC.lean` | S7.3 | Done (Witness-Level) |
 | M36 | Theorem 7 (Π_DEC reduction of knowledge) | `PiDEC.lean` | S7.4 | Done (Witness-Level) |
 | M37 | Arithmetic obligations | `ArithmeticBundle.lean`, `ArithmeticObligations.lean` | S7.5 | Done (Proof-Complete) |
-| M38 | Theorem 1 (full composition) | `ProtocolTheorem.lean`, `ProofSystem/Protocol.lean` | S7.6 | Done (Witness-Level) |
+| M38 | Theorem 1 (full composition) | `ProtocolTheorem.lean`, `Protocol.lean` | S7.6 | Done (Witness-Level) |
 
 ### Infrastructure
 

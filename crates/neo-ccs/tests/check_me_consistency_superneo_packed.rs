@@ -66,6 +66,7 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
     let y0 = superneo_y_ring(&s, &Z, &r).remove(0);
 
     let inst = CeClaim::<_, Fq, K> {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

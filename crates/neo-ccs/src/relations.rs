@@ -248,6 +248,7 @@ fn transform_ccs_matrix_superneo(
     }
 
     let mut triplets: Vec<(usize, usize, Fq)> = Vec::new();
+    let mut transformed_blocks = Vec::new();
     match src {
         CcsMatrix::Identity { n } => {
             if *n != ncols {
@@ -274,10 +275,8 @@ fn transform_ccs_matrix_superneo(
                 let block = c / D;
                 let local = c % D;
                 let base = block * D;
-                let s = m.col_ptr[c];
-                let e = m.col_ptr[c + 1];
-                for k in s..e {
-                    let r = m.row_idx[k];
+                for k in m.column_range(c) {
+                    let r = m.row_index(k);
                     let v = m.vals[k];
                     for i in 0..D {
                         let coeff = v * bar[i][local];
@@ -288,9 +287,74 @@ fn transform_ccs_matrix_superneo(
                 }
             }
         }
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            triplets.reserve(csc.vals.len() * D);
+            for c in 0..csc.ncols {
+                let block = c / D;
+                let local = c % D;
+                let base = block * D;
+                for k in csc.column_range(c) {
+                    let r = csc.row_index(k);
+                    let v = csc.vals[k];
+                    for i in 0..D {
+                        let coeff = v * bar[i][local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                }
+            }
+            for run in geometric_runs {
+                run.for_each_term(|r, c, v| {
+                    let block = c / D;
+                    let local = c % D;
+                    let base = block * D;
+                    for (i, bar_row) in bar.iter().enumerate() {
+                        let coeff = v * bar_row[local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                });
+            }
+            transformed_blocks.extend(
+                blocks
+                    .iter()
+                    .map(|block| block.with_superneo_transformed_columns()),
+            );
+        }
     }
 
-    Ok(CcsMatrix::Csc(CscMat::from_triplets(triplets, nrows, ncols)))
+    let csc = CscMat::from_triplets(triplets, nrows, ncols);
+    if transformed_blocks.is_empty() {
+        Ok(CcsMatrix::Csc(csc))
+    } else {
+        CcsMatrix::csc_with_seeded_phi81(csc, transformed_blocks)
+            .map_err(|error| RelationError::Message(error.to_string()))
+    }
+}
+
+/// Nebula split-witness lane commitments — the `adv` tuple of
+/// `specs/nebula-superneo-implementation.md` §5.1.
+///
+/// Exactly three commitments, one per memory lane, each under its own
+/// Ajtai matrix (`ops` under `A_ops`; `is` and `fs` under a shared
+/// `A_mem`, which is what makes cross-segment boundary equality
+/// meaningful). The all-or-nothing shape is deliberate: a claim either
+/// carries a complete tuple or none (`Option<LaneCommitments<C>>`), so a
+/// partial tuple is unrepresentable rather than merely invalid.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LaneCommitments<C> {
+    /// Ops-lane commitment (`A_ops · embed(lane_ops)`).
+    pub ops: C,
+    /// Initial-scan-lane commitment (`A_mem · embed(lane_is)`).
+    pub is: C,
+    /// Final-scan-lane commitment (`A_mem · embed(lane_fs)`).
+    pub fs: C,
 }
 
 /// CCS claim: (c, x) with public inputs x ⊂ z.
@@ -302,6 +366,11 @@ pub struct CcsClaim<C, F> {
     pub x: Vec<F>,
     /// m_in
     pub m_in: usize,
+    /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
+    /// Folds component-wise beside `c` and is opened by the terminal
+    /// decider against its lane slices (spec §5.2).
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
 /// CCS witness: w and its decomposition Z = Decomp_b(z).
@@ -312,6 +381,38 @@ pub struct CcsWitness<F> {
     pub w: Vec<F>,
     /// Z ∈ F^{d×m}: decomposition matrix of z = x || w.
     pub Z: Mat<F>,
+}
+
+impl<F: Copy> CcsWitness<F> {
+    /// Validate the private-witness geometry without materializing a second
+    /// copy of a packed assignment.
+    pub fn private_len(&self, m_in: usize, total: usize) -> Option<usize> {
+        let private = total.checked_sub(m_in)?;
+        if self.w.len() == private {
+            return Some(private);
+        }
+        (self.w.is_empty()
+            && self
+                .Z
+                .rows()
+                .checked_mul(self.Z.cols())
+                .is_some_and(|len| len >= total))
+        .then_some(private)
+    }
+
+    /// Borrow an explicit private witness or reconstruct it from the
+    /// authoritative packed assignment `Z`.
+    pub fn private_values(&self, m_in: usize, total: usize) -> Option<std::borrow::Cow<'_, [F]>> {
+        let private = self.private_len(m_in, total)?;
+        if self.w.len() == private {
+            return Some(std::borrow::Cow::Borrowed(&self.w));
+        }
+        let rows = self.Z.rows();
+        let values = (m_in..total)
+            .map(|column| self.Z[(column % rows, column / rows)])
+            .collect();
+        Some(std::borrow::Cow::Owned(values))
+    }
 }
 
 /// CE claim: (c, X, r, {y_ring_j}, ct, aux_openings).
@@ -363,6 +464,12 @@ pub struct CeClaim<C, F, K> {
     pub u_offset: usize,
     /// Pattern A: Length of the ρ-dependent part (unused in Pattern B)
     pub u_len: usize,
+    /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
+    /// Mixed by the same public ρ/`b`-power arithmetic as `c` through
+    /// Π_RLC/Π_DEC (spec §5.2 R2) — never semantically inspected by the
+    /// reductions themselves.
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
 /// CE witness: Z.
@@ -448,13 +555,30 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
             }
         }
         CcsMatrix::Csc(csc) => {
-            let s = csc.col_ptr[col];
-            let e = csc.col_ptr[col + 1];
             let mut acc = GoldiF::ZERO;
-            for idx in s..e {
-                if csc.row_idx[idx] == row {
+            for idx in csc.column_range(col) {
+                if csc.row_index(idx) == row {
                     acc += csc.vals[idx].into();
                 }
+            }
+            acc
+        }
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            let mut acc = GoldiF::ZERO;
+            for idx in csc.column_range(col) {
+                if csc.row_index(idx) == row {
+                    acc += csc.vals[idx].into();
+                }
+            }
+            for block in blocks {
+                acc += block.entry::<GoldiF>(row, col);
+            }
+            for run in geometric_runs {
+                acc += run.entry(row, col).into();
             }
             acc
         }

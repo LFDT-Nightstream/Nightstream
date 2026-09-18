@@ -78,6 +78,7 @@ fn ring_action_only_image_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],
         kmul_count: 0,
         ring_action_pair_count: 1,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: signed_digit_ring_layout(),
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,

@@ -115,6 +115,7 @@ impl OptimizedRlcDec {
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
         superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+        ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -128,6 +129,7 @@ impl OptimizedRlcDec {
                 digit_nonzero,
                 ell_d,
                 superneo_cache,
+                ring_linear_forms,
             );
 
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {

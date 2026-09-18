@@ -88,14 +88,10 @@ fn validate_mcs_witnesses(
     mcs_witnesses: &[CcsWitness<F>],
 ) -> Result<(), PiCcsError> {
     for (idx, (inst, wit)) in mcs_list.iter().zip(mcs_witnesses.iter()).enumerate() {
-        let z_len = inst
-            .m_in
-            .checked_add(wit.w.len())
-            .ok_or_else(|| PiCcsError::InvalidInput(format!("{label}: mcs_list[{idx}] witness length overflow")))?;
-        if z_len != s.m {
+        if wit.private_len(inst.m_in, s.m).is_none() {
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}] has m_in + |w| = {} but CCS width is m={}",
-                z_len, s.m
+                "{label}: mcs_list[{idx}] private witness does not complete m_in={} to CCS width m={}",
+                inst.m_in, s.m
             )));
         }
     }
@@ -745,6 +741,7 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            None,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -768,6 +765,7 @@ where
                 child_commitments,
                 combine_b_pows,
                 superneo_cache,
+                None,
             )
         }
     }
@@ -794,6 +792,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -823,6 +822,7 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            ring_linear_forms,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -846,6 +846,7 @@ where
                 child_commitments,
                 combine_b_pows,
                 superneo_cache,
+                ring_linear_forms,
             )
         }
     }
@@ -1094,6 +1095,7 @@ where
     }
 
     Ok(CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

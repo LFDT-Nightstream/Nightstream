@@ -32,6 +32,10 @@ p3-field       = { workspace = true }
 # 0.10, brings `rand_core 0.10`'s `RngCore`) is needed — we sidestep the rand
 # 0.9-vs-0.10 trait-version mismatch by sampling u64s directly.
 p3-goldilocks  = { workspace = true }
+# LaneScheme's seeded A_ops/A_mem setup feeds `neo-ajtai::setup_par`, whose
+# RNG generics are rand 0.9's — the matching `rand_chacha` 0.9 (already in
+# the graph via neo-ajtai) is required there; the p3 alias cannot serve it.
+rand_chacha    = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 rayon          = { workspace = true }
 spartan2       = { workspace = true }
@@ -47,6 +51,7 @@ p3-field    = { workspace = true }
 rand_chacha = { workspace = true }
 bellpepper  = { workspace = true }
 sha2        = "0.10"
+serde_json  = { workspace = true }
 bincode     = { workspace = true }
 
 # Integration tests live under `tests/<category>/<file>.rs`. Cargo only picks
@@ -67,6 +72,74 @@ path = "tests/gadgets/r1cs_builder.rs"
 [[test]]
 name = "gadgets_u64_and_mux"
 path = "tests/gadgets/u64_and_mux.rs"
+
+[[test]]
+name = "gadgets_lean_artifact"
+path = "tests/gadgets/lean_artifact_export.rs"
+
+[[test]]
+name = "gadgets_seeded_phi81_lean_artifact"
+path = "tests/gadgets/seeded_phi81_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_shifted_ternary_lean_artifact"
+path = "tests/gadgets/shifted_ternary_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_u64_increment_lean_artifact"
+path = "tests/gadgets/u64_increment_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_u64_add_lean_artifact"
+path = "tests/gadgets/u64_add_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_counter_lean_artifact"
+path = "tests/gadgets/f_prime_counter_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_encoding_lean_artifact"
+path = "tests/gadgets/f_prime_encoding_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_terminal_link_lean_artifact"
+path = "tests/gadgets/f_prime_terminal_link_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_state_link_lean_artifact"
+path = "tests/gadgets/f_prime_state_link_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_base_state_lean_artifact"
+path = "tests/gadgets/f_prime_base_state_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_chunk_digest_lean_artifact"
+path = "tests/gadgets/f_prime_chunk_digest_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_ce_continuity_lean_artifact"
+path = "tests/gadgets/f_prime_ce_continuity_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_poseidon2_lean_artifact"
+path = "tests/gadgets/poseidon2_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_base_program_lean_artifact"
+path = "tests/gadgets/f_prime_base_program_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_recursive_manifest"
+path = "tests/gadgets/f_prime_recursive_manifest.rs"
+
+[[test]]
+name = "gadgets_nifs_compiler_conformance"
+path = "tests/gadgets/nifs_compiler_conformance.rs"
+
+[[test]]
+name = "gadgets_pi_rlc_projection_boundary"
+path = "tests/gadgets/pi_rlc_projection_boundary.rs"
 
 [[test]]
 name = "gadgets_poseidon2"
@@ -103,6 +176,10 @@ path = "tests/reductions/pi_ccs_split_nc_verifier.rs"
 [[test]]
 name = "reductions_ccs_native_poseidon"
 path = "tests/reductions/ccs_native_poseidon.rs"
+
+[[test]]
+name = "reductions_accumulator_sis"
+path = "tests/reductions/accumulator_sis.rs"
 
 [[test]]
 name = "reductions_pi_rlc"
@@ -145,6 +222,10 @@ name = "f_prime_digest_circuit"
 path = "tests/f_prime/digest_circuit.rs"
 
 [[test]]
+name = "f_prime_nebula_lane_circuit"
+path = "tests/f_prime/nebula_lane_circuit.rs"
+
+[[test]]
 name = "f_prime_r1cs"
 path = "tests/f_prime/r1cs.rs"
 
@@ -177,8 +258,24 @@ name = "system_lifecycle_f_prime_link"
 path = "tests/system/lifecycle_f_prime_link.rs"
 
 [[test]]
+name = "system_formal_conformance"
+path = "tests/system/formal_conformance.rs"
+
+[[test]]
 name = "system_decider_r1cs"
 path = "tests/system/decider_r1cs.rs"
+
+[[test]]
+name = "system_ring_action_projection"
+path = "tests/system/ring_action_projection.rs"
+
+[[test]]
+name = "system_rlc_projection"
+path = "tests/system/rlc_projection.rs"
+
+[[test]]
+name = "system_projection_shell"
+path = "tests/system/projection_shell.rs"
 
 [[test]]
 name = "system_ivc_invariants"
@@ -309,6 +406,10 @@ name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
 
 [[test]]
+name = "system_selective_rectangular"
+path = "tests/system/selective_rectangular.rs"
+
+[[test]]
 name = "system_r1cs_compiler_stateful"
 path = "tests/system/r1cs_compiler_stateful.rs"
 
@@ -337,9 +438,69 @@ name = "system_sha256_bellpepper_batching"
 path = "tests/system/sha256_bellpepper_batching.rs"
 
 [[test]]
+name = "system_r1cs_ivc_terminal"
+path = "tests/system/r1cs_ivc_terminal.rs"
+
+[[test]]
 name = "perf_fibonacci_bits"
 path = "tests/perf/fibonacci_bits.rs"
 
 [[test]]
 name = "perf_ring_action_low_norm_prototype"
 path = "tests/perf/ring_action_low_norm_prototype.rs"
+
+[[test]]
+name = "nebula_layout"
+path = "tests/nebula/layout.rs"
+
+[[test]]
+name = "nebula_reference"
+path = "tests/nebula/reference.rs"
+
+[[test]]
+name = "nebula_circuit"
+path = "tests/nebula/circuit.rs"
+
+[[test]]
+name = "nebula_application"
+path = "tests/nebula/application.rs"
+
+[[test]]
+name = "nebula_f_prime"
+path = "tests/nebula/f_prime.rs"
+
+[[test]]
+name = "nebula_adv"
+path = "tests/nebula/adv.rs"
+
+[[test]]
+name = "nebula_adv_fold"
+path = "tests/nebula/adv_fold.rs"
+
+[[test]]
+name = "nebula_lane"
+path = "tests/nebula/lane.rs"
+
+[[test]]
+name = "nebula_lifecycle"
+path = "tests/nebula/lifecycle.rs"
+
+[[test]]
+name = "nebula_segment"
+path = "tests/nebula/segment.rs"
+
+[[test]]
+name = "nebula_redteam"
+path = "tests/nebula/redteam.rs"
+
+[[test]]
+name = "nebula_stack"
+path = "tests/nebula/stack.rs"
+
+[[test]]
+name = "perf_nebula"
+path = "tests/perf/nebula.rs"
+
+[[test]]
+name = "perf_lowered_nifs_v"
+path = "tests/perf/lowered_nifs_v.rs"

@@ -40,15 +40,6 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    # Temporarily disabled while the merge path is focused on Rust-side
-    # stabilization and we are not gating CI on Lean conformance.
-    # - name: Install Lean toolchain
-    #   run: |
-    #     if ! command -v elan >/dev/null 2>&1; then
-    #       curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
-    #     fi
-    #     echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
@@ -63,10 +54,31 @@ jobs:
     - name: Run tests
       run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --exclude spartan2 --features "testing,debug-log,fs-guard"
 
-    # Temporarily disabled while the merge path is focused on Rust-side
-    # stabilization and we are not gating CI on Lean conformance.
-    # - name: Run Nightstream Lean/Rust conformance gates
-    #   run: bash ./scripts/check_lean_rust_conformance.sh
+  lean-assurance:
+    name: Lean assurance
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install pinned Lean toolchain
+      uses: leanprover/lean-action@v1
+      with:
+        lake-package-directory: formal/nightstream-lean
+        auto-config: false
+        build: false
+        test: false
+        lint: false
+        use-github-cache: true
+        use-mathlib-cache: false
+
+    - name: Run bounded assurance gates
+      working-directory: formal/nightstream-lean
+      run: ./scripts/validate.sh all
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

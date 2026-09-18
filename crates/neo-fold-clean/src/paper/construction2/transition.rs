@@ -119,7 +119,16 @@ pub(crate) fn advance_state(
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
-) -> State {
+    nebula_next: Option<crate::paper::construction2::NebulaLane>,
+) -> Result<State, Error> {
+    let chunk_count = prev
+        .chunk_count
+        .checked_add(1)
+        .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
+    let step_count = prev
+        .step_count
+        .checked_add(fresh_count)
+        .ok_or(Error::CounterOverflow { counter: "step_count" })?;
     let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
     // `public_trace` has the same domain-separation role as `z_i` in
     // this direct-CCS build. Keep the state field for existing public
@@ -140,9 +149,9 @@ pub(crate) fn advance_state(
         SemanticStateAdvance::Stateless => new_acc_digest,
         SemanticStateAdvance::Stateful(digest) => digest,
     };
-    State {
-        chunk_count: prev.chunk_count + 1,
-        step_count: prev.step_count + fresh_count,
+    Ok(State {
+        chunk_count,
+        step_count,
         z_0: prev.z_0,
         z_i: new_z_i,
         pc: prev.pc,
@@ -151,7 +160,10 @@ pub(crate) fn advance_state(
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         proof: new_proof,
-    }
+        // A Nebula step installs the advanced lane (spec §6.3); plain
+        // steps carry the previous lane coordinate unchanged.
+        nebula: nebula_next.or(prev.nebula),
+    })
 }
 
 /// F'-step chunk digest from `&[CcsInstance]`. Uses
@@ -188,6 +200,7 @@ pub(crate) fn compute_x_out(
     let bytes = digest::state_x_out_digest_with_mode(
         mode,
         vk.digest(),
+        vk.pi_ccs_header_bundle(),
         structure_digest,
         state.chunk_count,
         state.step_count,
@@ -197,6 +210,7 @@ pub(crate) fn compute_x_out(
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        state.nebula.as_ref().map(|lane| lane.digest()),
     );
     EncInst::from_digest(bytes)
 }

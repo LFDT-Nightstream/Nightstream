@@ -16,6 +16,43 @@ const RLC_RING_SPLIT: usize = D / 3;
 const RLC_RING_CHUNK_OUT: usize = 2 * RLC_RING_SPLIT - 1;
 const RLC_RING_SPARSE_RHS_THRESHOLD: usize = D / 4;
 
+fn add_sparse_rows<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], rows: &[Vec<(usize, Ff)>], m: usize)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+{
+    let neg_one = Ff::ZERO - Ff::ONE;
+    let add_row = |rr: usize, row_out: &mut [Ff]| {
+        for (kk, nonzeros) in rows.iter().enumerate() {
+            let coeff = rho_data[rr * D + kk];
+            if coeff == Ff::ZERO {
+                continue;
+            }
+            for &(column, value) in nonzeros {
+                if value == Ff::ONE {
+                    row_out[column] += coeff;
+                } else if value == neg_one {
+                    row_out[column] -= coeff;
+                } else {
+                    row_out[column] += coeff * value;
+                }
+            }
+        }
+    };
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if rayon::current_num_threads() > 1 {
+        acc.as_mut_slice()
+            .par_chunks_exact_mut(m)
+            .enumerate()
+            .for_each(|(rr, row_out)| add_row(rr, row_out));
+        return;
+    }
+
+    for (rr, row_out) in acc.as_mut_slice().chunks_exact_mut(m).enumerate() {
+        add_row(rr, row_out);
+    }
+}
+
 fn left_mul_acc_optimized<Ff>(acc: &mut Mat<Ff>, rho: &Mat<Ff>, a: &Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
@@ -28,6 +65,21 @@ where
 
     let m = acc.cols();
     let rho_data = rho.as_slice();
+    if a.is_packed_signed_unit() {
+        let mut row_nonzeros = (0..D)
+            .map(|_| Vec::new())
+            .collect::<Vec<Vec<(usize, Ff)>>>();
+        for (row, nonzeros) in row_nonzeros.iter_mut().enumerate() {
+            for column in 0..m {
+                let value = a[(row, column)];
+                if value != Ff::ZERO {
+                    nonzeros.push((column, value));
+                }
+            }
+        }
+        add_sparse_rows(acc, rho_data, &row_nonzeros, m);
+        return;
+    }
     let a_data = a.as_slice();
     let neg_one = Ff::ZERO - Ff::ONE;
 
@@ -59,52 +111,7 @@ where
                 }
             }
 
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            {
-                if rayon::current_num_threads() > 1 {
-                    acc.as_mut_slice()
-                        .par_chunks_exact_mut(m)
-                        .enumerate()
-                        .for_each(|(rr, row_out)| {
-                            for kk in 0..D {
-                                let coeff = rho_data[rr * D + kk];
-                                if coeff == Ff::ZERO {
-                                    continue;
-                                }
-                                for &(col, value) in &row_nonzeros[kk] {
-                                    if value == Ff::ONE {
-                                        row_out[col] += coeff;
-                                    } else if value == neg_one {
-                                        row_out[col] -= coeff;
-                                    } else {
-                                        row_out[col] += coeff * value;
-                                    }
-                                }
-                            }
-                        });
-                    return;
-                }
-            }
-
-            let acc_data = acc.as_mut_slice();
-            for rr in 0..D {
-                let row_out = &mut acc_data[rr * m..(rr + 1) * m];
-                for kk in 0..D {
-                    let coeff = rho_data[rr * D + kk];
-                    if coeff == Ff::ZERO {
-                        continue;
-                    }
-                    for &(col, value) in &row_nonzeros[kk] {
-                        if value == Ff::ONE {
-                            row_out[col] += coeff;
-                        } else if value == neg_one {
-                            row_out[col] -= coeff;
-                        } else {
-                            row_out[col] += coeff * value;
-                        }
-                    }
-                }
-            }
+            add_sparse_rows(acc, rho_data, &row_nonzeros, m);
             return;
         }
     }
@@ -518,6 +525,12 @@ fn mat_is_zero<Ff>(m: &Mat<Ff>) -> bool
 where
     Ff: Field + Copy,
 {
+    if let Some(value) = m.virtual_constant_value() {
+        return *value == Ff::ZERO;
+    }
+    if let Some(nonzero) = m.packed_signed_unit_nonzero_count() {
+        return nonzero == 0;
+    }
     m.as_slice().iter().all(|&entry| entry == Ff::ZERO)
 }
 
@@ -668,6 +681,7 @@ where
     );
 
     let out = CeClaim::<Cmt, Ff, K> {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

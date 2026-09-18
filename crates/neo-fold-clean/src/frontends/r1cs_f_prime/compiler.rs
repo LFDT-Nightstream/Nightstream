@@ -344,7 +344,7 @@ fn finalize_compile_chunk(
         // That digest is then absorbed by `state_x_out`, so the native
         // verifier and the F' CCS agree on the recursive-link hash while
         // still learning this specific `x` was proven.
-        let app_public_input = state_x_out_app_preimage_lanes_for_assignment(prep, &input.assignment)?;
+        let app_public_input = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), &input.assignment)?;
         #[cfg(feature = "perf-timers")]
         let t_assembly = std::time::Instant::now();
         let semantic_out = semantic.map(|s| s.output);
@@ -468,7 +468,7 @@ pub(crate) fn semantic_state_digests_for_inputs(
     let output = if !state_x_out.semantic_state_out_var_indices.is_empty() {
         semantic_state_digest_for_assignment(assignment, &state_x_out.semantic_state_out_var_indices)
     } else {
-        let app_public_lanes = state_x_out_app_preimage_lanes_for_assignment(prep, assignment)?;
+        let app_public_lanes = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), assignment)?;
         semantic_state_digest_for_fields(&app_public_lanes)
     };
     Ok(Some(SemanticStateDigests { input, output }))
@@ -478,7 +478,7 @@ pub(crate) fn semantic_state_digest_for_assignment(assignment: &[F], indices: &[
     semantic_state_trace_for_assignment(assignment, indices).digest_native
 }
 
-fn semantic_state_digest_for_fields(fields: &[F]) -> [F; 4] {
+pub(super) fn semantic_state_digest_for_fields(fields: &[F]) -> [F; 4] {
     encode_poseidon_trace(&build_semantic_state_preimage_fields(fields)).digest_native
 }
 
@@ -490,11 +490,11 @@ fn semantic_state_trace_for_assignment(
     encode_poseidon_trace(&build_semantic_state_preimage_fields(&values))
 }
 
-fn state_x_out_app_preimage_lanes_for_assignment(
-    prep: &R1csFPrimePreprocessing,
+pub(super) fn state_x_out_app_preimage_lanes_for_assignment(
+    plan: &RecursiveStepImagePlan,
     assignment: &[F],
 ) -> Result<Vec<F>, R1csCompilerError> {
-    let Some(state_x_out) = prep.plan.state_x_out.as_ref() else {
+    let Some(state_x_out) = plan.state_x_out.as_ref() else {
         return Ok(Vec::new());
     };
 

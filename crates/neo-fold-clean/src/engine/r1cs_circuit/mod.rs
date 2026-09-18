@@ -19,7 +19,7 @@ pub mod transcript;
 pub mod u64_arith;
 
 pub use builder::{Lc, R1csBuilder, Var};
-pub use field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
+pub use field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 pub use mux::{enforce_mux_var, enforce_mux_vec};
 pub use poseidon2::{enforce_poseidon2_hash, enforce_poseidon2_permutation, DIGEST_LEN};
 pub use ring_action::{alloc_and_enforce_ring_mul, enforce_ring_mul};

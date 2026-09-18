@@ -33,19 +33,39 @@
 //! prover-supplied parent against the verifier's recomputation is the safer
 //! contract; the wire cost is one CE claim per IVC step.
 
-use neo_ccs::Mat;
+use neo_ajtai::Commitment;
+use neo_ccs::{LaneCommitments, Mat};
+use neo_math::field::KExtensions;
 use neo_math::{D, F, K};
 use thiserror::Error;
 
 use crate::engine::optimized as engine;
+use crate::engine::r1cs_circuit::ring_action::{projection_quotient, PROJECTION_QUOTIENT_LEN};
 use crate::engine::transcript::Transcript;
 use crate::paper::digest;
 use crate::paper::params::Params;
-use crate::paper::relations::{superneo_inactive_x_zero, CeClaim, RlcMixer};
+use crate::paper::reductions::accumulator_sis_circuit::{
+    accumulator_digest as sis_accumulator_digest, SisAccumulatorError, PI_RLC_PROJECTION_SIS_CONFIG,
+};
+use crate::paper::reductions::pi_rlc_circuit::rlc_projection_quotients;
+use crate::paper::relations::{superneo_inactive_x_zero, validate_adv_shape, CeClaim, RlcMixer};
 use crate::paper::sampling::check_rlc_bound;
-use p3_field::PrimeField64;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 pub(crate) const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_C_LABEL: &[u8] = b"pi_rlc/projection_combined_c";
+pub(crate) const PI_RLC_PROJECTION_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_quotients";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_ADV_LABEL: &[u8] = b"pi_rlc/projection_combined_adv";
+pub(crate) const PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_adv_quotients";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_X_LABEL: &[u8] = b"pi_rlc/projection_combined_x";
+pub(crate) const PI_RLC_PROJECTION_X_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_x_quotients";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL: &[u8] = b"pi_rlc/projection_combined_y_ring";
+pub(crate) const PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_y_ring_quotients";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL: &[u8] = b"pi_rlc/projection_combined_y_zcol";
+pub(crate) const PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_y_zcol_quotients";
+pub(crate) const PI_RLC_PROJECTION_BINDING_DOMAIN: &[u8] = b"neo.fold.clean/pi_rlc/projection_binding/v1";
+pub(crate) const PI_RLC_PROJECTION_BINDING_DIGEST_LABEL: &[u8] = b"pi_rlc/projection_binding_digest";
+pub(crate) const PI_RLC_PROJECTION_BETA_LABEL: &[u8] = b"pi_rlc/projection_beta";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -71,6 +91,12 @@ pub enum Error {
     SColShape(&'static str),
     #[error("\u{03A0}_RLC: combined y_zcol must equal the RLC of input y_zcol values")]
     YZcolConsistency,
+    #[error("\u{03A0}_RLC: adv presence must be all-or-nothing across inputs ({present}/{total} present)")]
+    AdvPresence { present: usize, total: usize },
+    #[error("\u{03A0}_RLC: combined adv must equal the component-wise RLC of input adv tuples")]
+    AdvConsistency,
+    #[error("\u{03A0}_RLC: invalid product-commitment shape: {0}")]
+    AdvShape(String),
     #[error("\u{03A0}_RLC: y_zcol padding lanes must be zero in {0}")]
     YZcolPadding(&'static str),
     #[error("\u{03A0}_RLC: cached ct must equal the constant term of y_ring in {0}")]
@@ -84,6 +110,24 @@ pub enum Error {
         owner: &'static str,
         field: &'static str,
     },
+    #[error(
+        "\u{03A0}_RLC: projection schedule — combined commitment lane {lane} is not the ring-action mix of the inputs"
+    )]
+    ProjectionMixDrift { lane: usize },
+    #[error("Pi_RLC: projection schedule - combined adv.{coordinate} lane {lane} is not the ring-action mix")]
+    AdvProjectionMixDrift {
+        coordinate: &'static str,
+        lane: usize,
+    },
+    #[error("Pi_RLC: projection schedule - combined {client} identity {identity} is not the ring-action mix")]
+    AuxiliaryProjectionMixDrift {
+        client: &'static str,
+        identity: usize,
+    },
+    #[error(transparent)]
+    Projection(#[from] crate::paper::reductions::pi_rlc_circuit::Error),
+    #[error(transparent)]
+    SisAccumulator(#[from] SisAccumulatorError),
     #[error(transparent)]
     Sampling(#[from] crate::paper::sampling::SamplingError),
     #[error(transparent)]
@@ -97,6 +141,34 @@ pub enum Error {
 pub struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
+    /// The Lemma 5 β schedule this fold ran (Road A candidate E) —
+    /// prover-side plumbing for the F' image's projection regions.
+    pub projection: ProjectionSchedule,
+}
+
+/// Post-mix β schedule for the projection-checked commitment
+/// combination (encoding.md candidate E; security-note Lemma 5 §4b).
+/// Nothing here rides the wire: the verifier recomputes every field
+/// from ρ and the input commitments, so a carried value can never
+/// out-vote the transcript.
+#[derive(Clone, Debug)]
+pub struct ProjectionSchedule {
+    /// ρ_i ring elements (rotation-matrix first columns), fold order.
+    pub rhos: Vec<[F; D]>,
+    /// Per-κ-lane division quotients `q_lane` with
+    /// `Σ_i ρ_i(X)·c_{i,lane}(X) = q_lane(X)·Φ(X) + combined_lane(X)`.
+    pub q_lanes: Vec<[F; PROJECTION_QUOTIENT_LEN]>,
+    /// Projection quotients for the `(ops, is, fs)` coordinates of `L+`.
+    pub adv_q_lanes: Option<LaneCommitments<Vec<[F; PROJECTION_QUOTIENT_LEN]>>>,
+    /// One quotient per active X ring column.
+    pub x_q_lanes: Vec<[F; PROJECTION_QUOTIENT_LEN]>,
+    /// Two quotients (c0, c1) per y_ring row.
+    pub y_ring_q_lanes: Vec<[[F; PROJECTION_QUOTIENT_LEN]; 2]>,
+    /// Two quotients (c0, c1) for y_zcol.
+    pub y_zcol_q_lanes: [[F; PROJECTION_QUOTIENT_LEN]; 2],
+    /// The evaluation challenge, squeezed after c* and every `q_lane`
+    /// are on the transcript — the order is the soundness (Lemma 5).
+    pub beta: K,
 }
 
 /// Wire-format proof: the prover's combined CE claim of norm B.
@@ -132,17 +204,51 @@ pub(crate) fn prove_refs(
     claims: &[CeClaim],
     witnesses: &[&Mat<F>],
 ) -> Result<(Output, Proof), Error> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let prepare_started = std::time::Instant::now();
     validate_input_shape(claims, witnesses)?;
     enforce_rlc_bound(pp, claims.len())?;
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    let (combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
-    validate_nc_sidecars(s, &rhos, claims, &combined)?;
+    #[cfg(feature = "perf-timers")]
+    let prepare_elapsed = prepare_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let mix_started = std::time::Instant::now();
+    let (mut combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
+    #[cfg(feature = "perf-timers")]
+    let mix_elapsed = mix_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let sidecars_started = std::time::Instant::now();
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    #[cfg(feature = "perf-timers")]
+    let sidecars_elapsed = sidecars_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let projection_started = std::time::Instant::now();
+    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/prove] prepare={:.3}s mix={:.3}s sidecars={:.3}s projection={:.3}s total={:.3}s inputs={} c_lanes={} adv={} X={} y={} yz={}",
+        prepare_elapsed.as_secs_f64(),
+        mix_elapsed.as_secs_f64(),
+        sidecars_elapsed.as_secs_f64(),
+        projection_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+        claims.len(),
+        combined.c.kappa,
+        combined.adv.is_some(),
+        combined.X.cols(),
+        combined.y_ring.len(),
+        combined.y_zcol.len(),
+    );
     Ok((
         Output {
             claim: combined.clone(),
             witness: z_mix,
+            projection,
         },
         Proof { combined },
     ))
@@ -169,11 +275,12 @@ pub fn verify(
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    validate_nc_sidecars(s, &rhos, claims, &proof.combined)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &proof.combined)?;
     let ok = engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, |zs, cs| mix(zs, cs))?;
     if !ok {
         return Err(Error::VerifyRejected);
     }
+    projection_schedule(tr, &rhos, claims, &proof.combined)?;
     Ok(proof.combined.clone())
 }
 
@@ -182,12 +289,263 @@ fn bind_input_claims_for_rho(tr: &mut Transcript, claims: &[CeClaim]) {
     tr.append_fields(PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &input_claims_digest);
 }
 
+/// Lemma 5 transcript schedule, shared verbatim by `prove` and
+/// `verify`: with ρ sampled and the mix fixed, recompute the per-lane
+/// quotients from the input commitments, absorb the combined
+/// commitment and every quotient, then squeeze β. Also discharges the
+/// wire-identity obligation (Lemma 5 audit item 1): the mix the
+/// quotients divide against must BE the combined commitment, lane for
+/// lane — so the projection algebra can never drift from the mixer the
+/// fold actually used.
+fn projection_schedule(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<ProjectionSchedule, Error> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    let mut binding_preimage = digest::pack_bytes_as_fields(PI_RLC_PROJECTION_BINDING_DOMAIN);
+    let rho_coeffs: Vec<[F; D]> = rhos
+        .iter()
+        .map(|rho| {
+            let mat = rho.as_mat();
+            core::array::from_fn(|row| mat[(row, 0)])
+        })
+        .collect();
+    let input_cs: Vec<Commitment> = inputs.iter().map(|claim| claim.c.clone()).collect();
+    #[cfg(feature = "perf-timers")]
+    let commitment_started = std::time::Instant::now();
+    let lanes = checked_projection_lanes(&rho_coeffs, &input_cs, &combined.c, None)?;
+    append_projection_binding(
+        &mut binding_preimage,
+        PI_RLC_PROJECTION_COMBINED_C_LABEL,
+        &combined.c.data,
+    );
+    for lane in &lanes {
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_QUOTIENTS_LABEL, &lane.q);
+    }
+    #[cfg(feature = "perf-timers")]
+    let commitment_elapsed = commitment_started.elapsed();
+
+    #[cfg(feature = "perf-timers")]
+    let adv_started = std::time::Instant::now();
+    let present = inputs.iter().filter(|claim| claim.adv.is_some()).count();
+    let adv_lanes = match (&combined.adv, present) {
+        (None, 0) => None,
+        (Some(_), 0) | (None, _) => return Err(Error::AdvConsistency),
+        (Some(combined_adv), count) if count == inputs.len() => {
+            let input_advs: Vec<&LaneCommitments<Commitment>> = inputs
+                .iter()
+                .map(|claim| claim.adv.as_ref().unwrap())
+                .collect();
+            let coordinate =
+                |select: fn(&LaneCommitments<Commitment>) -> &Commitment,
+                 combined_coordinate: &Commitment,
+                 name: &'static str|
+                 -> Result<Vec<crate::paper::reductions::pi_rlc_circuit::RlcLaneProjection>, Error> {
+                    let commitments: Vec<Commitment> = input_advs.iter().map(|adv| select(adv).clone()).collect();
+                    checked_projection_lanes(&rho_coeffs, &commitments, combined_coordinate, Some(name))
+                };
+            let ops = coordinate(|adv| &adv.ops, &combined_adv.ops, "ops")?;
+            let is = coordinate(|adv| &adv.is, &combined_adv.is, "is")?;
+            let fs = coordinate(|adv| &adv.fs, &combined_adv.fs, "fs")?;
+
+            for leaf in digest::nebula_lane_leaf_digests(combined_adv) {
+                append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_COMBINED_ADV_LABEL, &leaf);
+            }
+            for lane in ops.iter().chain(is.iter()).chain(fs.iter()) {
+                append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL, &lane.q);
+            }
+            Some(LaneCommitments { ops, is, fs })
+        }
+        (Some(_), count) => {
+            return Err(Error::AdvPresence {
+                present: count,
+                total: inputs.len(),
+            })
+        }
+    };
+    #[cfg(feature = "perf-timers")]
+    let adv_elapsed = adv_started.elapsed();
+
+    #[cfg(feature = "perf-timers")]
+    let x_started = std::time::Instant::now();
+    let active_x_cols = crate::paper::relations::superneo_public_x_cols(combined.m_in);
+    let mut x_lanes = Vec::with_capacity(active_x_cols);
+    for col in 0..active_x_cols {
+        let input_coeffs: Vec<[F; D]> = inputs
+            .iter()
+            .map(|claim| core::array::from_fn(|row| claim.X[(row, col)]))
+            .collect();
+        let output = core::array::from_fn(|row| combined.X[(row, col)]);
+        let lane = checked_auxiliary_projection(&rho_coeffs, &input_coeffs, output, "X", col)?;
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_COMBINED_X_LABEL, &output);
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_X_QUOTIENTS_LABEL, &lane.q);
+        x_lanes.push(lane);
+    }
+    #[cfg(feature = "perf-timers")]
+    let x_elapsed = x_started.elapsed();
+
+    #[cfg(feature = "perf-timers")]
+    let y_ring_started = std::time::Instant::now();
+    let mut y_ring_lanes = Vec::with_capacity(combined.y_ring.len());
+    for row in 0..combined.y_ring.len() {
+        let input_rows: Vec<&[K]> = inputs
+            .iter()
+            .map(|claim| claim.y_ring[row].as_slice())
+            .collect();
+        let lanes = checked_k_vector_projection(&rho_coeffs, &input_rows, &combined.y_ring[row], "y_ring", 2 * row)?;
+        for lane in &lanes {
+            append_projection_binding(
+                &mut binding_preimage,
+                PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+                &lane.out,
+            );
+            append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL, &lane.q);
+        }
+        y_ring_lanes.push(lanes);
+    }
+    #[cfg(feature = "perf-timers")]
+    let y_ring_elapsed = y_ring_started.elapsed();
+
+    #[cfg(feature = "perf-timers")]
+    let y_zcol_started = std::time::Instant::now();
+    let input_y_zcols: Vec<&[K]> = inputs.iter().map(|claim| claim.y_zcol.as_slice()).collect();
+    let y_zcol_lanes = checked_k_vector_projection(&rho_coeffs, &input_y_zcols, &combined.y_zcol, "y_zcol", 0)?;
+    for lane in &y_zcol_lanes {
+        append_projection_binding(
+            &mut binding_preimage,
+            PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL,
+            &lane.out,
+        );
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL, &lane.q);
+    }
+    #[cfg(feature = "perf-timers")]
+    let y_zcol_elapsed = y_zcol_started.elapsed();
+
+    #[cfg(feature = "perf-timers")]
+    let binding_started = std::time::Instant::now();
+    let binding_digest = sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, &binding_preimage)?;
+    tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
+    let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/projection] c={:.3}s adv={:.3}s X={:.3}s y={:.3}s yz={:.3}s sis+beta={:.3}s total={:.3}s identities=c:{} adv:{} X:{} y:{} yz:{} preimage_fields={}",
+        commitment_elapsed.as_secs_f64(),
+        adv_elapsed.as_secs_f64(),
+        x_elapsed.as_secs_f64(),
+        y_ring_elapsed.as_secs_f64(),
+        y_zcol_elapsed.as_secs_f64(),
+        binding_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+        lanes.len(),
+        adv_lanes.as_ref().map_or(0, |adv| adv.ops.len() + adv.is.len() + adv.fs.len()),
+        x_lanes.len(),
+        y_ring_lanes.len() * 2,
+        y_zcol_lanes.len(),
+        binding_preimage.len(),
+    );
+    Ok(ProjectionSchedule {
+        rhos: rho_coeffs,
+        q_lanes: lanes.into_iter().map(|lane| lane.q).collect(),
+        adv_q_lanes: adv_lanes.map(|lanes| LaneCommitments {
+            ops: lanes.ops.into_iter().map(|lane| lane.q).collect(),
+            is: lanes.is.into_iter().map(|lane| lane.q).collect(),
+            fs: lanes.fs.into_iter().map(|lane| lane.q).collect(),
+        }),
+        x_q_lanes: x_lanes.into_iter().map(|lane| lane.q).collect(),
+        y_ring_q_lanes: y_ring_lanes
+            .into_iter()
+            .map(|lanes| lanes.map(|lane| lane.q))
+            .collect(),
+        y_zcol_q_lanes: y_zcol_lanes.map(|lane| lane.q),
+        beta: K::from_coeffs([beta[0], beta[1]]),
+    })
+}
+
+fn append_projection_binding(preimage: &mut Vec<F>, label: &[u8], fields: &[F]) {
+    preimage.extend(digest::pack_bytes_as_fields(label));
+    preimage.push(F::from_u64(fields.len() as u64));
+    preimage.extend_from_slice(fields);
+}
+
+fn checked_auxiliary_projection(
+    rho_coeffs: &[[F; D]],
+    inputs: &[[F; D]],
+    combined: [F; D],
+    client: &'static str,
+    identity: usize,
+) -> Result<crate::paper::reductions::pi_rlc_circuit::RlcLaneProjection, Error> {
+    if rho_coeffs.len() != inputs.len() {
+        return Err(Error::Shape);
+    }
+    let pairs: Vec<([F; D], [F; D])> = rho_coeffs
+        .iter()
+        .copied()
+        .zip(inputs.iter().copied())
+        .collect();
+    let (out, q) = projection_quotient(&pairs);
+    if out != combined {
+        return Err(Error::AuxiliaryProjectionMixDrift { client, identity });
+    }
+    Ok(crate::paper::reductions::pi_rlc_circuit::RlcLaneProjection { out, q })
+}
+
+fn checked_k_vector_projection(
+    rho_coeffs: &[[F; D]],
+    inputs: &[&[K]],
+    combined: &[K],
+    client: &'static str,
+    identity_start: usize,
+) -> Result<[crate::paper::reductions::pi_rlc_circuit::RlcLaneProjection; 2], Error> {
+    if combined.len() < D || inputs.iter().any(|input| input.len() < D) {
+        return Err(Error::Shape);
+    }
+    let input_c0: Vec<[F; D]> = inputs
+        .iter()
+        .map(|input| core::array::from_fn(|i| input[i].as_coeffs()[0]))
+        .collect();
+    let input_c1: Vec<[F; D]> = inputs
+        .iter()
+        .map(|input| core::array::from_fn(|i| input[i].as_coeffs()[1]))
+        .collect();
+    let combined_c0 = core::array::from_fn(|i| combined[i].as_coeffs()[0]);
+    let combined_c1 = core::array::from_fn(|i| combined[i].as_coeffs()[1]);
+    Ok([
+        checked_auxiliary_projection(rho_coeffs, &input_c0, combined_c0, client, identity_start)?,
+        checked_auxiliary_projection(rho_coeffs, &input_c1, combined_c1, client, identity_start + 1)?,
+    ])
+}
+
+fn checked_projection_lanes(
+    rho_coeffs: &[[F; D]],
+    inputs: &[Commitment],
+    combined: &Commitment,
+    coordinate: Option<&'static str>,
+) -> Result<Vec<crate::paper::reductions::pi_rlc_circuit::RlcLaneProjection>, Error> {
+    let lanes = rlc_projection_quotients(rho_coeffs, inputs)?;
+    for (lane_idx, lane) in lanes.iter().enumerate() {
+        if combined.data.get(lane_idx * D..(lane_idx + 1) * D) != Some(&lane.out[..]) {
+            return match coordinate {
+                None => Err(Error::ProjectionMixDrift { lane: lane_idx }),
+                Some(coordinate) => Err(Error::AdvProjectionMixDrift {
+                    coordinate,
+                    lane: lane_idx,
+                }),
+            };
+        }
+    }
+    Ok(lanes)
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Step bodies
 // ──────────────────────────────────────────────────────────────────────────
 
 fn validate_inputs_before_rho(s: &crate::paper::relations::Structure, inputs: &[CeClaim]) -> Result<(), Error> {
     for input in inputs {
+        validate_adv_shape(input.adv.as_ref(), input.c.d, input.c.kappa, "input").map_err(Error::AdvShape)?;
         validate_fold_digest_canonical("input", input)?;
         validate_inactive_x_zero_one("input", input)?;
         validate_r_shape_one("input", s, input)?;
@@ -222,10 +580,12 @@ fn enforce_rlc_bound(pp: &Params, count: usize) -> Result<(), Error> {
 
 fn validate_nc_sidecars(
     s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<(), Error> {
+    validate_adv_shape(combined.adv.as_ref(), combined.c.d, combined.c.kappa, "combined").map_err(Error::AdvShape)?;
     validate_fold_digest_canonical("combined", combined)?;
     validate_inactive_x_zero(inputs, combined)?;
     validate_r_shape(s, inputs, combined)?;
@@ -236,9 +596,41 @@ fn validate_nc_sidecars(
     validate_s_col_shape(s, inputs, combined)?;
     validate_s_col_consistency(inputs, combined)?;
     validate_y_zcol_combination(rhos, inputs, combined)?;
+    validate_adv_combination(mix, rhos, inputs, combined)?;
     validate_fold_digest_consistency(inputs, combined)?;
     validate_supported_sidecars(inputs, combined)?;
     Ok(())
+}
+
+/// Spec §5.2 R2 (Π_RLC side): the combined claim's `adv` must equal the
+/// component-wise ρ-mix of the input tuples — the same public arithmetic
+/// that combines `c`, recomputed here on both prove and verify paths.
+fn validate_adv_combination(
+    mix: RlcMixer,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<(), Error> {
+    let expected = mixed_adv(mix, rhos, inputs)?;
+    if combined.adv != expected {
+        return Err(Error::AdvConsistency);
+    }
+    Ok(())
+}
+
+/// Component-wise ρ-mix of the inputs' `adv` tuples (`None` for a plain
+/// fold; all-or-nothing presence enforced).
+fn mixed_adv(
+    mix: RlcMixer,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+) -> Result<Option<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>, Error> {
+    let rho_mats: Vec<Mat<F>> = rhos.iter().map(|rho| rho.as_mat().clone()).collect();
+    let advs: Vec<_> = inputs.iter().map(|claim| claim.adv.clone()).collect();
+    crate::paper::relations::mix_adv(mix, &rho_mats, &advs).map_err(|e| Error::AdvPresence {
+        present: e.present,
+        total: e.total,
+    })
 }
 
 fn validate_inactive_x_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {

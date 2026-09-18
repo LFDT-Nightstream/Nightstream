@@ -1,0 +1,74 @@
+{
+  "artifact_kind": "r1cs/pi-rlc-projection-boundary",
+  "bad_root": {
+    "error_at_beta": 0,
+    "error_polynomial_prefix": [
+      18446744069414584314,
+      1
+    ],
+    "exact_mix": false,
+    "projected_accept": true,
+    "witness_sha256": "027220491953eb57f035407c2f7097eede4517c71c346f4657c937871aee0614"
+  },
+  "columns": 930,
+  "honest": {
+    "exact_mix": true,
+    "projected_accept": true,
+    "witness_sha256": "624e040257c7b6ae9369126574b88c12173f1f0803fe087d2db60d2e17b98f33"
+  },
+  "nonzero_entries": 2847,
+  "profile": {
+    "beta_extension": "K",
+    "error_degree_bound": 106,
+    "fixed_beta_c0": 7,
+    "fixed_beta_c1": 0,
+    "pairs": 1,
+    "ring_degree": 54
+  },
+  "row_sha256": "c6083dc7d2c5536f2ae95101e947792cab1e8a434df006014913ada9df6e3efe",
+  "rows": 714,
+  "schema": 1,
+  "source_anchor": "enforce_ring_action_projection_batch",
+  "source_hashes": [
+    {
+      "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
+      "sha256": "2fb3919da975b8a239a1dbe0164a143fc05ea05ae522f157ac08bc4108ae3823"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit.rs",
+      "sha256": "fc09a564b36531e436d1fa610de8364c06376f49c630977a383bf82d18bb6ae7"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/gadgets/pi_rlc_projection_boundary.rs",
+      "sha256": "02d8b8104f638aaeb48426a2734f1e0a5666a9d1128e04ce9844524177b6caaa"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionProgram.lean",
+      "sha256": "1168fb6ac2cbfc35dbcff4175d5c9ab88787ec188c6c567a58ae91d2ab336822"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionLengths.lean",
+      "sha256": "c45692d7c70812a0faebddc6465d5fcc6b4e101088afe9bfb18f0e0b67253628"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionSound.lean",
+      "sha256": "71fd819621b28f94a38aac1d167ffa86eefbf536c917e597894411673b337bdd"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionBatchSound.lean",
+      "sha256": "0863da414958becec11fd43300df0c5ae5c94526f29095788ae5cd32a865cc2e"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/PiRLCProjectionSound.lean",
+      "sha256": "f3a98f11d2e95e65589f39605cbbbfa99a5243ffa4969e83ad4ad18f40f1450f"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
+      "sha256": "00360fe1043ca8928f090d9b8f0f3800392911d51d2bc01470adb5cc2524cbe5"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
+      "sha256": "a60792b5896bf115396e698cb5d8773c02456671ba41ec0ba91626743bd6be9c"
+    }
+  ]
+}

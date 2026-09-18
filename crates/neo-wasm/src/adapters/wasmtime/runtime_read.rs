@@ -227,18 +227,6 @@ pub(crate) fn read_halfword<T>(
     )?))
 }
 
-pub(crate) fn parse_stack_word(value: &str) -> Result<u32, WasmBuildError> {
-    parse_signed_u32(value)
-        .map_err(|err| WasmBuildError::Trace(format!("failed to parse Wasmtime operand stack value '{value}': {err}")))
-}
-
-pub(crate) fn parse_signed_u32(value: &str) -> Result<u32, WasmBuildError> {
-    let parsed = value.parse::<i128>().map_err(|err| {
-        WasmBuildError::Trace(format!("failed to parse signed i32-compatible value '{value}': {err}"))
-    })?;
-    Ok((parsed as i32) as u32)
-}
-
 pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -> Option<StackValueAccess> {
     let reads = reads as usize;
     if reads == 0 || lane >= reads {

@@ -232,6 +232,7 @@ pub fn accumulator_preimage_sources(
 /// ```text
 ///   domain_id
 ///   ‖ vk_fs (4)                     [state_lanes 0..4]
+///   ‖ pi_ccs_header_bundle (4)       [state_lanes 4..8]
 ///   ‖ chunk_count halves (2)        [state_lanes[28] split]
 ///   ‖ step_count halves (2)         [state_lanes[29] split]
 ///   ‖ pc halves (2)                 [constant pc]
@@ -276,6 +277,9 @@ pub fn state_x_out_preimage_sources_with_mode(pc: u64, mode: StateXOutDigestMode
     ))];
     for i in 0..DIGEST_LANE_COUNT {
         sources.push(PoseidonPreimageLaneSource::StateLane(STATE_LANE_VK_FS_BASE + i));
+    }
+    for i in 0..DIGEST_LANE_COUNT {
+        sources.push(PoseidonPreimageLaneSource::StateLane(STATE_LANE_STRUCTURE_BASE + i));
     }
     sources.push(PoseidonPreimageLaneSource::StateLaneLowHalf(STATE_LANE_NEW_CHUNK_COUNT));
     sources.push(PoseidonPreimageLaneSource::StateLaneHighHalf(
@@ -340,6 +344,9 @@ pub struct RecursiveStepImagePlan {
     pub boundary_bits: usize,
     pub kmul_count: usize,
     pub ring_action_pair_count: usize,
+    /// Projection-checked ring action (Road A): per-identity pair
+    /// consumption; forwarded to the image config verbatim.
+    pub projection_batches: Vec<usize>,
     pub ring_action_pair_layout: RingActionTraceLayout,
     pub sponge_transcript_permutes: usize,
     /// NIFS-payload shapes (in fill order). Legacy non-unified plans
@@ -537,6 +544,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
         },
         kmul_count: plan.kmul_count,
         ring_action_pair_count: plan.ring_action_pair_count,
+        projection_batches: plan.projection_batches.clone(),
         ring_action_pair_layout: plan.ring_action_pair_layout,
         poseidon_one_shot_preimage_lens: preimage_lens,
         sponge_transcript_permutes: plan.sponge_transcript_permutes,
@@ -594,7 +602,7 @@ pub fn build_accumulator_preimage_fields(child_count: u64, c_data: &[F]) -> Vec<
 pub fn build_state_x_out_preimage_fields(
     mode: StateXOutDigestMode,
     vk_fs_digest: [F; 4],
-    structure_digest: [F; 4],
+    pi_ccs_header_bundle: [F; 4],
     new_chunk_count: u64,
     new_step_count: u64,
     z_0: [F; 4],
@@ -607,7 +615,7 @@ pub fn build_state_x_out_preimage_fields(
     build_state_x_out_preimage_fields_with_app_x(
         mode,
         vk_fs_digest,
-        structure_digest,
+        pi_ccs_header_bundle,
         new_chunk_count,
         new_step_count,
         z_0,
@@ -630,7 +638,7 @@ pub fn build_state_x_out_preimage_fields(
 pub fn build_state_x_out_preimage_fields_with_app_x(
     mode: StateXOutDigestMode,
     vk_fs_digest: [F; 4],
-    _structure_digest: [F; 4],
+    pi_ccs_header_bundle: [F; 4],
     new_chunk_count: u64,
     new_step_count: u64,
     _z_0: [F; 4],
@@ -643,6 +651,7 @@ pub fn build_state_x_out_preimage_fields_with_app_x(
 ) -> Vec<F> {
     let mut p = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     p.extend(vk_fs_digest);
+    p.extend(pi_ccs_header_bundle);
     p.push(F::from_u64(new_chunk_count & 0xffff_ffff));
     p.push(F::from_u64(new_chunk_count >> 32));
     p.push(F::from_u64(new_step_count & 0xffff_ffff));

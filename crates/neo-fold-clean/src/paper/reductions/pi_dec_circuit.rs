@@ -37,9 +37,15 @@ use neo_math::{KExtensions, F, K};
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
+use crate::engine::r1cs_circuit::builder::{
+    CenteredUnitTrace, PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
+};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
+use crate::paper::relations::product_commitment_circuit::{
+    alloc_adv, enforce_adv_recomposition, validate_adv_shape, AdvCommitmentWires,
+};
 use crate::paper::relations::CeClaim;
 
 /// Wires for one CE claim inside the Π_DEC.V gadget. Returned by
@@ -66,6 +72,8 @@ pub struct CeClaimWires {
     /// Ajtai dimension `kappa` of the commitment.
     pub c_kappa: usize,
     pub c_kappa_var: Var,
+    /// Nebula coordinates of the same product commitment as `c_data`.
+    pub adv: Option<AdvCommitmentWires>,
     /// `rows * cols` columns, row-major.
     pub x: Vec<Var>,
     pub x_rows: usize,
@@ -168,7 +176,14 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
         &b_pows,
         ChildField::Commitment,
     );
-    enforce_lane_combination(builder, &wires.parent.x, &wires.children, &b_pows, ChildField::X);
+    let child_adv: Vec<Option<AdvCommitmentWires>> = wires
+        .children
+        .iter()
+        .map(|child| child.adv.clone())
+        .collect();
+    enforce_adv_recomposition(builder, wires.parent.adv.as_ref(), &child_adv, &b_pows)
+        .map_err(Error::ProductCommitment)?;
+    enforce_active_x_combination(builder, &wires.parent, &wires.children, &b_pows);
     for j in 0..wires.parent.y_ring.len() {
         enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j], &wires.children, &b_pows);
     }
@@ -274,16 +289,107 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///     centered CE(b) alphabet instead. [`enforce_x_bitness`] remains
 ///     available for callers that have an unsigned range invariant to enforce.
 pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
+    let row_start = builder.rows();
+    let first_allocated_column = builder.cols();
+
+    let phase_start = builder.rows();
     enforce_dec_v(builder, pp, wires)?;
+    builder.record_row_family("pi_dec.recompose", phase_start);
+
+    let phase_start = builder.rows();
     enforce_shape_metadata_consistency(builder, wires);
+    builder.record_row_family("pi_dec.shape", phase_start);
+
+    let phase_start = builder.rows();
     enforce_r_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.r", phase_start);
+
+    let phase_start = builder.rows();
     enforce_s_col_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.s_col", phase_start);
+
+    let phase_start = builder.rows();
     enforce_inactive_x_zero(builder, wires)?;
+    builder.record_row_family("pi_dec.inactive_x", phase_start);
+
+    let phase_start = builder.rows();
     enforce_child_x_balanced_alphabet(builder, pp, wires)?;
+    builder.record_row_family("pi_dec.alphabet", phase_start);
+
+    let phase_start = builder.rows();
     enforce_ct_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.ct", phase_start);
+
+    let phase_start = builder.rows();
     enforce_y_ring_padding_zero(builder, wires);
+    builder.record_row_family("pi_dec.y_padding", phase_start);
+
+    let phase_start = builder.rows();
     enforce_fold_digest_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.fold_digest", phase_start);
+
+    builder.record_pi_dec_strict(PiDecStrictAudit {
+        row_start,
+        row_end: builder.rows(),
+        first_allocated_column,
+        radix: pp.b(),
+        parent: pi_dec_claim_audit(&wires.parent),
+        children: wires.children.iter().map(pi_dec_claim_audit).collect(),
+    });
     Ok(())
+}
+
+fn commitment_audit(wires: &AdvCommitmentWires) -> PiDecAdvAudit {
+    let coordinate =
+        |commitment: &crate::paper::relations::product_commitment_circuit::CommitmentWires| PiDecCommitmentAudit {
+            d_col: commitment.d_var.col(),
+            kappa_col: commitment.kappa_var.col(),
+            data_cols: commitment.data.iter().map(|wire| wire.col()).collect(),
+        };
+    PiDecAdvAudit {
+        ops: coordinate(&wires.ops),
+        is: coordinate(&wires.is),
+        fs: coordinate(&wires.fs),
+    }
+}
+
+fn pi_dec_claim_audit(wires: &CeClaimWires) -> PiDecClaimAudit {
+    PiDecClaimAudit {
+        commitment: PiDecCommitmentAudit {
+            d_col: wires.c_d_var.col(),
+            kappa_col: wires.c_kappa_var.col(),
+            data_cols: wires.c_data.iter().map(|wire| wire.col()).collect(),
+        },
+        adv: wires.adv.as_ref().map(commitment_audit),
+        x_cols: wires.x.iter().map(|wire| wire.col()).collect(),
+        x_rows: wires.x_rows,
+        x_width: wires.x_cols,
+        x_rows_col: wires.x_rows_var.col(),
+        x_width_col: wires.x_cols_var.col(),
+        m_in: wires.m_in,
+        m_in_col: wires.m_in_var.col(),
+        y_ring_cols: wires
+            .y_ring
+            .iter()
+            .map(|row| row.iter().map(|wire| wire.col()).collect())
+            .collect(),
+        ct_cols: wires
+            .ct
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        r_cols: wires
+            .r
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        s_col_cols: wires
+            .s_col
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        fold_digest_cols: wires.fold_digest_fields.map(Var::col),
+    }
 }
 
 /// Enforce parent/child equality for non-wire CE shape metadata as rows.
@@ -380,11 +486,10 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, 
             idx,
         });
     }
-    for r in 0..claim.x_rows {
-        for c in active_cols..claim.x_cols {
-            builder.enforce_eq(&Lc::from_var(claim.x[r * claim.x_cols + c]), &Lc::zero());
-        }
-    }
+    enforce_unique_zero_wires(
+        builder,
+        (0..claim.x_rows).flat_map(|r| (active_cols..claim.x_cols).map(move |c| claim.x[r * claim.x_cols + c])),
+    );
     Ok(())
 }
 
@@ -489,7 +594,6 @@ pub fn enforce_s_col_consistency(builder: &mut R1csBuilder, wires: &DecInputWire
 #[derive(Clone, Copy)]
 enum ChildField {
     Commitment,
-    X,
 }
 
 fn enforce_lane_combination(
@@ -505,11 +609,38 @@ fn enforce_lane_combination(
         for (idx, child) in children.iter().enumerate() {
             let child_var = match field {
                 ChildField::Commitment => child.c_data[lane],
-                ChildField::X => child.x[lane],
             };
             combo.add_term(child_var, b_pows[idx]);
         }
         builder.enforce_eq(&Lc::from_var(parent_lanes[lane]), &combo);
+    }
+}
+
+fn enforce_active_x_combination(
+    builder: &mut R1csBuilder,
+    parent: &CeClaimWires,
+    children: &[CeClaimWires],
+    b_pows: &[F],
+) {
+    let active_cols = crate::paper::relations::superneo_public_x_cols(parent.m_in);
+    for row in 0..parent.x_rows {
+        for col in 0..active_cols {
+            let lane = row * parent.x_cols + col;
+            let mut combo = Lc::zero();
+            for (child, coeff) in children.iter().zip(b_pows.iter().copied()) {
+                combo.add_term(child.x[lane], coeff);
+            }
+            builder.enforce_eq(&Lc::from_var(parent.x[lane]), &combo);
+        }
+    }
+}
+
+fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
+    let mut constrained = std::collections::HashSet::new();
+    for wire in wires {
+        if constrained.insert(wire.col()) {
+            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
+        }
     }
 }
 
@@ -531,12 +662,21 @@ fn enforce_lane_combination_y(
 
 pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
+    let adv = alloc_adv(builder, claim.adv.as_ref());
     let x_rows = claim.X.rows();
     let x_cols = claim.X.cols();
     let mut x = Vec::with_capacity(x_rows * x_cols);
+    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
+    let inactive_nonzero = (0..x_rows).any(|r| (active_cols..x_cols).any(|c| claim.X[(r, c)] != F::ZERO));
+    let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
+    builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
     for r in 0..x_rows {
         for c in 0..x_cols {
-            x.push(builder.alloc(claim.X[(r, c)]));
+            x.push(if c < active_cols {
+                builder.alloc(claim.X[(r, c)])
+            } else {
+                inactive_zero
+            });
         }
     }
     let y_ring = claim
@@ -607,6 +747,7 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
         c_d_var: alloc_usize(builder, claim.c.d),
         c_kappa: claim.c.kappa,
         c_kappa_var: alloc_usize(builder, claim.c.kappa),
+        adv,
         x,
         x_rows,
         x_rows_var: alloc_usize(builder, x_rows),
@@ -659,6 +800,8 @@ fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
 
 fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
     debug_assert!(b >= 2, "caller gates b >= 2");
+    let row_start = builder.rows();
+    let column_start = builder.cols();
     let bound = b as i64 - 1;
     let alphabet: Vec<i64> = (-bound..=bound).collect();
     let mut acc: Option<Lc> = None;
@@ -676,6 +819,14 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
             Some(prev) => {
                 if i + 1 == total {
                     builder.enforce(&prev, &factor, &Lc::zero());
+                    if b == 2 {
+                        builder.record_centered_unit_trace(CenteredUnitTrace {
+                            row_start,
+                            row_end: builder.rows(),
+                            allocated_columns: (column_start..builder.cols()).collect(),
+                            value_col: v.col(),
+                        });
+                    }
                     return;
                 }
                 let next = builder.alloc_mul(&prev, &factor);
@@ -687,6 +838,7 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {
     reject_unsupported_sidecar_fields(parent, 0)?;
+    validate_adv_shape(parent.adv.as_ref(), parent.c_d, parent.c_kappa, "parent").map_err(Error::ProductCommitment)?;
     if parent.c_d != D {
         return Err(Error::ShapeMismatch {
             what: "parent commitment d",
@@ -722,6 +874,8 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
     }
     for (idx, child) in children.iter().enumerate() {
         reject_unsupported_sidecar_fields(child, idx)?;
+        validate_adv_shape(child.adv.as_ref(), child.c_d, child.c_kappa, &format!("child[{idx}]"))
+            .map_err(Error::ProductCommitment)?;
         if child.c_d != parent.c_d {
             return Err(Error::ShapeMismatch {
                 what: "child commitment d",
@@ -874,6 +1028,8 @@ pub enum Error {
         got: usize,
         idx: usize,
     },
+    #[error("Pi_DEC.V: invalid product commitment: {0}")]
+    ProductCommitment(String),
 }
 
 // `Commitment` import kept for documentation linkage; not referenced directly

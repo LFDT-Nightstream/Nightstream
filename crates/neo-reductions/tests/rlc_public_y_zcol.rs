@@ -41,6 +41,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
     let aux1 = vec![K::from(F::from_u64(41)), K::from(F::from_u64(43))];
 
     let inst0 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X0,
         r: r.clone(),
@@ -56,6 +57,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
         u_len: 0,
     };
     let inst1 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X1,
         r,
@@ -137,6 +139,7 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     y_zcol1[0] = K::from(F::from_u64(29));
 
     let inst0 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X0,
         r: r.clone(),
@@ -152,6 +155,7 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
         u_len: 0,
     };
     let inst1 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X1,
         r,

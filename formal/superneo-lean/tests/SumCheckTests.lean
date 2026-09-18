@@ -1,4 +1,4 @@
-import SuperNeo.Primitives.SumCheck
+import SuperNeo.SumCheck
 
 open SuperNeo
 

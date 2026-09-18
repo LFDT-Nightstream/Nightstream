@@ -17,7 +17,7 @@ Specify the Section 8 prover specialization for Twist.
 ## Module Mapping
 
 - Spec: `specs/FastTwistProver.spec.md`
-- Interface: `TwistShout/FastTwistProverInterface.lean`
+- Interface: `TwistShout/FastTwistProver.lean`
 - Implementation: `TwistShout/FastTwistProver.lean`
 
 ## Contract Surface

@@ -64,6 +64,7 @@ fn me_consistency_accepts_padded_y_rows() {
     let ct0 = y0_padded[0];
 
     let inst = CeClaim::<_, Fq, K> {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

@@ -42,6 +42,7 @@ fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> F
         nifs_payload_shapes: vec![],
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

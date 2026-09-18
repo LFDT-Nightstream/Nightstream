@@ -11,6 +11,13 @@
 //! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure().m` ≥ 50_000 |
 //! | `running_accumulator_witness_must_carry_f_prime_encoded_size` | ✓ | Folds three threaded encoded F' steps; running.witnesses[0] ≥ 50_000 cells |
 //! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 5-min default-test budget, so it runs only with `--ignored`. |
+//! | `r4_shipped_encoder_verifies_multistep_memory_chain` | ✓ (in `tests/nebula/f_prime.rs`) | The shipped encoder traverses base, bootstrap-recursive, and steady-recursive arms over three one-step segments; finalization consumes the delayed memory claim and terminal-only verification accepts. The same test rejects link, suffix, lane, and prior-history tampers. |
+//! | `multi_chunk_f_prime_chain_must_verify_terminal_only` | ✓ (in `tests/nebula/f_prime.rs`) | R5's canonical gate verifies from the final accumulator and latest fold without audit history, and rejects a changed pre-final running commitment carrying earlier history. |
+//! | `legacy_multi_chunk_terminal_only_remains_fail_closed` | ✓ | The old image-only F' fixture has no terminal-induction capability and remains rejected. |
+//! | `legacy_nebula_terminal_only_remains_fail_closed` | ✓ | The native/immediate Nebula fixture remains an audit-only path. |
+//! | `generic_recursive_link_multi_chunk_remains_fail_closed` | ✓ | A generic `r1cs_f_prime` relation may constrain the public recursive link but cannot acquire the authoritative terminal-induction capability. |
+//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ reference | The retired manual-shell cost model remains 14,040,452 bits (vs 94,330,948 D²). The authoritative relation is gated separately by R2/R3. |
+//! | `projection_shell_semantic_rows_must_be_enforced` | ✓ reference | The manual projection region still enforces its local identities; it is not terminal authority. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -184,10 +191,9 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
 /// each running CE claim's `Z` would have dimensions matching F's CCS
 /// structure (≥ tens of thousands of cells).
 ///
-/// **Why this should fail today**: the running accumulator carries the
-/// CCS witnesses of whatever was folded, which is the user's app R1CS
-/// (a few hundred cells). The witness has no recursive-verification
-/// content.
+/// This is green because the fixture deposits the encoded F' relation rather
+/// than the user's small application relation. It remains a regression gate
+/// against accidentally folding the raw app witness again.
 #[test]
 fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
     // Phase 1.5c-b: fold encoded F' steps through the existing
@@ -221,5 +227,150 @@ fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
          expected at least {MIN_F_PRIME_WITNESS_CELLS} for `enc(F'_i)` \
          content. If this regresses, the lifecycle has stopped folding \
          the encoded F' image and is back to a raw-app-CCS shape.",
+    );
+}
+
+// ── Terminal-induction capability boundary ────────────────────────────────
+//
+// The authoritative Nebula fixed relation closes the recursive NIFS.V
+// induction and is accepted terminal-only by the active R5 test named in
+// the table above. These tests cover the other half of the boundary: older
+// image/native and generic compiler frontends must remain fail-closed because
+// they do not own that fixed relation or its delayed-memory semantics.
+
+#[path = "../nebula/fixture.rs"]
+mod nebula_fixture;
+
+/// The old encoded-image fixture constrains public state links but is not the
+/// authoritative fixed relation. It must not gain terminal induction merely
+/// because another frontend implemented it.
+#[test]
+fn legacy_multi_chunk_terminal_only_remains_fail_closed() {
+    let plan = canonical_threaded_plan();
+    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_C005).expect("preprocess");
+    let steps = honest_state_threaded_encoded_f_prime_steps(3);
+    let audit = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
+    let proof = neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit).expect("finalize");
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
+        .expect_err("legacy image-only F' must remain fail-closed terminal-only");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::TerminalOnlyMultiChunkUnsupported { chunk_count: 3 }
+        ),
+        "expected the multi-chunk fail-closed guard, got: {err}"
+    );
+}
+
+/// The older immediate-transition Nebula fixture is useful as an audit oracle,
+/// but it does not fold the composed fixed relation and remains replay-only.
+#[test]
+fn legacy_nebula_terminal_only_remains_fail_closed() {
+    let (_, prep, audit) = nebula_fixture::honest_two_segment_chain();
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep, &audit.proof)
+        .expect_err("legacy immediate-transition Nebula must remain fail-closed terminal-only");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::TerminalOnlyMultiChunkUnsupported { .. }
+        ),
+        "expected the multi-chunk fail-closed guard, got: {err}"
+    );
+}
+
+/// The generic R1CS compiler sets the public recursive-link flag, but that is
+/// weaker than owning the fixed Nebula relation. Its dedicated guard stays
+/// active so a public-link-only relation cannot opt itself into terminal trust.
+#[test]
+fn generic_recursive_link_multi_chunk_remains_fail_closed() {
+    use support::r1cs_compiler_fixtures::{
+        assignment_one_product, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
+    };
+
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep = neo_fold_clean::frontends::r1cs_f_prime::preprocess_seeded_with_params(
+        &r1cs,
+        &plan,
+        tiny_params(),
+        0x1F15_C006,
+    )
+    .expect("preprocess");
+    assert!(
+        prep.prep.enforces_f_prime_recursive_link(),
+        "r1cs_f_prime preprocessing must set the recursive-link flag"
+    );
+
+    let mut chain = neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder::new(&prep).expect("builder");
+    chain
+        .append_assignment(assignment_one_product(3, 7))
+        .expect("base step");
+    chain
+        .append_assignment(assignment_one_product(3, 7))
+        .expect("recursive step");
+    let proof = chain.finish().expect("finalize");
+
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
+        .expect_err("generic recursive-link relation must remain fail-closed terminal-only");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::FPrimeNonReplayUnsupported { chunk_count: 2 }
+        ),
+        "expected the recursive-link fail-closed guard, got: {err}"
+    );
+}
+
+/// Historical manual-shell cost regression. The projection prototype remains
+/// useful for comparing encodings, but the fixed relation's R2/R3 tests own
+/// production authority.
+#[test]
+fn folded_f_prime_shell_must_adopt_projection_budget() {
+    use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+    use neo_fold_clean::frontends::f_prime::structure::production_kmul_ring_action_shell_image_config;
+
+    let layout = FPrimeImageLayout::new(production_kmul_ring_action_shell_image_config());
+    const PROJECTION_BUDGET_BITS: usize = 16_000_000;
+    assert!(
+        layout.end <= PROJECTION_BUDGET_BITS,
+        "production F' shell commits {} bits/step; the projection-checked budget is {} \
+         (encoding.md candidate E — integrate `enforce_ring_action_projection_batch`)",
+        layout.end,
+        PROJECTION_BUDGET_BITS
+    );
+}
+
+/// Historical manual-shell algebra regression: a projection region must still
+/// emit the beta ladder, evaluation sums, Karatsuba relations, and final
+/// identity rows. Passing this test does not grant terminal authority.
+#[test]
+fn projection_shell_semantic_rows_must_be_enforced() {
+    use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+    use neo_fold_clean::frontends::f_prime::structure::{
+        build_f_prime_structure, production_kmul_d2_ring_action_shell_image_config,
+    };
+
+    let base_config = {
+        let mut c = production_kmul_d2_ring_action_shell_image_config();
+        c.kmul_count = 2;
+        c.ring_action_pair_count = 0;
+        c
+    };
+    let projection_config = {
+        let mut c = base_config.clone();
+        c.projection_batches = vec![2]; // one identity consuming two pairs
+        c
+    };
+
+    let base_rows = build_f_prime_structure(FPrimeImageLayout::new(base_config))
+        .ccs
+        .n;
+    let projection_rows = build_f_prime_structure(FPrimeImageLayout::new(projection_config))
+        .ccs
+        .n;
+
+    assert!(
+        projection_rows >= base_rows + 100,
+        "projection regions must be semantically constrained: {projection_rows} rows with the region vs {base_rows} without"
     );
 }

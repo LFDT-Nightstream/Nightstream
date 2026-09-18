@@ -71,12 +71,12 @@
   - `SuperNeo/SecurityModel/InteractiveReductions.lean`
   - `SuperNeo/Primitives/Interp.lean`
   - `SuperNeo/FoldingProtocol/ProtocolRelations.lean`
-  - `SuperNeo/ProofSystem/Lattice.lean`
-  - `SuperNeo/ProofSystem/LatticeReductions.lean`
-  - `SuperNeo/ProofSystem/SumCheck.lean`
-  - `SuperNeo/ProofSystem/Security.lean`
+  - `SuperNeo/Commitment/Lattice.lean`
+  - `SuperNeo/Commitment/LatticeReductions.lean`
+  - `SuperNeo/SumCheck.lean`
+  - `SuperNeo/SecurityModel/Security.lean`
 - Downstream consumers:
-  - `SuperNeo/ProofSystem/Protocol.lean`
+  - `SuperNeo/Protocol.lean`
 
 ## Construction Discipline
 

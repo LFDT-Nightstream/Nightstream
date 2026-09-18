@@ -8,8 +8,9 @@
 //! - [`verify_uncompressed`] **(terminal-only IVC verifier)** consumes
 //!   the terminal-only [`Uncompressed`]. Constant verifier work in chain
 //!   length. Authenticates the terminal fold, never iterating per-step
-//!   proofs. It accepts only single-chunk histories; multi-chunk histories
-//!   require audit/decider replay.
+//!   proofs. Multi-chunk histories require preprocessing that certifies the
+//!   authoritative fixed F' relation; historical image-only relations remain
+//!   audit-only.
 //! - [`verify_uncompressed_audit`] **(chain-replay / audit verifier)**
 //!   consumes the audit-bearing [`crate::lifecycle::UncompressedAudit`].
 //!   Linear in chain length. Replays every `extend`'s NIFS.V to catch
@@ -23,22 +24,23 @@
 //!
 //! ## Contract — non-replay IVC verifier (Phase 1.7)
 //!
-//! [`verify_uncompressed`] is the terminal-only verifier: its work is
-//! constant in chain length. It authenticates the **terminal NIFS fold**
-//! (HyperNova §6.3 Construction 2 + SuperNeo §7), without ever iterating
-//! per-step `StepProof`s. The walk over per-step F' proofs lives in
+//! [`verify_uncompressed`] is the compact verifier: its work is constant in
+//! chain length. For plain authoritative F' it checks HyperNova's running
+//! accumulator and latest fresh relation separately. Nebula additionally
+//! authenticates its terminal NIFS fold to consume the delayed memory claim.
+//! The walk over per-step F' proofs lives in
 //! [`verify_uncompressed_audit`] (and the decider's `validate_witness`);
 //! audit-trail tampers are caught there, not here.
 //!
-//! This distinction is load-bearing. The terminal-only artifact has
-//! dropped the intermediate step witnesses and NIFS.V messages, so it
-//! cannot re-check the HyperNova induction or rederive earlier chunks'
-//! counters/boundary coordinates. Those obligations live in the
-//! audit/decider path. For that reason, `verify_uncompressed` rejects
-//! any proof whose terminal fold starts from a non-empty running
-//! accumulator.
+//! This distinction is load-bearing. The compact artifact has dropped
+//! the intermediate step witnesses and NIFS.V messages. For the authoritative
+//! fixed relation, those checks were constraints of every folded F' instance,
+//! so the running accumulator plus latest relation authenticate them
+//! inductively. Other frontends do not own that relation and remain rejected.
 //!
-//! Specifically, given a finalized proof with the terminal-fold inputs
+//! The plain HyperNova branch checks the opened running CE accumulator and the
+//! latest CCS relation directly. For Nebula or legacy terminal-fold inputs,
+//! the verifier additionally follows this path:
 //! the prover stored in `final_fold.terminal_inputs`, the verifier:
 //!
 //! 1. Reconstructs the pre-final-fold `State` from
@@ -73,8 +75,8 @@
 //! `verify_uncompressed` **executes the SuperNeo verifier equations
 //! directly over the folded CCS/CE circuit relation.** Rust is the
 //! executor; SuperNeo is the source of soundness. A consumer that
-//! runs this function gets the SuperNeo verifier's terminal-fold
-//! check + the full CE-relation closure against the opened witnesses.
+//! runs this function gets either HyperNova's running/latest checks or the
+//! Nebula terminal-fold check, plus relation closure against opened witnesses.
 //!
 //! It is NOT the soundness contract for a consumer that verifies a
 //! *compressed* artifact (the decider R1CS + a SNARK over it). For
@@ -87,11 +89,10 @@
 //! The load-bearing soundness step in §1–4 is the Π_CCS sumcheck inside
 //! step 2: at random row `α` it implies CCS satisfaction for the latest
 //! and correct CE evaluation for `pre_final_running` at its
-//! (prover-supplied but circuit-bound) `r`. For single-chunk histories,
-//! the terminal fold is sufficient for this verifier. For multi-chunk
-//! histories, the cross-step induction and public-boundary reconstruction
-//! are not available after dropping the audit trail, so this verifier
-//! fails closed instead of relying on a digest-only story.
+//! (prover-supplied but circuit-bound) `r`. For a certified fixed-relation
+//! chain, recursive F' satisfaction supplies the cross-step induction. For
+//! every other multi-chunk relation this verifier fails closed instead of
+//! relying on a digest-only story.
 //! `pc` is pinned/linked as a state field and absorbed directly into the
 //! per-step `state_x_out` preimage. In this single-`F'_j` build it is
 //! always `TRIVIAL_PC`, but the binding remains explicit for the
@@ -99,11 +100,14 @@
 //! Step 5's CE-relation check is what binds those transcript-derived
 //! `y_j` values back to the *opened* witness `Z`.
 
-use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::utils::tensor_point_parallel;
+use neo_ccs::{check_ccs_rowwise_zero, traits::SModuleHomomorphism};
 use neo_math::balanced::within_nc_bound;
 use neo_math::{F, K};
-use neo_reductions::common::{compute_y_zcol_from_witness, project_x_from_witness_mat, validate_superneo_witness_mat};
+use neo_reductions::common::{
+    compute_y_zcol_from_witness, decode_superneo_coeffs_from_witness_mat, project_x_from_witness_mat,
+    validate_superneo_witness_mat,
+};
 use neo_reductions::superneo_eval::{
     eval_ring_linear_forms_real_z_blocks, SuperneoEvalCache, SuperneoRingLinearForm, SuperneoZBlocks,
 };
@@ -218,12 +222,17 @@ impl WitnessAuthorityPerf {
 
 /// Verify an uncompressed proof in O(1) verifier work (constant in chain length).
 ///
-/// Authority comes from re-running the **terminal NIFS fold** under a
-/// verifier-driven transcript, then binding the derived post-fold state
-/// to the recorded proof.state. See module docs for the full check list.
+/// Authority comes from the certified F' induction: check the running CE
+/// accumulator and latest CCS instance separately. Nebula additionally
+/// re-runs its terminal NIFS fold to close the delayed memory lane.
 pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
     let (recorded_running, recorded_latest) = require_active_state(&proof.state.proof)?;
-    if !recorded_latest.instances.is_empty() {
+    let hypernova_terminal =
+        prep.enforces_terminal_induction() && prep.nebula().is_none() && proof.final_fold.is_none();
+    if !hypernova_terminal && !recorded_latest.instances.is_empty() {
+        return Err(Error::NotFinalized);
+    }
+    if hypernova_terminal && recorded_latest.instances.is_empty() {
         return Err(Error::NotFinalized);
     }
     check_running_shape(recorded_running)?;
@@ -255,18 +264,28 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     // the field inductively via the binding rows.
     check_stateless_semantic_invariant(prep, proof)?;
 
-    // (0d) Multi-chunk F' proofs need the per-step F' recursive link
-    // and NIFS.V messages to prove the HyperNova induction. `Uncompressed`
-    // has dropped those intermediate witnesses, so the terminal-only
-    // verifier must fail closed instead of accepting a self-consistent
-    // terminal fold.
+    // (0d) Only an authoritative fixed relation may carry the HyperNova
+    // induction after the intermediate messages are dropped. Public-link-only
+    // image relations remain fail-closed for multi-chunk proofs.
     check_f_prime_non_replay_scope(prep, proof)?;
 
-    // (1)–(2) Reconstruct pre-fold state from terminal_inputs and run the
-    // terminal fold verifier. Three sub-cases mirror `prove_final_fold`:
-    match &proof.final_fold {
-        None => verify_no_terminal_fold_case(prep, proof, recorded_running)?,
-        Some(final_fold) => verify_terminal_fold_case(prep, proof, recorded_running, final_fold)?,
+    // (0e) Nebula finalization rule (spec §6.3): an externally accepted
+    // proof must end at a closed segment — a trailing open segment has
+    // folded op rows whose product equation and D_seen == D_pre binding
+    // were never checked. Mid-segment State is prover resume material
+    // only (spec §6.4).
+    check_nebula_terminal_state(prep, &proof.state)?;
+
+    // HyperNova verifies the running accumulator and newest F' instance as
+    // two relations. Legacy and Nebula proofs retain the older terminal-fold
+    // finalization shape.
+    if hypernova_terminal {
+        verify_hypernova_terminal_case(prep, proof, recorded_latest)?;
+    } else {
+        match &proof.final_fold {
+            None => verify_no_terminal_fold_case(prep, proof, recorded_running)?,
+            Some(final_fold) => verify_terminal_fold_case(prep, proof, recorded_running, final_fold)?,
+        }
     }
 
     // (5) Witness-side authority: each prover-stored witness must
@@ -326,7 +345,7 @@ fn check_stateless_semantic_invariant(prep: &Preprocessing, proof: &Uncompressed
 }
 
 fn check_f_prime_non_replay_scope(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
-    if prep.enforces_f_prime_recursive_link() && proof.state.chunk_count > 1 {
+    if prep.enforces_f_prime_recursive_link() && !prep.enforces_terminal_induction() && proof.state.chunk_count > 1 {
         return Err(Error::FPrimeNonReplayUnsupported {
             chunk_count: proof.state.chunk_count,
         });
@@ -350,6 +369,103 @@ fn check_running_shape(running: &RunningInstance) -> Result<(), Error> {
     Ok(())
 }
 
+// ── HyperNova terminal path: running accumulator + latest fresh F' ───────
+
+fn verify_hypernova_terminal_case(
+    prep: &Preprocessing,
+    proof: &Uncompressed,
+    latest: &LatestInstance,
+) -> Result<(), Error> {
+    let latest_count = latest.instances.len();
+    if latest_count != 1 {
+        return Err(Error::TerminalInductionArity { got: latest_count });
+    }
+    if proof.state.chunk_count == 0 || proof.state.step_count == 0 {
+        return Err(Error::PostStateMismatch);
+    }
+
+    let start_index = proof
+        .state
+        .step_count
+        .checked_sub(latest_count as u64)
+        .ok_or(Error::PostStateMismatch)?;
+    let expected_chunk_digest = construction2::f_prime_chunk_public_digest_from_claims(start_index, &latest.claims());
+    let expected_boundary = digest_fields_as_digest32(expected_chunk_digest);
+    if proof.state.z_i != expected_boundary || proof.state.public_trace != expected_boundary {
+        return Err(Error::PostStateMismatch);
+    }
+
+    check_terminal_latest_link(prep, &proof.state, latest)?;
+    check_latest_instances_authority(prep, latest)
+}
+
+fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstance) -> Result<(), Error> {
+    let expected_m_in = prep.public_input_len.unwrap_or(F_PRIME_PUBLIC_INPUT_LEN);
+    for (index, instance) in latest.instances.iter().enumerate() {
+        let fail = |reason: String| Error::TerminalLatestAuthority { index, reason };
+        let claim = &instance.claim;
+        let witness = &instance.witness;
+        if claim.m_in != expected_m_in || claim.x.len() != expected_m_in {
+            return Err(fail(format!(
+                "public input shape is m_in={}, x.len()={}, expected {expected_m_in}",
+                claim.m_in,
+                claim.x.len()
+            )));
+        }
+        if claim.adv.is_some() {
+            return Err(fail(
+                "plain F' latest claim carries an unsupported product-commitment sidecar".into(),
+            ));
+        }
+        let private = witness
+            .private_values(claim.x.len(), prep.structure().m)
+            .ok_or_else(|| {
+                fail(format!(
+                    "packed/private witness does not complete public length {} to expected width {}",
+                    claim.x.len(),
+                    prep.structure().m
+                ))
+            })?;
+        if claim.x.len() + private.len() != prep.structure().m {
+            return Err(fail(format!(
+                "x||w has length {}, expected {}",
+                claim.x.len() + private.len(),
+                prep.structure().m
+            )));
+        }
+        validate_superneo_witness_mat(&witness.Z, prep.structure().m)
+            .map_err(|error| fail(format!("packed witness shape: {error}")))?;
+
+        let mut z = claim.x.clone();
+        z.extend_from_slice(&private);
+        let decoded = decode_superneo_coeffs_from_witness_mat(&witness.Z, prep.structure().m)
+            .map_err(|error| fail(format!("packed witness decoding: {error}")))?;
+        for (column, value) in z.iter().enumerate() {
+            if decoded[column] != K::from(*value) {
+                return Err(fail(format!("packed witness disagrees with x||w at column {column}")));
+            }
+        }
+        if decoded[z.len()..].iter().any(|value| *value != K::ZERO) {
+            return Err(fail("packed witness has a nonzero padded tail".into()));
+        }
+        for row in 0..witness.Z.rows() {
+            for col in 0..witness.Z.cols() {
+                if !within_nc_bound(witness.Z[(row, col)], prep.params.b()) {
+                    return Err(fail(format!(
+                        "low-norm bound violated at packed row {row}, column {col}"
+                    )));
+                }
+            }
+        }
+        if prep.log.commit(&witness.Z) != claim.c {
+            return Err(fail("Ajtai commitment does not open to the supplied witness".into()));
+        }
+        check_ccs_rowwise_zero(prep.structure(), &claim.x, &private)
+            .map_err(|error| fail(format!("CCS relation: {error}")))?;
+    }
+    Ok(())
+}
+
 // ── Terminal-fold path: re-run NIFS.V and bind the result ─────────────────
 
 fn verify_terminal_fold_case(
@@ -369,6 +485,9 @@ fn verify_terminal_fold_case(
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &prep.vk,
+        prep.enforces_terminal_induction()
+            .then(|| prep.nebula())
+            .flatten(),
         pre_state,
         Some(final_fold),
         prep.semantic_state_mode,
@@ -398,6 +517,11 @@ fn check_terminal_boundary_from_latest(
     if latest_count == 0 || latest_count > post.step_count {
         return Err(Error::PostStateMismatch);
     }
+    if prep.enforces_terminal_induction() && latest_count != 1 {
+        return Err(Error::TerminalInductionArity {
+            got: latest_count as usize,
+        });
+    }
     let max_fresh = prep.params.max_fresh_count();
     if latest_count as usize > max_fresh {
         return Err(Error::BatchTooLarge {
@@ -405,17 +529,21 @@ fn check_terminal_boundary_from_latest(
             max: max_fresh,
         });
     }
-    if !final_fold
-        .terminal_inputs
-        .pre_final_running
-        .claims
-        .is_empty()
+    if !prep.enforces_terminal_induction()
+        && !final_fold
+            .terminal_inputs
+            .pre_final_running
+            .claims
+            .is_empty()
     {
         return Err(Error::TerminalOnlyMultiChunkUnsupported {
             chunk_count: post.chunk_count,
         });
     }
-    if post.chunk_count != 1 || post.step_count != latest_count {
+    if post.chunk_count == 0 {
+        return Err(Error::PostStateMismatch);
+    }
+    if !prep.enforces_terminal_induction() && (post.chunk_count != 1 || post.step_count != latest_count) {
         return Err(Error::PostStateMismatch);
     }
     let start_index = post.step_count - latest_count;
@@ -441,9 +569,10 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
         prep.semantic_state_mode,
     )
     .bits();
+    let expected_public_input_len = prep.public_input_len.unwrap_or(F_PRIME_PUBLIC_INPUT_LEN);
     for (index, instance) in latest.instances.iter().enumerate() {
         let claim = &instance.claim;
-        if claim.m_in != F_PRIME_PUBLIC_INPUT_LEN || claim.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+        if claim.m_in != expected_public_input_len || claim.x.len() != expected_public_input_len {
             return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
         if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {
@@ -492,6 +621,7 @@ fn build_pre_final_state(post: &State, terminal: &TerminalFoldInputs) -> Result<
             running: terminal.pre_final_running.clone(),
             latest: terminal.latest.clone(),
         },
+        nebula: terminal.pre_nebula.clone(),
     })
 }
 
@@ -517,6 +647,7 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
         || derived.semantic_state_digest != recorded.semantic_state_digest
         || derived.public_trace != recorded.public_trace
         || derived.acc_digest != recorded.acc_digest
+        || derived.nebula != recorded.nebula
     {
         return Err(Error::PostStateMismatch);
     }
@@ -685,14 +816,21 @@ fn scan_terminal_witnesses(prep: &Preprocessing, running: &RunningInstance, b: u
         .map(|(index, witness)| {
             validate_superneo_witness_mat(witness, prep.structure().m)
                 .map_err(|_| Error::FinalAccumulatorWitnessShapeMismatch)?;
+            if witness
+                .virtual_constant_value()
+                .is_some_and(|value| *value == F::ZERO)
+            {
+                return Ok(false);
+            }
             let mut nonzero = false;
-            for (offset, &entry) in witness.as_slice().iter().enumerate() {
-                if !within_nc_bound(entry, b) {
-                    let row = offset / witness.cols();
-                    let col = offset % witness.cols();
-                    return Err(Error::FinalAccumulatorLowNormViolation { index, row, col });
+            for row in 0..witness.rows() {
+                for col in 0..witness.cols() {
+                    let entry = witness[(row, col)];
+                    if !within_nc_bound(entry, b) {
+                        return Err(Error::FinalAccumulatorLowNormViolation { index, row, col });
+                    }
+                    nonzero |= entry != F::ZERO;
                 }
-                nonzero |= entry != F::ZERO;
             }
             Ok(nonzero)
         })
@@ -777,6 +915,23 @@ fn check_running_claim_authority(
     check_claim_supported_sidecars(index, claim)?;
     if opened != &claim.c {
         return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
+    }
+    // Nebula terminal slice-openings (spec §5.2 R3): each published lane
+    // commitment must open against its lane slice of the *same* witness
+    // the full-`z` commitment just opened — the check that pins the
+    // mirrored fold algebra to lane content (security-note Lemma 1).
+    match (prep.nebula(), &claim.adv) {
+        (Some(cfg), Some(adv)) => {
+            let opens = cfg
+                .scheme
+                .open_matches(adv, witness)
+                .map_err(|_| Error::NebulaSliceOpeningFailed)?;
+            if !opens {
+                return Err(Error::NebulaSliceOpeningFailed);
+            }
+        }
+        (None, None) => {}
+        _ => return Err(Error::NebulaAdvPresenceMismatch),
     }
     if !witness_nonzero {
         let t_project = std::time::Instant::now();
@@ -1147,8 +1302,10 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         &prep.vk,
         prep.public_input_len,
         prep.enforces_f_prime_recursive_link(),
+        prep.enforces_terminal_induction(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         &statement,
     )
     .map_err(Error::from)?;
@@ -1159,5 +1316,20 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
     if !latest.instances.is_empty() {
         return Err(Error::PostStateMismatch);
     }
+    check_nebula_terminal_state(prep, &audit.proof.state)?;
     check_running_witnesses_authority(prep, running)
+}
+
+/// Spec §6.3 finalization rule + lane/config presence coherence.
+fn check_nebula_terminal_state(prep: &Preprocessing, state: &State) -> Result<(), Error> {
+    match (prep.nebula(), &state.nebula) {
+        (Some(_), Some(lane)) => {
+            if !lane.is_closed() {
+                return Err(Error::NebulaSegmentOpenAtTerminal);
+            }
+            Ok(())
+        }
+        (None, None) => Ok(()),
+        _ => Err(Error::NebulaLanePresenceMismatch),
+    }
 }

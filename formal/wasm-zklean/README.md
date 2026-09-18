@@ -283,11 +283,10 @@ prior `cargo run -p neo-wasm --bin export_wasm_zklean`. The
 The exporter lives at
 [`crates/neo-wasm/src/bin/export_wasm_zklean.rs`](../../crates/neo-wasm/src/bin/export_wasm_zklean.rs).
 It currently emits a tiny demo circuit: one call to the real
-`push_zero_test_gadget` (now `pub` in `wasm::gadgets`), plus the matching
-`Instr.ZeroTest` trace and the `trace_matches_actual` cross-check. Future
-work: instrument more gadget call sites so the trace is recovered from
-the live `WasmConstraintCatalog` rather than constructed alongside it in
-the exporter.
+shared `ZeroTest` descriptor, then recovers both its `Instr.ZeroTest` trace
+and exact row range from the retained gadget occurrence in the constraint
+catalog. Future work is to export the occurrences from the full WASM relation
+rather than this isolated demo relation.
 
 ```bash
 # Regenerate WasmCircuit/Generated.lean:

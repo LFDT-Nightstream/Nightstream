@@ -11,10 +11,18 @@
 //! gadget that recomputes the same digest in PR5's `engine::decider`.
 
 use neo_ajtai::Commitment;
-use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
+use neo_ccs::{CcsClaim, CcsStructure, CeClaim, LaneCommitments};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
+
+use crate::paper::reductions::accumulator_sis_circuit::{
+    accumulator_digest as sis_accumulator_digest, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG,
+    PI_CCS_OUTPUTS_SIS_CONFIG,
+};
+
+pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v1";
+pub(crate) const F_PRIME_CHUNK_PUBLIC_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_public_digest/v1";
 
 // ── Field/byte plumbing ───────────────────────────────────────────────────
 
@@ -183,7 +191,156 @@ pub fn ccs_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
     preimage.push(F::from_u64(claim.x.len() as u64));
     preimage.extend_from_slice(&claim.x);
     preimage.push(F::from_u64(claim.m_in as u64));
+    append_adv_leaves(&mut preimage, &claim.adv);
+    sis_accumulator_digest(CCS_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CCS-claim SIS preimage")
+}
+
+// ── Nebula lane-commitment leaves (spec §6.1, absorb rule §5.2 R1) ─────────
+
+/// Leaf-digest tag for the ops lane.
+pub const NEBULA_LEAF_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/ops/v4";
+/// Leaf-digest tag shared by the `is` and `fs` lanes. Lane-NEUTRAL by
+/// design: the memory-boundary chains of consecutive segments compare
+/// `fs`-side digests against `is`-side digests, which is only meaningful
+/// if both sides hash with the identical formula (spec §6.1 tag
+/// discipline; lane identity is positional, never tag-borne).
+pub const NEBULA_LEAF_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/mem/v4";
+
+/// Nonzero marker prefixing the `adv` extension of a claim-digest
+/// preimage, so a `Some(adv)` preimage can never alias a `None` one.
+pub(crate) const NEBULA_ADV_PRESENT_MARKER: u64 = 0x4e42_4c41; // "NBLA"
+
+/// Bind one lane commitment with a seeded Ajtai compression followed by one
+/// Poseidon2 digest. Every chain link and transcript absorb downstream
+/// consumes the four-field Poseidon2 leaf, never raw SIS output.
+fn nebula_leaf_digest(tag: &'static [u8], c: &Commitment) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(tag);
+    preimage.push(F::from_u64(c.d as u64));
+    preimage.push(F::from_u64(c.kappa as u64));
+    preimage.push(F::from_u64(c.data.len() as u64));
+    preimage.extend_from_slice(&c.data);
+    sis_accumulator_digest(NEBULA_LEAF_SIS_CONFIG, &preimage).expect("nonempty Nebula-leaf SIS preimage")
+}
+
+/// Per-lane leaf digests of a claim's `adv` tuple, ordered (ops, is, fs).
+///
+/// `pub` so the F′ `NebulaLane` chains (spec §6.3) and their tests
+/// recompute leaves from the same authority-bearing definition.
+pub fn nebula_lane_leaf_digests(adv: &LaneCommitments<Commitment>) -> [[F; 4]; 3] {
+    [
+        nebula_leaf_digest(NEBULA_LEAF_OPS_TAG, &adv.ops),
+        nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, &adv.is),
+        nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, &adv.fs),
+    ]
+}
+
+/// Link tag of the ops `D` chain (spec §6.1 tag discipline).
+pub const NEBULA_CHAIN_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/chain/ops/v3";
+/// Link tag shared by the `is` and `fs` chains — lane-NEUTRAL so segment
+/// k's FS chain and segment k+1's IS chain are formula-identical (the
+/// §6.4 boundary equality compares identically-computed digests).
+pub const NEBULA_CHAIN_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/chain/mem/v3";
+
+/// Header (initial value) of the ops chain.
+pub fn nebula_chain_ops_header() -> [F; 4] {
+    poseidon_digest_fields(&pack_bytes_as_fields(b"neo.fold.clean/nebula/chain/ops/header/v3"))
+}
+
+/// Header shared by the `is` and `fs` chains. Shared on purpose — header
+/// symmetry is half of the formula identity the boundary equality needs
+/// (the other half is the shared link tag above).
+pub fn nebula_chain_mem_header() -> [F; 4] {
+    poseidon_digest_fields(&pack_bytes_as_fields(b"neo.fold.clean/nebula/chain/mem/header/v3"))
+}
+
+/// One `D ← Poseidon2(D_prev, tag, leaf)` chain link (spec §6.1/§6.3) —
+/// the paper's `C_i ← hash(C_{i−1}, C_ω)` with the leaf hop.
+pub fn nebula_chain_link(prev: &[F; 4], link_tag: &'static [u8], leaf: &[F; 4]) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(link_tag);
+    preimage.extend_from_slice(prev);
+    preimage.extend_from_slice(leaf);
     poseidon_digest_fields(&preimage)
+}
+
+/// Compact digest of the carried `NebulaLane` (spec §6.1) — the value the
+/// F′ state hash and step transcript absorb (present-only, like the
+/// claim-digest `adv` extension). Field order is part of the protocol
+/// binding; `gamma: None` (`⊥` before the segment's squeeze) absorbs as a
+/// zero flag with zeroed slots, `Some` as a one flag plus coefficients.
+#[allow(clippy::too_many_arguments)]
+pub fn nebula_lane_digest(
+    seg_idx: u64,
+    idx: u64,
+    ts: u64,
+    gamma: Option<&[K; 2]>,
+    h: &[K; 4],
+    sp: &[u64; 2],
+    d_pre: &[[F; 4]; 3],
+    d_seen: &[[F; 4]; 3],
+    d_mem: &[F; 4],
+) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/nebula/lane_digest/v3");
+    preimage.push(F::from_u64(seg_idx));
+    preimage.push(F::from_u64(idx));
+    preimage.push(F::from_u64(ts));
+    preimage.extend(sp.iter().map(|&s| F::from_u64(s)));
+    match gamma {
+        None => {
+            preimage.push(F::ZERO);
+            preimage.extend(std::iter::repeat_n(F::ZERO, 4));
+        }
+        Some(gamma) => {
+            preimage.push(F::ONE);
+            append_k_slice(&mut preimage, gamma.as_slice());
+        }
+    }
+    append_k_slice(&mut preimage, h.as_slice());
+    for chain in d_pre.iter().chain(d_seen.iter()) {
+        preimage.extend_from_slice(chain);
+    }
+    preimage.extend_from_slice(d_mem);
+    poseidon_digest_fields(&preimage)
+}
+
+/// Mem-domain leaf of a single commitment — the plan generator's `D_init`
+/// path (spec §7) uses this for initial-memory lane commitments; identical
+/// to the `is`/`fs` leaves of [`nebula_lane_leaf_digests`] by shared tag.
+pub fn nebula_mem_leaf(c: &Commitment) -> [F; 4] {
+    nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, c)
+}
+
+/// The three per-lane chains over a segment's tuple sequence — the
+/// prover's `D_pre` computation (spec §6.2) and the reference for every
+/// `D_seen` comparison: headers, then one link per tuple per lane, with
+/// the §6.1 tag discipline (ops-domain; shared mem-domain for is/fs).
+pub fn nebula_lane_chains<'a>(advs: impl IntoIterator<Item = &'a LaneCommitments<Commitment>>) -> [[F; 4]; 3] {
+    let mem = nebula_chain_mem_header();
+    let mut chains = [nebula_chain_ops_header(), mem, mem];
+    let tags: [&'static [u8]; 3] = [NEBULA_CHAIN_OPS_TAG, NEBULA_CHAIN_MEM_TAG, NEBULA_CHAIN_MEM_TAG];
+    for adv in advs {
+        let leaves = nebula_lane_leaf_digests(adv);
+        for lane_id in 0..3 {
+            chains[lane_id] = nebula_chain_link(&chains[lane_id], tags[lane_id], &leaves[lane_id]);
+        }
+    }
+    chains
+}
+
+/// Absorb rule R1 (spec §5.2): wherever a claim digest binds `c.data`, a
+/// present `adv` tuple is bound too, as its three leaves.
+///
+/// Present-only on purpose: a `None` claim's preimage stays byte-identical
+/// to the pre-Nebula format. The SplitNcV1 in-circuit digest mirrors append
+/// the same conditional extension.
+/// Unambiguous despite the sponge's zero-fill final chunk: the extension
+/// is a nonzero marker plus 12 leaf elements, always > RATE.
+fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitment>>) {
+    if let Some(adv) = adv {
+        preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
+        for leaf in nebula_lane_leaf_digests(adv) {
+            preimage.extend_from_slice(&leaf);
+        }
+    }
 }
 
 /// F'-specific digest of one `CcsClaim`. Deliberately **does not** absorb
@@ -216,12 +373,35 @@ pub fn ccs_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
 /// continue to use [`ccs_claim_digest`], which still binds both `c.data`
 /// and `x`.
 pub fn f_prime_chunk_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/f_prime_chunk_claim_digest/v1");
-    preimage.push(F::from_u64(claim.c.d as u64));
-    preimage.push(F::from_u64(claim.c.kappa as u64));
-    preimage.push(F::from_u64(claim.m_in as u64));
+    f_prime_chunk_claim_shape_digest(claim.c.d, claim.c.kappa, claim.m_in)
+}
+
+fn f_prime_chunk_claim_shape_digest(d: usize, kappa: usize, m_in: usize) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(F_PRIME_CHUNK_CLAIM_DIGEST_TAG);
+    preimage.push(F::from_u64(d as u64));
+    preimage.push(F::from_u64(kappa as u64));
+    preimage.push(F::from_u64(m_in as u64));
     // Deliberately do NOT absorb claim.x or claim.c.data: both depend on
     // the recursive-link x in direct-CCS (commitment covers full z).
+    poseidon_digest_fields(&preimage)
+}
+
+/// F'-specific chunk digest when every fresh claim has the same verifier-owned
+/// `(d, kappa, m_in)` shape.
+pub fn f_prime_chunk_public_digest_for_uniform_shape(
+    start_index: u64,
+    fresh_len: usize,
+    d: usize,
+    kappa: usize,
+    m_in: usize,
+) -> [F; 4] {
+    let claim_digest = f_prime_chunk_claim_shape_digest(d, kappa, m_in);
+    let mut preimage = pack_bytes_as_fields(F_PRIME_CHUNK_PUBLIC_DIGEST_TAG);
+    preimage.push(F::from_u64(start_index));
+    preimage.push(F::from_u64(fresh_len as u64));
+    for _ in 0..fresh_len {
+        preimage.extend_from_slice(&claim_digest);
+    }
     poseidon_digest_fields(&preimage)
 }
 
@@ -246,7 +426,7 @@ pub fn f_prime_chunk_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
 /// stack. Use that path — not the F' chunk digest — to argue
 /// "this proof commits to these specific chunk contents."
 pub fn f_prime_chunk_public_digest(start_index: u64, fresh: &[CcsClaim<Commitment, F>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/f_prime_chunk_public_digest/v1");
+    let mut preimage = pack_bytes_as_fields(F_PRIME_CHUNK_PUBLIC_DIGEST_TAG);
     preimage.push(F::from_u64(start_index));
     preimage.push(F::from_u64(fresh.len() as u64));
     for claim in fresh {
@@ -323,7 +503,8 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     }
     preimage.push(F::from_u64(claim.m_in as u64));
     preimage.extend(digest32_as_fields(claim.fold_digest));
-    poseidon_digest_fields(&preimage)
+    append_adv_leaves(&mut preimage, &claim.adv);
+    sis_accumulator_digest(CE_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CE-claim SIS preimage")
 }
 
 /// Digest of every authority-bearing CE-claim field that is part of the
@@ -361,21 +542,24 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
-/// Digest the full Π_CCS output messages before Π_RLC samples `ρ`.
+/// Digest the new Π_CCS output messages before Π_RLC samples `ρ`.
 ///
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
-/// samples random linear-combination coefficients." In the Fiat-Shamir
-/// transcript, those output claims therefore need an explicit, verifier-
-/// recomputable absorb before `ρ` is derived. This digest binds the whole
-/// clean CE-claim output surface, including the implementation sidecars that
-/// Π_RLC/Π_DEC consume (`s_col`, `ct`, `y_zcol`, and `fold_digest`).
+/// samples random linear-combination coefficients." Only the newly sent
+/// evaluation rows need another Fiat-Shamir absorb: every forwarded field is
+/// already bound by the Π_CCS input transcript or derived by the verifier and
+/// constrained equal to that authority in Π_CCS.V.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
-        preimage.extend_from_slice(&pi_ccs_output_claim_digest(claim));
+        preimage.extend(pack_bytes_as_fields(
+            b"neo.fold.clean/pi_ccs_output_challenge_digest/v2",
+        ));
+        append_k_rows(&mut preimage, &claim.y_ring);
+        append_k_slice(&mut preimage, &claim.y_zcol);
     }
-    poseidon_digest_fields(&preimage)
+    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
 }
 
 /// Digest of the compact terminal-CE proof's public statement.
@@ -401,12 +585,6 @@ pub fn terminal_ce_public_digest(
 
 fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v1");
-    append_terminal_ce_claim_public_fields(&mut preimage, claim);
-    poseidon_digest_fields(&preimage)
-}
-
-fn pi_ccs_output_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_claim_digest/v1");
     append_terminal_ce_claim_public_fields(&mut preimage, claim);
     poseidon_digest_fields(&preimage)
 }
@@ -438,6 +616,7 @@ fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitme
     preimage.extend_from_slice(&claim.c_step_coords);
     preimage.push(F::from_u64(claim.u_offset as u64));
     preimage.push(F::from_u64(claim.u_len as u64));
+    append_adv_leaves(preimage, &claim.adv);
 }
 
 fn append_k_slice(preimage: &mut Vec<F>, values: &[K]) {
@@ -484,6 +663,7 @@ fn append_terminal_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim
     preimage.extend_from_slice(&claim.c_step_coords);
     preimage.push(F::from_u64(claim.u_offset as u64));
     preimage.push(F::from_u64(claim.u_len as u64));
+    append_adv_leaves(preimage, &claim.adv);
 }
 
 /// Public-instance digest absorbed by Π_CCS prove and verify so the two
@@ -545,11 +725,11 @@ pub fn pi_ccs_instance_digest_parent_authority(
 
 /// Compact handle for the running accumulator carried in Construction-2 state.
 ///
-/// HyperNova's recursive link hashes the running instance `U_i`. This handle is
-/// the local Poseidon2 commitment to the authority-bearing accumulator fields:
-/// every child CE claim digest plus the Π_RLC parent-authority CE claim digest.
-/// A commitment-only parent handle is not sufficient authority for
-/// `state_x_out`.
+/// HyperNova's recursive link hashes the running instance `U_i`. In this
+/// SuperNeo instantiation, native and in-circuit NIFS.V first verify that all
+/// running children are a strict Pi_DEC reduction of the Pi_RLC parent. The
+/// parent CE digest therefore names the verified weak-reduction class without
+/// hashing every child a second time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccumulatorHandle {
     child_count: usize,
@@ -562,8 +742,9 @@ impl AccumulatorHandle {
         Self::from_running_parts(&[], None)
     }
 
-    /// Handle for the actual running accumulator `U_i`: all child claims plus
-    /// the Π_RLC parent authority whose Π_DEC children they are.
+    /// Handle for the actual running accumulator `U_i`. Callers that consume
+    /// this as authority must first verify `Pi_DEC(parent, claims)`; all NIFS
+    /// prove/verify paths do so before deriving or checking the handle.
     pub fn from_running_parts(
         claims: &[CeClaim<Commitment, F, K>],
         parent_authority: Option<&CeClaim<Commitment, F, K>>,
@@ -587,17 +768,21 @@ impl AccumulatorHandle {
     }
 }
 
-/// Poseidon2 handle for the running accumulator `U_i`.
+/// Poseidon2 handle for a strict Pi_DEC running accumulator `U_i`.
 ///
 /// Preimage:
 ///
 /// ```text
 /// pack(tag)
 /// ‖ child_count
-/// ‖ child_authority_digest[0] ... child_authority_digest[k-1]
 /// ‖ parent_present
-/// ‖ if parent_present: accumulator_ce_claim_digest(parent)
+/// ‖ if parent_present: ce_claim_digest(parent)
 /// ```
+///
+/// The child claims are deliberately absent: NIFS.V verifies their full
+/// strict Pi_DEC relation to `parent` before this value is used. The parent CE
+/// digest is also the running-side Fiat-Shamir authority in Pi_CCS, so the
+/// recursive state link and native verifier use the same authority boundary.
 ///
 /// For malformed states (`children.is_empty() != parent.is_none()`), the
 /// preimage deliberately records the mismatch instead of silently projecting to
@@ -607,15 +792,12 @@ pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/full_running/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/parent_authority/v2");
     preimage.push(F::from_u64(claims.len() as u64));
-    for claim in claims {
-        preimage.extend_from_slice(&accumulator_ce_claim_digest(claim));
-    }
     match parent_authority {
         Some(parent) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&accumulator_ce_claim_digest(parent));
+            preimage.extend_from_slice(&ce_claim_digest(parent));
         }
         None => preimage.push(F::ZERO),
     }
@@ -697,11 +879,13 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 pub fn vk_fs_digest(
     params: &NeoParams,
     structure_digest: &[F; 4],
+    pi_ccs_header_bundle: &[F; 4],
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [u8; 32],
 ) -> [u8; 32] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v1");
     preimage.extend(structure_digest.iter().copied());
+    preimage.extend(pi_ccs_header_bundle.iter().copied());
     preimage.extend(u64_halves(params.q));
     preimage.push(F::from_u64(params.eta as u64));
     preimage.push(F::from_u64(params.d as u64));
@@ -745,6 +929,7 @@ pub fn vk_fs_digest(
 #[allow(clippy::too_many_arguments)]
 pub fn state_x_out_digest(
     vk_fs_digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
     _structure_digest: &[F; 4],
     chunk_count: u64,
     step_count: u64,
@@ -758,6 +943,7 @@ pub fn state_x_out_digest(
     state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateful,
         vk_fs_digest,
+        pi_ccs_header_bundle,
         _structure_digest,
         chunk_count,
         step_count,
@@ -767,6 +953,7 @@ pub fn state_x_out_digest(
         semantic_acc,
         construction2_acc,
         _public_trace,
+        None,
     )
 }
 
@@ -788,6 +975,7 @@ pub enum StateXOutDigestMode {
 pub fn state_x_out_digest_with_mode(
     mode: StateXOutDigestMode,
     vk_fs_digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
     _structure_digest: &[F; 4],
     chunk_count: u64,
     step_count: u64,
@@ -797,9 +985,11 @@ pub fn state_x_out_digest_with_mode(
     semantic_acc: [u8; 32],
     construction2_acc: [u8; 32],
     _public_trace: [u8; 32],
+    nebula_lane: Option<[F; 4]>,
 ) -> [u8; 32] {
     let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
+    preimage.extend(pi_ccs_header_bundle);
     preimage.extend(u64_halves(chunk_count));
     preimage.extend(u64_halves(step_count));
     preimage.extend(u64_halves(pc));
@@ -808,6 +998,15 @@ pub fn state_x_out_digest_with_mode(
         preimage.extend(digest32_as_fields(semantic_acc));
     }
     preimage.extend(digest32_as_fields(construction2_acc));
+    // Nebula lane binding (spec §6.1): present-only, so plain chains keep
+    // the pre-Nebula preimage byte-identical and the in-circuit x_out
+    // mirror stays in parity until the F′ R1CS carries the lane
+    // (spec §13 step 9). The marker is nonzero and the extension exceeds
+    // the sponge rate, so a `Some` preimage never aliases a `None` one.
+    if let Some(lane) = nebula_lane {
+        preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
+        preimage.extend_from_slice(&lane);
+    }
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }
 

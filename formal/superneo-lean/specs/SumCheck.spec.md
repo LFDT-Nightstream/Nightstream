@@ -28,7 +28,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Primitives/SumCheck.lean` | Definition 6 (sum-check) |
+| `SuperNeo/SumCheck.lean` | Definition 6 (sum-check) |
 
 ## Contract Surface
 

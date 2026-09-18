@@ -1,31 +1,127 @@
-use super::super::gadgets::{
-    push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget, push_zero_test_gadget,
-};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
     COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
     COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_GUEST_CALL_ACTIVE,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_GUEST_ENTRY_ACTIVE,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
-    COL_OUTPUT_CAPTURED, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE,
-    COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
-use super::{always, idx, opcode_tag, shared, R1csBuilder};
+use super::{always, idx, shared, WasmTaggedR1csBuilder};
+use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+pub(crate) const CALL_INDIRECT_ENTRY_ZERO_TEST: ZeroTest =
+    ZeroTest::column(COL_TABLE_VALUE, COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
+
+/// Div/rem by zero is terminal. Since both divisor limbs are U32,
+/// read1_lo + read1_hi is below the field modulus, so the sum is zero
+/// exactly when both limbs are zero.
+pub(crate) const DIVISOR_ZERO_TEST: ZeroTest<2> = ZeroTest {
+    expression: [
+        (COL_STACK_READ_VALUE_LO[1], F::ONE),
+        (COL_STACK_READ_VALUE_HI[1], F::ONE),
+    ],
+    inverse: COL_DIV_DIVISOR_INV,
+    is_zero: COL_DIV_DIVISOR_IS_ZERO,
+};
+
+pub(crate) const CALL_INDIRECT_TYPE_ZERO_TEST: ZeroTest<2> = ZeroTest {
+    expression: [(COL_FUNCTION_TYPE_ID, F::ONE), (COL_EXPECTED_TYPE_ID, F::NEG_ONE)],
+    inverse: COL_CI_TYPE_EQ_INV,
+    is_zero: COL_CI_TYPE_EQ,
+};
+
+/// The dividend test packs U32 limbs as lo + 2^32 * hi and subtracts the
+/// selector-chosen MIN.
+///
+/// For i64, the result of the packing may overflow the field element, so
+/// this test is not a general equality check.
+///
+/// However, in this case we are specifically comparing to 2^63, and for
+/// limbs compared to 32-bits, there is only one combination that equals
+/// to it.
+///
+/// The reason for this is that the result is in [0, 2^64) and the
+/// Goldilocks modulus is q = 2^64 - 2^32 + 1
+///
+/// This means only the last 2^64 - q = 2^32 - 1 values overflow/are aliased.
+///
+/// So for values in [0, 2^32 - 1) there are two preimages, but 2^63 >
+/// 2^32 - 2 so it has a unique combination of limbs.
+///
+/// For i32 the combination is just straight-forwardly injective in the
+/// whole range. And the high limb is pinned to zero in that case by the
+/// `narrow high limbs zero` constraint (wide_values_enabled = 0 on
+/// signed i32 div/rem rows).
+pub(crate) fn dividend_min_zero_test() -> ZeroTest<6> {
+    let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
+    let i32_rem_s = selector_col(WasmOpcode::I32RemS).expect("i32.rem_s selector");
+    let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
+    let i64_rem_s = selector_col(WasmOpcode::I64RemS).expect("i64.rem_s selector");
+    ZeroTest {
+        expression: [
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], F::from_u64(1 << 32)),
+            (i32_div_s, -F::from_u64(1 << 31)),
+            (i32_rem_s, -F::from_u64(1 << 31)),
+            (i64_div_s, -F::from_u64(1 << 63)),
+            (i64_rem_s, -F::from_u64(1 << 63)),
+        ],
+        inverse: COL_DIV_DIVIDEND_MIN_INV,
+        is_zero: COL_DIV_DIVIDEND_IS_MIN,
+    }
+}
+
+/// NOTE: this is not a limb composition, just a limb sum.
+///
+/// Composition is not needed because we just need both limbs to equal
+/// specific values.
+///
+/// Since the limbs are 32-bit constrained, there is only one way to
+/// add to u32::MAX * 2 in the 64-bit case, and in the other case the
+/// high limb is pinned to zero (same `narrow high limbs zero`
+/// constraint as above), so it degrades to a simple equality check.
+pub(crate) fn divisor_neg1_zero_test() -> ZeroTest<6> {
+    let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
+    let i32_rem_s = selector_col(WasmOpcode::I32RemS).expect("i32.rem_s selector");
+    let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
+    let i64_rem_s = selector_col(WasmOpcode::I64RemS).expect("i64.rem_s selector");
+    ZeroTest {
+        expression: [
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
+            // limb sum of -1i32: u32::MAX (the high limb is 0)
+            (i32_div_s, -F::from_u64(u32::MAX as u64)),
+            (i32_rem_s, -F::from_u64(u32::MAX as u64)),
+            // limb sum of -1i64: both limbs are u32::MAX
+            (i64_div_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
+            (i64_rem_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
+        ],
+        inverse: COL_DIV_DIVISOR_NEG1_INV,
+        is_zero: COL_DIV_DIVISOR_IS_NEG1,
+    }
+}
+
 /// Emit trap-cause flags and the state transition that carries `trapped`.
-pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmRelationLayout) {
+pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &WasmRelationLayout) {
     b.with_tag(always("div trap"), |b| {
         push_div_trap_constraints(b);
     });
-    b.with_tag(opcode_tag("call_indirect trap", WasmOpcode::CallIndirect), |b| {
-        push_call_indirect_trap_constraints(b);
-    });
+    b.with_tag(
+        shared(
+            "indirect call trap",
+            &[WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect],
+        ),
+        |b| {
+            push_call_indirect_trap_constraints(b);
+        },
+    );
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
         push_linear_memory_oob_trap_constraints(b, &layout.linear_memory);
     });
@@ -58,11 +154,15 @@ fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
 /// This is exact because wasm pages are aligned to 4-byte lanes.
 ///
 /// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
-fn push_linear_memory_oob_trap_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    let mem_selectors: Vec<usize> = linear_memory_ops()
+fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
+    let mut mem_selectors: Vec<usize> = linear_memory_ops()
         .into_iter()
         .map(|op| selector_col(op).expect("linear memory selector"))
         .collect();
+    mem_selectors.extend([
+        super::host_event_chain::gather_memory_read_kind_col(),
+        super::host_event_chain::gather_memory_write_kind_col(),
+    ]);
     // ge = highest touched lane >= memory size in lanes.
     push_unsigned_ge_gadget(
         b,
@@ -117,73 +217,21 @@ fn signed_div_ops() -> Vec<WasmOpcode> {
         .collect()
 }
 
-fn push_div_trap_constraints(b: &mut R1csBuilder) {
-    // Div/rem by zero is terminal. Since both divisor limbs are U32,
-    // read1_lo + read1_hi is below the field modulus, so the sum is zero
-    // exactly when both limbs are zero.
-    let divisor = [(COL_STACK_READ1_VALUE_LO, F::ONE), (COL_STACK_READ1_VALUE_HI, F::ONE)];
-    push_zero_test_expr_gadget(b, divisor, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO);
+fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    DIVISOR_ZERO_TEST.push_constraints(b);
 
     // Signed division overflow (MIN / -1) is a trap because the result
     // is not representable in 2's complement.
-    //
-    // The dividend test packs U32 limbs as lo + 2^32 * hi and subtracts the
-    // selector-chosen MIN.
-    //
-    // For i64, the result of the packing may overflow the field element, so
-    // this test is not a general equality check.
-    //
-    // However, in this case we are specifically comparing to 2^63, and for
-    // limbs compared to 32-bits, there is only one combination that equals
-    // to it.
-    //
-    // The reason for this is that the result is in [0, 2^64) and the
-    // Goldilocks modulus is q = 2^64 - 2^32 + 1
-    //
-    // This means only the last 2^64 - q = 2^32 - 1 values overflow/are aliased.
-    //
-    // So for values in [0, 2^32 - 1) there are two preimages, but 2^63 >
-    // 2^32 - 2 so it has a unique combination of limbs.
-    //
-    // For i32 the combination is just straight-forwardly injective in the
-    // whole range. And the high limb is pinned to zero in that case by the
-    // `narrow high limbs zero` constraint (wide_values_enabled = 0 on
-    // i32.div_s rows).
-    let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
-    let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
-    let dividend_min = [
-        (COL_STACK_READ0_VALUE_LO, F::ONE),
-        (COL_STACK_READ0_VALUE_HI, F::from_u64(1 << 32)),
-        (i32_div_s, -F::from_u64(1 << 31)),
-        (i64_div_s, -F::from_u64(1 << 63)),
-    ];
-    push_zero_test_expr_gadget(b, dividend_min, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVIDEND_IS_MIN);
-
-    // NOTE: this is not a limb composition, just a limb sum.
-    //
-    // Composition is not needed because we just need both limbs to equal
-    // specific values.
-    //
-    // Since the limbs are 32-bit constrained, there is only one way to
-    // add to u32::MAX * 2 in the 64-bit case, and in the other case the
-    // high limb is pinned to zero (same `narrow high limbs zero`
-    // constraint as above), so it degrades to a simple equality check.
-    let divisor_neg1 = [
-        (COL_STACK_READ1_VALUE_LO, F::ONE),
-        (COL_STACK_READ1_VALUE_HI, F::ONE),
-        // limb sum of -1i32: u32::MAX (the high limb is 0)
-        (i32_div_s, -F::from_u64(u32::MAX as u64)),
-        // limb sum of -1i64: both limbs are u32::MAX
-        (i64_div_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
-    ];
-    push_zero_test_expr_gadget(b, divisor_neg1, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_DIVISOR_IS_NEG1);
+    dividend_min_zero_test().push_constraints(b);
+    divisor_neg1_zero_test().push_constraints(b);
     b.push_row(
         [(COL_DIV_DIVIDEND_IS_MIN, F::ONE)],
         [(COL_DIV_DIVISOR_IS_NEG1, F::ONE)],
         [(COL_DIV_OVERFLOW_COND, F::ONE)],
     );
-    // The scratch flags above are only meaningful on div_s rows; this
-    // selector-gated product makes them harmless everywhere else.
+    // The scratch predicate is meaningful on signed div/rem rows, while only
+    // div_s turns it into a trap. rem_s(MIN, -1) is the valid zero-remainder
+    // special case consumed by the compact lookup relation.
     b.push_row(
         signed_div_ops()
             .into_iter()
@@ -207,13 +255,15 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
+fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
+    let indirect_selectors = [(call_indirect, F::ONE), (return_call_indirect, F::ONE)];
 
     // ge = selector * ( table_index >= table_size )
     push_unsigned_ge_gadget(
         b,
-        [call_indirect],
+        [call_indirect, return_call_indirect],
         [(COL_TABLE_INDEX, F::ONE)],
         [(COL_TABLE_SIZE, F::ONE)],
         COL_CMP_LOW,
@@ -221,22 +271,13 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     );
 
     // COL_CI_OOB = selector * ge.
-    b.push_row(
-        [(call_indirect, F::ONE)],
-        [(COL_CMP_GE, F::ONE)],
-        [(COL_CI_OOB, F::ONE)],
-    );
+    b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
 
     // 0 encodes the null funcref
-    push_zero_test_gadget(b, COL_TABLE_VALUE, COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
+    CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
 
     // typecheck
-    push_zero_test_expr_gadget(
-        b,
-        [(COL_FUNCTION_TYPE_ID, F::ONE), (COL_EXPECTED_TYPE_ID, -F::ONE)],
-        COL_CI_TYPE_EQ_INV,
-        COL_CI_TYPE_EQ,
-    );
+    CALL_INDIRECT_TYPE_ZERO_TEST.push_constraints(b);
     //
     // we have 3 possible trap cases, characterized by the following two equations:
     //
@@ -265,7 +306,9 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     // which forces either oob or null
     //
     b.push_row(
-        [(call_indirect, F::ONE), (COL_CI_OOB, -F::ONE)],
+        indirect_selectors
+            .into_iter()
+            .chain([(COL_CI_OOB, -F::ONE)]),
         [(COL_ONE, F::ONE), (COL_CI_ENTRY_IS_NULL, -F::ONE)],
         [(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, F::ONE)],
     );
@@ -273,11 +316,13 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     b.push_row(
         [(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, F::ONE)],
         [(COL_CI_TYPE_EQ, F::ONE)],
-        [(call_indirect, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
+        indirect_selectors
+            .into_iter()
+            .chain([(COL_CALL_INDIRECT_IS_TRAP, -F::ONE)]),
     );
 
     b.push_row(
-        [(call_indirect, F::ONE)],
+        indirect_selectors,
         [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
         [(COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE)],
     );
@@ -285,12 +330,12 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     // the existing enter-mode gating, no param-init mode).
     b.push_row(
         [(COL_CALL_INDIRECT_IS_TRAP, F::ONE)],
-        [(COL_GUEST_CALL_ACTIVE, F::ONE)],
+        [(COL_GUEST_ENTRY_ACTIVE, F::ONE)],
         [],
     );
 }
 
-fn push_trapped_state_transition_constraints(b: &mut R1csBuilder) {
+fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_linear_zero([
         (COL_TRAPPED_AFTER, F::ONE),
         (COL_TRAPPED_BEFORE, -F::ONE),

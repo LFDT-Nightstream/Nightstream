@@ -20,7 +20,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::Error;
 use crate::engine::r1cs_circuit::builder::Lc;
-use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
+use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::sumcheck::{
     enforce_chi_alpha, enforce_eq_k, enforce_sumcheck_rounds_engine, gamma_powers,
 };
@@ -95,8 +95,12 @@ pub fn enforce_fe_claimed_initial(builder: &mut R1csBuilder, inputs: &FeClaimedI
 
     let k_total = inputs.k_mcs + inputs.running_y_ring.len();
 
-    // Native early return when there's no Eval block.
-    if k_total < 2 {
+    // Native parity (optimized_engine::common::claimed_initial_sum): zero
+    // when `k_total < 2` (no Eval block), and the sum over the running
+    // evaluation claims is naturally zero when that set is empty — e.g. a
+    // K >= 2 batch folding into an empty accumulator. The gadget must
+    // take the same branch instead of emitting a zero-length dot product.
+    if k_total < 2 || inputs.running_y_ring.is_empty() {
         return Ok(alloc_klc(builder, &KLc::from_base_const(F::ZERO)));
     }
 
@@ -113,40 +117,23 @@ pub fn enforce_fe_claimed_initial(builder: &mut R1csBuilder, inputs: &FeClaimedI
     let powers = gamma_powers(builder, inputs.gamma, inputs.t * k_total + 1);
     let gamma_to_k = powers[k_total];
 
-    // Inner sum: Σ_j Σ_idx γ^{...} · ⟨y, χ_α⟩.
-    //
-    // We build the running accumulator as a `KLc` and `alloc_klc` once at
-    // the end of each (idx, j) term. The per-term mul is via `enforce_k_mul`.
-    let mut inner_lc = KLc::zero();
+    // Inner sum: Σ_j Σ_idx γ^{...} · ⟨y, χ_α⟩. Both the lane
+    // evaluations and their weighted outer sum use exact K dot products.
+    let mut inner_weights = Vec::with_capacity(inputs.t * inputs.running_y_ring.len());
+    let mut inner_evaluations = Vec::with_capacity(inner_weights.capacity());
     for j in 0..inputs.t {
         for (idx, row_outer) in inputs.running_y_ring.iter().enumerate() {
             let y_row = &row_outer[j];
 
-            // ⟨y, χ_α⟩ over the first d_sz lanes. Build the dot product as
-            // a chain of K-mul allocations; the sum is linear.
-            let mut dot_lc = KLc::zero();
-            for rho in 0..d_sz {
-                let prod = enforce_k_mul(builder, &KLc::from_var(y_row[rho]), &KLc::from_var(chi_alpha[rho]));
-                dot_lc = KLc {
-                    c0: dot_lc.c0.add_scaled(&Lc::from_var(prod.c0), F::ONE),
-                    c1: dot_lc.c1.add_scaled(&Lc::from_var(prod.c1), F::ONE),
-                };
-            }
-            let y_eval = alloc_klc(builder, &dot_lc);
+            let y_eval = enforce_k_dot_product(builder, &y_row[..d_sz], &chi_alpha);
 
             // weight = γ^{k_mcs + idx + j·k_total}.
             let weight_idx = inputs.k_mcs + idx + j * k_total;
-            let weight = powers[weight_idx];
-
-            // term = weight · y_eval.
-            let term = enforce_k_mul(builder, &KLc::from_var(weight), &KLc::from_var(y_eval));
-            inner_lc = KLc {
-                c0: inner_lc.c0.add_scaled(&Lc::from_var(term.c0), F::ONE),
-                c1: inner_lc.c1.add_scaled(&Lc::from_var(term.c1), F::ONE),
-            };
+            inner_weights.push(powers[weight_idx]);
+            inner_evaluations.push(y_eval);
         }
     }
-    let inner = alloc_klc(builder, &inner_lc);
+    let inner = enforce_k_dot_product(builder, &inner_weights, &inner_evaluations);
 
     // T = γ^{k_total} · inner.
     Ok(enforce_k_mul(
@@ -448,8 +435,11 @@ pub fn enforce_fe_terminal_identity(builder: &mut R1csBuilder, inputs: &FeTermin
     let chi_alpha_prime = enforce_chi_alpha(builder, inputs.alpha_prime);
     let d_sz = chi_alpha_prime.len();
 
-    let mut eval_lc = KLc::zero();
+    let mut eval_weights = Vec::new();
+    let mut eval_values = Vec::new();
     if k_total > inputs.k_mcs {
+        eval_weights.reserve(inputs.t * (k_total - inputs.k_mcs));
+        eval_values.reserve(eval_weights.capacity());
         for j in 0..inputs.t {
             for i_abs in inputs.k_mcs..k_total {
                 let y = &inputs.output_y_ring[i_abs][j];
@@ -463,26 +453,19 @@ pub fn enforce_fe_terminal_identity(builder: &mut R1csBuilder, inputs: &FeTermin
                     )));
                 }
 
-                let mut y_eval_lc = KLc::zero();
-                for rho in 0..d_sz {
-                    let term = enforce_k_mul(builder, &KLc::from_var(y[rho]), &KLc::from_var(chi_alpha_prime[rho]));
-                    y_eval_lc = KLc {
-                        c0: y_eval_lc.c0.add_scaled(&Lc::from_var(term.c0), F::ONE),
-                        c1: y_eval_lc.c1.add_scaled(&Lc::from_var(term.c1), F::ONE),
-                    };
-                }
-                let y_eval = alloc_klc(builder, &y_eval_lc);
+                let y_eval = enforce_k_dot_product(builder, &y[..d_sz], &chi_alpha_prime);
 
                 let weight_idx = i_abs + j * k_total;
-                let weighted = enforce_k_mul(builder, &KLc::from_var(powers[weight_idx]), &KLc::from_var(y_eval));
-                eval_lc = KLc {
-                    c0: eval_lc.c0.add_scaled(&Lc::from_var(weighted.c0), F::ONE),
-                    c1: eval_lc.c1.add_scaled(&Lc::from_var(weighted.c1), F::ONE),
-                };
+                eval_weights.push(powers[weight_idx]);
+                eval_values.push(y_eval);
             }
         }
     }
-    let eval_sum = alloc_klc(builder, &eval_lc);
+    let eval_sum = if eval_values.is_empty() {
+        alloc_klc(builder, &KLc::from_base_const(F::ZERO))
+    } else {
+        enforce_k_dot_product(builder, &eval_weights, &eval_values)
+    };
 
     // γ^{k_total} · eval_sum.
     let gamma_eval = enforce_k_mul(builder, &KLc::from_var(gamma_to_k), &KLc::from_var(eval_sum));

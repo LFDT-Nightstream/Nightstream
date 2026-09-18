@@ -4,6 +4,8 @@
 //! Fiat-Shamir phase. They are meant to catch verifier gadgets that run the
 //! right algebra with challenges sampled from the wrong transcript state.
 
+use neo_ajtai::Commitment;
+use neo_ccs::LaneCommitments;
 use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget};
 use neo_fold_clean::engine::transcript::Transcript;
@@ -15,7 +17,7 @@ use neo_fold_clean::paper::nifs::circuit::{
 };
 use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
-use neo_fold_clean::paper::relations::CcsClaim;
+use neo_fold_clean::paper::relations::{superneo_public_x_cols, CcsClaim, LaneRanges, LaneScheme};
 use neo_fold_clean::paper::{pi_dec, pi_rlc};
 use neo_fold_clean::{CeClaim, Preprocessing};
 use neo_math::ring::D;
@@ -34,7 +36,9 @@ struct Fixture {
 }
 
 fn three_term_addition() -> R1cs {
-    let m = D;
+    // Three packed ring columns leave one whole column per Nebula lane in
+    // the product-commitment fixture below.
+    let m = 3 * D;
     let mut a = Mat::zero(1, m, F::ZERO);
     a.set(0, 1, F::ONE);
     a.set(0, 2, F::ONE);
@@ -46,7 +50,7 @@ fn three_term_addition() -> R1cs {
 }
 
 fn assignment(a: u64, b: u64) -> Vec<F> {
-    let mut z = vec![F::ZERO; D];
+    let mut z = vec![F::ZERO; 3 * D];
     z[0] = F::ONE;
     z[1] = F::from_u64(a);
     z[2] = F::from_u64(b);
@@ -54,11 +58,44 @@ fn assignment(a: u64, b: u64) -> Vec<F> {
     z
 }
 
+fn forged_adv(kappa: usize) -> LaneCommitments<Commitment> {
+    let commitment = |marker: u64| {
+        let mut data = vec![F::ZERO; D * kappa];
+        data[0] = F::from_u64(marker);
+        Commitment { d: D, kappa, data }
+    };
+    LaneCommitments {
+        ops: commitment(1),
+        is: commitment(2),
+        fs: commitment(3),
+    }
+}
+
 fn build_honest_fixture() -> Fixture {
+    build_honest_fixture_with_adv(false)
+}
+
+fn build_honest_fixture_with_adv(with_adv: bool) -> Fixture {
     let r1cs = three_term_addition();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
+    let lanes = with_adv.then(|| {
+        LaneScheme::from_seeds(
+            prep.params.kappa() as usize,
+            LaneRanges {
+                ops: 0..1,
+                is: 1..2,
+                fs: 2..3,
+            },
+            [0xA5; 32],
+            [0x5A; 32],
+        )
+        .expect("test lane scheme")
+    });
 
-    let first = direct_ccs::build_instance(&prep, &r1cs, &assignment(1, 0)).expect("first instance");
+    let mut first = direct_ccs::build_instance(&prep, &r1cs, &assignment(1, 0)).expect("first instance");
+    if let Some(lanes) = &lanes {
+        first.claim.adv = Some(lanes.commit(&first.witness.Z).expect("first adv"));
+    }
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = nifs::prove(
         &mut first_tr,
@@ -66,6 +103,7 @@ fn build_honest_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        lanes.as_ref(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![first],
@@ -73,7 +111,10 @@ fn build_honest_fixture() -> Fixture {
     )
     .expect("first NIFS.P");
 
-    let second = direct_ccs::build_instance(&prep, &r1cs, &assignment(0, 1)).expect("second instance");
+    let mut second = direct_ccs::build_instance(&prep, &r1cs, &assignment(0, 1)).expect("second instance");
+    if let Some(lanes) = &lanes {
+        second.claim.adv = Some(lanes.commit(&second.witness.Z).expect("second adv"));
+    }
     let fresh_claims = vec![second.claim.clone()];
 
     let mut second_tr = Transcript::session();
@@ -83,6 +124,7 @@ fn build_honest_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        lanes.as_ref(),
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![second],
@@ -112,6 +154,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![first],
@@ -130,6 +173,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![second],
@@ -163,6 +207,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.combine_b_pows(),
         &wrong_rlc.claim,
         &wrong_rlc.witness,
@@ -199,7 +244,7 @@ fn pi_ccs_config<'a>(prep: &'a Preprocessing) -> SplitNcPiCcsVConfig<'a> {
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -265,6 +310,86 @@ fn nifs_v_transcript_phase_accepts_honest_native_tail() {
 }
 
 #[test]
+fn nifs_v_projection_census_binds_every_rlc_ring_action_client() {
+    let fixture = build_honest_fixture();
+    let (mut builder, outputs) = emit_verifier(&fixture).expect("NIFS.V synthesis");
+    assert!(builder.is_satisfied(), "baseline");
+
+    assert_eq!(outputs.projection_q_lanes.len(), fixture.combined.c.kappa);
+    assert_eq!(
+        outputs.projection_x_q_lanes.len(),
+        superneo_public_x_cols(fixture.combined.m_in)
+    );
+    assert_eq!(outputs.projection_y_ring_q_lanes.len(), fixture.prep.structure().t());
+    assert!(outputs.projection_adv_q_lanes.is_none());
+
+    let load_bearing = [
+        outputs.projection_q_lanes[0][0],
+        outputs.projection_x_q_lanes[0][0],
+        outputs.projection_y_ring_q_lanes[0][0][0],
+        outputs.projection_y_ring_q_lanes[0][1][0],
+        outputs.projection_y_zcol_q_lanes[0][0],
+        outputs.projection_y_zcol_q_lanes[1][0],
+    ];
+    for wire in load_bearing {
+        let original = builder.witness()[wire.col()];
+        builder.tamper_witness(wire.col(), original + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "every transcript-bound c/X/y projection quotient must feed an enforced identity"
+        );
+        builder.tamper_witness(wire.col(), original);
+        assert!(
+            builder.is_satisfied(),
+            "restoring one quotient must restore the baseline"
+        );
+    }
+}
+
+#[test]
+fn nifs_v_accepts_honest_adv_product_commitment_tail() {
+    let fixture = build_honest_fixture_with_adv(true);
+    let (mut builder, outputs) = emit_verifier(&fixture).expect("NIFS.V synthesis with adv");
+    assert!(
+        builder.is_satisfied(),
+        "honest native NIFS tail with the full product commitment must satisfy"
+    );
+    let expected = fixture.fresh_claims[0].adv.as_ref().expect("fresh adv");
+    let surfaced = outputs.fresh_adv[0]
+        .as_ref()
+        .expect("surfaced fresh adv wires");
+    for (expected_component, surfaced_component) in [
+        (&expected.ops, &surfaced.ops),
+        (&expected.is, &surfaced.is),
+        (&expected.fs, &surfaced.fs),
+    ] {
+        assert_eq!(surfaced_component.d, expected_component.d);
+        assert_eq!(surfaced_component.kappa, expected_component.kappa);
+        let wire_values: Vec<F> = surfaced_component
+            .data
+            .iter()
+            .map(|wire| builder.witness()[wire.col()])
+            .collect();
+        assert_eq!(wire_values, expected_component.data);
+    }
+
+    let projection = outputs
+        .projection_adv_q_lanes
+        .as_ref()
+        .expect("adv projection quotients");
+    for coordinate in [&projection.ops, &projection.is, &projection.fs] {
+        assert_eq!(coordinate.len(), expected.ops.kappa);
+    }
+    let quotient_wire = projection.ops[0][0];
+    let original = builder.witness()[quotient_wire.col()];
+    builder.tamper_witness(quotient_wire.col(), original + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "the transcript-bound adv quotient must feed the enforced projection identity"
+    );
+}
+
+#[test]
 fn nifs_v_rejects_rlc_and_dec_tail_proved_under_fresh_transcript() {
     let fixture = build_wrong_rlc_phase_fixture();
     let (builder, _outputs) = emit_verifier(&fixture).expect("NIFS.V synthesis");
@@ -273,4 +398,46 @@ fn nifs_v_rejects_rlc_and_dec_tail_proved_under_fresh_transcript() {
         "NIFS.V accepted a coherent Π_RLC/Π_DEC tail proved under a fresh transcript; \
          Π_RLC ρ must be sampled from the post-Π_CCS transcript state"
     );
+}
+
+/// The circuit must bind the fresh claim's `adv` tuple and enforce Pi_CCS
+/// forwarding. Rejection may happen structurally during synthesis or as an
+/// unsatisfied equality row.
+#[test]
+fn nifs_v_must_reject_unforwarded_fresh_adv() {
+    let mut fixture = build_honest_fixture();
+    let kappa = fixture.fresh_claims[0].c.kappa;
+    fixture.fresh_claims[0].adv = Some(forged_adv(kappa));
+
+    if let Ok((builder, _outputs)) = emit_verifier(&fixture) {
+        assert!(
+            !builder.is_satisfied(),
+            "NIFS.V accepted a fresh adv tuple that is absent from the proved Pi_CCS output"
+        );
+    }
+}
+
+#[test]
+fn nifs_v_rejects_coherent_dec_adv_parent_unlinked_from_rlc_outputs() {
+    let mut fixture = build_honest_fixture_with_adv(true);
+    fixture
+        .combined
+        .adv
+        .as_mut()
+        .expect("combined adv")
+        .ops
+        .data[0] += F::ONE;
+    fixture.children[0]
+        .adv
+        .as_mut()
+        .expect("child adv")
+        .ops
+        .data[0] += F::ONE;
+
+    if let Ok((builder, _outputs)) = emit_verifier(&fixture) {
+        assert!(
+            !builder.is_satisfied(),
+            "NIFS.V accepted an adv parent/child mutation unrelated to the Pi_CCS outputs"
+        );
+    }
 }

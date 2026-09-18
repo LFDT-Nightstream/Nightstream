@@ -17,7 +17,7 @@ Specify the core read-write memory-checking argument of Twist.
 ## Module Mapping
 
 - Spec: `specs/TwistCore.spec.md`
-- Interface: `TwistShout/TwistCoreInterface.lean`
+- Interface: `TwistShout/TwistCore.lean`
 - Implementation: `TwistShout/TwistCore.lean`
 
 ## Contract Surface

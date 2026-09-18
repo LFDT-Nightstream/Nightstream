@@ -5,7 +5,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use neo_ccs::{CcsMatrix, CcsStructure, SparsePoly, Term};
 use neo_math::{Fq, K};
+use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
 // ---------------------------------------------------------------------------
@@ -110,6 +112,30 @@ fn challenges_field_access() {
     assert_eq!(c.beta_r.len(), 4);
     assert_eq!(c.beta_m.len(), 2);
     assert_ne!(c.gamma, K::ZERO);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Concrete CCS shape drives the extension policy
+// ---------------------------------------------------------------------------
+
+#[test]
+fn engine_rejects_parameters_selected_for_fewer_matrices() {
+    const SHAPE: usize = 1 << 24;
+    const ACTUAL_T: usize = 1_000;
+
+    let params = NeoParams::goldilocks_auto_ccs_with(SHAPE, 1, 8, 96, 2).expect("one-matrix parameter profile");
+    let matrices = (0..ACTUAL_T)
+        .map(|_| CcsMatrix::Identity { n: SHAPE })
+        .collect();
+    let mut exps = vec![0; ACTUAL_T];
+    exps[0] = 8;
+    let structure = CcsStructure::new_sparse(matrices, SparsePoly::new(ACTUAL_T, vec![Term { coeff: Fq::ONE, exps }]))
+        .expect("sparse synthetic CCS");
+
+    assert!(
+        neo_reductions::engines::utils::build_dims_and_policy(&params, &structure).is_err(),
+        "engine preprocessing must charge the concrete structure's matrix count"
+    );
 }
 
 // ---------------------------------------------------------------------------

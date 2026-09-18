@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "milestone": "M5",
+  "status": "pass",
+  "scope": "supported uncompressed and audit F-prime lifecycle plus direct terminal CE verification",
+  "properties": [
+    {
+      "property_id": "RUST-REFINE",
+      "evidence_state": "rust-conformant",
+      "statement_parity": "pass",
+      "state_parity": "pass with u64 representation delegated to FPR-COUNTER-REFINE",
+      "transition_parity": "pass for base, recursive, outgoing-link, terminal, and compact-unsupported branches",
+      "encoding_parity": "not applicable to native in-memory verification; ENC-CANON and M4 own encodings and generated rows",
+      "runtime_regressions": [
+        "lifecycle_replay_exercises_fprime_success_and_rejection_paths",
+        "compact_decider_is_explicitly_fail_closed"
+      ],
+      "lean_theorems": [
+        "Nightstream.Implementation.Rust.FPrime.verify_eq_ok_iff_checkLocal",
+        "Nightstream.Implementation.Rust.FPrime.success_with_outgoing_refines_step",
+        "Nightstream.Implementation.Rust.FPrime.invalid_has_named_rejection"
+      ],
+      "concurrency_parity": "not applicable: mapped verifier calls are deterministic and synchronous",
+      "drift_gate": "assurance/rust-conformance-manifest.json"
+    },
+    {
+      "property_id": "TERM-CE",
+      "evidence_state": "rust-conformant",
+      "statement_parity": "pass",
+      "state_parity": "pass for verifier children, recorded claims, and same-index witnesses",
+      "transition_parity": "pass for success and every ordered terminal rejection",
+      "encoding_parity": "not applicable to the direct in-memory CE verifier",
+      "runtime_regressions": [
+        "terminal_ce_native_success_and_each_authority_rejection_are_live"
+      ],
+      "lean_theorems": [
+        "Nightstream.Protocol.TerminalCE.terminalCE_sound",
+        "Nightstream.Protocol.TerminalCE.terminalCE_complete",
+        "Nightstream.Implementation.Rust.Terminal.success_refines_terminalCE",
+        "Nightstream.Implementation.Rust.Terminal.invalid_has_named_rejection"
+      ],
+      "concurrency_parity": "not applicable: terminal verification is deterministic and synchronous",
+      "drift_gate": "assurance/rust-conformance-manifest.json"
+    }
+  ],
+  "compact_decider": {
+    "status": "fail-closed-unsupported",
+    "runtime_regression": "compact_decider_is_explicitly_fail_closed",
+    "reopens_on_acceptance": [
+      "RUST-REFINE",
+      "DEC-SOUND"
+    ]
+  },
+  "open_property": {
+    "property_id": "DEC-SOUND",
+    "reason": "paper::decider::{prove, verify} and terminal_ce::circuit::enforce_verify_public_statement reject Unsupported; no compact acceptance exists to reduce"
+  }
+}

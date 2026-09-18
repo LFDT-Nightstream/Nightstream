@@ -40,4 +40,5 @@
 pub mod bellpepper;
 pub mod direct_ccs;
 pub mod f_prime;
+pub mod nebula;
 pub mod r1cs_f_prime;

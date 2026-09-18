@@ -1387,7 +1387,9 @@ pub fn try_commit_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> AjtaiResult<Commitmen
 
     // Mirror `try_commit`'s dispatch choice, but operate directly on the row-major `Mat`.
     const PRECOMP_THRESHOLD: usize = 256;
-    Ok(if m >= PRECOMP_THRESHOLD {
+    Ok(if Z.is_packed_signed_unit() {
+        commit_masked_ct_row_major(pp, Z)
+    } else if m >= PRECOMP_THRESHOLD {
         commit_precomp_ct_row_major(pp, Z)
     } else {
         commit_masked_ct_row_major(pp, Z)
@@ -1621,7 +1623,7 @@ fn commit_masked_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
             let mut nxt = [Fq::ZERO; D];
 
             for t in 0..d {
-                let mask = Z.row(t)[j];
+                let mask = Z[(t, j)];
                 for r in 0..d {
                     acc_i[r] += col[r] * mask;
                 }

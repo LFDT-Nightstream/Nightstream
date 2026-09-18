@@ -1,7 +1,7 @@
-import TwistShout.OneHotEncodingInterface
+import TwistShout.OneHotEncoding
 
 open scoped BigOperators
-open TwistShout.OneHotEncodingInterface
+open TwistShout
 
 namespace tests
 

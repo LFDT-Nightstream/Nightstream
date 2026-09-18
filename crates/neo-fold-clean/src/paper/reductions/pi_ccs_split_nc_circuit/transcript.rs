@@ -6,7 +6,7 @@
 //! 1. `bind_header_and_instance_digest_with_digest` (raw absorbs of
 //!    `[11, hb…]` and `[12, id…]`).
 //! 2. `bind_me_inputs_accumulator_handle` (raw absorbs of `[4]`,
-//!    `[5, count]`, and the full-running accumulator handle with leading
+//!    `[5, count]`, and the verified-parent accumulator handle with leading
 //!    tag `[6, …]`).
 //! 3. `sample_challenges` (raw `[2]` then K-batch squeeze for α/β_a/β_r/γ).
 //! 4. `sample_beta_m` (raw `[3]` then K-batch squeeze for β_m).
@@ -132,12 +132,30 @@ pub fn absorb_engine_header_bundle_and_instance_digest(
     header_bundle: [F; 4],
     instance_digest_wires: [Var; 4],
 ) {
+    let header_bundle = header_bundle.map(|value| alloc_constant_var(builder, value));
+    absorb_engine_header_bundle_wires_and_instance_digest(builder, transcript, header_bundle, instance_digest_wires);
+}
+
+/// Folded-F' variant of [`absorb_engine_header_bundle_and_instance_digest`].
+/// The verifier-derived header is carried as witness wires instead of being
+/// embedded as constants in a relation that ultimately verifies itself.
+pub fn absorb_engine_header_bundle_wires_and_instance_digest(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    header_bundle: [Var; 4],
+    instance_digest_wires: [Var; 4],
+) {
     let tag_hb = alloc_constant_var(builder, F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG));
-    let hb0 = alloc_constant_var(builder, header_bundle[0]);
-    let hb1 = alloc_constant_var(builder, header_bundle[1]);
-    let hb2 = alloc_constant_var(builder, header_bundle[2]);
-    let hb3 = alloc_constant_var(builder, header_bundle[3]);
-    transcript.append_fields_raw_vars(builder, &[tag_hb, hb0, hb1, hb2, hb3]);
+    transcript.append_fields_raw_vars(
+        builder,
+        &[
+            tag_hb,
+            header_bundle[0],
+            header_bundle[1],
+            header_bundle[2],
+            header_bundle[3],
+        ],
+    );
 
     let tag_id = alloc_constant_var(builder, F::from_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG));
     transcript.append_fields_raw_vars(
@@ -238,8 +256,19 @@ pub fn enforce_header_digest_catch_up(
     transcript: &mut TranscriptGadget,
     expected_header_digest: [F; 4],
 ) {
+    let expected = expected_header_digest.map(|value| alloc_constant_var(builder, value));
+    enforce_header_digest_catch_up_wires(builder, transcript, expected);
+}
+
+/// Folded-F' variant: the proof digest is witness advice constrained to the
+/// verifier-replayed transcript, never a coefficient baked into the relation.
+pub fn enforce_header_digest_catch_up_wires(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    expected_header_digest: [Var; 4],
+) {
     let observed = transcript.digest_fields(builder);
     for (wire, expected) in observed.into_iter().zip(expected_header_digest) {
-        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(expected));
+        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_var(expected));
     }
 }

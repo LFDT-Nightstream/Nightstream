@@ -30,7 +30,7 @@ use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
-use crate::paper::construction2::{self, FoldProof, ProofState, SemanticStateMode, State, TRIVIAL_PC};
+use crate::paper::construction2::{self, FoldProof, ProofState, SemanticStateMode, State, StepProof, TRIVIAL_PC};
 use crate::paper::decider::{self, PublicImage, Statement};
 use crate::paper::digest::{
     digest32_as_fields, f_prime_chunk_public_digest, initial_boundary_digest, public_trace_seed_digest,
@@ -38,24 +38,33 @@ use crate::paper::digest::{
 };
 use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
+use crate::paper::f_prime::nebula_lane_circuit::{
+    delayed_nebula_public_suffix_len, enforce_nebula_lane_equality_circuit,
+};
 use crate::paper::f_prime::r1cs::{
-    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimeRecursiveInputs,
-    FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig, FPrimeStepOutput, F_PRIME_ENC_INST_BITS,
-    F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET,
+    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
+    FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig,
+    FPrimeStepOutput, F_PRIME_ENC_INST_BITS, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_PUBLIC_ONE_OFFSET,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+    enforce_ce_claim_digest, CeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
 use crate::paper::relations::CcsClaim;
 
 /// Full-history audit R1CS output plus completeness tracking.
 pub struct DeciderR1csSynthesis {
     pub builder: R1csBuilder,
+    /// Exact step wire layouts retained for artifact exporters. This metadata
+    /// is non-authoritative; emitted rows remain the circuit authority.
+    #[doc(hidden)]
+    pub step_wire_audits: Vec<FPrimeStepWireAudit>,
     /// Base F' step emitted in-circuit.
     pub base_step_emitted: bool,
     /// Base seed wires pinned to preprocessing-derived constants.
@@ -80,6 +89,54 @@ pub struct DeciderR1csSynthesis {
     /// Until a real compact terminal-CE proof verifier exists, the readiness
     /// gate must require these direct rows specifically.
     pub terminal_ce_direct_relations: bool,
+}
+
+/// Read-only wire layout for one step inside the composed audit builder.
+#[doc(hidden)]
+pub struct FPrimeStepWireAudit {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub is_base: bool,
+    pub state_in_columns: Vec<usize>,
+    pub state_out_columns: Vec<usize>,
+    pub x_out_columns: [usize; 4],
+    pub x_out_bit_columns: Vec<usize>,
+    pub prior_link_digest_columns: Option<[usize; 4]>,
+    pub prior_link_bit_columns: Vec<usize>,
+    pub prior_fresh_public_columns: Vec<Vec<usize>>,
+    pub prior_link_row_range: Option<(usize, usize)>,
+    pub prior_link_first_allocated_column: Option<usize>,
+}
+
+fn f_prime_state_audit_columns(state: &FPrimeStateWires) -> Vec<usize> {
+    let mut columns = Vec::new();
+    columns.extend(state.vk_fs_digest.map(Var::col));
+    columns.extend(state.pi_ccs_header_bundle.map(Var::col));
+    columns.push(state.chunk_count.col());
+    columns.push(state.step_count.col());
+    columns.extend(state.z_0.map(Var::col));
+    columns.extend(state.z_i.map(Var::col));
+    columns.push(state.pc.col());
+    columns.extend(state.semantic_state_digest.map(Var::col));
+    columns.extend(state.acc_digest.map(Var::col));
+    columns.extend(state.public_trace.map(Var::col));
+    if let Some(nebula) = state.nebula {
+        columns.extend([
+            nebula.open.col(),
+            nebula.seg_idx.col(),
+            nebula.idx.col(),
+            nebula.ts.col(),
+        ]);
+        for value in nebula.gamma.into_iter().chain(nebula.h) {
+            columns.extend([value.c0.col(), value.c1.col()]);
+        }
+        columns.extend(nebula.sp.map(Var::col));
+        for digest in nebula.d_pre.into_iter().chain(nebula.d_seen) {
+            columns.extend(digest.map(Var::col));
+        }
+        columns.extend(nebula.d_mem.map(Var::col));
+    }
+    columns
 }
 
 /// `pin_public_image` pins every public field except the initial semantic
@@ -125,8 +182,10 @@ pub fn synthesize_statement_r1cs(
         &prep.vk,
         prep.public_input_len,
         prep.enforces_f_prime_recursive_link(),
+        prep.enforces_terminal_induction(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         statement,
     )?;
     synthesize_statement_r1cs_inner(prep, statement)
@@ -155,12 +214,14 @@ fn synthesize_statement_r1cs_inner(
     );
 
     let mut builder = R1csBuilder::new();
+    let full_history_start = builder.rows();
     let mut base_step_emitted = false;
     let mut base_state_pinned = false;
     let mut recursive_step_count = 0;
     let mut cross_step_links = 0;
     let mut accumulator_claim_links = 0;
     let mut parent_authority_links = 0;
+    let mut step_wire_audits = Vec::new();
     let mut last_output: Option<FPrimeStepOutput> = None;
     let mut previous_children: Option<Vec<CeClaimWires>> = None;
     let mut previous_parent: Option<CeClaimWires> = None;
@@ -173,6 +234,7 @@ fn synthesize_statement_r1cs_inner(
         .zip(&statement.witness.steps);
     for (idx, (public_batch, step_proof)) in zipped.enumerate() {
         let state_in = state.clone();
+        let nebula_advance = replay_nebula_advance(prep, &state, step_proof, public_batch)?;
         state = construction2::verify_step(
             &prep.params,
             prep.structure(),
@@ -185,27 +247,69 @@ fn synthesize_statement_r1cs_inner(
             public_batch,
             step_proof,
             prep.semantic_state_mode,
+            nebula_advance,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("step {idx}: {e}")))?;
 
-        let output = match &step_proof.fold {
+        let step_start = builder.rows();
+        let (output, step_family, is_base) = match &step_proof.fold {
             FoldProof::NoFold => {
                 base_step_emitted = true;
                 let out = emit_base_step_r1cs(&mut builder, prep, &state_in, &state, public_batch)
                     .map_err(|e| decider::Error::WalkFailed(format!("emit F' base step {idx}: {e}")))?;
                 enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
                 base_state_pinned = true;
-                out
+                (out, "decider.step.base", true)
             }
             FoldProof::Recursive(nifs) => {
                 recursive_step_count += 1;
-                emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, nifs)
-                    .map_err(|e| decider::Error::WalkFailed(format!("emit F' recursive step {idx}: {e}")))?
+                let out = emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, nifs)
+                    .map_err(|e| decider::Error::WalkFailed(format!("emit F' recursive step {idx}: {e}")))?;
+                (out, "decider.step.recursive", false)
             }
         };
+        builder.record_row_family(step_family, step_start);
+        step_wire_audits.push(FPrimeStepWireAudit {
+            row_start: step_start,
+            row_end: builder.rows(),
+            is_base,
+            state_in_columns: f_prime_state_audit_columns(&output.state_in),
+            state_out_columns: f_prime_state_audit_columns(&output.state_out),
+            x_out_columns: output.x_out.map(Var::col),
+            x_out_bit_columns: output.x_out_bits.iter().map(|wire| wire.col()).collect(),
+            prior_link_digest_columns: output
+                .prior_link
+                .as_ref()
+                .map(|link| link.digest.map(Var::col)),
+            prior_link_bit_columns: output
+                .prior_link
+                .as_ref()
+                .map(|link| link.encoded_bits.iter().map(|wire| wire.col()).collect())
+                .unwrap_or_default(),
+            prior_fresh_public_columns: output
+                .prior_link
+                .as_ref()
+                .map(|link| {
+                    link.fresh_public_inputs
+                        .iter()
+                        .map(|input| input.iter().map(|wire| wire.col()).collect())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            prior_link_row_range: output
+                .prior_link
+                .as_ref()
+                .map(|link| (link.row_start, link.row_end)),
+            prior_link_first_allocated_column: output
+                .prior_link
+                .as_ref()
+                .map(|link| link.first_allocated_column),
+        });
 
         if let Some(prev) = last_output.as_ref() {
+            let state_link_start = builder.rows();
             enforce_state_link(&mut builder, &prev.state_out, &output.state_in);
+            builder.record_row_family("decider.state_link", state_link_start);
             cross_step_links += 1;
         }
 
@@ -213,19 +317,23 @@ fn synthesize_statement_r1cs_inner(
         // this step's NIFS running, wire-for-wire (not just by digest).
         // Skipped if either side has no NIFS.V (base step).
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
+            let continuity_start = builder.rows();
             enforce_children_equal_running(&mut builder, prev_children, curr_running)
                 .map_err(|e| decider::Error::WalkFailed(format!("CE continuity step {idx}: {e}")))?;
+            builder.record_row_family("decider.ce_continuity", continuity_start);
             accumulator_claim_links += 1;
         }
         if let (Some(prev_parent), Some(curr_parent)) =
             (previous_parent.as_ref(), output.nifs_running_parent_authority.as_ref())
         {
+            let parent_continuity_start = builder.rows();
             enforce_children_equal_running(
                 &mut builder,
                 std::slice::from_ref(prev_parent),
                 std::slice::from_ref(curr_parent),
             )
             .map_err(|e| decider::Error::WalkFailed(format!("parent-authority continuity step {idx}: {e}")))?;
+            builder.record_row_family("decider.parent_continuity", parent_continuity_start);
             parent_authority_links += 1;
         }
         previous_children = output.nifs_children.clone();
@@ -254,6 +362,7 @@ fn synthesize_statement_r1cs_inner(
         .last()
         .ok_or_else(|| decider::Error::WalkFailed("final_fold present but public_batches empty".into()))?;
 
+    let terminal_fold_start = builder.rows();
     let (
         terminal_fold_emitted,
         terminal_latest_link,
@@ -269,12 +378,15 @@ fn synthesize_statement_r1cs_inner(
         trailing_latest,
         &final_fold.nifs,
     )?;
+    builder.record_row_family("decider.terminal_fold", terminal_fold_start);
 
     // Final CE-claim continuity link: terminal fold's running must equal
     // the last recursive F' step's children.
     if let Some(prev_children) = previous_children.as_ref() {
+        let terminal_continuity_start = builder.rows();
         enforce_children_equal_running(&mut builder, prev_children, &terminal_running)
             .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold: {e}")))?;
+        builder.record_row_family("decider.terminal_continuity", terminal_continuity_start);
         accumulator_claim_links += 1;
     }
     if terminal_parent_authority_link {
@@ -282,7 +394,9 @@ fn synthesize_statement_r1cs_inner(
     }
 
     // 7. Public-image pins.
+    let public_pins_start = builder.rows();
     let public_image_pins = pin_public_image(&mut builder, &statement.public, prep, &last, &final_acc_digest);
+    builder.record_row_family("decider.public_pins", public_pins_start);
 
     // 8. Terminal CE-relation closure — SOUND DIRECT PATH, NOT COMPACT.
     //    These rows ARE the decider R1CS's current soundness contract:
@@ -308,6 +422,7 @@ fn synthesize_statement_r1cs_inner(
             "statement.witness.final_state must be Active after finalization".into(),
         ));
     };
+    let terminal_ce_start = builder.rows();
     crate::paper::decider_ce_relation::enforce_final_ce_relations(
         &mut builder,
         prep,
@@ -315,10 +430,13 @@ fn synthesize_statement_r1cs_inner(
         &final_running.witnesses,
     )
     .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+    builder.record_row_family("decider.terminal_ce", terminal_ce_start);
+    builder.record_row_family("decider.full_history", full_history_start);
     let terminal_ce_direct_relations = true;
 
     Ok(DeciderR1csSynthesis {
         builder,
+        step_wire_audits,
         base_step_emitted,
         base_state_pinned,
         recursive_step_count,
@@ -443,8 +561,10 @@ pub fn synthesize_last_step_terminal_r1cs(
         &prep.vk,
         prep.public_input_len,
         prep.enforces_f_prime_recursive_link(),
+        prep.enforces_terminal_induction(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         &statement,
     )?;
 
@@ -475,6 +595,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         if idx == last_idx {
             last_state_in = Some(state.clone());
         }
+        let nebula_advance = replay_nebula_advance(prep, &state, step_proof, public_batch)?;
         state = construction2::verify_step(
             &prep.params,
             prep.structure(),
@@ -487,6 +608,7 @@ pub fn synthesize_last_step_terminal_r1cs(
             public_batch,
             step_proof,
             prep.semantic_state_mode,
+            nebula_advance,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
@@ -593,6 +715,58 @@ pub fn synthesize_last_step_terminal_r1cs(
     })
 }
 
+fn replay_nebula_advance(
+    prep: &Preprocessing,
+    state: &State,
+    step_proof: &StepProof,
+    public_batch: &[CcsClaim],
+) -> Result<Option<construction2::NebulaAdvance>, decider::Error> {
+    match (prep.nebula(), &state.nebula) {
+        (Some(cfg), Some(lane)) => {
+            let mut lane_out = lane.clone();
+            if prep.enforces_terminal_induction() {
+                if step_proof.nebula_open.is_some() {
+                    return Err(decider::Error::WalkFailed(
+                        "folded F' carries Nebula open data in the delayed claim suffix".into(),
+                    ));
+                }
+                if let ProofState::Active { latest, .. } = &state.proof {
+                    lane_out
+                        .advance_for_delayed_claims(
+                            cfg,
+                            prep.vk.digest(),
+                            state.z_i,
+                            state.acc_digest,
+                            F_PRIME_PUBLIC_INPUT_LEN,
+                            &latest.claims(),
+                        )
+                        .map_err(|e| decider::Error::WalkFailed(format!("nebula lane: {e}")))?;
+                }
+                Ok(Some(construction2::NebulaAdvance { lane_out, open: None }))
+            } else {
+                lane_out
+                    .advance_for_batch(
+                        cfg,
+                        prep.vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        step_proof.nebula_open,
+                        public_batch,
+                    )
+                    .map_err(|e| decider::Error::WalkFailed(format!("nebula lane: {e}")))?;
+                Ok(Some(construction2::NebulaAdvance {
+                    lane_out,
+                    open: step_proof.nebula_open,
+                }))
+            }
+        }
+        (None, None) => Ok(None),
+        _ => Err(decider::Error::WalkFailed(
+            "nebula config/lane presence mismatch between preprocessing and chain state".into(),
+        )),
+    }
+}
+
 /// Emit one base F' step. Used for `FoldProof::NoFold` (always the first
 /// lifecycle step). Constrains state-in to be a base state (counters=0,
 /// z_i_in==z_0, acc_digest_in==empty_acc) and advances to a state-out
@@ -609,7 +783,7 @@ fn emit_base_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: *prep.structure_digest(),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -618,6 +792,7 @@ fn emit_base_step_r1cs(
         semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
+        nebula: state_in.nebula.clone(),
     };
 
     let mut image = FPrimeSourceImage::new();
@@ -632,6 +807,8 @@ fn emit_base_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: f_prime_public_input_layout(prep),
+        nebula: prep.nebula(),
         state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let rows_in_chunk = public_batch.len() as u64;
@@ -674,7 +851,7 @@ fn emit_recursive_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: *prep.structure_digest(),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -683,6 +860,7 @@ fn emit_recursive_step_r1cs(
         semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
+        nebula: state_in.nebula.clone(),
     };
 
     let mut image = FPrimeSourceImage::new();
@@ -699,6 +877,8 @@ fn emit_recursive_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: f_prime_public_input_layout(prep),
+        nebula: prep.nebula(),
         state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let inputs = FPrimeRecursiveInputs {
@@ -733,7 +913,7 @@ fn emit_recursive_step_r1cs(
 }
 
 /// Pin the base step's state-in wires to the canonical preprocessing-derived
-/// seed values: `vk_fs_digest`, `structure_digest`, `z_0`, `z_i = z_0`,
+/// seed values: `vk_fs_digest`, `pi_ccs_header_bundle`, `z_0`, `z_i = z_0`,
 /// `public_trace_seed`, empty `acc_digest`, zero counters, `pc == TRIVIAL_PC`.
 ///
 /// Without this pin, a SNARK verifier would have no way to reject a
@@ -753,7 +933,11 @@ fn enforce_base_state_constants(
     let empty_acc_bytes = AccumulatorHandle::empty().digest();
 
     pin_digest32(builder, &base.state_in.vk_fs_digest, prep.vk.digest());
-    pin_digest_fields(builder, &base.state_in.structure_digest, structure_lanes);
+    pin_digest_fields(
+        builder,
+        &base.state_in.pi_ccs_header_bundle,
+        prep.pi_ccs_header_bundle(),
+    );
     pin_digest32(builder, &base.state_in.z_0, z_0_bytes);
     // Base step also enforces z_i == z_0 in-circuit, but pinning here
     // gives the SNARK verifier a direct constant to compare against.
@@ -780,7 +964,7 @@ fn pin_digest_fields(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [F; 
 /// to chain `prev.state_out` into `next.state_in`.
 fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrimeStateWires) {
     enforce_digest_eq(builder, &a.vk_fs_digest, &b.vk_fs_digest);
-    enforce_digest_eq(builder, &a.structure_digest, &b.structure_digest);
+    enforce_digest_eq(builder, &a.pi_ccs_header_bundle, &b.pi_ccs_header_bundle);
     builder.enforce_eq(&Lc::from_var(a.chunk_count), &Lc::from_var(b.chunk_count));
     builder.enforce_eq(&Lc::from_var(a.step_count), &Lc::from_var(b.step_count));
     enforce_digest_eq(builder, &a.z_0, &b.z_0);
@@ -789,6 +973,11 @@ fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrim
     enforce_digest_eq(builder, &a.semantic_state_digest, &b.semantic_state_digest);
     enforce_digest_eq(builder, &a.acc_digest, &b.acc_digest);
     enforce_digest_eq(builder, &a.public_trace, &b.public_trace);
+    match (a.nebula.as_ref(), b.nebula.as_ref()) {
+        (None, None) => {}
+        (Some(a), Some(b)) => enforce_nebula_lane_equality_circuit(builder, a, b),
+        _ => builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE)),
+    }
 }
 
 fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
@@ -846,6 +1035,12 @@ fn enforce_children_equal_running(
         }
         // c_data + x are Vec<Var> in both representations.
         enforce_vec_var_eq(builder, &child.c_data, &run.c_data, "c_data", idx)?;
+        enforce_adv_equality(
+            builder,
+            child.adv.as_ref(),
+            run.adv.as_ref(),
+            &format!("CE continuity[{idx}]"),
+        )?;
         enforce_vec_var_eq(builder, &child.x, &run.x, "x", idx)?;
         // Shape metadata is also represented as scalar wires inside the
         // verifier circuit. Pin it here so CE continuity is genuinely
@@ -998,11 +1193,13 @@ fn emit_terminal_fold(
     ),
     decider::Error,
 > {
+    let terminal_start = builder.rows();
     let nifs_config = NifsVCircuitConfig {
         pi_ccs: split_nc_config(prep).map_err(|e| decider::Error::WalkFailed(format!("split_nc_config: {e}")))?,
     };
 
     let mut transcript = TranscriptGadget::new(builder, FINAL_FOLD_TRANSCRIPT_LABEL);
+    builder.record_row_family("terminal.transcript", terminal_start);
     let nifs_msg = NifsVCircuitMessages {
         fresh: trailing_latest,
         running: &running_pre_final_fold.claims,
@@ -1014,36 +1211,47 @@ fn emit_terminal_fold(
     let nifs_outputs =
         enforce_nifs_v_circuit_with_transcript(builder, &prep.params, &nifs_config, &mut transcript, &nifs_msg)
             .map_err(|e| decider::Error::WalkFailed(format!("terminal fold NIFS.V emission: {e}")))?;
+    builder.record_row_family("terminal.nifs", terminal_start);
 
     // Pin terminal fold's input running to last F' step's acc_digest.
+    let running_link_start = builder.rows();
     enforce_digest_eq(builder, &nifs_outputs.running_acc_digest, &last.state_out.acc_digest);
+    builder.record_row_family("terminal.running_link", running_link_start);
     let mut terminal_parent_authority_link = false;
     if let (Some(prev_parent), Some(curr_parent)) = (
         last.nifs_parent.as_ref(),
         nifs_outputs.running_parent_authority.as_ref(),
     ) {
+        let parent_link_start = builder.rows();
         enforce_children_equal_running(
             builder,
             std::slice::from_ref(prev_parent),
             std::slice::from_ref(curr_parent),
         )
         .map_err(|e| decider::Error::WalkFailed(format!("terminal parent-authority continuity: {e}")))?;
+        builder.record_row_family("terminal.parent_link", parent_link_start);
         terminal_parent_authority_link = true;
     }
 
     // Terminal latest recursive link: fresh.x[0]==1 and
     // fresh.x[1..]==last.x_out_bits.
-    enforce_terminal_latest_link(builder, &nifs_outputs.fresh_x, &last.x_out_bits)?;
+    let latest_link_start = builder.rows();
+    enforce_terminal_latest_link(
+        builder,
+        f_prime_public_input_layout(prep),
+        &nifs_outputs.fresh_x,
+        &last.x_out_bits,
+    )?;
+    builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // Compute post-fold accumulator digest from the full NIFS.V output
-    // accumulator: every child CE claim plus the Π_RLC parent authority.
-    let mut child_digests = Vec::with_capacity(nifs_outputs.children.len());
-    for child in &nifs_outputs.children {
-        child_digests.push(enforce_dec_ce_claim_accumulator_digest(builder, child)?);
-    }
-    let parent_digest = enforce_dec_ce_claim_accumulator_digest(builder, &nifs_outputs.parent)?;
+    // NIFS.V has just enforced strict Pi_DEC(parent, children), so the
+    // parent CE digest is the post-fold accumulator authority.
+    let accumulator_start = builder.rows();
+    let parent_digest = enforce_dec_ce_claim_digest(builder, &nifs_outputs.parent)?;
     let post_fold_acc_digest =
-        enforce_accumulator_digest_from_running_circuit(builder, &child_digests, Some(parent_digest));
+        enforce_accumulator_digest_from_parent_circuit(builder, nifs_outputs.children.len(), Some(parent_digest));
+    builder.record_row_family("terminal.accumulator", accumulator_start);
+    builder.record_row_family("terminal.total", terminal_start);
 
     Ok((
         true,
@@ -1055,15 +1263,12 @@ fn emit_terminal_fold(
     ))
 }
 
-fn enforce_dec_ce_claim_accumulator_digest(
-    builder: &mut R1csBuilder,
-    claim: &CeClaimWires,
-) -> Result<[Var; 4], decider::Error> {
+fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; 4], decider::Error> {
     let y_ring = dec_y_ring_kvars(claim)
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest y_ring: {e}")))?;
-    enforce_accumulator_ce_claim_digest(
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest y_ring: {e}")))?;
+    enforce_ce_claim_digest(
         builder,
-        &AccumulatorCeClaimDigestInputs {
+        &CeClaimDigestInputs {
             c_d: claim.c_d,
             c_kappa: claim.c_kappa,
             c_data: &claim.c_data,
@@ -1071,14 +1276,13 @@ fn enforce_dec_ce_claim_accumulator_digest(
             x_cols: claim.x_cols,
             x_flat_row_major: &claim.x,
             r: &claim.r,
-            s_col: &claim.s_col,
             y_ring: &y_ring,
-            ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
+            adv: claim.adv.as_ref(),
         },
     )
-    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest: {e}")))
 }
 
 fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
@@ -1094,11 +1298,14 @@ fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
 /// SuperNeo chunk rooted at the last step's `x_out`, so every fresh in
 /// the batch shares the same recursive link. Specifically, for every
 /// `fresh_x[i]`:
-///   - `fresh_x[i].len() == F_PRIME_PUBLIC_INPUT_LEN`.
+///   - `fresh_x[i].len()` equals the verifier-owned F' public layout.
 ///   - `fresh_x[i][0] == 1` (CCS constant-one slot).
-///   - `fresh_x[i][1..] == last_x_out_bits` (bit-by-bit).
+///   - the canonical `fresh_x[i][1..257]` prefix equals
+///     `last_x_out_bits` (bit-by-bit); an application suffix is preserved
+///     for its own delayed consumer.
 fn enforce_terminal_latest_link(
     builder: &mut R1csBuilder,
+    layout: FPrimePublicInputLayout,
     fresh_x: &[Vec<Var>],
     last_x_out_bits: &[Var],
 ) -> Result<(), decider::Error> {
@@ -1114,14 +1321,19 @@ fn enforce_terminal_latest_link(
         )));
     }
     for (idx, x) in fresh_x.iter().enumerate() {
-        if x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+        if x.len() != layout.total_len() {
             return Err(decider::Error::WalkFailed(format!(
-                "terminal fresh[{idx}] public input has length {}, expected {F_PRIME_PUBLIC_INPUT_LEN}",
-                x.len()
+                "terminal fresh[{idx}] public input has length {}, expected {}",
+                x.len(),
+                layout.total_len(),
             )));
         }
         builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
-        for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..].iter().zip(last_x_out_bits) {
+        let link_end = F_PRIME_ENC_INST_OFFSET + F_PRIME_ENC_INST_BITS;
+        for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..link_end]
+            .iter()
+            .zip(last_x_out_bits)
+        {
             builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
         }
     }
@@ -1171,7 +1383,8 @@ fn pin_public_image(
     let terminal_x_out_inputs = StateXOutDigestInputs {
         mode: state_x_out_digest_mode(prep),
         vk_fs_digest: so.vk_fs_digest,
-        structure_digest: so.structure_digest,
+        pi_ccs_header_bundle: so.pi_ccs_header_bundle,
+        structure_digest: so.pi_ccs_header_bundle,
         chunk_count: so.chunk_count,
         step_count: so.step_count,
         initial_boundary: so.z_0,
@@ -1183,13 +1396,12 @@ fn pin_public_image(
     };
     let terminal_x_out = enforce_state_x_out_digest_circuit(builder, &terminal_x_out_inputs);
     pin_digest32(builder, &terminal_x_out, public.x_out.digest_bytes);
-    // Belt-and-braces: pin `structure_digest` to the canonical
-    // verifier-derived value (not a `PublicImage` field).
-    let structure_lanes = *prep.structure_digest();
+    // Belt-and-braces: pin the SplitNc header to preprocessing.
+    let header_bundle = prep.pi_ccs_header_bundle();
     for k in 0..4 {
         builder.enforce_eq(
-            &Lc::from_var(so.structure_digest[k]),
-            &Lc::from_const(structure_lanes[k]),
+            &Lc::from_var(so.pi_ccs_header_bundle[k]),
+            &Lc::from_const(header_bundle[k]),
         );
     }
     REQUIRED_PUBLIC_IMAGE_PINS
@@ -1267,6 +1479,7 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest_with_mode(
         state_x_out_digest_mode(prep),
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         state.chunk_count,
         state.step_count,
@@ -1276,6 +1489,7 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        state.nebula.as_ref().map(|lane| lane.digest()),
     ))
 }
 
@@ -1283,6 +1497,13 @@ fn state_x_out_digest_mode(prep: &Preprocessing) -> StateXOutDigestMode {
     match prep.semantic_state_mode() {
         SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
         SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    }
+}
+
+fn f_prime_public_input_layout(prep: &Preprocessing) -> FPrimePublicInputLayout {
+    match prep.nebula() {
+        None => FPrimePublicInputLayout::plain(),
+        Some(config) => FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(config.stacks)),
     }
 }
 
@@ -1305,7 +1526,7 @@ fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, Stri
     .map_err(|e| format!("header bundle: {e}"))?;
     Ok(SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

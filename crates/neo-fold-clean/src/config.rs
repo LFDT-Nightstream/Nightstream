@@ -44,6 +44,12 @@ pub const LAMBDA: u32 = neo_params::goldilocks_paper_b2::LAMBDA;
 pub const MIN_EFFECTIVE_LAMBDA: u32 = 100;
 /// Extra slack required by the extension-field policy.
 pub const EXTENSION_SAFETY_MARGIN_BITS: u32 = 2;
+/// Declared end-to-end target for a maximum-geometry Nebula chain under the
+/// conservative, pre-review projection census.
+pub const NEBULA_END_TO_END_SECURITY_BITS: u32 = 64;
+/// `log2(q_H)` bound on adversarial random-oracle queries used by the
+/// Fiat-Shamir reduction for the maximum-chain security statement.
+pub const NEBULA_MAX_FS_QUERY_BITS: u32 = 16;
 
 /// Return the production SuperNeo Appendix B.2 Goldilocks parameters.
 pub fn production_params() -> Params {

@@ -28,7 +28,7 @@ Source: `./formal/superneo-lean/SuperNeo.pdf.md`
 | Lean file | Role |
 |---|---|
 | `SuperNeo/Primitives/ExtensionField.lean` | Concrete carrier and arithmetic |
-| `SuperNeo/Primitives/ExtensionFieldInterface.lean` | Theorem-facing surface |
+| `SuperNeo/Primitives/ExtensionField.lean` | Theorem-facing surface |
 
 ## Contract Surface
 

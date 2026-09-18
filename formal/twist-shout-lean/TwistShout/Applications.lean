@@ -1,4 +1,3 @@
-import TwistShout.ApplicationsInterface
 import TwistShout.SpeedySpartan
 import TwistShout.SpartanPP
 

@@ -22,15 +22,13 @@
 //!   extend(prep, audit, batch) → UncompressedAudit            (optional)
 //!     └─ one more F' step
 //!   finish_uncompressed(prep, audit) → Uncompressed
-//!     └─ flush trailing latest, DROP audit trail
+//!     └─ DROP audit trail; authoritative plain F' keeps running + latest
 //!   verify_uncompressed(prep, &Uncompressed) → Result<()>
-//!     └─ constant-time IVC verification via terminal-fold re-run
+//!     └─ constant-time IVC verification of running + latest
 //!        (HyperNova §6.3 Construction 2 + SuperNeo §7)
-//!        Accepted only when the terminal fold starts from an empty
-//!        running accumulator (a single chunk). Multi-chunk histories
-//!        need the audit/decider path below because the evidence needed
-//!        to bind earlier chunks' counters and boundary coordinates lives
-//!        in per-step rows that `Uncompressed` intentionally drops.
+//!        Multi-chunk acceptance requires preprocessing compiled from the
+//!        complete authoritative F' relation. Image-only relations remain
+//!        fail-closed and require the audit path below.
 //!
 //! Audit / decider (chain replay, Spartan):
 //!   ... prove + extend as above ...
@@ -75,9 +73,19 @@ use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMix
 pub enum Error {
     #[error(transparent)]
     Construction2(#[from] crate::paper::construction2::Error),
+    #[error("nebula: segment-open payload supplied but this preprocessing carries no Nebula plan")]
+    NebulaNotConfigured,
+    #[error("nebula: preprocessing/plan and chain-state lane presence disagree (config without lane, or lane without config)")]
+    NebulaLanePresenceMismatch,
+    #[error("nebula: externally accepted proofs must end at a closed segment (§6.3 finalization rule: idx == 0, γ == ⊥, header chains)")]
+    NebulaSegmentOpenAtTerminal,
+    #[error("nebula: terminal claim's adv tuple failed the lane slice-opening (spec §5.2 R3)")]
+    NebulaSliceOpeningFailed,
+    #[error("nebula: terminal claim carries no adv tuple on a Nebula chain (or a tuple on a plain chain)")]
+    NebulaAdvPresenceMismatch,
     #[error(transparent)]
     Decider(#[from] decider::Error),
-    #[error("verify_uncompressed: proof is not finalized (state is Initial, or trailing latest is non-empty)")]
+    #[error("verify_uncompressed: proof has an unsupported terminal shape")]
     NotFinalized,
     #[error("verify_uncompressed: recorded final accumulator witness shape is inconsistent")]
     FinalAccumulatorWitnessShapeMismatch,
@@ -142,6 +150,8 @@ pub enum Error {
         "verify_uncompressed: terminal latest claim {index} public input does not encode the pre-final state x_out"
     )]
     TerminalLatestPublicInputMismatch { index: usize },
+    #[error("verify_uncompressed: terminal latest instance {index} failed authoritative CCS validation: {reason}")]
+    TerminalLatestAuthority { index: usize, reason: String },
     #[error(
         "verify_uncompressed: finalized proofs must carry a terminal-fold proof; \
          `final_fold = None` has no verifier-driven NIFS proof binding the recorded state"
@@ -174,21 +184,24 @@ pub enum Error {
     )]
     SemanticStateDigestCanonicality { owner: &'static str, lane: usize },
     #[error(
-        "verify_uncompressed: terminal-only verification is supported only for a single F' chunk \
-         until the compressed decider proves the recursive F' / NIFS.V induction (got chunk_count={chunk_count}). \
-         Use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk F' chains."
+        "verify_uncompressed: this F' preprocessing constrains the public recursive link but does not certify \
+         the authoritative folded NIFS.V induction (got chunk_count={chunk_count}). \
+         Use an authoritative fixed F' frontend or keep the audit trail for replay."
     )]
     FPrimeNonReplayUnsupported { chunk_count: u64 },
     #[error(
-        "verify_uncompressed: terminal-only verification is supported only when the terminal fold starts \
-         from an empty running accumulator (single chunk). This proof carries chunk_count={chunk_count}; \
-         use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk chains."
+        "verify_uncompressed: this preprocessing has no terminal-induction capability, but the terminal fold starts \
+         from a non-empty running accumulator (chunk_count={chunk_count}); keep the audit trail for replay."
     )]
     TerminalOnlyMultiChunkUnsupported { chunk_count: u64 },
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("extend: cannot fold an empty batch; every extend must contribute at least one CCS instance")]
     EmptyBatch,
+    #[error("folded F' induction currently requires exactly one fresh instance per chunk (got {got})")]
+    TerminalInductionArity { got: usize },
+    #[error("folded F' induction carries Nebula segment-open data inside the claim suffix; a separate nebula_open payload is invalid")]
+    TerminalInductionExternalNebulaOpen,
     #[error("extend: batch has {got} fresh instances, but this SuperNeo profile supports at most {max}")]
     BatchTooLarge { got: usize, max: usize },
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
@@ -224,11 +237,17 @@ pub enum Error {
 /// these params/setup. Proofs must never carry or choose params/setup.
 pub struct Preprocessing {
     pub params: Params,
-    structure: Structure,
+    structure: std::sync::Arc<Structure>,
     pub log: AjtaiSModule,
     pub vk: VerifierKey,
     pub(crate) mix_rhos_commits: RlcMixer,
     pub(crate) combine_b_pows: DecMixer,
+    /// Nebula memory-checking plan context (spec §6): the lane-commitment
+    /// scheme, segment length, plan digest, and the verifier's ROM handle
+    /// `D_init`. `None` for plain chains. Set by
+    /// [`Preprocessing::with_nebula`]; every extend on a Nebula
+    /// preprocessing runs the §6.3 lane transition.
+    pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
@@ -276,11 +295,26 @@ pub struct Preprocessing {
     /// The field is verifier-owned and crate-private. R1CS-F' frontends set
     /// it during preprocess; generic CCS frontends leave it false.
     pub(crate) f_prime_recursive_link: bool,
+    /// Whether this verifier context owns the complete folded F' induction
+    /// relation: base branch, recursive NIFS.V, recursive public link, and
+    /// (when configured) the delayed Nebula transition.
+    ///
+    /// This is deliberately stronger than [`Self::f_prime_recursive_link`].
+    /// The older image frontend constrains the public link but is not the
+    /// authoritative fixed-point relation, so it must remain fail-closed for
+    /// terminal-only multi-chunk verification. Only constructors that compile
+    /// the complete fixed relation (generic `r1cs_f_prime::ivc` or Nebula F')
+    /// may set this capability.
+    pub(crate) terminal_induction: bool,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
     /// computed once at preprocess time; protocol code reads this field
     /// instead of recomputing the digest on every step.
     structure_digest: [F; 4],
+    /// SplitNc transcript header derived from `(params, structure, dims,
+    /// matrix_digest)`. It is part of `vk_fs` and enters folded F' as
+    /// witness data, never as a self-referential matrix constant.
+    pi_ccs_header_bundle: [F; 4],
     /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
     /// eval tables + matrix digest). Verifier-derived; built once at
     /// preprocess time so `engine::optimized::{prove_pi_ccs, verify_pi_ccs}`
@@ -290,7 +324,7 @@ pub struct Preprocessing {
 
 impl Preprocessing {
     pub fn structure(&self) -> &Structure {
-        &self.structure
+        self.structure.as_ref()
     }
 
     /// Read-only view of the verifier-owned semantic-state mode. See
@@ -304,6 +338,29 @@ impl Preprocessing {
     /// recursive-link public input (`u_i.x == enc_inst(prior_x_out)`).
     pub fn enforces_f_prime_recursive_link(&self) -> bool {
         self.f_prime_recursive_link
+    }
+
+    /// True only for preprocessing derived from the authoritative folded F'
+    /// fixed point. Terminal-only verification may trust prior chunks through
+    /// that relation's in-circuit NIFS.V induction.
+    pub fn enforces_terminal_induction(&self) -> bool {
+        self.terminal_induction
+    }
+
+    /// Read-only view of the Nebula plan context; `None` for plain chains.
+    pub fn nebula(&self) -> Option<&crate::paper::construction2::NebulaConfig> {
+        self.nebula.as_deref()
+    }
+
+    /// Attach the Nebula memory-checking plan (spec §11 constants +
+    /// `D_init`) to this preprocessing. Every subsequent chain started
+    /// from it carries a `NebulaLane` from the base state, every extend
+    /// runs the §6.3 transition over the deposited claims, and the
+    /// verifiers enforce the finalization rule and the terminal
+    /// slice-openings (spec §5.2 R3).
+    pub fn with_nebula(mut self, cfg: crate::paper::construction2::NebulaConfig) -> Self {
+        self.nebula = Some(std::sync::Arc::new(cfg));
+        self
     }
 
     /// Read-only view of the verifier-owned initial app/VM
@@ -334,6 +391,7 @@ impl Preprocessing {
         self.vk = VerifierKey::derive_from_structure_digest(
             &self.params,
             &self.structure_digest,
+            self.pi_ccs_header_bundle,
             self.public_input_len,
             initial,
         );
@@ -361,12 +419,44 @@ impl Preprocessing {
         self
     }
 
+    /// Install the complete folded-induction capability. Kept crate-private:
+    /// this is a statement about verifier-owned relation construction, never
+    /// a caller-selected verification mode.
+    pub(crate) fn with_terminal_induction(mut self) -> Self {
+        self.f_prime_recursive_link = true;
+        self.terminal_induction = true;
+        self
+    }
+
     pub fn structure_digest(&self) -> &[F; 4] {
         &self.structure_digest
     }
 
+    pub fn pi_ccs_header_bundle(&self) -> [F; 4] {
+        self.pi_ccs_header_bundle
+    }
+
     pub fn optimized_cache(&self) -> &OptimizedStructureCache {
         &self.optimized_cache
+    }
+
+    /// Verifier-circuit view of this preprocessing context. The dimensions
+    /// and Split-NC header are derived from the same params, structure, and
+    /// matrix cache used by native proving, so recursive frontends do not
+    /// reconstruct protocol metadata through a parallel path.
+    pub fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
+        let dims = neo_reductions::engines::utils::build_dims_and_policy(self.params.inner(), &self.structure)?;
+        Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
+            pi_ccs: crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig {
+                params: &self.params,
+                structure: self.structure.as_ref().into(),
+                header_bundle: self.pi_ccs_header_bundle,
+                ell_d: dims.ell_d,
+                ell_n: dims.ell_n,
+                ell_m: dims.ell_m,
+                d_sc: dims.d_sc,
+            },
+        })
     }
 
     /// Low-level Π_RLC commitment action fixed by preprocessing.
@@ -421,12 +511,10 @@ pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, dige
 /// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s
 /// input.
 ///
-/// Carries exactly the fields `verify_uncompressed` reads: the
-/// post-finalization `State` (chain coordinates + final running
-/// accumulator with witnesses) and the terminal `FinalFoldProof`
-/// (whose `terminal_inputs` snapshot is what authentiticates the chain
-/// through a verifier-driven NIFS.V re-run; see
-/// [`verify::verify_uncompressed`]).
+/// Carries exactly the fields `verify_uncompressed` reads. A plain certified
+/// F' proof keeps HyperNova's `(running accumulator, latest fresh instance)`
+/// in `state` and has no final fold. Nebula uses `final_fold` to consume its
+/// one-step-delayed terminal memory claim before external acceptance.
 ///
 /// The per-step audit trail (`steps`, `public_batches`) is **not** part
 /// of this type — it lives in [`UncompressedAudit`] and is consumed by
@@ -435,18 +523,16 @@ pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, dige
 ///
 /// There is no session-wide transcript on the proof. Each F' step owns
 /// its own per-step transcript inside `paper::f_prime::{prove, verify}`,
-/// and the terminal fold owns its own inside
+/// A present terminal fold owns its own transcript inside
 /// `paper::construction2::{prove_final_fold, verify_final_fold}`.
 #[derive(Clone, Debug)]
 pub struct Uncompressed {
     pub state: State,
-    /// Final NIFS proof that flushed the trailing latest into the running
-    /// accumulator at finalization, plus the prover-snapshotted
-    /// `terminal_inputs` (pre-fold running + latest) the verifier
-    /// re-runs NIFS.V against. `None` only when the chain had nothing
-    /// to flush inside the low-level finalization helper; public
-    /// terminal/verifier surfaces reject `None` because it carries no
-    /// verifier-driven terminal fold binding.
+    /// Optional final NIFS proof. Plain authoritative F' follows HyperNova and
+    /// leaves this `None`; the verifier checks `state.running` and
+    /// `state.latest` separately. Nebula sets it while consuming the trailing
+    /// delayed claim. Legacy relations also require it for their one-chunk
+    /// terminal shape.
     pub final_fold: Option<FinalFoldProof>,
 }
 
@@ -490,7 +576,7 @@ pub use crate::paper::decider::PublicImage;
 
 // Terminal-only lifecycle path.
 pub use compress::finish_uncompressed;
-pub use prove::{extend, prove};
+pub use prove::{extend, extend_nebula_open, prove};
 pub use verify::{validate_final_witness_authority, verify_uncompressed};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
@@ -508,9 +594,27 @@ pub fn preprocess(
     structure: Structure,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
+    preprocess_shared(params, std::sync::Arc::new(structure), public_input_len)
+}
+
+pub(crate) fn preprocess_shared(
+    params: Params,
+    structure: std::sync::Arc<Structure>,
+    public_input_len: Option<usize>,
+) -> Result<Preprocessing, Error> {
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols)?;
-    preprocess_with_test_log(params, structure, log, public_input_len)
+    let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
+    crate::heap::release_unused_pages();
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        public_input_len,
+        optimized_cache,
+    )
 }
 
 /// Build preprocessing with an explicitly supplied Ajtai module.
@@ -525,7 +629,8 @@ pub fn preprocess_with_test_log(
     log: AjtaiSModule,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
-    let optimized_cache = OptimizedStructureCache::build(&structure)?;
+    let structure = std::sync::Arc::new(structure);
+    let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
     preprocess_with_test_log_and_optimized_cache(
         params,
         structure,
@@ -545,14 +650,14 @@ pub fn preprocess_with_test_log(
 /// verifier-derived structure artifact.
 pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     params: Params,
-    structure: Structure,
+    structure: std::sync::Arc<Structure>,
     log: AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     public_input_len: Option<usize>,
     optimized_cache: OptimizedStructureCache,
 ) -> Result<Preprocessing, Error> {
-    validate_ajtai_context(&params, &structure, &log)?;
+    validate_ajtai_context(&params, structure.as_ref(), &log)?;
     let live_shape = (structure.n, structure.m, structure.t());
     if optimized_cache.shape() != live_shape {
         return Err(Error::StructureCacheMismatch);
@@ -563,7 +668,14 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     // `structure_digest` also binds, so derive the structure digest from that
     // same matrix digest instead of walking the matrices twice here.
     let structure_digest =
-        crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
+        crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.mat_digest());
+    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), structure.as_ref())?;
+    let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
+        params.inner(),
+        structure.as_ref(),
+        dims,
+        optimized_cache.mat_digest(),
+    )?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after
     // preprocess to install their `H(initial_app_state)`; that setter
@@ -573,6 +685,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     let vk = VerifierKey::derive_from_structure_digest(
         &params,
         &structure_digest,
+        pi_ccs_header_bundle,
         public_input_len,
         initial_semantic_state_digest,
     );
@@ -590,8 +703,11 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         // upgrade the mode based on their plan.
         semantic_state_mode: SemanticStateMode::Stateless,
         f_prime_recursive_link: false,
+        terminal_induction: false,
         structure_digest,
+        pi_ccs_header_bundle,
         optimized_cache,
+        nebula: None,
     })
 }
 

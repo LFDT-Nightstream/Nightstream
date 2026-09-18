@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, K};
-use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
@@ -38,6 +38,8 @@ pub use neo_reductions::api::PiCcsProof as SumcheckProof;
 pub enum Error {
     #[error("\u{03A0}_CCS: input shape mismatch ({0})")]
     Shape(&'static str),
+    #[error("\u{03A0}_CCS: output adv must equal its input claim's adv (Π_CCS forwards commitments unchanged)")]
+    AdvForwarding,
     #[error(transparent)]
     Engine(#[from] engine::Error),
 }
@@ -69,7 +71,7 @@ pub fn prove(
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
     let (fresh_claims, fresh_witnesses) = split_fresh_instances(fresh);
-    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)
+    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running).map(|(proof, _)| proof)
 }
 
 pub(crate) fn prove_from_parts(
@@ -81,9 +83,9 @@ pub(crate) fn prove_from_parts(
     fresh_claims: &[CcsClaim],
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
-) -> Result<Proof, Error> {
+) -> Result<(Proof, PiDecProverPrecompute), Error> {
     validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
-    let (outputs, sumcheck) = engine::prove_pi_ccs_parts(
+    let (mut outputs, sumcheck, pi_dec_precompute) = engine::prove_pi_ccs_parts(
         tr.inner_mut(),
         pp,
         s,
@@ -93,8 +95,48 @@ pub(crate) fn prove_from_parts(
         running,
         log,
     )?;
+    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_clean_split_nc_claims(s, &outputs)?;
-    Ok(Proof { sumcheck, outputs })
+    Ok((Proof { sumcheck, outputs }, pi_dec_precompute))
+}
+
+/// Spec §5.2 R2 (Π_CCS side): the reduction changes evaluation claims, not
+/// commitments — each output carries its input's `c` unchanged, so it
+/// carries its input's `adv` unchanged too. Outputs are ordered
+/// [fresh…, running…], mirroring the paper's i ∈ [K+k] indexing. This
+/// identity forwarding is load-bearing: it is what connects the deposited
+/// (fresh) claims' tuples — bound by the F′ `D_seen` chain — to the tuples
+/// Π_RLC mixes and the terminal decider opens (security-note Lemma 1).
+fn forward_adv(fresh: &[CcsClaim], running: &[CeClaim], outputs: &mut [CeClaim]) -> Result<(), Error> {
+    if outputs.len() != fresh.len() + running.len() {
+        return Err(Error::Shape("|outputs| \u{2260} K + k in adv forwarding"));
+    }
+    let inputs = fresh
+        .iter()
+        .map(|c| &c.adv)
+        .chain(running.iter().map(|c| &c.adv));
+    for (output, adv) in outputs.iter_mut().zip(inputs) {
+        output.adv = adv.clone();
+    }
+    Ok(())
+}
+
+/// Verifier twin of [`forward_adv`]: outputs are prover-supplied, so the
+/// identity must be *checked*, not installed.
+fn validate_adv_forwarding(fresh: &[CcsClaim], running: &[CeClaim], outputs: &[CeClaim]) -> Result<(), Error> {
+    if outputs.len() != fresh.len() + running.len() {
+        return Err(Error::Shape("|outputs| \u{2260} K + k in adv forwarding"));
+    }
+    let inputs = fresh
+        .iter()
+        .map(|c| &c.adv)
+        .chain(running.iter().map(|c| &c.adv));
+    for (output, adv) in outputs.iter().zip(inputs) {
+        if output.adv != *adv {
+            return Err(Error::AdvForwarding);
+        }
+    }
+    Ok(())
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -122,6 +164,7 @@ pub fn verify(
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_shape(pp, s, fresh_claims, &running.claims, &proof.outputs)?;
+    validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
@@ -184,11 +227,7 @@ fn validate_input_shape(
         if claim.x.len() != claim.m_in {
             return Err(Error::Shape("fresh x length does not match m_in"));
         }
-        let z_len = claim
-            .m_in
-            .checked_add(fresh_witnesses[idx].w.len())
-            .ok_or(Error::Shape("fresh m_in + witness length overflow"))?;
-        if z_len != s.m {
+        if fresh_witnesses[idx].private_len(claim.m_in, s.m).is_none() {
             return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
         }
     }

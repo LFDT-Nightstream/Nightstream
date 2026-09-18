@@ -216,9 +216,7 @@ For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_a
 |-----------------------------------------------------------------------------|----------------------------------------------------------|
 | [`formal/superneo-lean/`](formal/superneo-lean/)                            | Main SuperNeo theorem-facing model (source of truth)     |
 | [`formal/direct-ccs-fprime-lean/`](formal/direct-ccs-fprime-lean/)          | Direct-CCS F′ model                                      |
-| [`formal/nightstream-lean/`](formal/nightstream-lean/)                      | Published-boundary model (prototype-era, parked)         |
 | [`formal/twist-shout-lean/`](formal/twist-shout-lean/)                      | Twist/Shout memory-argument model                        |
-| [`formal/opening-convergence-lean/`](formal/opening-convergence-lean/)      | Opening convergence pipeline model                       |
 
 See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and closure standard.
 
@@ -269,9 +267,7 @@ docs/
 formal/
   superneo-lean/   Main Lean model (source of truth)
   direct-ccs-fprime-lean/ Direct-CCS F′ model
-  nightstream-lean/ Published-boundary model (prototype-era, parked)
   twist-shout-lean/ Twist/Shout Lean model
-  opening-convergence-lean/ Opening convergence Lean model
 ```
 
 ---

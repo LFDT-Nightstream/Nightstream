@@ -3,89 +3,78 @@
 //! Constraint families with substantial volume live in child modules
 //! under `ccs/`; see [`linear_memory`] for the linear-memory load/store
 //! row family. This file owns the top-level builder, the constraint
-//! tag helpers (`always`, `shared`, `opcode_tag`), and the small shared
+//! tag helpers (`always`, `host_event`, `shared`, `opcode_tag`), and the small shared
 //! utilities (`idx`, `f_u64`, …) that those submodules consume via
 //! `use super::*`.
 
 mod call;
+pub mod host_event_chain;
 mod linear_memory;
 mod memory_pages;
 mod stack_io;
 mod trap;
 
-use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget};
+pub(crate) use call::PARAM_INIT_REMAINING_AFTER_ZERO_TEST;
+pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
+pub(crate) use trap::{
+    dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
+    DIVISOR_ZERO_TEST,
+};
+
+use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
     selector_col, Column, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
     COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS,
 };
 use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
-use super::tagged_r1cs_builder::{
-    WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
-};
+use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder, WasmTaggedR1csBuilder};
 use crate::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV,
     COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GLOBAL_VALUE_HI,
-    COL_HALTED, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
-    COL_PC_ROM_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
-    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
+    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
+    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
 };
-use neo_ccs::CcsStructure;
+use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-type R1csBuilder = WasmTaggedR1csBuilder;
+pub(crate) const PC_EDGE_KIND_ZERO_TEST: ZeroTest =
+    ZeroTest::column(COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC);
 
-/// Static CCS shape of the wasm VM: the fixed-point constraint structure
-/// each step's witness must satisfy, plus the witness-vector layout pins
-/// (public-input length, total width, `1` column).
-#[derive(Clone, Debug)]
-pub struct WasmCoreCcs {
-    pub structure: CcsStructure<F>,
-    pub m_in: usize,
-    pub witness_width: usize,
-    pub const_one_col: usize,
-}
+pub(crate) const SELECT_COND_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_STACK_READ_VALUE_LO[2],
+    COL_SELECT_SCRATCH_INV,
+    COL_SELECT_COND_IS_ZERO,
+);
 
-#[derive(Clone, Debug)]
-pub struct WasmVmSpec {
-    core: WasmCoreCcs,
-    constraint_catalog: WasmConstraintCatalog,
-}
+pub(crate) const CMP_LO_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
 
-impl Default for WasmVmSpec {
-    fn default() -> Self {
-        Self::new().expect("valid WASM core CCS")
-    }
-}
+pub(crate) const CMP_HI_ZERO_TEST: ZeroTest = ZeroTest::column(COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
 
-impl WasmVmSpec {
-    pub fn new() -> Result<Self, String> {
-        let (core, constraint_catalog) = build_core_ccs_spec()?;
-        Ok(Self {
-            core,
-            constraint_catalog,
-        })
-    }
+pub(crate) const SELECT_LO_MUX: ConditionalSelect<2> = ConditionalSelect {
+    activation: COL_SEL_SELECT,
+    condition: [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, F::NEG_ONE)],
+    lhs: COL_STACK_READ_VALUE_LO[0],
+    rhs: COL_STACK_READ_VALUE_LO[1],
+    output: COL_STACK_WRITE0_VALUE_LO,
+    delta: COL_SELECT_OUT_DELTA_LO,
+};
 
-    pub fn constraint_catalog(&self) -> &WasmConstraintCatalog {
-        &self.constraint_catalog
-    }
-
-    pub fn core_ccs_spec(&self) -> &WasmCoreCcs {
-        &self.core
-    }
-
-    pub fn name(&self) -> &'static str {
-        "wasm"
-    }
-}
+pub(crate) const SELECT_HI_MUX: ConditionalSelect<2> = ConditionalSelect {
+    activation: COL_SEL_SELECT,
+    condition: [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, F::NEG_ONE)],
+    lhs: COL_STACK_READ_VALUE_HI[0],
+    rhs: COL_STACK_READ_VALUE_HI[1],
+    output: COL_STACK_WRITE0_VALUE_HI,
+    delta: COL_SELECT_OUT_DELTA_HI,
+};
 
 /// Opcodes whose rows participate in the wide-value gating constraint.
 /// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot
@@ -109,24 +98,19 @@ pub(super) fn linear_memory_ops() -> Vec<WasmOpcode> {
 }
 
 fn always(label: &'static str) -> WasmConstraintTag {
-    WasmConstraintTag {
-        label,
-        scope: WasmConstraintScope::Always,
-    }
+    WasmConstraintTag::new(label, WasmConstraintScope::Always)
+}
+
+pub(super) fn host_event(label: &'static str) -> WasmConstraintTag {
+    WasmConstraintTag::new(label, WasmConstraintScope::HostEvent)
 }
 
 pub(super) fn opcode_tag(label: &'static str, opcode: WasmOpcode) -> WasmConstraintTag {
-    WasmConstraintTag {
-        label,
-        scope: WasmConstraintScope::Opcode(opcode),
-    }
+    WasmConstraintTag::new(label, WasmConstraintScope::Opcode(opcode))
 }
 
 pub(super) fn shared(label: &'static str, opcodes: &[WasmOpcode]) -> WasmConstraintTag {
-    WasmConstraintTag {
-        label,
-        scope: WasmConstraintScope::Opcodes(opcodes.to_vec().into_boxed_slice()),
-    }
+    WasmConstraintTag::new(label, WasmConstraintScope::Opcodes(opcodes.to_vec().into_boxed_slice()))
 }
 
 fn opcodes_with_stack_reads(reads: u8) -> Vec<WasmOpcode> {
@@ -148,10 +132,12 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_READS, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let reads = opcode_info_from_code(opcode_code(op)).stack_reads;
         if reads != 0 {
             terms.push((
@@ -165,10 +151,12 @@ fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
 
 fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_WRITES, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let writes = opcode_info_from_code(opcode_code(op)).stack_writes;
         if writes != 0 {
             terms.push((
@@ -180,19 +168,22 @@ fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     terms
 }
 
-fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
+fn fixed_stack_arity_gate_terms() -> [(usize, F); 5] {
     [
         (COL_IS_PROGRAM_ROW, F::ONE),
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
     ]
 }
 
-fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String> {
-    let witness_width = crate::range_check::range_checked_witness_width();
+pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>, String> {
+    let witness_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
-    let mut b = WasmTaggedR1csBuilder::new(witness_width, COL_ONE)?;
+    let mut builder = WasmR1csBuilder::new(witness_width, PUBLIC_INPUTS, COL_ONE).map_err(|error| error.to_string())?;
+    let mut b = builder.tagged(always("unlabeled"));
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
         // is_program_row · (wide_values_enabled − Σ wide-value-op selectors) = 0,
@@ -228,7 +219,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.with_tag(always("narrow high limbs zero"), |b| {
         b.push_row(
-            [(COL_STACK_READ0_VALUE_HI, F::ONE)],
+            [(COL_STACK_READ_VALUE_HI[0], F::ONE)],
             [
                 (COL_ONE, F::ONE),
                 (COL_WIDE_VALUES_ENABLED, -F::ONE),
@@ -237,8 +228,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [],
         );
         for column in [
-            COL_STACK_READ1_VALUE_HI,
-            COL_STACK_READ2_VALUE_HI,
+            COL_STACK_READ_VALUE_HI[1],
+            COL_STACK_READ_VALUE_HI[2],
             COL_STACK_WRITE0_VALUE_HI,
             COL_LOCAL_VALUE_HI,
             COL_GLOBAL_VALUE_HI,
@@ -253,6 +244,24 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     call::push_call_constraints(&mut b);
 
+    b.with_tag(always("halted state transition"), |b| {
+        // No decoded instruction may execute after the carried state halted.
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_HALTED_BEFORE, F::ONE)], []);
+        // Auxiliary rows, including fixed-shape padding, preserve
+        // terminality — except a turn boundary, which clears the latch to
+        // re-enter the next export (see `ccs/call.rs`).
+        b.push_row(
+            [
+                (COL_ONE, F::ONE),
+                (COL_IS_PROGRAM_ROW, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, -F::ONE),
+            ],
+            [(COL_HALTED, F::ONE), (COL_HALTED_BEFORE, -F::ONE)],
+            [],
+        );
+    });
+    host_event_chain::push_constraints(&mut b);
+
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(
             SELECTOR_COLS
@@ -260,6 +269,47 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 .map(|col| (col, F::ONE))
                 .chain([(COL_IS_PROGRAM_ROW, -F::ONE)]),
         );
+    });
+
+    b.with_tag(always("program immediate gates"), |b| {
+        let gates: [(usize, fn(WasmOpcode) -> bool); 4] = [
+            (COL_PROGRAM_LOCAL_INDEX_ACTIVE, WasmOpcode::uses_local_index_immediate),
+            (COL_PROGRAM_GLOBAL_INDEX_ACTIVE, WasmOpcode::uses_global_index_immediate),
+            (COL_PROGRAM_TABLE_ID_ACTIVE, WasmOpcode::uses_table_id_immediate),
+            (
+                COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+                WasmOpcode::uses_call_indirect_immediates,
+            ),
+        ];
+        for (gate, uses_immediate) in gates {
+            b.push_linear_zero(
+                std::iter::once((gate, F::ONE)).chain(
+                    WasmOpcode::supported()
+                        .into_iter()
+                        .filter(|opcode| uses_immediate(*opcode))
+                        .map(|opcode| (selector_col(opcode).expect("immediate consumer selector"), -F::ONE)),
+                ),
+            );
+        }
+    });
+
+    b.with_tag(always("memory activation support"), |b| {
+        // These implications are deliberately redundant with the WASM
+        // semantics. They are not needed for soundness: the physical-slot
+        // binding independently rejects multiple active candidates. Keeping
+        // them here makes every routing support claim a local circuit
+        // contract, so a bad claim rejects honest rows in the fast CCS tests
+        // instead of surfacing only during memory execution.
+        //
+        // TODO: prove in Lean that the semantic CCS implies these support
+        // rows, then remove the redundant rows from the production relation.
+        for support in crate::memory_routing::derived_activation_supports() {
+            b.push_row(
+                [(support.gate, F::ONE)],
+                std::iter::once((COL_ONE, F::ONE)).chain(support.atoms.into_iter().map(|atom| (atom, -F::ONE))),
+                [],
+            );
+        }
     });
 
     b.with_tag(always("opcode decode"), |b| {
@@ -277,32 +327,42 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // sp after + stack reads = sp before + stack writes
+    // Stack balance excludes non-popping host-event reads and treats a captured
+    // result as consumed by the host.
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
+        (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
+        (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_write_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_local_base_col(), F::ONE),
+        (host_event_chain::gather_memory_output_base_col(), F::ONE),
+        (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
+        // Bound host calls pop their args on the call row itself.
+        (host_event_chain::host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_writes_terms(), []);
     });
     b.push_linear_zero([
-        (COL_STACK_READ0_ACTIVE, F::ONE),
-        (COL_STACK_READ1_ACTIVE, F::ONE),
-        (COL_STACK_READ2_ACTIVE, F::ONE),
+        (COL_STACK_READ_ACTIVE[0], F::ONE),
+        (COL_STACK_READ_ACTIVE[1], F::ONE),
+        (COL_STACK_READ_ACTIVE[2], F::ONE),
         (COL_STACK_READS, -F::ONE),
     ]);
     b.push_linear_zero([(COL_STACK_WRITE0_ACTIVE, F::ONE), (COL_STACK_WRITES, -F::ONE)]);
     b.push_row(
-        [(COL_STACK_READ1_ACTIVE, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_STACK_READ0_ACTIVE, -F::ONE)],
+        [(COL_STACK_READ_ACTIVE[1], F::ONE)],
+        [(COL_ONE, F::ONE), (COL_STACK_READ_ACTIVE[0], -F::ONE)],
         [],
     );
     b.push_row(
-        [(COL_STACK_READ2_ACTIVE, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_STACK_READ1_ACTIVE, -F::ONE)],
+        [(COL_STACK_READ_ACTIVE[2], F::ONE)],
+        [(COL_ONE, F::ONE), (COL_STACK_READ_ACTIVE[1], -F::ONE)],
         [],
     );
 
@@ -310,19 +370,24 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // Edge kind encodes the next-PC source:
         // 0 = static pc ROM, 1 = return-like, 2 = call_indirect target,
         // 3 = terminal unreachable. Return-like rows are identified by
-        // `halted` for the final frame and by `call_stack_pop_present` for
+        // the transition into `halted` for the final frame and by
+        // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
         // halts but keeps its Static edge kind, and a call_indirect trap
         // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
         // edge-kind ROM binds both); the -trap terms absorb their `halted`
-        // contributions.
+        // contributions. A turn boundary clears the latch (its own rules pin
+        // halted_before = 1, halted = 0), so +TB cancels that -1 delta.
         b.push_linear_zero(
             [
                 (COL_HALTED, F::ONE),
+                (COL_HALTED_BEFORE, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, F::ONE),
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
+                (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
@@ -343,6 +408,11 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
         push_gated_linear_zero(
             b,
+            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
+        );
+        push_gated_linear_zero(
+            b,
             selector_col(WasmOpcode::Unreachable).unwrap(),
             [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(3))],
         );
@@ -351,7 +421,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     trap::push_trap_constraints(&mut b, layout);
 
     b.with_tag(always("pc rom active gate"), |b| {
-        push_zero_test_gadget(b, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC);
+        PC_EDGE_KIND_ZERO_TEST.push_constraints(b);
         b.push_row(
             [(COL_IS_PROGRAM_ROW, F::ONE)],
             [(COL_PC_EDGE_KIND_IS_STATIC, F::ONE)],
@@ -379,9 +449,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.with_tag(always("stack high limb addresses"), |b| {
         for (addr_hi, addr_lo) in [
-            (COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO),
-            (COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO),
-            (COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO),
+            (COL_STACK_READ_ADDR_HI[0], COL_STACK_READ_ADDR_LO[0]),
+            (COL_STACK_READ_ADDR_HI[1], COL_STACK_READ_ADDR_LO[1]),
+            (COL_STACK_READ_ADDR_HI[2], COL_STACK_READ_ADDR_LO[2]),
             (COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO),
         ] {
             b.push_linear_zero([(addr_hi, F::ONE), (addr_lo, -F::ONE), (COL_ONE, -F::ONE)]);
@@ -486,17 +556,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         push_shout_constraints(b);
     });
     crate::range_check::push_range_check_rows(&mut b);
-    let (structure, constraint_catalog) = b.build()?;
-
-    Ok((
-        WasmCoreCcs {
-            structure,
-            m_in: PUBLIC_INPUTS,
-            witness_width,
-            const_one_col: COL_ONE,
-        },
-        constraint_catalog,
-    ))
+    let r1cs = builder.build().map_err(|error| error.to_string())?;
+    ApplicationRelation::new(r1cs, crate::witness_layout::range_checked_column_registry())
+        .map_err(|error| error.to_string())
 }
 
 fn f_u16(v: u16) -> F {
@@ -511,7 +573,7 @@ fn selector_for_lookup(op: WasmOpcode) -> usize {
     selector_col(op).expect("lookup opcode selector column")
 }
 
-fn push_stack_write0_addr_sp_before(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_write0_addr_sp_before(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp selector"), F::ONE)),
@@ -520,12 +582,12 @@ fn push_stack_write0_addr_sp_before(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_stack_read0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_read0_addr_sp_minus_1(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-1 selector"), F::ONE)),
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -533,7 +595,7 @@ fn push_stack_read0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_stack_write0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_write0_addr_sp_minus_1(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp-1 selector"), F::ONE)),
@@ -546,13 +608,13 @@ fn push_stack_write0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_select_stack_addrs(b: &mut R1csBuilder) {
+fn push_select_stack_addrs(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = selector_col(WasmOpcode::Select).unwrap();
     push_gated_linear_zero(
         b,
         selector,
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(6)),
         ],
@@ -561,7 +623,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ1_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[1], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -570,7 +632,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ2_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[2], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -592,49 +654,18 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
 /// The zero-test and delta rows are intentionally global: the witness builder
 /// populates `COL_SELECT_COND_IS_ZERO`, `COL_SELECT_SCRATCH_INV`, and both
 /// delta columns on every row.
-fn push_select_constraints(b: &mut R1csBuilder) {
-    let selector = selector_col(WasmOpcode::Select).unwrap();
-    push_zero_test_gadget(
-        b,
-        COL_STACK_READ2_VALUE_LO,
-        COL_SELECT_SCRATCH_INV,
-        COL_SELECT_COND_IS_ZERO,
-    );
-    push_select_mux_limb(
-        b,
-        selector,
-        COL_STACK_READ0_VALUE_LO,
-        COL_STACK_READ1_VALUE_LO,
-        COL_STACK_WRITE0_VALUE_LO,
-        COL_SELECT_OUT_DELTA_LO,
-    );
-    push_select_mux_limb(
-        b,
-        selector,
-        COL_STACK_READ0_VALUE_HI,
-        COL_STACK_READ1_VALUE_HI,
-        COL_STACK_WRITE0_VALUE_HI,
-        COL_SELECT_OUT_DELTA_HI,
-    );
+fn push_select_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    SELECT_COND_ZERO_TEST.push_constraints(b);
+    SELECT_LO_MUX.push_constraints(b);
+    SELECT_HI_MUX.push_constraints(b);
 }
 
-fn push_select_mux_limb(b: &mut R1csBuilder, selector: usize, lhs: usize, rhs: usize, out: usize, delta: usize) {
-    // delta = (cond != 0) · (lhs − rhs)
-    b.push_row(
-        [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, -F::ONE)],
-        [(lhs, F::ONE), (rhs, -F::ONE)],
-        [(delta, F::ONE)],
-    );
-    // selector · ((out − rhs) − delta) = 0
-    push_gated_linear_zero(b, selector, [(out, F::ONE), (rhs, -F::ONE), (delta, -F::ONE)]);
-}
-
-fn push_stack_read0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_read0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-2 selector"), F::ONE)),
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -642,12 +673,12 @@ fn push_stack_read0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_stack_read1_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_read1_addr_sp_minus_1(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read1 sp-1 selector"), F::ONE)),
         [
-            (COL_STACK_READ1_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[1], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -655,7 +686,7 @@ fn push_stack_read1_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_stack_write0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
+fn push_stack_write0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp-2 selector"), F::ONE)),
@@ -668,7 +699,7 @@ fn push_stack_write0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
     );
 }
 
-fn push_add_relation(b: &mut R1csBuilder) {
+fn push_add_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     // write0 = (read0 + read1) mod 2^32. COL_WIDE_AUX0 holds the carry bit.
     // Soundness relies on COL_WIDE_AUX0's `ColumnWidth::Boolean` tag: without
     // that, a cheating prover could pick any field element for the carry and
@@ -678,15 +709,15 @@ fn push_add_relation(b: &mut R1csBuilder) {
         b,
         selector_col(WasmOpcode::I32Add).unwrap(),
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
     );
 }
 
-fn push_sub_relation(b: &mut R1csBuilder) {
+fn push_sub_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     // write0 = (read0 - read1) mod 2^32. COL_WIDE_AUX0 holds the borrow bit
     // (1 iff read0 < read1); same soundness argument as [`push_add_relation`]:
     // the Boolean width tag on COL_WIDE_AUX0 is what pins the borrow to {0, 1},
@@ -695,20 +726,20 @@ fn push_sub_relation(b: &mut R1csBuilder) {
         b,
         selector_col(WasmOpcode::I32Sub).unwrap(),
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, -F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], -F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
         ],
     );
 }
 
-fn push_i64_add_relation(b: &mut R1csBuilder) {
+fn push_i64_add_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = selector_col(WasmOpcode::I64Add).unwrap();
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
@@ -717,8 +748,8 @@ fn push_i64_add_relation(b: &mut R1csBuilder) {
     );
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_HI, F::ONE),
-            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
             (COL_WIDE_AUX0, F::ONE),
             (COL_WIDE_AUX1, -f_u64(1_u64 << 32)),
@@ -728,24 +759,24 @@ fn push_i64_add_relation(b: &mut R1csBuilder) {
     );
 }
 
-fn push_i64_sub_relation(b: &mut R1csBuilder) {
+fn push_i64_sub_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = selector_col(WasmOpcode::I64Sub).unwrap();
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
-            (COL_STACK_READ1_VALUE_LO, -F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], -F::ONE),
         ],
         [(selector, F::ONE)],
         [],
     );
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], F::ONE),
             (COL_WIDE_AUX1, f_u64(1_u64 << 32)),
             (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
-            (COL_STACK_READ1_VALUE_HI, -F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], -F::ONE),
             (COL_WIDE_AUX0, -F::ONE),
         ],
         [(selector, F::ONE)],
@@ -753,25 +784,31 @@ fn push_i64_sub_relation(b: &mut R1csBuilder) {
     );
 }
 
-fn push_i32_wrap_i64_relation(b: &mut R1csBuilder) {
+fn push_i32_wrap_i64_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     let selector = selector_col(WasmOpcode::I32WrapI64).unwrap();
     push_gated_linear_zero(
         b,
         selector,
-        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+        ],
     );
     push_gated_linear_zero(b, selector, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_i64_extend_i32_u_low_relation(b: &mut R1csBuilder) {
+fn push_i64_extend_i32_u_low_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
         [(selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE)],
-        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+        ],
         [],
     );
 }
 
-fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder) {
+fn push_i64_extend_i32_u_high_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I64ExtendI32U).unwrap(),
@@ -780,7 +817,7 @@ fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder) {
 }
 
 fn push_integer_sign_extend_relation(
-    b: &mut R1csBuilder,
+    b: &mut WasmTaggedR1csBuilder<'_>,
     sign_extension: &SignExtensionColumns,
     opcode: WasmOpcode,
     width_bytes: usize,
@@ -788,7 +825,7 @@ fn push_integer_sign_extend_relation(
 ) {
     debug_assert!((1..=4).contains(&width_bytes));
     let selector = selector_col(opcode).unwrap();
-    push_u32_le_bytes_decomp(b, [selector], COL_STACK_READ0_VALUE_LO, sign_extension.bytes.map(idx));
+    push_u32_le_bytes_decomp(b, [selector], COL_STACK_READ_VALUE_LO[0], sign_extension.bytes.map(idx));
 
     let sign_source = sign_extension.bytes[width_bytes - 1];
     push_gated_linear_zero(
@@ -835,7 +872,7 @@ fn push_integer_sign_extend_relation(
 /// u32 result. i64.eqz / i64.eq / i64.ne have `wide_values_enabled = 1`
 /// for their inputs, which disables the "narrow high limbs zero" rule for
 /// `write0_value_hi`; this constraint pins the output hi limb back to 0.
-fn push_i64_comparator_high_zero(b: &mut R1csBuilder) {
+fn push_i64_comparator_high_zero(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
         [
             (selector_col(WasmOpcode::I64Eqz).unwrap(), F::ONE),
@@ -877,7 +914,7 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
 /// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0`
 /// → both flags = 1, `cmp_and = 1`. None of those values are observed
 /// elsewhere on non-comparator rows.
-fn push_comparator_constraints(b: &mut R1csBuilder) {
+fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
     let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
     let sel_eq = selector_col(WasmOpcode::I32Eq).unwrap();
@@ -889,13 +926,13 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         sel_eqz_i32,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     // cmp_lo_diff = read0_value (lo limb only) on i64.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     // cmp_lo_diff = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
     // (Same lo-limb diff expression for all four; hi-limb diff is pinned
@@ -909,13 +946,13 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
         ],
         [
             (COL_CMP_LO_DIFF, F::ONE),
-            (COL_STACK_READ0_VALUE_LO, -F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
         ],
         [],
     );
 
-    push_zero_test_gadget(b, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
+    CMP_LO_ZERO_TEST.push_constraints(b);
 
     // cmp_hi_diff bindings for the i64 comparators (i64.eqz: read0_hi;
     // i64.eq/ne: read0_hi - read1_hi). Unconstrained on every other row
@@ -923,19 +960,19 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
     b.push_row(
         [(sel_i64_eq, F::ONE), (sel_i64_ne, F::ONE)],
         [
             (COL_CMP_HI_DIFF, F::ONE),
-            (COL_STACK_READ0_VALUE_HI, -F::ONE),
-            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], -F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
         ],
         [],
     );
 
-    push_zero_test_gadget(b, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
+    CMP_HI_ZERO_TEST.push_constraints(b);
 
     // cmp_and = cmp_lo_is_zero * cmp_hi_is_zero (unconditional).
     b.push_row(
@@ -978,7 +1015,7 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
     );
 }
 
-fn push_shout_constraints(b: &mut R1csBuilder) {
+fn push_shout_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
         WasmOpTable::all()
             .into_iter()
@@ -1000,54 +1037,5 @@ pub(super) fn idx(column: Column) -> usize {
 }
 
 fn selector_for_op_table(op: WasmOpTable) -> usize {
-    selector_for_lookup(match op {
-        WasmOpTable::I32Clz => WasmOpcode::I32Clz,
-        WasmOpTable::I32Ctz => WasmOpcode::I32Ctz,
-        WasmOpTable::I32LtS => WasmOpcode::I32LtS,
-        WasmOpTable::I32LtU => WasmOpcode::I32LtU,
-        WasmOpTable::I32GtS => WasmOpcode::I32GtS,
-        WasmOpTable::I32GtU => WasmOpcode::I32GtU,
-        WasmOpTable::I32LeS => WasmOpcode::I32LeS,
-        WasmOpTable::I32LeU => WasmOpcode::I32LeU,
-        WasmOpTable::I32GeS => WasmOpcode::I32GeS,
-        WasmOpTable::I32GeU => WasmOpcode::I32GeU,
-        WasmOpTable::I32And => WasmOpcode::I32And,
-        WasmOpTable::I32Or => WasmOpcode::I32Or,
-        WasmOpTable::I32Xor => WasmOpcode::I32Xor,
-        WasmOpTable::I32Mul => WasmOpcode::I32Mul,
-        WasmOpTable::I64And => WasmOpcode::I64And,
-        WasmOpTable::I64Or => WasmOpcode::I64Or,
-        WasmOpTable::I64Xor => WasmOpcode::I64Xor,
-        WasmOpTable::I64Mul => WasmOpcode::I64Mul,
-        WasmOpTable::I32Shl => WasmOpcode::I32Shl,
-        WasmOpTable::I32ShrU => WasmOpcode::I32ShrU,
-        WasmOpTable::I32ShrS => WasmOpcode::I32ShrS,
-        WasmOpTable::I32Rotl => WasmOpcode::I32Rotl,
-        WasmOpTable::I32Rotr => WasmOpcode::I32Rotr,
-        WasmOpTable::I32DivU => WasmOpcode::I32DivU,
-        WasmOpTable::I32DivS => WasmOpcode::I32DivS,
-        WasmOpTable::I32RemU => WasmOpcode::I32RemU,
-        WasmOpTable::I32RemS => WasmOpcode::I32RemS,
-        WasmOpTable::I32Popcnt => WasmOpcode::I32Popcnt,
-        WasmOpTable::I64LtS => WasmOpcode::I64LtS,
-        WasmOpTable::I64LtU => WasmOpcode::I64LtU,
-        WasmOpTable::I64GtS => WasmOpcode::I64GtS,
-        WasmOpTable::I64GtU => WasmOpcode::I64GtU,
-        WasmOpTable::I64LeS => WasmOpcode::I64LeS,
-        WasmOpTable::I64LeU => WasmOpcode::I64LeU,
-        WasmOpTable::I64GeS => WasmOpcode::I64GeS,
-        WasmOpTable::I64GeU => WasmOpcode::I64GeU,
-        WasmOpTable::I64Shl => WasmOpcode::I64Shl,
-        WasmOpTable::I64ShrS => WasmOpcode::I64ShrS,
-        WasmOpTable::I64ShrU => WasmOpcode::I64ShrU,
-        WasmOpTable::I64Rotl => WasmOpcode::I64Rotl,
-        WasmOpTable::I64Rotr => WasmOpcode::I64Rotr,
-        WasmOpTable::I64DivS => WasmOpcode::I64DivS,
-        WasmOpTable::I64DivU => WasmOpcode::I64DivU,
-        WasmOpTable::I64RemS => WasmOpcode::I64RemS,
-        WasmOpTable::I64RemU => WasmOpcode::I64RemU,
-        WasmOpTable::I64Clz => WasmOpcode::I64Clz,
-        WasmOpTable::I64Ctz => WasmOpcode::I64Ctz,
-        WasmOpTable::I64Popcnt => WasmOpcode::I64Popcnt,
-    })
+    selector_for_lookup(op.opcode())
 }

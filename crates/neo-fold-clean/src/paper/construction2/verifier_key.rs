@@ -18,6 +18,7 @@ use crate::paper::relations::Structure;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifierKey {
     pub(crate) digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
 }
 
 impl VerifierKey {
@@ -37,9 +38,16 @@ impl VerifierKey {
         public_input_len: Option<usize>,
         initial_semantic_state_digest: [u8; 32],
     ) -> Self {
+        let dims = neo_reductions::engines::utils::build_dims_and_policy(pp.inner(), s)
+            .expect("validated folding parameters must derive SplitNc dimensions");
+        let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(s, None);
+        let pi_ccs_header_bundle =
+            neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(pp.inner(), s, dims, &matrix_digest)
+                .expect("validated folding parameters must derive the SplitNc header bundle");
         Self::derive_from_structure_digest(
             pp,
             &digest::structure_digest(s),
+            pi_ccs_header_bundle,
             public_input_len,
             initial_semantic_state_digest,
         )
@@ -52,6 +60,7 @@ impl VerifierKey {
     pub fn derive_from_structure_digest(
         pp: &Params,
         structure_digest: &[F; 4],
+        pi_ccs_header_bundle: [F; 4],
         public_input_len: Option<usize>,
         initial_semantic_state_digest: [u8; 32],
     ) -> Self {
@@ -59,13 +68,19 @@ impl VerifierKey {
             digest: digest::vk_fs_digest(
                 pp.inner(),
                 structure_digest,
+                &pi_ccs_header_bundle,
                 public_input_len,
                 initial_semantic_state_digest,
             ),
+            pi_ccs_header_bundle,
         }
     }
 
     pub fn digest(&self) -> [u8; 32] {
         self.digest
+    }
+
+    pub fn pi_ccs_header_bundle(&self) -> [F; 4] {
+        self.pi_ccs_header_bundle
     }
 }

@@ -29,7 +29,7 @@ pub mod verify;
 
 // Re-export commonly used items
 pub use common::Challenges;
-pub use digit_table::{build_nc_digit_table_compact, NcDigitTable};
+pub use digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
 pub use sparse::SparseCache;
 
 /// Proof format variant for Π_CCS.
@@ -61,6 +61,14 @@ pub struct PiCcsReplayTerminalState {
     pub sumcheck_final_nc: K,
     pub fold_digest: [u8; 32],
     pub perf: PiCcsProvePerf,
+    #[doc(hidden)]
+    pub pi_dec_precompute: PiDecProverPrecompute,
+}
+
+/// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
+#[derive(Debug, Clone)]
+pub struct PiDecProverPrecompute {
+    pub row_chals: Vec<K>,
 }
 
 #[derive(Debug, Clone)]
@@ -269,16 +277,17 @@ pub struct OptimizedStructureCache {
 
 impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
+        Self::build_with_sparse(s, Arc::new(SparseCache::build(s)))
+    }
+
+    pub fn build_shared(structure: Arc<CcsStructure<F>>) -> Result<Self, PiCcsError> {
+        let sparse = Arc::new(SparseCache::from_shared_structure(Arc::clone(&structure)));
+        Self::build_with_sparse(structure.as_ref(), sparse)
+    }
+
+    fn build_with_sparse(s: &CcsStructure<F>, sparse: Arc<SparseCache<F>>) -> Result<Self, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
-        #[cfg(feature = "perf-timers")]
-        let t_sparse = std::time::Instant::now();
-        let sparse = Arc::new(SparseCache::build(s));
-        #[cfg(feature = "perf-timers")]
-        eprintln!(
-            "OptimizedStructureCache::build: sparse             {:.2?}",
-            t_sparse.elapsed()
-        );
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let (superneo, mat_digest) = {
             let sparse_for_digest = Arc::clone(&sparse);

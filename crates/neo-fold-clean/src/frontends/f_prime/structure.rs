@@ -16,8 +16,17 @@ use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
     StateInDigestTarget, StateOutDigestTarget,
 };
+use crate::frontends::f_prime::projection_structure::{
+    collect_projection_slots, emit_projection_semantic_rows, projection_semantic_row_count, ProjectionLaneSlots,
+};
 use crate::frontends::f_prime::recursive_plan::{STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_SEMANTIC_STATE_BASE};
-use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use crate::paper::f_prime::ring_action_trace::LowNormEncoding;
+
+pub use crate::frontends::f_prime::projection_structure::{
+    production_kmul_d2_ring_action_shell_image_config, production_kmul_ring_action_shell_image_config,
+    production_projection_batches, PRODUCTION_KMUL_COUNT, PRODUCTION_PROJECTION_IDENTITY_COUNT,
+    PRODUCTION_RING_ACTION_PAIR_COUNT,
+};
 
 const STATE_IN_DIGEST_COUNT: usize = 7;
 const STATE_OUT_COUNTER_COUNT: usize = 2;
@@ -33,41 +42,6 @@ const RING_ACTION_OUTPUT_LANES_PER_PAIR: usize = D;
 /// `(new_chunk_count - 1) · inv = 1 - is_base`. Emitted directly after
 /// the semantic Boolean block.
 const IS_BASE_COUNTER_LINK_ROWS: usize = 2;
-
-/// kmul K-mul invocations per F' recursive step. Pinned by the Phase 1.3d
-/// coverage gate's measurement of the actual `enforce_k_mul_with_intermediates`
-/// call count.
-pub const PRODUCTION_KMUL_COUNT: usize = 7100;
-
-/// ring_action ring-action pair invocations per F' recursive step. Pinned by the
-/// Phase 1.3d coverage gate's measurement.
-pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
-
-/// Pinned production kmul/ring-action shell; boundary/poseidon are empty here.
-pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
-    FPrimeImageConfig {
-        limbs: 3,
-        app_private_var_widths: Vec::new(),
-        boundary_bits: 0,
-        nifs_payload_shapes: vec![],
-        kmul_count: PRODUCTION_KMUL_COUNT,
-        ring_action_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
-        ring_action_pair_layout: RingActionTraceLayout::new(
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-        ),
-        poseidon_one_shot_preimage_lens: vec![],
-        sponge_transcript_permutes: 0,
-        one_shot_digest_to_state_out_bindings: vec![],
-        one_shot_digest_to_state_in_bindings: vec![],
-        one_shot_digest_to_public_x_out_bindings: vec![],
-        poseidon_transition_enforcements: vec![],
-        unified_accumulator_selector: None,
-        initial_semantic_state_digest_anchor: None,
-    }
-}
 
 /// One canonical-u64 lane: a 64-bit window inside the image's `values`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,35 +90,14 @@ fn scaled_lane_terms(slot: LaneSlot, coeff: F) -> impl Iterator<Item = (usize, F
 #[derive(Clone, Debug)]
 pub struct FPrimeLaneSlots {
     pub state_lanes: Vec<LaneSlot>,
-    /// One inner `Vec<LaneSlot>` per spliced nifs_payloads payload.
     pub nifs_payload_lanes: Vec<Vec<LaneSlot>>,
     pub kmul_lanes: Vec<LaneSlot>,
     pub ring_action_lanes: Vec<LaneSlot>,
-    /// One inner `Vec<LaneSlot>` per spliced one-shot Poseidon trace.
+    pub projection_lanes: ProjectionLaneSlots,
     pub poseidon_trace_lanes: Vec<Vec<LaneSlot>>,
-    /// One canonical-u64 lane per 64-bit word in the poseidon sponge transcript.
     pub sponge_transcript_lanes: Vec<LaneSlot>,
-    /// Boundary digest lanes pulled in by each public-x_out binding.
     pub public_x_out_binding_lanes: Vec<[LaneSlot; 4]>,
-    /// One slot per app-assignment variable when applicable.
     pub app_assignment_lanes: Vec<AppVariableSlot>,
-}
-
-impl FPrimeLaneSlots {
-    pub fn total(&self) -> usize {
-        self.state_lanes.len()
-            + self.nifs_payload_lanes.iter().map(Vec::len).sum::<usize>()
-            + self.kmul_lanes.len()
-            + self.ring_action_lanes.len()
-            + self
-                .poseidon_trace_lanes
-                .iter()
-                .map(Vec::len)
-                .sum::<usize>()
-            + self.sponge_transcript_lanes.len()
-            + self.public_x_out_binding_lanes.len() * 4
-            + self.app_assignment_lanes.len()
-    }
 }
 
 /// Enumerate every canonical-u64 lane the structure references.
@@ -154,6 +107,7 @@ pub fn f_prime_lane_slots(layout: &FPrimeImageLayout) -> FPrimeLaneSlots {
         nifs_payload_lanes: collect_nifs_payload_slots(layout),
         kmul_lanes: collect_kmul_slots(layout),
         ring_action_lanes: collect_ring_action_slots(layout),
+        projection_lanes: collect_projection_slots(layout),
         poseidon_trace_lanes: collect_poseidon_trace_slots(layout),
         sponge_transcript_lanes: collect_sponge_transcript_slots(layout),
         public_x_out_binding_lanes: collect_public_x_out_binding_slots(layout),
@@ -510,10 +464,12 @@ pub(crate) struct MixedGateBuilder {
 
 impl MixedGateBuilder {
     pub(crate) fn with_estimated_rows(estimated_rows: usize) -> Self {
-        Self {
-            trips: std::array::from_fn(|_| Vec::with_capacity(estimated_rows)),
-            rows: 0,
-        }
+        // Bitness owns nearly all rows in large low-norm relations. Reserving
+        // `estimated_rows` in every gate matrix multiplies peak memory by the
+        // polynomial arity before a single coefficient is emitted.
+        let mut trips = std::array::from_fn(|_| Vec::new());
+        trips[gate::BITNESS] = Vec::with_capacity(estimated_rows);
+        Self { trips, rows: 0 }
     }
 
     #[allow(dead_code)]
@@ -667,6 +623,7 @@ fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
         + IS_BASE_COUNTER_LINK_ROWS
         + layout.config.ring_action_pair_count
             * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
+        + projection_semantic_row_count(&layout.config.projection_batches)
         + (layout.config.one_shot_digest_to_state_in_bindings.len()
             + layout.config.one_shot_digest_to_state_out_bindings.len()
             + layout.config.one_shot_digest_to_public_x_out_bindings.len())
@@ -705,6 +662,7 @@ pub(crate) fn emit_shell_rows(
     let control_count = semantic_boolean_count + IS_BASE_COUNTER_LINK_ROWS;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
+    let projection_row_count = projection_semantic_row_count(&layout.config.projection_batches);
     let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
     let state_out_binding_count = layout.config.one_shot_digest_to_state_out_bindings.len() * POSEIDON2_DIGEST_LEN;
     // Canonical unified F' carries `new_z_i = chunk_digest` directly.
@@ -750,6 +708,7 @@ pub(crate) fn emit_shell_rows(
     let total_shell_rows = control_count
         + ring_action_product_count
         + ring_action_output_count
+        + projection_row_count
         + state_in_binding_count
         + state_out_binding_count
         + chunk_boundary_mirror_count
@@ -826,6 +785,12 @@ pub(crate) fn emit_shell_rows(
         control_count + ring_action_product_count + ring_action_output_count
     );
 
+    emit_projection_semantic_rows(&layout.config.projection_batches, &lane_slots.projection_lanes, builder);
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        control_count + ring_action_product_count + ring_action_output_count + projection_row_count
+    );
+
     // ── Trace digest ↔ state-in digest binding rows.
     for binding in &layout.config.one_shot_digest_to_state_in_bindings {
         let trace_slots = &lane_slots.poseidon_trace_lanes[binding.one_shot_index];
@@ -839,7 +804,11 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        control_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
+        control_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + projection_row_count
+            + state_in_binding_count
     );
 
     // ── Trace digest ↔ state-out digest binding rows.
@@ -861,6 +830,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
     );
@@ -880,6 +850,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -905,6 +876,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -939,6 +911,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -966,6 +939,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -994,6 +968,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -1061,10 +1036,8 @@ fn lift_native_poseidon_rows_skipping(
         let mut entries: Vec<Vec<(usize, F)>> = vec![Vec::new(); n];
         if let Some(csc) = matrix.as_csc() {
             for col in 0..csc.ncols {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for k in start..end {
-                    let r = csc.row_idx[k];
+                for k in csc.column_range(col) {
+                    let r = csc.row_index(k);
                     let v = csc.vals[k];
                     entries[r].push((remap(col), v));
                 }

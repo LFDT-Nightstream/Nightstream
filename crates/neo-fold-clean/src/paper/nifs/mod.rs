@@ -66,4 +66,5 @@ pub enum Error {
 
 pub use proof::NifsProof;
 pub use prover::prove;
+pub(crate) use prover::prove_owned;
 pub use verifier::verify;

@@ -258,25 +258,11 @@ impl NeoParams {
 
         let mut p = Self::goldilocks_paper_b2();
 
-        // Compute SuperNeo D.4's Π_CCS soundness factor for this CCS shape.
-        // pad rows to power of two (min 2)
-        let padded_rows = if n_rows == 0 {
-            2
-        } else {
-            n_rows.next_power_of_two().max(2)
-        };
-        // ℓ = ceil(log2(d * padded_rows))
-        let prod: u128 = (p.d as u128) * (padded_rows as u128);
-        let ell: u32 = ceil_log2_u128(prod);
-
-        let fresh_count = p.max_fresh_count_from_rlc_guard()?;
-        let soundness_factor = p.pi_ccs_soundness_factor(ell, fresh_count, matrix_count, poly_degree)?;
-
         // Search λ downward (keep s=2) until extension_check passes with slack
         let mut lam = p.lambda.max(min_lambda);
         while lam >= min_lambda {
             p.lambda = lam;
-            match p.extension_check_factor(soundness_factor) {
+            match p.extension_check_ccs_shape(n_rows, matrix_count, poly_degree) {
                 Ok(sum) if sum.slack_bits >= safety_margin as i32 => return Ok(p),
                 Ok(_) | Err(ParamsError::UnsupportedExtension { .. }) => {
                     lam = lam.saturating_sub(1);
@@ -377,6 +363,38 @@ impl NeoParams {
             s_supported: 2,
             slack_bits,
         })
+    }
+
+    /// Validate the full SuperNeo D.4 Π_CCS soundness factor for a concrete
+    /// CCS shape under these already-selected parameters.
+    pub fn extension_check_ccs_shape(
+        &self,
+        shape_size: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<ExtensionSummary, ParamsError> {
+        let factor = self.pi_ccs_soundness_factor_for_shape(shape_size, matrix_count, poly_degree)?;
+        self.extension_check_factor(factor)
+    }
+
+    /// Exact SuperNeo D.4 Π_CCS soundness numerator for a concrete CCS
+    /// shape. The corresponding interactive error is `factor / |K|`.
+    pub fn pi_ccs_soundness_factor_for_shape(
+        &self,
+        shape_size: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<u128, ParamsError> {
+        if matrix_count == 0 {
+            return Err(ParamsError::Invalid("matrix_count must be > 0"));
+        }
+        let padded = shape_size.next_power_of_two().max(2);
+        let product = (self.d as u128)
+            .checked_mul(padded as u128)
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+        let ell = ceil_log2_u128(product);
+        let fresh_count = self.max_fresh_count_from_rlc_guard()?;
+        self.pi_ccs_soundness_factor(ell, fresh_count, matrix_count, poly_degree)
     }
 
     /// Maximum fresh CCS inputs K allowed by Definition 14's RLC guard:

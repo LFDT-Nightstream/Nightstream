@@ -20,7 +20,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::Error;
 use crate::engine::r1cs_circuit::builder::Lc;
-use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
+use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::sumcheck::{
     enforce_chi_alpha, enforce_eq_k, enforce_sumcheck_rounds_engine, gamma_powers,
 };
@@ -230,7 +230,8 @@ pub fn enforce_nc_terminal_identity(builder: &mut R1csBuilder, inputs: &NcTermin
     let powers = gamma_powers(builder, inputs.gamma, k_total + 1);
 
     // Σ_i γ^{i+1} · range_product(⟨y_zcol_i, χ_{α'}⟩, b).
-    let mut nc_sum_lc = KLc::zero();
+    let mut nc_weights = Vec::with_capacity(k_total);
+    let mut nc_values = Vec::with_capacity(k_total);
     for (i, y_zcol) in inputs.output_y_zcol.iter().enumerate() {
         if y_zcol.len() < d_sz {
             return Err(Error::Shape(format!(
@@ -242,31 +243,15 @@ pub fn enforce_nc_terminal_identity(builder: &mut R1csBuilder, inputs: &NcTermin
         }
 
         // y_eval = ⟨y_zcol_i, χ_{α'}⟩.
-        let mut y_eval_lc = KLc::zero();
-        for rho in 0..d_sz {
-            let term = enforce_k_mul(
-                builder,
-                &KLc::from_var(y_zcol[rho]),
-                &KLc::from_var(chi_alpha_prime[rho]),
-            );
-            y_eval_lc = KLc {
-                c0: y_eval_lc.c0.add_scaled(&Lc::from_var(term.c0), F::ONE),
-                c1: y_eval_lc.c1.add_scaled(&Lc::from_var(term.c1), F::ONE),
-            };
-        }
-        let y_eval = alloc_klc(builder, &y_eval_lc);
+        let y_eval = enforce_k_dot_product(builder, &y_zcol[..d_sz], &chi_alpha_prime);
 
         // N_i = range_product(y_eval, b).
         let n_i = enforce_nc_range_product(builder, y_eval, inputs.b)?;
 
-        // weighted = γ^{i+1} · N_i.
-        let weighted = enforce_k_mul(builder, &KLc::from_var(powers[i + 1]), &KLc::from_var(n_i));
-        nc_sum_lc = KLc {
-            c0: nc_sum_lc.c0.add_scaled(&Lc::from_var(weighted.c0), F::ONE),
-            c1: nc_sum_lc.c1.add_scaled(&Lc::from_var(weighted.c1), F::ONE),
-        };
+        nc_weights.push(powers[i + 1]);
+        nc_values.push(n_i);
     }
-    let nc_prime_sum = alloc_klc(builder, &nc_sum_lc);
+    let nc_prime_sum = enforce_k_dot_product(builder, &nc_weights, &nc_values);
 
     // rhs_nc = eq_apsp_beta · nc_prime_sum.
     Ok(enforce_k_mul(

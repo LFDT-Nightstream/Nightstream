@@ -49,8 +49,8 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, encode_x_out_public_bits, enforce_f_prime_base_step_circuit,
-    enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs,
+    FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -88,6 +88,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
@@ -97,6 +98,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        None,
     ))
 }
 
@@ -119,7 +121,7 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
     .expect("header bundle digest");
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -135,6 +137,8 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: match prep.semantic_state_mode() {
             neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => {
                 neo_fold_clean::paper::digest::StateXOutDigestMode::Stateless
@@ -149,7 +153,7 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
 fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: structure_digest(prep.structure()),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state.chunk_count,
         step_count_in: state.step_count,
         z_0: digest32_as_fields(state.z_0),
@@ -158,6 +162,7 @@ fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPri
         acc_digest_in: digest32_as_fields(state.acc_digest),
         semantic_state_digest_in: digest32_as_fields(state.semantic_state_digest),
         public_trace_in: digest32_as_fields(state.public_trace),
+        nebula: None,
     }
 }
 
@@ -609,6 +614,7 @@ fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
     forged_state_out.semantic_state_digest = empty_acc;
     let forged_x_out = compute_x_out_native(&chain.prep, &forged_state_out);
     let forged_step = StepProof {
+        nebula_open: None,
         fold: FoldProof::NoFold,
         semantic_state_digest: empty_acc,
         x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(forged_x_out)),
@@ -626,6 +632,7 @@ fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
         &snapshot.public_batch,
         &forged_step,
         chain.prep.semantic_state_mode(),
+        None,
     )
     .err()
     .expect("native F' verify_step accepted NoFold with chunk_count > 0");
@@ -650,6 +657,7 @@ fn native_f_prime_verify_rejects_empty_nofold_step() {
     state_out.semantic_state_digest = empty_acc;
     let x_out = compute_x_out_native(&chain.prep, &state_out);
     let step = StepProof {
+        nebula_open: None,
         fold: FoldProof::NoFold,
         semantic_state_digest: empty_acc,
         x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(x_out)),
@@ -667,6 +675,7 @@ fn native_f_prime_verify_rejects_empty_nofold_step() {
         &[],
         &step,
         chain.prep.semantic_state_mode(),
+        None,
     )
     .err()
     .expect("native F' verify_step accepted an empty NoFold step");
@@ -713,6 +722,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
         chain.prep.structure(),
         chain.prep.optimized_cache(),
         &chain.prep.log,
+        None,
         chain.prep.mix_rhos_commits(),
         chain.prep.combine_b_pows(),
         vec![forged_fresh],
@@ -923,7 +933,7 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a mutated running child CE field after the full-running handle \
+        "F' R1CS accepted a mutated running child CE field after the parent handle \
          and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -974,7 +984,7 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a running child fold_digest tamper after the full-running handle \
+        "F' R1CS accepted a running child fold_digest tamper after the parent handle \
          and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -1027,7 +1037,7 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a mutated running parent-authority CE field after the full-running \
+        "F' R1CS accepted a mutated running parent-authority CE field after the parent \
          handle and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -1169,13 +1179,19 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
     let chain = build_f_prime_honest_chain(3);
     let view = chain.recursive_step(2);
 
-    for anchor in ["vk_fs_digest", "structure_digest", "z_0", "z_i_in", "public_trace_in"] {
+    for anchor in [
+        "vk_fs_digest",
+        "pi_ccs_header_bundle",
+        "z_0",
+        "z_i_in",
+        "public_trace_in",
+    ] {
         let b = run_recursive_check_with_semantic(
             &view,
             |f_state, _, acc_digest_out, semantic_state_digest_out, source, _| {
                 match anchor {
                     "vk_fs_digest" => f_state.vk_fs_digest[0] += F::ONE,
-                    "structure_digest" => f_state.structure_digest[0] += F::ONE,
+                    "pi_ccs_header_bundle" => f_state.pi_ccs_header_bundle[0] += F::ONE,
                     "z_0" => f_state.z_0[0] += F::ONE,
                     "z_i_in" => f_state.z_i_in[0] += F::ONE,
                     "public_trace_in" => f_state.public_trace_in[0] += F::ONE,
@@ -1183,17 +1199,14 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                 }
 
                 // Repair both visible x_out links using the tampered
-                // anchor fields. For `structure_digest`, this is a no-op
-                // for the optimized state_x_out preimage. The same is true
-                // for `z_0` and `public_trace_in`; `z_i_in` is repaired
-                // through the prior-x_out bits below. Those cases make the
-                // test specifically exercise the NIFS transcript prefix and
-                // local state rows instead of relying on the public x_out
-                // bit links to fail first.
+                // anchor fields. The verifier header is now directly in the
+                // state_x_out preimage; the remaining repairs keep this test
+                // focused on transcript and state binding.
                 let forged_prior_x_out = digest32_as_fields(state_x_out_digest_with_mode(
                     StateXOutDigestMode::Stateless,
                     digest_fields_as_digest32(f_state.vk_fs_digest),
-                    &f_state.structure_digest,
+                    f_state.pi_ccs_header_bundle,
+                    &f_state.pi_ccs_header_bundle,
                     f_state.chunk_count_in,
                     f_state.step_count_in,
                     digest_fields_as_digest32(f_state.z_0),
@@ -1202,13 +1215,15 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                     digest_fields_as_digest32(f_state.semantic_state_digest_in),
                     digest_fields_as_digest32(f_state.acc_digest_in),
                     digest_fields_as_digest32(f_state.public_trace_in),
+                    None,
                 ));
                 overwrite_enc_inst_bits(&mut source.image, source.prior_x_out_bits, forged_prior_x_out);
 
                 let forged_public_x_out = digest32_as_fields(state_x_out_digest_with_mode(
                     StateXOutDigestMode::Stateless,
                     digest_fields_as_digest32(f_state.vk_fs_digest),
-                    &f_state.structure_digest,
+                    f_state.pi_ccs_header_bundle,
+                    &f_state.pi_ccs_header_bundle,
                     view.state_out.chunk_count,
                     view.state_out.step_count,
                     view.state_out.z_0,
@@ -1217,6 +1232,7 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                     digest_fields_as_digest32(*semantic_state_digest_out),
                     digest_fields_as_digest32(*acc_digest_out),
                     view.state_out.public_trace,
+                    None,
                 ));
                 overwrite_enc_inst_bits(&mut source.image, source.public_x_out_bits, forged_public_x_out);
             },
@@ -1540,8 +1556,10 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         &chain.prep.vk,
         chain.prep.public_input_len,
         chain.prep.enforces_f_prime_recursive_link(),
+        chain.prep.enforces_terminal_induction(),
         chain.prep.semantic_state_mode(),
         chain.prep.initial_semantic_state_digest(),
+        None,
         &untampered_statement,
     )
     .expect("untampered statement passes validate_witness");
@@ -1564,8 +1582,10 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             &chain.prep.vk,
             chain.prep.public_input_len,
             chain.prep.enforces_f_prime_recursive_link(),
+            chain.prep.enforces_terminal_induction(),
             chain.prep.semantic_state_mode(),
             chain.prep.initial_semantic_state_digest(),
+            None,
             &tampered_statement,
         )
         .is_err(),

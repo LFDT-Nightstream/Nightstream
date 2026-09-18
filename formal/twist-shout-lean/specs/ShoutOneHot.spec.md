@@ -18,7 +18,7 @@ Specify the one-hot checking layer that makes Shout sound against malformed addr
 ## Module Mapping
 
 - Spec: `specs/ShoutOneHot.spec.md`
-- Interface: `TwistShout/ShoutOneHotInterface.lean`
+- Interface: `TwistShout/ShoutOneHot.lean`
 - Implementation: `TwistShout/ShoutOneHot.lean`
 
 ## Contract Surface

@@ -73,8 +73,8 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 Upstream dependencies:
 - `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: imports `protocolTargetProp`, `ProtocolTargetAssumptions`, `ProtocolTargetContext`.
-- `SuperNeo/Primitives/SumCheck.lean`: imports `SumCheckInstance`, `SumCheckTranscript`, `SumCheckAccepted`, `SumCheckClaimTrue`, `sumcheckSoundness_constructive`, `sumcheckCompleteness_constructive`.
-- `SuperNeo/ProofSystem/ConstraintSystem`: imports the paper-facing Section 7.1 CCS/CE objects.
+- `SuperNeo/SumCheck.lean`: imports `SumCheckInstance`, `SumCheckTranscript`, `SumCheckAccepted`, `SumCheckClaimTrue`, `sumcheckSoundness_constructive`, `sumcheckCompleteness_constructive`.
+- `SuperNeo/FoldingProtocol/ConstraintSystem`: imports the paper-facing Section 7.1 CCS/CE objects.
 
 Downstream consumers:
 - `SuperNeo/FoldingProtocol/PiCCS.lean`: uses `ceRelation`, `ceRelation_of_ccsRelation`, `ceClaimTrue_of_ce`, `SumCheckTransitionWitness`, `sumcheckInstanceOfContext`.

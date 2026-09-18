@@ -356,29 +356,22 @@ fn select_first_n_accepts(builder: &mut R1csBuilder, chunks: &[ChunkRecord], nee
         }
         builder.enforce_eq(&sum_lc, &Lc::from_const(F::ONE));
 
-        // Extract symbol_j = Σ one_hot[k] · chunks[k].symbol. Quadratic in
-        // (one_hot, symbol), so allocate via alloc_mul of pair sums and sum
-        // the products. For R1CS, the standard trick: pair-wise products
-        // and accumulate.
-        let mut sym_acc = Lc::zero();
-        let mut acc_acc = Lc::zero();
-        let mut cum_acc = Lc::zero();
-        for (k, c) in chunks.iter().enumerate() {
-            let mul_sym = builder.alloc_mul(&Lc::from_var(one_hot[k]), &Lc::from_var(c.symbol));
-            let mul_acc = builder.alloc_mul(&Lc::from_var(one_hot[k]), &Lc::from_var(c.accept));
-            let mul_cum = builder.alloc_mul(&Lc::from_var(one_hot[k]), &Lc::from_var(cum_before[k]));
-            sym_acc.add_term(mul_sym, F::ONE);
-            acc_acc.add_term(mul_acc, F::ONE);
-            cum_acc.add_term(mul_cum, F::ONE);
+        let out_sym = builder.alloc(builder.witness()[chunks[pos].symbol.col()]);
+        for (k, chunk) in chunks.iter().enumerate() {
+            let selected = Lc::from_var(one_hot[k]);
+
+            let mut must_accept = Lc::from_const(F::ONE);
+            must_accept.add_term(chunk.accept, -F::ONE);
+            builder.enforce(&selected, &must_accept, &Lc::zero());
+
+            let mut must_have_position = Lc::from_var(cum_before[k]);
+            must_have_position.add_constant(-target_j);
+            builder.enforce(&selected, &must_have_position, &Lc::zero());
+
+            let mut must_match_symbol = Lc::from_var(out_sym);
+            must_match_symbol.add_term(chunk.symbol, -F::ONE);
+            builder.enforce(&selected, &must_match_symbol, &Lc::zero());
         }
-
-        // Pin: accept_j = 1, cum_prev_j = j.
-        builder.enforce_eq(&acc_acc, &Lc::from_const(F::ONE));
-        builder.enforce_eq(&cum_acc, &Lc::from_const(target_j));
-
-        // Allocate the output symbol and bind to the extracted Lc.
-        let out_sym = builder.alloc(builder.eval(&sym_acc));
-        builder.enforce_eq(&Lc::from_var(out_sym), &sym_acc);
         out.push(out_sym);
     }
     out

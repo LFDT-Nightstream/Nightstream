@@ -1,4 +1,3 @@
-import TwistShout.TwistProtocolInterface
 import TwistShout.TwistCore
 import TwistShout.TwistValueEval
 import TwistShout.FastTwistProver

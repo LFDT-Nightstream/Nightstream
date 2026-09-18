@@ -1,4 +1,3 @@
-import TwistShout.PreliminariesInterface
 import TwistShout.EqPoly
 import TwistShout.MLE
 import TwistShout.SumCheck

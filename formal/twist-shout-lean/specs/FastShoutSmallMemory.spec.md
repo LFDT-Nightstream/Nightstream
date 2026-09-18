@@ -16,7 +16,7 @@ Specify the Section 6 prover specialization for Shout on small memories.
 ## Module Mapping
 
 - Spec: `specs/FastShoutSmallMemory.spec.md`
-- Interface: `TwistShout/FastShoutSmallMemoryInterface.lean`
+- Interface: `TwistShout/FastShoutSmallMemory.lean`
 - Implementation: `TwistShout/FastShoutSmallMemory.lean`
 
 ## Contract Surface

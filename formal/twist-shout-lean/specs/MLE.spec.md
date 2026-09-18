@@ -17,7 +17,7 @@ Specify multilinear extensions and the folding identities that let the paper red
 ## Module Mapping
 
 - Spec: `specs/MLE.spec.md`
-- Interface: `TwistShout/MLEInterface.lean`
+- Interface: `TwistShout/MLE.lean`
 - Implementation: `TwistShout/MLE.lean`
 
 ## Contract Surface

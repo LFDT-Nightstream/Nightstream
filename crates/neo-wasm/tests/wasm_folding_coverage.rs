@@ -12,9 +12,10 @@
 
 mod common;
 
+use common::audit::{prove_batched, verify};
+use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::{
-    collect_wasmtime_steps, extract_wasm_program_artifacts, preprocess_seeded_batched, prove_batched,
-    top_level_initial_state_digest, traces_from_wasmtime_steps, verify,
+    collect_wasmtime_steps, extract_wasm_program_artifacts, top_level_initial_state_digest, traces_from_wasmtime_steps,
 };
 
 #[test]

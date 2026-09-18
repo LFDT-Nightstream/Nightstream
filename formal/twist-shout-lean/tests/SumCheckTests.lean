@@ -1,7 +1,7 @@
-import TwistShout.SumCheckInterface
+import TwistShout.SumCheck
 
 open MvPolynomial
-open TwistShout.SumCheckInterface
+open TwistShout
 
 namespace tests
 

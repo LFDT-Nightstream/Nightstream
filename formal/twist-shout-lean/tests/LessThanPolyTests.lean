@@ -1,6 +1,6 @@
-import TwistShout.LessThanPolyInterface
+import TwistShout.LessThanPoly
 
-open TwistShout.LessThanPolyInterface
+open TwistShout
 
 namespace tests.lessthanpoly
 

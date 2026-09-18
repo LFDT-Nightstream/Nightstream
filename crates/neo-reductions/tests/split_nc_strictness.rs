@@ -46,7 +46,12 @@ fn build_fixture(
     // Z entries are all zero digits (in-range for any b>=2).
     let z = Mat::from_row_major(D, m / D, vec![F::ZERO; D * (m / D)]);
     let c = l.commit(&z);
-    let mcs_inst = CcsClaim { c, x: vec![], m_in: 0 };
+    let mcs_inst = CcsClaim {
+        adv: None,
+        c,
+        x: vec![],
+        m_in: 0,
+    };
     let mcs_wit = CcsWitness {
         w: vec![F::ZERO; m],
         Z: z,

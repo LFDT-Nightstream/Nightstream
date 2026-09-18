@@ -15,6 +15,10 @@ use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use crate::engine::r1cs_circuit::builder::{
+    BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, Lc, PolynomialEvaluationTrace,
+    Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, Var,
+};
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
@@ -32,6 +36,18 @@ pub struct SparseR1cs {
     pub n: usize,
     pub m: usize,
     pub m_in: usize,
+    canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
+    balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
+    boolean_columns: Vec<usize>,
+    boolean_constraint_rows: Vec<(usize, usize)>,
+    centered_unit_columns: Vec<usize>,
+    centered_unit_traces: Vec<CenteredUnitTrace>,
+    shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
+    equality_pairs: Vec<(usize, usize, usize)>,
+    poseidon2_traces: Vec<Poseidon2PermutationTrace>,
+    polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
+    product_sum_batch_traces: Vec<ProductSumBatchTrace>,
+    row_family_ranges: Vec<RowFamilyRange>,
 }
 
 impl SparseR1cs {
@@ -43,9 +59,123 @@ impl SparseR1cs {
         m: usize,
         m_in: usize,
     ) -> Result<Self, FrontendError> {
-        let out = Self { a, b, c, n, m, m_in };
+        Self::new_with_canonical_u64_decompositions(
+            a,
+            b,
+            c,
+            n,
+            m,
+            m_in,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    pub(crate) fn new_with_canonical_u64_decompositions(
+        a: CcsMatrix<F>,
+        b: CcsMatrix<F>,
+        c: CcsMatrix<F>,
+        n: usize,
+        m: usize,
+        m_in: usize,
+        canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
+        balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
+        boolean_columns: Vec<usize>,
+        boolean_constraint_rows: Vec<(usize, usize)>,
+        centered_unit_columns: Vec<usize>,
+        centered_unit_traces: Vec<CenteredUnitTrace>,
+        shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
+        equality_pairs: Vec<(usize, usize, usize)>,
+        poseidon2_traces: Vec<Poseidon2PermutationTrace>,
+        polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
+        product_sum_batch_traces: Vec<ProductSumBatchTrace>,
+        row_family_ranges: Vec<RowFamilyRange>,
+    ) -> Result<Self, FrontendError> {
+        let out = Self {
+            a,
+            b,
+            c,
+            n,
+            m,
+            m_in,
+            canonical_u64_decompositions,
+            balanced_ternary_decompositions,
+            boolean_columns,
+            boolean_constraint_rows,
+            centered_unit_columns,
+            centered_unit_traces,
+            shifted_ternary_canonical_traces,
+            equality_pairs,
+            poseidon2_traces,
+            polynomial_evaluation_traces,
+            product_sum_batch_traces,
+            row_family_ranges,
+        };
         out.validate_shape()?;
         Ok(out)
+    }
+
+    pub(crate) fn canonical_u64_decompositions(&self) -> &[CanonicalU64Decomposition] {
+        &self.canonical_u64_decompositions
+    }
+
+    pub(crate) fn balanced_ternary_decompositions(&self) -> &[BalancedTernaryDecomposition] {
+        &self.balanced_ternary_decompositions
+    }
+
+    pub(crate) fn boolean_columns(&self) -> &[usize] {
+        &self.boolean_columns
+    }
+
+    pub(crate) fn boolean_constraint_rows(&self) -> &[(usize, usize)] {
+        &self.boolean_constraint_rows
+    }
+
+    pub(crate) fn centered_unit_columns(&self) -> &[usize] {
+        &self.centered_unit_columns
+    }
+
+    pub(crate) fn centered_unit_traces(&self) -> &[CenteredUnitTrace] {
+        &self.centered_unit_traces
+    }
+
+    pub(crate) fn shifted_ternary_canonical_traces(&self) -> &[ShiftedTernaryCanonicalTrace] {
+        &self.shifted_ternary_canonical_traces
+    }
+
+    pub(crate) fn equality_pairs(&self) -> &[(usize, usize, usize)] {
+        &self.equality_pairs
+    }
+
+    pub(crate) fn poseidon2_permutations(&self) -> usize {
+        self.poseidon2_traces.len()
+    }
+
+    pub(crate) fn poseidon2_traces(&self) -> &[Poseidon2PermutationTrace] {
+        &self.poseidon2_traces
+    }
+
+    pub(crate) fn polynomial_evaluation_traces(&self) -> &[PolynomialEvaluationTrace] {
+        &self.polynomial_evaluation_traces
+    }
+
+    pub(crate) fn product_sum_batch_traces(&self) -> &[ProductSumBatchTrace] {
+        &self.product_sum_batch_traces
+    }
+
+    /// Assurance-only ownership ranges preserved from the field-R1CS builder.
+    pub fn row_family_ranges(&self) -> &[RowFamilyRange] {
+        &self.row_family_ranges
     }
 
     pub fn validate_shape(&self) -> Result<(), FrontendError> {
@@ -94,6 +224,10 @@ impl SparseR1cs {
 
     pub fn to_structure(&self) -> Structure {
         sparse_r1cs_to_ccs(self.a.clone(), self.b.clone(), self.c.clone()).expect("valid sparse R1CS structure")
+    }
+
+    pub(crate) fn conservative_var_widths(&self) -> Vec<usize> {
+        conservative_var_widths(r1cs_coeff_rows_sparse(self), self.n, self.m)
     }
 }
 
@@ -170,6 +304,56 @@ impl R1csShape {
         }
     }
 
+    /// Embed this application relation into an authoritative F' builder.
+    ///
+    /// Application columns are private to F'; even the application's own
+    /// public inputs become witness data whose digest is surfaced through
+    /// the F' state. When the verifier-owned plan uses the conventional
+    /// constant lane, column zero is tied to one. Every original R1CS row is
+    /// emitted unchanged.
+    pub(crate) fn enforce_in_f_prime(
+        &self,
+        builder: &mut R1csBuilder,
+        assignment: &[F],
+        pin_constant_one: bool,
+    ) -> Result<Vec<Var>, FrontendError> {
+        if assignment.len() != self.m() {
+            return Err(FrontendError::AssignmentLength {
+                got: assignment.len(),
+                expected: self.m(),
+            });
+        }
+
+        let vars = builder.alloc_vec(assignment);
+        if pin_constant_one {
+            if let Some(&one) = vars.first() {
+                builder.enforce_eq(&Lc::from_var(one), &Lc::from_var(Var::ONE));
+            }
+        }
+        for (index, is_boolean) in self.boolean_constrained_variables().into_iter().enumerate() {
+            if is_boolean {
+                builder.record_boolean(vars[index]);
+            }
+        }
+
+        let (a, b, c) = match self {
+            Self::Dense(r1cs) => (
+                dense_matrix_row_lcs(&r1cs.a, &vars),
+                dense_matrix_row_lcs(&r1cs.b, &vars),
+                dense_matrix_row_lcs(&r1cs.c, &vars),
+            ),
+            Self::Sparse(r1cs) => (
+                sparse_matrix_row_lcs(&r1cs.a, &vars, r1cs.n),
+                sparse_matrix_row_lcs(&r1cs.b, &vars, r1cs.n),
+                sparse_matrix_row_lcs(&r1cs.c, &vars, r1cs.n),
+            ),
+        };
+        for row in 0..self.n() {
+            builder.enforce(&a[row], &b[row], &c[row]);
+        }
+        Ok(vars)
+    }
+
     pub fn to_structure(&self) -> Structure {
         match self {
             Self::Dense(r1cs) => r1cs.to_structure(),
@@ -207,42 +391,108 @@ impl R1csShape {
     /// overflow) the variable keeps the full lane.
     pub fn conservative_app_private_var_widths(&self) -> Vec<usize> {
         let rows = r1cs_coeff_rows(self);
-        let booleans = boolean_constrained_variables_from_rows(&rows, self.n(), self.m());
-        let mut bounds = booleans
-            .iter()
-            .map(|&is_boolean| is_boolean.then_some(1u128))
-            .collect::<Vec<_>>();
-        if !bounds.is_empty() {
-            bounds[0] = Some(1);
-        }
+        conservative_var_widths(rows, self.n(), self.m())
+    }
+}
 
-        let defs = determining_rows(&rows, self.n(), self.m());
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for row in 0..self.n() {
-                if let Some((target, bound)) =
-                    bounded_affine_output_var(&rows.a[row], &rows.b[row], &rows.c[row], &bounds)
-                {
-                    if bounds[target].is_none_or(|old| bound < old) {
-                        bounds[target] = Some(bound);
-                        changed = true;
-                    }
-                }
-                if let Some((target, bound)) = corner_bounded_output_var(&rows, row, &bounds, &defs) {
-                    if bounds[target].is_none_or(|old| bound < old) {
-                        bounds[target] = Some(bound);
-                        changed = true;
+fn dense_matrix_row_lcs(matrix: &neo_ccs::Mat<F>, vars: &[Var]) -> Vec<Lc> {
+    let mut out = vec![Lc::zero(); matrix.rows()];
+    for row in 0..matrix.rows() {
+        for col in 0..matrix.cols() {
+            let coefficient = matrix[(row, col)];
+            if coefficient != F::ZERO {
+                out[row].add_term(vars[col], coefficient);
+            }
+        }
+    }
+    out
+}
+
+fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
+    let mut out = vec![Lc::zero(); rows];
+    match matrix {
+        CcsMatrix::Identity { n } => {
+            for row in 0..(*n).min(rows).min(vars.len()) {
+                out[row].add_term(vars[row], F::ONE);
+            }
+        }
+        CcsMatrix::Csc(csc) => {
+            for col in 0..csc.ncols.min(vars.len()) {
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
+                    if row < rows {
+                        out[row].add_term(vars[col], csc.vals[index]);
                     }
                 }
             }
         }
-
-        bounds
-            .into_iter()
-            .map(|bound| bound.map_or(POSEIDON2_GOLDILOCKS_BITS, bit_width_for_max))
-            .collect()
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            for col in 0..csc.ncols.min(vars.len()) {
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
+                    if row < rows {
+                        out[row].add_term(vars[col], csc.vals[index]);
+                    }
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < vars.len() {
+                        out[row].add_term(vars[col], coefficient);
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
+                    if row < rows && col < vars.len() {
+                        out[row].add_term(vars[col], coefficient);
+                    }
+                });
+            }
+        }
     }
+    out
+}
+
+fn conservative_var_widths(rows: R1csCoeffRows, row_count: usize, var_count: usize) -> Vec<usize> {
+    let booleans = boolean_constrained_variables_from_rows(&rows, row_count, var_count);
+    let mut bounds = booleans
+        .iter()
+        .map(|&is_boolean| is_boolean.then_some(1u128))
+        .collect::<Vec<_>>();
+    if !bounds.is_empty() {
+        bounds[0] = Some(1);
+    }
+
+    let defs = determining_rows(&rows, row_count, var_count);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for row in 0..row_count {
+            if let Some((target, bound)) = bounded_affine_output_var(&rows.a[row], &rows.b[row], &rows.c[row], &bounds)
+            {
+                if bounds[target].is_none_or(|old| bound < old) {
+                    bounds[target] = Some(bound);
+                    changed = true;
+                }
+            }
+            if let Some((target, bound)) = corner_bounded_output_var(&rows, row, &bounds, &defs) {
+                if bounds[target].is_none_or(|old| bound < old) {
+                    bounds[target] = Some(bound);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    bounds
+        .into_iter()
+        .map(|bound| bound.map_or(POSEIDON2_GOLDILOCKS_BITS, bit_width_for_max))
+        .collect()
 }
 
 fn boolean_constrained_variables_from_rows(rows: &R1csCoeffRows, row_count: usize, var_count: usize) -> Vec<bool> {
@@ -696,6 +946,14 @@ fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
     }
 }
 
+fn r1cs_coeff_rows_sparse(r1cs: &SparseR1cs) -> R1csCoeffRows {
+    R1csCoeffRows {
+        a: sparse_coeff_rows(&r1cs.a, r1cs.n),
+        b: sparse_coeff_rows(&r1cs.b, r1cs.n),
+        c: sparse_coeff_rows(&r1cs.c, r1cs.n),
+    }
+}
+
 fn dense_coeff_rows(m: &neo_ccs::Mat<F>) -> Vec<Vec<(usize, F)>> {
     let mut rows = vec![Vec::new(); m.rows()];
     for row in 0..m.rows() {
@@ -719,14 +977,40 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for idx in start..end {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         out[row].push((col, csc.vals[idx]));
                     }
                 }
+            }
+        }
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            for col in 0..csc.ncols {
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
+                    if row < rows {
+                        out[row].push((col, csc.vals[idx]));
+                    }
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows {
+                        out[row].push((col, coefficient));
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
+                    if row < rows {
+                        out[row].push((col, coefficient));
+                    }
+                });
             }
         }
     }
@@ -1111,10 +1395,8 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
         }
         CcsMatrix::Csc(csc) => {
             for (col, slot) in app_var_slots.iter().enumerate().take(csc.ncols) {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for idx in start..end {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         let coeff = csc.vals[idx];
                         out[row].extend(
@@ -1124,6 +1406,47 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
                         );
                     }
                 }
+            }
+        }
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            for (col, slot) in app_var_slots.iter().enumerate().take(csc.ncols) {
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
+                    if row < rows {
+                        let coeff = csc.vals[idx];
+                        out[row].extend(
+                            app_variable_terms(*slot)
+                                .into_iter()
+                                .map(|(lane_col, lane_coeff)| (lane_col, lane_coeff * coeff)),
+                        );
+                    }
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < app_var_slots.len() {
+                        out[row].extend(
+                            app_variable_terms(app_var_slots[col])
+                                .into_iter()
+                                .map(|(lane_col, lane_coeff)| (lane_col, lane_coeff * coefficient)),
+                        );
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
+                    if row < rows && col < app_var_slots.len() {
+                        out[row].extend(
+                            app_variable_terms(app_var_slots[col])
+                                .into_iter()
+                                .map(|(lane_col, lane_coeff)| (lane_col, lane_coeff * coefficient)),
+                        );
+                    }
+                });
             }
         }
     }

@@ -230,6 +230,7 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
         &structure,
         &cache,
         &log,
+        None,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         vec![instance.clone()],

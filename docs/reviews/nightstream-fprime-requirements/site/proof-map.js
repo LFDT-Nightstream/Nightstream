@@ -5,8 +5,8 @@ function proofMapEdges(diagram, selected, all) {
 }
 
 function createProofStructureMap({diagram, byId, el, sourceUrl, premiseLink}) {
-  const kinds = {theorem: 'Proved', premise: 'Premise', assumption: 'Assumed', definition: 'Definition', open: 'Open'};
-  const relations = {uses: 'Uses result', supplies: 'Supplies premise', requires: 'Requires premise', open: 'Open connection'};
+  const kinds = {theorem: 'Proved', premise: 'Condition', assumption: 'Assumed', definition: 'Definition', open: 'Open work'};
+  const relations = {uses: 'Uses result', supplies: 'Supplies condition', requires: 'Requires condition', open: 'Open connection'};
   const nodes = new Map(diagram.nodes.map(node => [node.id, node]));
   let resizeObserver;
   const destroy = () => resizeObserver?.disconnect();
@@ -65,7 +65,7 @@ function createProofStructureMap({diagram, byId, el, sourceUrl, premiseLink}) {
     inspector.setAttribute('aria-label', 'Selected proof');
     inspector.setAttribute('aria-live', 'polite');
     inspector.tabIndex = -1;
-    const note = el('p', 'Main connections shown. Dashed arrows mark premises or open work. All results retain their stated conditions.', 'structure-note');
+    const note = el('p', 'Blue nodes are required conditions; orange nodes are open work. Dashed arrows mark conditions or open connections. All results retain their stated conditions.', 'structure-note');
     const download = el('a', 'Map and evidence in Markdown'); download.href = 'proof-map.md';
     container.append(controls, board, inspector, note, download);
     for (const surface of [board, inspector]) surface.addEventListener('keydown', event => {
@@ -125,6 +125,18 @@ function createProofStructureMap({diagram, byId, el, sourceUrl, premiseLink}) {
         parent.append(link, el('span', ref.path.split('/').at(-1) + ':' + ref.line, 'source-path'));
       }
     }
+    function requirementLinks(parent, node) {
+      const links = el('div', undefined, 'structure-requirement-links');
+      if (node.assumption) {
+        const condition = el('span'); condition.append('Condition: ', premiseLink(node.assumption)); links.append(condition);
+      }
+      for (const id of [node.record, ...(node.related_records || [])]) {
+        const record = byId.get(id);
+        const link = el('a', (id === node.record ? 'Requirement: ' : 'Related: ') + record.label);
+        link.href = '#req-' + id; links.append(link);
+      }
+      parent.append(links);
+    }
     function describe() {
       inspector.hidden = !selected; inspector.replaceChildren();
       if (!selected) return;
@@ -132,6 +144,7 @@ function createProofStructureMap({diagram, byId, el, sourceUrl, premiseLink}) {
       const close = el('button', 'Close ×', 'copy-link structure-close'); close.type = 'button';
       close.addEventListener('click', () => { const previous = selected; select(null); cards.get(previous).focus(); });
       inspector.append(close, el('span', kinds[node.kind], 'structure-detail-kind kind-' + node.kind), el('h2', node.label.join(' ')), el('p', node.summary));
+      if (['premise', 'assumption', 'open'].includes(node.kind)) requirementLinks(inspector, node);
       for (const incoming of [true, false]) {
         const edges = diagram.edges.filter(edge => (incoming ? edge.target : edge.source) === selected);
         if (!edges.length) continue;
@@ -140,12 +153,18 @@ function createProofStructureMap({diagram, byId, el, sourceUrl, premiseLink}) {
         for (const edge of edges) {
           const other = nodes.get(incoming ? edge.source : edge.target);
           const item = el('li');
-          const button = el('button', undefined, 'structure-reference kind-' + other.kind); button.type = 'button';
-          button.append(el('span', undefined, 'structure-dot'), el('span', other.label.join(' ')));
-          button.addEventListener('click', () => { filter = 'all'; select(other.id); cards.get(other.id).scrollIntoView({block: 'center'}); });
+          const link = el('a', undefined, 'structure-reference kind-' + other.kind);
+          link.href = '#proof-map:' + other.id;
+          link.append(el('span', undefined, 'structure-dot'), el('span', other.label.join(' ')));
+          link.addEventListener('click', event => {
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); filter = 'all'; select(other.id); cards.get(other.id).scrollIntoView({block: 'center'});
+          });
           const detail = el('details', undefined, 'structure-edge-detail');
           detail.append(el('summary', relations[edge.kind]), el('p', edge.note));
-          sourceLinks(detail, edge.code); item.append(button, detail); list.append(item);
+          item.append(link);
+          if (['premise', 'assumption', 'open'].includes(other.kind)) requirementLinks(item, other);
+          sourceLinks(detail, edge.code); item.append(detail); list.append(item);
         }
         inspector.append(list);
       }

@@ -12,6 +12,32 @@ from site_model import AXES, count_text, validate_data
 SITE_URL = 'https://nightstream-requirements.nicarq.chatgpt.site/'
 
 
+def replay_markdown(data):
+    replay = data.get('prover_replay')
+    if not replay:
+        return []
+    by_id = {node['id']: node for node in data['nodes']}
+    def passed(key):
+        return by_id[key].get('replay_execution') == 'passed'
+    lines = ['## Independent prover replay', '', replay['summary'], '',
+             'Execution checks compare independently calculated Lean outputs with Rust on the recorded inputs. Proof results are named by scope; remaining runtime work is listed separately.', '',
+             '| Phase | Execution checks passed | Formal proof result | Scope and remaining work |', '| --- | ---: | --- | --- |']
+    for phase in replay['phases']:
+        link = '[{}](markdown/{}.md#req-{}.replay)'.format(phase['label'], phase['id'], phase['id'])
+        proof_records = [phase['proof_record']] if phase.get('proof_record') else phase['records']
+        proof_complete = all(by_id[key]['proof'] == 'proved' and by_id[key]['connection'] == 'connected'
+                             for key in proof_records)
+        proof_result = phase.get('proof_label', 'Formal proof connection') + ': ' + ('Complete' if proof_complete else 'Open')
+        if phase.get('proof_record'):
+            proof_result = '[' + proof_result + '](markdown/' + phase['id'] + '.md#req-' + phase['proof_record'] + ')'
+        lines.append('| ' + link + ' | ' + str(sum(passed(key) for key in phase['records'])) + '/' +
+                     str(len(phase['records'])) + ' | ' + proof_result +
+                     ' | ' + phase['detail'] + ' |')
+    lines += ['', 'Next recorded step: ' + replay.get('next_step', by_id[replay['next']]['label']) + '.', '',
+              replay['boundary'], '', replay['evidence_scope'], '', replay['delivery'], '']
+    return lines
+
+
 def prose(value):
     return re.sub(r'([\\`*_\[\]<>|])', r'\\\1', str(value)).replace('\n', ' ')
 
@@ -212,6 +238,7 @@ def export_markdown(data, guide, publication=None, references_checked=None):
                                        *counts(group['id']), str(missing),
                                        f'[Diagram and connections](markdown/graphs/{group["id"]}.md)']) + ' |')
     index.extend(['', '“No recorded dependencies” is a documentation status. It does not mean that the result needs no other facts.', ''])
+    index.extend(replay_markdown(data))
     index.extend(re.sub(r'\{\{([\w.]+)\}\}', lambda match: link(match[1], 'requirements.md'), guide).splitlines())
     index.extend(['', 'Complete metadata and retained review qualifications are in the [source JSON](requirements.json).', ''])
     index.extend(record(by_id['root'], 'requirements.md'))

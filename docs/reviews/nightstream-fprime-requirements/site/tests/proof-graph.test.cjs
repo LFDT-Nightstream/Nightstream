@@ -5,11 +5,15 @@ const {buildProofGraph, proofTrace} = require('../proof-graph.js');
 const {nodes} = JSON.parse(readFileSync(new URL('../requirements.json', 'file://' + __filename), 'utf8'));
 const key = edge => edge.source + ' -> ' + edge.target;
 
-test('PiCCS retains all 39 individual requirements and its 47 recorded internal connections', () => {
+test('PiCCS keeps its original proof graph and includes the separate prover replay requirements', () => {
+  const original = buildProofGraph(nodes.filter(node => !node.id.includes('.replay')), 'C');
+  assert.equal(original.members.size, 39);
+  assert.equal(original.edges.length, 47);
+  assert.equal(original.inputs.size, 19);
   const graph = buildProofGraph(nodes, 'C');
-  assert.equal(graph.members.size, 39);
-  assert.equal(graph.edges.length, 47);
-  assert.equal(graph.inputs.size, 19);
+  assert.deepEqual(new Set([...graph.members].filter(id => id.startsWith('C.replay.'))),
+    new Set(['C.replay.polynomial_spec', 'C.replay.rounds', 'C.replay.evaluations', 'C.replay.transcript']));
+  assert.equal(graph.members.size, original.members.size + 4);
   assert.deepEqual(new Set([...graph.rows.flat(), ...graph.isolated]), graph.members);
   for (const edge of graph.edges) assert(graph.rank.get(edge.source) > graph.rank.get(edge.target));
 });

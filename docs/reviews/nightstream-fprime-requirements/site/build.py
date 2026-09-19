@@ -9,6 +9,7 @@ from markdown_export import export_markdown
 from reference_check import check_references, code_commit, protocol_repository, publication_record
 from site_model import validate_data
 from proof_map import resolve_map, export_map
+from protocol_flow import resolve_flow, export_flow
 
 root = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
@@ -18,6 +19,7 @@ args = parser.parse_args()
 data = json.loads((root / 'requirements.json').read_text())
 validate_data(data)
 diagram = resolve_map(json.loads((root / 'proof-map.json').read_text()), data)
+flow = resolve_flow(json.loads((root / 'protocol-flow.json').read_text()), data)
 publication = publication_record(root, args.publish)
 repository = protocol_repository(root, code_commit(data))
 reference_data = {**data, 'nodes': data['nodes'] + [
@@ -39,20 +41,23 @@ for marker, content in [
     ('/* PUBLICATION_DATA */', payload(publication)),
     ('/* REFERENCE_DATA */', payload(references)),
     ('/* PROOF_MAP_DATA */', payload(diagram)),
+    ('/* PROTOCOL_FLOW_DATA */', payload(flow)),
 ]:
     assert page.count(marker) == 1, marker
     page = page.replace(marker, content)
-for attribute, asset in [('src', 'proof-map.js'), ('href', 'proof-map.css')]:
+for attribute, asset in [('src', 'proof-map.js'), ('href', 'proof-map.css'),
+                         ('src', 'protocol-flow.js'), ('href', 'protocol-flow.css')]:
     version = hashlib.sha256((root / asset).read_bytes()).hexdigest()
     page = page.replace(attribute + '="' + asset + '"', attribute + '="' + asset + '?v=' + version + '"')
 assert len(page.splitlines()) <= 1500, 'Repository file size policy'
 markdown = export_markdown(data, (root / 'reading-guide.md').read_text(), publication, references)
 markdown['proof-map.md'] = export_map(diagram, data)
+markdown['protocol-flow.md'] = export_flow(flow, data)
 (root / 'dist').mkdir(exist_ok=True)
 (root / 'dist/index.html').write_text(page)
 (root / 'index.html').write_text(page)
 (root / 'dist/_headers').write_text((root / '_headers').read_text())
-for name in ['proof-map.js', 'proof-map.css']:
+for name in ['proof-map.js', 'proof-map.css', 'protocol-flow.js', 'protocol-flow.css']:
     (root / 'dist' / name).write_bytes((root / name).read_bytes())
 for name, content in markdown.items():
     output = root / 'dist' / name
@@ -60,7 +65,8 @@ for name, content in markdown.items():
     output.write_text(content)
 snapshot = json.dumps(data, ensure_ascii=False, separators=(',', ':')) + '\n'
 json_files = {'requirements.json': snapshot, 'publication.json': json.dumps(publication, indent=2) + '\n',
-              'reference-report.json': json.dumps(references, indent=2) + '\n'}
+              'reference-report.json': json.dumps(references, indent=2) + '\n',
+              'protocol-flow.json': json.dumps(flow, ensure_ascii=False, indent=2) + '\n'}
 for name, content in json_files.items():
     (root / 'dist' / name).write_text(content)
 with ZipFile(root / 'dist/requirements-markdown.zip', 'w', ZIP_DEFLATED) as archive:

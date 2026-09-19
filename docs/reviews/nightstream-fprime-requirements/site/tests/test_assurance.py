@@ -15,6 +15,17 @@ DATA = json.loads((SITE / 'requirements.json').read_text())
 
 
 class AssuranceTests(unittest.TestCase):
+    def test_replay_execution_needs_explicit_status_and_comparison_evidence(self):
+        for field, value, message in [
+                ('replay_execution', None, 'replay execution status'),
+                ('evidence_ids', [], 'comparison evidence'),
+                ('rust', 'implemented', 'comparison evidence')]:
+            changed = copy.deepcopy(DATA)
+            record = next(n for n in changed['nodes'] if n['id'] == 'C.replay.rounds')
+            record[field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                validate_data(changed)
+
     def test_counts_preserve_every_in_scope_leaf(self):
         leaves = [n for n in DATA['nodes'] if n['kind'] == 'leaf']
         included = [n for n in leaves if n['origin'] != 'out_of_scope']
@@ -68,6 +79,11 @@ class AssuranceTests(unittest.TestCase):
         self.assertEqual(nodes['N.security.binding']['proof'], 'assumption')
         for node_id in ['N.native.order', 'N.native.openings', 'N.native.output']:
             self.assertEqual(nodes[node_id]['proof'], 'not_required')
+        for node_id in ['C.connection.native', 'R.connection.native',
+                        'R.connection.schedule', 'D.connection.native']:
+            self.assertEqual(nodes[node_id]['proof'], 'not_required')
+            self.assertEqual(nodes[node_id]['connection'], 'connected')
+            self.assertEqual(nodes[node_id]['rust'], 'tested_scoped')
 
     def test_publish_requires_exact_committed_inputs(self):
         root = SITE

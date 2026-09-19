@@ -23,6 +23,11 @@ class ProofMapTests(unittest.TestCase):
         self.assertNotIn('history_probability_bound', text)
         self.assertEqual(sum(line.startswith('| ') for line in text.splitlines()), len(result['edges']) + 2)
         nodes = {n['id']: n for n in result['nodes']}
+        self.assertEqual(nodes['uniform']['kind'], 'premise')
+        self.assertEqual(nodes['uniform']['assumption'], 'uniform_challenges')
+        self.assertIn('N.security.fiat_shamir', nodes['uniform']['related_records'])
+        self.assertTrue(nodes['uniform']['code'])
+        self.assertIn('assumptions.md#assumption-uniform_challenges', text)
         self.assertEqual(nodes['deployed']['kind'], 'theorem')
         self.assertEqual(nodes['deployed']['statuses']['connection'], 'connected')
         self.assertTrue(any(ref['path'].endswith('/HyperNovaFalseAcceptance.lean')

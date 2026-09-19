@@ -1,6 +1,5 @@
 .map-mode .workspace { display: block; max-width: none; }
 .map-mode .sidebar { padding: .65rem 2rem; min-height: 0; position: static; border-bottom: 1px solid var(--line); border-right: 0; }
-.map-mode .sidebar-heading, .map-mode #group-nav, .map-mode .mobile-nav, .map-mode .legend { display: none; }
 .map-mode .view-nav { max-width: 29rem; margin: 0; }
 .map-mode main { padding: 1.5rem 2rem; max-width: 100rem; margin: auto; }
 .map-mode .view-summary { max-width: none; margin-bottom: 1rem; }
@@ -11,7 +10,7 @@
 .structure-filter:not(.kind-all)::before, .structure-dot { content: ''; display: inline-block; flex: 0 0 auto; width: .45rem; height: .45rem; border-radius: 50%; background: var(--kind-color); }
 .structure-filter:not(.kind-all)::before { margin-right: .4rem; }
 .kind-theorem { --kind-color: light-dark(#208055, #50bd8a); }
-.kind-premise { --kind-color: light-dark(#8b640d, #eab957); }
+.kind-premise { --kind-color: light-dark(#2865a3, #87bfff); }
 .kind-assumption { --kind-color: light-dark(#a24d37, #e98770); }
 .kind-definition { --kind-color: var(--muted); }
 .kind-open { --kind-color: light-dark(#a25513, #efb278); }
@@ -56,6 +55,7 @@
 .structure-links { list-style: none; padding: 0; margin: 0; }
 .structure-links li { padding: .5rem 0; border-top: 1px solid var(--line); }
 .structure-reference { display: flex; align-items: center; gap: .5rem; padding: 0; color: var(--accent); font-size: .9375rem; }
+.structure-requirement-links { display: grid; gap: .4rem; margin: .65rem 0; font-size: .875rem; }
 .structure-edge-detail > summary { padding: .25rem 0; font-size: .75rem; color: var(--muted); }
 .structure-edge-detail p { margin: .5rem 0; font-size: .8125rem; }
 .structure-evidence { margin-top: 1rem; border-top: 1px solid var(--line); }

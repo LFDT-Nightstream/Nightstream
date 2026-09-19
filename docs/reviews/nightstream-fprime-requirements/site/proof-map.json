@@ -57,7 +57,7 @@
     {
       "id": "step",
       "label": [
-        "F\u2032 step semantics"
+        "F′ step semantics"
       ],
       "kind": "theorem",
       "record": "N.local.actual_step",
@@ -197,15 +197,20 @@
       ],
       "kind": "theorem",
       "record": "C.security.probability",
-      "role": "The interactive strong reduction gives source extraction under its stated uniform-coin, checker and work premises. Its loss is not by itself a deployed false-acceptance probability.",
+      "role": "The same one-call source extractor is correct. The v1.2 retry analysis replaces the square-root loss with additive test and uniqueness terms. Uniform verifier coins, accepted-output laws and the stated work conditions remain explicit.",
       "refs": [
         {
           "record": "C.security.probability",
           "file": "StrongExtraction.lean",
           "symbol": "probability_and_expected_work"
+        },
+        {
+          "record": "C.security.probability",
+          "file": "StrongProbability.lean",
+          "symbol": "source_error_le_retry"
         }
       ],
-      "summary": "Bound extraction failure under the stated interactive coin model."
+      "summary": "The v1.2 argument bounds source error by test error plus accepted-retry disagreement."
     },
     {
       "id": "weak",
@@ -222,7 +227,7 @@
           "symbol": "bounds_and_openings"
         }
       ],
-      "summary": "Bound the extractor\u2019s success and work when it recovers openings before the combination."
+      "summary": "Bound the extractor’s success and work when it recovers openings before the combination."
     },
     {
       "id": "parent",
@@ -248,15 +253,20 @@
       ],
       "kind": "theorem",
       "record": "N.security.composition",
-      "role": "The concrete selected consumer connects the checked prefix, child and parent checks, returned source values, success probability and declared work. The FS model, invertibility and clock conditions remain premises.",
+      "role": "NifsClosure.source_probability_linear_bound connects actual NIFS success to the selected source law with loss weakLoss + testError + 17 * adaptiveMsisSuccess. The approved FS transfer remains a premise. AdaptiveBindingWork separately proves termination and declared-work bounds under its moment and resource conditions.",
       "refs": [
         {
           "record": "N.security.composition",
           "file": "NifsClosure.lean",
           "symbol": "finishValue_probability_and_expected_work"
+        },
+        {
+          "record": "N.security.composition",
+          "file": "NifsClosure.lean",
+          "symbol": "source_probability_linear_bound"
         }
       ],
-      "summary": "Quantify how often the selected extractor recovers valid witnesses for the claims before a fold."
+      "summary": "Recover source witnesses with the v1.2 linear loss and the actual adaptive MSIS reduction."
     },
     {
       "id": "predecessor",
@@ -330,7 +340,7 @@
           "symbol": "law_eq_guardedDraw"
         }
       ],
-      "summary": "Show that the probability calculation follows the history extractor\u2019s actual source calls."
+      "summary": "Show that the probability calculation follows the history extractor’s actual source calls."
     },
     {
       "id": "probability",
@@ -340,7 +350,7 @@
       ],
       "kind": "theorem",
       "record": "H.security.history",
-      "role": "The linear source and history bounds use the same actual guarded visits, shared FS functions and adaptive MSIS event probabilities.",
+      "role": "The history bound retains shared g/deltaFS functions, marked hash failures and the computed adaptive MSIS success at every actual guarded visit. The test loss is additive. Hardness, global work and total-query applicability remain explicit obligations.",
       "refs": [
         {
           "record": "H.security.history",
@@ -353,7 +363,7 @@
           "symbol": "source_failure_probability_linear_le"
         }
       ],
-      "summary": "Bound failure on the actual reverse run. Cryptographic losses remain explicit parameters."
+      "summary": "Apply the v1.2 linear bound at each actual visit in the reverse history."
     },
     {
       "id": "work",
@@ -362,12 +372,17 @@
       ],
       "kind": "theorem",
       "record": "H.security.constant_step_scope",
-      "role": "Expected source work is composed on the unconditional operational laws, including abort paths. The declared clock excludes payload decoding, copying, advice evaluation and machine runtime.",
+      "role": "HyperNovaSourceWork bounds the declared operational source clock. AdaptiveBindingWork separately bounds the complete retry reduction under context-weighted moments and polynomial premises. The history probability theorem alone does not discharge these premises or give fixed worst-case query or machine-runtime bounds.",
       "refs": [
         {
           "record": "H.security.constant_step_scope",
           "file": "HyperNovaSourceWork.lean",
           "symbol": "expected_work_polynomial_bound"
+        },
+        {
+          "record": "H.security.constant_step_scope",
+          "file": "AdaptiveBindingWork.lean",
+          "symbol": "prepared_expected_work_polynomial_bound"
         }
       ],
       "summary": "Bound declared source-operation work. Payload processing and machine runtime have a separate scope."
@@ -447,10 +462,24 @@
       ],
       "kind": "premise",
       "record": "C.security.probability",
-      "role": "Uniform verifier coins support the interactive probability theorems. Connecting the selected transcript to that model is a separate FS premise.",
-      "refs": [],
+      "role": "The mixing and sum-check probability theorems calculate probabilities under the stated uniform verifier-coin model. This is a condition of those theorems, not an additional unfinished algebra proof. The selected Poseidon2 transcript uses the approved parametric Fiat-Shamir transfer premise; its numerical and query/work applicability conditions remain separate.",
+      "refs": [
+        {
+          "record": "C.security.probability",
+          "file": "SignedMixingProbability.lean",
+          "symbol": "mixingProbability_fullField_le"
+        },
+        {
+          "record": "C.security.probability",
+          "file": "IndependentExecution.lean",
+          "symbol": "agreementProbability_le"
+        }
+      ],
       "assumption": "uniform_challenges",
-      "summary": "Interactive bounds use their stated verifier-coin law. The real transcript connection is handled separately."
+      "summary": "A required coin law for the proved interactive bounds. Applying them to Poseidon2 uses the separately stated Fiat-Shamir transfer assumption.",
+      "related_records": [
+        "N.security.fiat_shamir"
+      ]
     },
     {
       "id": "invertibility",
@@ -474,12 +503,12 @@
       "role": "The approved Nightstream-specific fixed-matrix hardness assumption. The binding reduction does not turn this into a hardness theorem or inherit uniform-matrix estimates.",
       "refs": [],
       "assumption": "fixed_matrix_msis",
-      "summary": "The commitment relies on the approved hardness assumption for Nightstream\u2019s exact fixed matrix."
+      "summary": "The commitment relies on the approved hardness assumption for Nightstream’s exact fixed matrix."
     },
     {
       "id": "fs",
       "label": [
-        "Fiat\u2013Shamir transfer"
+        "Fiat–Shamir transfer"
       ],
       "kind": "assumption",
       "record": "N.security.fiat_shamir",
@@ -695,12 +724,12 @@
       "source": "strong",
       "target": "extraction",
       "kind": "uses",
-      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "note": "The selected v1.2 linear consumer uses this result with the same actual source witnesses and continuation; FS, low-norm and adaptive reduction conditions remain explicit.",
       "refs": [
         {
           "record": "N.security.composition",
           "file": "NifsClosure.lean",
-          "symbol": "finishValue_probability_and_expected_work"
+          "symbol": "source_probability_linear_bound"
         }
       ],
       "overview": true
@@ -709,12 +738,12 @@
       "source": "weak",
       "target": "extraction",
       "kind": "uses",
-      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "note": "The selected v1.2 linear consumer uses this result with the same actual source witnesses and continuation; FS, low-norm and adaptive reduction conditions remain explicit.",
       "refs": [
         {
           "record": "N.security.composition",
           "file": "NifsClosure.lean",
-          "symbol": "finishValue_probability_and_expected_work"
+          "symbol": "source_probability_linear_bound"
         }
       ],
       "overview": true
@@ -723,12 +752,12 @@
       "source": "parent",
       "target": "extraction",
       "kind": "uses",
-      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "note": "The selected v1.2 linear consumer uses this result with the same actual source witnesses and continuation; FS, low-norm and adaptive reduction conditions remain explicit.",
       "refs": [
         {
           "record": "N.security.composition",
           "file": "NifsClosure.lean",
-          "symbol": "finishValue_probability_and_expected_work"
+          "symbol": "source_probability_linear_bound"
         }
       ],
       "overview": true
@@ -737,12 +766,12 @@
       "source": "actual-success",
       "target": "extraction",
       "kind": "uses",
-      "note": "Joint composition through the same selected provider, context, proof and declared clock. The external model premises remain explicit.",
+      "note": "The selected v1.2 linear consumer uses this result with the same actual source witnesses and continuation; FS, low-norm and adaptive reduction conditions remain explicit.",
       "refs": [
         {
           "record": "N.security.composition",
           "file": "NifsClosure.lean",
-          "symbol": "finishValue_probability_and_expected_work"
+          "symbol": "source_probability_linear_bound"
         }
       ],
       "overview": false
@@ -835,7 +864,7 @@
       "source": "history",
       "target": "probability",
       "kind": "uses",
-      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "note": "The v1.2 linear history bound uses these actual visited laws and source returns, preserving hash failures and the exact adaptive MSIS event.",
       "refs": [
         {
           "record": "H.security.history",
@@ -849,7 +878,7 @@
       "source": "visited",
       "target": "probability",
       "kind": "uses",
-      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "note": "The v1.2 linear history bound uses these actual visited laws and source returns, preserving hash failures and the exact adaptive MSIS event.",
       "refs": [
         {
           "record": "H.security.history",
@@ -863,7 +892,7 @@
       "source": "extraction",
       "target": "probability",
       "kind": "uses",
-      "note": "The first-failure bound uses the same actual visited laws; no independent-call assumption is introduced.",
+      "note": "The v1.2 linear history bound uses these actual visited laws and source returns, preserving hash failures and the exact adaptive MSIS event.",
       "refs": [
         {
           "record": "H.security.history",
@@ -912,8 +941,20 @@
       "source": "uniform",
       "target": "strong",
       "kind": "requires",
-      "note": "The interactive sumcheck and mixing laws need the stated uniform verifier coins.",
-      "overview": false
+      "note": "The proved interactive mixing and sum-check bounds use the stated uniform verifier coins. Application to the selected transcript is recorded separately in the Fiat-Shamir model requirement.",
+      "overview": false,
+      "refs": [
+        {
+          "record": "C.security.probability",
+          "file": "SignedMixingProbability.lean",
+          "symbol": "mixingProbability_fullField_le"
+        },
+        {
+          "record": "C.security.probability",
+          "file": "IndependentExecution.lean",
+          "symbol": "agreementProbability_le"
+        }
+      ]
     },
     {
       "source": "uniform",
@@ -933,7 +974,7 @@
       "source": "msis",
       "target": "extraction",
       "kind": "requires",
-      "note": "The local reduction returns a short-kernel event; the hardness advantage stays external.",
+      "note": "The computed adaptive reduction returns a same-key short vector. Applying a numerical hardness advantage still requires its full preprocessing, work and query conditions.",
       "overview": false
     },
     {

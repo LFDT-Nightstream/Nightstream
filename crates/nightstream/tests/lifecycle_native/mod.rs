@@ -506,3 +506,5 @@ mod base;
 
 mod key_prefix;
 mod recursive;
+
+mod staged;

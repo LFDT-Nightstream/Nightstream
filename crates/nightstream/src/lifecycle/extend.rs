@@ -101,7 +101,7 @@ impl PreparedLifecycle {
 
 /// The state serializer has checked all semantic shapes and zero surplus
 /// before this function reads or normalizes any evaluation coordinate.
-fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
+pub(super) fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
     let frame = digest_bytes(digest);
     let padded = D.next_power_of_two();
     for claim in &mut running.claims {

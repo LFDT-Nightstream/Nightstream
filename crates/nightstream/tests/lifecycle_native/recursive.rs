@@ -158,6 +158,24 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     );
 
     // Rebuilding the digest and commitment must not hide a false running opening.
+    let changed = rehash_false_running_opening(&package, final_proof);
+    eprintln!(
+        "rehashed running-opening rejection started elapsed={:?}",
+        started.elapsed()
+    );
+    assert!(matches!(
+        package.verify(&expected_state, &changed),
+        Err(VerifyError::Running {
+            index: 0,
+            reason: "Eval_K differs from the complete witness opening"
+        })
+    ));
+    eprintln!("complete recursive gate elapsed={:?}", started.elapsed());
+}
+
+/// Keep this exact rehash/recommit attack shared by the full and staged gates.
+pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_proof: Stage1Envelope) -> Stage1Envelope {
+    let expected_state = *final_proof.state();
     let (_, proof_state) = final_proof.into_parts();
     let ProofState::Active {
         mut running,
@@ -198,17 +216,5 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     fresh.witness.Z = Mat::compact_signed_unit_from_column_masks(D, positive.len(), &positive, &negative).unwrap();
     drop((positive, negative));
     fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).unwrap();
-    let changed = Stage1Envelope::from_parts(expected_state, running, fresh);
-    eprintln!(
-        "rehashed running-opening rejection started elapsed={:?}",
-        started.elapsed()
-    );
-    assert!(matches!(
-        package.verify(&expected_state, &changed),
-        Err(VerifyError::Running {
-            index: 0,
-            reason: "Eval_K differs from the complete witness opening"
-        })
-    ));
-    eprintln!("complete recursive gate elapsed={:?}", started.elapsed());
+    Stage1Envelope::from_parts(expected_state, running, fresh)
 }

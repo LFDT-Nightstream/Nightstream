@@ -431,6 +431,18 @@ pub fn load_per_application_package(
         });
     }
 
+    decode_per_application_value(value, computed)
+}
+
+/// Prepare caller-owned circuit data and recompute its complete structural
+/// identity. This does not authorize a circuit supplied by a prover. A verifier
+/// must retain the result of its own circuit preparation as its expected circuit.
+pub fn load_prepared_application_value(value: Value) -> Result<LoadedPerApplicationPackage, PackageError> {
+    let computed = relation_identifier(&value)?;
+    decode_per_application_value(value, computed)
+}
+
+fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<LoadedPerApplicationPackage, PackageError> {
     let circuit_value = value
         .as_array()
         .and_then(|sealed| sealed.get(1))

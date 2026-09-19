@@ -1495,6 +1495,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nightstream"
+version = "0.1.0"
+dependencies = [
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-fold-clean",
+ "neo-math",
+ "neo-params",
+ "neo-reductions",
+ "neo-transcript",
+ "nightstream-fprime",
+ "p3-field 0.5.3",
+ "p3-goldilocks 0.5.3",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "nightstream-fprime"
 version = "0.1.0"
 dependencies = [

@@ -38,8 +38,8 @@ mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
 pub use sealed::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedApplicationPlan,
-    LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_value,
+    LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
 };
 mod pi_ccs_v1_1_transcript;
 mod source_row;

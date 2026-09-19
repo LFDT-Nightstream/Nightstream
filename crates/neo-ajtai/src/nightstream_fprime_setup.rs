@@ -209,6 +209,28 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiR
             witness.cols()
         )));
     }
+    commit_production_signed_unit_prefix_matrix(witness)
+}
+
+/// Commit a complete signed-unit carrier under a prefix of the production key.
+///
+/// The seed, row count and every retained key address stay unchanged. The
+/// carrier must contain whole degree-54 blocks and cannot exceed the selected
+/// key. Its exact block count must be bound by the caller's verifier context.
+/// No coordinates are inserted, and no larger witness is allocated.
+///
+/// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
+/// commitment with the full-key commitment after suffix zero-extension.
+pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) -> AjtaiResult<Commitment> {
+    let columns = witness.cols();
+    if witness.rows() != D || columns == 0 || columns > PRODUCTION_MESSAGE_COLUMNS as usize {
+        return Err(AjtaiError::InvalidDimensions(format!(
+            "production key prefix requires {D} rows and 1..={} columns, got {}x{}",
+            PRODUCTION_MESSAGE_COLUMNS,
+            witness.rows(),
+            columns
+        )));
+    }
     if witness.virtual_constant_value() == Some(&Goldilocks::ZERO) {
         return Ok(Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
     }

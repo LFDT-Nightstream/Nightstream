@@ -88,13 +88,40 @@ timeout --signal=KILL 300 cargo test -p nightstream --release --test lifecycle_b
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::base::base_extension_matches_full_lean_assignment_and_terminal -- --exact --ignored --nocapture
 ```
 
-The complete recursive test is compiled but not yet executed:
+The single-process recursive test is compiled but not yet executed:
 `lifecycle::tests::recursive::fresh_recursive_producer_matches_golden_and_folds_successor`.
 It constructs a new base, generates C/R/D, compares every first-fold proof byte,
 transcript state and successor caller word, consumes that successor in a second
 fold, and checks terminal acceptance and a rehashed false opening. Existing
 full-producer evidence exceeds the five-minute cap. Its specific longer
-invocation requires owner approval. The goal remains open until it passes.
+invocation requires owner approval. It has not been started.
+
+A staged route can perform the required fresh two-fold replay within the
+per-command cap. It uses the same private C/R helpers, canonical native split,
+commitment and opening kernels, NIFS verifier, successor construction and
+terminal verifier. It does not run one uninterrupted call to the public active
+`extend` method. No prior producer output is substituted into the new run.
+The goal remains open while this complete replay is unverified.
+
+Build the ignored phase test once, then pass the reported test executable to
+the phase driver. Each driver invocation runs exactly one test, records its
+source revision, request, exit status, time and memory, and rejects a filter
+that ran zero tests. The outer timeout also covers the Python driver.
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::staged::run_phase --no-run
+timeout --signal=KILL 300 python3 crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory FRESH_RUN_DIRECTORY --phase base
+```
+
+For source iterations 1 and 2, run `sources`, `ccs`, `rlc`, and `split`, each
+with `--step ITERATION`. Run `child --step ITERATION --child INDEX` for the true
+entries of `fold-ITERATION/split.json`'s `nonzero` array. Then run `nifs` and
+`successor` for that iteration. Finally run `terminal`, `mutation`, and `reject`
+without a step argument. Use the same binary and run directory throughout.
+The NIFS phase re-splits the actual parent and requires every active child's
+opening, so changing saved activity flags cannot remove a check. Sources and
+matrix caches are checked from their authoritative inputs; checkpoint digests
+are not accepted as authority.
 
 The first fold has a saved golden reference. The later fold is new execution
 evidence; this repository does not contain an independently recorded Lean

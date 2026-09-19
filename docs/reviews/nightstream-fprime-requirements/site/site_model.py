@@ -109,6 +109,24 @@ def validate_data(data):
             for record in item['records']:
                 if record not in by_id:
                     raise ValueError('Unknown readiness record: ' + record)
+    replay = data.get('prover_replay')
+    if replay:
+        for phase in replay['phases']:
+            if phase.get('proof_record') and (
+                    phase['proof_record'] not in by_id or not phase.get('proof_label')):
+                raise ValueError('Invalid named replay proof: ' + phase['id'])
+        records = [key for phase in replay['phases'] for key in phase['records']]
+        if len(records) != len(set(records)) or replay['next'] not in records:
+            raise ValueError('Invalid prover-replay milestone ownership')
+        for key in records:
+            if key not in by_id or by_id[key]['kind'] != 'leaf':
+                raise ValueError('Unknown prover-replay record: ' + key)
+            record = by_id[key]
+            if record.get('replay_execution') not in {'passed', 'open'}:
+                raise ValueError('Missing or invalid replay execution status: ' + key)
+            if record['replay_execution'] == 'passed' and (
+                    record['rust'] != 'tested_scoped' or not record.get('evidence_ids')):
+                raise ValueError('Replay execution pass needs recorded comparison evidence: ' + key)
     evidence_ids = {e['id'] for e in data.get('provenance', {}).get('evidence', [])}
     for item in nodes + [i for panel in data.get('readiness', []) for i in panel['items']]:
         if not set(item.get('evidence_ids', [])) <= evidence_ids:

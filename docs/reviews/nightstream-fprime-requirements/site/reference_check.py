@@ -80,7 +80,8 @@ def publication_record(site, require_committed=False):
     required = ['requirements.json', 'page.html', 'styles.css', 'app.js', 'assurance.js', 'proof-graph.js', 'tech-tree.js',
                 'build.py', 'markdown_export.py', 'assurance_export.py', 'site_model.py',
                 'reference_check.py', 'reading-guide.md', 'proof-map.json', 'proof-map.js',
-                'proof-map.css', 'proof_map.py', '.openai/hosting.json', '_headers']
+                'proof-map.css', 'proof_map.py', 'protocol-flow.json', 'protocol-flow.js',
+                'protocol-flow.css', 'protocol_flow.py', '.openai/hosting.json', '_headers']
     dirty = []
     for name in required:
         try:

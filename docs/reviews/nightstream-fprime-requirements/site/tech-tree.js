@@ -12,7 +12,30 @@ const techAssembly = [
   {id: 'T', row: 5, column: 4, needs: [], caption: 'Poseidon2, canonical words, and transcript primitives'}
 ];
 
-function createTechTree({nodes, byId, children, navNames, el, countBadges, names, premiseLink, sourceUrl}) {
+// Saved requirement and group links open the same tree as the main navigation.
+function techTreeRoute(fragment, byId) {
+  if (fragment.startsWith('proof-')) {
+    const parts = fragment.slice(6).split(':');
+    const scope = byId.get(parts[0]);
+    const item = byId.get(parts[1] || parts[0]);
+    if (scope?.kind === 'group' && item && parts.length <= 2) {
+      return {id: item.id, proofScopeId: scope.id};
+    }
+  }
+  let id = fragment.startsWith('req-') ? fragment.slice(4) :
+    fragment.startsWith('group-') ? fragment.slice(6) :
+    fragment.startsWith('tech-') ? fragment.slice(5) : 'root';
+  if (!byId.has(id)) id = 'root';
+  const node = byId.get(id);
+  if (fragment.startsWith('req-') || node.kind === 'leaf') {
+    let owner = node;
+    while (owner.parent && owner.parent !== 'root') owner = byId.get(owner.parent);
+    return {id, proofScopeId: owner.id, recordId: id};
+  }
+  return {id};
+}
+
+function createTechTree({nodes, byId, children, navNames, el, countBadges, names, premiseLink, sourceUrl, renderRecord, scopeControls}) {
   let observer;
   let frame;
   const proofGraph = createProofGraph({nodes, byId, navNames, el, names, premiseLink, sourceUrl});
@@ -21,63 +44,6 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
     const anchor = el('a', label || navNames[id] || byId.get(id).label, className);
     anchor.href = id === 'root' ? '#tech-tree' : '#tech-' + id;
     return anchor;
-  }
-  function badges(node) {
-    if (node.origin === 'out_of_scope') return el('span', 'Outside Stage 1', 'tech-meta');
-    if (node.kind === 'group') return countBadges(node.id);
-    const row = el('span', undefined, 'axis-counts');
-    for (const [key, label] of [['proof', 'Proof'], ['connection', 'Link'], ['rust', 'Rust']]) {
-      row.append(el('span', label + ': ' + names[node[key]], 'axis-count axis-' + key));
-    }
-    return row;
-  }
-  function recordLink(id) {
-    const anchor = el('a', 'Read requirement & evidence', 'tech-record-link');
-    anchor.href = '#req-' + id;
-    return anchor;
-  }
-  function branch(node, selectedId) {
-    const item = el('li');
-    const detail = el('details', undefined, 'tech-branch');
-    detail.id = 'tree-part-' + node.id;
-    const summary = el('summary');
-    summary.append(el('span', node.label, 'req-title'), badges(node));
-    detail.append(summary);
-    if (node.kind === 'group') {
-      const parts = el('ul', undefined, 'tech-branch-children');
-      for (const child of children.get(node.id) || []) parts.append(branch(child, selectedId));
-      detail.append(parts);
-      let selected = byId.get(selectedId);
-      while (selected) {
-        if (selected.id === node.id) { detail.open = true; break; }
-        selected = byId.get(selected.parent);
-      }
-    } else {
-      detail.open = node.id === selectedId;
-      const content = el('div', undefined, 'tech-leaf-detail');
-      content.append(el('p', node.requirement));
-      if (node.remaining) content.append(el('p', node.remaining, 'tech-meta'));
-      const references = [
-        ['Uses', node.depends_on || []],
-        ['Used by', nodes.filter(other => (other.depends_on || []).includes(node.id)).map(other => other.id)]
-      ];
-      for (const [label, ids] of references) {
-        if (!ids.length) continue;
-        const row = el('div', undefined, 'uses');
-        row.append(el('strong', label));
-        for (const id of ids) row.append(link(id));
-        content.append(row);
-      }
-      detail.append(content);
-    }
-    detail.append(recordLink(node.id));
-    if (node.kind === 'group') {
-      const graphLink = el('a', 'Open proof connections', 'tech-record-link');
-      graphLink.href = '#proof-' + node.id;
-      detail.append(graphLink);
-    }
-    item.append(detail);
-    return item;
   }
   function svgElement(tag, attributes) {
     const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -104,15 +70,19 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
     markParents(owner.id);
     const toolbar = el('div', undefined, 'tech-toolbar');
     toolbar.append(el('p', 'Read down to see what each result needs. Lines point up toward the result they support.', 'tech-meta'));
+    const groupLabel = el('label', 'Group ');
+    const select = el('select');
+    for (const group of [byId.get('root'), ...children.get('root')]) {
+      const option = el('option', group.id === 'root' ? 'Full tree' : navNames[group.id]);
+      option.value = group.id;
+      select.append(option);
+    }
+    select.value = owner.id;
+    select.addEventListener('change', () => { location.hash = select.value === 'root' ? 'tech-tree' : 'proof-' + select.value; });
+    groupLabel.append(select);
+    toolbar.append(groupLabel);
     if (owner.id !== 'root') {
-      const detailsButton = el('button', 'View ' + (navNames[owner.id] || owner.label) + ' proof connections ↓', 'copy-link');
-      detailsButton.type = 'button';
-      detailsButton.addEventListener('click', () => {
-        const heading = document.getElementById('tech-detail-title');
-        heading.focus({preventScroll: true});
-        heading.scrollIntoView({block: 'start', behavior: 'smooth'});
-      });
-      toolbar.append(detailsButton, link('root', 'Clear selection'));
+      toolbar.append(link('root', 'Full tree'));
     }
     container.append(toolbar);
     const scroll = el('div', undefined, 'tech-canvas-scroll');
@@ -139,7 +109,7 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
         if (active.has(entry.id)) card.classList.add('on-path');
         if (entry.id === owner.id) card.setAttribute('aria-current', 'location');
         if (entry.caption) card.append(el('span', entry.caption, 'tech-meta'));
-        card.append(badges(byId.get(entry.id)));
+        card.append(countBadges(entry.id));
         cards.set(entry.id, card);
         row.append(card);
       }
@@ -150,7 +120,7 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
     container.append(el('p', 'Dashed lines show shared primitives. This is the main assembly of Stage 1; counts retain their local scopes. Individual proof references are in the requirement details.', 'tech-note'));
     const detailSection = el('section', undefined, 'tech-detail-section');
     const graphScope = byId.get(proofScopeId || (selected.kind === 'group' ? id : owner.id));
-    const heading = el('h2', owner.id === 'root' ? 'Select a group to see its proof connections' : (navNames[graphScope.id] || graphScope.label) + ' — proof connections');
+    const heading = el('h2', owner.id === 'root' ? 'Requirements and evidence' : (navNames[graphScope.id] || graphScope.label) + ' — proof connections');
     heading.id = 'tech-detail-title';
     heading.tabIndex = -1;
     detailSection.append(heading);
@@ -160,13 +130,17 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
       const graph = el('div');
       detailSection.append(graph);
       proofGraph.render(graph, graphScope.id, selected.kind === 'leaf' ? selected.id : null);
-      const records = el('details', undefined, 'proof-records');
-      records.append(el('summary', 'All requirement records, grouped by subject'));
-      const list = el('ul', undefined, 'tech-branch-grid');
-      for (const child of children.get(graphScope.id) || []) list.append(branch(child, id));
-      records.append(list);
-      detailSection.append(records);
     }
+    const records = el('details', undefined, 'proof-records');
+    records.append(el('summary', 'Requirements, status and evidence'));
+    scopeControls.hidden = false;
+    records.append(scopeControls);
+    const list = el('ul', undefined, 'req-roots');
+    const record = renderRecord(graphScope);
+    record.querySelector('details').open = true;
+    list.append(record);
+    records.append(list);
+    detailSection.append(records);
     container.append(detailSection);
     function draw() {
       svg.querySelectorAll(':scope > path').forEach(path => path.remove());
@@ -207,4 +181,4 @@ function createTechTree({nodes, byId, children, navNames, el, countBadges, names
   };
 }
 
-if (typeof module !== 'undefined') module.exports = {techAssembly};
+if (typeof module !== 'undefined') module.exports = {techAssembly, techTreeRoute};

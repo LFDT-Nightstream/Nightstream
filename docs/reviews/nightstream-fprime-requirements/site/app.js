@@ -2,6 +2,8 @@
   const data = JSON.parse(document.getElementById('requirements-data').textContent);
   const publication = JSON.parse(document.getElementById('publication-data').textContent);
   const references = JSON.parse(document.getElementById('reference-data').textContent);
+  const flowData = JSON.parse(document.getElementById('protocol-flow-data').textContent);
+  const replayView = document.getElementById('prover-replay');
   const assurance = RequirementAssurance.build(data, publication, references);
   const nodes = data.nodes;
   const byId = new Map(nodes.map(node => [node.id, node]));
@@ -37,9 +39,6 @@
   const descendants = id => (children.get(id) || []).flatMap(node => node.kind === 'leaf' ? [node] : descendants(node.id));
   const unresolved = node => node.connection === 'open' || node.connection === 'partial' || node.proof === 'partial';
   const tone = status => ['open', 'partial'].includes(status) ? 'open' : status === 'assumption' ? 'assumption' : ['proved', 'connected', 'tested_scoped'].includes(status) ? 'good' : 'neutral';
-  const groups = children.get('root');
-  const included = nodes.filter(node => node.kind === 'leaf' && node.origin !== 'out_of_scope').length;
-  const excluded = nodes.filter(node => node.kind === 'leaf' && node.origin === 'out_of_scope').length;
   const axes = [{key: 'proof', label: 'Proof'}, {key: 'connection', label: 'Link'}, {key: 'rust', label: 'Rust'}];
   const progress = new Map(nodes.filter(node => node.kind === 'group').map(node => {
     return [node.id, axes.map(axis => ({...axis, counts: RequirementAssurance.counts(descendants(node.id), axis.key)}))];
@@ -99,15 +98,21 @@
         document.getElementById('view-announcement').textContent = 'Select and copy the displayed link.';
       }
     });
-    const techLink = el('a', 'View in tech tree');
-    techLink.href = node.id === 'root' ? '#tech-tree' : '#tech-' + node.id;
+    const techLink = el('a', 'Proof connections');
+    let owner = node;
+    while (owner.parent && owner.parent !== 'root') owner = byId.get(owner.parent);
+    techLink.href = node.id === 'root' ? '#tech-tree' : node.kind === 'group' ?
+      '#proof-' + node.id : '#proof-' + owner.id + ':' + node.id;
     row.append(el('span', 'Linked item', 'target-indicator'), anchor, copy, techLink);
+    if (flowData.owners[node.id]) {
+      const flowLink = el('a', 'View in protocol flow');
+      flowLink.href = '#protocol-flow:' + flowData.owners[node.id]; row.append(flowLink);
+    }
     return row;
   }
   function render(node) {
     const li = el('li');
     li.dataset.record = node.id;
-    if (node.parent === 'root') li.dataset.root = node.id;
     const details = el('details');
     details.id = 'req-' + node.id;
     const summary = el('summary');
@@ -142,10 +147,14 @@
       evidence.append(refs);
       content.append(evidence);
     }
-    if (node.depends_on?.length) {
+    for (const [label, ids] of [
+      ['Uses', node.depends_on || []],
+      ['Used by', nodes.filter(other => other.depends_on?.includes(node.id)).map(other => other.id)]
+    ]) {
+      if (!ids.length) continue;
       const uses = el('div', undefined, 'uses');
-      uses.append(el('strong', 'Uses'));
-      for (const id of node.depends_on) {
+      uses.append(el('strong', label));
+      for (const id of ids) {
         const link = el('a', byId.get(id).label);
         link.href = '#req-' + id;
         uses.append(link);
@@ -168,29 +177,7 @@
     li.append(details);
     return li;
   }
-  const tree = document.getElementById('requirements-tree');
-  const list = el('ul', undefined, 'req-roots');
-  groups.forEach(node => list.append(render(node)));
-  tree.append(list);
-  const navigation = document.getElementById('group-nav');
-  const select = document.getElementById('group-select');
-  const techOption = el('option', 'Tech tree');
-  techOption.value = 'tech-tree';
-  select.append(techOption);
-  const navigationItems = [{id: 'all', label: 'All groups'}, ...groups];
-  for (const node of navigationItems) {
-    const label = navNames[node.id] || node.label;
-    const link = el('a', undefined, 'nav-link');
-    link.href = '#group-' + node.id;
-    link.dataset.group = node.id;
-    link.append(el('span', label));
-    link.append(node.origin === 'out_of_scope' ? el('span', descendants(node.id).length + ' excluded', 'nav-count') : countBadges(node.id === 'all' ? 'root' : node.id));
-    navigation.append(link);
-    const option = el('option', label);
-    option.value = node.id;
-    select.append(option);
-  }
-  document.getElementById('source-meta').textContent = 'SuperNeo v1.1 + HyperNova · Code ' + data.provenance.code_commit.slice(0, 8) + ' · Map ' + (publication.map_commit?.slice(0, 8) || 'uncommitted preview') + ' · Production gates remain open.';
+  document.getElementById('source-meta').textContent = 'SuperNeo v1.2 + HyperNova · Code ' + data.provenance.code_commit.slice(0, 8) + ' · Map ' + (publication.map_commit?.slice(0, 8) || 'uncommitted preview') + ' · Production gates remain open.';
   const scope = document.getElementById('claim-scope');
   const viewNames = {readiness: 'Readiness', assumptions: 'Assumption ledger', risk: 'Error budget', evidence: 'Source and evidence'};
   for (const [id, view] of Object.entries(assurance.views)) {
@@ -198,11 +185,16 @@
     document.getElementById('assurance-views').append(view);
   }
   const techTree = document.getElementById('tech-tree');
-  const renderTechTree = createTechTree({nodes, byId, children, groups, navNames, el, names,
-    countBadges, premiseLink: assurance.premiseLink, sourceUrl: assurance.sourceUrl});
-  const requirementsViewLink = document.getElementById('requirements-view-link');
+  if (data.prover_replay) replayView.append(createReplayProgress({data, byId, el}));
+  const renderTechTree = createTechTree({nodes, byId, children, navNames, el, names,
+    countBadges, premiseLink: assurance.premiseLink, sourceUrl: assurance.sourceUrl,
+    renderRecord: render, scopeControls: document.getElementById('scope-controls')});
   const techViewLink = document.getElementById('tech-view-link');
   const mapViewLink = document.getElementById('proof-map-view-link');
+  const protocolViewLink = document.getElementById('protocol-view-link');
+  const protocolView = document.getElementById('protocol-flow');
+  const protocolFlow = createProtocolFlow({flow: flowData,
+    byId, el, names, replay: data.prover_replay, sourceUrl: assurance.sourceUrl, premiseLink: assurance.premiseLink});
   const structureView = document.getElementById('proof-structure');
   const structureMap = createProofStructureMap({
     diagram: JSON.parse(document.getElementById('proof-map-data').textContent),
@@ -211,15 +203,17 @@
     const tech = id === 'tech';
     document.body.classList.toggle('tech-mode', tech);
     document.body.classList.toggle('map-mode', id === 'map');
+    document.body.classList.toggle('flow-mode', id === 'flow');
+    replayView.hidden = !data.prover_replay || !['tech', 'flow'].includes(id);
+    protocolView.hidden = id !== 'flow';
+    if (id !== 'flow') protocolFlow.close();
     structureView.hidden = id !== 'map';
     if (id !== 'map') structureMap.destroy();
     techTree.hidden = !tech;
-    for (const [view, link] of [['requirements', requirementsViewLink], ['tech', techViewLink], ['map', mapViewLink]]) {
+    for (const [view, link] of [['tech', techViewLink], ['map', mapViewLink], ['flow', protocolViewLink]]) {
       if (id === view) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
-    tree.hidden = id !== 'requirements';
-    document.getElementById('scope-controls').hidden = id !== 'requirements';
     for (const [name, view] of Object.entries(assurance.views)) view.hidden = name !== id;
     for (const link of document.querySelectorAll('.review-nav a')) {
       if (link.hash === '#view-' + id) link.setAttribute('aria-current', 'page');
@@ -227,41 +221,14 @@
     }
   }
   function applyScope() {
-    const group = select.value;
-    for (const item of list.querySelectorAll('li[data-record]')) {
+    for (const item of techTree.querySelectorAll('li[data-record]')) {
       const node = byId.get(item.dataset.record);
       const matches = scope.value === 'all' || (node.kind === 'leaf' ? node.scope.includes(scope.value) : descendants(node.id).some(n => n.scope.includes(scope.value)));
-      item.hidden = !matches || (item.dataset.root && group !== 'all' && node.id !== group);
+      item.hidden = !matches;
     }
-  }
-  function showGroup(id) {
-    selectView('requirements');
-    const node = byId.get(id);
-    const all = id === 'all' || !groups.includes(node);
-    const selected = all ? 'all' : id;
-    tree.classList.toggle('single-group', !all);
-    for (const item of list.children) {
-      item.hidden = !all && item.dataset.root !== id;
-      if (!all && item.dataset.root === id) item.querySelector('details').open = true;
-    }
-    for (const link of navigation.children) {
-      if (link.dataset.group === selected) link.setAttribute('aria-current', 'page');
-      else link.removeAttribute('aria-current');
-    }
-    select.value = selected;
-    applyScope();
-    requirementsViewLink.href = '#group-' + selected;
-    const title = all ? 'Requirements map' : node.label;
-    document.getElementById('view-title').textContent = title;
-    document.getElementById('view-progress').replaceChildren(...(!all && node.origin === 'out_of_scope' ? [] : [countBadges(all ? 'root' : id)]));
-    document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / ' + (all ? 'All groups' : navNames[id]);
-    document.getElementById('view-summary').textContent = all ? included + ' indexed requirements · ' + excluded + ' scope exclusions. Expand a group to inspect its primitives and proof connections.' : stats(node);
-    document.getElementById('view-announcement').textContent = title;
-    document.title = title + ' — Nightstream';
   }
   function showAssurance(id) {
     selectView(id);
-    for (const link of navigation.children) link.removeAttribute('aria-current');
     document.getElementById('view-title').textContent = viewNames[id];
     document.getElementById('view-progress').replaceChildren();
     document.getElementById('view-summary').textContent = '';
@@ -270,15 +237,19 @@
     document.title = viewNames[id] + ' — Nightstream';
   }
   function navigate() {
-    const fragment = decodeURIComponent(location.hash.slice(1));
-    const proofParts = fragment.startsWith('proof-') ? fragment.slice(6).split(':') : [];
-    const proofScope = byId.get(proofParts[0]);
-    const proofItem = byId.get(proofParts[1] || proofParts[0]);
-    const isProof = proofScope?.kind === 'group' && proofItem && proofParts.length <= 2;
-    if (fragment === 'proof-map' || fragment.startsWith('proof-map:')) {
+    const fragment = decodeURIComponent(location.hash.slice(1)) || 'protocol-flow';
+    if (fragment === 'protocol-flow' || fragment.startsWith('protocol-flow:')) {
+      selectView('flow');
+      protocolFlow.render(protocolView, fragment.split(':')[1]);
+      document.getElementById('view-title').textContent = flowData.title;
+      document.getElementById('view-progress').replaceChildren();
+      document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Protocol flow';
+      document.getElementById('view-summary').textContent = flowData.description;
+      document.getElementById('view-announcement').textContent = 'Protocol flow';
+      document.title = 'Protocol flow — Nightstream';
+    } else if (fragment === 'proof-map' || fragment.startsWith('proof-map:')) {
       selectView('map');
       structureMap.render(structureView, fragment.split(':')[1]);
-      for (const link of navigation.children) link.removeAttribute('aria-current');
       document.getElementById('view-title').textContent = 'Nightstream proof map';
       document.getElementById('view-progress').replaceChildren();
       document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Proof map';
@@ -286,24 +257,6 @@
       document.getElementById('view-announcement').textContent = 'Nightstream proof map';
       document.title = 'Proof structure — Nightstream';
       window.scrollTo({top: 0});
-    } else if (isProof || fragment === 'tech-tree' || (fragment.startsWith('tech-') && byId.has(fragment.slice(5)))) {
-      const id = isProof ? proofItem.id : fragment === 'tech-tree' ? 'root' : fragment.slice(5);
-      const node = isProof ? proofScope : byId.get(id);
-      selectView('tech');
-      renderTechTree(techTree, id, isProof ? proofScope.id : null);
-      select.value = 'tech-tree';
-      for (const link of navigation.children) link.removeAttribute('aria-current');
-      document.getElementById('view-title').textContent = 'Tech tree';
-      document.getElementById('view-progress').replaceChildren();
-      document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Dependencies';
-      document.getElementById('view-summary').textContent = 'The end goal is at the top. The groups needed to reach it are below, down to the shared primitives. Select a group to see all its smaller parts.';
-      document.getElementById('view-announcement').textContent = 'Tech tree: ' + node.label;
-      const heading = document.getElementById(isProof ? 'tech-detail-title' : 'view-title');
-      heading.tabIndex = -1;
-      heading.focus({preventScroll: true});
-      document.title = 'Tech tree: ' + node.label + ' — Nightstream';
-      if (isProof) requestAnimationFrame(() => heading.scrollIntoView({block: 'start'}));
-      else window.scrollTo({top: 0});
     } else if (fragment.startsWith('view-') && assurance.views[fragment.slice(5)]) {
       showAssurance(fragment.slice(5));
       window.scrollTo({top: 0});
@@ -313,27 +266,37 @@
       target.open = true;
       target.querySelector('summary').focus({preventScroll: true});
       target.scrollIntoView({block: 'start'});
-    } else if (fragment.startsWith('req-') && byId.has(fragment.slice(4))) {
-      scope.value = 'all';
-      const id = fragment.slice(4);
-      let owner = byId.get(id);
-      while (owner.parent && owner.parent !== 'root') owner = byId.get(owner.parent);
-      showGroup(owner.id);
-      const target = document.getElementById('req-' + id);
-      if (!target) return;
-      let current = target;
-      while (current && current !== tree) {
-        if (current.tagName === 'DETAILS') current.open = true;
-        current = current.parentElement;
-      }
-      target.querySelector('.req-anchor').focus({preventScroll: true});
-      target.scrollIntoView({block: 'start'});
     } else {
-      showGroup(fragment.startsWith('group-') ? fragment.slice(6) : 'all');
-      if (fragment.startsWith('group-')) window.scrollTo({top: 0});
+      const {id, proofScopeId, recordId} = techTreeRoute(fragment, byId);
+      const node = byId.get(proofScopeId || id);
+      selectView('tech');
+      renderTechTree(techTree, id, proofScopeId);
+      if (recordId) scope.value = 'all';
+      applyScope();
+      document.getElementById('view-title').textContent = 'Tech tree';
+      document.getElementById('view-progress').replaceChildren();
+      document.getElementById('breadcrumb').textContent = 'Selected Stage 1 / Tech tree';
+      document.getElementById('view-summary').textContent = 'The goal is at the top, with its supporting groups below. Select a group for its proof connections, requirements and evidence.';
+      document.getElementById('view-announcement').textContent = 'Tech tree: ' + node.label;
+      document.title = 'Tech tree: ' + node.label + ' — Nightstream';
+      if (recordId) {
+        const target = document.getElementById('req-' + recordId);
+        let current = target;
+        while (current && current !== techTree) {
+          if (current.tagName === 'DETAILS') current.open = true;
+          current = current.parentElement;
+        }
+        target.querySelector('.req-anchor').focus({preventScroll: true});
+        requestAnimationFrame(() => target.scrollIntoView({block: 'start'}));
+      } else {
+        const heading = document.getElementById(id === 'root' ? 'view-title' : 'tech-detail-title');
+        heading.tabIndex = -1;
+        heading.focus({preventScroll: true});
+        if (id === 'root') window.scrollTo({top: 0});
+        else requestAnimationFrame(() => heading.scrollIntoView({block: 'start'}));
+      }
     }
   }
-  select.addEventListener('change', () => { location.hash = select.value === 'tech-tree' ? 'tech-tree' : 'group-' + select.value; });
   scope.addEventListener('change', applyScope);
   window.addEventListener('hashchange', navigate);
   document.addEventListener('click', event => {

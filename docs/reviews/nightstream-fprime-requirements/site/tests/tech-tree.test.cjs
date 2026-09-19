@@ -1,8 +1,27 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {readFileSync} = require('node:fs');
-const {techAssembly} = require('../tech-tree.js');
+const {techAssembly, techTreeRoute} = require('../tech-tree.js');
 const {nodes} = JSON.parse(readFileSync(new URL('../requirements.json', 'file://' + __filename), 'utf8'));
+
+test('explicit tree and saved group links use the tech tree, including scope exclusions', () => {
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  for (const fragment of ['group-all', 'tech-tree']) {
+    assert.deepEqual(techTreeRoute(fragment, byId), {id: 'root'});
+  }
+  for (const group of nodes.filter(node => node.parent === 'root')) {
+    assert.deepEqual(techTreeRoute('group-' + group.id, byId), {id: group.id});
+  }
+  for (const node of nodes) {
+    const route = techTreeRoute('req-' + node.id, byId);
+    assert.equal(route.recordId, node.id);
+    let owner = node;
+    while (owner.parent && owner.parent !== 'root') owner = byId.get(owner.parent);
+    assert.equal(route.proofScopeId, owner.id);
+  }
+  assert.deepEqual(techTreeRoute('proof-C:C.security.probability', byId),
+    {id: 'C.security.probability', proofScopeId: 'C'});
+});
 
 test('the full picture contains every Stage 1 group exactly once', () => {
   const expected = nodes.filter(node => node.id === 'root' ||

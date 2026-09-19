@@ -23,6 +23,9 @@ def resolve_map(source, data):
 
     for node in result['nodes']:
         record = records[node['record']]
+        for key in node.get('related_records', []):
+            if key not in records:
+                raise ValueError('Unknown related proof-map requirement: ' + key)
         if node['kind'] not in ['theorem', 'premise', 'assumption', 'definition', 'open']:
             raise ValueError('Unknown proof-map kind: ' + node['kind'])
         if node.get('assumption') and node['assumption'] not in assumptions:
@@ -51,7 +54,7 @@ def export_map(diagram, data):
             'A curated route through the checked snapshot. Nodes describe local theorems, statement premises, external assumptions and open obligations. This is not a complete extracted Lean dependency graph and adds no completion credit.', '',
             'Code snapshot: `' + data['provenance']['code_commit'] + '`.', '',
             'Read the main map upward, from verifier acceptance to the security goal. The overview shows the main connections. Select a node for all its direct connections, or turn on All connections. Premises and prover construction have separate columns.', '',
-            'Solid arrows use a result under its stated premises. Dashed green arrows supply a premise. Dotted arrows require a premise or assumption. Dashed orange arrows are open connections. Inputs can be joint; one input alone need not imply the result.', '',
+            'Blue nodes are required conditions; orange nodes are open work. Solid arrows use a result under its stated premises. Dashed green arrows supply a premise. Dotted arrows require a premise or assumption. Dashed orange arrows are open connections. Inputs can be joint; one input alone need not imply the result.', '',
             '## Groups', '']
     for layer in diagram['layers']:
         text += ['- **' + layer['title'] + '**: ' + '; '.join(
@@ -67,12 +70,20 @@ def export_map(diagram, data):
                  '- Meaning: ' + node['role']]
         if node.get('assumption'):
             text += ['- Assumption: [' + node['assumption'] + '](assumptions.md#assumption-' + node['assumption'] + ').']
+        for key in node.get('related_records', []):
+            text += ['- Related requirement: [' + key + '](' + origin + '#req-' + key + ').']
         for ref in node['code']:
             text += ['- Lean: [`' + ref['symbol'] + '`](' + code_origin + ref['path'] + '#L' + str(ref['line']) + ').']
         text += ['']
     text += ['## Connections', '', '| From | To | Connection | Evidence and scope |', '| --- | --- | --- | --- |']
     for edge in diagram['edges']:
         refs = ['[`' + r['symbol'] + '`](' + code_origin + r['path'] + '#L' + str(r['line']) + ')' for r in edge['code']]
+        source = nodes[edge['source']]
+        if edge['kind'] in ['requires', 'open']:
+            if source.get('assumption'):
+                refs.append('[Condition](assumptions.md#assumption-' + source['assumption'] + ')')
+            refs += ['[' + key + '](' + origin + '#req-' + key + ')' for key in
+                     [source['record'], *source.get('related_records', [])]]
         note = ('; '.join(refs) + '. ' if refs else '') + edge['note']
         text += ['| ' + ' | '.join([' '.join(nodes[edge['source']]['label']), ' '.join(nodes[edge['target']]['label']), edge['kind'], note.replace('|', '\\|')]) + ' |']
     return '\n'.join(text) + '\n'

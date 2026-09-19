@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 from markdown_export import export_markdown
 from proof_map import resolve_map, export_map
+from protocol_flow import resolve_flow, export_flow
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,8 @@ class MarkdownExportTests(unittest.TestCase):
         cls.references = json.loads((ROOT / 'dist/reference-report.json').read_text())
         cls.files = export_markdown(cls.data, (ROOT / 'reading-guide.md').read_text(), cls.publication, cls.references)
         cls.files['proof-map.md'] = export_map(resolve_map(json.loads((ROOT / 'proof-map.json').read_text()), cls.data), cls.data)
+        cls.flow = resolve_flow(json.loads((ROOT / 'protocol-flow.json').read_text()), cls.data)
+        cls.files['protocol-flow.md'] = export_flow(cls.flow, cls.data)
         cls.records = {}
         for content in cls.files.values():
             for node_id, record in re.findall(r'^## <a id="req-([^"]+)"></a>(.*?)(?=^## |\Z)',
@@ -98,7 +101,14 @@ class MarkdownExportTests(unittest.TestCase):
                     owner = by_id[owner['parent']]
                 anchor = 'proof-' + owner['id'] + ':' + node_id
             self.assertIn('nightstream-requirements.nicarq.chatgpt.site/#' + anchor + ')', self.records[node_id])
-        self.assertIn('Proof graph: 39 requirements, 47 internal connections, 19 outside inputs, and 12 outside consumers.', self.files['markdown/C.md'])
+        self.assertIn('Proof graph: 43 requirements, 60 internal connections, 19 outside inputs,', self.files['markdown/C.md'])
+        self.assertIn('Independent prover replay', self.files['requirements.md'])
+        self.assertIn('Execution checks passed | Formal proof result', self.files['requirements.md'])
+        self.assertIn('[PiCCS](markdown/C.md#req-C.replay) | 3/3 | [Polynomial proof: Complete](markdown/C.md#req-C.replay.polynomial_spec)', self.files['requirements.md'])
+        self.assertIn('Python/shell assembly and runtime orchestration are outside a single complete Lean proof.', self.files['requirements.md'])
+        self.assertIn('external acceptance remains pending by owner choice', self.files['requirements.md'])
+        for key in ['C.replay.rounds', 'C.replay.evaluations', 'C.replay.transcript']:
+            self.assertIn('id="req-' + key + '"', self.files['markdown/C.md'])
         self.assertIn('(graphs/C.md)', self.files['markdown/C.md'])
         self.assertIn('(markdown/graphs/C.md)', self.files['requirements.md'])
 
@@ -138,8 +148,11 @@ class MarkdownExportTests(unittest.TestCase):
         self.assertEqual(json.loads(embedded), self.data)
         self.assertEqual(json.loads((ROOT / 'dist/requirements.json').read_text()), self.data)
         with ZipFile(ROOT / 'dist/requirements-markdown.zip') as archive:
-            self.assertEqual(set(archive.namelist()), set(self.files) | {'requirements.json', 'publication.json', 'reference-report.json'})
+            self.assertEqual(set(archive.namelist()), set(self.files) | {'requirements.json', 'publication.json', 'reference-report.json', 'protocol-flow.json'})
             self.assertEqual(json.loads(archive.read('requirements.json')), self.data)
+            self.assertEqual(json.loads(archive.read('protocol-flow.json')), self.flow)
+            embedded_flow = re.search(r'id="protocol-flow-data">(.*?)</script>', page, re.S)[1]
+            self.assertEqual(json.loads(embedded_flow), self.flow)
             for name, expected in [('publication', self.publication), ('reference-report', self.references)]:
                 self.assertEqual(json.loads(archive.read(name + '.json')), expected)
                 element = 'publication-data' if name == 'publication' else 'reference-data'

@@ -14,10 +14,15 @@ mod affine;
 mod phi81;
 mod poseidon;
 mod poseidon_input;
+mod template;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/matrix_program.rs"]
 mod matrix_program_tests;
+
+#[cfg(test)]
+#[path = "../../../tests/unit/shared_formula_rows.rs"]
+mod shared_formula_rows_tests;
 
 use affine::{AffineProgram, Coordinate};
 
@@ -295,7 +300,7 @@ impl RetainedBlock {
                 checked_add(slot_base, selected, "retained external slot")?,
             )?);
         }
-        Ok(external_layer(&state)?[lane].clone())
+        Ok(external_layer(&state, logical_width)?[lane].clone())
     }
 }
 
@@ -1065,40 +1070,11 @@ impl MatrixProgram {
     }
 }
 
-pub(super) fn external_layer(state: &[Form]) -> Result<Vec<Form>, PackageError> {
+pub(super) fn external_layer(state: &[Form], logical_width: usize) -> Result<Vec<Form>, PackageError> {
     if state.len() != 8 {
         return Err(PackageError::Invalid("matrix Poseidon2 state"));
     }
-    let mut blocks = Vec::with_capacity(8);
-    for base in [0usize, 4] {
-        for lane in 0..4 {
-            let coefficients = match lane {
-                0 => [2, 3, 1, 1],
-                1 => [1, 2, 3, 1],
-                2 => [1, 1, 2, 3],
-                _ => [3, 1, 1, 2],
-            };
-            let mut form = Form::default();
-            for (offset, coefficient) in coefficients.into_iter().enumerate() {
-                form = form.append(
-                    state[base + offset]
-                        .clone()
-                        .scaled(Goldilocks::from_u64(coefficient)),
-                );
-            }
-            blocks.push(form);
-        }
-    }
-    let mut output = Vec::with_capacity(8);
-    for lane in 0..8 {
-        output.push(
-            blocks[lane]
-                .clone()
-                .append(blocks[lane % 4].clone())
-                .append(blocks[lane % 4 + 4].clone()),
-        );
-    }
-    Ok(output)
+    template::outputs("poseidon2-external-v1", state, logical_width)
 }
 
 pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), PackageError> {

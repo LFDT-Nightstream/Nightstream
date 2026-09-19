@@ -1,0 +1,27 @@
+[package]
+name = "nightstream"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+include = ["/src/**", "/tests/**", "/artifacts/**", "/README.md", "/VALIDATION.md"]
+
+[lints]
+workspace = true
+
+[dependencies]
+nightstream-fprime = { path = "../nightstream-fprime" }
+neo-math = { path = "../neo-math" }
+neo-params = { path = "../neo-params" }
+neo-ccs = { path = "../neo-ccs" }
+neo-ajtai = { path = "../neo-ajtai" }
+neo-transcript = { path = "../neo-transcript" }
+neo-reductions = { path = "../neo-reductions" }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+neo-fold-clean = { path = "../neo-fold-clean" }

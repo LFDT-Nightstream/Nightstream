@@ -1,7 +1,9 @@
 # Nightstream crate goal
 
-Status: implementation goal. This document records the agreed direction; it
-does not record completed implementation or validation.
+Status: implementation in progress on `nico/nightstream-crate`. The contract
+below is unchanged. Current checks and measured costs are recorded in
+[the crate validation record](crates/nightstream/VALIDATION.md). The fresh
+two-fold execution check is still open; this goal is not complete.
 
 ## Lemmas
 

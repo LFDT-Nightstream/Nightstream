@@ -6,6 +6,14 @@ Owns the circuit DSL: expressions over offset-indexed variables, the three
 operations (`witness`, `assertZero`, `subcircuit`), the offset-state circuit
 monad, evaluation under an environment, and the meaning of "all constraints
 hold". No column numbers, no rows, no artifact data: those belong to `Layout/`.
+
+Design credit: the operation list, the opaque proof-carrying subcircuit, the
+`FormalCircuit` record (`main`, `assumptions`, `spec`, `soundness`,
+`completeness`), `asSubcircuit`, and `Circuit.call` follow the shape of Clean
+(https://github.com/Verified-zkEVM/clean, Copyright (c) 2024-2025 zkSecurity,
+LLC, MIT License). This file is a fresh implementation, not a copy: one circuit
+record, no typed input/output classes, no lookups, exportable witness recipes
+with certified row counts, and `AgreesOutside` completeness.
 -/
 
 namespace NightstreamFPrime.Circuit

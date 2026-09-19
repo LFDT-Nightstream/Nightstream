@@ -11,6 +11,14 @@ The authority path is the Lean relation, logical circuit, physical layout,
 emitted package, and Rust consumer. See the [architecture contract](../../FPRIME_LEAN_ARCHITECTURE_SPEC.md)
 and [Stage 1 goal](../../FPRIME_STAGE1_GOAL.md).
 
+## Credits
+
+The `Circuit/` DSL (operations, opaque subcircuits, the `FormalCircuit`
+record) and the exported witness IR follow the design of
+[Clean](https://github.com/Verified-zkEVM/clean) by zkSecurity (MIT License).
+The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
+`Circuit/StraightLine.lean` state the exact boundary.
+
 ## Proof scope
 
 Prove the soundness and completeness of the concrete checks, exact transcript

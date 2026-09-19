@@ -4,6 +4,8 @@ This crate is Nightstream's work-in-progress terminal Spartan backend. It accept
 
 Nightstream calls this crate from the terminal R1CS path in `neo-fold-clean`. The crate does not synthesize circuits and does not implement the recursive folding protocol.
 
+This crate is a fork of [Spartan2](https://github.com/microsoft/Spartan2) by Microsoft (MIT License). The Microsoft copyright notice stays in `LICENSE`.
+
 ## Implemented scope
 
 - Direct `SplitR1CSShape` setup, proving, and verification

@@ -4,6 +4,10 @@ import NightstreamFPrime.Circuit.Basic
 Owns execution and correctness of the canonical straight-line witness IR.
 Recipes may read external variables and earlier recipe results only. The
 interpreter is not circuit semantics: emitted rows check every computed value.
+
+Design credit: witness generation as exported data, interpreted outside Lean,
+follows the witness IR of Clean (https://github.com/Verified-zkEVM/clean, MIT
+License). The recipe language, causality relation, and proofs are written fresh.
 -/
 
 namespace NightstreamFPrime.Circuit

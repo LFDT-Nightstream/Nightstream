@@ -5,6 +5,11 @@ Work branch: `nico/nightstream-crate`, based on
 The unchanged `neo-fold-clean` source is the migration reference. Its only
 dependency edge from this crate is for development comparisons.
 
+The selected implementation goal is complete. The
+[fresh replay receipt](tests/evidence/fresh-recursive-replay.json) records all
+29 successful phases, both complete output comparisons, and the failed
+successor attempt that led to the batch commitment change.
+
 The selected Nightstream Goldilocks profile remains `b = 2`, `k_rho = 16`,
 `B = 65536`, one fresh claim and sixteen carried claims. The golden assembly
 preserves the selected package, key and transcript identities.
@@ -34,12 +39,15 @@ compilation unless stated otherwise.
 | Second Rust application first step and terminal check | Passed | 165.96 s |
 | Unchanged old lifecycle, same Poseidon2 inputs | Passed | 145.42 s |
 | Complete base assignment and commitment against the reference, then terminal verification | Passed | 217.02 s |
-| Ordinary `cargo test -p nightstream --release`, with Lean/Lake absent | 20 passed, 5 large checks ignored and reported separately | 41.89 s unit tests; 57.76 s assembly tests |
+| Batch and existing fixed-key commitment checks | 7 passed; scalar parity, independent ring products and rejection checks | 0.05 s, excluding compilation |
+| Fresh two-fold replay and terminal acceptance/rejection | 29 staged invocations passed; both complete output comparisons passed | 74.32 min summed successful phase time |
+| Final ordinary `cargo test -p nightstream --release`, with Lean/Lake absent from `PATH` | 20 passed, 6 large checks ignored; separate runs reported here | 41.63 s unit tests; 57.11 s assembly tests |
 
 The public Poseidon2 run took 38.06 s to prepare, 50.75 s to prove the first
 step, and 77.07 s to verify it. A first step constructs the base case; it does
 not execute an active C/R/D fold. Full recursive execution is recorded
 separately and must not be inferred from that result.
+These single-step comparisons preceded the batch commitment change.
 
 The old lifecycle took 19.00 s to prepare, 48.99 s to prove the first step,
 and 77.39 s to verify it. Both use the shared native kernels and current shared
@@ -53,6 +61,7 @@ and 78.59 s for terminal verification. `/usr/bin/time -l` recorded
 including its child processes. This is not a same-application memory comparison.
 
 The production library also built with Lean and Lake absent from `PATH`.
+The final production build at Rust source `096c94f0` passed in 7.36 s.
 The full public Poseidon2 check passed in that environment in 166.30 s:
 38.71 s preparation, 50.00 s proving, 77.39 s terminal verification.
 Its test invocation reached 31,988,760,576 bytes of maximum resident memory;
@@ -77,6 +86,7 @@ use saved artifacts and do not run Lean. From the repository root:
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib matrix_program
 timeout --signal=KILL 300 cargo test -p neo-ajtai --release --test nightstream_fprime_prefix_commitment --test nightstream_fprime_matrix_commitment
+timeout --signal=KILL 300 cargo test -p neo-ajtai --release --test nightstream_fprime_batch_commitment
 timeout --signal=KILL 300 cargo test -p nightstream --release --test component_forms --test application_builder --test application_poseidon2
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib assembly::encoding_tests
 timeout --signal=KILL 300 cargo test -p nightstream --release --test assembly_circuits
@@ -88,25 +98,58 @@ timeout --signal=KILL 300 cargo test -p nightstream --release --test lifecycle_b
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::base::base_extension_matches_full_lean_assignment_and_terminal -- --exact --ignored --nocapture
 ```
 
-The single-process recursive test is compiled but not yet executed:
+## Fresh recursive replay
+
+The run at `/tmp/nightstream-crate-fresh-55312916` passed all 29 phases. Source
+`55312916` generated the base and first C/R/D results. Its first successor
+attempt reached the 300-second cap and failed that invocation. Source
+`096c94f0` adds batch key expansion with the same scalar commitment results.
+The retry passed in 160.66 s, using the same newly generated fold outputs.
+No old reference output was used as a producer input. The generated successor
+then drove the second fold.
+
+Both full output comparisons passed. The first covers 542,178,206 reference
+bytes; the second covers 688,725,539. Each compares all sixteen complete child
+matrices, the complete fresh witness and claim, and every semantic envelope
+field. Both canonical proofs match their references exactly. The later proof
+has 945,983 bytes; its outgoing transcript, cursor and applicable independent
+Lean result fields also match. The comparison helper rejected a control case
+with one changed witness coefficient.
+
+| Second-fold check | Result | Phase time |
+| --- | --- | --- |
+| Source commitments | Passed | 156.15 s |
+| PiCCS | Passed, all 28 rounds | 149.37 s |
+| PiRLC | Passed | 52.63 s |
+| Signed split and commitments | Passed | 121.91 s |
+| Seven nonzero child openings | All passed; nine zero children also checked | 117.00–175.08 s each |
+| Complete C/R/D proof | Passed | 118.55 s |
+| Successor construction | Passed | 161.10 s |
+| Terminal acceptance and wrong-state rejection | Passed | 240.25 s |
+| Rehashed and recommitted false opening | Rejected for the required `Eval_K` error | 238.63 s |
+
+The successful phase times sum to 74.32 minutes. They include repeated input
+loading, circuit preparation and checks. They exclude builds, the failed
+attempt, comparisons and gaps between commands. This is not an uninterrupted
+production proving benchmark. The largest recorded phase used
+43,514,134,528 bytes of maximum resident memory, during the second PiCCS check.
+Every successful phase finished below the 300-second cap with a clean source
+tree. The receipt retains both source revisions and the failed attempt.
+
+The staged run uses the production C/R helpers, native split, commitment and
+opening kernels, NIFS verifier, successor construction and terminal verifier.
+One uninterrupted call to the public active `extend` method remains unexecuted.
+The corresponding single-process test is compiled and ignored by default:
 `lifecycle::tests::recursive::fresh_recursive_producer_matches_golden_and_folds_successor`.
-It constructs a new base, generates C/R/D, compares every first-fold proof byte,
-transcript state and successor caller word, consumes that successor in a second
-fold, and checks terminal acceptance and a rehashed false opening. Existing
-full-producer evidence exceeds the five-minute cap. Its specific longer
-invocation requires owner approval. It has not been started.
+Its separate longer invocation still needs owner approval under `AGENTS.md`.
+The staged run completes the path required by this goal; it does not establish
+a universal proof of file loading or orchestration.
 
-A staged route can perform the required fresh two-fold replay within the
-per-command cap. It uses the same private C/R helpers, canonical native split,
-commitment and opening kernels, NIFS verifier, successor construction and
-terminal verifier. It does not run one uninterrupted call to the public active
-`extend` method. No prior producer output is substituted into the new run.
-The goal remains open while this complete replay is unverified.
-
-Build the ignored phase test once, then pass the reported test executable to
-the phase driver. Each driver invocation runs exactly one test, records its
-source revision, request, exit status, time and memory, and rejects a filter
-that ran zero tests. The outer timeout also covers the Python driver.
+To reproduce the staged run, build the ignored phase test, then pass the
+reported executable to the phase driver. Each successful invocation records
+its source revision, request, exit status, time and memory. The driver rejects
+a filter that ran zero tests. The outer timeout also covers the Python driver;
+if it stops the driver before a receipt is written, retain that failure log.
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::staged::run_phase --no-run
@@ -123,10 +166,35 @@ opening, so changing saved activity flags cannot remove a check. Sources and
 matrix caches are checked from their authoritative inputs; checkpoint digests
 are not accepted as authority.
 
-The first fold has a saved golden reference. The later fold is new execution
-evidence; this repository does not contain an independently recorded Lean
-reference for all of that later fold's bytes. Passing its terminal checks must
-not be described as later-fold byte equality with Lean.
+The first successor reference is in the tracked
+`docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.zip`.
+Its child-witness manifest and `TERMINAL_REPLAY_INPUTS.json` identify the
+external archive
+`NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip`.
+Extract the first envelope, fresh claim and fresh witness into
+`FIRST_REFERENCE`, and its sixteen digit files into `FIRST_REFERENCE/material`.
+
+`NONZERO_EXECUTION_RELEASE.json` records the later archive
+`STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip`.
+It contains the complete native proof, independent Lean C/R/D result,
+successor caller, fresh assignment and sixteen child matrices. Extract its
+member paths unchanged into `LATER_REFERENCE`. The planned GitHub release was
+unavailable. Both external archives were copied by read-only SSH from the
+owner's recorded evidence directory. Their sizes and checksums match the
+committed manifests. Those checks establish provenance; the comparisons use
+the actual file contents.
+
+```sh
+timeout --signal=KILL 300 python3 crates/nightstream/tests/compare_recursive_outputs.py --directory FRESH_RUN_DIRECTORY --fold 1 --reference FIRST_REFERENCE
+timeout --signal=KILL 300 python3 crates/nightstream/tests/compare_recursive_outputs.py --directory FRESH_RUN_DIRECTORY --fold 2 --reference LATER_REFERENCE
+```
+
+Successful comparisons write `comparison-fold-N.json` with exact byte counts
+and scope. JSON formatting and equivalent Goldilocks representatives may
+differ; canonical proof bytes must match exactly. Complete later assignment,
+claim and output equality is not a direct comparison of every later caller
+input word. The receipt states that limit. The first caller's private and
+public arrays are compared directly inside the first successor phase.
 
 ## Scope
 

@@ -1,0 +1,811 @@
+{
+  "schema": 1,
+  "status": "completed for NIGHTSTREAM_CRATE_GOAL.md",
+  "date": "2026-09-19",
+  "branch": "nico/nightstream-crate",
+  "baseline_commit": "9787d8e77069246e3e2afc7dcfab755556fd5023",
+  "implementation_source_commits": [
+    "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+    "553129166fb42ba85a5760ce404bdccd6cab9aa7"
+  ],
+  "host": {
+    "system": "Apple M5 Max",
+    "cpus": 18,
+    "memory_gib": 128,
+    "rustc": "1.94.1 (e408947bf 2026-03-25)"
+  },
+  "profile": {
+    "field": "Goldilocks",
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "fresh_claims": 1,
+    "carried_claims": 16,
+    "padded_domain": 268435456
+  },
+  "run_directory": "/tmp/nightstream-crate-fresh-55312916",
+  "test_binary": "target/release/deps/nightstream-be007c518e441293",
+  "phase_driver": "crates/nightstream/tests/run_recursive_phase.py",
+  "phase_test": "lifecycle::tests::staged::run_phase",
+  "lineage": "New base and first fold at 55312916. The first successor hit the 300-second cap. Source 096c94f0 adds scalar-equivalent shared key expansion and resumes the same new fold outputs. The generated successor drives the second fold. References enter comparisons only.",
+  "phases": [
+    {
+      "record": "base.json",
+      "request": {
+        "phase": "base"
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 92.209761125,
+      "maximum_resident_bytes": 6598983680,
+      "outcome": "passed"
+    },
+    {
+      "record": "sources-step-1.json",
+      "request": {
+        "phase": "sources",
+        "step": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 83.16222158299999,
+      "maximum_resident_bytes": 6718881792,
+      "outcome": "passed"
+    },
+    {
+      "record": "ccs-step-1.json",
+      "request": {
+        "phase": "ccs",
+        "step": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 117.253968833,
+      "maximum_resident_bytes": 34135736320,
+      "outcome": "passed"
+    },
+    {
+      "record": "rlc-step-1.json",
+      "request": {
+        "phase": "rlc",
+        "step": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 44.165677916,
+      "maximum_resident_bytes": 7437729792,
+      "outcome": "passed"
+    },
+    {
+      "record": "split-step-1.json",
+      "request": {
+        "phase": "split",
+        "step": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 278.064392583,
+      "maximum_resident_bytes": 7990968320,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-0.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 0
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 163.042611208,
+      "maximum_resident_bytes": 31948570624,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-1.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 166.3197355,
+      "maximum_resident_bytes": 32074072064,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-2.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 2
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 163.470479,
+      "maximum_resident_bytes": 32195231744,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-3.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 3
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 160.811826041,
+      "maximum_resident_bytes": 32231145472,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-4.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 4
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 158.0888315,
+      "maximum_resident_bytes": 32153239552,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-1-child-5.json",
+      "request": {
+        "phase": "child",
+        "step": 1,
+        "child": 5
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 119.686933541,
+      "maximum_resident_bytes": 32231063552,
+      "outcome": "passed"
+    },
+    {
+      "record": "nifs-step-1.json",
+      "request": {
+        "phase": "nifs",
+        "step": 1
+      },
+      "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 293.16117033300003,
+      "maximum_resident_bytes": 7833452544,
+      "outcome": "passed"
+    },
+    {
+      "record": "successor-step-1.json",
+      "request": {
+        "phase": "successor",
+        "step": 1
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 160.65540525,
+      "maximum_resident_bytes": 6699679744,
+      "outcome": "passed"
+    },
+    {
+      "record": "sources-step-2.json",
+      "request": {
+        "phase": "sources",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 156.147338625,
+      "maximum_resident_bytes": 6579355648,
+      "outcome": "passed"
+    },
+    {
+      "record": "ccs-step-2.json",
+      "request": {
+        "phase": "ccs",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 149.36673870799999,
+      "maximum_resident_bytes": 43514134528,
+      "outcome": "passed"
+    },
+    {
+      "record": "rlc-step-2.json",
+      "request": {
+        "phase": "rlc",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 52.628674833,
+      "maximum_resident_bytes": 9132670976,
+      "outcome": "passed"
+    },
+    {
+      "record": "split-step-2.json",
+      "request": {
+        "phase": "split",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 121.91161408299999,
+      "maximum_resident_bytes": 8124858368,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-0.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 0
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 175.082365834,
+      "maximum_resident_bytes": 31948832768,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-1.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 1
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 170.047770792,
+      "maximum_resident_bytes": 32387923968,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-2.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 170.744192959,
+      "maximum_resident_bytes": 32030703616,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-3.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 3
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 168.341182375,
+      "maximum_resident_bytes": 32026689536,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-4.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 4
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 165.458485375,
+      "maximum_resident_bytes": 32387530752,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-5.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 5
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 157.761543084,
+      "maximum_resident_bytes": 32202670080,
+      "outcome": "passed"
+    },
+    {
+      "record": "child-step-2-child-6.json",
+      "request": {
+        "phase": "child",
+        "step": 2,
+        "child": 6
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 117.002472542,
+      "maximum_resident_bytes": 32485376000,
+      "outcome": "passed"
+    },
+    {
+      "record": "nifs-step-2.json",
+      "request": {
+        "phase": "nifs",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 118.548936375,
+      "maximum_resident_bytes": 8381595648,
+      "outcome": "passed"
+    },
+    {
+      "record": "successor-step-2.json",
+      "request": {
+        "phase": "successor",
+        "step": 2
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 161.10446845799999,
+      "maximum_resident_bytes": 6046433280,
+      "outcome": "passed"
+    },
+    {
+      "record": "terminal.json",
+      "request": {
+        "phase": "terminal"
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 240.247995292,
+      "maximum_resident_bytes": 32694059008,
+      "outcome": "passed"
+    },
+    {
+      "record": "mutation.json",
+      "request": {
+        "phase": "mutation"
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 95.994046125,
+      "maximum_resident_bytes": 6701187072,
+      "outcome": "passed"
+    },
+    {
+      "record": "reject.json",
+      "request": {
+        "phase": "reject"
+      },
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "working_tree_clean": true,
+      "cap_seconds": 300,
+      "elapsed_seconds": 238.634222916,
+      "maximum_resident_bytes": 32269156352,
+      "outcome": "passed"
+    }
+  ],
+  "earlier_failed_attempt": {
+    "schema": 1,
+    "source_commit": "553129166fb42ba85a5760ce404bdccd6cab9aa7",
+    "request": {
+      "phase": "successor",
+      "directory": "/tmp/nightstream-crate-fresh-55312916",
+      "step": 1
+    },
+    "cap_seconds": 300,
+    "outcome": "timed-out",
+    "outer_exit": 137,
+    "elapsed_seconds": null,
+    "observation": "Outer timeout killed the driver and test at the configured 300-second cap; no driver completion receipt or successor was produced.",
+    "log": "/tmp/nightstream-crate-fresh-55312916/logs/successor-step-1-timeout-55312916.log",
+    "source_changes": []
+  },
+  "timing": {
+    "successful_phase_count": 29,
+    "sum_successful_phase_seconds": 4459.115062788999,
+    "maximum_phase_seconds": 293.16117033300003,
+    "maximum_resident_bytes": 43514134528,
+    "maximum_resident_phase": "ccs-step-2.json",
+    "scope": "Sum of isolated successful phase invocations, with repeated loading, preparation and checks. Excludes builds, the failed attempt, gaps between commands and separate comparison invocations. This is not an uninterrupted production prove/extend benchmark."
+  },
+  "output_comparisons": [
+    {
+      "record": "comparison-fold-1.json",
+      "fold": 1,
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "outcome": "passed",
+      "reference_bytes_compared": 542178206,
+      "files": [
+        {
+          "actual": "fold-1/digit-0.json",
+          "reference_bytes": 90671538,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 0 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-1.json",
+          "reference_bytes": 90422650,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 1 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-2.json",
+          "reference_bytes": 88108411,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 2 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-3.json",
+          "reference_bytes": 84230535,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 3 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-4.json",
+          "reference_bytes": 70277656,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 4 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-5.json",
+          "reference_bytes": 20662166,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 5 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-6.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 6 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-7.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 7 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-8.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 8 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-9.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 9 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-10.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 10 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-11.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 11 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-12.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 12 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-13.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 13 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-14.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 14 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-1/digit-15.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 15 matrix, including the full carrier"
+        },
+        {
+          "actual": "step-2/fresh-witness.json",
+          "reference_bytes": 96258853,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete fresh-witness.json"
+        },
+        {
+          "actual": "step-2/fresh-claim.json",
+          "reference_bytes": 39388,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete fresh-claim.json"
+        },
+        {
+          "actual": "step-2/envelope.json",
+          "reference_bytes": 1506099,
+          "comparison": "complete typed semantic fields; canonical Goldilocks representatives",
+          "scope": [
+            "child_witness_count",
+            "current",
+            "iteration",
+            "running_claims",
+            "running_parent",
+            "schema",
+            "z0"
+          ]
+        }
+      ],
+      "scope": "Complete child and fresh assignments, fresh claim and semantic envelope equality. Fold 2 also checks proof bytes, transcript and applicable Lean result fields. No direct complete caller-word comparison or new proof claim."
+    },
+    {
+      "record": "comparison-fold-2.json",
+      "fold": 2,
+      "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+      "outcome": "passed",
+      "reference_bytes_compared": 688725539,
+      "files": [
+        {
+          "actual": "fold-2/digit-0.json",
+          "reference_bytes": 102021062,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 0 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-1.json",
+          "reference_bytes": 101644886,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 1 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-2.json",
+          "reference_bytes": 99898099,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 2 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-3.json",
+          "reference_bytes": 96154908,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 3 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-4.json",
+          "reference_bytes": 91874096,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 4 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-5.json",
+          "reference_bytes": 68396626,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 5 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-6.json",
+          "reference_bytes": 19882979,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 6 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-7.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 7 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-8.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 8 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-9.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 9 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-10.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 10 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-11.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 11 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-12.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 12 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-13.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 13 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-14.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 14 matrix, including the full carrier"
+        },
+        {
+          "actual": "fold-2/digit-15.json",
+          "reference_bytes": 91,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete child 15 matrix, including the full carrier"
+        },
+        {
+          "actual": "step-3/fresh-witness.json",
+          "reference_bytes": 107246512,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete fresh-witness.json"
+        },
+        {
+          "actual": "step-3/fresh-claim.json",
+          "reference_bytes": 39448,
+          "comparison": "complete bytes, excluding final CR/LF",
+          "scope": "complete fresh-claim.json"
+        },
+        {
+          "actual": "step-3/envelope.json",
+          "reference_bytes": 1566104,
+          "comparison": "complete typed semantic fields; canonical Goldilocks representatives",
+          "scope": [
+            "child_witness_count",
+            "current",
+            "iteration",
+            "running_claims",
+            "running_parent",
+            "schema",
+            "z0"
+          ]
+        }
+      ],
+      "scope": "Complete child and fresh assignments, fresh claim and semantic envelope equality. Fold 2 also checks proof bytes, transcript and applicable Lean result fields. No direct complete caller-word comparison or new proof claim."
+    }
+  ],
+  "proof_bytes": {
+    "1": 945983,
+    "2": 945983
+  },
+  "later_reference_checks": {
+    "proof_bytes_equal": true,
+    "native_to_independent_lean_fields_equal": true,
+    "outgoing_transcript_and_cursor_equal": true,
+    "complete_later_caller_word_equality_checked": false,
+    "scope": "Complete later assignment, claim, public output and state are compared. The later caller private/public input arrays are not directly compared."
+  },
+  "references": [
+    {
+      "record": "docs/reviews/nightstream-fprime-requirements/NATIVE_ENVELOPE_EVIDENCE.zip",
+      "use": "First complete successor"
+    },
+    {
+      "record": "docs/reviews/nightstream-fprime-requirements/TERMINAL_REPLAY_INPUTS.json",
+      "archive": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+      "use": "First sixteen complete child witnesses"
+    },
+    {
+      "record": "docs/reviews/nightstream-fprime-requirements/NONZERO_EXECUTION_RELEASE.json",
+      "archive": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+      "use": "Later full proof, Lean result, children and successor"
+    }
+  ],
+  "terminal": {
+    "package_identity": [
+      9705822157724451396,
+      520958727644325895,
+      9285622073986934000,
+      874020794279380938
+    ],
+    "iteration": 3,
+    "z0": [
+      202,
+      203,
+      204,
+      205
+    ],
+    "current": [
+      6571778207680039711,
+      123649970047308705,
+      16791205033536618392,
+      12263481847644113771
+    ]
+  },
+  "terminal_checks": {
+    "all_sixteen_ce_and_latest_ccs_accepted": true,
+    "wrong_expected_state_rejected": true,
+    "rehashed_recommitted_false_eval_k_rejected": true,
+    "required_error": "Running { index: 0, reason: Eval_K differs from the complete witness opening }"
+  },
+  "ordinary_rust_suite": {
+    "command": "cargo test -p nightstream --release",
+    "source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+    "cap_seconds": 300,
+    "lean_on_path": false,
+    "lake_on_path": false,
+    "passed": 20,
+    "failed": 0,
+    "ignored": 6,
+    "log": "/tmp/nightstream-final-no-lean-suite.log"
+  },
+  "batch_commitment_checks": {
+    "passed": 7,
+    "includes": "Scalar parity, independent scalar key coefficients and ring products, order, representations, malformed dimensions and values",
+    "log": "/tmp/nightstream-batch-commitment-tests-2.log"
+  },
+  "comparison_negative_control": {
+    "outcome": "expected_rejection",
+    "changed": "one positive digit-0 coefficient removed",
+    "exit": 1,
+    "reason": "ValueError: complete child 0 matrix, including the full carrier.packed_signed_unit.bits.ColumnMasks.positive[0]: different values",
+    "pass_receipt_written": false
+  },
+  "limits": [
+    "The single-process public active extend call and the single-process recursive test remain unexecuted.",
+    "This is a staged concrete execution result, not a universal proof of Rust decoding, assembly, arithmetic or orchestration.",
+    "Rust-defined applications do not automatically satisfy the earlier Lean Program/Fits hypotheses.",
+    "No production compression backend or SNARK run is claimed.",
+    "External reference archives were retrieved from the owner evidence host; their planned GitHub release was unavailable."
+  ],
+  "production_build": {
+    "command": "cargo build -p nightstream --release --lib",
+    "rust_source_commit": "096c94f0694106e62cf2f70a9e07266c3a8c348c",
+    "cap_seconds": 300,
+    "lean_on_path": false,
+    "lake_on_path": false,
+    "outcome": "passed",
+    "cargo_reported_seconds": 7.36,
+    "log": "/tmp/nightstream-final-production-build.log"
+  },
+  "final_static_checks": {
+    "production_dependency_graph_excludes_old_crate_and_lean_runtime": true,
+    "cargo_package_list_includes_required_assets_and_replay_tools": true,
+    "old_crate_and_protected_lean_sources_unchanged": true,
+    "lean_changes_are_export_code_checks_and_registration_only": true,
+    "AGENTS_files_unchanged": true,
+    "changed_source_files_within_1500_lines": true
+  }
+}

@@ -202,8 +202,8 @@ fn dump_wasmtime_component_debug_trace() {
     println!("component wasmtime steps: {}", steps.len());
     for step in steps {
         println!(
-            "step={} depth={} func_index={:?} pc={:?} opcode={:?} stack_words={:?}",
-            step.step, step.frame_depth, step.function_index, step.pc, step.opcode_decoded, step.operand_stack_words
+            "step={} func_index={:?} pc={:?} opcode={:?} stack_words={:?}",
+            step.step, step.function_index, step.pc, step.opcode_decoded, step.operand_stack_words
         );
     }
 }

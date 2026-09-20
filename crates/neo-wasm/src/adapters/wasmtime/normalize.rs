@@ -108,9 +108,6 @@ struct NormalizedStep {
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
-    if row.frame_depth != 0 {
-        return Ok(None);
-    }
     let Some(pc) = row.pc else {
         return Ok(None);
     };
@@ -273,7 +270,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
 
 pub(crate) fn capture_frame<T>(
     step: u64,
-    frame_depth: usize,
     frame: &FrameHandle,
     store: &mut StoreContextMut<'_, T>,
     tables: &LoweringTables,
@@ -485,7 +481,6 @@ pub(crate) fn capture_frame<T>(
 
     Ok(WasmtimeTraceStep {
         step,
-        frame_depth,
         function,
         function_index,
         pc,

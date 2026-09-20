@@ -173,11 +173,7 @@ fn committed_split(
     let params = params(package);
     let (digits, flags) = split_b_matrix_k_with_nonzero_flags(witness, params.k_rho() as usize, params.b()).unwrap();
     assert_eq!(digits.len(), 16);
-    let commitments = digits
-        .iter()
-        .map(commit_production_signed_unit_prefix_matrix)
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
+    let commitments = commit_production_signed_unit_prefix_matrices(&digits).unwrap();
     assert_eq!(
         ajtai_dec_mixer(&commitments, params.b()),
         parent.c,

@@ -4,6 +4,8 @@
 //! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
 //! authority framing.
 
+use std::{cmp::Reverse, collections::BinaryHeap};
+
 use neo_ccs::Mat;
 use neo_math::{balanced::to_balanced_i128, ring::D};
 use p3_field::PrimeCharacteristicRing;
@@ -117,6 +119,12 @@ struct SignedBlock {
     negative: u64,
 }
 
+#[derive(Clone)]
+struct SignedSums {
+    positive: [u128; 2 * D - 1],
+    negative: [u128; 2 * D - 1],
+}
+
 fn add_shifted_coefficients(sum: &mut [u128; 2 * D - 1], mut positions: u64, coefficients: &[u64; D]) {
     while positions != 0 {
         let shift = positions.trailing_zeros() as usize;
@@ -135,6 +143,10 @@ fn commit_row(row: u32, blocks: &[SignedBlock], output: &mut [Goldilocks]) {
         add_shifted_coefficients(&mut positive, block.positive, &coefficients);
         add_shifted_coefficients(&mut negative, block.negative, &coefficients);
     }
+    reduce_signed_sums(&positive, &negative, output);
+}
+
+fn reduce_signed_sums(positive: &[u128; 2 * D - 1], negative: &[u128; 2 * D - 1], output: &mut [Goldilocks]) {
     let raw: [Goldilocks; 2 * D - 1] = core::array::from_fn(|degree| {
         let value = (positive[degree] % GOLDILOCKS_MODULUS + GOLDILOCKS_MODULUS
             - negative[degree] % GOLDILOCKS_MODULUS)
@@ -222,6 +234,11 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiR
 /// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
 /// commitment with the full-key commitment after suffix zero-extension.
 pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) -> AjtaiResult<Commitment> {
+    let blocks = signed_unit_prefix_blocks(witness)?;
+    Ok(commit_signed_blocks(&blocks))
+}
+
+fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<SignedBlock>> {
     let columns = witness.cols();
     if witness.rows() != D || columns == 0 || columns > PRODUCTION_MESSAGE_COLUMNS as usize {
         return Err(AjtaiError::InvalidDimensions(format!(
@@ -232,7 +249,7 @@ pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) ->
         )));
     }
     if witness.virtual_constant_value() == Some(&Goldilocks::ZERO) {
-        return Ok(Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+        return Ok(Vec::new());
     }
     let masks = witness.packed_signed_unit_column_masks();
     let mut blocks = Vec::new();
@@ -265,11 +282,113 @@ pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) ->
             });
         }
     }
-    Ok(commit_signed_blocks(&blocks))
+    Ok(blocks)
+}
+
+/// The first invalid witness in an ordered fixed-key commitment batch.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[error("invalid signed-unit witness {witness_index}: {source}")]
+pub struct SignedUnitBatchError {
+    witness_index: usize,
+    #[source]
+    source: AjtaiError,
+}
+
+impl SignedUnitBatchError {
+    pub fn witness_index(&self) -> usize {
+        self.witness_index
+    }
+    pub fn error(&self) -> &AjtaiError {
+        &self.source
+    }
+    pub fn into_error(self) -> AjtaiError {
+        self.source
+    }
+}
+
+/// Commit signed-unit witnesses under prefixes of the same fixed production key.
+///
+/// Every matrix receives the scalar prefix dimension and value checks before any
+/// key expansion. Outputs retain input order; an empty batch has no commitments.
+/// Different valid prefix widths use their original indexed key addresses.
+/// Each nonzero block in the union is expanded once per key row, then shared by
+/// all witnesses that use it. No dense key or extended witness is allocated.
+pub fn commit_production_signed_unit_prefix_matrices(
+    witnesses: &[Mat<Goldilocks>],
+) -> Result<Vec<Commitment>, SignedUnitBatchError> {
+    let blocks = witnesses
+        .iter()
+        .enumerate()
+        .map(|(witness_index, witness)| {
+            signed_unit_prefix_blocks(witness).map_err(|source| SignedUnitBatchError { witness_index, source })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut commitments: Vec<_> = (0..witnesses.len())
+        .map(|_| Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize))
+        .collect();
+    if blocks.iter().all(Vec::is_empty) {
+        return Ok(commitments);
+    }
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_par_iter();
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_iter();
+    let outputs: Vec<_> = rows
+        .map(|row| commit_batch_row(row as u32, &blocks))
+        .collect();
+    for (row, outputs) in outputs.into_iter().enumerate() {
+        for (commitment, output) in commitments.iter_mut().zip(outputs) {
+            commitment.col_mut(row).copy_from_slice(&output);
+        }
+    }
+    Ok(commitments)
+}
+
+fn commit_batch_row(row: u32, blocks: &[Vec<SignedBlock>]) -> Vec<[Goldilocks; D]> {
+    let mut sums = vec![
+        SignedSums {
+            positive: [0; 2 * D - 1],
+            negative: [0; 2 * D - 1]
+        };
+        blocks.len()
+    ];
+    let mut positions = vec![0usize; blocks.len()];
+    let mut next = BinaryHeap::new();
+    for (witness, blocks) in blocks.iter().enumerate() {
+        if let Some(block) = blocks.first() {
+            next.push(Reverse((block.index, witness)));
+        }
+    }
+    while let Some(&Reverse((block_index, _))) = next.peek() {
+        let coefficients = coefficient_block(&PRODUCTION_SEED, row, block_index);
+        while let Some(&Reverse((index, witness))) = next.peek() {
+            if index != block_index {
+                break;
+            }
+            next.pop();
+            let block = &blocks[witness][positions[witness]];
+            add_shifted_coefficients(&mut sums[witness].positive, block.positive, &coefficients);
+            add_shifted_coefficients(&mut sums[witness].negative, block.negative, &coefficients);
+            positions[witness] += 1;
+            if let Some(block) = blocks[witness].get(positions[witness]) {
+                next.push(Reverse((block.index, witness)));
+            }
+        }
+    }
+    sums.into_iter()
+        .map(|sum| {
+            let mut output = [Goldilocks::ZERO; D];
+            reduce_signed_sums(&sum.positive, &sum.negative, &mut output);
+            output
+        })
+        .collect()
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
     let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    if blocks.is_empty() {
+        return commitment;
+    }
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let rows = commitment.data.par_chunks_mut(D);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]

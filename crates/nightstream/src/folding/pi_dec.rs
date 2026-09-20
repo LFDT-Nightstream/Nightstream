@@ -4,7 +4,7 @@ use super::{
     Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
-    commit_production_signed_unit_prefix_matrix, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
+    commit_production_signed_unit_prefix_matrices, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F, K};
@@ -74,10 +74,7 @@ pub(crate) fn prove_with_production_key(
     let (digits, flags) =
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
-    let commitments = digits
-        .iter()
-        .map(commit_production_signed_unit_prefix_matrix)
-        .collect::<Result<Vec<_>, _>>()?;
+    let commitments = commit_production_signed_unit_prefix_matrices(&digits).map_err(|error| error.into_error())?;
     let (children, ok_y, ok_x, ok_c) =
         neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             neo_reductions::api::FoldingMode::Optimized,

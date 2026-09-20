@@ -8,7 +8,12 @@ use crate::folding::{
     CcsWitness, CeClaim, NifsProof, Params, RunningInstance,
 };
 use crate::lifecycle::{extend::prepare_running, PreparedLifecycle, Stage1Envelope, Stage1State};
-use neo_ajtai::{nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix, Commitment};
+use neo_ajtai::{
+    nightstream_fprime_setup::{
+        commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
+    },
+    Commitment,
+};
 use neo_ccs::{Mat, V1_1Evaluations};
 use neo_math::{D, F, K};
 use neo_reductions::common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero};
@@ -298,8 +303,9 @@ fn sources(root: &Path, step: u64) {
         commit_production_signed_unit_prefix_matrix(&source.fresh.witness.Z).unwrap(),
         source.fresh.claim.c
     );
-    for (claim, witness) in source.running.claims.iter().zip(&source.running.witnesses) {
-        assert_eq!(commit_production_signed_unit_prefix_matrix(witness).unwrap(), claim.c);
+    let commitments = commit_production_signed_unit_prefix_matrices(&source.running.witnesses).unwrap();
+    for (claim, commitment) in source.running.claims.iter().zip(commitments) {
+        assert_eq!(commitment, claim.c);
     }
     save(
         &destination.join("sources-checked.json"),

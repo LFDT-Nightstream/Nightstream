@@ -49,5 +49,7 @@ The Cargo package includes the saved test inputs. Tests use package-local data
 and do not run Lean. `neo-fold-clean` is a development dependency for comparison
 with the unchanged implementation; it is not a production dependency.
 
-See [VALIDATION.md](VALIDATION.md) for executed checks, measured costs, and the
-remaining full recursive test. The implementation goal is still open.
+See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
+full reference comparisons, terminal checks, measured costs, and scope limits.
+The selected implementation goal is complete. A single-process active
+`extend` run and a universal Rust refinement proof are not claimed.

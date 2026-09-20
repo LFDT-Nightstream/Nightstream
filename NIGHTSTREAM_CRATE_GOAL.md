@@ -1,9 +1,12 @@
 # Nightstream crate goal
 
-Status: implementation in progress on `nico/nightstream-crate`. The contract
-below is unchanged. Current checks and measured costs are recorded in
-[the crate validation record](crates/nightstream/VALIDATION.md). The fresh
-two-fold execution check is still open; this goal is not complete.
+Status: complete on `nico/nightstream-crate` for the contract below. Structured
+exports, the independent golden circuit, the generic Rust assembler, and the
+new crate's fresh two-fold and terminal checks passed. See
+[the validation record](crates/nightstream/VALIDATION.md) and
+[the execution receipt](crates/nightstream/tests/evidence/fresh-recursive-replay.json).
+This is staged execution evidence. The proof and implementation limits in
+this document still apply; no earlier assurance goal is marked complete.
 
 ## Lemmas
 

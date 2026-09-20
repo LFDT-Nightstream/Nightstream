@@ -13,6 +13,7 @@ use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 use super::paper_ring::PaperRing;
+use super::paper_rows::{Matrices, PaperMatrixRows};
 
 fn read_rho<Ff>(params: &NeoParams, matrix: &Mat<Ff>) -> [Fq; D]
 where
@@ -265,6 +266,65 @@ where
     K: From<Ff>,
     Combine: Fn(&[Cmt], u32) -> Cmt,
 {
+    let matrices = Matrices::new(structure, None).expect("PaperExact PiDEC requires original matrices");
+    dec_children(
+        structure,
+        params,
+        parent,
+        split_witnesses,
+        ell_d,
+        child_commitments,
+        combine,
+        &matrices,
+    )
+}
+
+/// Evaluate PiDEC child openings directly from circuit-owned original rows.
+#[allow(clippy::too_many_arguments)]
+pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
+    structure: &CcsStructure<Ff>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, Ff, K>,
+    split_witnesses: &[Mat<Ff>],
+    ell_d: usize,
+    child_commitments: &[Cmt],
+    combine: Combine,
+    rows: &dyn PaperMatrixRows<Ff>,
+) -> Result<(Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool), crate::PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+    Combine: Fn(&[Cmt], u32) -> Cmt,
+{
+    let matrices = Matrices::new(structure, Some(rows))?;
+    Ok(dec_children(
+        structure,
+        params,
+        parent,
+        split_witnesses,
+        ell_d,
+        child_commitments,
+        combine,
+        &matrices,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dec_children<Ff, Combine>(
+    structure: &CcsStructure<Ff>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, Ff, K>,
+    split_witnesses: &[Mat<Ff>],
+    ell_d: usize,
+    child_commitments: &[Cmt],
+    combine: Combine,
+    matrices: &Matrices<'_, Ff>,
+) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+    Combine: Fn(&[Cmt], u32) -> Cmt,
+{
     validate_claim(structure, parent, ell_d);
     assert_eq!(split_witnesses.len(), params.k_rho as usize);
     assert_eq!(split_witnesses.len(), child_commitments.len());
@@ -283,8 +343,10 @@ where
         let mut eval_k = super::paper_joint::direct_identity_ring_mle(&ring, &assignment, &parent.r).to_vec();
         eval_k.resize(D.next_power_of_two(), K::ZERO);
         let mut eval_a = Vec::with_capacity(matrix_count);
-        for matrix in &structure.matrices {
-            let mut image = super::paper_joint::direct_ring_mle(&ring, matrix, &assignment, &parent.r).to_vec();
+        for matrix in 0..matrix_count {
+            let mut image = matrices
+                .evaluate(&ring, matrix, &assignment, &parent.r)
+                .to_vec();
             image.resize(D.next_power_of_two(), K::ZERO);
             eval_a.push(image);
         }

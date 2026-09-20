@@ -121,6 +121,82 @@ fn expression(value: &Value, values: &BTreeMap<usize, Goldilocks>) -> Goldilocks
     }
 }
 
+fn evaluate_saved_affine(value: &Value, values: &BTreeMap<usize, Goldilocks>) -> Goldilocks {
+    value[1]
+        .as_array()
+        .unwrap()
+        .iter()
+        .fold(field(&value[0]), |sum, term| {
+            sum + field(&term[1]) * values[&index(&term[0])]
+        })
+}
+
+#[test]
+fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
+    let circuit = poseidon2_hash_chain_v1().unwrap();
+    let reference = reference();
+    let columns = column_map(&circuit, &reference);
+    let rows = reference_rows(&reference);
+    assert_eq!(rows.len(), circuit.rows().len());
+    let fixtures: [(&str, &[u8]); 2] = [
+        (
+            "base",
+            include_bytes!("fixtures/lean/nightstream-fprime-stage1-base-step-fixture-v1.json"),
+        ),
+        (
+            "recursive",
+            include_bytes!("fixtures/lean/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json"),
+        ),
+    ];
+    let mut previous_output = None;
+    for (step, (name, bytes)) in fixtures.into_iter().enumerate() {
+        let saved: Value = serde_json::from_slice(bytes).unwrap();
+        assert_eq!(saved[0], 1, "{name} fixture version");
+        let private = saved[2].as_array().unwrap();
+        assert_eq!(index(&private[28]), step, "{name} prior iteration");
+        assert_eq!(private[34], 4, "{name} current-state length");
+        // The saved caller preimage puts the current state at words 35..39.
+        // Its final private words are the application's message.
+        let input = std::array::from_fn(|lane| field(&private[35 + lane]));
+        let message: Vec<_> = private[private.len() - circuit.private_input_count()..]
+            .iter()
+            .map(field)
+            .collect();
+        assert_eq!(saved[4][0].as_array().unwrap().len(), circuit.output_state().len());
+        let output = std::array::from_fn(|lane| field(&saved[4][0][lane]));
+        if let Some(previous) = previous_output {
+            assert_eq!(previous, input, "recursive input must be the computed base output");
+        }
+        let witness = circuit.execute(input, &message).unwrap();
+        assert_eq!(witness.output_state(), output, "{name} stored Lean output");
+
+        let mut values: BTreeMap<_, _> = columns
+            .iter()
+            .copied()
+            .zip(witness.values().iter().copied())
+            .collect();
+        for row in &rows {
+            assert_eq!(
+                evaluate_saved_affine(&row[1], &values) * evaluate_saved_affine(&row[2], &values),
+                evaluate_saved_affine(&row[3], &values),
+                "{name} stored Lean row {}",
+                row[0]
+            );
+        }
+        // Check the exported constraints, independently of circuit.check.
+        let output_column = columns[circuit.output_state()[0].index()];
+        *values.get_mut(&output_column).unwrap() += Goldilocks::ONE;
+        assert!(
+            rows.iter().any(|row| {
+                evaluate_saved_affine(&row[1], &values) * evaluate_saved_affine(&row[2], &values)
+                    != evaluate_saved_affine(&row[3], &values)
+            }),
+            "{name} stored Lean constraints accepted a changed output"
+        );
+        previous_output = Some(witness.output_state());
+    }
+}
+
 #[test]
 fn every_poseidon2_application_row_matches_the_saved_lean_reference() {
     let circuit = poseidon2_hash_chain_v1().unwrap();

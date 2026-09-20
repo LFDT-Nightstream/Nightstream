@@ -10,6 +10,9 @@ The selected implementation goal is complete. The
 29 successful phases, both complete output comparisons, and the failed
 successor attempt that led to the batch commitment change.
 
+That result covers the CPU migration. The later Metal engine validation is
+incomplete; see [the M1 Max results](#engine-validation-on-the-m1-max).
+
 The selected Nightstream Goldilocks profile remains `b = 2`, `k_rho = 16`,
 `B = 65536`, one fresh claim and sixteen carried claims. The golden assembly
 preserves the selected package, key and transcript identities.
@@ -70,6 +73,93 @@ dependency tree excludes `neo-fold-clean` and Lean runtime crates.
 `cargo package --list -p nightstream --allow-dirty` also includes the required
 blueprint, shared manifest and saved fixtures. All repository links resolve
 to tracked files. Registry publication was not attempted.
+
+## Engine validation on the M1 Max
+
+On 2026-09-20, the engine checks ran on an Apple M1 Max with 10 CPUs and
+64 GiB of memory, using Rust 1.94.1 and Apple Metal compiler 32023.921.
+These are different hardware conditions from the migration measurements above.
+The source was the uncommitted engine changes on `a76160b7d`, including the
+Metal fixes described below. No Lean command was needed.
+
+The production check uses the Rust Poseidon2 application, `b = 2`,
+`k_rho = 16`, 6,377,559 constraint rows, 14 matrices, and the selected
+28-round padded domain. The CPU and Metal PiCCS runs read the same newly
+generated base envelope and witnesses. The CPU baseline preceded the fixes;
+those fixes change only Metal code. Saved digests are not the acceptance test:
+the PiCCS phase replays its proof through the CPU verifier and compares the
+complete transcript state and cursor.
+
+| Check | Result | Runtime | Peak resident memory |
+| --- | --- | --- | --- |
+| Generate the production base source | Passed | 175.23 s | 6,761,037,824 bytes |
+| Production CPU PiCCS, including preparation | Passed | 202.89 s | 34,178,367,488 bytes |
+| Production Metal PiCCS, before fixes | Stopped at the cap; no proof | 300 s cap | Not captured |
+| Production Metal PiCCS, after the zero-carry fix | Stopped during application-table construction | 300 s cap | Not captured |
+| Production Metal PiCCS, after both fixes | Reached the first SumCheck round, then stopped | 300 s cap | Not captured |
+| Small CPU/Metal C/R/D parity, including zero carry | Three passed | 145.80 s together | Not measured |
+| Empty-table and zero-carry buffer regression checks | Both passed in separate checks | Not benchmarked | Not measured |
+| Public Metal `prove`, two `extend` calls, and terminal checks | Compiled; not run | — | — |
+
+CPU preparation took 67.89 s, cache construction 38.54 s, and PiCCS proving
+95.82 s. In the last Metal attempt, preparation took 67.61 s, cache
+construction 38.98 s, matrix-plan construction 97.08 s, and application-table
+construction 65.71 s. The first SumCheck round had not completed at the cap.
+Matrix-plan construction had taken 32.55 s in the preceding attempt. The
+small concurrent Metal tests also had long waits; an isolated zero-carry
+check, before the empty-table fix, passed in 1.14 s. These observations do not establish stable
+Metal performance or a speed improvement.
+
+The checks found two invalid buffer reads. The empty-offset shader helper
+read its dummy buffer as a normal row-offset array. The zero-carry path
+allocated one value but reported the full table length to later kernels.
+The fixes return offset zero for an empty table and initialize the zero
+carry with its actual allocated length. The regression checks use poisoned
+dummy offsets and check the advertised buffer bounds. Temporary diagnostic
+printing was removed after recording the failed production attempts.
+
+The [engine receipt](tests/evidence/metal-production-replay.json) records the
+scope and failures. The run files remain at
+`/tmp/nightstream-metal-production-20260920`. The outer timeout stopped the
+phase driver with each failed test, so those failure records were recovered
+from the command result and log; test-process peak memory was not recovered.
+Three review rounds were used, as required by `AGENTS.md`.
+
+Full production Metal parity, successive folds, terminal acceptance and
+rejection, and complete lifecycle timings remain unverified. The new public
+test is `poseidon_metal_recursive_lifecycle` in `tests/circuit_lifecycle.rs`.
+It is ignored by default and must keep the five-minute cap unless the owner
+approves a longer run for that specific invocation. CUDA remains unavailable.
+
+The existing phase driver now accepts `--engine optimized` or `--engine metal`
+for `ccs` and `child`. Use separate CPU and Metal output directories because
+checkpoint files are written once. For example, after generating a base
+source in `RUN_DIRECTORY`:
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --features metal --lib --test circuit_lifecycle --no-run
+timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory RUN_DIRECTORY --phase ccs --step 1 --engine metal
+timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint::tests
+```
+
+## Independent Poseidon2 benchmark
+
+The crate also provides `nightstream-poseidon2-bench`; see the
+[benchmark commands](README.md#poseidon2-benchmark). It builds from normal
+dependencies, without `neo-fold-clean`, and uses the public lifecycle with
+fixed Poseidon2 inputs. It does not call the migration baseline test.
+
+On the M1 Max above, the first `--engine optimized --steps 1` trial recorded
+67.62 s for preparation and 105.36 s for base proving. Its state matched
+native Poseidon2. Terminal verification was still running at the 300-second
+cap, so the run failed that slice and emitted no `benchmark_finished` record.
+The OS timer retained a peak resident size of 20,360,183,808 bytes through
+termination. This is a partial base-step measurement, not a completed
+verification or an active-fold timing. Logs are in
+`/tmp/nightstream-poseidon2-benchmark-20260920/cpu-base.jsonl` and `cpu-base.time`.
+
+The release build with Metal and the argument/error checks passed. The
+benchmark has no default step count and does not run as part of `cargo test`.
 
 ## Reproduction
 

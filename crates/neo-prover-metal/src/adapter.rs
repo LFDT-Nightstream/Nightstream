@@ -112,7 +112,7 @@ impl MetalNifsProver {
             self.ensure_lane_ajtai_plan(lanes, cols)?;
         }
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-        self.ensure_joint_matrix_plan(cache)
+        self.ensure_joint_matrix_plan(cache.superneo_arc())
             .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?;
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         let _ = cache;
@@ -120,8 +120,10 @@ impl MetalNifsProver {
     }
 
     #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    fn ensure_joint_matrix_plan(&mut self, cache: &OptimizedStructureCache) -> Result<(), MetalError> {
-        let superneo = cache.superneo_arc();
+    fn ensure_joint_matrix_plan(
+        &mut self,
+        superneo: Arc<neo_reductions::superneo_eval::SuperneoEvalCache>,
+    ) -> Result<(), MetalError> {
         if self
             .joint_matrix_plan
             .as_ref()
@@ -421,7 +423,7 @@ impl PaperJointOracleBackend for MetalNifsProver {
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, neo_reductions::PiCcsError> {
-        self.ensure_joint_matrix_plan(input.cache)
+        self.ensure_joint_matrix_plan(Arc::clone(&input.cache))
             .map_err(crate::oracle_error)?;
         let plan = self
             .joint_matrix_plan
@@ -437,7 +439,7 @@ impl PaperJointOracleBackend for MetalNifsProver {
         point: &[K],
         assignment_width: usize,
     ) -> Result<Option<Vec<neo_ccs::V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
-        self.ensure_joint_matrix_plan(cache)
+        self.ensure_joint_matrix_plan(cache.superneo_arc())
             .map_err(crate::oracle_error)?;
         let plan = self
             .joint_matrix_plan
@@ -458,7 +460,7 @@ impl FinalWitnessOpeningBackend for MetalNifsProver {
         point: &[K],
         assignment_width: usize,
     ) -> Result<Option<Vec<V1_1WitnessOpenings>>, String> {
-        self.ensure_joint_matrix_plan(cache)
+        self.ensure_joint_matrix_plan(cache.superneo_arc())
             .map_err(|error| error.to_string())?;
         let plan = self
             .joint_matrix_plan

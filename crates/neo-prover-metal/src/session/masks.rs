@@ -49,6 +49,7 @@ impl MetalWitnessMasks {
         })
     }
 
+    #[cfg(feature = "legacy-adapter")]
     pub(super) fn matches(&self, witness_count: usize, blocks: usize) -> bool {
         self.witness_count == witness_count && self.blocks == blocks && self.magnitudes == 1
     }
@@ -67,6 +68,7 @@ impl MetalWitnessMasks {
 }
 
 impl MetalSession {
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn prepare_witness_masks(
         &self,
         words: &[u64],

@@ -27,6 +27,7 @@ def main() -> int:
     parser.add_argument("--phase", required=True)
     parser.add_argument("--step", type=int)
     parser.add_argument("--child", type=int)
+    parser.add_argument("--engine", choices=("optimized", "metal"))
     args = parser.parse_args()
     directory = args.directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
@@ -34,6 +35,10 @@ def main() -> int:
     logs.mkdir(exist_ok=True)
     request = {"phase": args.phase, "directory": str(directory)}
     parts = [args.phase]
+    if args.engine is not None:
+        if args.phase not in ("ccs", "child"):
+            parser.error("--engine selects device evaluation only for ccs and child phases")
+        request["engine"] = args.engine
     for name in ("step", "child"):
         value = getattr(args, name)
         if value is not None:

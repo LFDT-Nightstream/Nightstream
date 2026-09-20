@@ -23,6 +23,115 @@ Keep the prepared `Circuit` for later proving and verification.
 Call `prove` for the first step, `extend` for each later step, and `verify`
 with the state expected by the application.
 
+`prepare` uses the optimized CPU engine. Select an engine explicitly with:
+
+```rust
+use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
+
+let circuit = Circuit::prepare_with_engine(
+    &reference,
+    poseidon2_hash_chain_v1()?,
+    Engine::Optimized,
+)?;
+```
+
+Engine selection applies to active PiCCS, PiRLC, and PiDEC proving. Preparation,
+the exported relation, the fixed commitment key, and terminal verification keep
+the same meaning. The engine is not part of the circuit identity. There is no
+automatic fallback when a selected engine is unavailable.
+
+| Engine | Current status |
+| --- | --- |
+| `Optimized` | Existing optimized CPU path. |
+| `PaperExact` | Direct paper formulas with original exported matrix rows; checked against optimized CPU. |
+| `Metal` | Device PiCCS evaluation and PiDEC openings; checked against optimized CPU. Requires the `metal` feature and an Apple Metal device. |
+| `Cuda` | The `cuda` feature connects the availability boundary. Selection fails explicitly because the canonical CUDA kernel is missing. |
+
+Metal retains its device session and matrix plan across folds. PiRLC, fixed-key
+commitments, witness generation, and verification use the shared host code.
+The GPU dependencies do not add `neo-fold-clean` to the production graph.
+
+Parity checks follow `PaperExact ↔ Optimized`, then
+`Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
+state, returned claims, and witness matrices. The small fixtures include
+nonzero carried data and completion tails. A separate Metal check uses every
+term of the selected production polynomial with nonzero input ports. These are
+small-input conformance checks. Production-profile Metal PiCCS attempts reached
+the five-minute test cap; a complete Metal replay has not passed. See
+[the engine validation results](VALIDATION.md#engine-validation-on-the-m1-max).
+The CUDA comparisons are explicitly ignored until its kernel exists.
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --features metal,cuda --lib engine::parity
+```
+
+The five-minute test cap comes from the repository's `AGENTS.md`. Build the
+test executable separately with `--no-run` when compilation needs its own
+invocation. The `cuda` availability boundary needs no CUDA SDK. The existing
+driver-backed CUDA crate still requires its pinned cuda-oxide build workflow
+when its own `cuda` feature is enabled.
+
+PaperExact is a reference evaluator with exponential work in the joint-domain
+dimension. It is not a practical default for the selected production circuit.
+Its engine name does not change the Nightstream Goldilocks profile or make that
+profile an exact copy of SuperNeo Appendix B.2.
+
+## Stored Lean Poseidon2 checks
+
+The application tests use saved Lean exports and execution results. They compare
+all application rows and witness values, then run the stored base and recursive
+inputs through the Rust circuit. Computed outputs must match the stored Lean
+outputs, and the witnesses must satisfy all 7,700 exported application rows.
+A changed output must fail those constraints. These tests run by default and
+need no Lean installation or artifact generation.
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --test application_poseidon2
+```
+
+## Poseidon2 benchmark
+
+`nightstream-poseidon2-bench` measures one chain through the public `Circuit`
+API. It uses the Rust Poseidon2 application and the selected `b = 2`,
+`k_rho = 16` profile. Each run reports preparation, base proving, every active
+`extend`, and terminal verification as JSON lines. Preparation includes loading
+the packaged reference and building the application. The prepared circuit is
+reused for all steps. Native Poseidon2 supplies the expected state, and a run
+finishes successfully only after terminal verification accepts it.
+
+The binary uses normal dependencies and has no dependency on the old crate.
+Run engines separately with the same step count, then compare their logs
+manually. Inputs are fixed and included in the first record. The step count
+includes the base step: `--steps 1` performs no active fold, while `--steps 3`
+covers the base and two active folds. PaperExact remains a small-input parity
+reference; CUDA selection fails until its kernel is available.
+
+Build before timing:
+
+```sh
+cargo build -p nightstream --release --bin nightstream-poseidon2-bench --features metal
+```
+
+On macOS, run the compiled binary under GNU `timeout` and the OS process timer:
+
+```sh
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench --engine optimized --steps 3 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench --engine metal --steps 3 > metal.jsonl 2> metal.time
+```
+
+`maximum resident set size` in the `.time` file is peak process memory in bytes
+on macOS. It is separate from GPU allocation counters. On Linux, build the CPU
+binary without `--features metal` and use `/usr/bin/time -v`; its peak RSS is
+reported in KiB. Compilation is excluded from these measurements. Each command
+measures one chain; there is no warm-up or automatic speedup threshold.
+
+The 300-second cap comes from `AGENTS.md`. Phase records are flushed as they
+finish. A timeout leaves partial measurements and no `benchmark_finished`
+record; it is not a successful lifecycle result. The full production chain
+can exceed this cap. A longer invocation requires explicit approval for that
+specific run. `--foreground` keeps the timeout process alive to reap the killed
+benchmark, so the process timer can retain its resource usage.
+
 Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
 verifier component and binds the resulting application and circuit identity.

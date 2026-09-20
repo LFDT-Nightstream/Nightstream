@@ -39,6 +39,13 @@ recipe program separately and compares every generated field value. It also
 compares the recorded output and the native Poseidon2 hash. These checks cover
 this concrete application. They are not a proof for all Rust applications.
 
+The base/recursive computation test reads the two saved Lean caller fixtures
+listed below. It runs the Rust application on each recorded current state and
+message, compares all four output words with the stored Lean output, and checks
+the generated witness against every stored A/B/C application row. The computed
+base output must equal the next fixture's input. A changed output must violate
+a stored row. This test performs no recursive proving and runs no Lean command.
+
 The assembly test also compares the complete raw application plan, including
 duplicate sparse terms and witness expression order. A separate test compares
 the complete assembled package value with the selected saved reference.

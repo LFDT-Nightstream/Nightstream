@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf, time::Instant};
 
 use nightstream::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
-    Circuit, State,
+    Circuit, Engine, State,
 };
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
@@ -27,6 +27,17 @@ fn selected_reference() -> Vec<u8> {
 #[test]
 #[ignore = "Full production-profile check; run this test separately under the 300-second cap."]
 fn poseidon_base_step_matches_lean_and_verifies() {
+    poseidon_lifecycle(Engine::Optimized, false);
+}
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production Metal lifecycle; apply the 300-second cap unless the owner approves a longer invocation."]
+fn poseidon_metal_recursive_lifecycle() {
+    poseidon_lifecycle(Engine::Metal, true);
+}
+
+fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let started = Instant::now();
     let reference: Value = serde_json::from_slice(
         &fs::read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"))
@@ -43,21 +54,53 @@ fn poseidon_base_step_matches_lean_and_verifies() {
     let message = message.map(F::from_u64);
     let output = recorded_output.map(F::from_u64);
 
-    let circuit = Circuit::prepare(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
-    eprintln!("poseidon preparation elapsed={:?}", started.elapsed());
+    let circuit =
+        Circuit::prepare_with_engine(&selected_reference(), poseidon2_hash_chain_v1().unwrap(), engine).unwrap();
+    assert_eq!(circuit.engine(), engine);
+    eprintln!("poseidon preparation engine={engine:?} elapsed={:?}", started.elapsed());
     let proving = Instant::now();
-    let proof = circuit.prove(initial, &message).unwrap();
+    let mut proof = circuit.prove(initial, &message).unwrap();
     eprintln!("poseidon base proving elapsed={:?}", proving.elapsed());
-    let expected = State::new(1, initial, output);
+    let mut expected = State::new(1, initial, output);
     assert_eq!(proof.state(), &expected);
+
+    if recursive {
+        let fixture: Value = serde_json::from_slice(
+            &fs::read(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/stage1_recursive_states/nonzero-running.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let message: [u64; 4] = serde_json::from_value(fixture[3].clone()).unwrap();
+        let message = message.map(F::from_u64);
+        let recorded_second: [u64; 4] = serde_json::from_value(fixture[2].clone()).unwrap();
+        let application = poseidon2_hash_chain_v1().unwrap();
+        for step in 2..=3 {
+            let next = application
+                .execute(expected.current(), &message)
+                .unwrap()
+                .output_state();
+            if step == 2 {
+                assert_eq!(next, recorded_second.map(F::from_u64));
+            }
+            let extending = Instant::now();
+            eprintln!("poseidon public extend step={step} started");
+            proof = circuit.extend(proof, &message).unwrap();
+            eprintln!("poseidon public extend step={step} elapsed={:?}", extending.elapsed());
+            expected = State::new(step, initial, next);
+            assert_eq!(proof.state(), &expected);
+        }
+    }
 
     let verification = Instant::now();
     circuit.verify(&expected, &proof).unwrap();
     eprintln!("poseidon terminal verification elapsed={:?}", verification.elapsed());
-    let mut changed_output = output;
+    let mut changed_output = expected.current();
     changed_output[0] += F::ONE;
     assert!(circuit
-        .verify(&State::new(1, initial, changed_output), &proof)
+        .verify(&State::new(expected.iteration(), initial, changed_output), &proof)
         .is_err());
     eprintln!("poseidon public lifecycle elapsed={:?}", started.elapsed());
 }

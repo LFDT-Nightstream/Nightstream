@@ -2,6 +2,7 @@
 //! Application witness and output values come from the Rust application owner.
 //! The generated rows and fixed key determine whether those values are accepted.
 
+use crate::engine::{Engine, Prover};
 use crate::folding::{CcsInstance, RunningInstance, Structure};
 use neo_ajtai::nightstream_fprime_setup::{
     authority_words, PRODUCTION_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
@@ -12,7 +13,7 @@ use nightstream_fprime::{
     LoadedPerApplicationPackage, PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding,
     WitnessAssignment,
 };
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 mod base;
 mod complete;
 mod evaluation;
@@ -35,12 +36,14 @@ pub struct PreparedLifecycle {
     package: LoadedPerApplicationPackage,
     structure: Structure,
     binding: Stage1VerifierBinding,
-    cache: OnceLock<SuperneoEvalCache>,
+    cache: OnceLock<Arc<SuperneoEvalCache>>,
+    prover: Prover,
 }
 impl PreparedLifecycle {
     pub(crate) fn from_package(
         package: LoadedPerApplicationPackage,
         binding: Stage1VerifierBinding,
+        prover: Prover,
     ) -> Result<Self, PackageError> {
         if package.production_verifier_binding()? != binding {
             return Err(PackageError::Invalid(
@@ -49,12 +52,19 @@ impl PreparedLifecycle {
         }
         let structure = package.ccs_structure_header()?;
         validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
+        if prover.engine() == Engine::PaperExact {
+            package.validate_all_matrix_rows()?;
+        }
         Ok(Self {
             package,
             structure,
             binding,
             cache: OnceLock::new(),
+            prover,
         })
+    }
+    pub(crate) fn engine(&self) -> Engine {
+        self.prover.engine()
     }
     #[cfg(test)]
     pub(crate) fn structure(&self) -> &Structure {

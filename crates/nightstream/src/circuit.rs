@@ -6,10 +6,13 @@ use p3_field::PrimeField64;
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
+use crate::engine::{Engine, EngineError, Prover};
 use crate::lifecycle::{ExtendError, PreparedLifecycle, Stage1Envelope, Stage1State, VerifyError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    Engine(#[from] EngineError),
     #[error(transparent)]
     Assembly(#[from] AssemblyError),
     #[error(transparent)]
@@ -33,9 +36,24 @@ impl Circuit {
     /// Prepare from the pinned shared reference and a locally defined application.
     /// The assembler applies only the relocation rules exported by Lean.
     pub fn prepare(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::prepare_with_engine(reference_bytes, application, Engine::Optimized)
+    }
+
+    /// Prepare one circuit with an explicit prover engine. Unavailable engines
+    /// fail before circuit loading; they never select a CPU fallback.
+    pub fn prepare_with_engine(
+        reference_bytes: &[u8],
+        application: ApplicationCircuit,
+        engine: Engine,
+    ) -> Result<Self, Error> {
+        let prover = Prover::new(engine)?;
         let (package, binding) = assembly::prepare(reference_bytes, &application)?;
-        let lifecycle = PreparedLifecycle::from_package(package, binding)?;
+        let lifecycle = PreparedLifecycle::from_package(package, binding, prover)?;
         Ok(Self { application, lifecycle })
+    }
+
+    pub fn engine(&self) -> Engine {
+        self.lifecycle.engine()
     }
 
     pub fn identity(&self) -> [u64; 4] {

@@ -1,5 +1,6 @@
 //! Selected native proof construction from the prepared relation.
 use super::PreparedLifecycle;
+use crate::engine::{paper_exact, Prover};
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, Params, RunningInstance};
 use neo_math::D;
 use nightstream_fprime::{
@@ -7,6 +8,8 @@ use nightstream_fprime::{
 };
 #[derive(Debug, thiserror::Error)]
 pub enum ProveError {
+    #[error(transparent)]
+    Engine(#[from] crate::EngineError),
     #[error("selected proof input: {0}")]
     Input(&'static str),
     #[error(transparent)]
@@ -29,16 +32,41 @@ impl PreparedLifecycle {
             self.structure.t(),
             self.structure.max_degree(),
         )?;
-        let cache = self.build_superneo_cache()?;
         let mut transcript = Transcript::session();
-        Ok(nifs::prove_owned_with_rows(
-            &mut transcript,
-            &params,
-            &self.structure,
-            cache,
-            fresh,
-            running,
-        )?)
+        Ok(match &self.prover {
+            #[cfg(feature = "metal")]
+            Prover::Metal(device) => {
+                let mut device = device.lock().map_err(|_| crate::EngineError::Failure {
+                    engine: crate::Engine::Metal,
+                    reason: "device session lock was poisoned".into(),
+                })?;
+                crate::engine::metal::prove(
+                    &mut device,
+                    &mut transcript,
+                    &params,
+                    &self.structure,
+                    self.build_superneo_cache()?,
+                    fresh,
+                    running,
+                )?
+            }
+            Prover::Optimized => nifs::prove_owned_with_rows(
+                &mut transcript,
+                &params,
+                &self.structure,
+                self.build_superneo_cache()?,
+                fresh,
+                running,
+            )?,
+            Prover::PaperExact => paper_exact::prove(
+                &mut transcript,
+                &params,
+                &self.structure,
+                &paper_exact::PackageRows(&self.package),
+                fresh,
+                running,
+            )?,
+        })
     }
 
     fn validate_prover_sources(&self, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), ProveError> {

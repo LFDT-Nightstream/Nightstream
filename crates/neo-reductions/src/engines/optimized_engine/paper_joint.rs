@@ -8,6 +8,7 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
+use std::sync::Arc;
 
 pub use super::cpu_oracle::OptimizedPaperJointOracle;
 use crate::engines::pi_ccs_joint::{
@@ -208,7 +209,7 @@ pub struct PaperJointOracleInput<'a> {
     pub challenges: Challenges,
     pub prior_point: Option<&'a [K]>,
     pub dims: JointDims,
-    pub cache: &'a OptimizedStructureCache,
+    pub cache: Arc<SuperneoEvalCache>,
 }
 
 /// Factory for a protocol-neutral one-joint evaluator.
@@ -239,6 +240,10 @@ enum OracleSource<'a> {
     },
     Rows {
         cache: &'a SuperneoEvalCache,
+    },
+    DeviceRows {
+        cache: &'a Arc<SuperneoEvalCache>,
+        backend: &'a mut dyn PaperJointOracleBackend,
     },
     Complete {
         oracle: &'a mut dyn PaperJointRoundOracle,
@@ -388,6 +393,20 @@ fn prove_with_trace_inner(
             }
             None
         }
+        OracleSource::DeviceRows { cache, .. } => {
+            if cache.relation_shape()
+                != Some((
+                    structure.n,
+                    crate::common::superneo_carrier_width(structure.m),
+                    structure.t(),
+                ))
+            {
+                return Err(PiCcsError::InvalidInput(
+                    "prover device row-cache shape does not match the header".into(),
+                ));
+            }
+            None
+        }
         OracleSource::Complete { .. } => None,
     };
     if fresh_claims.len() != fresh_witnesses.len() || running_claims.len() != running_witnesses.len() {
@@ -434,7 +453,7 @@ fn prove_with_trace_inner(
                 challenges: challenges.clone(),
                 prior_point,
                 dims,
-                cache,
+                cache: cache.superneo_arc(),
             };
             built_oracle = Some(match backend {
                 Some(backend) => backend.create(input)?,
@@ -446,7 +465,7 @@ fn prove_with_trace_inner(
                     input.challenges,
                     input.prior_point,
                     input.dims,
-                    input.cache,
+                    cache,
                 )?),
             });
             built_oracle.as_mut().expect("constructed oracle").as_mut()
@@ -465,6 +484,22 @@ fn prove_with_trace_inner(
             built_oracle
                 .as_mut()
                 .expect("constructed row-cache oracle")
+                .as_mut()
+        }
+        OracleSource::DeviceRows { cache, backend } => {
+            built_oracle = Some(backend.create(PaperJointOracleInput {
+                structure,
+                params,
+                fresh_witnesses,
+                running_witnesses,
+                challenges: challenges.clone(),
+                prior_point,
+                dims,
+                cache: Arc::clone(cache),
+            })?);
+            built_oracle
+                .as_mut()
+                .expect("constructed device row oracle")
                 .as_mut()
         }
         OracleSource::Complete {
@@ -733,5 +768,40 @@ pub fn prove_with_row_cache(
         running_witnesses,
         TranscriptBinding::digest_only(),
         OracleSource::Rows { cache },
+    )
+}
+
+/// Use a device evaluator with rows prepared by the circuit owner. Transcript
+/// order and output checks are the same as the CPU row-cache path.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_row_cache_and_backend(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    cache: &Arc<SuperneoEvalCache>,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        super::PiCcsProvePerf,
+        ProtocolTrace,
+    ),
+    PiCcsError,
+> {
+    prove_with_trace_inner(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        TranscriptBinding::digest_only(),
+        OracleSource::DeviceRows { cache, backend },
     )
 }

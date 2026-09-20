@@ -188,7 +188,7 @@ fn zero_opening(package: &PreparedLifecycle) -> V1_1Evaluations<K> {
     }
 }
 
-pub(super) fn ccs(root: &Path, step: u64) {
+pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine) {
     let directory = fold_dir(root, step);
     fs::create_dir_all(&directory).unwrap();
     let package = prepare();
@@ -197,16 +197,40 @@ pub(super) fn ccs(root: &Path, step: u64) {
     let cache = package.build_superneo_cache().unwrap();
     eprintln!("C cache elapsed={:?}", started.elapsed());
     let mut transcript = Transcript::session();
-    let proof = pi_ccs::prove_from_parts_with_rows(
-        &mut transcript,
-        &params(&package),
-        &package.structure,
-        cache,
-        std::slice::from_ref(&source.fresh.claim),
-        std::slice::from_ref(&source.fresh.witness),
-        &source.running,
-    )
-    .unwrap();
+    let proving = Instant::now();
+    let proof = match engine {
+        EvaluationEngine::Optimized => pi_ccs::prove_from_parts_with_rows(
+            &mut transcript,
+            &params(&package),
+            &package.structure,
+            cache,
+            std::slice::from_ref(&source.fresh.claim),
+            std::slice::from_ref(&source.fresh.witness),
+            &source.running,
+        )
+        .unwrap(),
+        #[cfg(feature = "metal")]
+        EvaluationEngine::Metal => {
+            let mut device = neo_prover_metal::MetalRowProver::new().unwrap();
+            let (outputs, sumcheck, _, _) =
+                neo_reductions::optimized_engine::optimized_prove_with_row_cache_and_backend(
+                    transcript.inner_mut(),
+                    params(&package).inner(),
+                    &package.structure,
+                    std::slice::from_ref(&source.fresh.claim),
+                    std::slice::from_ref(&source.fresh.witness),
+                    &source.running.claims,
+                    &source.running.witnesses,
+                    cache,
+                    &mut device,
+                )
+                .unwrap();
+            assert!(device.activity().dispatches > 0);
+            eprintln!("C Metal activity={:?}", device.activity());
+            pi_ccs::Proof { outputs, sumcheck }
+        }
+    };
+    eprintln!("C proving engine={engine:?} elapsed={:?}", proving.elapsed());
     let (verified, _) = replay_ccs(&package, &source.fresh.claim, &source.running, &proof);
     assert_eq!(verified.snapshot(), transcript.snapshot());
     save(
@@ -298,7 +322,7 @@ pub(super) fn split(root: &Path, step: u64) {
         },
     );
 }
-pub(super) fn child(root: &Path, step: u64, child: usize) {
+pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngine) {
     assert!(child < 16, "selected child index");
     let directory = fold_dir(root, step);
     let package = prepare();
@@ -325,10 +349,34 @@ pub(super) fn child(root: &Path, step: u64, child: usize) {
     assert_eq!(commitment, split.commitments[child]);
     let opening = if active {
         let cache = package.build_superneo_cache().unwrap();
-        let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
-        let mut openings = cache
-            .eval_real_v1_1_openings(&parent.rlc_parent.r, std::slice::from_ref(&blocks))
-            .unwrap();
+        let started = Instant::now();
+        let mut openings = match engine {
+            EvaluationEngine::Optimized => {
+                let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
+                cache
+                    .eval_real_v1_1_openings(&parent.rlc_parent.r, std::slice::from_ref(&blocks))
+                    .unwrap()
+            }
+            #[cfg(feature = "metal")]
+            EvaluationEngine::Metal => {
+                let mut device = neo_prover_metal::MetalRowProver::new().unwrap();
+                let openings = device
+                    .child_openings(
+                        std::sync::Arc::clone(cache),
+                        std::slice::from_ref(&digit),
+                        &parent.rlc_parent.r,
+                        package.structure.m,
+                    )
+                    .unwrap();
+                assert!(device.activity().dispatches > 0);
+                eprintln!("D Metal activity={:?}", device.activity());
+                openings
+            }
+        };
+        eprintln!(
+            "D opening engine={engine:?} child={child} elapsed={:?}",
+            started.elapsed()
+        );
         assert_eq!(openings.len(), 1);
         openings.pop().unwrap()
     } else {

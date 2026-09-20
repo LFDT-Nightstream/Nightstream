@@ -10,7 +10,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let source = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let binding = source.production_verifier_binding().unwrap();
-    let package = PreparedLifecycle::from_package(source, binding).unwrap();
+    let package = PreparedLifecycle::from_package(source, binding, crate::engine::Prover::Optimized).unwrap();
     let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let reference: Value =
         serde_json::from_slice(&fs::read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json")).unwrap())

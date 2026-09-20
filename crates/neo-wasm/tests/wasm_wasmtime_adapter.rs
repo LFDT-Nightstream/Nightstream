@@ -29,7 +29,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
     vec![
         WasmtimeTraceStep {
             step: 0,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(49),
@@ -42,7 +41,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 1,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(51),
@@ -58,7 +56,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 2,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(53),
@@ -73,7 +70,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 3,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(55),
@@ -292,16 +288,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     assert!(
         trace_b.steps().iter().any(|s| s.function_index.is_some()),
         "B captured no wasm frames"
-    );
-
-    // Only executing frames are captured.
-    assert!(
-        trace_a.steps().iter().all(|s| s.frame_depth == 0),
-        "A trace has non-innermost frames"
-    );
-    assert!(
-        trace_b.steps().iter().all(|s| s.frame_depth == 0),
-        "B trace has non-innermost frames"
     );
 
     // Distinctive ops stay in the instance that executed them.

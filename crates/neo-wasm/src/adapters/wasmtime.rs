@@ -31,7 +31,6 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 pub struct WasmtimeTraceStep {
     /// The cycle for memory and op-table lookups
     pub step: u64,
-    pub frame_depth: usize,
     pub function: String,
     pub function_index: Option<u32>,
     /// Zero-based operator index across the module's defined functions.
@@ -544,11 +543,10 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
                     return;
                 }
             };
-            let row = match capture_frame(step, 0, frame, &mut store, &tables) {
+            let row = match capture_frame(step, frame, &mut store, &tables) {
                 Ok(row) => row,
                 Err(error) => WasmtimeTraceStep {
                     step,
-                    frame_depth: 0,
                     function: "<frame-inspection-error>".to_string(),
                     locals: vec![error.to_string()],
                     ..Default::default()

@@ -4,7 +4,10 @@
 //! Full CE evaluations and terminal acceptance remain verifier obligations.
 
 use neo_ajtai::{
-    nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, PRODUCTION_MESSAGE_COLUMNS},
+    nightstream_fprime_setup::{
+        commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
+        PRODUCTION_MESSAGE_COLUMNS,
+    },
     AjtaiError,
 };
 use neo_ccs::Mat;
@@ -114,13 +117,22 @@ impl PreparedLifecycle {
                     reason: "witness public projection differs from the verified child",
                 });
             }
-            // This fixed-key API checks every coefficient's strict unit norm,
-            // including running-tail coordinates, before expanding the key.
-            let commitment =
-                commit_production_signed_unit_prefix_matrix(witness).map_err(|_| CompleteStepError::ChildWitness {
-                    index,
-                    reason: "witness does not have the fixed-key shape and strict signed-unit norm",
-                })?;
+        }
+        // Validate every coefficient, including the running tails, before
+        // sharing exact indexed key coefficients across the child witnesses.
+        let commitments = commit_production_signed_unit_prefix_matrices(&child_witnesses).map_err(|error| {
+            CompleteStepError::ChildWitness {
+                index: error.witness_index(),
+                reason: "witness does not have the fixed-key shape and strict signed-unit norm",
+            }
+        })?;
+        for (index, (claim, commitment)) in inputs
+            .next_running()
+            .claims
+            .iter()
+            .zip(commitments)
+            .enumerate()
+        {
             if commitment != claim.c {
                 return Err(CompleteStepError::ChildWitness {
                     index,

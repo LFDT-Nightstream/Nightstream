@@ -4,7 +4,10 @@
 //! non-authoritative; every witness check uses the complete matrix `Z`.
 
 use neo_ajtai::{
-    nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, PRODUCTION_VERIFIER_ROWS},
+    nightstream_fprime_setup::{
+        commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
+        PRODUCTION_VERIFIER_ROWS,
+    },
     Commitment,
 };
 use neo_math::{D, F, K};
@@ -160,12 +163,13 @@ impl PreparedLifecycle {
                 return Err(VerifyError::Fresh("witness public projection differs from x"));
             }
         }
-        for (index, (claim, witness)) in running.claims.iter().zip(&running.witnesses).enumerate() {
-            let commitment =
-                commit_production_signed_unit_prefix_matrix(witness).map_err(|_| VerifyError::Running {
-                    index,
-                    reason: "fixed-key witness shape or strict unit norm",
-                })?;
+        let commitments = commit_production_signed_unit_prefix_matrices(&running.witnesses).map_err(|error| {
+            VerifyError::Running {
+                index: error.witness_index(),
+                reason: "fixed-key witness shape or strict unit norm",
+            }
+        })?;
+        for (index, (claim, commitment)) in running.claims.iter().zip(commitments).enumerate() {
             if commitment != claim.c {
                 return Err(VerifyError::Running {
                     index,

@@ -892,22 +892,19 @@ kernel void fe_weighted_basis_dots(
     qk[2 * index] = gl_add(rr, gl_mul(7, ii));
     qk[2 * index + 1] = gl_add(ir, ri);
 }
-
 inline ulong compact_row_offset(device const uchar *offsets, ulong row, ulong width) {
     if (width == 3) {
         ulong base = 3 * row;
         return (ulong)offsets[base] | ((ulong)offsets[base + 1] << 8) | ((ulong)offsets[base + 2] << 16);
     }
-    return (ulong)((device const uint *)offsets)[row];
+    return width == 0 ? 0 : (ulong)((device const uint *)offsets)[row];
 }
-
 constant uint COMPACT_DENSE_BLOCK_TAG = 1u << 31;
 constant uint COMPACT_NEGATIVE_BLOCK_TAG = 1u << 30;
 constant uint COMPACT_SINGLE_LOCAL_SHIFT = 24;
 constant uint COMPACT_SINGLE_LOCAL_MASK = 0x3fu;
 constant uint COMPACT_SINGLE_BLOCK_MASK = (1u << COMPACT_SINGLE_LOCAL_SHIFT) - 1;
 constant uint COMPACT_DENSE_INDEX_MASK = COMPACT_DENSE_BLOCK_TAG - 1;
-
 kernel void fe_weighted_row_table(
     device const uchar *row_offsets [[buffer(0)]],
     device const uint *row_blocks [[buffer(1)]],

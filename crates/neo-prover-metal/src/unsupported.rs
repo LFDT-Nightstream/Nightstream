@@ -158,6 +158,7 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn ajtai_lane_commitments_from_masks(
         &self,
         _ops_plan: &MetalAjtaiLowNormPlan,
@@ -170,6 +171,7 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    #[cfg(feature = "legacy-adapter")]
     pub fn sis_accumulator_digest(
         &self,
         _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
@@ -178,6 +180,7 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn sis_accumulator_digest_resident(
         &self,
         _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,

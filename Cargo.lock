@@ -1503,6 +1503,8 @@ dependencies = [
  "neo-fold-clean",
  "neo-math",
  "neo-params",
+ "neo-prover-cuda",
+ "neo-prover-metal",
  "neo-reductions",
  "neo-transcript",
  "nightstream-fprime",

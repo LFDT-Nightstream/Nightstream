@@ -32,6 +32,15 @@ mod fold;
 #[path = "staged_terminal.rs"]
 mod terminal;
 
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum EvaluationEngine {
+    #[default]
+    Optimized,
+    #[cfg(feature = "metal")]
+    Metal,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "phase", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
@@ -45,6 +54,8 @@ enum Request {
     Ccs {
         directory: PathBuf,
         step: u64,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Rlc {
         directory: PathBuf,
@@ -58,6 +69,8 @@ enum Request {
         directory: PathBuf,
         step: u64,
         child: usize,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Nifs {
         directory: PathBuf,
@@ -87,10 +100,19 @@ fn run_phase() {
     match request {
         Request::Base { directory } => base(&directory),
         Request::Sources { directory, step } => sources(&directory, step),
-        Request::Ccs { directory, step } => fold::ccs(&directory, step),
+        Request::Ccs {
+            directory,
+            step,
+            engine,
+        } => fold::ccs(&directory, step, engine),
         Request::Rlc { directory, step } => fold::rlc(&directory, step),
         Request::Split { directory, step } => fold::split(&directory, step),
-        Request::Child { directory, step, child } => fold::child(&directory, step, child),
+        Request::Child {
+            directory,
+            step,
+            child,
+            engine,
+        } => fold::child(&directory, step, child, engine),
         Request::Nifs { directory, step } => fold::nifs(&directory, step),
         Request::Successor { directory, step } => terminal::successor(&directory, step),
         Request::Terminal { directory } => terminal::accept(&directory),
@@ -135,7 +157,7 @@ fn prepare() -> PreparedLifecycle {
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (package, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(package, binding).unwrap();
+    let package = PreparedLifecycle::from_package(package, binding, crate::engine::Prover::Optimized).unwrap();
     eprintln!("staged circuit preparation elapsed={:?}", started.elapsed());
     package
 }

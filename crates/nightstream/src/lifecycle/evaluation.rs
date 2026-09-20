@@ -5,6 +5,7 @@ use neo_math::F;
 use neo_reductions::superneo_eval::{SuperneoEvalCache, SuperneoEvalCacheBuilder};
 use nightstream_fprime::PackageError;
 use p3_field::PrimeCharacteristicRing;
+use std::sync::Arc;
 
 // Allocation hints from the full selected-package census.
 // Package identity: [9705822157724451396, 520958727644325895, 9285622073986934000, 874020794279380938].
@@ -29,7 +30,7 @@ const SELECTED_CACHE_CAPACITIES: [(usize, usize, usize); 14] = [
 impl PreparedLifecycle {
     /// Evaluate all active matrix rows and store their original coefficients
     /// in the native compact cache. Boolean rows beyond this prefix stay zero.
-    pub(crate) fn build_superneo_cache(&self) -> Result<&SuperneoEvalCache, PackageError> {
+    pub(crate) fn build_superneo_cache(&self) -> Result<&Arc<SuperneoEvalCache>, PackageError> {
         if let Some(cache) = self.cache.get() {
             return Ok(cache);
         }
@@ -72,7 +73,7 @@ impl PreparedLifecycle {
         let cache = builder
             .finish()
             .map_err(|_| PackageError::Invalid("selected SuperNeo cache row coverage"))?;
-        let _ = self.cache.set(cache);
+        let _ = self.cache.set(Arc::new(cache));
         Ok(self.cache.get().expect("cache was initialized"))
     }
 }

@@ -20,6 +20,7 @@ use crate::{
     PoseidonDigest, PoseidonHashVariant, PoseidonState,
 };
 
+#[cfg(feature = "legacy-adapter")]
 mod ajtai_batch;
 mod joint;
 mod masks;
@@ -65,6 +66,7 @@ pub struct MetalSession {
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     seeded_ajtai_matrix: Pipeline,
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
@@ -97,11 +99,16 @@ pub struct MetalSession {
     fe_weighted_basis_dots: Pipeline,
     fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
+    #[cfg(feature = "legacy-adapter")]
     dec_ring_partials: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     dec_ring_sum_chunks: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_partials: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_sum_chunks: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_reduce_phi81: Pipeline,
     activity: ActivityCounters,
 }
@@ -156,6 +163,7 @@ impl MetalSession {
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
+        #[cfg(feature = "legacy-adapter")]
         let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -189,11 +197,16 @@ impl MetalSession {
         let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
         let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
+        #[cfg(feature = "legacy-adapter")]
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
+        #[cfg(feature = "legacy-adapter")]
         let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_partials = pipeline(&device, &library, "ajtai_lane_ring_partials")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_sum_chunks = pipeline(&device, &library, "ajtai_lane_ring_sum_chunks")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_reduce_phi81 = pipeline(&device, &library, "ajtai_lane_ring_reduce_phi81")?;
         Ok(Self {
             device,
@@ -211,6 +224,7 @@ impl MetalSession {
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
+            #[cfg(feature = "legacy-adapter")]
             seeded_ajtai_matrix,
             fold_k_table,
             tensor_point_expand_k,
@@ -242,11 +256,16 @@ impl MetalSession {
             fe_carried_mask_lin_comb,
             fe_weighted_basis_dots,
             fe_weighted_row_table,
+            #[cfg(feature = "legacy-adapter")]
             dec_ring_partials,
+            #[cfg(feature = "legacy-adapter")]
             dec_ring_sum_chunks,
             dec_ring_reduce_phi81,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_partials,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_sum_chunks,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_reduce_phi81,
             activity: ActivityCounters::default(),
         })
@@ -613,6 +632,7 @@ impl MetalSession {
 
     /// Expands the canonical chunked ChaCha matrix directly on Metal, falling
     /// back to the canonical host expansion only if rejection sampling flags it.
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn prepare_ajtai_low_norm_seeded(
         &self,
         seed: [u8; 32],
@@ -1156,6 +1176,7 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
     Ok(())
 }
 
+#[cfg(feature = "legacy-adapter")]
 pub(super) fn command_gpu_duration(command: &ProtocolObject<dyn MTLCommandBuffer>) -> std::time::Duration {
     // Metal timestamps are defined after completion; every caller waits on the
     // command before requesting this duration.

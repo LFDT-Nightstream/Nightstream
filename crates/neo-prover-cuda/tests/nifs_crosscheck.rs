@@ -1,4 +1,4 @@
-#![cfg(feature = "cuda")]
+#![cfg(all(feature = "cuda", feature = "legacy-adapter"))]
 
 //! CUDA backend availability boundary.
 

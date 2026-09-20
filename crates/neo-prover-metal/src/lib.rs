@@ -2,7 +2,8 @@
 //!
 //! The protocol crates remain authoritative for transcript order, proof
 //! assembly, and verification. This crate owns Metal device state and the
-//! accelerator implementation of the `NifsProverAdapter` execution surface.
+//! row evaluator. The default `legacy-adapter` feature also exposes the old
+//! `neo-fold-clean` NIFS adapter. Other consumers can disable that feature.
 
 pub mod poseidon2;
 
@@ -13,8 +14,13 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+#[cfg(feature = "legacy-adapter")]
 mod adapter;
+#[cfg(feature = "legacy-adapter")]
 pub use adapter::MetalNifsProver;
+
+mod rows;
+pub use rows::MetalRowProver;
 
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 mod session;
@@ -124,7 +130,6 @@ pub enum MetalError {
     Shape(&'static str),
 }
 
-#[cfg(any(test, all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     match error {
         MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),

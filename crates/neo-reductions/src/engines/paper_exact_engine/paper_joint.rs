@@ -18,6 +18,7 @@ use crate::sumcheck::RoundOracle;
 
 use super::paper_matrix::matrix_entry;
 use super::paper_ring::PaperRing;
+use super::paper_rows::{Matrices, PaperMatrixRows};
 
 pub(super) fn dimensions<Ff>(
     params: &neo_params::NeoParams,
@@ -145,7 +146,7 @@ pub(super) fn paper_prior_point<'a, Ff>(
     Ok(Some(&first.r))
 }
 
-fn boolean_weight(point: &[K], index: usize) -> K {
+pub(super) fn boolean_weight(point: &[K], index: usize) -> K {
     let mut weight = K::ONE;
     for (bit, &challenge) in point.iter().enumerate() {
         weight *= if (index >> bit) & 1 == 1 {
@@ -268,7 +269,7 @@ where
     Ok(output)
 }
 
-fn ring_product(ring: &PaperRing, matrix_block: [Fq; D], assignment: &[K], block: usize) -> [K; D] {
+pub(super) fn ring_product(ring: &PaperRing, matrix_block: [Fq; D], assignment: &[K], block: usize) -> [K; D] {
     let mut assignment_block = [K::ZERO; D];
     for lane in 0..D {
         if let Some(value) = assignment.get(block * D + lane) {
@@ -478,6 +479,7 @@ where
 
 pub struct PaperJointOracle<'a, Ff> {
     structure: &'a CcsStructure<Ff>,
+    matrices: Matrices<'a, Ff>,
     params: &'a neo_params::NeoParams,
     fresh: &'a [CcsWitness<Ff>],
     running: &'a [Mat<Ff>],
@@ -504,6 +506,45 @@ where
         prior_point: Option<&[K]>,
         dims: JointDims,
     ) -> Result<Self, PiCcsError> {
+        Self::with_matrix_rows(structure, params, fresh, running, challenges, prior_point, dims, None)
+    }
+
+    /// Evaluate exported original rows with the same direct paper formulas.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_rows(
+        structure: &'a CcsStructure<Ff>,
+        params: &'a neo_params::NeoParams,
+        fresh: &'a [CcsWitness<Ff>],
+        running: &'a [Mat<Ff>],
+        challenges: Challenges,
+        prior_point: Option<&[K]>,
+        dims: JointDims,
+        rows: &'a dyn PaperMatrixRows<Ff>,
+    ) -> Result<Self, PiCcsError> {
+        Self::with_matrix_rows(
+            structure,
+            params,
+            fresh,
+            running,
+            challenges,
+            prior_point,
+            dims,
+            Some(rows),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_matrix_rows(
+        structure: &'a CcsStructure<Ff>,
+        params: &'a neo_params::NeoParams,
+        fresh: &'a [CcsWitness<Ff>],
+        running: &'a [Mat<Ff>],
+        challenges: Challenges,
+        prior_point: Option<&[K]>,
+        dims: JointDims,
+        rows: Option<&'a dyn PaperMatrixRows<Ff>>,
+    ) -> Result<Self, PiCcsError> {
+        let matrices = Matrices::new(structure, rows)?;
         if !challenges.has_expected_dimension(dims.variables) {
             return Err(PiCcsError::InvalidInput(
                 "PaperExact joint challenge shape mismatch".into(),
@@ -519,6 +560,7 @@ where
         }
         Ok(Self {
             structure,
+            matrices,
             params,
             fresh,
             running,
@@ -535,11 +577,11 @@ where
         let mut fresh_residual = K::ZERO;
         for (source, witness) in self.fresh.iter().enumerate() {
             let assignment = packed_assignment(&witness.Z, self.dims).expect("validated PaperExact witness");
-            let application_values: Vec<K> = self
-                .structure
-                .matrices
-                .iter()
-                .map(|matrix| direct_ring_mle(&self.ring, matrix, &assignment, point)[0])
+            let application_values: Vec<K> = (0..self.structure.t())
+                .map(|matrix| {
+                    self.matrices
+                        .evaluate(&self.ring, matrix, &assignment, point)[0]
+                })
                 .collect();
             fresh_residual +=
                 gamma_power(self.challenges.gamma, source) * self.structure.f.eval_in_ext::<K>(&application_values);
@@ -574,8 +616,10 @@ where
                     eval_k_exponent(running_count, running, coefficient),
                 ) * value;
             }
-            for (matrix_index, matrix) in self.structure.matrices.iter().enumerate() {
-                for (coefficient, value) in direct_ring_mle(&self.ring, matrix, &assignment, point)
+            for matrix_index in 0..self.structure.t() {
+                for (coefficient, value) in self
+                    .matrices
+                    .evaluate(&self.ring, matrix_index, &assignment, point)
                     .into_iter()
                     .enumerate()
                 {
@@ -645,7 +689,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_outputs<Ff, L>(
+pub(super) fn build_outputs<Ff>(
     structure: &CcsStructure<Ff>,
     fresh_claims: &[CcsClaim<Cmt, Ff>],
     fresh_witnesses: &[CcsWitness<Ff>],
@@ -653,14 +697,13 @@ pub(super) fn build_outputs<Ff, L>(
     running_witnesses: &[Mat<Ff>],
     point: &[K],
     dims: JointDims,
-    commitment: &L,
+    rows: Option<&dyn PaperMatrixRows<Ff>>,
 ) -> Result<Vec<CeClaim<Cmt, Ff, K>>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
-    L: neo_ccs::traits::SModuleHomomorphism<Ff, Cmt>,
 {
-    let _ = commitment;
+    let matrices = Matrices::new(structure, rows)?;
     let ring = PaperRing::new();
     let d_pad = D.next_power_of_two();
     let openings = |witness: &Mat<Ff>| -> Result<(Vec<K>, Vec<Vec<K>>), PiCcsError> {
@@ -668,8 +711,10 @@ where
         let mut eval_k = direct_identity_ring_mle(&ring, &assignment, point).to_vec();
         eval_k.resize(d_pad, K::ZERO);
         let mut eval_a = Vec::with_capacity(dims.matrix_count);
-        for matrix in &structure.matrices {
-            let mut coefficients = direct_ring_mle(&ring, matrix, &assignment, point).to_vec();
+        for matrix in 0..structure.t() {
+            let mut coefficients = matrices
+                .evaluate(&ring, matrix, &assignment, point)
+                .to_vec();
             coefficients.resize(d_pad, K::ZERO);
             eval_a.push(coefficients);
         }

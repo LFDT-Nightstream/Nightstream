@@ -24,6 +24,10 @@ use crate::oracle_error;
 use opening::MetalJointOpeningPlan;
 use support::*;
 
+#[cfg(test)]
+#[path = "../../tests/unit/joint_buffers.rs"]
+mod tests;
+
 const EQUALITY_CHUNK_BITS: usize = 8;
 const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
@@ -594,15 +598,18 @@ impl MetalSession {
         masks: &MetalWitnessMasks,
         has_carried: bool,
     ) -> Result<([Buffer; 2], usize), MetalError> {
-        let common_len = input.structure.n.max(input.dims.assignment_width);
-        let first_words = has_carried
-            .then_some(common_len)
-            .unwrap_or(1)
+        // A zero carried family has a single zero value, with zero padding.
+        // Device reads and folds must use that allocated length as well.
+        let common_len = if has_carried {
+            input.structure.n.max(input.dims.assignment_width)
+        } else {
+            1
+        };
+        let first_words = common_len
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
-        let second_words = has_carried
-            .then_some(common_len.div_ceil(2))
-            .unwrap_or(1)
+        let second_words = common_len
+            .div_ceil(2)
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint folded common table size overflow"))?;
         let first = self.buffer(first_words * size_of::<u64>())?;
@@ -617,6 +624,8 @@ impl MetalSession {
             encoder.endEncoding();
             self.finish(&command)?;
             self.build_joint_carried_table(plan, input, masks, &first, 0, common_len)?;
+        } else {
+            self.write_shared(&first, &[0u64; 2])?;
         }
         Ok(([first, second], common_len))
     }
@@ -839,7 +848,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         plan: &'a MetalJointMatrixPlan,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Self, neo_reductions::PiCcsError> {
-        if !plan.matches(input.cache.superneo())
+        if !plan.matches(input.cache.as_ref())
             || plan.rows != input.structure.n
             || plan.matrix_count != input.structure.t()
             || !matches!(input.params.b, 2 | 4)
@@ -908,12 +917,15 @@ impl<'a> MetalPaperJointOracle<'a> {
                 input.structure.m,
             )
             .map_err(oracle_error)?;
+        #[cfg(feature = "legacy-adapter")]
         let selective_f_prime = input.params.b == 2
             && neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
+        #[cfg(not(feature = "legacy-adapter"))]
+        let selective_f_prime = false;
         let application_base = session
             .build_joint_application_tables(
                 plan,
-                input.cache.superneo(),
+                input.cache.as_ref(),
                 &masks,
                 fresh_count,
                 input.structure.n,

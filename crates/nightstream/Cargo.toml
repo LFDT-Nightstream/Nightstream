@@ -9,7 +9,22 @@ include = ["/src/**", "/tests/**", "/artifacts/**", "/README.md", "/VALIDATION.m
 [lints]
 workspace = true
 
+[[bin]]
+name = "nightstream-poseidon2-bench"
+path = "src/bin/poseidon2_bench.rs"
+test = false
+bench = false
+
+[features]
+default = []
+metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
+# The canonical kernel is absent. Compile its availability boundary without
+# pulling an unused CUDA driver/toolchain into this library.
+cuda = ["dep:neo-prover-cuda"]
+
 [dependencies]
+neo-prover-metal = { path = "../neo-prover-metal", default-features = false, optional = true }
+neo-prover-cuda = { path = "../neo-prover-cuda", default-features = false, optional = true }
 nightstream-fprime = { path = "../nightstream-fprime" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }

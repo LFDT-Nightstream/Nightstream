@@ -28,9 +28,6 @@ class GoldenConformanceTests(unittest.TestCase):
             (self.references / name).mkdir(parents=True)
         self.calls = []
         self.missing_phase = self.failed_phase = self.wrong_exit_phase = None
-        self.flags = {1: [index in (0, 15) for index in range(16)],
-                      2: [index == 1 for index in range(16)],
-                      3: [index == 15 for index in range(16)]}
 
     @staticmethod
     def save(path, value):
@@ -58,9 +55,6 @@ class GoldenConformanceTests(unittest.TestCase):
                 "request": request, "exit": 0, "outcome": "passed", "cap_seconds": 300,
                 "process_exit": 1 if name == self.wrong_exit_phase else 0,
             })
-            if name == "split":
-                step = request["step"]
-                self.save(directory / f"fold-{step}/split.json", {"nonzero": self.flags[step]})
         else:
             self.assertEqual(Path(command[5]).name, "compare_recursive_outputs.py")
             engine = options.get("--engine-directory")
@@ -85,17 +79,16 @@ class GoldenConformanceTests(unittest.TestCase):
         return [dict(zip(command[6::2], command[7::2])) for command in self.calls
                 if Path(command[5]).name == "run_recursive_phase.py"]
 
-    def test_cpu_runs_selected_folds_and_only_fresh_active_children(self):
+    def test_cpu_runs_selected_folds_with_one_openings_phase_each(self):
         self.assertEqual(self.invoke(), 0)
         phases = self.phase_calls()
         expected = ["base"]
         for step in (1, 2, 3):
-            expected += ["sources", "ccs", "rlc", "split"]
-            expected += ["child"] * sum(self.flags[step]) + ["nifs", "successor"]
+            expected += ["sources", "ccs", "rlc", "split", "openings", "nifs", "successor"]
         expected += ["terminal", "mutation", "reject"]
         self.assertEqual([call["--phase"] for call in phases], expected)
-        self.assertEqual([(call["--step"], call["--child"]) for call in phases if call["--phase"] == "child"],
-                         [("1", "0"), ("1", "15"), ("2", "1"), ("3", "15")])
+        self.assertEqual([call["--step"] for call in phases if call["--phase"] == "openings"],
+                         ["1", "2", "3"])
         self.assertEqual([call["--step"] for call in phases[-3:]], ["4", "4", "4"])
         self.assertEqual([dict(zip(call[6::2], call[7::2]))["--fold"] for call in self.calls[-2:]], ["1", "2"])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "passed")
@@ -126,9 +119,9 @@ class GoldenConformanceTests(unittest.TestCase):
         self.assertTrue((self.directory / "comparison-cpu-engine-fold-3.json").is_file())
 
     def test_missing_phase_receipt_cannot_count_as_success(self):
-        self.missing_phase = "ccs"
+        self.missing_phase = "openings"
         self.assertEqual(self.invoke(), 1)
-        self.assertEqual(self.phase_calls()[-1]["--phase"], "ccs")
+        self.assertEqual(self.phase_calls()[-1]["--phase"], "openings")
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
 
     def test_failed_subprocess_stops_before_next_phase(self):
@@ -141,12 +134,6 @@ class GoldenConformanceTests(unittest.TestCase):
         self.wrong_exit_phase = "base"
         self.assertEqual(self.invoke(), 1)
         self.assertEqual(len(self.calls), 1)
-
-    def test_malformed_activity_cannot_skip_child_phases(self):
-        self.flags[1][0] = 1
-        self.assertEqual(self.invoke(), 1)
-        self.assertEqual(self.phase_calls()[-1]["--phase"], "split")
-        self.assertIn("invalid split activity flags", runner.read(self.directory / "conformance.json")["error"])
 
     def test_old_run_cannot_replace_fresh_execution(self):
         self.directory.mkdir()

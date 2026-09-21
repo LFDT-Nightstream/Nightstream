@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -78,9 +79,23 @@ class LeanFoldCheckTests(unittest.TestCase):
                 self.assertTrue(popen.call_args.kwargs["start_new_session"])
                 if kind == "lean":
                     self.assertEqual(popen.call_args.kwargs["env"]["LEAN_TIMEOUT_SECONDS"], str(cap))
-                record = json.loads((output / "capped.json").read_text())
+                record = json.loads((output / "capped.command.json").read_text())
                 self.assertEqual((record["exit"], record["outcome"], record["cap_seconds"]), (124, "timed-out", cap))
                 self.assertTrue((output / "capped.log").exists())
+
+    def test_successful_child_data_and_command_receipt_have_distinct_paths(self):
+        checker = check.Check(self.directory, 1, self.directory, Path("unused-native-checker"))
+        data = self.directory / "step-1-caller.json"
+        command = [sys.executable, "-c",
+                   "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('{\"schema\":1}'); print('emitted caller')",
+                   str(data)]
+        with patch.object(check, "build_lock", return_value=contextlib.nullcontext()), \
+             patch.object(check, "check_build_processes"):
+            self.assertEqual(checker.phase("step-1-caller", "python", command), "emitted caller\n")
+        self.assertEqual(data.read_text(), '{"schema":1}')
+        receipt = json.loads((self.directory / "step-1-caller.command.json").read_text())
+        self.assertEqual((receipt["outcome"], receipt["exit"]), ("passed", 0))
+        self.assertEqual(receipt["command"], command)
 
     def test_source_snapshots_detect_later_changed_content(self):
         original = self.directory / "original.json"

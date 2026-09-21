@@ -1,0 +1,53 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 42.72s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 11 tests
+test engine::parity::crosscheck_matches_optimized ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::crosscheck_rejects_a_prover_error_without_updating_the_transcript ... ok
+test engine::parity::crosscheck_rejects_a_worker_panic_without_updating_the_transcript ... 
+thread '<unnamed>' (162293) panicked at crates/nightstream/src/engine/../../tests/engines/parity.rs:411:13:
+reference worker failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+ok
+test engine::parity::crosscheck_rejects_changed_results ... verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::crosscheck_rejects_different_rows_without_updating_the_transcript ... ok
+test engine::parity::metal_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+test engine::parity::optimized_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+test engine::parity::optimized_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::selected_polynomial_crosscheck_matches_optimized ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::selected_polynomial_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::zero_running_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+
+test result: ok. 9 passed; 0 failed; 2 ignored; 0 measured; 13 filtered out; finished in 129.35s
+
+      172.64 real       164.88 user         1.51 sys
+          4068556800  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              440386  page reclaims
+                4321  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   5  messages sent
+                   6  messages received
+                   3  signals received
+                4208  voluntary context switches
+               18509  involuntary context switches
+          1688103184  instructions retired
+           551008201  cycles elapsed
+            67092960  peak memory footprint

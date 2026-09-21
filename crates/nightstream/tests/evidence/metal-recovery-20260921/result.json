@@ -1,0 +1,50 @@
+{
+  "date_utc": "2026-09-21",
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "uncommitted memory and engine review changes; no Rust edits after the restart",
+  "device": "Apple M1 Max",
+  "physical_memory_bytes": 68719476736,
+  "boot_time_unix_seconds": 1789944686,
+  "old_stuck_processes_absent": [
+    79862,
+    83269,
+    83439,
+    84201
+  ],
+  "gpu_recovery": "confirmed by successful independent blit, circuit comparisons, and released device resources",
+  "device_memory_in_use_before_and_after_tests_bytes": 424837120,
+  "busy_work_queues_after_tests": 0,
+  "remaining_nightstream_test_processes": 0,
+  "system_settings_changed": false,
+  "timeout_seconds": 300,
+  "timeout_authority": "AGENTS.md five-minute non-Lean test cap",
+  "probe": {
+    "passed": true,
+    "real_seconds": 0.33,
+    "maximum_rss_bytes": 13303808,
+    "result_u32": "0x5a5a5a5a",
+    "log": "probe.log"
+  },
+  "metal_buffer_tests": {
+    "passed": 3,
+    "failed": 0,
+    "test_seconds": 0.46,
+    "invocation_seconds": 1.94,
+    "maximum_rss_bytes": 81526784,
+    "command": "timeout --signal=KILL 300 /usr/bin/time -l cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint -- --test-threads=1 --nocapture",
+    "log": "metal-buffers.log"
+  },
+  "engine_parity": {
+    "passed": 9,
+    "failed": 0,
+    "ignored_cuda": 2,
+    "test_seconds": 129.35,
+    "invocation_seconds_including_build": 172.64,
+    "maximum_rss_bytes_including_build": 4068556800,
+    "command": "timeout --signal=KILL 300 /usr/bin/time -l cargo test -p nightstream --release --features metal,cuda --lib engine::parity:: -- --test-threads=1 --nocapture",
+    "log": "engine-parity.log"
+  },
+  "lean_rerun": false,
+  "production_metal_rerun": false,
+  "full_lifecycle_5x_speed_and_16gb_memory": "not established; dense production norm allocation remains unresolved"
+}

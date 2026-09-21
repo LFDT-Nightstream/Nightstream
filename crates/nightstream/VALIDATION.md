@@ -125,7 +125,8 @@ printing was removed after recording the failed production attempts.
 The [engine receipt](tests/evidence/metal-production-replay.json) records the
 scope and failures. Raw logs and phase records are retained in
 [the run archive](tests/evidence/metal-production-20260920).
-The larger witness files remain at `/tmp/nightstream-metal-production-20260920`.
+The larger witness files were held at `/tmp/nightstream-metal-production-20260920`
+and saved in a private recovery archive before the restart.
 The outer timeout stopped the
 phase driver with each failed test, so those failure records were recovered
 from the command result and log; test-process peak memory was not recovered.
@@ -186,17 +187,17 @@ tail. The production memory measurement above predates that change.
 
 The Metal rewrite now keeps references to shared coefficient patterns,
 processes one matrix opening at a time, and factors the padded equality
-weights. It is not yet device-validated. The combined parity invocation
+weights. Its first device check on 2026-09-20 was blocked. The combined parity invocation
 reached the 300 s cap after five cross-check tests passed; the first Metal
 test did not finish. An isolated small test also waited at its first device
 command and was stopped. The earlier production process remained in the
 kernel exit state, while the GPU driver reported 52,719,140,864 bytes in use
 and 100% utilization. No new production GPU run was started. The
 [device snapshot and test log](tests/evidence/metal-production-20260920/compact-validation)
-record this block. A clean device state is needed before those results can
-be checked. This is not a Metal parity pass or a speed result.
+record this block. These failed attempts establish neither Metal parity nor
+a speed result.
 
-The owner cannot restart this Mac. Process cleanup was attempted without a
+Before a restart was possible, process cleanup was attempted without a
 restart or logout: the test-owned Metal compiler services received TERM and
 KILL. A separate Objective-C program then submitted a four-byte buffer fill
 without any Nightstream shaders. It reached the 300 s cap in committed state,
@@ -228,6 +229,664 @@ norm sources into extension-field tables, and the carried calculation has
 overlapping large temporary arrays. Commitments and terminal verification
 still use the CPU. Those paths and complete lifecycle measurements must be
 addressed before the 16 GB and 5× requirements can be accepted.
+
+## GPU recovery and compact Metal checks
+
+The owner restarted the M1 Max after the failed process cleanup. On
+2026-09-21 UTC, the new boot time and absence of all four stuck test processes
+confirmed the restart. The driver reported 424,837,120 bytes in use and no
+busy work queues. No GPU or memory sysctl settings were changed.
+
+| Check | Result | Time |
+| --- | --- | --- |
+| Independent four-byte Metal buffer fill | Correct value; scheduled and completed without an error | 0.33 s |
+| Compact openings, empty offsets, and zero-carried buffer bounds | Three passed | 0.46 s test time |
+| Complete small-circuit engine comparisons | Nine passed; two CUDA tests ignored because the kernel is absent | 129.35 s test time; 172.64 s including build |
+
+The opening check crosses the parallel and tiled list thresholds and compares
+all returned values with CPU results. The engine suite compares proof bytes,
+claims, witnesses, and transcript state. It includes the two-row exported
+polynomial, nonzero carried data, zero carry, and parallel PaperExact/Optimized
+cross-checks with rejection cases. The logged verifier errors and worker panic
+come from those deliberate rejection checks; the suite passed.
+
+All invocations used the project's 300-second timeout. The engine invocation
+recorded a maximum RSS of 4,068,556,800 bytes, including the build. This is a
+small-circuit validation measurement, not a production memory result. After
+the tests, driver memory returned to 424,837,120 bytes, there were no busy
+work queues, and no Nightstream test process remained. Logs and the result
+record are in [the recovery checks](tests/evidence/metal-recovery-20260921).
+
+At this recovery checkpoint, the compact Metal rewrite had device parity
+evidence. Production GPU runs were still stopped because the dense norm
+buffers exceeded the owner's memory target with all witnesses active. The
+next section records their replacement. The recovery checks did not establish
+the 16 GB lifecycle requirement or the 5× speed target. No Lean command ran.
+
+## Compact norms and production PiCCS
+
+On 2026-09-21 UTC, the M1 Max ran the first production PiCCS fold through
+both engines using the same stored source files. Both complete proofs match
+the saved CPU proof, including every output opening. No Lean command ran.
+
+| Measurement | Optimized CPU | Metal |
+| --- | --- | --- |
+| Complete PiCCS phase | 217.03 s | 132.40 s |
+| Circuit preparation | 67.49 s | 66.87 s |
+| Matrix cache construction | 54.97 s | 53.27 s |
+| Proving, including Metal plan construction | 94.12 s | 11.32 s |
+| Peak process RSS | 11,892,965,376 bytes | 12,220,039,168 bytes |
+
+The CPU preparation was sampled for 10 s at 1 ms intervals, as in
+`scripts/profile_for_ai.sh`. Release symbols were stripped, so that sample
+does not identify named hot functions. Treat these phase timings as diagnostic
+measurements. They show about 8.3× for proving and 1.6× for the complete PiCCS
+phase. They are not full lifecycle timings or a pass of the 5× requirement.
+
+The Metal norm prefix now uses shared field-value tables: 9 values after the
+first fold, 81 after the second, and 6,561 after the third for signed-unit
+witnesses. Positions use byte or `u16` indices. Later rounds use dense values,
+with output allocated only for the next prefix and the old prefix released
+after completion. For the selected width with all 17 sources active, the
+calculated peak for norm-prefix buffers falls from 51.61 GB to 6.45 GB. This
+calculation excludes masks, matrices, other tables, source witnesses, and
+allocator overhead; it is not a process-memory measurement.
+
+The carried projection combines one ring block in threadgroup memory and
+produces its matrix and identity projections directly. It no longer stores
+full-width real and imaginary intermediate planes. The common table also
+shrinks each round instead of retaining its initial pair of buffers. Host
+witness-mask copies are released after upload.
+
+Two norm-prefix tests cover every fold, odd lengths, sparse source indices,
+zero and one challenges, the dense transition, and zero witnesses. A separate
+test compares the carried projection with CPU results while all 16 production
+carried sources are nonzero. Three complete small CPU/Metal C/R/D comparisons
+pass after both changes. An allocation test checks that an oversized request
+fails before allocation or submission. The existing Metal adapter still builds.
+
+Metal's allocator rejects requests that would exceed 16,000,000,000 bytes of
+tracked device buffers. CPU allocations and driver overhead still require
+separate measurement. The production result above uses zero carried witnesses;
+later folds, terminal verification, and the general 16 GB requirement remain
+open. In this run, the complete-phase bottleneck was the inherited CPU
+preparation and cache construction. Cache construction still expanded the
+compact verifier program before grouping repeated coefficients.
+
+The [raw logs and result record](tests/evidence/metal-norm-20260921) include
+both production phases, the tests, and the buffer-size calculation. All test
+invocations used the 300-second cap. Clippy found no new warnings in this
+change; existing dependency warnings and an unchanged Metal boolean-expression
+warning remain. Clippy used `--cap-lints warn`, not a clean `-D warnings` check.
+
+## Compact matrix runs
+
+On 2026-09-21 UTC, formula substitution and cache construction stopped
+expanding each retained field into 41 scalar coefficients. A retained field
+now stays one geometric run through substitution and enters the existing CPU
+and Metal run evaluators directly. Scalar rows still expand on request for
+PaperExact and reference checks. No circuit formula, field encoding, profile,
+identity, or proof format changed.
+
+The same stored first-fold input was run again on the M1 Max. The optimized
+CPU proof matches the saved proof from the expanded cache. The Metal proof
+matches the new CPU proof. Both comparisons include every output opening and
+check that all source files match. No Lean command ran.
+
+| Measurement | Optimized CPU | Metal |
+| --- | --- | --- |
+| Complete PiCCS phase | 175.12 s | 89.58 s |
+| Circuit preparation | 66.72 s | 66.71 s |
+| Matrix cache construction | 5.30 s | 5.31 s |
+| Proving, including Metal plan construction | 102.10 s | 17.09 s |
+| Peak process RSS | 12,426,706,944 bytes | 14,220,787,712 bytes |
+
+Cache construction is about 10× faster than the preceding expanded-cache
+run. Proving became slower in both engines. The complete phase still improved:
+CPU fell from 217.03 s to 175.12 s, and Metal from 132.40 s to 89.58 s. These
+are diagnostic runs of the first PiCCS fold, with zero carried witnesses.
+The Metal/CPU ratio for the complete phase is about 2×. This does not establish
+the 5× full lifecycle target.
+
+Memory also needs further work. Metal's retained device allocation after the
+proof rose from 2,076,639,232 to 3,316,727,808 bytes. Its process peak rose from
+12.22 GB to 14.22 GB. The run representation and geometric opening plan need
+less metadata before later production folds can establish the 16 GB limit.
+The 16 GB limit for every supported circuit remains unverified.
+
+Fourteen formula tests passed, including every Poseidon2 and Phi81 row against
+the independent expanded interpreter. Four cache tests compare scalar matrix
+evaluation and openings, check overlapping runs and empty rows, and reject
+invalid bounds, ordering, and incomplete coverage. The Metal carried
+projection test uses all 16 nonzero carried sources and compares compact runs
+with a separate scalar CPU cache.
+
+The [raw logs and result record](tests/evidence/compact-matrix-runs-20260921)
+contain both production runs and the focused tests. Every test invocation used
+the repository's 300-second cap.
+
+## Parallel preparation and streamed identity
+
+On 2026-09-21 UTC, a 10-second sample of preparation with symbols showed
+6,386 of 7,192 preparation samples in Poseidon2 hashing. The existing Cargo
+profiling profile was used with the duration and interval from
+`scripts/profile_for_ai.sh`. The test prepared the independent Rust addition
+application. These samples cover the first reference check, not the complete
+preparation interval.
+
+Preparation now runs reference authorization and candidate construction in
+parallel. It returns a circuit only after the reference passes its pinned
+package and key checks and the candidate passes its own checks. A test changes
+reference data that assembly replaces. The candidate remains byte-for-byte
+equal to the original circuit, but preparation still rejects the changed
+reference identity.
+
+The geometric Metal opening plan now dispatches each matrix's run plan only
+for that matrix. Its group records reuse the existing block coordinates and
+the next group's offset. Tests compare multiple matrices with scalar CPU
+openings, check sparse block gaps, and check the dispatch and storage counts.
+
+Before the subsequent streaming hash change, the same first production PiCCS
+input produced these results:
+
+| Measurement | Optimized CPU | Metal |
+| --- | --- | --- |
+| Complete PiCCS phase | 141.93 s | 57.83 s |
+| Circuit preparation | 34.75 s | 34.75 s |
+| Matrix cache construction | 5.33 s | 5.50 s |
+| Proving, including Metal plan construction | 101.39 s | 17.10 s |
+| Peak process RSS | 13,772,636,160 bytes | 15,079,833,600 bytes |
+
+Both complete proofs match the saved expanded-cache CPU proof. The Metal
+dispatch count fell from 425 to 282. Retained device storage fell from
+3,316,727,808 to 3,247,538,176 bytes. Proving time did not materially improve;
+the phase speed gain came from parallel preparation. These first-fold runs
+have zero carried witnesses and do not establish the 5× full lifecycle target.
+
+Circuit identity hashing now consumes the same framed words incrementally.
+It retains only the Poseidon2 state and rate position, instead of building a
+full field-element input vector for each hash. The existing slice hash remains
+the reference. Tests cover all update splits across empty, full, and partial
+blocks, the exact nested numeric-array framing, and invalid input nodes.
+No digest format, padding, circuit identity, or Lean artifact changed.
+
+After streaming was added, the public optimized Poseidon2 base lifecycle
+passed in 249.61 s with 13,163,626,496 bytes of peak process RSS. Preparation
+took 34.66 s, proving 100.90 s, and terminal verification 113.43 s. The test
+checked the saved Lean output and rejected a changed output. It used both the
+repository's 300-second cap and the owner's 16,000,000,000-byte process-memory
+cap. This is a base lifecycle check; it executes no active recursive fold.
+The later terminal measurements below include streamed identity inputs.
+
+The [logs and result record](tests/evidence/parallel-prepare-20260921) include
+the profile excerpt, authorization test, opening tests, both PiCCS runs,
+streaming hash checks, and public base lifecycle result. No Lean command ran.
+The full recursive lifecycle, 5× speed target, and the
+16 GB limit for every supported circuit remain open.
+
+## Device terminal rows and zero openings
+
+On 2026-09-21, terminal verification gained a Metal check of the actual matrix
+rows and constraint polynomial. It does not use the prover's satisfied-row
+substitution. Nonzero running openings also use the device. Statement checks,
+norm checks, commitments, and transcript control remain shared host work.
+
+Zero openings retain their shape checks, then return zero without allocating
+matrix scratch. The allocation regression test failed before the change and
+passed after it. CPU evaluation selects parallel work from the nonzero witness
+count. Metal opening metadata is created only when an opening needs it.
+
+| Public base lifecycle | Optimized CPU | Metal |
+| --- | --- | --- |
+| Total process time | 251.22 s | 245.96 s |
+| Preparation | 34.93 s | 34.94 s |
+| Proving | 100.70 s | 100.64 s |
+| Terminal verification | 114.72 s | 110.20 s |
+| Peak process RSS | 9,796,550,656 bytes | 11,410,685,952 bytes |
+
+Both public tests matched the stored Lean application result, accepted the
+base proof, and rejected a changed expected output. A separate test passed a
+CPU-produced proof to Metal verification. It then recomputed the commitment of
+a false witness; CPU and Metal both rejected its first unsatisfied row. This
+check took 259.73 s and used 11,870,699,520 bytes of peak process RSS. Eight
+focused Metal tests passed, including independent scalar row evaluation,
+partial ring blocks, multiple threadgroups, and zero-opening allocation checks.
+
+These runs used the repository's 300-second test cap. The public and adversarial
+tests also used the owner's 16,000,000,000-byte process-memory cap. No Lean
+command ran. [Logs and result records](tests/evidence/terminal-rows-20260921)
+retain the measurements and failing allocation test. The base lifecycle has no
+active C/R/D fold. Full recursive device parity, 5× lifecycle speed, and the
+memory bound for every supported circuit remain unproved.
+
+## Device fixed-key commitments
+
+The CPU base completion timers measured 1.11 s in witness execution, 2.65 s in
+packing, and 97.42 s in the fresh commitment. The witness has 2,459,565 nonzero
+ring blocks. The selected key requires 2,921,963,220 coefficients for those
+blocks across its 22 rows.
+
+Metal now generates the exact `nightstream-ajtai-chacha20-wide256-v1`
+coefficients in threadgroup tiles. Each tile is shared by the active witnesses,
+then discarded. Signed convolution and Phi81 reduction stay on the device.
+The existing CPU validator checks every input coordinate first. Zero witnesses
+require no device work. This preserves the selected key, seed, coefficient
+addresses, field reduction, ring, and commitment format.
+
+The full fresh commitment matched the saved CPU commitment in 3.08 s. All
+source files from the timed CPU base run equal the saved source byte for byte.
+The Metal call allocated 98,999,236 bytes of explicit device buffers, uploaded
+49,192,660 bytes, and downloaded 9,504 bytes. Its 22 command buffers contained
+396 dispatches. This is about 31.65× faster for the commitment operation; it is
+not a full lifecycle speed claim.
+
+Three device tests compare mixed signs, dense and packed representations,
+virtual zeros, partial tiles, odd reduction levels, and the first and last
+production key addresses with CPU results. Invalid shapes and values fail
+before a device allocation or dispatch. The shared key validator is used by
+both backends. [Logs and the source comparison](tests/evidence/terminal-rows-20260921)
+record the timings and complete commitment equality.
+
+With device commitments enabled in proving and verification, the public Metal
+base lifecycle passed in 52.11 s, including process start and cleanup. It used
+11,458,199,552 bytes of peak process RSS. Preparation took 35.13 s, proving
+6.83 s, and terminal verification 9.57 s. The saved Lean output matched and a
+changed expected output was rejected. The same CPU path measured above took
+251.22 s, so this base lifecycle result is 4.82× faster. It does not meet the
+5× target and contains no active recursive fold.
+
+Nine engine tests also passed with device commitments, including complete
+CPU/Metal C/R/D proof equality, nonzero carried data, the selected two-row
+polynomial, and the runtime PaperExact/Optimized cross-check. The two CUDA
+checks remain ignored because the canonical CUDA kernel is absent. All test
+invocations stayed within the repository's 300-second cap; the public base
+test also used the owner's 16 GB process-memory cap. The CPU-proof terminal test also passed with device commitments enabled. It
+accepted the original proof, then rejected the recommitted false witness at
+the same row as CPU. It used 11,921,293,312 bytes of peak process RSS. General
+bounded memory and complete production recursive device parity remain open.
+
+The current first production PiCCS phase also matched every saved CPU proof
+byte and all source files. It took 55.29 s: 34.80 s preparation, 4.99 s cache
+construction, and 15.04 s proving. Peak process RSS was 15,179,464,704 bytes.
+This phase has zero carried witnesses. It does not establish the memory cost
+of a later fold with nonzero carried witnesses.
+
+The default build passes. The Metal and CUDA build and legacy Metal adapter
+type checks also pass. Strict Clippy stops at inherited errors in unchanged
+dependency files. An audit with `--no-deps --cap-lints warn` covered the changed
+crates and found one new test-only clone warning, which was corrected. The
+final Metal audit retains only inherited warnings; this is not a strict
+Clippy pass. Formatting and `git diff --check` pass. The production dependency
+tree with `metal,cuda` contains no `neo-fold-clean`.
+
+## Application and parent storage
+
+The row kernel now reads signed witness masks directly. It no longer expands
+the current carrier into a 2,024,090,208-byte array of field elements. Application
+tables retain only the current prefix and allocate the next half when a fold
+needs it. The initial reservation of 1,071,430,080 bytes for future prefixes is
+gone. Sumcheck partials are local to each round. Completed command buffers are
+released before the next norm prefix is allocated.
+
+Two allocation tests failed before these changes and pass after them. One
+checks that initial application storage grows only with current rows. The
+other checks that row scratch does not grow with unused carrier columns.
+Ten Metal joint tests pass, including independent CPU row and opening results.
+
+On the same first-fold source, the complete PiCCS proof and source files still
+match the saved CPU results. The phase took 55.79 s: preparation 34.62 s, cache
+construction 4.99 s, and proving 15.28 s. Peak process RSS was 15,440,166,912
+bytes. Thus these local allocation reductions did **not** reduce the measured
+first-fold process peak. The opening evaluator still reserves 4,048,180,416
+bytes for a full-carrier form buffer. At that point, later folds also allocated
+a separate full-carrier projection buffer for the carried table.
+
+The public base lifecycle passed in 52.46 s with 10,810,359,808 bytes of peak
+RSS, down from 11,458,199,552 bytes. Preparation took 35.14 s, proving 6.82 s,
+and terminal verification 9.66 s. It matched the saved Lean output and rejected
+a changed expected output. Relative to the unchanged 251.22 s CPU path, this
+run is 4.79× faster. The 5× requirement remains unmet.
+
+CPU PiDEC now takes ownership of its parent witness and drops it after the
+signed split. Metal also drops the parent at that point. Commitments, openings,
+and public recomposition use the owned digits and parent claim. Nine engine
+tests pass after this ownership change; two CUDA checks remain ignored because
+the canonical kernel is absent. No production run with nonzero carried
+witnesses is claimed here.
+
+[Logs and the storage model](tests/evidence/compact-application-storage-20260921)
+record the failing allocation tests, checks, proof comparison, and measurements.
+Every test invocation used the repository's 300-second cap. The production
+PiCCS and public base runs also used the owner's 16,000,000,000-byte process
+memory cap. No Lean command ran. General bounded storage and complete recursive
+device validation remain open.
+
+## Carried projection, zero masks, and packed PiRLC
+
+Carried-table construction now uses its output for both projection passes.
+Only the actual row sums need separate storage: 102,040,944 bytes for this
+profile, instead of the old 4,048,180,416-byte projection buffer. The device
+checks match CPU formulas with all sixteen carried sources active, distinct
+matrix weights, retained-field runs, and more rows than carrier coefficients.
+The allocation regression failed on the old storage design and now passes.
+
+Device masks omit trailing zero witnesses. Source counts and gamma exponents
+keep their logical indices. Tests cover a zero prefix before an active source,
+a zero suffix, and an all-zero family. Thirteen joint tests pass. The shared
+seeded legacy adapter also passed after the carried-buffer, zero-mask, and
+PiRLC changes.
+
+The public recursive run first stopped at 16,600,924,160 bytes. After zero-mask
+trimming, it stopped at 16,391,487,488 bytes. Both used the original 16 GB
+process guard. The owner accepted the latter observed peak temporarily.
+
+Packed PiRLC now reads positive and negative column masks directly. It no
+longer creates a column/value pair for every nonzero coefficient. The fresh
+production witness has 81,343,582 such coefficients, so those lists held at
+least 1,301,497,312 bytes before capacity overhead. Older row-packed inputs
+use two column-mask arrays instead. Dense inputs are unchanged.
+
+The allocation test failed before this change and passes after it: a
+column-packed input allocates only its output. Direct matrix multiplication
+agrees for mixed signs, non-diagonal challenges, multiple sources, both packed
+formats, and serial and parallel execution. Nine engine parity tests pass;
+the two CUDA tests remain ignored.
+
+Both implementations then ran the production PiRLC phase separately on the
+same saved sources and CPU PiCCS proof. Peak RSS fell from 9,195,765,760 to
+7,865,794,560 bytes, a reduction of 1,329,971,200 bytes. Total phase time fell
+from 45.54 s to 42.23 s. These times include preparation and JSON input/output.
+All 253,011,276 parent witness coefficients match as field elements, including
+the completion tail. Goldilocks permits different integer representatives in
+its JSON, so the witness files differ in bytes. The complete parent claim,
+PiCCS proof, identities, and transcript record match byte for byte.
+
+The next public recursive attempt used the accepted 16,391,487,488-byte guard.
+It stopped after 62.82 s with 16,577,855,488 bytes observed. PiCCS reported
+2.529 s for oracle construction, 5.707 s for rounds, and 6.611 s for outputs.
+PiRLC and terminal verification did not finish. The mask change therefore
+does not establish a lower full-process peak. A small buffer-lifetime probe
+did not reproduce a completed-command leak; no ownership change was made
+from that hypothesis.
+
+[Logs and records](tests/evidence/carried-buffer-reuse-20260921) retain the
+allocation failures, checks, and stopped production runs. Each test kept the
+300-second cap. These three storage changes preserve the circuit, profile,
+key and transcript. Formatting and the release all-targets Clippy audit with
+warnings capped passed; existing warnings remain, so this is not a strict
+`-D warnings` result. Complete recursive parity, the 5× lifecycle target, and
+bounded storage for all supported circuits remain open.
+
+## Complete first production Metal fold
+
+The crate's complete Metal producer passed on the saved first-fold inputs.
+Every one of its 945,983 canonical proof bytes matches the saved CPU proof.
+This covers PiCCS, PiRLC, and PiDEC, including all child commitments and
+openings. The incoming carried witnesses are zero; six outgoing digit
+witnesses are nonzero. Public verifier replay also checks the returned claims and parent
+authority. The phase saves all sixteen child witnesses for successor checks.
+
+The test took 78.87 s, or 79.96 s including the external runner. Preparation
+took 34.81 s and the complete C/R/D call took 42.99 s. Peak RSS was
+16,733,356,032 bytes. Physical footprint peaked at 15,801,577,736 bytes.
+This is a saved-input fold check with checkpoint input/output, not a full
+lifecycle benchmark or a 5× result.
+
+The generated child witnesses then passed the successor check on CPU. All
+sixteen recomputed commitments matched. The complete caller's private/public
+arrays and output digest matched the saved Lean fixture. The new step-2
+envelope was saved for the next fold. This check passed in 273.84 s with
+6,931,087,360 bytes peak RSS. Child commitments took 110.57 s and the fresh
+commitment took 122.60 s. This is an independent CPU integration check, not a
+Metal lifecycle timing.
+
+The owner confirmed RSS as the acceptance measure, accepted approximately
+16 GB for this pass, and deferred further memory tuning. This slice used a
+16 GiB RSS guard (17,179,869,184 bytes). The uninterrupted recursive test
+reached 17,252,679,680 bytes and stopped after witness splitting. No complete
+recursive lifecycle is claimed. A memory map showed large empty allocator
+regions, but a trial call to release unused allocator pages did not reduce
+RSS. That experiment and its diagnostic code were removed.
+
+[The logs and records](tests/evidence/allocator-pages-20260921) contain both
+memory measures, the stopped runs, and the complete proof comparison. Each
+test kept the 300-second cap. No Lean command ran.
+
+The phase driver can repeat the complete producer and proof comparison:
+
+```sh
+timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory RUN_DIRECTORY --phase prove --step 1 --engine metal --reference-proof CPU_PROOF_FILE
+```
+
+The input directory must contain the complete `step-1` source. The reference
+proof is used only for the final comparison and never as a producer input.
+The later fold and terminal checks are recorded below. Uninterrupted full
+lifecycle timing remains open.
+
+## Nonzero-carried production fold
+
+The second fold consumed the successor generated from the first Metal fold.
+Its six nonzero carried witnesses, fresh witness, and claims were identical
+between the new CPU and Metal runs. No Lean command ran. The production
+arithmetic was unchanged in this validation slice; test phases gained shared
+CPU opening-cache use and Metal successor selection.
+
+The first CPU PiCCS attempt stopped at the normal RSS guard with
+18,136,563,712 bytes observed. The owner then approved one CPU reference run
+above the approximate 16 GB limit, retaining the 300-second timeout. That run
+passed with 21,273,313,280 bytes peak RSS. It provides correctness evidence and
+does not pass the production memory requirement. The exception was used only
+for that run; all later phases used the 16 GiB RSS guard.
+
+| Phase | Result | Runner time | Peak RSS, bytes |
+| --- | --- | --- | --- |
+| CPU PiCCS reference, approved memory exception | Passed | 187.87 s | 21,273,313,280 |
+| Metal PiCCS | All CPU proof bytes and source files match | 71.72 s | 14,697,201,664 |
+| CPU PiRLC | Passed | 46.45 s | 8,314,503,168 |
+| CPU split and all child commitments | Passed | 189.99 s | 8,244,707,328 |
+| CPU openings, one shared cache | All sixteen checked | 183.78 s | 12,068,405,248 |
+| CPU complete proof assembly and replay | Passed | 210.11 s | 8,336,834,560 |
+| Complete Metal C/R/D producer | All 945,983 CPU proof bytes match | 103.02 s | 16,655,368,192 |
+| Metal successor construction | Passed | 54.54 s | 7,101,726,720 |
+| Metal terminal acceptance and wrong-state rejection | Passed | 74.71 s | 14,822,801,408 |
+| CPU construction of the false opening, rehash, and fresh commitment | Passed | 171.62 s | 5,979,226,112 |
+| Metal rejection of the rehashed and recommitted false opening | Required `Eval_K` error | 72.79 s | 15,901,687,808 |
+
+The batch CPU opening phase recomputes the signed split and compares every
+saved child matrix. The final NIFS phase independently repeats the split,
+recomputes all commitments, checks every saved child, and replays the complete
+proof. Saved commitments are phase data, not authority.
+
+The complete Metal fold calls the real producer, then compares its canonical
+proof bytes with the newly generated CPU proof. Its production C/R/D call took
+65.09 s; preparation took 35.00 s. A separate comparison checked all sixteen
+returned matrices, all claims and openings, parent, transcript, identities,
+and proof bytes against CPU: 585,569,271 reference bytes in total. Goldilocks
+representatives are normalized for typed JSON comparison. All child matrix
+files match exactly apart from permitted final line endings.
+
+The generated Metal successor drove terminal verification with seven nonzero
+running witnesses. Terminal checks made 959 device dispatches and accepted the
+expected state; a changed expected state was rejected. A separate CPU phase
+changed the first claimed `Eval_K`, recomputed the state hash, changed the
+fresh public witness, and recomputed its commitment. Metal rejected this input
+with `Eval_K differs from the complete witness opening`, as required.
+
+[Logs, requests, and comparison records](tests/evidence/nonzero-fold-20260921)
+retain these results and the failed CPU memory attempt. Each invocation kept
+the repository's 300-second test cap. Preparation and file input/output repeat
+across phases, so their sum is not a lifecycle benchmark. The uninterrupted
+recursive lifecycle, 5× speed target, and general memory bound remain open.
+
+For the CPU reference, `openings --step 2` can replace the individual `child`
+invocations. It requires the completed `split` phase and must be followed by
+`nifs`. `successor --step 2 --engine metal` uses device commitments. These are
+test-driver choices, not new Cargo features or production APIs.
+
+## Full lifecycle with direct mask upload
+
+The device path previously packed all logical witnesses into a host mask
+vector, then copied its nonzero prefix into Metal storage. PiCCS reserved
+1,274,427,168 bytes for this vector on the selected profile; PiDEC reserved
+1,199,460,864 bytes. A zero suffix still occupied the host vector. Encoding
+also revisited every scalar coefficient even when signed masks already existed.
+
+PiCCS and PiDEC now write signed masks directly into the final shared Metal
+buffer. Only the prefix through the last nonzero witness occupies that buffer;
+logical source counts and indices are unchanged. General digit inputs retain
+one source's temporary encoding. This change adds no circuit-specific branch,
+new feature, environment variable, or memory threshold. The block-count
+accessor lets the device preparation validate all source widths before use.
+
+The host allocation regression failed on the old path: one nonzero source
+allocated 80 Rust heap bytes, while the same source with sixteen zero witnesses
+allocated 1,104. It now requires and gets equal allocation for both families.
+Thirteen joint device checks and nine engine parity checks pass; the two CUDA
+checks remain ignored because their kernel is absent. The Clippy audit reports
+only the existing boolean-expression warning, with no new warning in this change.
+
+The uninterrupted public Metal lifecycle passed in 183.62 s, or 184.80 s with
+the external runner. Peak RSS was 16,167,714,816 bytes. It includes preparation,
+base proving, both active `extend` calls, terminal acceptance, and wrong-state
+rejection. This replaces the earlier stopped public-lifecycle result.
+
+The changed complete second-fold producer also passed exact CPU proof and
+output comparison. Every one of its 945,983 canonical proof bytes and all
+sixteen returned matrices match the existing CPU reference. The phase took
+92.91 s with the runner and 15,983,771,648 bytes peak RSS; C/R/D itself took
+54.53 s. The CPU reference was not rerun, and no Lean command ran.
+
+The standalone production benchmark then ran on the same M1 Max, using the
+fixed initial state `[202, 203, 204, 205]` and message `[7, 11, 13, 17]`:
+
+| Phase | Metal time |
+| --- | --- |
+| Preparation | 34.75 s |
+| Base proof | 6.81 s |
+| First active extension | 50.23 s |
+| Second active extension | 66.14 s |
+| Terminal verification | 29.23 s |
+| Complete lifecycle | **187.16 s** |
+
+The benchmark emitted `benchmark_finished` with `verified: true`, the expected
+final state, and the selected circuit identity. Peak RSS was **16,594,255,872
+bytes**; the external runner took 187.83 s. These are complete process
+measurements under the owner's approximate-16-GB allowance and the stated
+16 GiB RSS guard. Physical footprint is also recorded as diagnostic data.
+
+[Logs and records](tests/evidence/direct-witness-masks-20260921) retain the
+allocation failure and pass, build and parity checks, proof comparison, public
+lifecycle result, and production benchmark. Every native test and benchmark
+used the 300-second cap. Full CPU timing is not available; the 5× comparison
+still requires that run. This selected-circuit result does not establish a
+memory bound for all supported circuits, and the earlier 21.27 GB CPU reference
+still exceeds the production target.
+
+## CPU carried storage and dense folding
+
+The CPU carried-table builder previously made a full scalar combination of
+the running witnesses, copied it into real and imaginary ring planes, and
+built separate matrix and Pad projections. The selected carrier has
+253,011,276 coefficients. A scalar extension-field vector occupies
+4,048,180,416 bytes; the two dense real-field planes together occupy the same
+space.
+
+The final path combines only the ring block being projected. It evaluates
+matrix rows from that projection, then reuses the same buffer for Pad. Logical
+source positions and gamma exponents are unchanged. The output buffer also
+covers relations with more rows than witness coordinates.
+
+Dense SumCheck tables now fold inside their current allocations. Each worker
+handles an even chunk; after all reads finish, the results are moved together.
+Chunk sizes come from the active worker count. The completed SumCheck tables
+are released before witness openings. No circuit, profile, transcript, feature,
+or environment variable changed.
+
+The allocation regression failed on the old carried path. The final path has
+one full projection allocation and no full combined-witness planes. A separate
+regression failed on the old dense fold's additional half-table allocation and
+passes with in-place folding. Values match independent scalar calculations;
+checks include zero sources, reused zero blocks, odd lengths, parallel chunk
+boundaries, and rows beyond the witness carrier. The row-prover check and all
+nine supported Nightstream engine parity checks pass. Two CUDA checks remain
+ignored. The original complex-cache equivalence suite also passed 25 checks
+while evaluating the first storage change.
+
+All three production attempts kept the normal 16 GiB RSS guard and the
+300-second cap:
+
+| Attempt | Last completed work | Stop time | Peak RSS, bytes |
+| --- | --- | --- | --- |
+| Construct full ring planes directly | Preparation and cache | 50.61 s | 19,280,347,136 |
+| Combine per block and reuse the projection | Oracle setup | 68.75 s | 18,899,304,448 |
+| Also fold dense tables in place | Oracle setup and SumCheck | 77.99 s | 20,684,931,072 |
+
+These stopped at different phases. Their peaks do not establish a reduction
+in complete-run memory. The final attempt reported 15.37 s for oracle setup
+and 19.87 s for rounds, then hit the memory guard during output openings. It
+did not complete the saved production proof comparison. No memory exception
+was used, and no Lean command ran. The three-round project fuse ended this
+storage slice with the opening-phase memory requirement still open.
+
+An additional `neo-reductions` parity suite had seven passes and eight failures.
+The failing fixtures supply no running claim and stop at the unchanged
+digest-only transcript guard, before the changed evaluator is created. The
+guard and fixtures match `HEAD`; they were not repaired in this storage change.
+This is not a workspace-wide green test result.
+
+[Logs and checks](tests/evidence/cpu-carried-blocks-20260921) retain the failed
+allocation checks, passes, every stopped production attempt, and those fixture
+failures. The intermediate full-ring-plane approach was replaced; it is not
+the final implementation. The next storage change below closes the production
+PiCCS proof comparison. Full CPU lifecycle measurement, the 5× ratio, and the
+general memory bound remain open. The earlier Metal benchmark remains a record
+of its measured revision; measure both engines from one final build for the ratio.
+
+## CPU opening buffer reuse
+
+The completed carried SumCheck vector now becomes the opening scratch buffer.
+Real and imaginary coefficients share its existing `Vec<K>` allocation. This
+avoids two new coefficient planes totalling 4,048,180,416 bytes on the selected
+carrier. The implementation uses safe Rust and keeps matrix evaluation order,
+completion tails, and the protocol unchanged. Encoded witness folds also reuse
+their code buffers through the same in-place pair-fold operation.
+
+Both allocation regressions failed before their fixes and pass afterward.
+The 23 applicable cache-equivalence checks, three row/opening checks, eight
+CPU unit checks, and nine supported Nightstream engine comparisons pass. Two
+unit checks requiring separate local captures and the two CUDA comparisons
+remain ignored.
+
+The first opening-reuse production attempt stopped before openings at
+17,478,352,896 bytes RSS. With encoded-code reuse included, the complete second
+production PiCCS phase passed in **182.43 s** (183.03 s including the runner).
+It matched every saved CPU proof byte and output opening on identical sources.
+Peak RSS was **17,103,896,576 bytes** (17.10 GB; 15.93 GiB), below the working
+16 GiB guard of 17,179,869,184 bytes. Physical footprint was 13,033,157,640 bytes;
+RSS remains the acceptance measure. Oracle setup took 16.30 s, rounds 19.69 s,
+and output openings 105.01 s. No memory exception or Lean run was needed.
+
+The changed decomposition opening path also passed on all sixteen saved
+children. The seven nonzero child records match the CPU reference byte for
+byte, including commitments, parent, and transcript; the nine zero children
+pass their zero-opening checks. This phase took 182.02 s with 14,638,448,640
+bytes peak RSS. The parent and digit witnesses were reused from the saved
+reference; this run did not regenerate a complete C/R/D proof.
+
+A fresh standalone benchmark from this final build passed the full three-step
+Metal lifecycle in **179.514135833 s**, with **16,784,228,352 bytes peak RSS**.
+Preparation took 34.67 s, base proving 6.81 s, the two extends 49.75 s and
+64.25 s, and terminal verification 24.04 s. Inputs, circuit identity, and final
+state equal the earlier Metal run. The exact executable is retained for the
+pending full CPU measurement; no speed ratio is inferred from the PiCCS-only
+CPU timings. The full CPU run still needs the separately requested timeout
+and memory exception; the earlier reference exception was already used.
+
+[Logs and comparisons](tests/evidence/cpu-opening-reuse-20260921) retain the
+failed allocation checks, the stopped production attempt, passing runs, and
+exact comparisons. The CPU measurements cover production phases. They do not
+establish the full CPU lifecycle memory bound or the 5× lifecycle ratio.
+Further memory tuning below the owner's approximate limit remains a later pass.
 
 ## Parallel PaperExact/Optimized cross-check
 

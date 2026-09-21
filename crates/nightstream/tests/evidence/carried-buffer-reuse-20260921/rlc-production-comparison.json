@@ -1,0 +1,41 @@
+{
+  "scope": "First production PiRLC, same saved source and CPU PiCCS proof; includes preparation, input/output JSON and verifier replay, not a full lifecycle.",
+  "baseline_binary": "rlc-entry-lists-test-binary, copied from nightstream-11c0cb8bc995e822 built before the RLC change",
+  "baseline_source": "carried-reuse-and-zero-suffix-source.patch and carried-reuse-and-zero-suffix-new-source.tar.gz in the private run directory",
+  "candidate_binary": "nightstream-b497b3d777136c6f, includes direct masks and existing neo-reductions/perf-timers",
+  "receipt_source_note": "Runner source_changes records the worktree at invocation; the baseline executable predates the RLC source edit.",
+  "records": {
+    "rlc-entry-lists": {
+      "elapsed_seconds": 45.539473915996496,
+      "maximum_resident_bytes": 9195765760,
+      "outcome": "passed"
+    },
+    "rlc-direct-masks": {
+      "elapsed_seconds": 42.228061833004176,
+      "maximum_resident_bytes": 7865794560,
+      "outcome": "passed"
+    }
+  },
+  "comparison": {
+    "parent-witness.json": {
+      "comparison": "Mat<Goldilocks> equality, every field element including the completion tail",
+      "rows": 54,
+      "columns": 4685394,
+      "field_elements": 253011276,
+      "equal": true,
+      "raw_bytes_equal": false,
+      "raw_difference": "Goldilocks serde allows distinct u64 representatives modulo 18446744069414584321",
+      "baseline_bytes": 4876382852,
+      "candidate_bytes": 4269064730
+    },
+    "parent.json": {
+      "comparison": "every byte: claims, identities, sumcheck and transcript state/cursor",
+      "bytes": 1337834,
+      "equal": true
+    }
+  },
+  "comparison_log": "rlc-parent-comparison.log",
+  "comparison_source": "compare-rlc-parent.rs",
+  "source_directory": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h",
+  "time_cap_seconds": 300
+}

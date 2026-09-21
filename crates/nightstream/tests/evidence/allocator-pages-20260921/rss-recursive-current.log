@@ -1,0 +1,15 @@
+
+running 1 test
+poseidon preparation engine=Metal elapsed=34.802557416s
+poseidon base proving elapsed=6.798043208s
+poseidon public extend step=2 started
+memory phase=before_ccs device_bytes=1703936 rss_kib=8387344
+[pi-ccs/phase] oracle-build=2.470s
+[pi-ccs/phase] rounds=5.705s
+test poseidon_metal_recursive_lifecycle has been running for over 60 seconds
+[pi-ccs/phase] outputs=6.590s
+memory phase=after_ccs device_bytes=3247538176 rss_kib=14209120
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.68s commit_mix    0.00s inputs=17
+memory phase=after_rlc device_bytes=3247538176 rss_kib=16112848
+memory phase=after_split device_bytes=3247538176 rss_kib=16376880

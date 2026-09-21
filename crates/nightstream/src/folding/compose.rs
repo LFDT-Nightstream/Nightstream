@@ -26,7 +26,7 @@ pub(crate) fn prove_owned_with_rows(
     drop(all);
     drop(witnesses);
     drop(running);
-    let (children, d) = pi_dec::prove_with_production_key(pp, s, cache, &parent.claim, &parent.witness)?;
+    let (children, d) = pi_dec::prove_with_production_key(pp, s, cache, &parent.claim, parent.witness)?;
     Ok((
         RunningInstance::new(children.claims, children.witnesses, Some(parent.claim)),
         NifsProof {

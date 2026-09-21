@@ -1,0 +1,14 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/cpu-current", step: 1, engine: Optimized, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/cpu-reference") }
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+staged circuit preparation elapsed=67.494671416s
+C cache elapsed=54.974612458s
+C proving engine=Optimized elapsed=94.11797375s
+C CPU proof byte equality passed; source files also match
+C completed elapsed=149.107162666s
+staged phase passed elapsed=216.975581167s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 216.98s
+

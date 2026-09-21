@@ -1,4 +1,4 @@
-use neo_ccs::{CcsStructure, Mat, SparsePoly};
+use neo_ccs::{CcsStructure, GeometricRowRun, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::{
     build_superneo_eval_cache, SuperneoCompactRowOffsets, SuperneoEvalCache, SuperneoEvalCacheBuilder, SuperneoZBlocks,
@@ -175,4 +175,101 @@ fn row_source_rejects_noncanonical_entries_and_incomplete_coverage() {
     assert!(builder.reserve_matrix(1, 0, 0, 0).is_err());
     assert!(builder.push_row(0, 0, []).is_err());
     assert!(builder.finish().is_err());
+}
+
+#[test]
+fn unexpanded_runs_match_scalar_matrices_for_rows_and_openings() {
+    let rows = 4;
+    let columns = 2 * D + 5;
+    let matrices = 3;
+    let mut dense = vec![Mat::zero(rows, columns, F::ZERO); matrices];
+    let mut builder = SuperneoEvalCacheBuilder::new(rows, columns, matrices).unwrap();
+    let runs = [
+        vec![],
+        vec![GeometricRowRun::new(1, D - 2, 41, F::from_u64(7), F::from_u64(3))],
+        vec![
+            GeometricRowRun::new(2, 1, 41, F::ONE, F::from_u64(3)),
+            GeometricRowRun::new(2, 1, 41, -F::ONE, F::from_u64(3)),
+            GeometricRowRun::new(2, D + 1, columns - D - 1, F::from_u64(11), -F::ONE),
+        ],
+        vec![],
+    ];
+    for (row, row_runs) in runs.iter().enumerate() {
+        for (matrix, values) in dense.iter_mut().enumerate() {
+            let explicit = if row == 2 && matrix == 0 {
+                vec![(D + 1, -F::from_u64(11))]
+            } else {
+                vec![]
+            };
+            let selected = if matrix == 0 { row_runs.as_slice() } else { &[] };
+            for &(column, coefficient) in &explicit {
+                values[(row, column)] += coefficient;
+            }
+            for run in selected {
+                run.for_each_term(|row, column, coefficient| values[(row, column)] += coefficient);
+            }
+            builder
+                .push_row_with_runs(matrix, row, explicit, selected.iter().cloned())
+                .unwrap();
+        }
+    }
+    let structure = CcsStructure::new(dense, SparsePoly::new(matrices, vec![])).unwrap();
+    let expected = build_superneo_eval_cache(&structure).unwrap();
+    let actual = builder.finish().unwrap();
+    let parts = actual.matrix(0).unwrap().compact_device_parts().unwrap();
+    assert_eq!(parts.geometric_runs.len(), 4);
+    assert_eq!(
+        parts.row_blocks.len(),
+        1,
+        "only the explicit scalar occupies a row block"
+    );
+    let values = (0..columns)
+        .map(|i| K::from(F::from_u64(i as u64 + 1)))
+        .collect::<Vec<_>>();
+    let witnesses = [SuperneoZBlocks::from_z(&values)];
+    let weights = (0..rows)
+        .map(|i| K::from_coeffs([F::from_u64(i as u64 + 3), F::ONE]))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actual.eval_ring_linear_forms_for_real_z_blocks(&weights, rows, &witnesses),
+        expected.eval_ring_linear_forms_for_real_z_blocks(&weights, rows, &witnesses)
+    );
+    let lane_weights = std::array::from_fn(|i| K::from_coeffs([F::ONE, F::from_u64(i as u64 + 1)]));
+    let matrix_weights = [K::ONE; 3];
+    assert_eq!(
+        actual.eval_weighted_row_table(&witnesses[0], &lane_weights, &matrix_weights, rows, rows * 2),
+        expected.eval_weighted_row_table(&witnesses[0], &lane_weights, &matrix_weights, rows, rows * 2),
+        "geometric-only rows must participate in the matrix mask"
+    );
+    assert!(matches!(
+        actual
+            .matrix(2)
+            .unwrap()
+            .compact_device_parts()
+            .unwrap()
+            .geometric_row_offsets,
+        SuperneoCompactRowOffsets::Empty
+    ));
+}
+
+#[test]
+fn row_source_rejects_invalid_runs_and_cannot_finish_after_failure() {
+    let mut encoded = serde_json::to_value(GeometricRowRun::new(0, 0, 1, F::ONE, F::ONE)).unwrap();
+    encoded["len"] = serde_json::json!(0);
+    let empty: GeometricRowRun<F> = serde_json::from_value(encoded).unwrap();
+    for runs in [
+        vec![empty],
+        vec![GeometricRowRun::new(1, 0, 1, F::ONE, F::ONE)],
+        vec![GeometricRowRun::new(0, D - 1, 2, F::ONE, F::ONE)],
+        vec![GeometricRowRun::new(0, usize::MAX, 2, F::ONE, F::ONE)],
+        vec![
+            GeometricRowRun::new(0, 2, 1, F::ONE, F::ONE),
+            GeometricRowRun::new(0, 1, 1, F::ONE, F::ONE),
+        ],
+    ] {
+        let mut builder = SuperneoEvalCacheBuilder::new(1, D, 1).unwrap();
+        assert!(builder.push_row_with_runs(0, 0, [], runs).is_err());
+        assert!(builder.push_row(0, 0, []).is_err());
+        assert!(builder.finish().is_err());
+    }
 }

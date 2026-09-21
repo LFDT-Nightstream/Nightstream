@@ -45,11 +45,12 @@ automatic fallback when a selected engine is unavailable.
 | `Optimized` | Existing optimized CPU path. |
 | `PaperExact` | Direct paper formulas with original exported matrix rows; checked against optimized CPU. |
 | `Crosscheck` | Runs PaperExact and Optimized in parallel. Returns the optimized result only if all proof fields, accumulator values, witness values, and transcript state and cursor match. |
-| `Metal` | Device PiCCS evaluation and PiDEC openings. The current memory rewrite needs fresh device validation. Requires the `metal` feature and an Apple Metal device. |
+| `Metal` | Device fixed-key commitments, PiCCS evaluation, PiDEC openings, and terminal row checks. Small comparisons and two complete production C/R/D proofs match CPU results. Requires the `metal` feature and an Apple Metal device. |
 | `Cuda` | The `cuda` feature connects the availability boundary. Selection fails explicitly because the canonical CUDA kernel is missing. |
 
-Metal retains its device session and matrix plan across folds. PiRLC, fixed-key
-commitments, witness generation, and verification use the shared host code.
+Metal retains its device session and matrix plan across folds. PiRLC, witness
+generation, and verifier control flow use the shared host code. Fixed-key
+commitments, terminal row arithmetic, and nonzero running openings use Metal.
 The GPU dependencies do not add `neo-fold-clean` to the production graph.
 
 Parity checks follow `PaperExact ↔ Optimized`, then
@@ -58,12 +59,42 @@ state, returned claims, and witness matrices. The small fixtures include
 nonzero carried data and completion tails. The selected production polynomial
 has a check with two distinct rows across PaperExact, Optimized, and Metal.
 Its nonzero input ports use two witness columns. These are
-small-input conformance checks. They passed before the memory rewrite; the
-current Metal checks are blocked by a stalled device. Production-profile
-Metal PiCCS attempts reached
-the five-minute test cap; a complete Metal replay has not passed. See
-[the engine validation results](VALIDATION.md#engine-validation-on-the-m1-max).
+small-input conformance checks. They pass with compact norm storage and the
+carried projection. The first production PiCCS proof also matches every CPU
+proof byte, including output openings. Both complete production C/R/D folds
+match all 945,983 CPU proof bytes. The second fold also matches all sixteen
+returned child matrices and feeds a successful Metal successor and terminal
+check. These separate phases do not establish the 5× full lifecycle target.
+See [the production comparison](VALIDATION.md#nonzero-carried-production-fold).
 The CUDA comparisons are explicitly ignored until its kernel exists.
+
+Metal rejects a buffer request that would put its tracked device allocation
+above 16 GB. This does not establish the total CPU-plus-GPU memory bound for
+every circuit; that requires the complete lifecycle measurements.
+
+Cache construction keeps coefficient runs compact and takes about 5 s on the
+saved production input, down from about 55 s. Device commitments generate the
+fixed key in threadgroup tiles and match CPU results: 3.08 s versus 97.42 s for
+the full fresh witness. See [the commitment checks](VALIDATION.md#device-fixed-key-commitments).
+
+The current three-step Metal benchmark passes in 179.51 s with 16.78 GB peak
+RSS. This includes preparation, the base step, two active folds, and terminal
+verification. Both full fold proofs and returned child matrices match CPU
+references. The full CPU benchmark is still needed to establish the 5× ratio.
+See [the current lifecycle result](VALIDATION.md#cpu-opening-buffer-reuse).
+
+The current CPU storage path also passes the second production PiCCS proof
+comparison: 182.43 s and 17.10 GB RSS (15.93 GiB), below the working 16 GiB guard.
+Openings reuse the completed SumCheck buffer. Full CPU lifecycle timing is
+still open. See [the CPU storage record](VALIDATION.md#cpu-opening-buffer-reuse).
+
+Row evaluation reads signed masks directly, application storage shrinks with
+each round, and zero openings avoid matrix scratch. Decomposition releases the
+parent witness after producing its signed digits. Witness masks are written
+directly into shared Metal storage, with no full host mask vector. Opening forms
+and CPU storage still need bounded evaluation. The 5× lifecycle target and
+general 16 GB bound remain open.
+See [the storage measurements](VALIDATION.md#application-and-parent-storage).
 
 Select `Engine::Crosscheck` in `Circuit::prepare_with_engine` to check each
 active fold. The engines receive separate copies of the same inputs and
@@ -116,7 +147,9 @@ Run engines separately with the same step count, then compare their logs
 manually. The owner's Metal target is at least 5× faster over the full lifecycle,
 including preparation, proving, and terminal verification. The current memory
 target is at most 16 GB for either engine on every supported circuit; 8 GB is
-the future mobile target. These targets have not passed. Inputs are fixed and
+the future mobile target. The owner has accepted approximately 16 GB for this
+pass, using RSS, and deferred further memory tuning. The general bound and full
+lifecycle speed target have not passed. Inputs are fixed and
 included in the first record. The step count
 includes the base step: `--steps 1` performs no active fold, while `--steps 3`
 covers the base and two active folds. PaperExact remains a small-input parity

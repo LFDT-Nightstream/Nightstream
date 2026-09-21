@@ -1,0 +1,12 @@
+{"active_extends":2,"benchmark":"poseidon2_hash_chain_v1","engine":"metal","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"profile":{"B":65536,"b":2,"k_rho":16},"schema":1,"steps":3}
+{"event":"phase_started","phase":"prepare","step":null}
+{"event":"phase_finished","phase":"prepare","seconds":34.752468834,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+{"event":"phase_finished","phase":"prove","seconds":6.80750275,"step":1}
+{"event":"phase_started","phase":"extend","step":2}
+{"event":"phase_finished","phase":"extend","seconds":50.22733275,"step":2}
+{"event":"phase_started","phase":"extend","step":3}
+{"event":"phase_finished","phase":"extend","seconds":66.136231625,"step":3}
+{"event":"phase_started","phase":"verify","step":3}
+{"event":"phase_finished","phase":"verify","seconds":29.232240709,"step":3}
+{"circuit_identity":[9705822157724451396,520958727644325895,9285622073986934000,874020794279380938],"event":"benchmark_finished","final_state":[6571778207680039711,123649970047308705,16791205033536618392,12263481847644113771],"seconds":187.156455042,"steps":3,"verified":true}

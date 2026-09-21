@@ -10,7 +10,7 @@ use super::prefix::{self, Assignment};
 use crate::engines::pi_ccs_joint::{gamma_power, range_product, JointDims};
 use crate::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_1OutputOpening};
 use crate::engines::pi_ccs_protocol::Challenges;
-use crate::superneo_eval::{weighted_identity_projection, EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
+use crate::superneo_eval::{fill_combined_projection, EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
 use crate::PiCcsError;
 
 // The production call uses offset zero. An offset preserves absolute tensor
@@ -144,7 +144,13 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             let tables = cache.matrix_caches().iter().map(table).collect();
             fresh_tables.push(tables);
         }
-        let evaluation_table = carried_table(cache, &assignments[fresh.len()..], challenges.gamma, dims, structure.n);
+        let evaluation_table = carried_table(
+            cache,
+            &witness_blocks[fresh.len()..],
+            challenges.gamma,
+            dims,
+            structure.n,
+        );
         Ok(Self {
             structure,
             cache,
@@ -347,52 +353,40 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
                 "optimized CPU opening point is not the completed point".into(),
             ));
         }
+        // The completed SumCheck tables are not inputs to witness openings.
+        self.assignments.clear();
+        self.fresh_tables.clear();
+        let storage = core::mem::take(&mut self.evaluation_table);
         self.cache
-            .eval_real_v1_1_openings(point, &self.witness_blocks)
+            .eval_real_v1_1_openings_reusing(point, &self.witness_blocks, storage)
             .map(Some)
     }
 }
 
 fn carried_table(
     cache: &SuperneoEvalCache,
-    running: &[Assignment<'_>],
+    running: &[SuperneoZBlocks],
     gamma: K,
     dims: JointDims,
     rows: usize,
 ) -> Vec<K> {
-    if running.iter().all(|source| source.len() == 0) {
+    if running.iter().all(SuperneoZBlocks::is_zero) {
         return Vec::new();
     }
     let powers = (0..running.len())
         .map(|source| gamma_power(gamma, source))
         .collect::<Vec<_>>();
-    let coefficient = |index| {
-        running
-            .iter()
-            .zip(&powers)
-            .map(|(source, &weight)| weight * source.get(index))
-            .sum::<K>()
-    };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let combined = (0..dims.assignment_width)
-        .into_par_iter()
-        .map(coefficient)
-        .collect::<Vec<_>>();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let combined = (0..dims.assignment_width)
-        .map(coefficient)
-        .collect::<Vec<_>>();
-    let blocks = SuperneoZBlocks::from_z(&combined);
-    drop(combined);
     let matrix_weights =
         std::array::from_fn(|coefficient| gamma_power(gamma, running.len() * dims.matrix_count * coefficient));
     let matrix_coefficients = (0..dims.matrix_count)
         .map(|matrix| gamma_power(gamma, running.len() * matrix))
         .collect::<Vec<_>>();
-    let matrix = cache.eval_weighted_row_table(&blocks, &matrix_weights, &matrix_coefficients, rows, rows);
+    let width = dims.assignment_width;
+    let mut result = vec![K::ZERO; width.max(rows)];
+    fill_combined_projection(running, &powers, &matrix_weights, &mut result[..width]);
+    let matrix = cache.eval_weighted_rows_from_projection(&result[..width], &matrix_coefficients, rows, rows);
     let pad_weights = std::array::from_fn(|coefficient| gamma_power(gamma, running.len() * coefficient));
-    let mut result = weighted_identity_projection(&blocks, &pad_weights);
-    result.resize(result.len().max(rows), K::ZERO);
+    fill_combined_projection(running, &powers, &pad_weights, &mut result[..width]);
     let matrix_shift = gamma_power(gamma, running.len() * D);
     for (output, value) in result.iter_mut().zip(matrix) {
         *output += matrix_shift * value;
@@ -406,3 +400,7 @@ fn carried_table(
 #[cfg(test)]
 #[path = "../../../tests/unit/piccs_first_round_norm.rs"]
 mod first_round_norm_tests;
+
+#[cfg(test)]
+#[path = "../../../tests/unit/carried_table_storage.rs"]
+mod carried_storage_tests;

@@ -126,6 +126,22 @@ fn real_witness_openings_match_direct_ring_rows() {
         assert_eq!(actual.eval_a[13], vec![K::ZERO; D]);
     }
 
+    let mixed = cache
+        .eval_real_v1_1_openings(&point, &[blocks[2].clone(), blocks[1].clone(), blocks[2].clone()])
+        .unwrap();
+    assert_eq!(mixed[1].eval_k, evaluated[1].eval_k);
+    assert_eq!(mixed[1].eval_a, evaluated[1].eval_a);
+    for index in [0, 2] {
+        assert_eq!(mixed[index].eval_k, evaluated[2].eval_k);
+        assert_eq!(mixed[index].eval_a, evaluated[2].eval_a);
+    }
+    let dense_zero = SuperneoZBlocks::from_z(&vec![K::ZERO; width]);
+    let dense_zero = cache
+        .eval_real_v1_1_openings(&point, &[dense_zero])
+        .unwrap();
+    assert_eq!(dense_zero[0].eval_k, evaluated[2].eval_k);
+    assert_eq!(dense_zero[0].eval_a, evaluated[2].eval_a);
+
     // Exercise the default normal D path with no supplied openings or forms.
     // This test owns evaluation arithmetic; fixed-key commitments have their
     // separate selected-source test.

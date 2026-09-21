@@ -822,77 +822,6 @@ inline void poly_mul_affine(
     }
 }
 
-kernel void fe_carried_mask_lin_comb(
-    device const ulong *masks [[buffer(0)]],
-    device const ulong *coeffs [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *z_re [[buffer(3)]],
-    device ulong *z_im [[buffer(4)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong child_count = shape[0];
-    ulong blocks = shape[1];
-    ulong magnitudes = shape[6];
-    ulong plane_len = blocks * RING_DEGREE;
-    if (index >= plane_len) {
-        return;
-    }
-    ulong block = index / RING_DEGREE;
-    ulong lane = index % RING_DEGREE;
-    ulong bit = 1ul << lane;
-    ulong re = 0;
-    ulong im = 0;
-    for (ulong child = 0; child < child_count; ++child) {
-        ulong cr = gl_from_word(coeffs[2 * child]);
-        ulong ci = gl_from_word(coeffs[2 * child + 1]);
-        ulong mask_base = 2 * magnitudes * (child * blocks + block);
-        for (ulong magnitude = 1; magnitude <= magnitudes; ++magnitude) {
-            ulong scaled_cr = gl_mul(cr, magnitude);
-            ulong scaled_ci = gl_mul(ci, magnitude);
-            if ((masks[mask_base + 2 * (magnitude - 1)] & bit) != 0) {
-                re = gl_add(re, scaled_cr);
-                im = gl_add(im, scaled_ci);
-            } else if ((masks[mask_base + 2 * (magnitude - 1) + 1] & bit) != 0) {
-                re = gl_sub(re, scaled_cr);
-                im = gl_sub(im, scaled_ci);
-            }
-        }
-    }
-    z_re[index] = re;
-    z_im[index] = im;
-}
-
-kernel void fe_weighted_basis_dots(
-    device const ulong *basis_re [[buffer(0)]],
-    device const ulong *basis_im [[buffer(1)]],
-    device const ulong *z_re [[buffer(2)]],
-    device const ulong *z_im [[buffer(3)]],
-    device const ulong *shape [[buffer(4)]],
-    device ulong *qk [[buffer(5)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong blocks = shape[1];
-    if (index >= blocks * RING_DEGREE) {
-        return;
-    }
-    ulong block = index / RING_DEGREE;
-    ulong local = index % RING_DEGREE;
-    ulong rr = 0;
-    ulong ir = 0;
-    ulong ri = 0;
-    ulong ii = 0;
-    for (ulong lane = 0; lane < RING_DEGREE; ++lane) {
-        ulong fr = gl_from_word(basis_re[local * RING_DEGREE + lane]);
-        ulong fi = gl_from_word(basis_im[local * RING_DEGREE + lane]);
-        ulong zr = gl_from_word(z_re[block * RING_DEGREE + lane]);
-        ulong zi = gl_from_word(z_im[block * RING_DEGREE + lane]);
-        rr = gl_add(rr, gl_mul(fr, zr));
-        ir = gl_add(ir, gl_mul(fi, zr));
-        ri = gl_add(ri, gl_mul(fr, zi));
-        ii = gl_add(ii, gl_mul(fi, zi));
-    }
-    qk[2 * index] = gl_add(rr, gl_mul(7, ii));
-    qk[2 * index + 1] = gl_add(ir, ri);
-}
-
 inline ulong compact_row_offset(device const uchar *offsets, ulong row, ulong width) {
     if (width == 3) {
         ulong base = 3 * row;
@@ -1248,3 +1177,5 @@ kernel void fe_round_partials(
 
 #include "dec_forms.metal"
 #include "joint.metal"
+#include "relation.metal"
+#include "production_commitment.metal"

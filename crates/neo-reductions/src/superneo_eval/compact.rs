@@ -306,8 +306,7 @@ impl SuperneoEvalCache {
                 .active_blocks
                 .iter()
                 .filter_map(|&blk| {
-                    let re_form = scratch.agg_re[blk];
-                    let im_form = scratch.agg_im[blk];
+                    let (re_form, im_form) = scratch.forms(blk);
                     let re_nonzero = re_form.0.iter().any(|&value| value != F::ZERO);
                     let im_nonzero = im_form.0.iter().any(|&value| value != F::ZERO);
                     (re_nonzero || im_nonzero).then_some(SuperneoRingLinearBlock {

@@ -8,6 +8,9 @@ use nightstream_fprime::{load_poseidon2_hash_chain_v1_package, PI_CCS_V1_1_STATE
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf};
+
+#[cfg(feature = "metal")]
+mod terminal_engine;
 fn output(current: [F; 4], message: [F; 4]) -> [F; 4] {
     crate::application::poseidon2_hash_chain_v1()
         .unwrap()

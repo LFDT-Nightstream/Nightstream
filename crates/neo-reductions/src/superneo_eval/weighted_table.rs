@@ -111,6 +111,17 @@ impl SuperneoEvalCache {
         n_eff: usize,
         n_pad: usize,
     ) -> Vec<K> {
+        let identity_projection = weighted_identity_projection(z_blocks, weights);
+        self.eval_weighted_rows_from_projection(&identity_projection, mat_coeffs, n_eff, n_pad)
+    }
+
+    pub(crate) fn eval_weighted_rows_from_projection(
+        &self,
+        identity_projection: &[K],
+        mat_coeffs: &[K],
+        n_eff: usize,
+        n_pad: usize,
+    ) -> Vec<K> {
         #[cfg(feature = "perf-timers")]
         let total_start = std::time::Instant::now();
         assert_eq!(
@@ -118,7 +129,6 @@ impl SuperneoEvalCache {
             mat_coeffs.len(),
             "eval_weighted_row_table: matrix coefficient count mismatch"
         );
-        let identity_projection = weighted_identity_projection(z_blocks, weights);
         let mut out = vec![K::ZERO; n_pad];
         let identity_coeff = self
             .mats
@@ -142,7 +152,7 @@ impl SuperneoEvalCache {
                     } else {
                         K::ZERO
                     };
-                    *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
+                    *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
                 });
         }
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
@@ -153,15 +163,15 @@ impl SuperneoEvalCache {
                 } else {
                     K::ZERO
                 };
-                *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
+                *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
             }
         }
         #[cfg(feature = "perf-timers")]
         let explicit_elapsed = total_start.elapsed();
-        self.add_seeded_weighted_rows(&mut out[..n_eff], mat_coeffs, &identity_projection);
+        self.add_seeded_weighted_rows(&mut out[..n_eff], mat_coeffs, identity_projection);
         #[cfg(feature = "perf-timers")]
         eprintln!(
-            "SuperneoEvalCache::eval_weighted_row_table: explicit {:.2?} seeded {:.2?} total {:.2?}",
+            "SuperneoEvalCache::eval_weighted_rows_from_projection: explicit {:.2?} seeded {:.2?} total {:.2?}",
             explicit_elapsed,
             total_start.elapsed() - explicit_elapsed,
             total_start.elapsed(),
@@ -290,6 +300,70 @@ pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: 
         .enumerate()
         .for_each(|(block, output)| fill_block(block, output));
     out
+}
+
+// Combine real witnesses only within the ring block being projected. The caller
+// can reuse the full projection for another weight vector after evaluating rows.
+pub(crate) fn fill_combined_projection(
+    witnesses: &[SuperneoZBlocks],
+    coefficients: &[K],
+    weights: &[K; D],
+    output: &mut [K],
+) {
+    assert_eq!(
+        witnesses.len(),
+        coefficients.len(),
+        "projection source coefficient count"
+    );
+    assert!(output.len().is_multiple_of(D), "projection needs complete ring blocks");
+    let blocks = output.len() / D;
+    assert!(
+        witnesses
+            .iter()
+            .all(|source| source.block_len() == blocks && source.imag_all_zero()),
+        "projection sources must be real and match the complete carrier"
+    );
+    let active = witnesses
+        .iter()
+        .zip(coefficients)
+        .filter(|(source, coefficient)| !source.is_zero() && **coefficient != K::ZERO)
+        .map(|(source, coefficient)| (source, coefficient.as_coeffs()))
+        .collect::<Vec<_>>();
+    let bar_re = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
+    let bar_im = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
+    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let fill = |(block, output): (usize, &mut [K])| {
+        let mut real = Rq::zero();
+        let mut imaginary = Rq::zero();
+        for (source, [coefficient_re, coefficient_im]) in &active {
+            if !source.real_nonzero(block) {
+                continue;
+            }
+            for lane in 0..D {
+                let value = source.real_coefficient(block, lane);
+                real.0[lane] += value * *coefficient_re;
+                imaginary.0[lane] += value * *coefficient_im;
+            }
+        }
+        let (rr, ir) = if real.0.iter().any(|value| *value != F::ZERO) {
+            (bar_re.mul(&real), bar_im.mul(&real))
+        } else {
+            (Rq::zero(), Rq::zero())
+        };
+        let (ri, ii) = if imaginary.0.iter().any(|value| *value != F::ZERO) {
+            (bar_re.mul(&imaginary), bar_im.mul(&imaginary))
+        } else {
+            (Rq::zero(), Rq::zero())
+        };
+        for (lane, value) in output.iter_mut().enumerate() {
+            *value = K::from_coeffs([rr.0[lane], ir.0[lane]])
+                + extension_generator * K::from_coeffs([ri.0[lane], ii.0[lane]]);
+        }
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    output.par_chunks_mut(D).enumerate().for_each(fill);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    output.chunks_mut(D).enumerate().for_each(fill);
 }
 
 fn seeded_weighted_chunk(

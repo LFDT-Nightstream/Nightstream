@@ -39,11 +39,18 @@ The owner requested these additions after the original migration plan:
   supported circuit, not only Poseidon2. Use bounded working storage when the
   circuit or witness exceeds a working batch. The owner's future mobile
   target is **8 GB**. Both targets come from the 2026-09-20 instructions;
-  neither has been established by the current implementation.
+  neither has been established by the current implementation. On 2026-09-21,
+  the owner accepted the observed **16,391,487,488-byte** peak for now and asked
+  for further reductions. The owner later confirmed **RSS** as the acceptance
+  measure, accepted approximately 16 GB for this pass, and deferred further
+  memory tuning. Current checks use a 16 GiB RSS guard (17.18 decimal GB) and
+  report the exact peak. Physical footprint remains diagnostic data.
 
 CUDA currently has no canonical kernel. Metal has small-circuit parity evidence
-but no completed production comparison or accepted lifecycle speedup. Keep
-these gaps explicit; the original CPU migration result does not close them.
+and a complete first production PiCCS comparison, including output openings.
+That phase took 132.4 s versus 217.0 s on CPU, with 12.22 GB versus 11.89 GB
+peak RSS. This covers zero carried witnesses, not the full lifecycle or all
+circuits. The 5× lifecycle requirement remains open.
 
 ### Execution design and fixed circuit cost
 
@@ -68,6 +75,95 @@ supported application. A Poseidon2-specific shortcut cannot establish this
 requirement. GPU work must cover enough of preparation, commitments, witness
 processing, proving, and terminal verification to meet the complete lifecycle
 target. A fast SumCheck kernel alone does not establish it.
+
+The owner confirmed on 2026-09-21 that the inherited matrix-cache construction
+also needs architectural correction. The inherited path expanded the compact
+matrix program into roughly 2.4 billion coefficients, then grouped and shared
+them again. Compile the exported linear operations into compact execution data
+before this expansion. Keep the expanded row path for independent comparison;
+do not replace this work with a Poseidon2-specific matrix shortcut or skip
+formula, dimension, or circuit-identity checks.
+
+The compact-run path now builds the selected cache in 5.3 s instead of about
+55 s. CPU and Metal production PiCCS proof bytes match the saved reference.
+The complete phase is 175.12 s on CPU and 89.58 s on Metal. Metal peak process
+memory is 14.22 GB with zero carried witnesses; its retained matrix/opening
+plan grew. Preparation, this metadata, later folds, and full lifecycle
+validation still need work. These results do not establish either owner target.
+
+Parallel reference and candidate checks later reduced preparation to 34.75 s.
+Both checks must finish before the circuit is returned; a repaired candidate
+cannot authorize a changed reference. The PiCCS phase then took 141.93 s on
+CPU and 57.83 s on Metal, with matching proof bytes. Streaming identity inputs
+now avoids the full hash-input vectors. The public CPU base lifecycle passes
+in 249.61 s with 13.16 GB peak process memory. This does not establish the
+active recursive lifecycle, 5× speed, or the general
+16 GB bound.
+
+Metal now checks terminal rows and running openings on the device. After zero
+opening scratch was removed, the public base lifecycle passed in 251.22 s on
+CPU (9.80 GB peak RSS) and 245.96 s on Metal (11.41 GB). Metal accepted a CPU
+proof and matched CPU rejection of a recommitted false witness. Test-only
+timers measured 97.42 s in the base fresh commitment, against 1.11 s in witness
+execution and 2.65 s in packing. The new Metal commitment generates the same
+indexed key in threadgroup tiles. It matched the saved full CPU commitment in
+3.08 s, with 98,999,236 bytes of explicit device buffers. This is an operation
+measurement. With device commitments enabled, the public Metal base lifecycle
+passed in 52.11 s with 11.46 GB peak RSS, versus 251.22 s on CPU (4.82×).
+Preparation still took 35.13 s. Full recursive parity, 5× lifecycle speed, and
+bounded memory for all supported circuits remain open.
+
+The row kernel now reads signed masks without a full-carrier field expansion,
+and application storage shrinks with each sumcheck round. CPU and Metal release
+the parent witness after signed decomposition. The latest base run took
+52.46 s with 10.81 GB peak RSS (4.79× CPU). The current first PiCCS proof still
+matches every CPU proof byte, but peak RSS remained 15.44 GB. Carried projection
+now reuses its output and needs 102 MB of row scratch instead of a separate
+4.05 GB projection. Trailing zero witnesses no longer occupy device mask
+storage. The recursive run still stopped at the old 16 GB test guard, with
+16,391,487,488 bytes observed. It did not reach terminal verification.
+The 4.05 GB opening-form buffer and total recursive storage remain open.
+
+PiRLC now mixes packed column masks without nonzero-entry lists. The production
+PiRLC phase uses 7.87 GB peak RSS, down from 9.20 GB; all 253,011,276 output
+coefficients and the complete claim/transcript record match the previous
+implementation. The public recursive run still stopped at 16.58 GB after
+PiCCS outputs. This does not establish a lower full-lifecycle peak.
+
+The complete first production Metal C/R/D proof now matches all **945,983 bytes**
+of the saved CPU proof. The saved-input phase passed in 79.96 s with 16.73 GB
+peak RSS; the complete fold itself took 42.99 s. This covers one full fold,
+not the uninterrupted lifecycle or the 5× speed target.
+
+The second production Metal fold, with six nonzero incoming carried witnesses,
+also matches all **945,983 CPU proof bytes** and all sixteen returned witness
+matrices. It passed in 103.02 s with 16.66 GB peak RSS. Metal then constructed
+the successor and passed terminal acceptance, wrong-state rejection, and
+rejection of a rehashed and recommitted false opening. These are separate
+capped phases, not a full lifecycle speed result. The CPU PiCCS
+reference required one owner-approved memory exception and peaked at 21.27 GB;
+that run does not meet the production memory target.
+
+Writing witness masks directly into shared Metal storage removed the full
+temporary host mask vectors. The uninterrupted public lifecycle now passes:
+183.62 s with 16.17 GB peak RSS for preparation, the base step, two active
+folds, and terminal verification. The production benchmark with the same
+three-step workload passes in **187.16 s**, with **16.59 GB peak RSS**. The
+changed Metal producer still matches all CPU proof bytes and returned child
+matrices. Full CPU benchmark timing, the 5× comparison, and the memory bound
+for all supported circuits remain open.
+
+The CPU carried-table path combines witnesses one ring block at a time.
+Dense tables and encoded witness values fold in place. Output openings take
+ownership of the completed projection buffer instead of allocating two new
+coefficient planes. The second production PiCCS proof now matches every saved
+CPU proof byte and output opening: **182.43 s**, **17,103,896,576 bytes RSS**
+(17.10 GB; 15.93 GiB), below the working 16 GiB guard. Allocation regressions
+and all nine supported engine comparisons pass. This is one phase; the full
+CPU lifecycle and the bound for all supported circuits remain open. The
+current-build Metal benchmark also passes: **179.51 s**, **16.78 GB peak RSS**,
+with terminal verification. Its exact executable is saved for the pending full
+CPU run; the 5× comparison must use that same build and workload.
 
 ## Lemmas
 

@@ -251,23 +251,25 @@ kernel void dec_reduce_parallel_original_form_tiles(
 }
 
 kernel void dec_add_geometric_ring_forms(
-    device const uint4 *groups [[buffer(0)]],
+    device const uint2 *groups [[buffer(0)]],
     device const uint2 *segments [[buffer(1)]],
     device const ulong *runs [[buffer(2)]],
     device const ulong *chi [[buffer(3)]],
     device const ulong *shape [[buffer(4)]],
     device ulong *forms [[buffer(5)]],
+    device const uint *active_blocks [[buffer(6)]],
     uint index [[thread_position_in_grid]]) {
     ulong local = index % RING_DEGREE;
     ulong rest = index / RING_DEGREE;
     ulong component = rest % 2;
-    uint4 group = groups[rest / 2];
+    ulong group_index = rest / 2;
+    uint2 group = groups[group_index];
     if (group.x < shape[5] || group.x >= shape[6]) {
         return;
     }
-    ulong column = (ulong)group.y * RING_DEGREE + local;
+    ulong column = ((ulong)active_blocks[group.x] % shape[1]) * RING_DEGREE + local;
     ulong value = 0;
-    for (ulong segment = group.z; segment < group.w; ++segment) {
+    for (ulong segment = group.y; segment < groups[group_index + 1].y; ++segment) {
         uint2 entry = segments[segment];
         ulong row = entry.x;
         if (row >= shape[2] || row >= shape[3]) {

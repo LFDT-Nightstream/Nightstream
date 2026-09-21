@@ -137,6 +137,41 @@ pub fn poseidon2_hash(input: &[Goldilocks]) -> [Goldilocks; DIGEST_LEN] {
     out
 }
 
+/// Incremental form of [`poseidon2_hash`]. Update boundaries add no framing.
+/// Only the permutation state and the position in its rate are retained.
+#[derive(Default)]
+pub struct Poseidon2Hasher {
+    state: [Goldilocks; WIDTH],
+    used: usize,
+}
+
+impl Poseidon2Hasher {
+    /// Absorb field elements in order without retaining the input slice.
+    pub fn update(&mut self, input: &[Goldilocks]) {
+        for &value in input {
+            self.state[self.used] += value;
+            self.used += 1;
+            if self.used == RATE {
+                self.state = permutation().permute(self.state);
+                self.used = 0;
+            }
+        }
+    }
+
+    /// Permute a partial final block, if present, then apply the same final
+    /// `+1` padding and permutation as the slice-based hash.
+    pub fn finalize(mut self) -> [Goldilocks; DIGEST_LEN] {
+        if self.used != 0 {
+            self.state = permutation().permute(self.state);
+        }
+        self.state[0] += Goldilocks::ONE;
+        self.state = permutation().permute(self.state);
+        self.state[..DIGEST_LEN]
+            .try_into()
+            .expect("digest fits state")
+    }
+}
+
 /// Hash raw bytes by converting each byte to a field element.
 ///
 /// WARNING: This is inefficient (1 field element per byte).

@@ -52,6 +52,11 @@ fn shared_poseidon_templates_match_every_reference_row() {
             equal_row(row, &expected.row(logical_width, ordinal).unwrap(), ordinal);
             assert_eq!(*row, actual.row(logical_width, ordinal).unwrap());
         }
+        // A retained field remains one operator through formula substitution.
+        let output = &visited[0][4];
+        assert_eq!(output.terms().len(), 1);
+        assert_eq!(output.terms()[0].column_count(), 41);
+        assert_eq!(output.entries().len(), 41);
         let mut partial = Vec::new();
         actual
             .visit_rows(logical_width, 86, count - 1, |row| {
@@ -115,8 +120,15 @@ fn shared_phi81_templates_match_all_lanes_and_prior_source_cases() {
 fn shared_external_template_matches_reference_and_preserves_zero_forms() {
     let zero = vec![Form::default(); 8];
     assert_eq!(external_layer(&zero, 0).unwrap(), zero);
+    let logical_width = 8 * RetainedKind::Field.width();
+    let retained = RetainedBlock::decode(&json!([2, 8, 0])).unwrap();
     let state: Vec<_> = (0..8)
-        .map(|lane| Form::singleton(lane, Goldilocks::from_u64((lane + 1) as u64)))
+        .map(|lane| {
+            retained
+                .form(logical_width, lane)
+                .unwrap()
+                .scaled(Goldilocks::from_u64((lane + 1) as u64))
+        })
         .collect();
     let input: Vec<_> = state
         .iter()
@@ -133,9 +145,13 @@ fn shared_external_template_matches_reference_and_preserves_zero_forms() {
             )
         })
         .collect();
-    let actual = external_layer(&state, 8).unwrap();
+    let actual = external_layer(&state, logical_width).unwrap();
     let expected = reference::external_layer(&input).unwrap();
     for lane in 0..8 {
+        assert!(actual[lane]
+            .terms()
+            .iter()
+            .all(|term| term.column_count() == 41));
         let actual: Vec<_> = actual[lane]
             .entries()
             .iter()
@@ -148,8 +164,51 @@ fn shared_external_template_matches_reference_and_preserves_zero_forms() {
             .collect();
         assert_eq!(actual, expected, "external lane {lane}");
     }
-    assert!(external_layer(&state[..7], 8).is_err());
+    assert!(external_layer(&state[..7], logical_width).is_err());
     assert!(external_layer(&state, 7).is_err());
+}
+
+#[test]
+fn retained_runs_add_overlapping_scalars_and_reject_partial_columns() {
+    let retained = RetainedBlock::decode(&json!([2, 1, 5])).unwrap();
+    let field = retained.form(46, 0).unwrap();
+    assert!(retained.form(45, 0).is_err());
+    assert!(retained.form(46, 1).is_err());
+    assert!(validate_form(&field, 45).is_err());
+    let scalar = Form::singleton(6, -Goldilocks::from_u64(3));
+    let actual = field.clone().append(scalar.clone());
+    let expected = reference::Form::from_entries(
+        field
+            .entries()
+            .iter()
+            .chain(scalar.entries().iter())
+            .map(|entry| reference::Entry {
+                column: entry.column,
+                coefficient: reference::Field::checked(entry.coefficient.as_canonical_u64(), "coefficient").unwrap(),
+            })
+            .collect(),
+    );
+    assert_eq!(actual.terms().len(), 2, "the scalar does not expand the retained run");
+    assert_eq!(
+        actual.entries().len(),
+        40,
+        "the overlapping scalar cancels one coordinate"
+    );
+    assert_eq!(
+        actual
+            .entries()
+            .iter()
+            .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
+            .collect::<Vec<_>>(),
+        expected
+            .entries()
+            .iter()
+            .map(|entry| (entry.column, entry.coefficient.canonical()))
+            .collect::<Vec<_>>()
+    );
+    let cancelled = actual.append(field.scaled(-Goldilocks::ONE));
+    assert_eq!(cancelled, scalar);
+    assert!(cancelled.scaled(Goldilocks::ZERO).terms().is_empty());
 }
 
 #[test]

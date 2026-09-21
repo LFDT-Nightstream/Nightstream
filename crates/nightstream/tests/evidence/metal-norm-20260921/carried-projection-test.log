@@ -1,0 +1,27 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 10.30s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 1 test
+test session::joint::carried_tests::carried_projection_matches_cpu_with_all_production_sources_active ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.39s
+
+       15.22 real        10.25 user         0.41 sys
+           583843840  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               67192  page reclaims
+                 119  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   3  messages sent
+                   2  messages received
+                   3  signals received
+                  16  voluntary context switches
+                1767  involuntary context switches
+          1424561032  instructions retired
+           440519401  cycles elapsed
+            63357408  peak memory footprint

@@ -4,6 +4,7 @@
 //! encoding and accounts for online-path CPU reads, writes, and waits.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use dispatch2::DispatchData;
@@ -24,6 +25,7 @@ use crate::{
 mod ajtai_batch;
 mod joint;
 mod masks;
+mod production_commitment;
 pub(crate) use joint::{MetalJointMatrixPlan, MetalPaperJointOracle};
 pub(crate) use masks::MetalWitnessMasks;
 
@@ -33,6 +35,11 @@ type Device = Retained<ProtocolObject<dyn MTLDevice>>;
 type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
 type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
+
+// Owner's 16 GB ceiling. This bounds buffer requests; CPU memory is measured
+// separately. Serialize checks across sessions sharing the same device.
+const BUFFER_LIMIT_BYTES: usize = 16_000_000_000;
+static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 #[derive(Default)]
 struct ActivityCounters {
@@ -66,21 +73,22 @@ pub struct MetalSession {
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
+    production_ajtai_partials: Pipeline,
     #[cfg(feature = "legacy-adapter")]
     seeded_ajtai_matrix: Pipeline,
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
     sumcheck_reduce_partials: Pipeline,
-    joint_expand_mask_assignments_f: Pipeline,
     joint_build_application_tables: Pipeline,
+    ccs_first_unsatisfied_row: Pipeline,
     joint_copy_seeded_satisfied_rows: Pipeline,
     joint_zero_words: Pipeline,
     joint_fold_base_tables: Pipeline,
     joint_fold_k_tables: Pipeline,
-    joint_fold_mask_assignments: Pipeline,
+    joint_fold_assignments: Pipeline,
+    joint_fold_assignment_values: Pipeline,
     joint_round_partials: Pipeline,
     joint_selective_round_partials: Pipeline,
-    joint_add_identity_carried: Pipeline,
     joint_seeded_base_partials: Pipeline,
     joint_seeded_base_reduce: Pipeline,
     joint_seeded_k_partials: Pipeline,
@@ -96,8 +104,7 @@ pub struct MetalSession {
     dec_add_bar_seeded_ring_forms: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
-    fe_carried_mask_lin_comb: Pipeline,
-    fe_weighted_basis_dots: Pipeline,
+    joint_carried_projection: Pipeline,
     fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
     #[cfg(feature = "legacy-adapter")]
@@ -164,21 +171,22 @@ impl MetalSession {
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
+        let production_ajtai_partials = pipeline(&device, &library, "production_ajtai_partials")?;
         #[cfg(feature = "legacy-adapter")]
         let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
-        let joint_expand_mask_assignments_f = pipeline(&device, &library, "joint_expand_mask_assignments_f")?;
         let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
+        let ccs_first_unsatisfied_row = pipeline(&device, &library, "ccs_first_unsatisfied_row")?;
         let joint_copy_seeded_satisfied_rows = pipeline(&device, &library, "joint_copy_seeded_satisfied_rows")?;
         let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
         let joint_fold_base_tables = pipeline(&device, &library, "joint_fold_base_tables")?;
         let joint_fold_k_tables = pipeline(&device, &library, "joint_fold_k_tables")?;
-        let joint_fold_mask_assignments = pipeline(&device, &library, "joint_fold_mask_assignments")?;
+        let joint_fold_assignments = pipeline(&device, &library, "joint_fold_assignments")?;
+        let joint_fold_assignment_values = pipeline(&device, &library, "joint_fold_assignment_values")?;
         let joint_round_partials = pipeline(&device, &library, "joint_round_partials")?;
         let joint_selective_round_partials = pipeline(&device, &library, "joint_selective_round_partials")?;
-        let joint_add_identity_carried = pipeline(&device, &library, "joint_add_identity_carried")?;
         let joint_seeded_base_partials = pipeline(&device, &library, "joint_seeded_base_partials")?;
         let joint_seeded_base_reduce = pipeline(&device, &library, "joint_seeded_base_reduce")?;
         let joint_seeded_k_partials = pipeline(&device, &library, "joint_seeded_k_partials")?;
@@ -196,8 +204,7 @@ impl MetalSession {
         let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
-        let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
-        let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
+        let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         #[cfg(feature = "legacy-adapter")]
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
@@ -226,21 +233,22 @@ impl MetalSession {
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
+            production_ajtai_partials,
             #[cfg(feature = "legacy-adapter")]
             seeded_ajtai_matrix,
             fold_k_table,
             tensor_point_expand_k,
             sumcheck_reduce_partials,
-            joint_expand_mask_assignments_f,
             joint_build_application_tables,
+            ccs_first_unsatisfied_row,
             joint_copy_seeded_satisfied_rows,
             joint_zero_words,
             joint_fold_base_tables,
             joint_fold_k_tables,
-            joint_fold_mask_assignments,
+            joint_fold_assignments,
+            joint_fold_assignment_values,
             joint_round_partials,
             joint_selective_round_partials,
-            joint_add_identity_carried,
             joint_seeded_base_partials,
             joint_seeded_base_reduce,
             joint_seeded_k_partials,
@@ -256,8 +264,7 @@ impl MetalSession {
             dec_add_bar_seeded_ring_forms,
             dec_sparse_ring_partials,
             dec_sparse_ring_sum_chunks,
-            fe_carried_mask_lin_comb,
-            fe_weighted_basis_dots,
+            joint_carried_projection,
             fe_weighted_row_table,
             #[cfg(feature = "legacy-adapter")]
             dec_ring_partials,
@@ -966,6 +973,20 @@ impl MetalSession {
     }
 
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
+        let _allocation = BUFFER_ALLOCATION
+            .lock()
+            .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
+        let allocated = self.device.currentAllocatedSize();
+        if allocated
+            .checked_add(bytes)
+            .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
+        {
+            return Err(MetalError::MemoryLimit {
+                requested: bytes,
+                allocated,
+                limit: BUFFER_LIMIT_BYTES,
+            });
+        }
         // Shared storage is required for explicit CPU boundaries on Apple
         // unified memory. It does not make those boundaries free, so reads and
         // writes are still counted separately below.
@@ -1103,6 +1124,10 @@ impl MetalSession {
         self.activity.downloaded_bytes.store(0, Ordering::Relaxed);
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/buffer_limit.rs"]
+mod buffer_limit_tests;
 
 fn dispatch(
     encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,

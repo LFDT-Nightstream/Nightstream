@@ -120,6 +120,14 @@ pub enum MetalError {
     Pipeline(String),
     #[error("Metal buffer allocation failed for {bytes} bytes")]
     Buffer { bytes: usize },
+    #[error(
+        "Metal buffer request for {requested} bytes with {allocated} bytes allocated exceeds the {limit}-byte limit"
+    )]
+    MemoryLimit {
+        requested: usize,
+        allocated: usize,
+        limit: usize,
+    },
     #[error("Metal command buffer creation failed")]
     CommandBuffer,
     #[error("Metal compute encoder creation failed")]
@@ -128,11 +136,14 @@ pub enum MetalError {
     Execution(String),
     #[error("Metal input shape mismatch: {0}")]
     Shape(&'static str),
+    #[error("Metal fixed-key commitment input: {0}")]
+    Commitment(#[from] neo_ajtai::AjtaiError),
 }
 
 pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     match error {
         MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
+        MetalError::Commitment(error) => neo_reductions::PiCcsError::InvalidInput(error.to_string()),
         error => neo_reductions::PiCcsError::BackendFailure {
             backend: "metal",
             reason: error.to_string(),

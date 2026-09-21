@@ -46,10 +46,14 @@ enum EvaluationEngine {
 enum Request {
     Base {
         directory: PathBuf,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Sources {
         directory: PathBuf,
         step: u64,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Ccs {
         directory: PathBuf,
@@ -66,6 +70,10 @@ enum Request {
         directory: PathBuf,
         step: u64,
     },
+    Openings {
+        directory: PathBuf,
+        step: u64,
+    },
     Child {
         directory: PathBuf,
         step: u64,
@@ -77,18 +85,30 @@ enum Request {
         directory: PathBuf,
         step: u64,
     },
+    Prove {
+        directory: PathBuf,
+        step: u64,
+        engine: EvaluationEngine,
+        reference_proof: PathBuf,
+    },
     Successor {
         directory: PathBuf,
         step: u64,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Terminal {
         directory: PathBuf,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
     Mutation {
         directory: PathBuf,
     },
     Reject {
         directory: PathBuf,
+        #[serde(default)]
+        engine: EvaluationEngine,
     },
 }
 
@@ -99,8 +119,12 @@ fn run_phase() {
     let started = Instant::now();
     eprintln!("staged request={request:?}");
     match request {
-        Request::Base { directory } => base(&directory),
-        Request::Sources { directory, step } => sources(&directory, step),
+        Request::Base { directory, engine } => base(&directory, engine),
+        Request::Sources {
+            directory,
+            step,
+            engine,
+        } => sources(&directory, step, engine),
         Request::Ccs {
             directory,
             step,
@@ -109,6 +133,7 @@ fn run_phase() {
         } => fold::ccs(&directory, step, engine, cpu_reference.as_deref()),
         Request::Rlc { directory, step } => fold::rlc(&directory, step),
         Request::Split { directory, step } => fold::split(&directory, step),
+        Request::Openings { directory, step } => fold::openings(&directory, step),
         Request::Child {
             directory,
             step,
@@ -116,10 +141,20 @@ fn run_phase() {
             engine,
         } => fold::child(&directory, step, child, engine),
         Request::Nifs { directory, step } => fold::nifs(&directory, step),
-        Request::Successor { directory, step } => terminal::successor(&directory, step),
-        Request::Terminal { directory } => terminal::accept(&directory),
+        Request::Prove {
+            directory,
+            step,
+            engine,
+            reference_proof,
+        } => fold::prove(&directory, step, engine, &reference_proof),
+        Request::Successor {
+            directory,
+            step,
+            engine,
+        } => terminal::successor(&directory, step, engine),
+        Request::Terminal { directory, engine } => terminal::accept(&directory, engine),
         Request::Mutation { directory } => terminal::mutation(&directory),
-        Request::Reject { directory } => terminal::reject(&directory),
+        Request::Reject { directory, engine } => terminal::reject(&directory, engine),
     }
     eprintln!("staged phase passed elapsed={:?}", started.elapsed());
 }
@@ -155,11 +190,19 @@ fn step_dir(root: &Path, step: u64) -> PathBuf {
     root.join(format!("step-{step}"))
 }
 fn prepare() -> PreparedLifecycle {
+    prepare_with_engine(EvaluationEngine::Optimized)
+}
+fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
     let started = Instant::now();
+    let prover = match engine {
+        EvaluationEngine::Optimized => crate::engine::Prover::Optimized,
+        #[cfg(feature = "metal")]
+        EvaluationEngine::Metal => crate::engine::Prover::new(crate::Engine::Metal).unwrap(),
+    };
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (package, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(package, binding, crate::engine::Prover::Optimized).unwrap();
+    let package = PreparedLifecycle::from_package(package, binding, prover).unwrap();
     eprintln!("staged circuit preparation elapsed={:?}", started.elapsed());
     package
 }
@@ -303,8 +346,8 @@ fn save_envelope(
         },
     );
 }
-fn base(root: &Path) {
-    let package = prepare();
+fn base(root: &Path, engine: EvaluationEngine) {
+    let package = prepare_with_engine(engine);
     let expected = expected_state(1);
     let message = message();
     let output = output(expected.z0(), message);
@@ -318,18 +361,34 @@ fn base(root: &Path) {
     assert_eq!(envelope.state(), &expected);
     save_envelope(&package, &envelope, &step_dir(root, 1), None);
 }
-fn sources(root: &Path, step: u64) {
+fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
     let destination = fold_dir(root, step);
     fs::create_dir_all(&destination).unwrap();
-    let package = prepare();
+    let package = prepare_with_engine(engine);
     let source = load_sources(&package, &step_dir(root, step), step);
+    let started = Instant::now();
     assert_eq!(
-        commit_production_signed_unit_prefix_matrix(&source.fresh.witness.Z).unwrap(),
+        package
+            .prover
+            .commit(std::slice::from_ref(&source.fresh.witness.Z))
+            .unwrap()
+            .remove(0),
         source.fresh.claim.c
     );
-    let commitments = commit_production_signed_unit_prefix_matrices(&source.running.witnesses).unwrap();
+    eprintln!(
+        "fresh source commitment engine={engine:?} elapsed={:?}",
+        started.elapsed()
+    );
+    let commitments = package.prover.commit(&source.running.witnesses).unwrap();
     for (claim, commitment) in source.running.claims.iter().zip(commitments) {
         assert_eq!(commitment, claim.c);
+    }
+    #[cfg(feature = "metal")]
+    if let crate::engine::Prover::Metal(device) = &package.prover {
+        eprintln!(
+            "source commitment device activity={:?}",
+            device.lock().unwrap().activity()
+        );
     }
     save(
         &destination.join("sources-checked.json"),

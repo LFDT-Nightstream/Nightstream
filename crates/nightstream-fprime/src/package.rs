@@ -19,6 +19,7 @@ pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
 mod matrix_program;
+pub use matrix_program::MatrixRun;
 mod permutation_plan;
 mod plan;
 mod source_map;

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "status": "timed-out; no proof or parity result",
+  "cap_seconds": 300,
+  "exit": 137,
+  "source": "Working changes on 1c09562d: compact opening offsets, zero-padding and constant-digit work elimination",
+  "preparation_seconds": 67.767374042,
+  "cache_seconds": 39.407623334,
+  "sample_footprint_as_reported": "76.1G",
+  "sample_scope": "10-second sample during the GPU wait; this was a diagnostic run",
+  "cpu_reference": "/tmp/nightstream-metal-production-20260920/cpu",
+  "run_directory": "/tmp/nightstream-metal-production-20260920/metal"
+}

@@ -52,7 +52,7 @@ impl PreparedLifecycle {
         }
         let structure = package.ccs_structure_header()?;
         validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
-        if prover.engine() == Engine::PaperExact {
+        if matches!(prover.engine(), Engine::PaperExact | Engine::Crosscheck) {
             package.validate_all_matrix_rows()?;
         }
         Ok(Self {

@@ -66,6 +66,15 @@ impl PreparedLifecycle {
                 fresh,
                 running,
             )?,
+            Prover::Crosscheck => crate::engine::crosscheck::prove(
+                &mut transcript,
+                &params,
+                &self.structure,
+                self.build_superneo_cache()?,
+                &paper_exact::PackageRows(&self.package),
+                fresh,
+                running,
+            )?,
         })
     }
 

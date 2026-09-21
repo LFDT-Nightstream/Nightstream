@@ -1,12 +1,73 @@
 # Nightstream crate goal
 
-Status: complete on `nico/nightstream-crate` for the contract below. Structured
+Status: the original CPU migration is complete on `nico/nightstream-crate`.
+The engine extension below is in progress; the Metal performance requirement
+has not passed. Structured
 exports, the independent golden circuit, the generic Rust assembler, and the
 new crate's fresh two-fold and terminal checks passed. See
 [the validation record](crates/nightstream/VALIDATION.md) and
 [the execution receipt](crates/nightstream/tests/evidence/fresh-recursive-replay.json).
 This is staged execution evidence. The proof and implementation limits in
 this document still apply; no earlier assurance goal is marked complete.
+
+## Owner-approved engine extension
+
+The owner requested these additions after the original migration plan:
+
+- Keep PaperExact, Optimized, Metal and CUDA engine selection. PaperExact uses
+  the direct formulas as a correctness reference. Optimized is the CPU path.
+  Metal and CUDA must use their device arithmetic when available. An unavailable
+  engine must return an error instead of using the CPU without notice.
+- Add the `metal` and `cuda` build features. The GPU crates' `legacy-adapter`
+  features isolate their existing consumers and keep `neo-fold-clean` out of
+  the new crate's production dependency graph.
+- Compare PaperExact with Optimized, then Optimized with Metal and CUDA.
+  PaperExact use in these cross-check tests is approved. Provide a runtime
+  `Engine::Crosscheck` that runs PaperExact and Optimized in parallel and
+  compares complete results.
+- Add an independent Poseidon2 lifecycle benchmark in this crate. Use saved
+  Lean artifacts; do not add a benchmark dependency on the old crate or start
+  Nebula work. Compare engine runs manually on the same inputs and host.
+- Require at least **5× CPU speed** from Metal over the **full lifecycle**,
+  including preparation, proving, and terminal verification. This requirement
+  comes from the owner's 2026-09-20 instruction. The benchmark covers one base
+  step and two active folds. Matching proof bytes and outputs is required
+  before accepting a performance result. Phase timings are diagnostic data,
+  not substitutes for the complete lifecycle measurement.
+- Keep peak memory at or below **16 GB** for both Optimized and Metal across
+  preparation, proving, and terminal verification. This applies to every
+  supported circuit, not only Poseidon2. Use bounded working storage when the
+  circuit or witness exceeds a working batch. The owner's future mobile
+  target is **8 GB**. Both targets come from the 2026-09-20 instructions;
+  neither has been established by the current implementation.
+
+CUDA currently has no canonical kernel. Metal has small-circuit parity evidence
+but no completed production comparison or accepted lifecycle speedup. Keep
+these gaps explicit; the original CPU migration result does not close them.
+
+### Execution design and fixed circuit cost
+
+The implementation must not inherit the old crate's storage choices as
+requirements. The required results are the exported relation, complete proof
+values, transcript order, and terminal checks. Repeated coefficient copies,
+expanded zero padding, and simultaneous dense copies of all witnesses are
+implementation choices and must be removed where they exceed the memory target.
+
+The saved verifier contributes 6,369,859 logical rows and a base width of
+252,695,531 coordinates before application variables are added. The Poseidon2
+application contributes 7,700 rows and 7,700 field slots. The selected field
+encoding uses 41 signed-unit coordinates per field slot. These are measured
+properties of the current export, not lower bounds required by SuperNeo.
+Reducing those circuit dimensions requires separate circuit and proof work;
+the export-only constraint below still applies to this goal.
+
+The Rust execution must reuse repeated matrix formulas and keep witness data
+compact through the early folding rounds. Large linear evaluations must use
+reusable working storage. The same execution rules must apply to every
+supported application. A Poseidon2-specific shortcut cannot establish this
+requirement. GPU work must cover enough of preparation, commitments, witness
+processing, proving, and terminal verification to meet the complete lifecycle
+target. A fast SumCheck kernel alone does not establish it.
 
 ## Lemmas
 

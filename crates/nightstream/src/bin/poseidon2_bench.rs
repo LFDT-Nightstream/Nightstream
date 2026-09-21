@@ -3,8 +3,10 @@
 
 use std::{error::Error, fs, io::Write, path::Path, process::ExitCode, time::Instant};
 
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine, State};
+use nightstream::{
+    application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
+    Circuit, Engine, State,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 use serde_json::{json, Value};
@@ -78,18 +80,6 @@ fn end(phase: &str, step: Option<u64>, started: Instant) -> Result<()> {
     emit(json!({"event":"phase_finished", "phase":phase, "step":step, "seconds":seconds}))
 }
 
-fn next_state(current: [F; 4]) -> [F; 4] {
-    // Native hashing computes the expected state independently of the circuit
-    // witness program. This is the domain of Poseidon2HashChainV1.
-    let mut words: Vec<_> = b"Nightstream/Stage1/Poseidon2HashChain/v1"
-        .iter()
-        .map(|byte| F::from_u64(u64::from(*byte)))
-        .collect();
-    words.extend(current);
-    words.extend(MESSAGE.map(F::from_u64));
-    poseidon2_hash(&words)
-}
-
 fn run() -> Result<()> {
     let Some(options) = options()? else {
         return Ok(());
@@ -116,7 +106,7 @@ fn run() -> Result<()> {
 
     let initial = INITIAL.map(F::from_u64);
     let message = MESSAGE.map(F::from_u64);
-    let mut expected = State::new(1, initial, next_state(initial));
+    let mut expected = State::new(1, initial, poseidon2_hash_chain_step(initial, message));
     let started = begin("prove", Some(1))?;
     let mut proof = circuit.prove(initial, &message)?;
     end("prove", Some(1), started)?;
@@ -125,7 +115,7 @@ fn run() -> Result<()> {
     }
 
     for step in 2..=options.steps {
-        expected = State::new(step, initial, next_state(expected.current()));
+        expected = State::new(step, initial, poseidon2_hash_chain_step(expected.current(), message));
         let started = begin("extend", Some(step))?;
         proof = circuit.extend(proof, &message)?;
         end("extend", Some(step), started)?;

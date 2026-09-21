@@ -1,9 +1,7 @@
 //! The selected native transcript position, with the existing session label.
-#[cfg(test)]
 use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript as _};
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Poseidon2TranscriptSnapshot {
     state: [F; 8],
@@ -31,7 +29,6 @@ impl Transcript {
     pub(crate) fn inner_mut(&mut self) -> &mut Poseidon2Transcript {
         &mut self.inner
     }
-    #[cfg(test)]
     pub(crate) fn snapshot(&self) -> Poseidon2TranscriptSnapshot {
         Poseidon2TranscriptSnapshot {
             state: self.inner.state(),

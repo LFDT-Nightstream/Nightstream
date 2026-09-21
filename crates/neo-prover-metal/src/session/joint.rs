@@ -121,6 +121,7 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     coefficient_count: usize,
     range_base: u32,
     selective_f_prime: bool,
+    zero_application_padding: bool,
     rounds: usize,
     round: usize,
     current_len: usize,
@@ -1047,6 +1048,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             coefficient_count,
             range_base: input.params.b,
             selective_f_prime,
+            zero_application_padding: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
             current_len: input.dims.row_count,
@@ -1114,6 +1116,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             prior_slope_re,
             prior_slope_im,
             self.range_base as u64,
+            u64::from(self.zero_application_padding),
         ])?;
         let groups = self.active_len.div_ceil(2).div_ceil(64).max(1);
         let reduction_shape = self

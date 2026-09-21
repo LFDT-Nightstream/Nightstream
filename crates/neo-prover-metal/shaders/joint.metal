@@ -648,6 +648,7 @@ kernel void joint_round_partials(
     Kx prior_low_factor = Kx{gl_from_word(shape[20]), gl_from_word(shape[21])};
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
     uint range_base = (uint)shape[24];
+    bool zero_application_padding = shape[25] != 0;
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
@@ -663,7 +664,11 @@ kernel void joint_round_partials(
             inner[coefficient] = Kx{0, 0};
         }
 
-        for (ulong source = 0; source < fresh_count; ++source) {
+        // Beyond the application rows, every matrix coordinate is zero.
+        // Skip the polynomial only when the host established f(0) == 0.
+        for (ulong source = 0;
+             source < fresh_count && (low_index < application_len || !zero_application_padding);
+             ++source) {
             Kx source_weight = load_k(weights, source);
             for (ulong term = 0; term < term_count; ++term) {
                 ulong header = 3 * term;
@@ -719,6 +724,13 @@ kernel void joint_round_partials(
                 assignment_width,
                 assignment_len);
             Kx slope = kx_sub(high, low);
+            // Base-table values are signed digits, hence roots of the range
+            // polynomial. Equal endpoints give the zero polynomial. A pair
+            // of zero extension values stays zero in every later round too.
+            if ((base_round && low.c0 == high.c0 && low.c1 == high.c1)
+                || ((low.c0 | low.c1 | high.c0 | high.c1) == 0)) {
+                continue;
+            }
             Kx polynomial[SUMCHECK_MAX_COEFFS];
             for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
                 polynomial[coefficient] = Kx{0, 0};

@@ -12,6 +12,7 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/lane_commitments.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/dec_forms.metal");
+    println!("cargo:rerun-if-changed=shaders/decomposition.metal");
 
     if env::var_os("CARGO_FEATURE_METAL").is_none() {
         return;

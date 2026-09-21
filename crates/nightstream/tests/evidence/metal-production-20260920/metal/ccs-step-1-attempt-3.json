@@ -1,0 +1,14 @@
+{
+  "phase": "ccs",
+  "step": 1,
+  "engine": "metal",
+  "outcome": "timed-out",
+  "cap_seconds": 300,
+  "elapsed_seconds": 300.01,
+  "maximum_resident_bytes": null,
+  "note": "After both buffer fixes. Application-table construction finished; SumCheck round zero started but did not complete before the outer timeout killed the driver and test.",
+  "preparation_seconds": 67.611653583,
+  "cache_seconds": 38.977565042,
+  "matrix_plan_seconds": 97.077299333,
+  "application_tables_seconds": 65.711824959
+}

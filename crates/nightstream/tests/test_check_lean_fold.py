@@ -94,6 +94,26 @@ class LeanFoldCheckTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "complete bytes differ"):
             check.compare_files(original, snapshot, "original")
 
+    def test_blocked_handoff_does_not_replace_actual_c_rejection(self):
+        manifest = {"cases": [
+            {"case": "public_child_public", "file": "mutations/public_child_public.json", "expected_owner": "public_check"},
+            {"case": "encoding_short_point", "file": "mutations/encoding_short_point.json", "expected_owner": "decoder"},
+            {"case": "invalid_first_round_constant", "file": "invalid_first_round_constant.json", "expected_owner": "upstream_pi_ccs"},
+        ]}
+        log = "\n".join((
+            "lean_pi_dec_mutation=public_child_public.json rejected_by=public_check",
+            "lean_pi_dec_mutation=encoding_short_point.json rejected_by=decoder reason=short point",
+            "lean_pi_dec_mutations=passed public=1 encoding=1 unbounded=1 rejected_C_stops_D=1",
+        ))
+        with self.assertRaisesRegex(ValueError, "missing Lean rejection: invalid_first_round_constant"):
+            check.mutation_rejections(manifest, log)
+        complete = "lean_pi_ccs_mutation=invalid_first_round_constant rejected_by=pi_ccs\n" + log
+        owners = check.mutation_rejections(manifest, complete)
+        self.assertEqual(owners["pi_ccs"], ["invalid_first_round_constant"])
+        self.assertEqual(owners["internal"], ["unbounded_parent", "rejected_C_stops_D"])
+        with self.assertRaisesRegex(ValueError, "incomplete Lean mutation result"):
+            check.mutation_rejections(manifest, complete.replace("rejected_C_stops_D=1", "rejected_C_stops_D=0"))
+
 
 if __name__ == "__main__":
     unittest.main()

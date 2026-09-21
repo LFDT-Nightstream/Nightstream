@@ -350,13 +350,6 @@ impl ExportTemplate {
     }
 }
 
-/// Entry input words for one export invocation. Multi-turn traces supply
-/// these in invocation order.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct TurnInputs {
-    pub entry: Vec<u64>,
-}
-
 /// Per-program bindings: import templates keyed by callee function ref, and
 /// export boundary templates keyed by the exported function's ref.
 ///
@@ -396,6 +389,11 @@ impl HostEventBindings {
         }
 
         for (&function_ref, template) in &self.exports {
+            // TODO: Require static coverage of every parameter: a Lo write for
+            // each, plus a Hi write for i64, using verifier-bound signature
+            // metadata. Current validation checks declared slots and their
+            // order, not coverage. Keep non-parameter local zeroing as a
+            // separate invariant across export, guest, and tail-call entry.
             let (_, result_count, is_guest) = function_shape(program, function_ref)?;
 
             if !is_guest {

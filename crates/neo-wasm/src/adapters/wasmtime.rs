@@ -2,6 +2,7 @@
 
 use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmVmStep};
 use super::super::isa::WasmOpcode;
+use crate::host_event_bindings::HostEventBindings;
 use futures::executor::block_on;
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -14,6 +15,8 @@ use wasmtime::{
 };
 
 mod decode;
+mod entry_inputs;
+mod memory_address;
 mod normalize;
 mod parse;
 mod runtime_read;
@@ -91,6 +94,12 @@ pub struct WasmtimeTraceStep {
     /// [`WasmtimeTraceState::record_call_inputs`]). Consumed by event-bound
     /// normalization.
     pub host_call_inputs: Vec<u64>,
+    /// Bytes required by entry bindings, captured from Wasm memory 0
+    /// before the bound function's first instruction.
+    /// Candidate captures also occur on nested guest calls; normalization uses
+    /// only actual turn entries. Errors are deferred until that decision.
+    /// These bytes supply declared entry writes, never memory initialization.
+    pub entry_memory: Option<Result<BTreeMap<u32, u8>, String>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -180,6 +189,7 @@ pub struct WasmtimeTraceState {
 /// module, plus the post-instantiation funcref-id map.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LoweringTables {
+    pub(crate) export_bindings: BTreeMap<u32, crate::host_event_bindings::ExportTemplate>,
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     /// Raw-funcref-pointer to module-local id, filled post-instantiation via
     /// [`WasmtimeTraceState::set_func_ref_ids`] (empty until then).
@@ -211,15 +221,18 @@ impl WasmTraceSink for WasmtimeTraceState {
 }
 
 impl WasmtimeTraceState {
-    /// Build trace state from parsed program artifacts.
+    /// Build trace state from parsed program artifacts and capture bindings.
+    /// The export bindings select entry-memory bytes to capture. Empty default
+    /// bindings are sufficient when entry-memory capture is not needed.
     ///
     /// Funcref normalization also requires a post-instantiation
     /// [`WasmtimeTraceState::set_func_ref_ids`] call.
-    pub fn from_program_artifacts(artifacts: &WasmProgramArtifacts) -> Self {
+    pub fn from_program_artifacts(artifacts: &WasmProgramArtifacts, bindings: &HostEventBindings) -> Self {
         WasmtimeTraceState {
             next_step: 0,
             steps: Vec::new(),
             tables: Arc::new(LoweringTables {
+                export_bindings: bindings.exports.clone(),
                 opcode_map: artifacts.trace.opcode_map.clone(),
                 func_ref_ids: BTreeMap::new(),
                 function_metas: artifacts.trace.function_metas.clone(),
@@ -317,7 +330,10 @@ pub fn collect_wasmtime_steps(
     let module = Module::from_binary(&engine, wasm_bytes)
         .map_err(|err| WasmBuildError::Trace(format!("failed to compile wasm bytes: {err}")))?;
 
-    let mut store = Store::new(&engine, WasmtimeTraceState::from_program_artifacts(&parsed));
+    let mut store = Store::new(
+        &engine,
+        WasmtimeTraceState::from_program_artifacts(&parsed, &HostEventBindings::default()),
+    );
     store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
 
     {
@@ -409,7 +425,10 @@ where
     let component = WasmtimeComponent::new(&engine, component_bytes)
         .map_err(|err| WasmBuildError::Trace(format!("failed to compile component bytes: {err}")))?;
 
-    let mut store = Store::new(&engine, WasmtimeTraceState::from_program_artifacts(&parsed));
+    let mut store = Store::new(
+        &engine,
+        WasmtimeTraceState::from_program_artifacts(&parsed, &HostEventBindings::default()),
+    );
     store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
 
     {
@@ -544,7 +563,10 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
                 }
             };
             let row = match capture_frame(step, frame, &mut store, &tables) {
-                Ok(row) => row,
+                Ok(mut row) => {
+                    entry_inputs::capture_entry_memory(&mut row, frame, &mut store, &tables);
+                    row
+                }
                 Err(error) => WasmtimeTraceStep {
                     step,
                     function: "<frame-inspection-error>".to_string(),

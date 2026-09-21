@@ -3,6 +3,7 @@
 //! Owns the sparse memory-zero image seen by normalization. Program rows and
 //! host-event writes advance it in trace order; host-event reads derive from it.
 
+use super::super::memory_address::host_event_address;
 use super::NormalizedStep;
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::host_event_bindings::{HostEventBindings, SlotBinding};
@@ -50,8 +51,8 @@ impl LinearMemoryImage {
         byte_offset: u32,
         memory_pages: Option<u32>,
     ) -> Result<(u32, LinearMemoryAccess), WasmBuildError> {
-        let word_addr = aligned_word_addr(base, byte_offset)?;
-        ensure_word_in_bounds(word_addr, memory_pages)?;
+        let address = host_event_address(base, byte_offset, 4, memory_pages)?;
+        let word_addr = u64::from(address / 4);
         let value = self.read_word(word_addr);
         Ok((value, memory_access(4, 0, word_addr, value, value)))
     }
@@ -63,8 +64,8 @@ impl LinearMemoryImage {
         value: u32,
         memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
-        let word_addr = aligned_word_addr(base, byte_offset)?;
-        ensure_word_in_bounds(word_addr, memory_pages)?;
+        let address = host_event_address(base, byte_offset, 4, memory_pages)?;
+        let word_addr = u64::from(address / 4);
         let prior = self.read_word(word_addr);
         self.write_word(word_addr, value);
         Ok(memory_access(4, 0, word_addr, prior, value))
@@ -102,8 +103,9 @@ impl LinearMemoryImage {
         // but probably should be in some helper module or smh
         debug_assert!((1..=2).contains(&byte_width));
 
-        let (word_addr, byte_in_word) = subword_address(base, byte_offset, byte_width as u32)?;
-        ensure_word_in_bounds(word_addr, memory_pages)?;
+        let address = host_event_address(base, byte_offset, byte_width as u8, memory_pages)?;
+        let word_addr = u64::from(address / 4);
+        let byte_in_word = (address % 4) as u8;
         let word = self.read_word(word_addr);
         let value = f(word.to_le_bytes(), byte_in_word as usize);
 
@@ -142,8 +144,9 @@ impl LinearMemoryImage {
         memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
         let value_le_bytes = &value.to_le_bytes()[0..byte_width];
-        let (word_addr, byte_in_word) = subword_address(base, byte_offset, 1)?;
-        ensure_word_in_bounds(word_addr, memory_pages)?;
+        let address = host_event_address(base, byte_offset, byte_width as u8, memory_pages)?;
+        let word_addr = u64::from(address / 4);
+        let byte_in_word = (address % 4) as u8;
         let prior = self.read_word(word_addr);
         let mut bytes = prior.to_le_bytes();
         let offset = usize::from(byte_in_word);
@@ -247,49 +250,6 @@ fn host_events_use_linear_memory(bindings: &HostEventBindings) -> bool {
                     | SlotBinding::MemoryWrite8 { .. }
             )
         })
-}
-
-fn effective_byte_address(base: u32, byte_offset: u32) -> Result<u32, WasmBuildError> {
-    base.checked_add(byte_offset).ok_or_else(|| {
-        WasmBuildError::Trace(format!(
-            "host-event memory address overflows wasm32: {base} + {byte_offset}"
-        ))
-    })
-}
-
-fn subword_address(base: u32, byte_offset: u32, alignment: u32) -> Result<(u64, u8), WasmBuildError> {
-    let effective = effective_byte_address(base, byte_offset)?;
-
-    if effective % alignment != 0 {
-        return Err(WasmBuildError::Trace(format!(
-            "host-event Memory16 address {effective} is not naturally aligned"
-        )));
-    }
-
-    Ok((u64::from(effective / 4), (effective % 4) as u8))
-}
-
-fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError> {
-    let effective = effective_byte_address(base, byte_offset)?;
-    if effective % 4 != 0 {
-        return Err(WasmBuildError::Trace(format!(
-            "host-event Memory32 address {effective} is not naturally aligned"
-        )));
-    }
-    Ok(u64::from(effective / 4))
-}
-
-fn ensure_word_in_bounds(word_addr: u64, memory_pages: Option<u32>) -> Result<(), WasmBuildError> {
-    let pages = memory_pages
-        .ok_or_else(|| WasmBuildError::Trace("host-event memory access requires default linear memory".to_string()))?;
-    let word_bound = u64::from(pages) * 16_384;
-    if word_addr >= word_bound {
-        return Err(WasmBuildError::Trace(format!(
-            "host-event memory access at byte address {} is out of bounds for {pages} memory pages",
-            word_addr * 4
-        )));
-    }
-    Ok(())
 }
 
 fn memory_access(

@@ -2,6 +2,7 @@
 
 pub mod audit;
 pub mod host_event_fixture;
+pub mod wasmtime_capture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;

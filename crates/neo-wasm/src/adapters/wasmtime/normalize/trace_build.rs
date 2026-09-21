@@ -31,7 +31,7 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 
 pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
-    host_events: Option<(&HostEventBindings, &[crate::host_event_bindings::TurnInputs])>,
+    host_events: Option<(&HostEventBindings, &super::super::WasmProgramTables)>,
     initial_comm_chain: CommChainState,
     linear_memory: Option<LinearMemoryImage>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
@@ -45,17 +45,15 @@ pub(super) fn build_trace(
     // boundary template for the invoked export, so nothing is absorbed and
     // host imports have no template to prove against.
     let import_free_bindings;
-    let import_free_inputs;
-    let (bindings, turn_inputs) = match host_events {
-        Some((bindings, turn_inputs)) => (bindings, turn_inputs),
+    let (bindings, program) = match host_events {
+        Some((bindings, program)) => (bindings, Some(program)),
         None => {
             let export_fref = supported
                 .first()
                 .and_then(|first| first.current_function_ref)
                 .unwrap_or(0);
             import_free_bindings = HostEventBindings::import_free(export_fref);
-            import_free_inputs = [crate::host_event_bindings::TurnInputs::default()];
-            (&import_free_bindings, &import_free_inputs[..])
+            (&import_free_bindings, None)
         }
     };
     let tracks_linear_memory = linear_memory.is_some();
@@ -86,12 +84,8 @@ pub(super) fn build_trace(
     let mut host_event_state = crate::ir::WasmHostEventState::ZERO;
     // The verifier mirrors the first turn's entry schedule in
     // `host_event_top_level_initial_state`.
-    let mut turn_index = 0usize;
     let mut export_boundary = if let Some(first) = supported.first() {
-        let inputs = turn_inputs.first().ok_or_else(|| {
-            WasmBuildError::Trace("host-event bindings require inputs for at least the first turn".to_string())
-        })?;
-        let setup = setup_turn(bindings, first, inputs, false, &mut linear_memory)?;
+        let setup = setup_turn(bindings, first, program, false, &mut linear_memory)?;
         host_event_state = crate::ir::WasmHostEventState {
             turn_export_fref: setup.fref,
             events_remaining: setup.entry_plans.len() as u32,
@@ -989,15 +983,7 @@ pub(super) fn build_trace(
         // Bridge to the next export and load its entry attribution and schedule.
         if halted && next.is_some() {
             let next_row = next.expect("checked");
-            turn_index += 1;
-            let inputs = turn_inputs.get(turn_index).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "trace re-enters turn {} but only {} turn input sets were supplied",
-                    turn_index + 1,
-                    turn_inputs.len()
-                ))
-            })?;
-            let setup = setup_turn(bindings, next_row, inputs, true, &mut linear_memory)?;
+            let setup = setup_turn(bindings, next_row, program, true, &mut linear_memory)?;
             let entry_count = setup.entry_plans.len() as u32;
             let boundary_state = |pc: u64,
                                   sp: u64,
@@ -1089,13 +1075,6 @@ pub(super) fn build_trace(
         return Err(WasmBuildError::Unsupported(
             "wasmtime trace did not contain any currently supported wasm rows".to_string(),
         ));
-    }
-    if turn_index + 1 != turn_inputs.len() {
-        return Err(WasmBuildError::Trace(format!(
-            "trace ran {} turn(s) but {} turn input sets were supplied",
-            turn_index + 1,
-            turn_inputs.len()
-        )));
     }
 
     Ok(out)

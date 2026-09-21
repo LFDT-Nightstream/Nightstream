@@ -84,5 +84,598 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Fresh verification of restored nonzero evidence and complete native/Lean-field wire comparison; no fresh producer or protected reproduction claim."
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons. Independent first-fold generation, remaining recursive replay, Metal execution, actual CI and protected external reproduction are separate.",
+  "current_native_run": {
+    "outcome": "passed",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/conformance.json",
+    "native_phase_count": 25,
+    "elapsed_phase_seconds": 2230.223458676366,
+    "longest_phase_seconds": 180.0596788560506,
+    "peak_rss_bytes": 14038003712,
+    "memory_cap_bytes": 17179869184,
+    "scope": "Current CPU staged folds 1, 2 and 3; own returned witnesses and state feed each next fold; iteration-4 terminal acceptance and rehashed false-opening rejection; complete first/later archive comparisons. This is staged execution, not a full-call performance measurement.",
+    "phases": [
+      {
+        "request": {
+          "phase": "base",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized"
+        },
+        "elapsed_seconds": 39.123110092943534,
+        "maximum_resident_bytes": 5984182272,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/base.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 36.12297290912829,
+        "maximum_resident_bytes": 5984526336,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 101.54171518189833,
+        "maximum_resident_bytes": 9895927808,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 28.423649139003828,
+        "maximum_resident_bytes": 6492618752,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 61.43147580092773,
+        "maximum_resident_bytes": 6708383744,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 140.34840226196684,
+        "maximum_resident_bytes": 10207490048,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 74.93276144796982,
+        "maximum_resident_bytes": 6708486144,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 66.98762228991836,
+        "maximum_resident_bytes": 5984686080,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 62.62917951005511,
+        "maximum_resident_bytes": 6017167360,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 145.04245685995556,
+        "maximum_resident_bytes": 13578027008,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 31.0722941798158,
+        "maximum_resident_bytes": 6945665024,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 69.8312488400843,
+        "maximum_resident_bytes": 6886322176,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 148.25051345606335,
+        "maximum_resident_bytes": 10263867392,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 85.43635500990786,
+        "maximum_resident_bytes": 6886436864,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 76.88334843888879,
+        "maximum_resident_bytes": 5983899648,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 72.18298540194519,
+        "maximum_resident_bytes": 6036287488,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 155.20646826480515,
+        "maximum_resident_bytes": 14038003712,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 32.274151080986485,
+        "maximum_resident_bytes": 7020490752,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 75.53327616606839,
+        "maximum_resident_bytes": 6908973056,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 156.85570278018713,
+        "maximum_resident_bytes": 10315894784,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 90.83871912397444,
+        "maximum_resident_bytes": 6908989440,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 81.73448407580145,
+        "maximum_resident_bytes": 6013882368,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "terminal",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 4
+        },
+        "elapsed_seconds": 180.0596788560506,
+        "maximum_resident_bytes": 10704257024,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/terminal-step-4.json"
+      },
+      {
+        "request": {
+          "phase": "mutation",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 4
+        },
+        "elapsed_seconds": 42.12376296892762,
+        "maximum_resident_bytes": 6021619712,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/mutation-step-4.json"
+      },
+      {
+        "request": {
+          "phase": "reject",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 4
+        },
+        "elapsed_seconds": 175.35712453909218,
+        "maximum_resident_bytes": 10704265216,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/reject-step-4.json"
+      }
+    ]
+  },
+  "retained_independent_C_transition": {
+    "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/retained-c-transition.json",
+    "scope": "Actual content comparisons connect retained independent C generation to the current CPU iteration-2 fold. All 21 missing C finish rejection cases passed under the 300-second guard.",
+    "finish_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/continuation-c-finish-rejections.log",
+      "cases": [
+        {
+          "case": "missing-round",
+          "reason": "final PiCCS replay requires all 28 Lean rounds"
+        },
+        {
+          "case": "changed-causal-round",
+          "reason": "Lean round 27 differs from the causal public transcript"
+        },
+        {
+          "case": "duplicate-outputs",
+          "reason": "duplicate final PiCCS output path"
+        },
+        {
+          "case": "aliased-outputs",
+          "reason": "duplicate final PiCCS output path"
+        },
+        {
+          "case": "existing-last-output",
+          "reason": "output already exists"
+        },
+        {
+          "case": "schema",
+          "reason": "unexpected complete original evaluation schema"
+        },
+        {
+          "case": "missing-family",
+          "reason": "expected the complete original Pad and matrix families"
+        },
+        {
+          "case": "wrong-point",
+          "reason": "original evaluation point differs from the Lean transcript"
+        },
+        {
+          "case": "point-width",
+          "reason": "expected array length 28"
+        },
+        {
+          "case": "pad-sources",
+          "reason": "expected array length 17"
+        },
+        {
+          "case": "pad-lanes",
+          "reason": "expected array length 54"
+        },
+        {
+          "case": "pad-extension",
+          "reason": "expected array length 2"
+        },
+        {
+          "case": "matrix-sources",
+          "reason": "expected array length 17"
+        },
+        {
+          "case": "matrix-ports",
+          "reason": "expected array length 14"
+        },
+        {
+          "case": "matrix-lanes",
+          "reason": "expected array length 54"
+        },
+        {
+          "case": "matrix-extension",
+          "reason": "expected array length 2"
+        },
+        {
+          "case": "pad-noncanonical",
+          "reason": "noncanonical Goldilocks word"
+        },
+        {
+          "case": "matrix-noncanonical",
+          "reason": "noncanonical Goldilocks word"
+        },
+        {
+          "case": "matrix-word-type",
+          "reason": "Natural number expected"
+        },
+        {
+          "case": "changed-pad",
+          "reason": "independent final PiCCS check rejected"
+        },
+        {
+          "case": "changed-matrix",
+          "reason": "independent final PiCCS check rejected"
+        }
+      ],
+      "command": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 23.351723870029673,
+        "command": [
+          "python3",
+          "-B",
+          "formal/nightstream-fprime/tests/check_piccs_finish_rejection.py",
+          "formal/nightstream-fprime/.lake/build/bin/replayPiCCSPrefix",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/public.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/c-evaluations.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/c-finish-rejections",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-0.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-1.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-2.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-3.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-4.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-5.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-6.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-7.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-8.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-9.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-10.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-11.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-12.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-13.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-14.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-15.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-16.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-17.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-18.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-19.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-20.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-21.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-22.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-23.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-24.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-25.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-26.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-27.json"
+        ],
+        "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+        "evidence": "development diagnostic only"
+      }
+    }
+  },
+  "preserved_failures": [
+    {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current/conformance.json",
+      "scope": "Native base passed; old RSS monitor misread process exit. Driver fixed in c2414a4c; the new complete run passed."
+    },
+    {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/lean-step-1/result.json",
+      "scope": "Fresh Lean C/R/D acceptance and proof-byte comparison passed. Caller generation passed, then the receipt filename collided with the caller output filename. Full fresh-check result remains failed."
+    }
+  ],
+  "fresh_Lean_checks": {
+    "outcome": "passed",
+    "folds": [
+      {
+        "step": 1,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-1/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 90.82111358409747,
+        "independent_proof_generation": false
+      },
+      {
+        "step": 2,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-2/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 88.44224387849681,
+        "independent_proof_generation": false
+      },
+      {
+        "step": 3,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-3/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 129.83300024317577,
+        "independent_proof_generation": false
+      }
+    ],
+    "rejection_classes": {
+      "Lean": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ]
+    },
+    "scope": "Fresh verifier conformance on native C proof messages, full caller/physical equality, and explicit rejection owners. Independent proof generation remains separate."
+  },
+  "current_CPU_Lean_handoff": {
+    "outcome": "passed",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-lean-handoff.log",
+    "scope": "Actual proof, source, caller and physical bytes compared with the fresh Lean snapshots and results. Digests are not acceptance authority."
+  }
 }

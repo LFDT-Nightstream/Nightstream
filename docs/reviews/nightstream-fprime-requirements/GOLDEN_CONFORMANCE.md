@@ -54,10 +54,30 @@ authorize a new run. Historical results retain their original scope.
   checking and the native comparison of that restored nonzero proof pass,
   including all 945,983 canonical proof bytes and 55 native PiDEC rejections.
   `GOLDEN_CONFORMANCE_CHECKS.json` records this local scope.
-- Full producer execution, fresh verifier mutation records, required CI
-  execution, and independent generation remain open. The native driver now
-  covers the exact third fold needed for the registered iteration-4 check;
-  its full execution remains pending.
+- The current CPU run passed all 25 staged phases: folds 1–3, iteration-4
+  terminal acceptance, rehashed false-opening rejection, and both archive
+  comparisons. Phase time totaled 2,230.22 seconds; the longest phase took
+  180.06 seconds. Peak RSS was 14,038,003,712 bytes, below the 16 GiB guard.
+  This is staged execution, not a complete-call performance measurement.
+- Fresh Lean checks pass for all three folds. Each compares every canonical
+  proof byte, 177,326 private caller words, 278 public caller words, all seven
+  caller result fields, and 234,755,400 physical-witness bytes. Each records
+  34 Lean D public rejections, ten decoder rejections, one explicit C
+  rejection, the parent-bound and blocked-handoff checks, and 55 native D
+  rejections. C proof messages remain verifier inputs in these checks.
+- The current recursive proof matches all 945,983 restored reference bytes.
+  The complete independent C input, phase and proof words also match the
+  current CPU values. An explicit source/input audit permits reuse of the
+  retained C computation. Its 21 previously unexecuted finish rejection cases
+  now pass. New R/D and successor work uses a separate continuation directory;
+  the old failed receipt remains unchanged.
+- Required-check workflow wiring is implemented. Actual CI execution still
+  needs the three missing published archives, confirmed Metal runner routing,
+  and branch rules that require the final check. Local CPU-to-Lean handoff
+  checks pass. Current Metal execution remains pending.
+- Independent first-fold generation is implemented but has not run. The
+  remaining independent reductions and recursive feedback through iteration 4
+  are also pending. The 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
 source versions, exact comparison scope and failures will be recorded here

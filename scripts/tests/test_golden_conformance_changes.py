@@ -85,6 +85,13 @@ class GoldenConformanceChangesTests(unittest.TestCase):
         self.assertEqual(checks_for_path(
             "crates/neo-fold-clean/tests/preprocessing_read_only.md"), ("native", "metal"))
 
+    def test_mutation_archive_selects_native_regression_without_regeneration(self):
+        path = "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
+        self.assertEqual(classify([path]), {
+            "native": True, "lean_reference": False, "metal": False,
+            "triggers": {"native": [path], "lean_reference": [], "metal": []},
+        })
+
     def test_unknown_dependency_files_and_invalid_paths_fail(self):
         for path in ("crates/neo-ajtai/setup/key.bin", "../Cargo.toml", "/Cargo.toml", "./Cargo.toml", ""):
             with self.subTest(path=path), self.assertRaises(ValueError):

@@ -149,7 +149,6 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         initial_comm_chain,
     )
     .expect("bindings trace");
@@ -254,7 +253,6 @@ fn i64_result_lane_writes() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect("bindings trace");
@@ -360,12 +358,10 @@ fn advice_import_pushes_without_absorbing() {
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let turns = [neo_wasm::host_event_bindings::TurnInputs::default()];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("bindings trace");
@@ -498,7 +494,6 @@ fn missing_template_is_rejected() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .is_err());
@@ -518,7 +513,6 @@ fn surplus_input_words_are_rejected() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .is_err());
@@ -578,7 +572,6 @@ fn memory_rows_reject_forged_rom_claim() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect("bindings trace");

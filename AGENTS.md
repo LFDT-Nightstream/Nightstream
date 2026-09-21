@@ -21,6 +21,15 @@
 - **30-minute Instruments cap (hard).** Every Instruments/xctrace profiling run MUST be launched with a timeout of **at most 1 800 000 ms (30 minutes)**. This includes the profiled non-Lean program and trace finalization, and replaces the five-minute test cap for that profiling run. Use `timeout: 1800000` when the tool supports it, or an outer `timeout --signal=KILL 1800` command. If profiling is still running at the cap, stop it and treat the capture as incomplete. A longer profiling run requires explicit user approval for that specific invocation.
 - **25-minute Lean cap (hard).** Every Lean-related command, including `lake build`, `lake test`, `lake exe`, `lake env lean`, and direct Lean test or executable invocations, MUST be launched with a timeout of **at most 1 500 000 ms (25 minutes)**. Pass `timeout: 1500000` to the Bash tool — do not omit it, do not raise it. If a Lean command is still running at the cap, kill it and treat it as failing this slice. The only way to exceed the cap is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
 
+## Writing
+
+Follow Zinsser's four principles of quality writing:
+
+1. Simplicity
+2. Brevity
+3. Clarity
+4. Humanity
+
 ## Operating Discipline
 - Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
 - Prefer the smallest code change that solves the stated problem. Do not add speculative features, flexibility, abstractions, flags, or helper systems for a single use case.

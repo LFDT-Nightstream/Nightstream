@@ -1,0 +1,215 @@
+name: Golden conformance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: golden-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection:
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.changes.outputs.native }}
+      lean_reference: ${{ steps.changes.outputs.lean_reference }}
+      metal: ${{ steps.changes.outputs.metal }}
+      rust_toolchain: ${{ steps.changes.outputs.rust_toolchain }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select checks from the complete changed path set
+        id: changes
+        shell: bash
+        run: |
+          python3 -B scripts/golden_conformance_changes.py --base '${{ github.event.pull_request.base.sha || github.event.before }}' --head '${{ github.sha }}' > golden-selection.json
+          python3 - <<'PY'
+          import json, os, tomllib
+          selected = json.load(open('golden-selection.json'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for name in ('native', 'lean_reference', 'metal'):
+                  assert type(selected[name]) is bool
+                  output.write(f'{name}={str(selected[name]).lower()}\n')
+              with open('rust-toolchain.toml', 'rb') as source:
+                  output.write('rust_toolchain=' + tomllib.load(source)['toolchain']['channel'] + '\n')
+          print(json.dumps(selected))
+          PY
+
+  cpu:
+    name: Current CPU and Lean golden checks
+    needs: selection
+    if: needs.selection.outputs.native == 'true' || needs.selection.outputs.lean_reference == 'true' || needs.selection.outputs.metal == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ needs.selection.outputs.rust_toolchain }}
+      - uses: leanprover/lean-action@v1
+        timeout-minutes: 25 # Root AGENTS.md: at most 1,500 seconds per Lean-related command.
+        with:
+          lake-package-directory: formal/nightstream-fprime
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          use-github-cache: true
+          use-mathlib-cache: false
+      - name: Download the exact retained archives
+        shell: bash
+        run: |
+          python3 -B crates/nightstream/tests/download_golden_inputs.py --directory '${{ runner.temp }}/golden-archives' --token-stdin <<'TOKEN'
+          ${{ github.token }}
+          TOKEN
+      - name: Run current CPU and fresh Lean checks
+        shell: bash
+        run: python3 -B scripts/golden_conformance_ci.py cpu --archives '${{ runner.temp }}/golden-archives' --directory '${{ runner.temp }}/golden-cpu'
+      - name: Retain the exact CPU and Lean handoff files
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-cpu-${{ github.run_id }}
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/golden-cpu/cpu
+            ${{ runner.temp }}/golden-cpu/lean-step-*
+            ${{ runner.temp }}/golden-cpu/cpu-result.json
+      - name: Retain command logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-cpu-logs-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/golden-cpu/build-*.jsonl
+            ${{ runner.temp }}/golden-cpu/cpu/logs
+            ${{ runner.temp }}/golden-cpu/cpu/conformance.json
+            ${{ runner.temp }}/golden-cpu/lean-step-*/*.log
+            ${{ runner.temp }}/golden-cpu/lean-step-*/result.json
+
+  independent:
+    name: Independently regenerate the selected Lean expectations
+    needs: [selection, cpu]
+    if: needs.selection.outputs.lean_reference == 'true'
+    runs-on: self-hosted
+    # Exact self-hosted platform ceiling: 5 days, not a native/Lean command cap.
+    # https://docs.github.com/en/actions/reference/limits
+    # Retained C stages alone took 20,684.78 s; the default 360 minutes cannot
+    # cover first-fold generation plus the independent two-fold replay.
+    timeout-minutes: 7200
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ needs.selection.outputs.rust_toolchain }}
+      - uses: leanprover/lean-action@v1
+        timeout-minutes: 25 # Root AGENTS.md: at most 1,500 seconds per Lean-related command.
+        with:
+          lake-package-directory: formal/nightstream-fprime
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          use-github-cache: false
+          use-mathlib-cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: golden-cpu-${{ github.run_id }}
+          path: ${{ runner.temp }}/golden-independent-cpu
+      - name: Download all authenticated inputs before the long computation
+        shell: bash
+        run: |
+          python3 -B crates/nightstream/tests/download_golden_inputs.py --directory '${{ runner.temp }}/golden-independent-archives' --token-stdin <<'TOKEN'
+          ${{ github.token }}
+          TOKEN
+      - name: Generate the exact first fold and independent recursive feedback
+        # No step timeout override: the existing coordinator caps every child.
+        # Final evidence is printed in the job log; no late API-token upload
+        # is needed after the token's documented 24-hour lifetime.
+        run: python3 -B scripts/golden_conformance_ci.py independent --archives '${{ runner.temp }}/golden-independent-archives' --directory '${{ runner.temp }}/golden-independent' --cpu-reference '${{ runner.temp }}/golden-independent-cpu'
+
+  metal:
+    name: Current Metal equality with the same CPU files
+    needs: [selection, cpu]
+    if: needs.selection.outputs.metal == 'true'
+    # This is the only existing heavy-runner label. A Linux assignment fails
+    # visibly below until an actual macOS runner selector is confirmed.
+    runs-on: self-hosted
+    steps:
+      - name: Require the selected Metal capability
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" != macOS ]]; then
+            echo 'Metal conformance is required. Configure this job with a confirmed macOS Metal runner.' >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ needs.selection.outputs.rust_toolchain }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: golden-cpu-${{ github.run_id }}
+          path: ${{ runner.temp }}/golden-cpu-handoff
+      - name: Download the exact retained archives
+        shell: bash
+        run: |
+          python3 -B crates/nightstream/tests/download_golden_inputs.py --directory '${{ runner.temp }}/golden-metal-archives' --token-stdin <<'TOKEN'
+          ${{ github.token }}
+          TOKEN
+      - name: Run current Metal against the checked CPU bytes
+        run: python3 -B scripts/golden_conformance_ci.py metal --archives '${{ runner.temp }}/golden-metal-archives' --directory '${{ runner.temp }}/golden-metal' --cpu-reference '${{ runner.temp }}/golden-cpu-handoff'
+      - name: Retain Metal command logs and comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-metal-logs-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/golden-metal/build-*.jsonl
+            ${{ runner.temp }}/golden-metal/metal/logs
+            ${{ runner.temp }}/golden-metal/metal/conformance.json
+            ${{ runner.temp }}/golden-metal/metal/comparison-*.json
+            ${{ runner.temp }}/golden-metal/metal-result.json
+
+  required:
+    name: Golden conformance
+    if: always()
+    needs: [selection, cpu, independent, metal]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject missing or failed selected checks
+        shell: bash
+        run: |
+          [[ '${{ needs.selection.result }}' == success ]] || exit 1
+          if [[ '${{ needs.selection.outputs.native }}' == true || '${{ needs.selection.outputs.lean_reference }}' == true || '${{ needs.selection.outputs.metal }}' == true ]]; then
+            [[ '${{ needs.cpu.result }}' == success ]] || exit 1
+          fi
+          if [[ '${{ needs.selection.outputs.metal }}' == true ]]; then
+            [[ '${{ needs.metal.result }}' == success ]] || exit 1
+          fi
+          if [[ '${{ needs.selection.outputs.lean_reference }}' == true ]]; then
+            [[ '${{ needs.independent.result }}' == success ]] || exit 1
+          fi

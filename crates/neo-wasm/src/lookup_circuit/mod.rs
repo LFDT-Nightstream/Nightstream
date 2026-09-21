@@ -1,82 +1,15 @@
-//! Folding-native closure for Enzo's operation-table bindings.
-//!
-//! The base WASM relation owns selectors, operands, results, and range bits.
-//! This module appends a compact R1CS relation plus deterministic Boolean
-//! advice; it does not replace or reinterpret the authoritative VM layout.
+//! Compact operation-table constraints and witness audits.
+//! Owns lookup synthesis and advice checks; it does not prove memory consistency.
 
 mod builder;
 mod compact;
 
-use neo_ccs::{CcsMatrix, CscMat};
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::layout::COL_ONE;
 use builder::LookupR1csRow;
-
-pub(crate) struct CompactLookupShape {
-    pub(crate) relation: SparseR1cs,
-    pub(crate) widths: Vec<usize>,
-    pub(crate) auxiliary_column_count: usize,
-}
-
-pub(crate) fn extend_relation(
-    base: &SparseR1cs,
-    mut widths: Vec<usize>,
-) -> Result<CompactLookupShape, LookupCircuitError> {
-    if widths.len() != base.m {
-        return Err(LookupCircuitError::WidthCount {
-            actual: widths.len(),
-            expected: base.m,
-        });
-    }
-    let (lookup_rows, auxiliary_assignment) = fixed_rows(base.m)?;
-    let columns = base.m + auxiliary_assignment.len();
-    let rows = base.n + lookup_rows.len();
-    let mut a = matrix_triplets(&base.a)?;
-    let mut b = matrix_triplets(&base.b)?;
-    let mut c = matrix_triplets(&base.c)?;
-    for (offset, row) in lookup_rows.iter().enumerate() {
-        let target = base.n + offset;
-        a.extend(
-            row.a_terms
-                .iter()
-                .map(|&(column, value)| (target, column, value)),
-        );
-        b.extend(
-            row.b_terms
-                .iter()
-                .map(|&(column, value)| (target, column, value)),
-        );
-        c.extend(
-            row.c_terms
-                .iter()
-                .map(|&(column, value)| (target, column, value)),
-        );
-    }
-    let relation = SparseR1cs::new(
-        CcsMatrix::Csc(CscMat::from_triplets(a, rows, columns)),
-        CcsMatrix::Csc(CscMat::from_triplets(b, rows, columns)),
-        CcsMatrix::Csc(CscMat::from_triplets(c, rows, columns)),
-        rows,
-        columns,
-        base.m_in,
-    )?;
-    widths.resize(columns, 1);
-    Ok(CompactLookupShape {
-        relation,
-        widths,
-        auxiliary_column_count: auxiliary_assignment.len(),
-    })
-}
-
-pub(crate) fn extend_witness(mut base_assignment: Vec<F>) -> Result<Vec<F>, LookupCircuitError> {
-    let (_, auxiliary_assignment) = compact::synthesize(&base_assignment)?;
-    base_assignment.extend(auxiliary_assignment);
-    Ok(base_assignment)
-}
 
 #[doc(hidden)]
 pub fn audit_compact_lookup_witness(base_assignment: &[F]) -> Result<usize, LookupCircuitError> {
@@ -146,27 +79,8 @@ fn evaluate(terms: &[(usize, F)], assignment: &[F]) -> F {
     })
 }
 
-fn matrix_triplets(matrix: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, LookupCircuitError> {
-    match matrix {
-        CcsMatrix::Identity { n } => Ok((0..*n).map(|index| (index, index, F::ONE)).collect()),
-        CcsMatrix::Csc(csc) => {
-            let mut out = Vec::with_capacity(csc.vals.len());
-            for column in 0..csc.ncols {
-                for index in csc.col_ptr[column]..csc.col_ptr[column + 1] {
-                    out.push((csc.row_idx[index], column, csc.vals[index]));
-                }
-            }
-            Ok(out)
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum LookupCircuitError {
-    #[error("lookup relation has {actual} width declarations for {expected} base columns")]
-    WidthCount { actual: usize, expected: usize },
-    #[error("lookup relation cannot extend a compact seeded base matrix")]
-    CompactBaseMatrix,
     #[error("lookup relation synthesis failed: {0}")]
     Synthesis(String),
     #[error("lookup relation row {row} is unsatisfied")]
@@ -177,8 +91,6 @@ pub enum LookupCircuitError {
     AuxiliaryShapeDrift { actual: usize, expected: usize },
     #[error("lookup relation has {columns} base columns and cannot address constant column {constant}")]
     MissingConstantColumn { columns: usize, constant: usize },
-    #[error(transparent)]
-    Frontend(#[from] neo_fold_clean::frontends::direct_ccs::FrontendError),
 }
 
 impl From<String> for LookupCircuitError {

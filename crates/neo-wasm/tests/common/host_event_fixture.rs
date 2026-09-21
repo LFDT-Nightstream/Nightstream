@@ -1,7 +1,6 @@
 //! Shared event-bound fixture: a component with two template-bound host
 //! imports (mul and sink) and an export boundary template,
-//! traced with bindings tables. Used by the F′ audit lifecycle test and the
-//! Nebula proof test.
+//! traced with bindings tables for host-event and F′ audit tests.
 
 use neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS;
 use neo_wasm::host_event_bindings::{

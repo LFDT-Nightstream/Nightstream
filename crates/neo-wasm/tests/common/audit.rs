@@ -1,8 +1,8 @@
 //! Test-only replay harness for exercising the bare WASM relation.
 //!
-//! Production callers use `neo_wasm::{preprocess, prove, verify}`, whose
-//! proof is checked by terminal induction. These helpers intentionally keep
-//! full-history replay local to relation and batching regression tests.
+//! Checks the bare relation and carried VM state through full-history replay.
+//! Memory consistency and operation-table lookups are checked separately by
+//! the test fixtures; this harness is not a complete WASM execution proof.
 
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csFPrimePreprocessing};
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;

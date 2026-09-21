@@ -13,6 +13,7 @@ mod ivc_state;
 pub mod layout;
 mod lookup_circuit;
 pub mod lookup_semantics;
+mod memory_activation;
 mod memory_id;
 pub mod memory_semantics;
 #[doc(hidden)]

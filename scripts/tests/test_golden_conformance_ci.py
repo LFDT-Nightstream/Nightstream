@@ -118,6 +118,25 @@ class GoldenCITests(unittest.TestCase):
         replay.assert_called_once()
         self.assertFalse((output / "independent-result.json").exists())
 
+    def test_every_independent_parent_is_compared_with_the_current_cpu_parent(self):
+        output, handoff = self.root / "independent", self.root / "handoff"
+        output.mkdir()
+        self.write(handoff / "cpu/fold-1/nifs.json", {"parent": {}})
+        self.write(handoff / "cpu/step-1/envelope.json", {"iteration": 1, "z0": [], "current": []})
+        with patch.object(ci, "run") as run, patch.object(ci, "compare_json"), \
+                patch.object(ci, "compare_files"), patch.object(ci, "compare_envelope"), \
+                patch.object(ci, "cpu_handoff"), patch.object(ci.shutil, "copyfile"), \
+                patch.object(ci.shutil, "copytree", side_effect=lambda source, target: target.mkdir(parents=True)):
+            ci.independent_expectations(output, self.root / "references", Path("current-checker"), handoff)
+        comparisons = [call.args[0] for call in run.call_args_list if "compare-pirlc-replay" in call.args[0]]
+        self.assertEqual(len(comparisons), 3)
+        for step, command in zip((1, 2, 3), comparisons):
+            generated = output / ("independent-first" if step == 1 else "independent-loop") / f"step-{step}-to-{step + 1}"
+            self.assertEqual(command, ci.bounded("static", [
+                Path("current-checker"), "compare-pirlc-replay", handoff / f"cpu/fold-{step}/parent-witness.json",
+                generated / "parent-0.jsonl", generated / "parent-1.jsonl",
+            ]))
+
     def test_build_rejects_success_without_the_requested_executable(self):
         def fake_run(command, **options):
             options["stdout"].write(json.dumps({"reason": "build-finished", "success": True}) + "\n")

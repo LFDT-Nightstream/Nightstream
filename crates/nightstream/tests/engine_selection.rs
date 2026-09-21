@@ -26,8 +26,10 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
 
 #[test]
 fn explicit_cpu_selection_keeps_circuit_validation() {
-    assert!(matches!(
-        Circuit::prepare_with_engine(b"not a circuit", identity(), Engine::Optimized),
-        Err(Error::Assembly(_))
-    ));
+    for engine in [Engine::Optimized, Engine::PaperExact, Engine::Crosscheck] {
+        assert!(matches!(
+            Circuit::prepare_with_engine(b"not a circuit", identity(), engine),
+            Err(Error::Assembly(_))
+        ));
+    }
 }

@@ -86,9 +86,13 @@ The production check uses the Rust Poseidon2 application, `b = 2`,
 `k_rho = 16`, 6,377,559 constraint rows, 14 matrices, and the selected
 28-round padded domain. The CPU and Metal PiCCS runs read the same newly
 generated base envelope and witnesses. The CPU baseline preceded the fixes;
-those fixes change only Metal code. Saved digests are not the acceptance test:
-the PiCCS phase replays its proof through the CPU verifier and compares the
-complete transcript state and cursor.
+those fixes change only Metal code. The historical PiCCS phase replayed its
+proof through the CPU verifier and compared the transcript state and cursor.
+That checks protocol replay, but does not independently establish correct
+device arithmetic: the device also supplies the output openings. Production
+Metal acceptance requires complete proof byte equality against CPU on the
+same source. The current Metal PiCCS phase requires that reference and compares
+the source files, SumCheck messages, and all output claims.
 
 | Check | Result | Runtime | Peak resident memory |
 | --- | --- | --- | --- |
@@ -119,8 +123,10 @@ dummy offsets and check the advertised buffer bounds. Temporary diagnostic
 printing was removed after recording the failed production attempts.
 
 The [engine receipt](tests/evidence/metal-production-replay.json) records the
-scope and failures. The run files remain at
-`/tmp/nightstream-metal-production-20260920`. The outer timeout stopped the
+scope and failures. Raw logs and phase records are retained in
+[the run archive](tests/evidence/metal-production-20260920).
+The larger witness files remain at `/tmp/nightstream-metal-production-20260920`.
+The outer timeout stopped the
 phase driver with each failed test, so those failure records were recovered
 from the command result and log; test-process peak memory was not recovered.
 Three review rounds were used, as required by `AGENTS.md`.
@@ -138,8 +144,116 @@ source in `RUN_DIRECTORY`:
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream --release --features metal --lib --test circuit_lifecycle --no-run
-timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory RUN_DIRECTORY --phase ccs --step 1 --engine metal
+timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory METAL_RUN_DIRECTORY --phase ccs --step 1 --engine metal --cpu-reference CPU_RUN_DIRECTORY
 timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint::tests
+```
+
+## Memory architecture investigation
+
+The current export has 6,377,559 logical rows, of which 7,700 belong to the
+application. The remaining 6,369,859 rows are fixed recursive-verifier work.
+The shared manifest fixes a base logical width of 252,695,531 coordinates;
+the application adds 41 coordinates for each of its 7,700 field slots. The
+result is 253,011,231 logical coordinates, padded to 253,011,276 carrier
+coefficients. The 41-coordinate encoding is balanced ternary with values in
+`{-1, 0, 1}`; it is separate from the `b = 2`, `k_rho = 16` decomposition.
+These dimensions describe the current circuit, not a necessary minimum for
+the protocol.
+
+One witness needs 74,966,304 bytes in the existing two-mask-per-ring-block
+format. The old cache stored repeated matrix coefficient patterns separately.
+The Metal transpose expanded those patterns a second time, and openings kept
+forms for all matrices plus a complete padded equality tensor live together.
+These storage choices explain the large memory use without changing the
+required mathematical computation.
+
+With coefficient patterns shared, a complete CPU PiCCS production replay
+passed on the same source files and matched every saved CPU proof byte,
+including output openings. Peak RSS fell from 34,178,367,488 to 4,327,669,760
+bytes. The complete phase took 227.67 s, versus 202.89 s before. Cache building
+took 55.01 s, versus 38.54 s; proving took 100.06 s, versus 95.82 s. The new
+phase took longer. The host still held resources from a timed-out Metal job,
+so these separate runs do not establish a controlled speed comparison. The
+memory result covers the first
+fold with zero carried witnesses, not a full lifecycle or the general 16 GB
+requirement. The [raw record and log](tests/evidence/metal-production-20260920/cpu-shared-patterns)
+identify the source and comparison inputs.
+
+A later CPU change stores early signed-unit folds as indices into their
+possible field values until those indices no longer fit `u16`. Its comparison
+with ordinary dense folding passes through the transition and implicit zero
+tail. The production memory measurement above predates that change.
+
+The Metal rewrite now keeps references to shared coefficient patterns,
+processes one matrix opening at a time, and factors the padded equality
+weights. It is not yet device-validated. The combined parity invocation
+reached the 300 s cap after five cross-check tests passed; the first Metal
+test did not finish. An isolated small test also waited at its first device
+command and was stopped. The earlier production process remained in the
+kernel exit state, while the GPU driver reported 52,719,140,864 bytes in use
+and 100% utilization. No new production GPU run was started. The
+[device snapshot and test log](tests/evidence/metal-production-20260920/compact-validation)
+record this block. A clean device state is needed before those results can
+be checked. This is not a Metal parity pass or a speed result.
+
+The owner cannot restart this Mac. Process cleanup was attempted without a
+restart or logout: the test-owned Metal compiler services received TERM and
+KILL. A separate Objective-C program then submitted a four-byte buffer fill
+without any Nightstream shaders. It reached the 300 s cap in committed state,
+with no scheduled or completed callback. These actions did not recover the
+device. No kernel settings, display service, or GPU driver were changed.
+The same archive contains the probe source, log, and recovery result.
+
+The checks after the CPU prefix change were:
+
+| Check | Result |
+| --- | --- |
+| Nightstream reference/CPU C/R/D cross-checks, including the two-row exported polynomial | Six passed, 132.79 s |
+| Saved Lean Poseidon2 application checks | Four passed |
+| Public engine selection | Two passed |
+| Reduction unit and row-source tests | Six passed; two external-source checks remained ignored |
+| Metal crate test targets without the legacy adapter | Release build passed; device execution blocked |
+| Nightstream all targets with `metal,cuda` | Release check passed |
+| Clippy inspection of Nightstream, Metal, and reductions | No warnings on changed lines; existing warnings remain |
+| Legacy `pi_ccs_v1_1_engine_parity` suite | Seven passed, eight failed at the unchanged missing-running-claim guard |
+
+The legacy parity failures occur before the new prefix or matrix execution.
+The fixtures call the digest-only prover with no running claim, while the
+unchanged transcript owner requires one. That fixture repair is outside this
+memory change. Clippy used `--cap-lints warn` to inspect all targets; it is not
+a clean `-D warnings` result. Formatting and `git diff --check` passed.
+
+The general memory requirement remains open. Metal still expands nonzero
+norm sources into extension-field tables, and the carried calculation has
+overlapping large temporary arrays. Commitments and terminal verification
+still use the CPU. Those paths and complete lifecycle measurements must be
+addressed before the 16 GB and 5× requirements can be accepted.
+
+## Parallel PaperExact/Optimized cross-check
+
+On 2026-09-20, five cross-check tests and two public engine-selection tests
+passed in release mode. Each test invocation used the five-minute cap from
+`AGENTS.md`. No Lean command or artifact generation was needed.
+
+`Engine::Crosscheck` runs the reference prover on a separate thread while the
+calling thread runs Optimized. Both receive copies of the same inputs and
+transcript. The agreement test checks the returned proof bytes, accumulator,
+witness values, and transcript against a direct optimized run. It also verifies
+the proof and confirms that the reference read the original rows on another
+thread. The fixture uses the Nightstream Goldilocks `b = 2`, `k_rho = 16`
+profile, with nonzero carried data and a non-aligned logical width.
+
+The rejection tests cover changed proof fields, child witnesses, claims,
+parent authority, transcript state, and transcript cursor. They also exercise
+different reference rows, a reference prover error, and a worker panic. Failed
+comparisons and these failures leave the caller's transcript unchanged.
+
+These are small-circuit checks. A full production cross-check was not run;
+PaperExact has exponential cost. The full Metal and CUDA gaps above remain.
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib engine::parity::crosscheck
+timeout --signal=KILL 300 cargo test -p nightstream --release --test engine_selection
 ```
 
 ## Independent Poseidon2 benchmark

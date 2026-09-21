@@ -4,6 +4,7 @@ use neo_reductions::{
     common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
     superneo_eval::SuperneoZBlocks,
 };
+use std::io::{self, BufRead};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -188,7 +189,49 @@ fn zero_opening(package: &PreparedLifecycle) -> V1_1Evaluations<K> {
     }
 }
 
-pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine) {
+fn equal_contents(mut left: impl BufRead, mut right: impl BufRead) -> io::Result<bool> {
+    loop {
+        let a = left.fill_buf()?;
+        let b = right.fill_buf()?;
+        let count = a.len().min(b.len());
+        if count == 0 {
+            return Ok(a.is_empty() && b.is_empty());
+        }
+        if a[..count] != b[..count] {
+            return Ok(false);
+        }
+        left.consume(count);
+        right.consume(count);
+    }
+}
+
+#[path = "staged_compare.rs"]
+mod compare_tests;
+
+pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_reference: Option<&Path>) {
+    #[cfg(feature = "metal")]
+    if matches!(engine, EvaluationEngine::Metal) {
+        assert!(
+            cpu_reference.is_some(),
+            "Metal production acceptance requires a CPU reference"
+        );
+    }
+    let cpu_proof: Option<SavedCcs> = cpu_reference.map(|reference| {
+        assert_ne!(fs::canonicalize(root).unwrap(), fs::canonicalize(reference).unwrap());
+        let files = ["envelope.json", "fresh-claim.json", "fresh-witness.json"]
+            .into_iter()
+            .map(str::to_owned)
+            .chain((0..16).map(|child| format!("digit-{child}.json")));
+        for name in files {
+            let actual = BufReader::new(File::open(step_dir(root, step).join(&name)).unwrap());
+            let expected = BufReader::new(File::open(step_dir(reference, step).join(&name)).unwrap());
+            assert!(
+                equal_contents(actual, expected).unwrap(),
+                "CPU/Metal source differs: {name}"
+            );
+        }
+        load(&fold_dir(reference, step).join("ccs.json"))
+    });
     let directory = fold_dir(root, step);
     fs::create_dir_all(&directory).unwrap();
     let package = prepare();
@@ -233,6 +276,24 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine) {
     eprintln!("C proving engine={engine:?} elapsed={:?}", proving.elapsed());
     let (verified, _) = replay_ccs(&package, &source.fresh.claim, &source.running, &proof);
     assert_eq!(verified.snapshot(), transcript.snapshot());
+    if let Some(reference) = cpu_proof {
+        check_identity(
+            &package,
+            reference.schema,
+            reference.structural_identifier,
+            reference.package_identity,
+            reference.verification_key_digest,
+        );
+        let reference = pi_ccs::Proof {
+            sumcheck: reference.sumcheck,
+            outputs: reference.outputs,
+        };
+        assert!(
+            proof.canonical_bytes() == reference.canonical_bytes(),
+            "CPU/Metal PiCCS proof bytes differ"
+        );
+        eprintln!("C CPU proof byte equality passed; source files also match");
+    }
     save(
         &directory.join("ccs.json"),
         &SavedCcs {

@@ -168,11 +168,7 @@ fn equality(point: &[K], target: &[K]) -> K {
 }
 
 fn gamma_power(gamma: K, exponent: usize) -> K {
-    let mut power = K::ONE;
-    for _ in 0..exponent {
-        power *= gamma;
-    }
-    power
+    gamma.exp_u64(exponent as u64)
 }
 
 fn eval_k_exponent(running_count: usize, running: usize, coefficient: usize) -> usize {

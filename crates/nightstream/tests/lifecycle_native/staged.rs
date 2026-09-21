@@ -56,6 +56,7 @@ enum Request {
         step: u64,
         #[serde(default)]
         engine: EvaluationEngine,
+        cpu_reference: Option<PathBuf>,
     },
     Rlc {
         directory: PathBuf,
@@ -104,7 +105,8 @@ fn run_phase() {
             directory,
             step,
             engine,
-        } => fold::ccs(&directory, step, engine),
+            cpu_reference,
+        } => fold::ccs(&directory, step, engine, cpu_reference.as_deref()),
         Request::Rlc { directory, step } => fold::rlc(&directory, step),
         Request::Split { directory, step } => fold::split(&directory, step),
         Request::Child {

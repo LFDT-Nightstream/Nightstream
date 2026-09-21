@@ -58,8 +58,7 @@ impl MetalRowProver {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
             self.prepare(cache).map_err(oracle_error)?;
-            return self
-                .session
+            self.session
                 .eval_joint_dec_openings(
                     self.plan.as_ref().expect("prepared matrix plan"),
                     witnesses,
@@ -71,7 +70,7 @@ impl MetalRowProver {
                     oracle_error(MetalError::Shape(
                         "device child openings are unavailable for this shape",
                     ))
-                });
+                })
         }
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         {

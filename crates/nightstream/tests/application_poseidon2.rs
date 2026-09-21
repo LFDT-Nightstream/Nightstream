@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream::application::{poseidon2_hash_chain_v1, Affine, ApplicationCircuit};
+use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, Affine, ApplicationCircuit};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
@@ -238,6 +238,7 @@ fn every_poseidon2_witness_value_matches_the_saved_lean_program() {
     preimage.extend(input);
     preimage.extend(message);
     assert_eq!(witness.output_state(), poseidon2_hash(&preimage));
+    assert_eq!(poseidon2_hash_chain_step(input, message), output);
 
     let columns = column_map(&circuit, &reference);
     let mut expected = BTreeMap::new();

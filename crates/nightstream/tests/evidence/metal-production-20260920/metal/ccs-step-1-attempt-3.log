@@ -1,0 +1,11 @@
+
+running 1 test
+staged request=Ccs { directory: "/private/tmp/nightstream-metal-production-20260920/metal", step: 1, engine: Metal }
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+staged circuit preparation elapsed=67.611653583s
+C cache elapsed=38.977565042s
+METAL_DIAGNOSTIC matrix plan started
+METAL_DIAGNOSTIC matrix plan elapsed=97.077299333s
+METAL_DIAGNOSTIC application tables started rows=6377559 width=253011276
+METAL_DIAGNOSTIC application tables elapsed=65.711824959s
+METAL_DIAGNOSTIC round=0 started

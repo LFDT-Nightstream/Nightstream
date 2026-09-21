@@ -26,7 +26,6 @@
   },
   "run_directory": "/tmp/nightstream-metal-production-20260920",
   "source_lineage": "New base from the Rust Poseidon2 application. CPU and Metal step-1 files are hard links to that same base output. No recorded reference proof was used as a producer input. CPU baseline predates the Metal-only fixes.",
-  "acceptance": "PiCCS verifier replay and complete transcript state/cursor equality. No digest-only acceptance.",
   "base": {
     "request": {
       "phase": "base",
@@ -134,5 +133,14 @@
     "CUDA execution and parity"
   ],
   "review_rounds": 3,
-  "round_policy": "Root AGENTS.md MSW fuse; no further production retry in this slice."
+  "round_policy": "Root AGENTS.md MSW fuse; no further production retry in this slice.",
+  "observed_phase_check": "PiCCS verifier replay and complete transcript state/cursor equality. No digest-only acceptance.",
+  "required_metal_acceptance": "Exact CPU/Metal proof bytes on the same source, including output openings; verifier replay alone does not establish device arithmetic parity.",
+  "archived_logs": "metal-production-20260920",
+  "performance_requirement": {
+    "source": "Owner instruction, 2026-09-20",
+    "minimum_speedup": 5,
+    "scope": "Full lifecycle including preparation, proving and terminal verification",
+    "status": "not met"
+  }
 }

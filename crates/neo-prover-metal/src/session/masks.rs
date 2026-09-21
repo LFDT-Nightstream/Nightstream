@@ -14,11 +14,13 @@ pub(crate) struct MetalWitnessMasks {
     witness_count: usize,
     blocks: usize,
     magnitudes: usize,
+    active_witnesses: Vec<u32>,
 }
 
 impl MetalWitnessMasks {
     fn new(
         words: Buffer,
+        source: &[u64],
         witness_count: usize,
         blocks: usize,
         magnitudes: usize,
@@ -41,11 +43,18 @@ impl MetalWitnessMasks {
         {
             return Err(MetalError::Shape("witness masks have inconsistent dimensions"));
         }
+        let active_witnesses = source
+            .chunks_exact(blocks * 2 * magnitudes)
+            .enumerate()
+            .filter(|(_, words)| words.iter().any(|&word| word != 0))
+            .map(|(index, _)| u32::try_from(index).map_err(|_| MetalError::Shape("witness index exceeds u32")))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             words,
             witness_count,
             blocks,
             magnitudes,
+            active_witnesses,
         })
     }
 
@@ -60,6 +69,10 @@ impl MetalWitnessMasks {
 
     pub(super) fn magnitudes(&self) -> usize {
         self.magnitudes
+    }
+
+    pub(super) fn active_witnesses(&self) -> &[u32] {
+        &self.active_witnesses
     }
 
     pub(super) fn words(&self) -> &Buffer {
@@ -83,7 +96,14 @@ impl MetalSession {
         if words.len() != expected_words {
             return Err(MetalError::Shape("witness masks have inconsistent dimensions"));
         }
-        MetalWitnessMasks::new(self.buffer_from_slice(words)?, witness_count, blocks, 1, active_rows)
+        MetalWitnessMasks::new(
+            self.buffer_from_slice(words)?,
+            words,
+            witness_count,
+            blocks,
+            1,
+            active_rows,
+        )
     }
 
     pub(crate) fn prepare_witness_digit_masks(
@@ -103,6 +123,7 @@ impl MetalSession {
         }
         MetalWitnessMasks::new(
             self.buffer_from_slice(words)?,
+            words,
             witness_count,
             blocks,
             magnitudes,

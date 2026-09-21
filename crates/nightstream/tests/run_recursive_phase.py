@@ -28,12 +28,20 @@ def main() -> int:
     parser.add_argument("--step", type=int)
     parser.add_argument("--child", type=int)
     parser.add_argument("--engine", choices=("optimized", "metal"))
+    parser.add_argument("--cpu-reference", type=Path,
+                        help="CPU run directory whose source files and PiCCS proof must match")
     args = parser.parse_args()
+    if args.cpu_reference is not None and args.phase != "ccs":
+        parser.error("--cpu-reference is a PiCCS comparison input")
+    if args.phase == "ccs" and args.engine == "metal" and args.cpu_reference is None:
+        parser.error("Metal PiCCS acceptance requires --cpu-reference")
     directory = args.directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     logs = directory / "logs"
     logs.mkdir(exist_ok=True)
     request = {"phase": args.phase, "directory": str(directory)}
+    if args.cpu_reference is not None:
+        request["cpu_reference"] = str(args.cpu_reference.resolve())
     parts = [args.phase]
     if args.engine is not None:
         if args.phase not in ("ccs", "child"):

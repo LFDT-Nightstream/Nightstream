@@ -44,7 +44,8 @@ automatic fallback when a selected engine is unavailable.
 | --- | --- |
 | `Optimized` | Existing optimized CPU path. |
 | `PaperExact` | Direct paper formulas with original exported matrix rows; checked against optimized CPU. |
-| `Metal` | Device PiCCS evaluation and PiDEC openings; checked against optimized CPU. Requires the `metal` feature and an Apple Metal device. |
+| `Crosscheck` | Runs PaperExact and Optimized in parallel. Returns the optimized result only if all proof fields, accumulator values, witness values, and transcript state and cursor match. |
+| `Metal` | Device PiCCS evaluation and PiDEC openings. The current memory rewrite needs fresh device validation. Requires the `metal` feature and an Apple Metal device. |
 | `Cuda` | The `cuda` feature connects the availability boundary. Selection fails explicitly because the canonical CUDA kernel is missing. |
 
 Metal retains its device session and matrix plan across folds. PiRLC, fixed-key
@@ -54,12 +55,22 @@ The GPU dependencies do not add `neo-fold-clean` to the production graph.
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
 state, returned claims, and witness matrices. The small fixtures include
-nonzero carried data and completion tails. A separate Metal check uses every
-term of the selected production polynomial with nonzero input ports. These are
-small-input conformance checks. Production-profile Metal PiCCS attempts reached
+nonzero carried data and completion tails. The selected production polynomial
+has a check with two distinct rows across PaperExact, Optimized, and Metal.
+Its nonzero input ports use two witness columns. These are
+small-input conformance checks. They passed before the memory rewrite; the
+current Metal checks are blocked by a stalled device. Production-profile
+Metal PiCCS attempts reached
 the five-minute test cap; a complete Metal replay has not passed. See
 [the engine validation results](VALIDATION.md#engine-validation-on-the-m1-max).
 The CUDA comparisons are explicitly ignored until its kernel exists.
+
+Select `Engine::Crosscheck` in `Circuit::prepare_with_engine` to check each
+active fold. The engines receive separate copies of the same inputs and
+transcript. PaperExact reads the original exported matrix rows. A difference
+or prover error fails the call. The caller's transcript advances only after
+the comparison succeeds. The base step has no
+active fold, so `prove` alone does not run this cross-check.
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream --release --features metal,cuda --lib engine::parity
@@ -72,8 +83,9 @@ driver-backed CUDA crate still requires its pinned cuda-oxide build workflow
 when its own `cuda` feature is enabled.
 
 PaperExact is a reference evaluator with exponential work in the joint-domain
-dimension. It is not a practical default for the selected production circuit.
-Its engine name does not change the Nightstream Goldilocks profile or make that
+dimension. Both `PaperExact` and `Crosscheck` are for small correctness checks;
+neither is practical for the selected production circuit.
+The engine name does not change the Nightstream Goldilocks profile or make that
 profile an exact copy of SuperNeo Appendix B.2.
 
 ## Stored Lean Poseidon2 checks
@@ -101,7 +113,11 @@ finishes successfully only after terminal verification accepts it.
 
 The binary uses normal dependencies and has no dependency on the old crate.
 Run engines separately with the same step count, then compare their logs
-manually. Inputs are fixed and included in the first record. The step count
+manually. The owner's Metal target is at least 5× faster over the full lifecycle,
+including preparation, proving, and terminal verification. The current memory
+target is at most 16 GB for either engine on every supported circuit; 8 GB is
+the future mobile target. These targets have not passed. Inputs are fixed and
+included in the first record. The step count
 includes the base step: `--steps 1` performs no active fold, while `--steps 3`
 covers the base and two active folds. PaperExact remains a small-input parity
 reference; CUDA selection fails until its kernel is available.
@@ -160,5 +176,6 @@ with the unchanged implementation; it is not a production dependency.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.
-The selected implementation goal is complete. A single-process active
-`extend` run and a universal Rust refinement proof are not claimed.
+The original migration checks passed. Engine speed and memory requirements
+remain open. A single-process active `extend` run and a universal Rust
+refinement proof are not claimed.

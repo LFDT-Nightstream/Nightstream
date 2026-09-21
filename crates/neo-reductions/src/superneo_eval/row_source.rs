@@ -5,12 +5,18 @@ use super::{CompactRowBlock, DenseBlockStore, DenseRowBlock, RowOffsetStore, Sup
 use crate::PiCcsError;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
+use p3_field::PrimeField64;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+};
 
 /// Incremental construction from original coefficients, with columns grouped
 /// into consecutive degree-54 blocks. No scalar matrix or dense block table
 /// is retained. Rows must arrive in `(row, matrix)` order, including empty rows.
 pub struct SuperneoEvalCacheBuilder {
     mats: Vec<SuperneoMatrixCache>,
+    patterns: Vec<HashMap<u64, Vec<usize>>>,
     logical_columns: usize,
     next_row: usize,
     next_matrix: usize,
@@ -57,6 +63,7 @@ impl SuperneoEvalCacheBuilder {
         };
         Ok(Self {
             mats,
+            patterns: (0..matrices).map(|_| HashMap::new()).collect(),
             logical_columns,
             next_row: 0,
             next_matrix: 0,
@@ -123,6 +130,7 @@ impl SuperneoEvalCacheBuilder {
         }
         let cache = &mut self.mats[matrix];
         let previous_length = cache.row_blocks.len();
+        let patterns = &mut self.patterns[matrix];
         let mut previous_column = None;
         let mut block = 0;
         let mut locals = [0u8; D];
@@ -137,7 +145,7 @@ impl SuperneoEvalCacheBuilder {
             }
             let next_block = column / D;
             if used != 0 && next_block != block {
-                append_block(cache, block, &locals[..used], &coefficients[..used])?;
+                append_block(cache, patterns, block, &locals[..used], &coefficients[..used])?;
                 used = 0;
             }
             block = next_block;
@@ -147,7 +155,7 @@ impl SuperneoEvalCacheBuilder {
             previous_column = Some(column);
         }
         if used != 0 {
-            append_block(cache, block, &locals[..used], &coefficients[..used])?;
+            append_block(cache, patterns, block, &locals[..used], &coefficients[..used])?;
         }
         let end = u32::try_from(cache.row_blocks.len()).map_err(|_| invalid("cache row-block count exceeds u32"))?;
         if previous_length != cache.row_blocks.len() {
@@ -197,6 +205,7 @@ fn reserve_exact<T>(values: &mut Vec<T>, capacity: usize) -> Result<(), PiCcsErr
 
 fn append_block(
     cache: &mut SuperneoMatrixCache,
+    patterns: &mut HashMap<u64, Vec<usize>>,
     block: usize,
     locals: &[u8],
     coefficients: &[F],
@@ -219,15 +228,31 @@ fn append_block(
     else {
         unreachable!("row-source construction always emits compact patterns");
     };
-    let end = stored_locals
-        .len()
-        .checked_add(locals.len())
-        .and_then(|count| u32::try_from(count).ok())
-        .ok_or_else(|| invalid("cache dense coefficient count exceeds u32"))?;
-    let pattern = offsets.len() - 1;
-    stored_locals.extend_from_slice(locals);
-    stored_coefficients.extend_from_slice(coefficients);
-    offsets.push(end);
+    let candidates = patterns
+        .entry(pattern_hash(locals, coefficients))
+        .or_default();
+    // The hash only selects candidates. Full local-index and coefficient
+    // equality decides reuse, including when different patterns hash alike.
+    let pattern = candidates.iter().copied().find(|&pattern| {
+        let range = offsets[pattern] as usize..offsets[pattern + 1] as usize;
+        &stored_locals[range.clone()] == locals && &stored_coefficients[range] == coefficients
+    });
+    let pattern = match pattern {
+        Some(pattern) => pattern,
+        None => {
+            let end = stored_locals
+                .len()
+                .checked_add(locals.len())
+                .and_then(|count| u32::try_from(count).ok())
+                .ok_or_else(|| invalid("cache dense coefficient count exceeds u32"))?;
+            let pattern = offsets.len() - 1;
+            stored_locals.extend_from_slice(locals);
+            stored_coefficients.extend_from_slice(coefficients);
+            offsets.push(end);
+            candidates.push(pattern);
+            pattern
+        }
+    };
     cache
         .dense_row_blocks
         .push(DenseRowBlock::new(block, pattern));
@@ -235,6 +260,19 @@ fn append_block(
     Ok(())
 }
 
+fn pattern_hash(locals: &[u8], coefficients: &[F]) -> u64 {
+    let mut hash = DefaultHasher::new();
+    locals.hash(&mut hash);
+    for coefficient in coefficients {
+        coefficient.as_canonical_u64().hash(&mut hash);
+    }
+    hash.finish()
+}
+
 fn invalid(message: &str) -> PiCcsError {
     PiCcsError::InvalidInput(message.to_owned())
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/row_source_patterns.rs"]
+mod pattern_tests;

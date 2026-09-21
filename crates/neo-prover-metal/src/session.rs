@@ -85,6 +85,7 @@ pub struct MetalSession {
     joint_seeded_base_reduce: Pipeline,
     joint_seeded_k_partials: Pipeline,
     joint_seeded_k_reduce: Pipeline,
+    dec_build_row_weights: Pipeline,
     dec_build_ring_forms: Pipeline,
     dec_build_parallel_original_forms: Pipeline,
     dec_build_parallel_original_form_tiles: Pipeline,
@@ -182,6 +183,7 @@ impl MetalSession {
         let joint_seeded_base_reduce = pipeline(&device, &library, "joint_seeded_base_reduce")?;
         let joint_seeded_k_partials = pipeline(&device, &library, "joint_seeded_k_partials")?;
         let joint_seeded_k_reduce = pipeline(&device, &library, "joint_seeded_k_reduce")?;
+        let dec_build_row_weights = pipeline(&device, &library, "dec_build_row_weights")?;
         let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
         let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
         let dec_build_parallel_original_form_tiles =
@@ -243,6 +245,7 @@ impl MetalSession {
             joint_seeded_base_reduce,
             joint_seeded_k_partials,
             joint_seeded_k_reduce,
+            dec_build_row_weights,
             dec_build_ring_forms,
             dec_build_parallel_original_forms,
             dec_build_parallel_original_form_tiles,
@@ -1057,12 +1060,6 @@ impl MetalSession {
             .uploaded_bytes
             .fetch_add(bytes as u64, Ordering::Relaxed);
         Ok(())
-    }
-
-    fn record_host_write(&self, bytes: usize) {
-        self.activity
-            .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
     }
 
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {

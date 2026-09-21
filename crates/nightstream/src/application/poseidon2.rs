@@ -2,13 +2,24 @@
 //! The round schedule follows Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
 //! It consumes no exported application constraints or witness recipes.
 
-use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, Poseidon2RoundConstants};
+use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, round_constants, Poseidon2RoundConstants};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
 use super::{Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError};
 
 const DOMAIN_TAG: &[u8; 40] = b"Nightstream/Stage1/Poseidon2HashChain/v1";
+
+/// Native result of one Poseidon2HashChainV1 application step.
+pub fn poseidon2_hash_chain_step(current: [Goldilocks; 4], message: [Goldilocks; 4]) -> [Goldilocks; 4] {
+    let mut preimage: Vec<_> = DOMAIN_TAG
+        .iter()
+        .map(|byte| Goldilocks::from_u8(*byte))
+        .collect();
+    preimage.extend(current);
+    preimage.extend(message);
+    poseidon2_hash(&preimage)
+}
 
 /// Hashes the domain tag, four-word prior state, and four-word private message.
 pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError> {

@@ -1,5 +1,6 @@
 //! Prover engine selection. Circuit identity and verification do not depend on it.
 
+pub(crate) mod crosscheck;
 #[cfg(feature = "metal")]
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
@@ -12,6 +13,9 @@ pub enum Engine {
     /// Optimized native CPU arithmetic.
     #[default]
     Optimized,
+    /// Run PaperExact and Optimized in parallel and require identical results.
+    /// This has the reference engine's cost and is intended for small circuits.
+    Crosscheck,
     /// Apple Metal device arithmetic.
     Metal,
     /// NVIDIA CUDA device arithmetic.
@@ -20,6 +24,8 @@ pub enum Engine {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
+    #[error("PaperExact/Optimized cross-check mismatch: {boundary}")]
+    CrosscheckMismatch { boundary: &'static str },
     #[error("{engine:?} engine failed: {reason}")]
     Failure { engine: Engine, reason: String },
     #[error("{engine:?} engine is unavailable: {reason}")]
@@ -31,9 +37,10 @@ pub enum EngineError {
 
 pub(crate) enum Prover {
     #[cfg(feature = "metal")]
-    Metal(std::sync::Mutex<neo_prover_metal::MetalRowProver>),
+    Metal(Box<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
     PaperExact,
     Optimized,
+    Crosscheck,
 }
 
 impl Prover {
@@ -41,9 +48,10 @@ impl Prover {
         match engine {
             Engine::Optimized => Ok(Self::Optimized),
             Engine::PaperExact => Ok(Self::PaperExact),
+            Engine::Crosscheck => Ok(Self::Crosscheck),
             #[cfg(feature = "metal")]
             Engine::Metal => neo_prover_metal::MetalRowProver::new()
-                .map(|device| Self::Metal(std::sync::Mutex::new(device)))
+                .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
                 .map_err(|error| match error {
                     neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
                         engine,
@@ -75,6 +83,7 @@ impl Prover {
             Self::Metal(_) => Engine::Metal,
             Self::Optimized => Engine::Optimized,
             Self::PaperExact => Engine::PaperExact,
+            Self::Crosscheck => Engine::Crosscheck,
         }
     }
 }

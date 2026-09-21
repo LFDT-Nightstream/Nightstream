@@ -1,0 +1,5 @@
+|   "PerformanceStatistics" = {"In use system memory (driver)"=0,"Alloc system memory"=101423415296,"Tiler Utilization %"=100,"recoveryCount"=0,"lastRecoveryTime"=0,"Renderer Utilization %"=100,"TiledSceneBytes"=0,"Device Utilization %"=100,"SplitSceneCount"=0,"Allocated PB Size"=30801920,"In use system memory"=52719140864}
+  PID  PPID STAT ELAPSED COMMAND
+79862     1 ?E     55:36 (nightstream-11c0)
+83269     1 ?E     07:14 (nightstream-11c0)
+83439     1 ?E     02:08 (nightstream-11c0)

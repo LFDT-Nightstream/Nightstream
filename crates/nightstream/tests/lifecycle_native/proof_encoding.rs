@@ -5,6 +5,15 @@ use neo_ajtai::Commitment;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeField64;
 
+impl crate::folding::pi_ccs::Proof {
+    pub(crate) fn canonical_bytes(&self) -> Vec<u8> {
+        let mut output = Vec::new();
+        push_bytes(&mut output, &self.sumcheck.canonical_bytes());
+        push_claims(&mut output, &self.outputs);
+        output
+    }
+}
+
 impl NifsProof {
     /// Versioned exact encoding used by backend crosschecks and golden tests.
     ///

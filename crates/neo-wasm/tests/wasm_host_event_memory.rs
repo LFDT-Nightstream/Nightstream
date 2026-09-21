@@ -236,7 +236,6 @@ fn import_memory_fixture() -> ImportMemoryFixture {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect("bindings trace");
@@ -309,6 +308,31 @@ fn import_memory_accesses_use_argument_based_addresses() {
 fn import_memory_normalization_rejects_invalid_addresses() {
     let fixture = import_memory_fixture();
 
+    for offset in [1, 3] {
+        let mut bindings = fixture.bindings.clone();
+        let write = bindings
+            .imports
+            .get_mut(&fixture.host_fref)
+            .unwrap()
+            .events
+            .iter_mut()
+            .flat_map(|event| &mut event.block)
+            .find_map(|slot| match slot {
+                SlotBinding::MemoryWrite16 { byte_offset, .. } => Some(byte_offset),
+                _ => None,
+            })
+            .unwrap();
+        *write = offset;
+        let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+            &fixture.run.steps,
+            &fixture.run.program_tables,
+            &bindings,
+            Default::default(),
+        )
+        .expect_err("unaligned halfword writes must return an error, including across a word boundary");
+        assert!(err.to_string().contains("is not naturally aligned"));
+    }
+
     let mut misaligned_bindings = fixture.bindings.clone();
     let half_read = misaligned_bindings
         .imports
@@ -327,7 +351,6 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         &fixture.run.steps,
         &fixture.run.program_tables,
         &misaligned_bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect_err("misaligned bindings half-word access must be rejected");
@@ -349,7 +372,6 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         &high_pointer_steps,
         &fixture.run.program_tables,
         &fixture.bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect_err("wasm32 bindings pointer with a high limb must be rejected");

@@ -86,6 +86,24 @@ def compare_caller(native, lean, observed, context):
             "complete_caller_word_equality_checked": True, "all_seven_result_fields_checked": True}
 
 
+def mutation_rejections(manifest, log):
+    owners = {owner: [] for owner in ("decoder", "public_check", "pi_ccs")}
+    for case in manifest["cases"]:
+        owner = "pi_ccs" if case["expected_owner"] == "upstream_pi_ccs" else case["expected_owner"]
+        require(owner in owners, f"unknown Lean mutation owner: {owner}")
+        if owner == "pi_ccs":
+            present = f"lean_pi_ccs_mutation={case['case']} rejected_by=pi_ccs" in log.splitlines()
+        else:
+            present = f"lean_pi_dec_mutation={Path(case['file']).name} rejected_by={owner}" in log
+        require(present, f"missing Lean rejection: {case['case']}")
+        owners[owner].append(case["case"])
+    equal(owners["pi_ccs"], ["invalid_first_round_constant"], "selected PiCCS mutation class")
+    require(f"lean_pi_dec_mutations=passed public={len(owners['public_check'])} "
+            f"encoding={len(owners['decoder'])} unbounded=1 rejected_C_stops_D=1" in log,
+            "incomplete Lean mutation result")
+    return {**owners, "internal": ["unbounded_parent", "rejected_C_stops_D"]}
+
+
 class Check:
     def __init__(self, directory, step, output, native_checker):
         self.directory, self.step, self.output = directory, step, output
@@ -249,17 +267,8 @@ class Check:
         log = self.lean("mutations", "pi-dec-mutations", *identity, folder / "pi_ccs_input.json",
                         folder / "children.json", generated / manifest["changed_ccs_input"],
                         generated / manifest["mutation_directory"])
-        owners = {owner: [] for owner in ("decoder", "public_check")}
-        for case in manifest["cases"]:
-            if case["expected_owner"] in owners:
-                require(f"lean_pi_dec_mutation={Path(case['file']).name} rejected_by={case['expected_owner']}" in log,
-                        f"missing Lean rejection: {case['case']}")
-                owners[case["expected_owner"]].append(case["case"])
-        require(f"lean_pi_dec_mutations=passed public={len(owners['public_check'])} "
-                f"encoding={len(owners['decoder'])} unbounded=1 rejected_C_stops_D=1" in log,
-                "incomplete Lean mutation result")
         return {"caller": counts, "physical_bytes": physical.stat().st_size,
-                "Lean_rejections": {**owners, "internal": ["unbounded_parent", "rejected_C_stops_D"]},
+                "Lean_rejections": mutation_rejections(manifest, log),
                 "native_D_rejections": native_mutations,
                 "independent_proof_generation": False,
                 "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte, caller and physical-witness equality. "

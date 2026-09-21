@@ -88,8 +88,18 @@ def run_test(command: list[str], request: dict, output) -> dict:
                     break
                 try:
                     rss = resident_bytes(process.pid, remaining)
-                    if rss is None and process.poll() is None:
-                        raise ValueError("RSS unavailable for the running test")
+                    if rss is None:
+                        # The kernel can remove the address space before wait
+                        # reports exit. Use only the existing deadline to reap;
+                        # the mandatory final peak check still applies below.
+                        remaining = CAPS["rust"] - (time.monotonic() - started)
+                        if remaining <= 0:
+                            code, outcome = 124, "timed-out"
+                            break
+                        process.communicate(timeout=remaining)
+                        code = process.returncode
+                        outcome = "passed" if code == 0 else "failed"
+                        break
                     sampled_peak = max(sampled_peak, rss or 0)
                     if sampled_peak > RSS_CAP_BYTES:
                         code, outcome, stopped_for_memory = 1, "memory-cap", True

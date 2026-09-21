@@ -128,14 +128,7 @@ def main():
                 phase(binary, directory, "ccs", record["commands"], step=step, engine=args.engine)
                 phase(binary, directory, "rlc", record["commands"], step=step)
                 phase(binary, directory, "split", record["commands"], step=step)
-                nonzero = read(directory / f"fold-{step}/split.json")["nonzero"]
-                # Fixed Nightstream Goldilocks profile: k_rho = 16 children.
-                require(type(nonzero) is list and len(nonzero) == 16
-                        and all(type(flag) is bool for flag in nonzero), "invalid split activity flags")
-                for child, active in enumerate(nonzero):
-                    if active:
-                        phase(binary, directory, "child", record["commands"],
-                              step=step, child=child, engine=args.engine)
+                phase(binary, directory, "openings", record["commands"], step=step)
                 phase(binary, directory, "nifs", record["commands"], step=step)
             else:
                 phase(binary, directory, "prove", record["commands"], step=step, engine=args.engine,

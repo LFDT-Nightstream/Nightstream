@@ -1435,7 +1435,8 @@ For source iterations 1 and 2, run `sources`, `ccs`, `rlc`, and `split`, each
 with `--step ITERATION`. Run `child --step ITERATION --child INDEX` for the true
 entries of `fold-ITERATION/split.json`'s `nonzero` array. Then run `nifs` and
 `successor` for that iteration. Finally run `terminal`, `mutation`, and `reject`
-without a step argument. Use the same binary and run directory throughout.
+with `--step 3`. The current driver requires the terminal iteration explicitly.
+Use the same binary and run directory throughout.
 The NIFS phase re-splits the actual parent and requires every active child's
 opening, so changing saved activity flags cannot remove a check. Sources and
 matrix caches are checked from their authoritative inputs; checkpoint digests

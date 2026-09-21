@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "source_base": "0c92b267bb35802479778ed3d63441905e3ba470",
+  "run_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5",
+  "archive_restoration": {
+    "schema": 1,
+    "source_commit": "0c92b267bb35802479778ed3d63441905e3ba470",
+    "archives": [
+      {
+        "file": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+        "bytes": 39165413,
+        "sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+        "restored_as": "envelope"
+      },
+      {
+        "file": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+        "bytes": 162917001,
+        "sha256": "933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e",
+        "restored_as": "children"
+      },
+      {
+        "file": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+        "bytes": 262454838,
+        "sha256": "b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1",
+        "restored_as": "reference-later"
+      },
+      {
+        "file": "PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
+        "bytes": 644154701,
+        "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
+        "restored_as": "original-sources"
+      },
+      {
+        "file": "NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst",
+        "bytes": 375680946,
+        "sha256": "a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e",
+        "restored_as": "independent"
+      }
+    ],
+    "scope": "Archive restoration only. The restored bytes are inputs to later semantic comparisons.",
+    "protected_reproduction": "unchanged; no protected-checker acceptance is claimed"
+  },
+  "restored_nonzero_lean_verifier": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 1500,
+    "elapsed_seconds": 9.178864595945925,
+    "command": [
+      "bash",
+      "scripts/validate.sh",
+      "pi-dec-input-check",
+      "9705822157724451396",
+      "520958727644325895",
+      "9285622073986934000",
+      "874020794279380938",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs/pi_ccs_input.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs/children.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-nonzero-lean.json"
+    ],
+    "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream/formal/nightstream-fprime",
+    "evidence": "development diagnostic only"
+  },
+  "restored_nonzero_native_comparison": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 300,
+    "elapsed_seconds": 20.15141616598703,
+    "command": [
+      "cargo",
+      "run",
+      "-p",
+      "neo-fold-clean",
+      "--release",
+      "--bin",
+      "generate_pi_ccs_fixture",
+      "--",
+      "check-owned-nifs",
+      "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-nonzero-lean.json"
+    ],
+    "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+    "evidence": "development diagnostic only"
+  },
+  "canonical_proof_bytes_compared": 945983,
+  "native_pidec_mutations_rejected": 55,
+  "scope": "Fresh verification of restored nonzero evidence and complete native/Lean-field wire comparison; no fresh producer or protected reproduction claim."
+}

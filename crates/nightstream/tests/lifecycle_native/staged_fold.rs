@@ -6,6 +6,9 @@ use neo_reductions::{
 };
 use std::io::{self, BufRead};
 
+#[path = "staged_lean.rs"]
+mod lean;
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SavedCcs {
@@ -394,6 +397,15 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     .unwrap();
     assert_eq!(next.claims, verified.claims);
     assert_eq!(next.parent_authority, verified.parent_authority);
+    lean::export(
+        &directory,
+        &package,
+        &fresh,
+        &running,
+        &proof,
+        transcript.snapshot().state(),
+        transcript.snapshot().absorbed(),
+    );
     let parent = SavedParent {
         schema: 1,
         structural_identifier: package.package.structural_identifier(),
@@ -628,7 +640,7 @@ pub(super) fn nifs(root: &Path, step: u64) {
         );
     assert!(ok_y && ok_x && ok_c);
     let record = SavedNifs { parent, children };
-    let (_, _, _, proof) = record.verify(&package, &step_dir(root, step), step);
+    let (_, fresh, running, proof) = record.verify(&package, &step_dir(root, step), step);
     let wire = proof.canonical_bytes();
     if step == 1 {
         assert_eq!(
@@ -645,6 +657,15 @@ pub(super) fn nifs(root: &Path, step: u64) {
         assert_eq!(json!(state), expected[9][14]);
         assert_eq!(record.parent.transcript_absorbed, 0);
     }
+    lean::export(
+        &directory,
+        &package,
+        &fresh,
+        &running,
+        &proof,
+        record.parent.transcript_state,
+        record.parent.transcript_absorbed,
+    );
     save_bytes(&directory.join("proof.native"), &wire);
     save(&directory.join("nifs.json"), &record);
 }

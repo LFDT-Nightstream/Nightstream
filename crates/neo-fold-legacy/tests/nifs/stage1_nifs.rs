@@ -45,6 +45,12 @@ pub struct Observed {
     pub wire: Vec<u8>,
 }
 
+/// Encode raw Lean result fields without using the native proof encoder.
+/// The caller must establish whether those fields were checked or generated.
+pub fn encode_lean_nifs(reference: &Value) -> Vec<u8> {
+    mutations::encode_wire(reference)
+}
+
 pub fn check_sources(package_path: &Path, source_path: &Path) {
     stage1_actual::check_path(package_path, source_path);
 }

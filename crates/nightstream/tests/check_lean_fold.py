@@ -164,7 +164,7 @@ class Check:
             for signum, handler in handlers.items():
                 signal.signal(signum, handler)
             record["elapsed_seconds"] = time.monotonic() - started
-            with (self.output / f"{name}.json").open("x") as stream:
+            with (self.output / f"{name}.command.json").open("x") as stream:
                 json.dump(record, stream, indent=2)
                 stream.write("\n")
         require(record.get("exit") == 0, f"{name} failed; see {log}")

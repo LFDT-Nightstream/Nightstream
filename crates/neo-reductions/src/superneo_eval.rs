@@ -18,6 +18,7 @@ mod openings;
 mod parallel;
 mod row_block;
 mod row_source;
+mod scratch;
 mod seeded;
 mod weighted;
 mod weighted_table;
@@ -44,7 +45,10 @@ use digit::{
 pub use equality::EqualityWeights;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
+use scratch::RingEvalScratch;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
+pub(crate) use weighted_table::fill_combined_projection;
+#[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the
@@ -407,46 +411,6 @@ pub struct SuperneoWeightedMatrixCache {
     row_offsets: Vec<usize>,
     row_blocks: Vec<WeightedRowBlock>,
 }
-#[derive(Clone, Debug)]
-struct RingEvalScratch {
-    agg_re: Vec<Rq>,
-    agg_im: Vec<Rq>,
-    touched: Vec<bool>,
-    active_blocks: Vec<usize>,
-}
-impl RingEvalScratch {
-    #[inline]
-    fn new(block_count: usize) -> Self {
-        Self {
-            agg_re: vec![Rq::zero(); block_count],
-            agg_im: vec![Rq::zero(); block_count],
-            touched: vec![false; block_count],
-            active_blocks: Vec::new(),
-        }
-    }
-
-    #[inline]
-    fn ensure_block_count(&mut self, block_count: usize) {
-        if self.agg_re.len() == block_count {
-            return;
-        }
-        self.agg_re.resize(block_count, Rq::zero());
-        self.agg_im.resize(block_count, Rq::zero());
-        self.touched.resize(block_count, false);
-        self.active_blocks.clear();
-    }
-
-    #[inline]
-    fn clear_active(&mut self) {
-        for &blk in &self.active_blocks {
-            self.agg_re[blk] = Rq::zero();
-            self.agg_im[blk] = Rq::zero();
-            self.touched[blk] = false;
-        }
-        self.active_blocks.clear();
-    }
-}
-
 /// Precomputed linear form `v = M^T · χ_r` in sparse `(col, value)` form.
 #[derive(Clone, Debug)]
 pub struct SuperneoLinearForm {
@@ -713,7 +677,7 @@ impl SuperneoZBlocks {
         Self {
             re: RealBlockStorage::Zero { len: blocks },
             im: Vec::new(),
-            im_nonzero: vec![false; blocks],
+            im_nonzero: Vec::new(),
             imag_all_zero: true,
         }
     }
@@ -973,6 +937,11 @@ impl SuperneoZBlocks {
         self.imag_all_zero
     }
 
+    /// Whether every real and imaginary coefficient, including the carrier tail, is zero.
+    pub fn is_zero(&self) -> bool {
+        self.imag_all_zero && self.real_is_zero()
+    }
+
     /// Real coefficient plane as canonical words in `[block][D]` layout.
     pub fn re_plane_words(&self) -> Vec<u64> {
         let mut words = vec![0; self.re.len() * D];
@@ -1007,8 +976,9 @@ impl SuperneoZBlocks {
         self.real_nonzero(blk) || (!self.imag_all_zero && self.im_nonzero[blk])
     }
 
+    /// Number of complete ring blocks, including the carrier completion tail.
     #[inline]
-    fn block_len(&self) -> usize {
+    pub fn block_len(&self) -> usize {
         self.re.len()
     }
 
@@ -1018,6 +988,16 @@ impl SuperneoZBlocks {
             RealBlockStorage::Zero { .. } => false,
             RealBlockStorage::Dense { nonzero, .. } => nonzero[block],
             RealBlockStorage::SignedUnit { positive, negative } => (positive[block] | negative[block]) != 0,
+        }
+    }
+
+    fn real_is_zero(&self) -> bool {
+        match &self.re {
+            RealBlockStorage::Zero { .. } => true,
+            RealBlockStorage::Dense { nonzero, .. } => !nonzero.iter().any(|&value| value),
+            RealBlockStorage::SignedUnit { positive, negative } => {
+                positive.iter().chain(negative).all(|&mask| mask == 0)
+            }
         }
     }
 
@@ -1238,9 +1218,24 @@ impl SuperneoEvalCache {
         n_eff: usize,
         witnesses: &[SuperneoZBlocks],
     ) -> Vec<Vec<[K; D]>> {
+        self.eval_ring_linear_forms_reusing(chi_r, n_eff, witnesses, Vec::new())
+    }
+
+    fn eval_ring_linear_forms_reusing(
+        &self,
+        chi_r: &[K],
+        n_eff: usize,
+        witnesses: &[SuperneoZBlocks],
+        storage: Vec<K>,
+    ) -> Vec<Vec<[K; D]>> {
         let matrix_count = self.mats.len();
         let mut out = vec![vec![[K::ZERO; D]; matrix_count]; witnesses.len()];
-        if witnesses.is_empty() || matrix_count == 0 {
+        let active: Vec<_> = witnesses
+            .iter()
+            .enumerate()
+            .filter_map(|(index, witness)| (!witness.imag_all_zero || !witness.real_is_zero()).then_some(index))
+            .collect();
+        if active.is_empty() || matrix_count == 0 {
             return out;
         }
 
@@ -1251,28 +1246,28 @@ impl SuperneoEvalCache {
             .map(|matrix| matrix.cols.div_ceil(D))
             .max()
             .unwrap_or(0);
-        let mut scratch = RingEvalScratch::new(block_count);
+        let mut scratch = RingEvalScratch::reuse(storage, block_count);
         for (matrix_index, matrix) in self.mats.iter().enumerate() {
             matrix.accumulate_ring_form_split_chi(&chi_re, &chi_im, n_eff, &mut scratch);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let matrix_values: Vec<[K; D]> = if witnesses.len() > 1 && rayon::current_num_threads() > 1 {
-                witnesses
+            let matrix_values: Vec<[K; D]> = if active.len() > 1 && rayon::current_num_threads() > 1 {
+                active
                     .par_iter()
-                    .map(|witness| eval_ring_scratch_real_z_blocks(&scratch, witness))
+                    .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
                     .collect()
             } else {
-                witnesses
+                active
                     .iter()
-                    .map(|witness| eval_ring_scratch_real_z_blocks(&scratch, witness))
+                    .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
                     .collect()
             };
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let matrix_values: Vec<[K; D]> = witnesses
+            let matrix_values: Vec<[K; D]> = active
                 .iter()
-                .map(|witness| eval_ring_scratch_real_z_blocks(&scratch, witness))
+                .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
                 .collect();
             scratch.clear_active();
-            for (witness_index, value) in matrix_values.into_iter().enumerate() {
+            for (&witness_index, value) in active.iter().zip(matrix_values) {
                 out[witness_index][matrix_index] = value;
             }
         }
@@ -1305,8 +1300,7 @@ fn eval_ring_scratch_real_z_blocks(scratch: &RingEvalScratch, z_blocks: &Superne
         z_blocks.imag_all_zero,
         "ring scratch evaluation expects real-only witness blocks"
     );
-    if let Some(out) = parallel::eval_active_blocks(&scratch.active_blocks, &scratch.agg_re, &scratch.agg_im, z_blocks)
-    {
+    if let Some(out) = parallel::eval_active_blocks(scratch, z_blocks) {
         return out;
     }
 
@@ -1316,18 +1310,13 @@ fn eval_ring_scratch_real_z_blocks(scratch: &RingEvalScratch, z_blocks: &Superne
         if !z_blocks.real_nonzero(blk) {
             continue;
         }
-        let re_nonzero = !is_all_zero(&scratch.agg_re[blk].0);
-        let im_nonzero = !is_all_zero(&scratch.agg_im[blk].0);
+        let (re_form, im_form) = scratch.forms(blk);
+        let re_nonzero = !is_all_zero(&re_form.0);
+        let im_nonzero = !is_all_zero(&im_form.0);
         match (re_nonzero, im_nonzero) {
-            (true, true) => z_blocks.accumulate_real_pair(
-                &mut out_re,
-                &mut out_im,
-                &scratch.agg_re[blk],
-                &scratch.agg_im[blk],
-                blk,
-            ),
-            (true, false) => z_blocks.accumulate_real(&mut out_re, &scratch.agg_re[blk], blk),
-            (false, true) => z_blocks.accumulate_real(&mut out_im, &scratch.agg_im[blk], blk),
+            (true, true) => z_blocks.accumulate_real_pair(&mut out_re, &mut out_im, &re_form, &im_form, blk),
+            (true, false) => z_blocks.accumulate_real(&mut out_re, &re_form, blk),
+            (false, true) => z_blocks.accumulate_real(&mut out_im, &im_form, blk),
             (false, false) => {}
         }
     }
@@ -1350,16 +1339,6 @@ fn split_chi_coeffs(chi_r: &[K], n_eff: usize) -> (Vec<F>, Vec<F>) {
         chi_im.push(im);
     }
     (chi_re, chi_im)
-}
-
-#[inline]
-fn add_scaled_rq(dst: &mut Rq, src: &Rq, scale: F) {
-    if scale == F::ZERO {
-        return;
-    }
-    for i in 0..D {
-        dst.0[i] += scale * src.0[i];
-    }
 }
 
 #[inline]

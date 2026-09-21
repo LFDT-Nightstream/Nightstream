@@ -1,0 +1,8 @@
+{
+  "rows": 6377559,
+  "carrier_width": 253011276,
+  "old_separate_projection_bytes": 4048180416,
+  "new_row_scratch_bytes": 102040944,
+  "profile": "b=2, k_rho=16, 17 sources; same circuit and protocol",
+  "scope": "explicit carried-table scratch; not a total process-memory bound"
+}

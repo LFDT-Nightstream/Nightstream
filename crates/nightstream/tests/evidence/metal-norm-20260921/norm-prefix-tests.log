@@ -1,0 +1,31 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 12.18s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 5 tests
+test session::joint::assignments::tests::encoded_device_prefix_matches_dense_cpu_through_every_fold ... ok
+test session::joint::assignments::tests::zero_witnesses_need_no_folded_assignment_buffer ... ok
+test session::joint::opening::tests::compact_openings_match_cpu_across_parallel_and_tiled_lists ... ok
+test session::joint::tests::empty_rows_do_not_read_dummy_offsets ... ok
+test session::joint::tests::zero_carried_tables_fit_their_advertised_length ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 1.31s
+
+       16.40 real         9.49 user         0.72 sys
+           567885824  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               56649  page reclaims
+               11020  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   3  messages sent
+                   2  messages received
+                   3  signals received
+                2227  voluntary context switches
+                6491  involuntary context switches
+          1605633047  instructions retired
+           546027430  cycles elapsed
+            63881696  peak memory footprint

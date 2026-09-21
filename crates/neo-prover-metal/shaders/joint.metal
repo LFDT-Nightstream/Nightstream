@@ -3,15 +3,13 @@
 
 constant ulong JOINT_INVERSE_TWO = 0x7fffffff80000001ul;
 
-inline ulong joint_mask_value(
+inline ulong joint_mask_digit(
     device const ulong *masks,
     ulong blocks,
     ulong witness,
-    ulong column,
+    ulong block,
+    ulong bit,
     ulong magnitudes) {
-    ulong block = column / RING_DEGREE;
-    ulong lane = column % RING_DEGREE;
-    ulong bit = 1ul << lane;
     ulong base = 2 * magnitudes * (witness * blocks + block);
     for (ulong magnitude = 1; magnitude <= magnitudes; ++magnitude) {
         if ((masks[base + 2 * (magnitude - 1)] & bit) != 0) {
@@ -24,21 +22,18 @@ inline ulong joint_mask_value(
     return 0;
 }
 
-kernel void joint_expand_mask_assignments_f(
-    device const ulong *masks [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *output [[buffer(2)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong blocks = shape[0];
-    ulong source_count = shape[1];
-    ulong width = shape[2];
-    if ((ulong)index >= source_count * width) {
-        return;
-    }
-    ulong source = (ulong)index / width;
-    ulong column = (ulong)index % width;
-    output[index] = joint_mask_value(masks, blocks, source, column, shape[3]);
+inline ulong joint_mask_value(
+    device const ulong *masks,
+    ulong blocks,
+    ulong witness,
+    ulong column,
+    ulong magnitudes) {
+    return joint_mask_digit(masks, blocks, witness,
+                            column / RING_DEGREE, 1ul << (column % RING_DEGREE), magnitudes);
 }
+
+#include "assignments.metal"
+#include "carried.metal"
 
 kernel void joint_build_application_tables(
     device const uchar *row_offsets [[buffer(0)]],
@@ -48,7 +43,7 @@ kernel void joint_build_application_tables(
     device const ulong *dense_coefficients [[buffer(4)]],
     device const uchar *geometric_row_offsets [[buffer(5)]],
     device const ulong *geometric_runs [[buffer(6)]],
-    device const ulong *assignments [[buffer(7)]],
+    device const ulong *masks [[buffer(7)]],
     device const ulong *shape [[buffer(8)]],
     device ulong *output [[buffer(9)]],
     device const uint2 *dense_row_blocks [[buffer(10)]],
@@ -61,7 +56,7 @@ kernel void joint_build_application_tables(
     ulong output_table = shape[5];
     ulong offset_width = shape[6];
     bool identity = shape[7] != 0;
-    ulong assignment_width = shape[8];
+    ulong magnitudes = shape[8];
     ulong geometric_offset_width = shape[9];
     if ((ulong)row >= table_len) {
         return;
@@ -69,7 +64,7 @@ kernel void joint_build_application_tables(
     ulong value = 0;
     if (row < n_eff) {
         if (identity) {
-            value = assignments[witness * assignment_width + row];
+            value = joint_mask_value(masks, blocks, witness, row, magnitudes);
         } else {
             ulong start = compact_row_offset(row_offsets, row, offset_width);
             ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
@@ -78,8 +73,7 @@ kernel void joint_build_application_tables(
                 if ((reference & COMPACT_DENSE_BLOCK_TAG) == 0) {
                     ulong block = (ulong)(reference & COMPACT_SINGLE_BLOCK_MASK);
                     ulong local = (ulong)((reference >> COMPACT_SINGLE_LOCAL_SHIFT) & COMPACT_SINGLE_LOCAL_MASK);
-                    ulong column = block * RING_DEGREE + local;
-                    ulong input = assignments[witness * assignment_width + column];
+                    ulong input = joint_mask_digit(masks, blocks, witness, block, 1ul << local, magnitudes);
                     value = (reference & COMPACT_NEGATIVE_BLOCK_TAG) == 0
                         ? gl_add(value, input)
                         : gl_sub(value, input);
@@ -87,8 +81,8 @@ kernel void joint_build_application_tables(
                     uint2 block = dense_row_blocks[reference & COMPACT_DENSE_INDEX_MASK];
                     uint dense = block.y;
                     for (uint coefficient = dense_offsets[dense]; coefficient < dense_offsets[dense + 1]; ++coefficient) {
-                        ulong column = (ulong)block.x * RING_DEGREE + (ulong)dense_locals[coefficient];
-                        ulong input = assignments[witness * assignment_width + column];
+                        ulong bit = 1ul << dense_locals[coefficient];
+                        ulong input = joint_mask_digit(masks, blocks, witness, block.x, bit, magnitudes);
                         if (input != 0) {
                             value = gl_add(
                                 value,
@@ -106,12 +100,19 @@ kernel void joint_build_application_tables(
                     ulong run_end = column + (packed >> 32);
                     ulong coefficient = gl_from_word(geometric_runs[3 * run + 1]);
                     ulong ratio = gl_from_word(geometric_runs[3 * run + 2]);
+                    ulong block = column / RING_DEGREE;
+                    ulong bit = 1ul << (column % RING_DEGREE);
                     for (; column < run_end; ++column) {
-                        ulong input = assignments[witness * assignment_width + column];
+                        ulong input = joint_mask_digit(masks, blocks, witness, block, bit, magnitudes);
                         if (input != 0 && coefficient != 0) {
                             value = gl_add(value, gl_mul(coefficient, input));
                         }
                         coefficient = gl_mul(coefficient, ratio);
+                        bit <<= 1;
+                        if (bit == (1ul << RING_DEGREE)) {
+                            bit = 1;
+                            ++block;
+                        }
                     }
                 }
             }
@@ -198,39 +199,6 @@ kernel void joint_fold_k_tables(
     output[2 * index + 1] = folded.c1;
 }
 
-kernel void joint_fold_mask_assignments(
-    device const ulong *masks [[buffer(0)]],
-    device const ulong *challenge_words [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *output [[buffer(3)]],
-    device const ulong *assignment_sources [[buffer(4)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong table_len = shape[0];
-    ulong source_count = shape[1];
-    ulong blocks = shape[2];
-    ulong assignment_width = shape[3];
-    ulong magnitudes = shape[4];
-    ulong folded_len = (table_len + 1) / 2;
-    if ((ulong)index >= source_count * folded_len) {
-        return;
-    }
-    ulong source = index / folded_len;
-    ulong mask_source = assignment_sources[source];
-    ulong pair = index % folded_len;
-    ulong low_index = 2 * pair;
-    ulong high_index = low_index + 1;
-    Kx left = Kx{
-        low_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, low_index, magnitudes) : 0,
-        0};
-    Kx right = Kx{
-        high_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, high_index, magnitudes) : 0,
-        0};
-    Kx challenge = Kx{gl_from_word(challenge_words[0]), gl_from_word(challenge_words[1])};
-    Kx folded = kx_add(left, kx_mul(challenge, kx_sub(right, left)));
-    output[2 * index] = folded.c0;
-    output[2 * index + 1] = folded.c1;
-}
-
 inline Kx joint_load_table(
     device const ulong *tables,
     ulong table_len,
@@ -242,26 +210,6 @@ inline Kx joint_load_table(
     }
     ulong position = table * table_len + index;
     return base_field ? Kx{gl_from_word(tables[position]), 0} : load_k(tables, position);
-}
-
-inline Kx joint_assignment_value(
-    device const ulong *assignments,
-    device const ulong *assignment_sources,
-    ulong table_len,
-    ulong source,
-    ulong index,
-    bool base_round,
-    ulong blocks,
-    ulong magnitudes,
-    ulong assignment_width,
-    ulong assignment_len) {
-    if (base_round) {
-        ulong mask_source = assignment_sources[source];
-        return Kx{
-            index < assignment_width ? joint_mask_value(assignments, blocks, mask_source, index, magnitudes) : 0,
-            0};
-    }
-    return index < assignment_len ? load_k(assignments, source * assignment_len + index) : Kx{0, 0};
 }
 
 inline ulong joint_half_f(ulong value) {
@@ -439,6 +387,7 @@ kernel void joint_selective_round_partials(
     device const ulong *equality_chunks [[buffer(8)]],
     device const ulong *prior_equality_chunks [[buffer(9)]],
     device const ulong *assignment_sources [[buffer(10)]],
+    device const ulong *assignment_values [[buffer(11)]],
     uint pair [[thread_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]],
     uint group [[threadgroup_position_in_grid]]) {
@@ -537,12 +486,10 @@ kernel void joint_selective_round_partials(
                     value = gl_add(value, slope);
                 }
             } else {
-                Kx value = low_index < assignment_len
-                    ? load_k(assignments_or_masks, source * assignment_len + low_index)
-                    : Kx{0, 0};
-                Kx high = high_index < assignment_len
-                    ? load_k(assignments_or_masks, source * assignment_len + high_index)
-                    : Kx{0, 0};
+                Kx value = joint_assignment_value(assignments_or_masks, assignment_sources, assignment_values,
+                    source, low_index, shape[26], blocks, range_base - 1, assignment_len);
+                Kx high = joint_assignment_value(assignments_or_masks, assignment_sources, assignment_values,
+                    source, high_index, shape[26], blocks, range_base - 1, assignment_len);
                 Kx slope = kx_sub(high, value);
                 for (uint point = 0; point < coefficient_count; ++point) {
                     Kx norm = joint_range_product_k(value, range_base);
@@ -624,6 +571,7 @@ kernel void joint_round_partials(
     device const ulong *equality_chunks [[buffer(8)]],
     device const ulong *prior_equality_chunks [[buffer(9)]],
     device const ulong *assignment_sources [[buffer(10)]],
+    device const ulong *assignment_values [[buffer(11)]],
     uint pair [[thread_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]],
     uint group [[threadgroup_position_in_grid]]) {
@@ -704,24 +652,22 @@ kernel void joint_round_partials(
             Kx low = joint_assignment_value(
                 assignments_or_masks,
                 assignment_sources,
-                table_len,
+                assignment_values,
                 source,
                 low_index,
-                base_round,
+                shape[26],
                 blocks,
                 range_base - 1,
-                assignment_width,
                 assignment_len);
             Kx high = joint_assignment_value(
                 assignments_or_masks,
                 assignment_sources,
-                table_len,
+                assignment_values,
                 source,
                 high_index,
-                base_round,
+                shape[26],
                 blocks,
                 range_base - 1,
-                assignment_width,
                 assignment_len);
             Kx slope = kx_sub(high, low);
             // Base-table values are signed digits, hence roots of the range
@@ -792,23 +738,6 @@ kernel void joint_round_partials(
             partials[2 * output + 1] = shared[coefficient].c1;
         }
     }
-}
-
-kernel void joint_add_identity_carried(
-    device const ulong *qk [[buffer(0)]],
-    device const ulong *coefficient_words [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *output [[buffer(3)]],
-    uint row [[thread_position_in_grid]]) {
-    ulong assignment_width = shape[0];
-    ulong n_pad = shape[1];
-    if ((ulong)row >= n_pad || (ulong)row >= assignment_width) {
-        return;
-    }
-    Kx coefficient = load_k(coefficient_words, 0);
-    Kx value = kx_add(load_k(output, row), kx_mul(coefficient, load_k(qk, row)));
-    output[2 * row] = value.c0;
-    output[2 * row + 1] = value.c1;
 }
 
 constant ulong JOINT_SEEDED_OUTPUT_HEADER_WORDS = 9;

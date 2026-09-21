@@ -11,6 +11,9 @@ use serde_json::Value;
 use super::{PackageError, GOLDILOCKS_MODULUS};
 
 mod affine;
+mod form;
+use form::Form;
+pub use form::MatrixRun;
 mod phi81;
 mod poseidon;
 mod poseidon_input;
@@ -32,148 +35,6 @@ pub(super) const MEANINGFUL_PORTS: usize = 13;
 pub(super) struct Entry {
     pub(super) column: usize,
     pub(super) coefficient: Goldilocks,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) enum Form {
-    #[default]
-    Empty,
-    One(Entry),
-    Many(Vec<Entry>),
-}
-
-impl Form {
-    pub(super) fn singleton(column: usize, coefficient: Goldilocks) -> Self {
-        if coefficient == Goldilocks::ZERO {
-            Self::default()
-        } else {
-            Self::One(Entry { column, coefficient })
-        }
-    }
-
-    fn from_canonical_entries(mut entries: Vec<Entry>) -> Self {
-        match entries.len() {
-            0 => Self::Empty,
-            1 => Self::One(entries.pop().expect("one form entry")),
-            _ => Self::Many(entries),
-        }
-    }
-
-    fn from_entries(mut entries: Vec<Entry>) -> Self {
-        entries.sort_unstable_by_key(|entry| entry.column);
-        let mut combined: Vec<Entry> = Vec::with_capacity(entries.len());
-        for entry in entries {
-            if let Some(last) = combined.last_mut() {
-                if last.column == entry.column {
-                    last.coefficient += entry.coefficient;
-                    if last.coefficient == Goldilocks::ZERO {
-                        combined.pop();
-                    }
-                    continue;
-                }
-            }
-            if entry.coefficient != Goldilocks::ZERO {
-                combined.push(entry);
-            }
-        }
-        Self::from_canonical_entries(combined)
-    }
-
-    pub(super) fn entries(&self) -> &[Entry] {
-        match self {
-            Self::Empty => &[],
-            Self::One(entry) => std::slice::from_ref(entry),
-            Self::Many(entries) => entries,
-        }
-    }
-
-    pub(super) fn into_entries(self) -> Vec<Entry> {
-        match self {
-            Self::Empty => Vec::new(),
-            Self::One(entry) => vec![entry],
-            Self::Many(entries) => entries,
-        }
-    }
-
-    pub(super) fn append(self, other: Self) -> Self {
-        let (left, right) = match (self, other) {
-            (Self::Empty, other) => return other,
-            (form, Self::Empty) => return form,
-            (Self::One(left), Self::One(right)) => {
-                return match left.column.cmp(&right.column) {
-                    std::cmp::Ordering::Less => Self::Many(vec![left, right]),
-                    std::cmp::Ordering::Greater => Self::Many(vec![right, left]),
-                    std::cmp::Ordering::Equal => Self::singleton(left.column, left.coefficient + right.coefficient),
-                };
-            }
-            (Self::Many(mut left), Self::Many(right))
-                if left.last().expect("nonempty form").column < right.first().expect("nonempty form").column =>
-            {
-                left.extend(right);
-                return Self::Many(left);
-            }
-            (Self::Many(left), Self::Many(mut right))
-                if right.last().expect("nonempty form").column < left.first().expect("nonempty form").column =>
-            {
-                right.extend(left);
-                return Self::Many(right);
-            }
-            (Self::Many(mut entries), Self::One(entry))
-                if entries.last().expect("nonempty form").column < entry.column =>
-            {
-                entries.push(entry);
-                return Self::Many(entries);
-            }
-            (Self::One(entry), Self::Many(mut entries))
-                if entries.last().expect("nonempty form").column < entry.column =>
-            {
-                entries.push(entry);
-                return Self::Many(entries);
-            }
-            (left, right) => (left.into_entries(), right.into_entries()),
-        };
-        let mut left = left.into_iter().peekable();
-        let mut right = right.into_iter().peekable();
-        let mut entries = Vec::with_capacity(left.len() + right.len());
-        while let (Some(left_entry), Some(right_entry)) = (left.peek(), right.peek()) {
-            match left_entry.column.cmp(&right_entry.column) {
-                std::cmp::Ordering::Less => {
-                    entries.push(left.next().expect("peeked left entry"));
-                }
-                std::cmp::Ordering::Greater => {
-                    entries.push(right.next().expect("peeked right entry"));
-                }
-                std::cmp::Ordering::Equal => {
-                    let left_entry = left.next().expect("peeked left entry");
-                    let right_entry = right.next().expect("peeked right entry");
-                    let coefficient = left_entry.coefficient + right_entry.coefficient;
-                    if coefficient != Goldilocks::ZERO {
-                        entries.push(Entry {
-                            column: left_entry.column,
-                            coefficient,
-                        });
-                    }
-                }
-            }
-        }
-        entries.extend(left);
-        entries.extend(right);
-        Self::from_canonical_entries(entries)
-    }
-
-    pub(super) fn scaled(mut self, scalar: Goldilocks) -> Self {
-        if scalar == Goldilocks::ZERO {
-            return Self::default();
-        }
-        for entry in match &mut self {
-            Self::Empty => &mut [],
-            Self::One(entry) => std::slice::from_mut(entry),
-            Self::Many(entries) => entries,
-        } {
-            entry.coefficient *= scalar;
-        }
-        self
-    }
 }
 
 pub(super) type RowForms = [Form; MEANINGFUL_PORTS];
@@ -271,17 +132,7 @@ impl RetainedBlock {
                     .ok_or(PackageError::Invalid("retained slot offset"))?,
             )
             .ok_or(PackageError::Invalid("retained slot offset"))?;
-        let mut entries = Vec::with_capacity(width);
-        let mut weight = Goldilocks::ONE;
-        let radix = Goldilocks::from_u64(3);
-        for coordinate in 0..width {
-            entries.push(Entry {
-                column: first + coordinate,
-                coefficient: weight,
-            });
-            weight *= radix;
-        }
-        Ok(Form::from_canonical_entries(entries))
+        Ok(Form::retained(first, width))
     }
 
     pub(super) fn external_form(
@@ -1018,7 +869,8 @@ impl MatrixProgram {
                     block.visit_rows(logical_width, start, end, source_row, |forms| {
                         for (matrix, form) in forms.iter().enumerate() {
                             let mut previous = None;
-                            for entry in form.entries() {
+                            let entries = form.entries();
+                            for entry in &entries {
                                 if entry.column >= logical_width
                                     || entry.coefficient == Goldilocks::ZERO
                                     || previous.is_some_and(|previous| previous >= entry.column)
@@ -1029,7 +881,7 @@ impl MatrixProgram {
                             }
                             counts[matrix] = counts[matrix]
                                 .checked_add(
-                                    u64::try_from(form.entries().len())
+                                    u64::try_from(entries.len())
                                         .map_err(|_| PackageError::Invalid("logical matrix nonzero count"))?,
                                 )
                                 .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
@@ -1078,14 +930,7 @@ pub(super) fn external_layer(state: &[Form], logical_width: usize) -> Result<Vec
 }
 
 pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), PackageError> {
-    if form
-        .entries()
-        .iter()
-        .any(|entry| entry.column >= logical_width)
-    {
-        return Err(PackageError::Invalid("matrix sparse column"));
-    }
-    Ok(())
+    form.validate(logical_width)
 }
 
 pub(super) fn field(value: u64, location: &'static str) -> Result<Goldilocks, PackageError> {

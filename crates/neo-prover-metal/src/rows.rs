@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use neo_ccs::{Mat, V1_1Evaluations};
+use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
 use neo_math::{F, K};
 use neo_reductions::{
     optimized_engine::{PaperJointOracleBackend, PaperJointOracleInput, PaperJointRoundOracle},
@@ -32,6 +32,22 @@ impl MetalRowProver {
 
     pub fn activity(&self) -> MetalActivity {
         self.session.activity()
+    }
+
+    /// Commit complete signed-unit witnesses with the verifier-owned indexed key.
+    /// Key generation, ring products, and reduction run on the device.
+    pub fn commit_production_prefixes(&self, witnesses: &[Mat<F>]) -> Result<Vec<neo_ajtai::Commitment>, PiCcsError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            self.session
+                .commit_production_prefixes(witnesses)
+                .map_err(oracle_error)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = witnesses;
+            Err(oracle_error(MetalError::Unavailable))
+        }
     }
 
     #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
@@ -75,6 +91,28 @@ impl MetalRowProver {
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         {
             let _ = (cache, witnesses, point, assignment_width);
+            Err(oracle_error(MetalError::Unavailable))
+        }
+    }
+
+    /// Check every row against a complete signed-unit witness on the device.
+    /// `None` means all rows satisfy the polynomial; errors do not trigger a host fallback.
+    pub fn first_unsatisfied_row(
+        &mut self,
+        cache: Arc<SuperneoEvalCache>,
+        structure: &CcsStructure<F>,
+        witness: &Mat<F>,
+    ) -> Result<Option<usize>, PiCcsError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            self.prepare(cache).map_err(oracle_error)?;
+            self.session
+                .first_unsatisfied_row(self.plan.as_ref().expect("prepared matrix plan"), structure, witness)
+                .map_err(oracle_error)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (cache, structure, witness);
             Err(oracle_error(MetalError::Unavailable))
         }
     }

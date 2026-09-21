@@ -1,0 +1,498 @@
+{
+  "command": [
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/boundary-memory-test-binary",
+    "poseidon_metal_recursive_lifecycle",
+    "--ignored",
+    "--exact",
+    "--nocapture"
+  ],
+  "elapsed_seconds": 65.75892116600153,
+  "exit": -9,
+  "outcome": "memory-cap",
+  "maximum_resident_bytes": 17252679680,
+  "maximum_physical_footprint_bytes": 15806197616,
+  "time_cap_seconds": 300,
+  "memory_cap_bytes": 17179869184,
+  "memory_cap_metric": "RSS; owner chose process residency and accepted approximately 16 GB for this pass. Working guard: 16 GiB (17.18 decimal GB).",
+  "metric_authority": "https://developer.apple.com/videos/play/wwdc2022/10106/",
+  "metric_status": "Owner confirmed RSS; footprint is diagnostic only. Further memory tuning is deferred by the owner.",
+  "sample_fields": [
+    "elapsed_seconds",
+    "resident_bytes",
+    "physical_footprint_bytes",
+    "lifetime_peak_footprint_bytes"
+  ],
+  "samples": [
+    [
+      0.001133874997321982,
+      32768,
+      81992,
+      98376
+    ],
+    [
+      1.0111922500000219,
+      2769518592,
+      2673297904,
+      2703362544
+    ],
+    [
+      2.0213292080006795,
+      3751690240,
+      3467693248,
+      3698838720
+    ],
+    [
+      3.0314389580016723,
+      3751690240,
+      3467693248,
+      3698838720
+    ],
+    [
+      4.041557165997801,
+      3751690240,
+      3467693248,
+      3698838720
+    ],
+    [
+      5.051688708001166,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      6.061789166000381,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      7.071897875001014,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      8.082014915999025,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      9.092122583002492,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      10.102234457997838,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      11.112339833001897,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      12.122448082998744,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      13.132562250000774,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      14.142635750002228,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      15.15276766599709,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      16.16287687500153,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      17.17298508300155,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      18.1830899580018,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      19.193198583001504,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      20.203309500000614,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      21.21346608299791,
+      3751706624,
+      3467693248,
+      3698838720
+    ],
+    [
+      22.218590791002498,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      23.228676332997566,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      24.238756541002658,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      25.248902332998114,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      26.259047040999576,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      27.269176791000064,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      28.279338332999032,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      29.289444125002774,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      30.29958012499992,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      31.30970674999844,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      32.3198235000018,
+      3751723008,
+      3467709632,
+      3698838720
+    ],
+    [
+      33.32991566599958,
+      5955452928,
+      3804648224,
+      5050421760
+    ],
+    [
+      34.33999899999617,
+      5867880448,
+      1692144368,
+      5050421760
+    ],
+    [
+      35.350067708001006,
+      6267682816,
+      2091832360,
+      5050421760
+    ],
+    [
+      36.360183249998954,
+      6502449152,
+      2326697168,
+      5050421760
+    ],
+    [
+      37.37032120799995,
+      6539427840,
+      2363692264,
+      5050421760
+    ],
+    [
+      38.380465000002005,
+      6769606656,
+      2593969552,
+      5050421760
+    ],
+    [
+      39.39054274999944,
+      7021969408,
+      2896500328,
+      5050421760
+    ],
+    [
+      40.400598041000194,
+      7021985792,
+      2896516712,
+      5050421760
+    ],
+    [
+      41.410682125002495,
+      7021985792,
+      2896516712,
+      5050421760
+    ],
+    [
+      42.420731291000266,
+      7273807872,
+      3098171200,
+      5050421760
+    ],
+    [
+      43.43079354099609,
+      7618347008,
+      3442923640,
+      5050421760
+    ],
+    [
+      44.440856291003,
+      7907770368,
+      3732527488,
+      5050421760
+    ],
+    [
+      45.45092075000139,
+      8141570048,
+      3966409376,
+      5050421760
+    ],
+    [
+      46.46098145799624,
+      8370634752,
+      4195556120,
+      5050421760
+    ],
+    [
+      47.47111712500191,
+      11388420096,
+      7214555848,
+      7214555848
+    ],
+    [
+      48.4811747499989,
+      12362989568,
+      8189601152,
+      8189601152
+    ],
+    [
+      49.49125133299822,
+      12738445312,
+      9596233376,
+      9596233376
+    ],
+    [
+      50.501304416000494,
+      12738445312,
+      9596233376,
+      9596233376
+    ],
+    [
+      51.51135641599831,
+      12738445312,
+      9596233376,
+      9596233376
+    ],
+    [
+      52.52142966599786,
+      12738445312,
+      9564612256,
+      10310526624
+    ],
+    [
+      53.53149683299853,
+      12738445312,
+      9065146016,
+      10310526624
+    ],
+    [
+      54.54157120799937,
+      12738445312,
+      8746722976,
+      10310526624
+    ],
+    [
+      55.55162629100232,
+      12450234368,
+      8277419704,
+      10310526624
+    ],
+    [
+      56.561684540996794,
+      12975374336,
+      8802772976,
+      10310526624
+    ],
+    [
+      57.571763749998354,
+      14550024192,
+      14544989176,
+      14544989176
+    ],
+    [
+      58.58182249999663,
+      14550040576,
+      14545153016,
+      14545153016
+    ],
+    [
+      59.59189816599974,
+      14550040576,
+      14545153016,
+      14545153016
+    ],
+    [
+      60.6019532499995,
+      14550106112,
+      14545153016,
+      14545153016
+    ],
+    [
+      61.61454850000155,
+      16499359744,
+      12328857984,
+      15806197616
+    ],
+    [
+      62.623541540997394,
+      16625729536,
+      12455293408,
+      15806197616
+    ],
+    [
+      63.63360062499851,
+      16626237440,
+      12455145952,
+      15806197616
+    ],
+    [
+      64.64365537500271,
+      16627433472,
+      12456341984,
+      15806197616
+    ],
+    [
+      65.6537817080025,
+      17252679680,
+      13380875152,
+      15806197616
+    ]
+  ],
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_changes": [
+    " M NIGHTSTREAM_CRATE_GOAL.md",
+    " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+    " M crates/neo-ccs/src/crypto/poseidon2_goldilocks.rs",
+    " M crates/neo-ccs/tests/poseidon2_hash.rs",
+    " M crates/neo-prover-metal/build.rs",
+    " M crates/neo-prover-metal/shaders/dec_forms.metal",
+    " M crates/neo-prover-metal/shaders/goldilocks.metal",
+    " M crates/neo-prover-metal/shaders/joint.metal",
+    " M crates/neo-prover-metal/src/lib.rs",
+    " M crates/neo-prover-metal/src/rows.rs",
+    " M crates/neo-prover-metal/src/session.rs",
+    " M crates/neo-prover-metal/src/session/joint.rs",
+    " M crates/neo-prover-metal/src/session/joint/opening.rs",
+    " M crates/neo-prover-metal/src/session/masks.rs",
+    " M crates/neo-prover-metal/tests/unit/joint_buffers.rs",
+    " M crates/neo-prover-metal/tests/unit/joint_openings.rs",
+    " M crates/neo-reductions/src/engines/optimized_engine/rlc.rs",
+    " M crates/neo-reductions/src/superneo_eval.rs",
+    " M crates/neo-reductions/src/superneo_eval/openings.rs",
+    " M crates/neo-reductions/src/superneo_eval/row_source.rs",
+    " M crates/neo-reductions/tests/superneo_openings.rs",
+    " M crates/neo-reductions/tests/superneo_row_source.rs",
+    " M crates/nightstream-fprime/src/components.rs",
+    " M crates/nightstream-fprime/src/identity.rs",
+    " M crates/nightstream-fprime/src/lib.rs",
+    " M crates/nightstream-fprime/src/package.rs",
+    " M crates/nightstream-fprime/src/package/matrix_program/mod.rs",
+    " M crates/nightstream-fprime/src/package/matrix_program/template.rs",
+    " M crates/nightstream-fprime/src/package/sealed.rs",
+    " M crates/nightstream-fprime/tests/unit/shared_formula_rows.rs",
+    " M crates/nightstream/README.md",
+    " M crates/nightstream/VALIDATION.md",
+    " M crates/nightstream/src/assembly/mod.rs",
+    " M crates/nightstream/src/engine/metal.rs",
+    " M crates/nightstream/src/engine/mod.rs",
+    " M crates/nightstream/src/folding/compose.rs",
+    " M crates/nightstream/src/folding/pi_dec.rs",
+    " M crates/nightstream/src/lifecycle/complete.rs",
+    " M crates/nightstream/src/lifecycle/evaluation.rs",
+    " M crates/nightstream/src/lifecycle/verify.rs",
+    " M crates/nightstream/tests/assembly_internal/encoding.rs",
+    " M crates/nightstream/tests/circuit_lifecycle.rs",
+    " M crates/nightstream/tests/lifecycle_native/mod.rs",
+    " M crates/nightstream/tests/lifecycle_native/staged.rs",
+    " M crates/nightstream/tests/lifecycle_native/staged_terminal.rs",
+    " M crates/nightstream/tests/run_recursive_phase.py",
+    "?? crates/neo-prover-metal/shaders/assignments.metal",
+    "?? crates/neo-prover-metal/shaders/carried.metal",
+    "?? crates/neo-prover-metal/shaders/production_commitment.metal",
+    "?? crates/neo-prover-metal/shaders/relation.metal",
+    "?? crates/neo-prover-metal/src/session/joint/assignments.rs",
+    "?? crates/neo-prover-metal/src/session/joint/relation.rs",
+    "?? crates/neo-prover-metal/src/session/production_commitment.rs",
+    "?? crates/neo-prover-metal/tests/unit/buffer_limit.rs",
+    "?? crates/neo-prover-metal/tests/unit/carried_projection.rs",
+    "?? crates/neo-prover-metal/tests/unit/joint_assignments.rs",
+    "?? crates/neo-prover-metal/tests/unit/production_commitment.rs",
+    "?? crates/neo-prover-metal/tests/unit/relation.rs",
+    "?? crates/neo-reductions/tests/rlc_packed_storage.rs",
+    "?? crates/neo-reductions/tests/zero_opening_storage.rs",
+    "?? crates/nightstream-fprime/src/package/matrix_program/form.rs",
+    "?? crates/nightstream-fprime/tests/unit/identity_stream.rs",
+    "?? crates/nightstream/tests/evidence/allocator-pages-20260921/",
+    "?? crates/nightstream/tests/evidence/carried-buffer-reuse-20260921/",
+    "?? crates/nightstream/tests/evidence/compact-application-storage-20260921/",
+    "?? crates/nightstream/tests/evidence/compact-matrix-runs-20260921/",
+    "?? crates/nightstream/tests/evidence/metal-norm-20260921/",
+    "?? crates/nightstream/tests/evidence/metal-recovery-20260921/",
+    "?? crates/nightstream/tests/evidence/parallel-prepare-20260921/",
+    "?? crates/nightstream/tests/evidence/terminal-rows-20260921/",
+    "?? crates/nightstream/tests/lifecycle_native/terminal_engine.rs"
+  ],
+  "diagnostic_source": "metal-memory-diagnostic.rs, copied into boundary-memory-test-binary before the rejected pressure-relief experiment"
+}

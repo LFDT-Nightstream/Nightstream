@@ -18,17 +18,39 @@ pub(super) fn interpolate(low: K, high: K, point: K) -> K {
 }
 
 pub(super) fn fold(values: &mut Vec<K>, challenge: K) {
+    fold_pairs(values, K::ZERO, |low, high| interpolate(low, high, challenge));
+}
+
+fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl Fn(T, T) -> T + Sync) {
+    let previous_len = values.len();
+    if previous_len == 0 {
+        *values = Vec::new();
+        return;
+    }
+    let next_len = previous_len.div_ceil(2);
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let next = values
-        .par_chunks(2)
-        .map(|pair| interpolate(pair[0], pair.get(1).copied().unwrap_or(K::ZERO), challenge))
-        .collect();
+    let workers = rayon::current_num_threads();
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let next = values
-        .chunks(2)
-        .map(|pair| interpolate(pair[0], pair.get(1).copied().unwrap_or(K::ZERO), challenge))
-        .collect();
-    *values = next;
+    let workers = 1;
+    // Even chunks keep pairs together. Each worker writes only inside its
+    // own chunk; compaction starts after every worker has finished reading.
+    let chunk_len = 2 * next_len.div_ceil(workers);
+    let fold_chunk = |chunk: &mut [T]| {
+        for index in 0..chunk.len().div_ceil(2) {
+            let low = chunk[2 * index];
+            let high = chunk.get(2 * index + 1).copied().unwrap_or(zero);
+            chunk[index] = combine(low, high);
+        }
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    values.par_chunks_mut(chunk_len).for_each(fold_chunk);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    values.chunks_mut(chunk_len).for_each(fold_chunk);
+    for start in (chunk_len..previous_len).step_by(chunk_len) {
+        let count = (previous_len - start).min(chunk_len).div_ceil(2);
+        values.copy_within(start..start + count, start / 2);
+    }
+    values.truncate(next_len);
 }
 
 /// Signed-unit prefixes share their possible field values. Early folds store
@@ -110,6 +132,17 @@ impl<'a> Assignment<'a> {
             let next_values = (0..base * base)
                 .map(|code| interpolate(values[code % base], values[code / base], challenge))
                 .collect();
+            if let Self::Encoded {
+                codes,
+                values,
+                zero: current_zero,
+            } = self
+            {
+                fold_pairs(codes, zero, |low, high| low + base as u16 * high);
+                *values = next_values;
+                *current_zero = zero + base as u16 * zero;
+                return;
+            }
             let current: &Self = self;
             let code = |index| match current {
                 Self::Input { witness, len } if index < *len => {
@@ -123,8 +156,7 @@ impl<'a> Assignment<'a> {
                     }
                 }
                 Self::Input { .. } => zero,
-                Self::Encoded { codes, .. } => codes.get(index).copied().unwrap_or(zero),
-                Self::Folded(_) => unreachable!("dense values have no signed-unit code"),
+                Self::Encoded { .. } | Self::Folded(_) => unreachable!("only initial codes need an allocation"),
             };
             let pair_code = |index| code(2 * index) + base as u16 * code(2 * index + 1);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]

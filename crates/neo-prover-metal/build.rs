@@ -11,6 +11,10 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/seeded_ajtai.metal");
     println!("cargo:rerun-if-changed=shaders/lane_commitments.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
+    println!("cargo:rerun-if-changed=shaders/assignments.metal");
+    println!("cargo:rerun-if-changed=shaders/carried.metal");
+    println!("cargo:rerun-if-changed=shaders/relation.metal");
+    println!("cargo:rerun-if-changed=shaders/production_commitment.metal");
     println!("cargo:rerun-if-changed=shaders/dec_forms.metal");
     println!("cargo:rerun-if-changed=shaders/decomposition.metal");
 

@@ -30,11 +30,17 @@ def main() -> int:
     parser.add_argument("--engine", choices=("optimized", "metal"))
     parser.add_argument("--cpu-reference", type=Path,
                         help="CPU run directory whose source files and PiCCS proof must match")
+    parser.add_argument("--reference-proof", type=Path,
+                        help="saved canonical CPU proof for the complete prove phase")
     args = parser.parse_args()
     if args.cpu_reference is not None and args.phase != "ccs":
         parser.error("--cpu-reference is a PiCCS comparison input")
     if args.phase == "ccs" and args.engine == "metal" and args.cpu_reference is None:
         parser.error("Metal PiCCS acceptance requires --cpu-reference")
+    if args.reference_proof is not None and args.phase != "prove":
+        parser.error("--reference-proof is a complete-fold comparison input")
+    if args.phase == "prove" and (args.engine is None or args.reference_proof is None):
+        parser.error("prove requires --engine and --reference-proof")
     directory = args.directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     logs = directory / "logs"
@@ -42,10 +48,12 @@ def main() -> int:
     request = {"phase": args.phase, "directory": str(directory)}
     if args.cpu_reference is not None:
         request["cpu_reference"] = str(args.cpu_reference.resolve())
+    if args.reference_proof is not None:
+        request["reference_proof"] = str(args.reference_proof.resolve())
     parts = [args.phase]
     if args.engine is not None:
-        if args.phase not in ("ccs", "child"):
-            parser.error("--engine selects device evaluation only for ccs and child phases")
+        if args.phase not in ("base", "sources", "ccs", "child", "prove", "successor", "terminal", "reject"):
+            parser.error("--engine selects evaluation for base, sources, ccs, child, prove, successor, terminal, and reject phases")
         request["engine"] = args.engine
     for name in ("step", "child"):
         value = getattr(args, name)

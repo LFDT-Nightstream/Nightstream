@@ -1,0 +1,17 @@
+{
+  "outcome": "passed",
+  "checks": {
+    "rustfmt": "cargo fmt --all (completed before the release test build)",
+    "release_build": "timeout --signal=KILL 300 cargo test -p nightstream --release --features metal,cuda,neo-reductions/perf-timers --lib --no-run",
+    "default_check": "cargo check -p nightstream --release --all-targets",
+    "phase_driver_syntax": "Python ast.parse of tests/run_recursive_phase.py",
+    "line_limit": {
+      "policy": 1500,
+      "largest_changed_code_file": [
+        1469,
+        "crates/neo-reductions/src/superneo_eval.rs"
+      ]
+    }
+  },
+  "rust_production_changes_this_slice": false
+}

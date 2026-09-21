@@ -1,0 +1,6 @@
+
+running 1 test
+test session::joint::carried_tests::carried_projection_matches_cpu_with_all_production_sources_active ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.12s
+

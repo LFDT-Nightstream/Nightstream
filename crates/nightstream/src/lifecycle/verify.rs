@@ -3,13 +3,7 @@
 //! key. Parent caches, carried frame digests and redundant `w` storage are
 //! non-authoritative; every witness check uses the complete matrix `Z`.
 
-use neo_ajtai::{
-    nightstream_fprime_setup::{
-        commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
-        PRODUCTION_VERIFIER_ROWS,
-    },
-    Commitment,
-};
+use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
 use neo_reductions::{
     common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero},
@@ -26,6 +20,10 @@ use super::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
+    #[error("selected terminal commitment: {0}")]
+    Commitment(#[from] crate::engine::EngineError),
+    #[error("selected terminal device evaluation: {0}")]
+    Device(#[source] PiCcsError),
     #[error("selected terminal statement: {0}")]
     Statement(&'static str),
     #[error("selected terminal running child {index}: {reason}")]
@@ -163,12 +161,7 @@ impl PreparedLifecycle {
                 return Err(VerifyError::Fresh("witness public projection differs from x"));
             }
         }
-        let commitments = commit_production_signed_unit_prefix_matrices(&running.witnesses).map_err(|error| {
-            VerifyError::Running {
-                index: error.witness_index(),
-                reason: "fixed-key witness shape or strict unit norm",
-            }
-        })?;
+        let commitments = self.prover.commit(&running.witnesses)?;
         for (index, (claim, commitment)) in running.claims.iter().zip(commitments).enumerate() {
             if commitment != claim.c {
                 return Err(VerifyError::Running {
@@ -177,27 +170,44 @@ impl PreparedLifecycle {
                 });
             }
         }
-        let commitment = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z)
-            .map_err(|_| VerifyError::Fresh("fixed-key witness shape or strict unit norm"))?;
+        let commitment = self
+            .prover
+            .commit(std::slice::from_ref(&fresh.witness.Z))?
+            .remove(0);
         if commitment != fresh.claim.c {
             return Err(VerifyError::Fresh("fixed-key commitment differs from the witness"));
         }
 
         let cache = self.build_superneo_cache()?;
-        let blocks = running
-            .witnesses
-            .iter()
-            .enumerate()
-            .map(|(index, witness)| {
-                SuperneoZBlocks::from_witness_mat(witness, self.structure.m).map_err(|_| VerifyError::Running {
-                    index,
-                    reason: "complete witness block conversion",
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let openings = cache
-            .eval_real_v1_1_openings(point, &blocks)
-            .map_err(VerifyError::RunningOpenings)?;
+        let openings = match &self.prover {
+            #[cfg(feature = "metal")]
+            crate::engine::Prover::Metal(device) => device
+                .lock()
+                .map_err(|_| device_lock_error())?
+                .child_openings(
+                    std::sync::Arc::clone(cache),
+                    &running.witnesses,
+                    point,
+                    self.structure.m,
+                )
+                .map_err(VerifyError::Device)?,
+            _ => {
+                let blocks = running
+                    .witnesses
+                    .iter()
+                    .enumerate()
+                    .map(|(index, witness)| {
+                        SuperneoZBlocks::from_witness_mat(witness, self.structure.m).map_err(|_| VerifyError::Running {
+                            index,
+                            reason: "complete witness block conversion",
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                cache
+                    .eval_real_v1_1_openings(point, &blocks)
+                    .map_err(VerifyError::RunningOpenings)?
+            }
+        };
         for (index, claim) in running.claims.iter().enumerate() {
             let actual = openings.get(index).ok_or(VerifyError::Running {
                 index,
@@ -222,14 +232,39 @@ impl PreparedLifecycle {
                 });
             }
         }
-        drop((blocks, openings));
+        drop(openings);
 
         // Z is the full opening. CcsWitness.w is a redundant caller cache.
-        let blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
-            .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
-        check_ccs_relation_zero_cached_with_blocks(cache, &self.structure.f, &blocks)
-            .map_err(VerifyError::FreshRelation)
+        match &self.prover {
+            #[cfg(feature = "metal")]
+            crate::engine::Prover::Metal(device) => {
+                let row = device
+                    .lock()
+                    .map_err(|_| device_lock_error())?
+                    .first_unsatisfied_row(std::sync::Arc::clone(cache), &self.structure, &fresh.witness.Z)
+                    .map_err(VerifyError::Device)?;
+                row.map_or(Ok(()), |row| {
+                    Err(VerifyError::FreshRelation(
+                        SuperneoCachedRelationError::UnsatisfiedRow { row },
+                    ))
+                })
+            }
+            _ => {
+                let blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
+                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
+                check_ccs_relation_zero_cached_with_blocks(cache, &self.structure.f, &blocks)
+                    .map_err(VerifyError::FreshRelation)
+            }
+        }
     }
+}
+
+#[cfg(feature = "metal")]
+fn device_lock_error() -> VerifyError {
+    VerifyError::Device(PiCcsError::BackendFailure {
+        backend: "metal",
+        reason: "terminal device session lock was poisoned".into(),
+    })
 }
 
 fn commitment_has_selected_shape(commitment: &Commitment) -> bool {

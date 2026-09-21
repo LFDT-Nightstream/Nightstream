@@ -50,7 +50,7 @@ pub(crate) fn prove_with_production_key(
     s: &Structure,
     cache: &SuperneoEvalCache,
     parent: &CeClaim,
-    parent_witness: &Mat<F>,
+    parent_witness: Mat<F>,
 ) -> Result<(Children, Proof), Error> {
     let production = Params::production();
     let blocks = s.m.div_ceil(D);
@@ -70,10 +70,12 @@ pub(crate) fn prove_with_production_key(
     if parent.adv.is_some() {
         return Err(Error::Auxiliary);
     }
-    neo_reductions::common::validate_superneo_witness_mat(parent_witness, s.m).map_err(engine::Error::from)?;
+    neo_reductions::common::validate_superneo_witness_mat(&parent_witness, s.m).map_err(engine::Error::from)?;
     let (digits, flags) =
-        neo_reductions::common::split_b_matrix_k_with_nonzero_flags(parent_witness, pp.k_rho() as usize, pp.b())
+        neo_reductions::common::split_b_matrix_k_with_nonzero_flags(&parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
+    // The split owns every coefficient needed by commitments and openings.
+    drop(parent_witness);
     let commitments = commit_production_signed_unit_prefix_matrices(&digits).map_err(|error| error.into_error())?;
     let (children, ok_y, ok_x, ok_c) =
         neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(

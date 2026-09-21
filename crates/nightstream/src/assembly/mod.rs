@@ -42,8 +42,22 @@ pub fn prepare(
     reference_bytes: &[u8],
     application: &ApplicationCircuit,
 ) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
-    let reference = load_poseidon2_hash_chain_v1_package(reference_bytes)?;
-    drop(reference);
+    std::thread::scope(|scope| {
+        // Reference authorization and candidate identity have independent
+        // Poseidon2 preimages. Neither result authorizes the other.
+        let reference = scope.spawn(|| load_poseidon2_hash_chain_v1_package(reference_bytes).map(drop));
+        let candidate = prepare_application(reference_bytes, application);
+        reference
+            .join()
+            .map_err(|_| AssemblyError::Invalid("reference validation worker failed"))??;
+        candidate
+    })
+}
+
+fn prepare_application(
+    reference_bytes: &[u8],
+    application: &ApplicationCircuit,
+) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
     let manifest = Manifest::parse(include_bytes!("../../artifacts/shared-verifier-v1.json"))?;
     let reference: wire::Envelope = serde_json::from_slice(reference_bytes)?;
     let value = assemble(reference, &manifest, application)?;

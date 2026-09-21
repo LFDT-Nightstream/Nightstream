@@ -113,10 +113,25 @@ pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     })
 }
 
-struct SignedBlock {
+/// One nonzero block of a validated signed-unit production-key prefix.
+pub struct SignedBlock {
     index: u64,
     positive: u64,
     negative: u64,
+}
+
+impl SignedBlock {
+    pub fn index(&self) -> u64 {
+        self.index
+    }
+
+    pub fn positive(&self) -> u64 {
+        self.positive
+    }
+
+    pub fn negative(&self) -> u64 {
+        self.negative
+    }
 }
 
 #[derive(Clone)]
@@ -238,7 +253,9 @@ pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) ->
     Ok(commit_signed_blocks(&blocks))
 }
 
-fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<SignedBlock>> {
+/// Validate every prefix coordinate and return nonzero blocks in key order.
+/// Device backends use the same shape and norm checks as the CPU commitment.
+pub fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<SignedBlock>> {
     let columns = witness.cols();
     if witness.rows() != D || columns == 0 || columns > PRODUCTION_MESSAGE_COLUMNS as usize {
         return Err(AjtaiError::InvalidDimensions(format!(

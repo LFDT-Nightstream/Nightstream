@@ -1,0 +1,21 @@
+loaded baseline: 54 rows, 4685394 columns
+loaded candidate: 54 rows, 4685394 columns
+equal_field_elements=253011276
+       28.96 real        26.09 user         1.20 sys
+          5125931008  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              313034  page reclaims
+                   0  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   1  voluntary context switches
+                 274  involuntary context switches
+        510337176274  instructions retired
+         84910111522  cycles elapsed
+          5127819200  peak memory footprint

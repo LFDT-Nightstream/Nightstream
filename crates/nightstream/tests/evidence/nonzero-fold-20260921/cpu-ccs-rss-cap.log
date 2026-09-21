@@ -1,0 +1,5 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu", step: 2, engine: Optimized, cpu_reference: None }
+staged circuit preparation elapsed=34.861928875s
+C cache elapsed=4.917265458s

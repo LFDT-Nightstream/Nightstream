@@ -90,20 +90,10 @@ impl SuperneoMatrixCache {
             let (column_start, len, mut coefficient, ratio) = decode(run);
             for column in column_start..column_start + len {
                 let block = column / D;
-                touch_geometric_block(scratch, block);
                 let local = column % D;
-                scratch.agg_re[block].0[local] += weight_re * coefficient;
-                scratch.agg_im[block].0[local] += weight_im * coefficient;
+                scratch.add_coefficient(block, local, weight_re * coefficient, weight_im * coefficient);
                 coefficient *= ratio;
             }
         }
-    }
-}
-
-#[inline]
-fn touch_geometric_block(scratch: &mut RingEvalScratch, block: usize) {
-    if !scratch.touched[block] {
-        scratch.touched[block] = true;
-        scratch.active_blocks.push(block);
     }
 }

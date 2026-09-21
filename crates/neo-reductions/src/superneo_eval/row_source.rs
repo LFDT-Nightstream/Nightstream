@@ -3,6 +3,7 @@
 use super::row_block::{COMPACT_DENSE_INDEX_MASK, COMPACT_SINGLE_BLOCK_MASK};
 use super::{CompactRowBlock, DenseBlockStore, DenseRowBlock, RowOffsetStore, SuperneoEvalCache, SuperneoMatrixCache};
 use crate::PiCcsError;
+use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use p3_field::PrimeField64;
@@ -121,6 +122,19 @@ impl SuperneoEvalCacheBuilder {
         row: usize,
         entries: impl IntoIterator<Item = (usize, F)>,
     ) -> Result<(), PiCcsError> {
+        self.push_row_with_runs(matrix, row, entries, [])
+    }
+
+    /// Append explicit entries and unexpanded geometric runs. Runs must be
+    /// sorted by `(column_start, len)` and belong to this row. Overlapping
+    /// contributions add, including overlaps with the explicit entries.
+    pub fn push_row_with_runs(
+        &mut self,
+        matrix: usize,
+        row: usize,
+        entries: impl IntoIterator<Item = (usize, F)>,
+        runs: impl IntoIterator<Item = GeometricRowRun<F>>,
+    ) -> Result<(), PiCcsError> {
         if self.failed {
             return Err(invalid("cache row-source builder has failed"));
         }
@@ -170,6 +184,44 @@ impl SuperneoEvalCacheBuilder {
             }
         }
         if let RowOffsetStore::U32(offsets) = &mut cache.row_offsets {
+            offsets.push(end);
+        }
+        let previous_length = cache.geometric_runs.len();
+        let mut previous_key = None;
+        for run in runs {
+            let key = (run.column_start(), run.len());
+            if run.row() != row
+                || !run.validate_shape(cache.rows, self.logical_columns)
+                || previous_key.is_some_and(|previous| previous > key)
+            {
+                return Err(invalid("cache row-source geometric run"));
+            }
+            let start = u32::try_from(run.column_start()).map_err(|_| invalid("cache geometric column exceeds u32"))?;
+            let count = u32::try_from(run.len())
+                .ok()
+                .filter(|&count| count != 0)
+                .ok_or_else(|| invalid("cache geometric length must fit nonzero u32"))?;
+            cache.geometric_runs.push([
+                u64::from(start) | (u64::from(count) << 32),
+                run.initial().as_canonical_u64(),
+                run.ratio().as_canonical_u64(),
+            ]);
+            previous_key = Some(key);
+        }
+        let end =
+            u32::try_from(cache.geometric_runs.len()).map_err(|_| invalid("cache geometric run count exceeds u32"))?;
+        if previous_length != cache.geometric_runs.len() {
+            if let Some(masks) = &mut self.explicit_matrix_masks {
+                masks[row] |= 1u16 << matrix;
+            }
+            if matches!(cache.geometric_row_offsets, RowOffsetStore::Empty) {
+                let mut offsets = Vec::new();
+                reserve_exact(&mut offsets, cache.rows + 1)?;
+                offsets.resize(row + 1, 0);
+                cache.geometric_row_offsets = RowOffsetStore::U32(offsets);
+            }
+        }
+        if let RowOffsetStore::U32(offsets) = &mut cache.geometric_row_offsets {
             offsets.push(end);
         }
         self.next_matrix += 1;

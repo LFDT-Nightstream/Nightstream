@@ -65,6 +65,7 @@ struct DeviceSeededOpeningPlan {
 }
 
 struct DeviceGeometricOpeningPlan {
+    matrix: usize,
     groups: Buffer,
     segments: Buffer,
     runs: Buffer,
@@ -301,7 +302,9 @@ impl MetalSession {
                 }
             });
 
-            let mut groups = Vec::<[u32; 4]>::new();
+            // The shared active-block table already owns the column block.
+            // Consecutive starts also provide each group's segment end.
+            let mut groups = Vec::<[u32; 2]>::new();
             for block in 0..blocks {
                 if offsets[block] == offsets[block + 1] {
                     continue;
@@ -313,14 +316,13 @@ impl MetalSession {
                 groups.push([
                     u32::try_from(active)
                         .map_err(|_| MetalError::Shape("one-joint geometric active block exceeds u32"))?,
-                    u32::try_from(block)
-                        .map_err(|_| MetalError::Shape("one-joint geometric column block exceeds u32"))?,
                     offsets[block],
-                    offsets[block + 1],
                 ]);
             }
             let group_count = groups.len();
+            groups.push([0, offsets[blocks]]);
             plans.push(DeviceGeometricOpeningPlan {
+                matrix: application + 1,
                 groups: self.buffer_from_slice(&groups)?,
                 segments: self.buffer_from_slice(&segments)?,
                 runs: device.geometric_runs.clone(),
@@ -621,7 +623,11 @@ impl MetalSession {
                 encoder.endEncoding();
             }
 
-            for geometric in &plan.geometric {
+            for geometric in plan
+                .geometric
+                .iter()
+                .filter(|geometric| geometric.matrix == matrix)
+            {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 encoder.setComputePipelineState(&self.dec_add_geometric_ring_forms);
                 unsafe {
@@ -631,6 +637,7 @@ impl MetalSession {
                     encoder.setBuffer_offset_atIndex(Some(&chi), 0, 3);
                     encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
                     encoder.setBuffer_offset_atIndex(Some(&forms), 0, 5);
+                    encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 6);
                 }
                 self.dispatch(
                     &encoder,

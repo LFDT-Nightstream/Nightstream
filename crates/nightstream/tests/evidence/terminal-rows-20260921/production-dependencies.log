@@ -1,0 +1,243 @@
+nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+├── neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+│   ├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+│   │   ├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+│   │   │   ├── neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+│   │   │   │   ├── num-bigint v0.4.8
+│   │   │   │   │   ├── num-integer v0.1.46
+│   │   │   │   │   │   └── num-traits v0.2.19
+│   │   │   │   │   └── num-traits v0.2.19
+│   │   │   │   ├── serde v1.0.228
+│   │   │   │   │   ├── serde_core v1.0.228
+│   │   │   │   │   └── serde_derive v1.0.228 (proc-macro)
+│   │   │   │   │       ├── proc-macro2 v1.0.106
+│   │   │   │   │       │   └── unicode-ident v1.0.24
+│   │   │   │   │       ├── quote v1.0.46
+│   │   │   │   │       │   └── proc-macro2 v1.0.106 (*)
+│   │   │   │   │       └── syn v2.0.118
+│   │   │   │   │           ├── proc-macro2 v1.0.106 (*)
+│   │   │   │   │           ├── quote v1.0.46 (*)
+│   │   │   │   │           └── unicode-ident v1.0.24
+│   │   │   │   └── thiserror v2.0.18
+│   │   │   │       └── thiserror-impl v2.0.18 (proc-macro)
+│   │   │   │           ├── proc-macro2 v1.0.106 (*)
+│   │   │   │           ├── quote v1.0.46 (*)
+│   │   │   │           └── syn v2.0.118 (*)
+│   │   │   ├── p3-field v0.5.3
+│   │   │   │   ├── itertools v0.14.0
+│   │   │   │   │   └── either v1.16.0
+│   │   │   │   ├── num-bigint v0.4.8 (*)
+│   │   │   │   ├── p3-maybe-rayon v0.5.3
+│   │   │   │   ├── p3-util v0.5.3
+│   │   │   │   │   ├── serde v1.0.228 (*)
+│   │   │   │   │   └── transpose v0.2.3
+│   │   │   │   │       ├── num-integer v0.1.46 (*)
+│   │   │   │   │       └── strength_reduce v0.2.4
+│   │   │   │   ├── paste v1.0.15 (proc-macro)
+│   │   │   │   ├── rand v0.10.2
+│   │   │   │   │   ├── chacha20 v0.10.1
+│   │   │   │   │   │   ├── cfg-if v1.0.4
+│   │   │   │   │   │   └── rand_core v0.10.1
+│   │   │   │   │   ├── getrandom v0.4.3
+│   │   │   │   │   │   ├── cfg-if v1.0.4
+│   │   │   │   │   │   ├── libc v0.2.186
+│   │   │   │   │   │   └── rand_core v0.10.1
+│   │   │   │   │   └── rand_core v0.10.1
+│   │   │   │   ├── serde v1.0.228 (*)
+│   │   │   │   └── tracing v0.1.44
+│   │   │   │       ├── pin-project-lite v0.2.17
+│   │   │   │       ├── tracing-attributes v0.1.31 (proc-macro)
+│   │   │   │       │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   │       │   ├── quote v1.0.46 (*)
+│   │   │   │       │   └── syn v2.0.118 (*)
+│   │   │   │       └── tracing-core v0.1.36
+│   │   │   │           └── once_cell v1.21.4
+│   │   │   ├── p3-goldilocks v0.5.3
+│   │   │   │   ├── num-bigint v0.4.8 (*)
+│   │   │   │   ├── p3-challenger v0.5.3
+│   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   ├── p3-maybe-rayon v0.5.3
+│   │   │   │   │   ├── p3-monty-31 v0.5.3
+│   │   │   │   │   │   ├── itertools v0.14.0 (*)
+│   │   │   │   │   │   ├── num-bigint v0.4.8 (*)
+│   │   │   │   │   │   ├── p3-dft v0.5.3
+│   │   │   │   │   │   │   ├── itertools v0.14.0 (*)
+│   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-matrix v0.5.3
+│   │   │   │   │   │   │   │   ├── itertools v0.14.0 (*)
+│   │   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   │   ├── p3-maybe-rayon v0.5.3
+│   │   │   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   │   │   ├── rand v0.10.2 (*)
+│   │   │   │   │   │   │   │   ├── serde v1.0.228 (*)
+│   │   │   │   │   │   │   │   └── tracing v0.1.44 (*)
+│   │   │   │   │   │   │   ├── p3-maybe-rayon v0.5.3
+│   │   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   │   ├── spin v0.10.1
+│   │   │   │   │   │   │   │   └── lock_api v0.4.14
+│   │   │   │   │   │   │   │       └── scopeguard v1.2.0
+│   │   │   │   │   │   │   └── tracing v0.1.44 (*)
+│   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   ├── p3-matrix v0.5.3 (*)
+│   │   │   │   │   │   ├── p3-maybe-rayon v0.5.3
+│   │   │   │   │   │   ├── p3-mds v0.5.3
+│   │   │   │   │   │   │   ├── p3-dft v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-symmetric v0.5.3
+│   │   │   │   │   │   │   │   ├── itertools v0.14.0 (*)
+│   │   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   │   │   └── serde v1.0.228 (*)
+│   │   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   │   └── rand v0.10.2 (*)
+│   │   │   │   │   │   ├── p3-poseidon1 v0.5.3
+│   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   │   │   │   │   └── rand v0.10.2 (*)
+│   │   │   │   │   │   ├── p3-poseidon2 v0.5.3
+│   │   │   │   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-mds v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   │   └── rand v0.10.2 (*)
+│   │   │   │   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   │   ├── paste v1.0.15 (proc-macro)
+│   │   │   │   │   │   ├── rand v0.10.2 (*)
+│   │   │   │   │   │   ├── serde v1.0.228 (*)
+│   │   │   │   │   │   ├── spin v0.10.1 (*)
+│   │   │   │   │   │   └── tracing v0.1.44 (*)
+│   │   │   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   │   └── tracing v0.1.44 (*)
+│   │   │   │   ├── p3-dft v0.5.3 (*)
+│   │   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   │   ├── p3-mds v0.5.3 (*)
+│   │   │   │   ├── p3-poseidon1 v0.5.3 (*)
+│   │   │   │   ├── p3-poseidon2 v0.5.3 (*)
+│   │   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   │   ├── p3-util v0.5.3 (*)
+│   │   │   │   ├── paste v1.0.15 (proc-macro)
+│   │   │   │   ├── rand v0.10.2 (*)
+│   │   │   │   └── serde v1.0.228 (*)
+│   │   │   ├── p3-matrix v0.5.3 (*)
+│   │   │   ├── rand v0.9.5
+│   │   │   │   ├── rand_chacha v0.9.0
+│   │   │   │   │   ├── ppv-lite86 v0.2.21
+│   │   │   │   │   │   └── zerocopy v0.8.54
+│   │   │   │   │   └── rand_core v0.9.5
+│   │   │   │   │       └── getrandom v0.3.4
+│   │   │   │   │           ├── cfg-if v1.0.4
+│   │   │   │   │           └── libc v0.2.186
+│   │   │   │   └── rand_core v0.9.5 (*)
+│   │   │   ├── rand_chacha v0.9.0 (*)
+│   │   │   ├── subtle v2.6.1
+│   │   │   └── thiserror v2.0.18 (*)
+│   │   ├── neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params) (*)
+│   │   ├── once_cell v1.21.4
+│   │   ├── p3-field v0.5.3 (*)
+│   │   ├── p3-goldilocks v0.5.3 (*)
+│   │   ├── p3-matrix v0.5.3 (*)
+│   │   ├── p3-poseidon2 v0.5.3 (*)
+│   │   ├── p3-symmetric v0.5.3 (*)
+│   │   ├── rand v0.9.5 (*)
+│   │   ├── rand v0.10.2 (*)
+│   │   ├── rand_chacha v0.9.0 (*)
+│   │   ├── rand_chacha v0.10.0
+│   │   │   ├── ppv-lite86 v0.2.21 (*)
+│   │   │   └── rand_core v0.10.1
+│   │   ├── rayon v1.12.0
+│   │   │   ├── either v1.16.0
+│   │   │   └── rayon-core v1.13.0
+│   │   │       ├── crossbeam-deque v0.8.7
+│   │   │       │   ├── crossbeam-epoch v0.9.20
+│   │   │       │   │   └── crossbeam-utils v0.8.22
+│   │   │       │   └── crossbeam-utils v0.8.22
+│   │   │       └── crossbeam-utils v0.8.22
+│   │   ├── serde v1.0.228 (*)
+│   │   ├── thiserror v2.0.18 (*)
+│   │   └── tracing v0.1.44 (*)
+│   ├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math) (*)
+│   ├── neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params) (*)
+│   ├── p3-field v0.5.3 (*)
+│   ├── p3-goldilocks v0.5.3 (*)
+│   ├── p3-matrix v0.5.3 (*)
+│   ├── rand v0.9.5 (*)
+│   ├── rand_chacha v0.9.0 (*)
+│   ├── rayon v1.12.0 (*)
+│   ├── serde v1.0.228 (*)
+│   └── thiserror v2.0.18 (*)
+├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs) (*)
+├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math) (*)
+├── neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params) (*)
+├── neo-prover-cuda v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-cuda)
+├── neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+│   ├── dispatch2 v0.3.1
+│   │   ├── bitflags v2.13.0
+│   │   ├── block2 v0.6.2
+│   │   │   └── objc2 v0.6.4
+│   │   │       └── objc2-encode v4.1.0
+│   │   └── objc2 v0.6.4 (*)
+│   ├── neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai) (*)
+│   ├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs) (*)
+│   ├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math) (*)
+│   ├── neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+│   │   ├── bincode v1.3.3
+│   │   │   └── serde v1.0.228 (*)
+│   │   ├── neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai) (*)
+│   │   ├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs) (*)
+│   │   ├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math) (*)
+│   │   ├── neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params) (*)
+│   │   ├── neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+│   │   │   ├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs) (*)
+│   │   │   ├── neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math) (*)
+│   │   │   ├── p3-field v0.5.3 (*)
+│   │   │   ├── p3-goldilocks v0.5.3 (*)
+│   │   │   ├── p3-symmetric v0.5.3 (*)
+│   │   │   ├── rand v0.9.5 (*)
+│   │   │   └── rand_chacha v0.9.0 (*)
+│   │   ├── p3-challenger v0.5.3 (*)
+│   │   ├── p3-field v0.5.3 (*)
+│   │   ├── p3-goldilocks v0.5.3 (*)
+│   │   ├── p3-matrix v0.5.3 (*)
+│   │   ├── p3-poseidon2 v0.5.3 (*)
+│   │   ├── p3-symmetric v0.5.3 (*)
+│   │   ├── rand v0.9.5 (*)
+│   │   ├── rand_chacha v0.9.0 (*)
+│   │   ├── rand_chacha v0.10.0 (*)
+│   │   ├── rayon v1.12.0 (*)
+│   │   ├── serde v1.0.228 (*)
+│   │   └── thiserror v2.0.18 (*)
+│   ├── objc2 v0.6.4 (*)
+│   ├── objc2-foundation v0.3.2
+│   │   ├── bitflags v2.13.0
+│   │   └── objc2 v0.6.4 (*)
+│   ├── objc2-metal v0.3.2
+│   │   ├── bitflags v2.13.0
+│   │   ├── dispatch2 v0.3.1 (*)
+│   │   ├── objc2 v0.6.4 (*)
+│   │   └── objc2-foundation v0.3.2 (*)
+│   ├── p3-field v0.5.3 (*)
+│   ├── rayon v1.12.0 (*)
+│   └── thiserror v2.0.18 (*)
+├── neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions) (*)
+├── neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript) (*)
+├── nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+│   ├── neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai) (*)
+│   ├── neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs) (*)
+│   ├── neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript) (*)
+│   ├── p3-field v0.5.3 (*)
+│   ├── p3-goldilocks v0.5.3 (*)
+│   ├── rayon v1.12.0 (*)
+│   ├── serde v1.0.228 (*)
+│   ├── serde_json v1.0.150
+│   │   ├── itoa v1.0.18
+│   │   ├── memchr v2.8.3
+│   │   ├── serde_core v1.0.228
+│   │   └── zmij v1.0.23
+│   └── thiserror v2.0.18 (*)
+├── p3-field v0.5.3 (*)
+├── p3-goldilocks v0.5.3 (*)
+├── serde v1.0.228 (*)
+├── serde_json v1.0.150 (*)
+└── thiserror v2.0.18 (*)

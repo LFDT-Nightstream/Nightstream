@@ -493,8 +493,7 @@ impl SuperneoMatrixCache {
 
         let mut entries = Vec::with_capacity(scratch.active_blocks.len());
         for &blk in &scratch.active_blocks {
-            let re_form = scratch.agg_re[blk];
-            let im_form = scratch.agg_im[blk];
+            let (re_form, im_form) = scratch.forms(blk);
             let re_nonzero = !is_all_zero(&re_form.0);
             let im_nonzero = !is_all_zero(&im_form.0);
             if re_nonzero || im_nonzero {

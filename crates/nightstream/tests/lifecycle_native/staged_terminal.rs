@@ -2,9 +2,9 @@
 use super::*;
 use crate::lifecycle::VerifyError;
 
-pub(super) fn successor(root: &Path, step: u64) {
+pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     let directory = fold_dir(root, step);
-    let package = prepare();
+    let package = prepare_with_engine(engine);
     let record: fold::SavedNifs = load(&directory.join("nifs.json"));
     let (state, fresh, prior, proof) = record.verify(&package, &step_dir(root, step), step);
     let message = message();
@@ -42,11 +42,17 @@ pub(super) fn successor(root: &Path, step: u64) {
     assert_eq!(envelope.state(), &expected_state(step + 1));
     save_envelope(&package, &envelope, &step_dir(root, step + 1), Some(&directory));
 }
-pub(super) fn accept(root: &Path) {
-    let package = prepare();
+pub(super) fn accept(root: &Path, engine: EvaluationEngine) {
+    let package = prepare_with_engine(engine);
     let envelope = load_envelope(&package, &step_dir(root, 3), 3);
     let expected = expected_state(3);
     package.verify(&expected, &envelope).unwrap();
+    #[cfg(feature = "metal")]
+    if let crate::engine::Prover::Metal(device) = &package.prover {
+        let activity = device.lock().unwrap().activity();
+        assert!(activity.dispatches > 0);
+        eprintln!("terminal Metal activity={activity:?}");
+    }
     let mut wrong = expected.current();
     wrong[0] += F::ONE;
     assert!(package
@@ -60,6 +66,7 @@ pub(super) fn accept(root: &Path) {
             "current":expected.current().map(|value| value.as_canonical_u64()),
             "running_claims":&envelope.running().unwrap().claims,
             "fresh_claim":&envelope.fresh().unwrap().claim,
+            "engine":format!("{engine:?}"),
             "scope":"new Rust two-fold terminal execution; no later Lean comparison claimed"
         }),
     );
@@ -71,8 +78,8 @@ pub(super) fn mutation(root: &Path) {
     let changed = super::super::recursive::rehash_false_running_opening(&package, envelope);
     save_envelope(&package, &changed, &root.join("changed-step-3"), Some(&original));
 }
-pub(super) fn reject(root: &Path) {
-    let package = prepare();
+pub(super) fn reject(root: &Path, engine: EvaluationEngine) {
+    let package = prepare_with_engine(engine);
     let changed = load_envelope(&package, &root.join("changed-step-3"), 3);
     assert!(matches!(
         package.verify(&expected_state(3), &changed),

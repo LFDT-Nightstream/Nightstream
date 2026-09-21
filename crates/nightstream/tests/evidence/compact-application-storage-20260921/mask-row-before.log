@@ -1,0 +1,21 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 12.38s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 1 test
+
+thread 'session::joint::tests::application_row_scratch_does_not_expand_the_carrier' (393257) panicked at crates/neo-prover-metal/src/session/../../tests/unit/joint_buffers.rs:163:5:
+assertion `left == right` failed: row scratch must not grow with unused carrier columns
+  left: 552
+ right: 984
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test session::joint::tests::application_row_scratch_does_not_expand_the_carrier ... FAILED
+
+failures:
+
+failures:
+    session::joint::tests::application_row_scratch_does_not_expand_the_carrier
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.39s
+
+error: test failed, to rerun pass `-p neo-prover-metal --lib`

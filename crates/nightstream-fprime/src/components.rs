@@ -229,6 +229,21 @@ impl FormulaVariant {
         self.outputs.len()
     }
 
+    pub(crate) fn input_count(&self) -> usize {
+        self.input_count
+    }
+
+    /// Linear maps over the original input-port ordinals, before substitution.
+    pub(crate) fn row_templates(&self, range: std::ops::Range<usize>) -> Result<&[MatrixRow], ComponentError> {
+        self.rows
+            .get(range)
+            .ok_or(ComponentError::Invalid("row range out of bounds"))
+    }
+
+    pub(crate) fn output_templates(&self) -> &[SparseForm] {
+        &self.outputs
+    }
+
     fn check_inputs(&self, inputs: &[SparseForm], column_count: usize) -> Result<(), ComponentError> {
         if inputs.len() != self.input_count {
             return Err(ComponentError::Invalid("input port width mismatch"));

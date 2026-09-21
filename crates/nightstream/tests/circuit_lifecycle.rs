@@ -32,6 +32,13 @@ fn poseidon_base_step_matches_lean_and_verifies() {
 
 #[cfg(feature = "metal")]
 #[test]
+#[ignore = "Full production base lifecycle with Metal terminal rows; run separately under the 300-second cap."]
+fn poseidon_metal_base_step_matches_lean_and_verifies() {
+    poseidon_lifecycle(Engine::Metal, false);
+}
+
+#[cfg(feature = "metal")]
+#[test]
 #[ignore = "Full production Metal lifecycle; apply the 300-second cap unless the owner approves a longer invocation."]
 fn poseidon_metal_recursive_lifecycle() {
     poseidon_lifecycle(Engine::Metal, true);

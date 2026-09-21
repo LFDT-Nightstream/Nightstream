@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::assignment_transport;
-use super::matrix_program::{MatrixProgram, RowForms, MEANINGFUL_PORTS};
+use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS};
 use super::{
     relation_identifier, validate_per_application_package_schema, Layout, LoadedAssignmentPlan, LoadedPackage,
     LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_1EncodedInputs,
@@ -405,6 +405,31 @@ impl LoadedPerApplicationPackage {
             rows.end,
             &|source| self.circuit.source_row(source),
             |ordinal, forms| visit(ordinal, logical_matrix_row(forms)?),
+        )
+    }
+
+    /// Visit the same linear maps without expanding retained-field coordinates.
+    /// Coefficients from overlapping runs add; the final matrix remains zero.
+    pub fn visit_matrix_runs(
+        &self,
+        rows: Range<usize>,
+        mut visit: impl FnMut(usize, [Vec<MatrixRun>; MATRIX_COUNT]) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if rows.start > rows.end || rows.end > self.row_count() {
+            return Err(PackageError::Invalid("logical matrix row range"));
+        }
+        self.matrix_program.visit_rows(
+            self.logical_column_count(),
+            rows.start,
+            rows.end,
+            &|source| self.circuit.source_row(source),
+            |ordinal, forms| {
+                let mut forms = forms.into_iter();
+                visit(
+                    ordinal,
+                    std::array::from_fn(|_| forms.next().map_or_else(Vec::new, |form| form.into_terms())),
+                )
+            },
         )
     }
 }

@@ -3,13 +3,7 @@
 //! supplies the fresh assignment committed under the fixed production key.
 //! Full CE evaluations and terminal acceptance remain verifier obligations.
 
-use neo_ajtai::{
-    nightstream_fprime_setup::{
-        commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
-        PRODUCTION_MESSAGE_COLUMNS,
-    },
-    AjtaiError,
-};
+use neo_ajtai::nightstream_fprime_setup::PRODUCTION_MESSAGE_COLUMNS;
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::project_x_from_witness_mat;
@@ -79,7 +73,7 @@ pub enum CompleteStepError {
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error(transparent)]
-    Commitment(#[from] AjtaiError),
+    Commitment(#[from] crate::engine::EngineError),
 }
 
 impl PreparedLifecycle {
@@ -120,12 +114,11 @@ impl PreparedLifecycle {
         }
         // Validate every coefficient, including the running tails, before
         // sharing exact indexed key coefficients across the child witnesses.
-        let commitments = commit_production_signed_unit_prefix_matrices(&child_witnesses).map_err(|error| {
-            CompleteStepError::ChildWitness {
-                index: error.witness_index(),
-                reason: "witness does not have the fixed-key shape and strict signed-unit norm",
-            }
-        })?;
+        #[cfg(test)]
+        let started = std::time::Instant::now();
+        let commitments = self.prover.commit(&child_witnesses)?;
+        #[cfg(test)]
+        eprintln!("complete child commitments elapsed={:?}", started.elapsed());
         for (index, (claim, commitment)) in inputs
             .next_running()
             .claims
@@ -141,7 +134,13 @@ impl PreparedLifecycle {
             }
         }
 
+        #[cfg(test)]
+        let started = std::time::Instant::now();
         let physical = self.execute_step_witness(inputs.pi_ccs(), inputs.pi_dec(), inputs.application_witness())?;
+        #[cfg(test)]
+        eprintln!("complete physical witness elapsed={:?}", started.elapsed());
+        #[cfg(test)]
+        let started = std::time::Instant::now();
         let logical = self.package.execute_logical_assignment(&physical)?;
         drop(physical);
         let blocks = self.structure.m.div_ceil(D);
@@ -181,7 +180,13 @@ impl PreparedLifecycle {
         let packed = Mat::<F>::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative)
             .map_err(CompleteStepError::Input)?;
         drop((logical, positive, negative));
-        let commitment = commit_production_signed_unit_prefix_matrix(&packed)?;
+        #[cfg(test)]
+        eprintln!("complete logical packing elapsed={:?}", started.elapsed());
+        #[cfg(test)]
+        let started = std::time::Instant::now();
+        let commitment = self.prover.commit(std::slice::from_ref(&packed))?.remove(0);
+        #[cfg(test)]
+        eprintln!("complete fresh commitment elapsed={:?}", started.elapsed());
         let fresh = CcsInstance {
             claim: CcsClaim {
                 c: commitment,

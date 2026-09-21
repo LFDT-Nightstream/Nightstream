@@ -130,9 +130,10 @@ impl Stage1VerifierBinding {
 }
 
 pub(super) fn relation_identifier(package: &Value) -> Result<[u64; 4], PackageError> {
-    let mut input = IDENTITY_DOMAIN.map(Goldilocks::from_u64).to_vec();
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    input.update(&IDENTITY_DOMAIN.map(Goldilocks::from_u64));
     append_value_preimage(package, &mut input)?;
-    Ok(poseidon2::poseidon2_hash(&input).map(|value| value.as_canonical_u64()))
+    Ok(input.finalize().map(|value| value.as_canonical_u64()))
 }
 
 pub(super) fn pi_ccs_v1_1_verifier_context(
@@ -273,11 +274,13 @@ fn poseidon_words(words: &[u64]) -> [u64; 4] {
     poseidon2::poseidon2_hash(&input).map(|value| value.as_canonical_u64())
 }
 
-fn append_identity_node(input: &mut Vec<Goldilocks>, tag: u64, value: u64) {
-    input.push(Goldilocks::from_u64(tag));
-    input.push(Goldilocks::from_u64(value & 0xffff_ffff));
-    input.push(Goldilocks::from_u64(value >> 32));
-    input.push(Goldilocks::ZERO);
+fn append_identity_node(input: &mut poseidon2::Poseidon2Hasher, tag: u64, value: u64) {
+    input.update(&[
+        Goldilocks::from_u64(tag),
+        Goldilocks::from_u64(value & 0xffff_ffff),
+        Goldilocks::from_u64(value >> 32),
+        Goldilocks::ZERO,
+    ]);
 }
 
 pub(super) fn value_preimage_words(value: &Value) -> Result<Vec<u64>, PackageError> {
@@ -306,7 +309,7 @@ fn append_value_preimage_words(value: &Value, words: &mut Vec<u64>) -> Result<()
     Ok(())
 }
 
-fn append_value_preimage(value: &Value, input: &mut Vec<Goldilocks>) -> Result<(), PackageError> {
+fn append_value_preimage(value: &Value, input: &mut poseidon2::Poseidon2Hasher) -> Result<(), PackageError> {
     match value {
         Value::Number(number) => {
             let value = number
@@ -325,3 +328,7 @@ fn append_value_preimage(value: &Value, input: &mut Vec<Goldilocks>) -> Result<(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/identity_stream.rs"]
+mod tests;

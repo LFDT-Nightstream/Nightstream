@@ -1,0 +1,92 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "Uncommitted worktree; source snapshots are retained with the private production inputs.",
+  "allocation_regressions": {
+    "opening_buffer_reuse": {
+      "before": [
+        0,
+        2
+      ],
+      "after": [
+        0,
+        0
+      ]
+    },
+    "encoded_buffer_reuse": {
+      "before": [
+        0,
+        1
+      ],
+      "after": [
+        0,
+        0
+      ]
+    }
+  },
+  "release_tests": {
+    "cache_equivalence": {
+      "passed": 23,
+      "filtered_radix_four": 2
+    },
+    "row_and_openings": {
+      "passed": 3
+    },
+    "optimized_units": {
+      "passed": 8,
+      "ignored_local_capture_tests": 2
+    },
+    "nightstream_engine_parity": {
+      "passed": 9,
+      "ignored_cuda": 2,
+      "seconds": 129.92
+    }
+  },
+  "production": {
+    "opening-reuse-cpu-ccs": {
+      "outcome": "memory-cap",
+      "elapsed_seconds": 74.82758470800036,
+      "maximum_resident_bytes": 17478352896,
+      "maximum_physical_footprint_bytes": 13360936232,
+      "time_cap_seconds": 300,
+      "memory_cap_bytes": 17179869184
+    },
+    "opening-encoded-reuse-cpu-ccs": {
+      "outcome": "passed",
+      "elapsed_seconds": 183.02915079100057,
+      "maximum_resident_bytes": 17103896576,
+      "maximum_physical_footprint_bytes": 13033157640,
+      "time_cap_seconds": 300,
+      "memory_cap_bytes": 17179869184
+    },
+    "opening-reuse-cpu-children": {
+      "outcome": "passed",
+      "elapsed_seconds": 182.82110887499584,
+      "maximum_resident_bytes": 14638448640,
+      "maximum_physical_footprint_bytes": 9594121304,
+      "time_cap_seconds": 300,
+      "memory_cap_bytes": 17179869184
+    },
+    "opening-reuse-metal-benchmark": {
+      "outcome": "passed",
+      "elapsed_seconds": 180.75990787499904,
+      "maximum_resident_bytes": 16784228352,
+      "maximum_physical_footprint_bytes": 16580063808,
+      "time_cap_seconds": 300,
+      "memory_cap_bytes": 17179869184,
+      "benchmark_seconds": 179.514135833,
+      "verified": true,
+      "same_inputs_identity_and_final_state_as_previous_metal_run": true
+    }
+  },
+  "clippy": "Completed with --cap-lints warn; existing warnings remain, none on this slice's changed code.",
+  "fmt": "cargo fmt --all passed",
+  "diff_check": "git diff --check passed",
+  "largest_changed_source": {
+    "path": "crates/nightstream-fprime/src/package.rs",
+    "lines": 1428
+  },
+  "full_cpu_benchmark": "Not run; specific 45-minute timeout and memory exception request has no answer. The earlier one-run CPU reference memory exception is spent.",
+  "full_lifecycle_speedup": "Unproved; final comparison requires identical code, inputs and workload.",
+  "lean": "No command executed and no artifact regenerated.",
+  "preserved_benchmark_executable": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/opening-reuse-benchmark-binary"
+}

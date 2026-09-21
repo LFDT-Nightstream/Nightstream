@@ -1,0 +1,9 @@
+
+running 1 test
+poseidon preparation engine=Metal elapsed=35.072517125s
+poseidon base proving elapsed=6.835812292s
+poseidon public extend step=2 started
+[pi-ccs/phase] oracle-build=2.529s
+[pi-ccs/phase] rounds=5.707s
+test poseidon_metal_recursive_lifecycle has been running for over 60 seconds
+[pi-ccs/phase] outputs=6.611s

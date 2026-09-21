@@ -1,0 +1,24 @@
+
+running 1 test
+test assembly::encoding_tests::preparation_rejects_a_changed_reference_even_when_assembly_repairs_it ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 36.92s
+
+       40.00 real        68.22 user         0.86 sys
+          6887800832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              478942  page reclaims
+                   0  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 352  involuntary context switches
+        813954951487  instructions retired
+        216449490103  cycles elapsed
+          4813346096  peak memory footprint

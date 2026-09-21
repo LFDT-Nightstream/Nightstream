@@ -1,0 +1,10 @@
+{
+  "profile": "existing Cargo profiling profile",
+  "test": "another_rust_application_assembles_with_its_own_binding",
+  "elapsed_seconds": 66.34436258300047,
+  "exit": 0,
+  "sample_seconds": 10,
+  "sample_interval_ms": 1,
+  "cap_seconds": 300,
+  "maximum_resident_bytes": 6645088256
+}

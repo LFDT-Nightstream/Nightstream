@@ -363,6 +363,61 @@ pub(super) fn rlc(root: &Path, step: u64) {
     save(&directory.join("parent-witness.json"), &parent.witness);
     save(&directory.join("parent.json"), &record);
 }
+
+pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_proof: &Path) {
+    let directory = fold_dir(root, step);
+    fs::create_dir_all(&directory).unwrap();
+    let package = prepare_with_engine(engine);
+    let source = load_sources(&package, &step_dir(root, step), step);
+    let fresh = source.fresh.claim.clone();
+    let running = source.running.claims_only();
+    let started = Instant::now();
+    let (next, proof) = package.prove(vec![source.fresh], source.running).unwrap();
+    eprintln!("complete C/R/D engine={engine:?} elapsed={:?}", started.elapsed());
+    let wire = proof.canonical_bytes();
+    assert!(
+        wire == fs::read(reference_proof).unwrap(),
+        "complete CPU/device proof bytes differ"
+    );
+    let mut transcript = Transcript::session();
+    let verified = folding::verify(
+        &mut transcript,
+        &params(&package),
+        &package.structure,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        std::slice::from_ref(&fresh),
+        &running,
+        &proof,
+    )
+    .unwrap();
+    assert_eq!(next.claims, verified.claims);
+    assert_eq!(next.parent_authority, verified.parent_authority);
+    let parent = SavedParent {
+        schema: 1,
+        structural_identifier: package.package.structural_identifier(),
+        package_identity: package.package_identity(),
+        verification_key_digest: package.binding.verification_key_digest(),
+        sumcheck: proof.pi_ccs.sumcheck,
+        ccs_outputs: proof.pi_ccs.outputs,
+        rlc_parent: proof.pi_rlc.combined,
+        transcript_state: transcript.snapshot().state(),
+        transcript_absorbed: transcript.snapshot().absorbed(),
+    };
+    for (child, digit) in next.witnesses.iter().enumerate() {
+        save(&directory.join(format!("digit-{child}.json")), digit);
+    }
+    save(&directory.join("parent.json"), &parent);
+    save_bytes(&directory.join("proof.native"), &wire);
+    save(
+        &directory.join("nifs.json"),
+        &SavedNifs {
+            parent,
+            children: proof.pi_dec.children,
+        },
+    );
+    eprintln!("complete CPU/device proof equality passed: {} bytes", wire.len());
+}
 pub(super) fn split(root: &Path, step: u64) {
     let directory = fold_dir(root, step);
     let package = prepare();
@@ -383,6 +438,61 @@ pub(super) fn split(root: &Path, step: u64) {
         },
     );
 }
+// Produce CPU opening data with one cache. NIFS still authenticates every
+// saved witness and commitment before these values enter an accepted proof.
+pub(super) fn openings(root: &Path, step: u64) {
+    let directory = fold_dir(root, step);
+    let package = prepare();
+    let parent = read_parent(&package, root, step);
+    let split: SavedSplit = load(&directory.join("split.json"));
+    assert_eq!(split.schema, 1);
+    assert_eq!(split.parent, parent.rlc_parent);
+    assert_eq!(split.commitments.len(), 16);
+    assert_eq!(
+        ajtai_dec_mixer(&split.commitments, params(&package).b()),
+        parent.rlc_parent.c
+    );
+    let witness: Mat<F> = load(&directory.join("parent-witness.json"));
+    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&witness, 16, params(&package).b()).unwrap();
+    drop(witness);
+    assert_eq!(flags, split.nonzero);
+    for (child, expected) in digits.iter().enumerate() {
+        let actual: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
+        assert_eq!(&actual, expected, "complete canonical digit {child}");
+    }
+    let blocks = digits
+        .iter()
+        .map(|digit| SuperneoZBlocks::from_witness_mat(digit, package.structure.m).unwrap())
+        .collect::<Vec<_>>();
+    drop(digits);
+    let started = Instant::now();
+    let values = package
+        .build_superneo_cache()
+        .unwrap()
+        .eval_real_v1_1_openings(&parent.rlc_parent.r, &blocks)
+        .unwrap();
+    assert_eq!(values.len(), 16);
+    for (child, opening) in values.into_iter().enumerate() {
+        if !flags[child] {
+            assert_eq!(opening, zero_opening(&package));
+            continue;
+        }
+        save(
+            &directory.join(format!("child-{child}.json")),
+            &SavedChildOpening {
+                schema: 1,
+                child,
+                parent: parent.rlc_parent.clone(),
+                commitment: split.commitments[child].clone(),
+                opening,
+                transcript_state: parent.transcript_state,
+                transcript_absorbed: parent.transcript_absorbed,
+            },
+        );
+    }
+    eprintln!("D CPU batch openings elapsed={:?}", started.elapsed());
+}
+
 pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngine) {
     assert!(child < 16, "selected child index");
     let directory = fold_dir(root, step);

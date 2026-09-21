@@ -1,11 +1,11 @@
 //! Metal round evaluation and child openings for the selected C/R/D fold.
-//! The host keeps transcript order, fixed-key commitments, and public checks.
+//! The host keeps transcript order and public checks; device arithmetic also
+//! generates the fixed key and computes child commitments.
 
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, NifsProof,
     Params, RunningInstance, Structure,
 };
-use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrices;
 use neo_math::D;
 use neo_prover_metal::MetalRowProver;
 use neo_reductions::{
@@ -53,8 +53,11 @@ pub(crate) fn prove(
     let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent.witness, params.k_rho() as usize, params.b())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    let commitments = commit_production_signed_unit_prefix_matrices(&digits)
-        .map_err(|error| pi_dec::Error::from(error.into_error()))?;
+    drop(parent.witness);
+    let commitments = device
+        .commit_production_prefixes(&digits)
+        .map_err(folding::kernels::Error::from)
+        .map_err(pi_dec::Error::from)?;
     let openings = device
         .child_openings(Arc::clone(cache), &digits, &parent.claim.r, structure.m)
         .map_err(folding::kernels::Error::from)

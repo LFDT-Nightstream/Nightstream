@@ -1,11 +1,15 @@
-//! Prover engine selection. Circuit identity and verification do not depend on it.
+//! Proving and terminal row arithmetic. Circuit identity and transcript order stay fixed.
+
+use neo_ajtai::{nightstream_fprime_setup, Commitment};
+use neo_ccs::Mat;
+use neo_math::F;
 
 pub(crate) mod crosscheck;
 #[cfg(feature = "metal")]
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
 
-/// Arithmetic implementation used for an active C/R/D fold.
+/// Arithmetic implementation used for proving and terminal row checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Engine {
     /// Direct paper formulas for reference checks.
@@ -44,6 +48,28 @@ pub(crate) enum Prover {
 }
 
 impl Prover {
+    pub(crate) fn commit(&self, witnesses: &[Mat<F>]) -> Result<Vec<Commitment>, EngineError> {
+        let failure = |reason: String| EngineError::Failure {
+            engine: self.engine(),
+            reason,
+        };
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device
+                .lock()
+                .map_err(|_| failure("device lock was poisoned".into()))?
+                .commit_production_prefixes(witnesses)
+                .map_err(|error| failure(error.to_string())),
+            _ => match witnesses {
+                [witness] => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix(witness)
+                    .map(|commitment| vec![commitment])
+                    .map_err(|error| failure(error.to_string())),
+                _ => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrices(witnesses)
+                    .map_err(|error| failure(error.to_string())),
+            },
+        }
+    }
+
     pub(crate) fn new(engine: Engine) -> Result<Self, EngineError> {
         match engine {
             Engine::Optimized => Ok(Self::Optimized),

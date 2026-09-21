@@ -1,0 +1,13 @@
+   Compiling neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+   Compiling neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+   Compiling neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 35.63s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 2 tests
+test identity::tests::streamed_identity_matches_the_original_numeric_array_preimage ... ok
+test identity::tests::streamed_identity_rejects_non_natural_atoms_and_non_array_nodes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s
+

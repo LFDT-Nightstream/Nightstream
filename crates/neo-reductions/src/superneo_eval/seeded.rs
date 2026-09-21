@@ -9,7 +9,7 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use super::{add_scaled_rq, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
+use super::{RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
 
 const SEEDED_WORK_COLUMNS: usize = 1024;
 
@@ -314,31 +314,22 @@ impl SuperneoMatrixCache {
             if self.identity {
                 let block = row / D;
                 let local = row % D;
-                touch_ring_block(scratch, block);
-                scratch.agg_re[block].0[local] += w_re;
-                scratch.agg_im[block].0[local] += w_im;
+                scratch.add_coefficient(block, local, w_re, w_im);
                 continue;
             }
             for compact in self.row_blocks_for(row).iter().copied() {
                 let block = self.row_block_index(compact);
-                touch_ring_block(scratch, block);
                 if let Some((_, local, coefficient)) = compact.single_parts() {
-                    scratch.agg_re[block].0[local] += w_re * coefficient;
-                    scratch.agg_im[block].0[local] += w_im * coefficient;
+                    scratch.add_coefficient(block, local, w_re * coefficient, w_im * coefficient);
                 } else {
                     let orig = self.dense_block(self.dense_pattern_index(compact));
-                    add_scaled_rq(&mut scratch.agg_re[block], &orig, w_re);
-                    add_scaled_rq(&mut scratch.agg_im[block], &orig, w_im);
+                    scratch.add_scaled(block, &orig, w_re, w_im);
                 }
             }
             self.accumulate_geometric_ring_form_row(row, w_re, w_im, scratch);
         }
 
-        for index in 0..scratch.active_blocks.len() {
-            let block = scratch.active_blocks[index];
-            scratch.agg_re[block].0 = superneo_bar_block(scratch.agg_re[block].0);
-            scratch.agg_im[block].0 = superneo_bar_block(scratch.agg_im[block].0);
-        }
+        scratch.bar_active();
 
         self.accumulate_seeded_ring_form_split_chi(chi_re, chi_im, n_eff, scratch);
     }
@@ -434,9 +425,7 @@ impl SuperneoMatrixCache {
                     .collect();
                 for partial in partials {
                     for (blk, re, im) in partial {
-                        touch_ring_block(scratch, blk);
-                        add_scaled_rq(&mut scratch.agg_re[blk], &re, F::ONE);
-                        add_scaled_rq(&mut scratch.agg_im[blk], &im, F::ONE);
+                        scratch.add_forms(blk, &re, &im);
                     }
                 }
             }
@@ -548,14 +537,6 @@ fn tensor_point_at(row_challenges: &[K], index: usize) -> K {
                     challenge
                 }
         })
-}
-
-#[inline]
-fn touch_ring_block(scratch: &mut RingEvalScratch, blk: usize) {
-    if !scratch.touched[blk] {
-        scratch.touched[blk] = true;
-        scratch.active_blocks.push(blk);
-    }
 }
 
 fn seeded_transformed_column_basis() -> [Rq; D] {

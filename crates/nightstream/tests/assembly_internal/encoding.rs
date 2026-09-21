@@ -46,6 +46,35 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
 }
 
 #[test]
+fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let bytes = std::fs::read(path).unwrap();
+    let expected: Value = serde_json::from_slice(&bytes).unwrap();
+    let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    drop(bytes);
+    // This part of the reference is replaced by the caller's application.
+    // A correct candidate therefore cannot authorize this altered blueprint.
+    let constant = &mut reference.application.rows[0].a.constant;
+    *constant = u64::from(*constant == 0);
+    let mut changed = serde_json::to_vec(&reference).unwrap();
+    changed.push(b'\n');
+    let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    let application = poseidon2_hash_chain_v1().unwrap();
+    let candidate = assemble(reference, &manifest, &application).unwrap();
+    assert!(
+        candidate == expected,
+        "the assembled circuit is still the pinned circuit"
+    );
+    drop(candidate);
+    drop(expected);
+    assert!(matches!(
+        prepare(&changed, &application),
+        Err(AssemblyError::Package(PackageError::ExpectedIdentityMismatch { .. }))
+    ));
+}
+
+#[test]
 fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     let mut builder = ApplicationBuilder::new(4).unwrap();

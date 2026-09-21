@@ -1,0 +1,21 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 12.00s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 1 test
+
+thread 'session::joint::tests::application_storage_does_not_reserve_future_rounds' (390163) panicked at crates/neo-prover-metal/src/session/../../tests/unit/joint_buffers.rs:118:5:
+assertion `left == right` failed
+  left: 48
+ right: 16
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test session::joint::tests::application_storage_does_not_reserve_future_rounds ... FAILED
+
+failures:
+
+failures:
+    session::joint::tests::application_storage_does_not_reserve_future_rounds
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.40s
+
+error: test failed, to rerun pass `-p neo-prover-metal --lib`

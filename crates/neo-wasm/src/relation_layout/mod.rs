@@ -509,7 +509,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             kind: MemoryKind::Ram,
             ports: vec![
                 // Linear-memory rows are split into pure-Read (loads) and
-                // RMW Write (stores) per the Nebula-style memory argument:
+                // RMW Write (stores) for the memory-consistency argument:
                 // a load emits one Read tuple `(addr, lane*_value, t_r)`
                 // — the memory argument enforces it matches the latest
                 // write at `addr`, with no write tuple from the load. A
@@ -974,13 +974,13 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // events_remaining and increments event_index. While events_remaining
         // is nonzero, program, result, and boundary rows cannot execute, so
         // event_index cannot reset. Every gather uses event_index as an active
-        // host-event ROM address component; the Nebula
-        // memory binding range-proves address components to at most 32 bits
-        // (and to the family's narrower configured width). Field addition
-        // does not wrap at 2^32, so after at most 2^32 blocks the next gather
-        // is unsatisfiable while events_remaining remains nonzero. The trace therefore
-        // cannot halt, enforcing template presence in the composed circuit
-        // without preprocessing validation.
+        // host-event ROM address component. A composed memory argument must
+        // range-prove address components to at most 32 bits (and to the
+        // family's narrower configured width). With those bounds, field
+        // addition cannot wrap at 2^32: after at most 2^32 blocks the next
+        // gather is unsatisfiable while events_remaining remains nonzero.
+        // This enforces template presence in the composed circuit. The bare
+        // frontend relation does not establish this memory-binding guarantee.
         MemorySpec {
             id: WasmMemoryId::HostEventImportScheduleCount,
             kind: MemoryKind::Rom,

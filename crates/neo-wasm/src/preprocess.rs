@@ -28,7 +28,6 @@ use crate::layout::{
     COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
     COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
-use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
@@ -64,8 +63,6 @@ pub enum WasmPreprocessError {
     R1csFPrime(#[from] neo_fold_clean::frontends::r1cs_f_prime::Error),
     #[error(transparent)]
     Batch(#[from] BatchError),
-    #[error(transparent)]
-    Lookup(#[from] LookupCircuitError),
 }
 
 /// Canonical structural inputs for the wasm R1CS-F' frontend.
@@ -77,14 +74,6 @@ pub struct WasmCanonicalFPrimeShape {
     pub sparse_r1cs: SparseR1cs,
     pub plan: RecursiveStepImagePlan,
     pub structure: FPrimeStructure,
-}
-
-pub(crate) struct WasmNebulaCanonicalShape {
-    pub(crate) sparse_r1cs: SparseR1cs,
-    pub(crate) plan: RecursiveStepImagePlan,
-    pub(crate) lookup_auxiliary_columns_per_instruction: usize,
-    pub(crate) lookup_auxiliary_columns_total: usize,
-    pub(crate) single_step_columns: usize,
 }
 
 pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
@@ -105,32 +94,6 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
         sparse_r1cs,
         plan,
         structure,
-    })
-}
-
-pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
-    batch_size: usize,
-    initial_semantic_state_digest: [u8; 32],
-) -> Result<WasmNebulaCanonicalShape, WasmPreprocessError> {
-    let mut single = batch::build_batched_wasm_ccs(1)?;
-    single.sparse_r1cs.m_in = 1;
-    let compact = extend_relation(&single.sparse_r1cs, single.widths)?;
-    let single_step_columns = compact.relation.m;
-    let lookup_auxiliary_columns_per_instruction = compact.auxiliary_column_count;
-    let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
-    let (plan, _) = wasm_recursive_plan_and_structure(
-        &batched.sparse_r1cs,
-        &batched.widths,
-        batch_size,
-        batched.sparse_r1cs.m_in,
-        initial_semantic_state_digest,
-    );
-    Ok(WasmNebulaCanonicalShape {
-        sparse_r1cs: batched.sparse_r1cs,
-        plan,
-        lookup_auxiliary_columns_per_instruction,
-        lookup_auxiliary_columns_total: lookup_auxiliary_columns_per_instruction * batch_size,
-        single_step_columns,
     })
 }
 
@@ -192,7 +155,7 @@ pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64
 
 /// Hash a carried VM state into the IVC semantic-state digest: the
 /// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
-/// and the final-state claim checked by [`crate::verify`].
+/// and the final-state claim checked by the test-only relation audit harness.
 ///
 /// `halted` is carried explicitly, so the terminal claim cannot be changed
 /// independently of the folded semantic-state digest.

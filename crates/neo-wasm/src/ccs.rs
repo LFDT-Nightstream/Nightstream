@@ -293,17 +293,19 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         }
     });
 
-    b.with_tag(always("output capture support"), |b| {
-        // Only return/end rows may capture an output; padding cannot.
-        b.push_row(
-            [(COL_OUTPUT_CAPTURED, F::ONE)],
-            [
-                (COL_ONE, F::ONE),
-                (selector_col(WasmOpcode::Return).expect("return selector"), -F::ONE),
-                (selector_col(WasmOpcode::End).expect("end selector"), -F::ONE),
-            ],
-            [],
-        );
+    b.with_tag(always("memory activation support"), |b| {
+        // Keep these activation bounds in the frontend relation, independently
+        // of slot packing. In particular, the output-capture bound rejects
+        // forged captures on padding rows.
+        // TODO: prove individual support rows redundant in Lean before removing
+        // them; the frontend semantics alone do not currently imply all of them.
+        for support in crate::memory_activation::derived_activation_supports() {
+            b.push_row(
+                [(support.gate, F::ONE)],
+                std::iter::once((COL_ONE, F::ONE)).chain(support.atoms.into_iter().map(|atom| (atom, -F::ONE))),
+                [],
+            );
+        }
     });
 
     b.with_tag(always("opcode decode"), |b| {

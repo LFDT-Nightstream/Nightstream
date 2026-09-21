@@ -62,8 +62,6 @@ pub enum BatchError {
     BatchSizeZero,
     #[error("wasm batch relation has {actual} width declarations for {expected} columns")]
     WidthCount { actual: usize, expected: usize },
-    #[error("wasm batching requires ordinary R1CS matrices; compact seeded Phi81 blocks are unsupported")]
-    CompactSeededMatrixUnsupported,
     #[error(transparent)]
     Frontend(#[from] FrontendError),
 }

@@ -21,6 +21,7 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
+use super::super::entry_inputs::entry_memory_pointer;
 use super::memory::LinearMemoryImage;
 
 /// One gather row's plan: the staged word, its expected host-event ROM entry,
@@ -210,7 +211,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = export_local_pointer(locals, local)?;
+                let pointer = entry_memory_pointer(locals, local)?;
                 accesses.push(memory.write_aligned_word(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite8 { base, byte_offset, .. } => {
@@ -219,7 +220,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = export_local_pointer(locals, local)?;
+                let pointer = entry_memory_pointer(locals, local)?;
                 accesses.push(memory.write_byte(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite16 { base, byte_offset, .. } => {
@@ -228,7 +229,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = export_local_pointer(locals, local)?;
+                let pointer = entry_memory_pointer(locals, local)?;
                 accesses.push(memory.write_half(pointer, byte_offset, value, memory_pages)?);
             }
             _ => {}
@@ -305,17 +306,6 @@ fn export_memory_pointer(output: Option<(u32, u32)>) -> Result<u32, WasmBuildErr
     }
 
     Ok(pointer)
-}
-
-fn export_local_pointer(locals: &[(u32, u32)], local: u8) -> Result<u32, WasmBuildError> {
-    locals
-        .get(usize::from(local))
-        .map(|&(lo, _)| lo)
-        .ok_or_else(|| {
-            WasmBuildError::Trace(format!(
-                "export memory base local {local} is missing from the runtime locals snapshot"
-            ))
-        })
 }
 
 fn plan_event_blocks(
@@ -598,7 +588,7 @@ pub(super) fn plan_export_blocks(
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
-                            let base_value = export_local_pointer(locals, local)?;
+                            let base_value = entry_memory_pointer(locals, local)?;
                             EventSlotRow {
                                 local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(

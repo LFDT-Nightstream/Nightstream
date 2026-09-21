@@ -9,7 +9,7 @@ use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
     absorbed_blocks, expand_export_entry, expand_export_exit, expand_import_events, opaque_value_root, EventBlock,
     EventSequenceBuilder, EventSources, ExportTemplate, HostEventBindings, HostEventBindingsBuilder, ImportTemplate,
-    Limb, MemoryBase, SlotBinding, TurnInputs,
+    Limb, MemoryBase, SlotBinding,
 };
 use neo_wasm::CommChainState;
 
@@ -97,12 +97,10 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
     builder.export(export_fref, entry, exit)?;
 
     let bindings = builder.finish()?;
-    let inputs = [TurnInputs { entry: vec![37] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &inputs,
         CommChainState::default(),
     )?;
 
@@ -954,10 +952,6 @@ fn mismatched_runtime_locals_return_an_error() {
         &run.steps,
         &artifacts.tables,
         &bindings,
-        &[TurnInputs {
-            entry: vec![0],
-            ..Default::default()
-        }],
         Default::default(),
     )
     .expect_err("mismatched runtime locals must not panic");

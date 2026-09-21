@@ -3,7 +3,6 @@ mod common;
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
     EventBlock, EventSequenceBuilder, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding,
-    TurnInputs,
 };
 use neo_wasm::{
     collect_wasmtime_component_run_with_linker, collect_wasmtime_steps, traces_from_wasmtime_steps_with_host_events,
@@ -198,14 +197,9 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
             ..Default::default()
         },
     );
-    let trace = traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        &[TurnInputs::default()],
-        Default::default(),
-    )
-    .expect("guest tail call with event binding");
+    let trace =
+        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
+            .expect("guest tail call with event binding");
     common::ccs_check_trace(&trace);
     common::check_native_event_hashes(&trace).expect("native event hashes");
 
@@ -275,14 +269,9 @@ fn tail_call_exit_memory_uses_the_captured_output_pointer() {
         },
     );
 
-    let trace = traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        &[TurnInputs::default()],
-        Default::default(),
-    )
-    .expect("captured output survives replacement of the export frame");
+    let trace =
+        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
+            .expect("captured output survives replacement of the export frame");
     common::ccs_check_trace(&trace);
 }
 

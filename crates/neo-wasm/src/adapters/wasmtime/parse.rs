@@ -142,7 +142,7 @@ pub(crate) struct ParsedFunctionMeta {
     pub(crate) param_count: u8,
     pub(crate) result_count: u8,
     num_locals: u32,
-    entry_pc: Option<u64>,
+    pub(crate) entry_pc: Option<u64>,
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {

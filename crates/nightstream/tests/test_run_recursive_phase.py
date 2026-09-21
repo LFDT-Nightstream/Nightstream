@@ -80,11 +80,52 @@ class RecursivePhaseMemoryTests(unittest.TestCase):
         process.kill.assert_not_called()
 
     def test_live_observation_failure_cannot_pass(self):
-        for observation in ([None], [OSError("observer failed")]):
-            with self.subTest(observation=observation):
-                result = self.pending_test(observation)
-                self.assertEqual(result["outcome"], "memory-observation-failed")
-                self.assertNotEqual(result["exit"], 0)
+        result = self.pending_test([OSError("observer failed")])
+        self.assertEqual(result["outcome"], "memory-observation-failed")
+        self.assertNotEqual(result["exit"], 0)
+
+    def test_missing_rss_during_exit_waits_for_status_and_checks_final_peak(self):
+        for peak, outcome in ((0, "passed"), (RUNNER.RSS_CAP_BYTES // 1024 + 1, "memory-cap")):
+            with self.subTest(outcome=outcome):
+                process = Mock()
+                process.pid = 123
+                process.returncode = None
+                process.poll.return_value = None
+
+                def communicate(*args, **kwargs):
+                    if process.communicate.call_count == 1:
+                        raise subprocess.TimeoutExpired("test", RUNNER.RSS_POLL_SECONDS)
+                    process.returncode = 0
+                    process.poll.return_value = 0
+                    return None, None
+
+                process.communicate.side_effect = communicate
+                with TemporaryFile() as output, patch.object(RUNNER.sys, "platform", "linux"), \
+                        patch.object(RUNNER.subprocess, "Popen", return_value=process), \
+                        patch.object(RUNNER.resource, "getrusage", side_effect=[usage(), usage(peak)]), \
+                        patch.object(RUNNER, "resident_bytes", return_value=None):
+                    result = RUNNER.run_test(["test"], {}, output)
+                self.assertEqual(result["outcome"], outcome)
+                self.assertEqual(result["process_exit"], 0)
+                self.assertIsNone(result["memory_observation_error"])
+                self.assertLessEqual(process.communicate.call_args_list[1].kwargs["timeout"], RUNNER.CAPS["rust"])
+                process.kill.assert_not_called()
+
+    def test_missing_rss_without_exit_still_times_out(self):
+        process = Mock()
+        process.returncode = -9
+        process.poll.return_value = None
+        process.communicate.side_effect = [subprocess.TimeoutExpired("test", RUNNER.RSS_POLL_SECONDS),
+                                           subprocess.TimeoutExpired("test", RUNNER.CAPS["rust"]),
+                                           (None, None)]
+        with TemporaryFile() as output, patch.object(RUNNER.sys, "platform", "linux"), \
+                patch.object(RUNNER.subprocess, "Popen", return_value=process), \
+                patch.object(RUNNER.resource, "getrusage", side_effect=[usage(), usage()]), \
+                patch.object(RUNNER, "resident_bytes", return_value=None):
+            result = RUNNER.run_test(["test"], {}, output)
+        self.assertEqual((result["outcome"], result["exit"]), ("timed-out", 124))
+        self.assertLessEqual(process.communicate.call_args_list[1].kwargs["timeout"], RUNNER.CAPS["rust"])
+        process.kill.assert_called_once()
 
     def test_native_deadline_still_stops_and_reaps_the_child(self):
         process = Mock()

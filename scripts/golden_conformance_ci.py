@@ -104,6 +104,10 @@ def independent_expectations(directory, references, checker, cpu_reference):
     for step in (1, 2, 3):
         independent = (first if step == 1 else replay) / f"step-{step}-to-{step + 1}"
         checked = cpu_reference / f"lean-step-{step}"
+        # Compare every field coefficient with this CPU run. Valid Goldilocks
+        # representatives can have different JSON bytes.
+        run(bounded("static", [checker, "compare-pirlc-replay", cpu / f"fold-{step}/parent-witness.json",
+                              independent / "parent-0.jsonl", independent / "parent-1.jsonl"]))
         # check-owned-nifs independently encodes every Lean proof field and
         # compares it with the same CPU snapshot used by the fresh verifier.
         run(bounded("static", [checker, "check-owned-nifs", package,

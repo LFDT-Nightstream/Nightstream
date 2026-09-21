@@ -85,12 +85,10 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(fref, export_template());
 
-    let turns = [neo_wasm::host_event_bindings::TurnInputs { entry: vec![7, 35] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("bindings trace");
@@ -290,12 +288,10 @@ fn i64_param_bootstraps_both_lanes() {
         },
     );
 
-    let turns = [neo_wasm::host_event_bindings::TurnInputs { entry: vec![7, 3] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("bindings trace");
@@ -342,6 +338,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
           (type $run-type (func (param "ptr" s32) (result s32)))
           (core module $m
             (memory 1)
+            (data (i32.const 16) "\4d\00\00\00\05\00\34\12")
             (func (export "run") (param i32) (result i32)
               local.get 0))
           (core instance $i (instantiate $m))
@@ -352,9 +349,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
     )
     .expect("component wat");
     let args = [ComponentVal::S32(16)];
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
-        .expect("component run");
-    let fref = export_fref(&run.steps);
+    let fref = 1;
 
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
@@ -384,7 +379,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                         SlotBinding::MemoryWrite8 {
                             input: 2,
                             base: MemoryBase::Local(0),
-                            byte_offset: 1,
+                            byte_offset: 4,
                         },
                     ),
                     (
@@ -392,7 +387,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                         SlotBinding::MemoryWrite16 {
                             input: 3,
                             base: MemoryBase::Local(0),
-                            byte_offset: 2,
+                            byte_offset: 6,
                         },
                     ),
                 ]),
@@ -411,14 +406,14 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                         1,
                         SlotBinding::MemoryRead8 {
                             base: MemoryBase::Output,
-                            byte_offset: 1,
+                            byte_offset: 4,
                         },
                     ),
                     (
                         2,
                         SlotBinding::MemoryRead16 {
                             base: MemoryBase::Output,
-                            byte_offset: 2,
+                            byte_offset: 6,
                         },
                     ),
                 ]),
@@ -426,14 +421,11 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
             entry_input_count: 4,
         },
     );
-    let turns = [neo_wasm::host_event_bindings::TurnInputs {
-        entry: vec![16, 77, 5, 0x1234],
-    }];
+    let run = common::wasmtime_capture::component_i32(&component_bytes, "run", &args, &bindings, |_| Ok(()));
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("bindings trace");
@@ -456,7 +448,7 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                 .then(|| row.state_after.event_absorb.evbuf[usize::from(row.state_before.host_events.slot_cursor)])
         })
         .collect();
-    assert_eq!(staged_reads, [77 | (5 << 8) | (0x1234 << 16), 5, 0x1234]);
+    assert_eq!(staged_reads, [77, 5, 0x1234]);
 
     let read = trace
         .iter()
@@ -505,7 +497,6 @@ fn export_exit_memory_rejects_an_oob_output_pointer_during_normalization() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect_err("OOB output pointer must fail during normalization");

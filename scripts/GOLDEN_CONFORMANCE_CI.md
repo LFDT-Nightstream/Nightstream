@@ -31,10 +31,16 @@ Metal consumes the exact CPU files and fresh Lean input snapshots from the CPU
 job. It checks their content before and after the engine comparison. It does
 not repeat Lean generation. A missing Metal device fails the producer.
 
-Runner routing and archive publication remain operational requirements. The
-repository currently declares only `self-hosted` for heavy jobs. Until a
-macOS runner selector is confirmed, a non-macOS assignment fails the Metal
-job with an explicit message. No host label or memory capacity is assumed.
+CPU and independent jobs use `[self-hosted, linux]`; Metal uses
+`[self-hosted, macOS]`. These are GitHub's default OS labels, and each assigned
+runner must match all listed labels. The independent replay needs Linux
+because its coordinator uses GNU `/usr/bin/time -v`.
+See [default runner labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow#using-default-labels-to-route-jobs).
+
+Actual runner registration and repository access remain unverified. The OS
+selectors do not establish available resources or a working Metal device.
+Those require a registered runner and successful execution of the checks.
+Archive publication also remains an operational requirement.
 The older envelope, child and later-fold archive tags returned HTTP 404 in
 the public release check; downloads fail until those exact assets are available.
 The independent replay release is available. Missing archives cannot count as

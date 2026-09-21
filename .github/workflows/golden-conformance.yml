@@ -49,7 +49,7 @@ jobs:
     name: Current CPU and Lean golden checks
     needs: selection
     if: needs.selection.outputs.native == 'true' || needs.selection.outputs.lean_reference == 'true' || needs.selection.outputs.metal == 'true'
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,7 +104,8 @@ jobs:
     name: Independently regenerate the selected Lean expectations
     needs: [selection, cpu]
     if: needs.selection.outputs.lean_reference == 'true'
-    runs-on: self-hosted
+    # The replay coordinator uses GNU /usr/bin/time -v.
+    runs-on: [self-hosted, linux]
     # Exact self-hosted platform ceiling: 5 days, not a native/Lean command cap.
     # https://docs.github.com/en/actions/reference/limits
     # Retained C stages alone took 20,684.78 s; the default 360 minutes cannot
@@ -150,15 +151,13 @@ jobs:
     name: Current Metal equality with the same CPU files
     needs: [selection, cpu]
     if: needs.selection.outputs.metal == 'true'
-    # This is the only existing heavy-runner label. A Linux assignment fails
-    # visibly below until an actual macOS runner selector is confirmed.
-    runs-on: self-hosted
+    runs-on: [self-hosted, macOS]
     steps:
       - name: Require the selected Metal capability
         shell: bash
         run: |
           if [[ "$RUNNER_OS" != macOS ]]; then
-            echo 'Metal conformance is required. Configure this job with a confirmed macOS Metal runner.' >&2
+            echo 'Metal conformance requires macOS.' >&2
             exit 1
           fi
       - uses: actions/checkout@v4

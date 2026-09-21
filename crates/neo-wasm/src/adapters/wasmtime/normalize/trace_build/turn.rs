@@ -1,9 +1,10 @@
+use super::super::super::entry_inputs::recover_entry_inputs;
 use super::super::host_event_emit::{
     apply_export_entry_memory, plan_export_blocks, read_export_exit_memory, EventBlockPlan,
 };
 use super::super::memory::LinearMemoryImage;
 use super::super::NormalizedStep;
-use crate::host_event_bindings::{HostEventBindings, MemoryBase, SlotBinding, TurnInputs};
+use crate::host_event_bindings::{HostEventBindings, MemoryBase, SlotBinding};
 use crate::ir::WasmBuildError;
 
 pub(super) struct TurnSetup<'g> {
@@ -15,7 +16,7 @@ pub(super) struct TurnSetup<'g> {
 pub(super) fn setup_turn<'g>(
     bindings: &'g HostEventBindings,
     first: &NormalizedStep,
-    inputs: &TurnInputs,
+    program: Option<&super::super::super::WasmProgramTables>,
     re_entered: bool,
     memory: &mut LinearMemoryImage,
 ) -> Result<TurnSetup<'g>, WasmBuildError> {
@@ -25,8 +26,28 @@ pub(super) fn setup_turn<'g>(
             "host-event bindings require an export template for the invoked export (fref {fref})"
         ))
     })?;
+    if let Some(program) = program {
+        let entry_pc = program
+            .function_entries
+            .iter()
+            .find_map(|&(function_ref, pc)| (function_ref == u64::from(fref)).then_some(pc))
+            .ok_or_else(|| WasmBuildError::Trace(format!("missing entry pc for export fref {fref}")))?;
+        if u64::from(first.pc) != entry_pc {
+            return Err(WasmBuildError::Trace(format!(
+                "export fref {fref} starts at pc {}, expected entry pc {entry_pc}; entry rows are missing",
+                first.pc
+            )));
+        }
+    }
     validate_runtime_entry_locals(template, first)?;
-    let entry_blocks = crate::host_event_bindings::expand_export_entry(template, &inputs.entry)
+    let inputs = recover_entry_inputs(
+        template,
+        &first.locals_snapshot,
+        first.memory_pages_before,
+        first.entry_memory.as_ref(),
+    )
+    .map_err(|err| WasmBuildError::Trace(format!("export fref {fref} entry recovery: {err}")))?;
+    let entry_blocks = crate::host_event_bindings::expand_export_entry(template, &inputs)
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
     let memory_accesses = apply_export_entry_memory(
         &template.entry,
@@ -55,6 +76,9 @@ pub(super) fn setup_turn<'g>(
             }
         }
     }
+    // This is a capture-to-bootstrap consistency check, not authentication of
+    // intended arguments. It also checks unmapped locals and missing hi writes;
+    // recovering mapped values alone does not establish full-frame equality.
     // The locals RAM starts all-zero and re-entered turns inherit the
     // previous turn's values, so every turn's entry frame must be exactly
     // reproduced by the bootstrap writes: unwritten locals must have run as

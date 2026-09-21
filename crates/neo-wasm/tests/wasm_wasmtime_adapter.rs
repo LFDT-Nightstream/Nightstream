@@ -108,7 +108,7 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
     let mut store = Store::new(
         &engine,
         EmbedderStoreData {
-            trace: WasmtimeTraceState::from_program_artifacts(&artifacts),
+            trace: WasmtimeTraceState::from_program_artifacts(&artifacts, &Default::default()),
             host_counter: 7,
         },
     );
@@ -245,8 +245,10 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let instance_a = futures::executor::block_on(linker_a.instantiate_async(&mut store, &module_a)).expect("inst a");
     let idx_a = instance_a.debug_index_in_store();
     let map_a = build_debug_function_id_map(&instance_a, &mut store).expect("funcref map a");
-    let mut trace_a =
-        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_a).expect("art a"));
+    let mut trace_a = WasmtimeTraceState::from_program_artifacts(
+        &extract_wasm_program_artifacts(&wasm_a).expect("art a"),
+        &Default::default(),
+    );
     trace_a.set_func_ref_ids(map_a);
     store.data_mut().traces.insert(idx_a, trace_a);
 
@@ -261,8 +263,10 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let instance_b = futures::executor::block_on(linker_b.instantiate_async(&mut store, &module_b)).expect("inst b");
     let idx_b = instance_b.debug_index_in_store();
     let map_b = build_debug_function_id_map(&instance_b, &mut store).expect("funcref map b");
-    let mut trace_b =
-        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_b).expect("art b"));
+    let mut trace_b = WasmtimeTraceState::from_program_artifacts(
+        &extract_wasm_program_artifacts(&wasm_b).expect("art b"),
+        &Default::default(),
+    );
     trace_b.set_func_ref_ids(map_b);
     store.data_mut().traces.insert(idx_b, trace_b);
 

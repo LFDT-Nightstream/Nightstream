@@ -155,14 +155,9 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         },
     );
     bindings.exports.insert(export_fref, Default::default());
-    let trace = traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        &[Default::default()],
-        Default::default(),
-    )
-    .expect("component trace normalization");
+    let trace =
+        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
+            .expect("component trace normalization");
     let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
     common::ccs_check_trace(&trace);
     let witnesses: Vec<_> = trace

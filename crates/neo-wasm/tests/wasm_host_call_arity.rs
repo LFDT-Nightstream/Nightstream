@@ -67,7 +67,6 @@ fn checked_import_run(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[Default::default()],
         Default::default(),
     )
     .expect("bindings trace");

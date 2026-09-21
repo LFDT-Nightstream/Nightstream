@@ -144,12 +144,10 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     let (frefs, run_fref) = run_frefs(&run);
     let bindings = test_bindings(&run.program_tables, frefs[0], frefs[1], run_fref).expect("build bindings");
 
-    let turns = [neo_wasm::host_event_bindings::TurnInputs::default()];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("bindings trace");

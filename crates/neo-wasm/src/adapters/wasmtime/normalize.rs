@@ -36,16 +36,25 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 ///
 /// Program tables supply the initial memory image used by host-event memory
 /// slots; they must describe the same core module that produced `rows`.
+/// Entry inputs are recovered from captured locals and memory. For memory
+/// inputs, pass these bindings to [`super::WasmtimeTraceState::from_program_artifacts`]
+/// when creating the caller-owned store's trace state; the convenience collectors do
+/// not configure entry-memory capture. Recovery rejects overlapping writes, including aliases
+/// through different pointer locals. Only memory zero with verifier-known
+/// initialization and local-based entry addresses is supported.
+/// Recovery supplies witness values, not independent evidence of the caller's
+/// intended arguments. Bootstrap checks ensure that the declared initialization
+/// reproduces the captured frame; the relation and memory checks validate the
+/// resulting execution against the verifier's program and bindings.
 pub fn traces_from_wasmtime_steps_with_host_events(
     rows: &[WasmtimeTraceStep],
     program: &super::WasmProgramTables,
     bindings: &crate::host_event_bindings::HostEventBindings,
-    turn_inputs: &[crate::host_event_bindings::TurnInputs],
     initial_comm_chain: crate::comm_chain::CommChainState,
 ) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
     bindings.validate_against_program(program)?;
     let linear_memory = memory::LinearMemoryImage::for_host_events(bindings, program)?;
-    trace_build::build_trace(rows, Some((bindings, turn_inputs)), initial_comm_chain, linear_memory)
+    trace_build::build_trace(rows, Some((bindings, program)), initial_comm_chain, linear_memory)
 }
 
 #[derive(Clone, Debug)]
@@ -105,6 +114,7 @@ struct NormalizedStep {
     linear_memory_offset: u64,
     /// Oracle words recorded on this (host-call) row at collection time.
     host_call_inputs: Vec<u64>,
+    entry_memory: Option<Result<std::collections::BTreeMap<u32, u8>, String>>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -265,6 +275,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
         host_call_inputs: row.host_call_inputs.clone(),
+        entry_memory: row.entry_memory.clone(),
     }))
 }
 
@@ -520,6 +531,7 @@ pub(crate) fn capture_frame<T>(
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
         host_call_inputs: Vec::new(),
+        entry_memory: None,
     })
 }
 

@@ -6,7 +6,7 @@ mod common;
 use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
-    absorbed_blocks, EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding, TurnInputs,
+    absorbed_blocks, EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
@@ -47,7 +47,7 @@ impl TracedTestComponent {
         let component = Component::new(&engine, component_bytes).expect("component");
         let mut store = Store::new(
             &engine,
-            neo_wasm::WasmtimeTraceState::from_program_artifacts(&artifacts),
+            neo_wasm::WasmtimeTraceState::from_program_artifacts(&artifacts, &Default::default()),
         );
         store.set_debug_handler(neo_wasm::WasmtimeTraceHandler::new());
         store
@@ -160,8 +160,8 @@ fn add_template() -> ExportTemplate {
     }
 }
 
-fn turn_inputs() -> [TurnInputs; 2] {
-    [TurnInputs { entry: vec![7] }, TurnInputs { entry: vec![35] }]
+fn turn_inputs() -> [Vec<u64>; 2] {
+    [vec![7], vec![35]]
 }
 
 struct MultiTurnSetup {
@@ -185,7 +185,6 @@ fn multi_turn_setup() -> MultiTurnSetup {
         &run.steps,
         &run.program_tables,
         &HostEventBindings::default(),
-        &turn_inputs(),
         Default::default(),
     );
     assert!(component_first.is_err(), "missing export template must be rejected");
@@ -211,7 +210,6 @@ fn multi_turn_setup() -> MultiTurnSetup {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turn_inputs(),
         Default::default(),
     )
     .expect("multi-turn bindings trace");
@@ -229,13 +227,13 @@ fn multi_turn_setup() -> MultiTurnSetup {
 fn expected_transcript(
     bindings: &HostEventBindings,
     add_fref: u32,
-    turns: &[TurnInputs],
+    turns: &[Vec<u64>],
     outputs: &[u32],
 ) -> Vec<[p3_goldilocks::Goldilocks; 8]> {
     let template = bindings.exports.get(&add_fref).expect("template");
     let mut blocks = Vec::new();
     for (turn, &output) in turns.iter().zip(outputs) {
-        let entry = neo_wasm::host_event_bindings::expand_export_entry(template, &turn.entry).expect("entry");
+        let entry = neo_wasm::host_event_bindings::expand_export_entry(template, turn).expect("entry");
         blocks.extend(absorbed_blocks(&template.entry, &entry).expect("absorbed entry"));
         let exit = neo_wasm::host_event_bindings::expand_export_exit(template, Some((output, 0)), &[]).expect("exit");
         blocks.extend(absorbed_blocks(&template.exit, &exit).expect("absorbed exit"));
@@ -266,7 +264,6 @@ fn multi_turn_rejects_an_empty_reentry_template() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[TurnInputs::default(), TurnInputs::default()],
         Default::default(),
     )
     .expect_err("re-entry without any events must be rejected");
@@ -306,7 +303,6 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
         &run.steps,
         &run.program_tables,
         &bindings,
-        &[TurnInputs::default(), TurnInputs::default()],
         Default::default(),
     )
     .unwrap();
@@ -402,12 +398,10 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
     };
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(fref, template);
-    let turns = [TurnInputs { entry: vec![7] }, TurnInputs { entry: vec![35] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .unwrap();
@@ -528,7 +522,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
         .expect("verify with the two-turn transcript");
 
     let mut wrong_turns = turn_inputs();
-    wrong_turns[1].entry[0] = 34;
+    wrong_turns[1][0] = 34;
     let wrong = expected_transcript(&setup.bindings, setup.add_fref, &wrong_turns, &[7, 42]);
     assert!(
         matches!(
@@ -755,12 +749,10 @@ fn resultless_turn_can_precede_another_turn() {
             entry_input_count: 0,
         },
     );
-    let turns = [TurnInputs { entry: vec![41] }, TurnInputs::default()];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
         &bindings,
-        &turns,
         Default::default(),
     )
     .expect("resultless-then-value trace");
@@ -841,7 +833,6 @@ fn resultless_turn_can_precede_another_turn() {
             &run.steps,
             &run.program_tables,
             &bad_bindings,
-            &turns,
             Default::default(),
         )
         .is_err(),

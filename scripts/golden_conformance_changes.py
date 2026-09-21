@@ -89,6 +89,8 @@ def checks_for_path(name: str) -> tuple[str, ...]:
         return ALL
     if name.startswith("docs/reviews/nightstream-fprime-requirements/") and path.name in REPLAY_INPUTS:
         return ALL
+    if name == "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip":
+        return ("native",)  # Input to the mutation-generator regression.
     if name == "crates/nightstream/tests/restore_golden_inputs.py":
         return ALL
     if name == "scripts/build_metal_shaders.sh":

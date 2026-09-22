@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, independent iteration-2 C/R/D and successor comparisons, and final-state-3 terminal acceptance and all three selected rejections have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold C/R/D generation and comparison passed against its fresh native targets; successor checks, full direct current CPU1 comparisons and the complete first-successor input connection remain pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
+  "scope": "Selected local CPU–Lean 1-to-2-to-3 conformance goal completed at 2026-09-22T14:04:47.952118Z. Archive restoration, current CPU staged execution, fresh Lean verifier checks, independent first-fold generation and full current CPU1 comparisons, independent second-fold C/R/D and successor comparisons, complete first-successor input connection, final-state-3 terminal acceptance and all three selected rejections, and current CPU/Lean handoff checks passed. Iteration-2 C remains retained computation under its source/input audit. The selected 9/10 engineering conformance target is met; no cryptographic security bound or universal soundness is claimed. Third-fold work and failures remain historical evidence; the broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -558,7 +558,7 @@
       "bytes_compared": 579873475,
       "scope": "Exact current CPU child file bytes equal the retained targets checked against new independent Lean digit ranges."
     },
-    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. The selected 1-to-2-to-3 goal still needs first-fold independent generation, the complete input connection and final-state-3 terminal checks. This does not close the broader registered 2-to-3-to-4 obligation."
+    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. The completed selected 1-to-2-to-3 result, complete input connection and final-state-3 terminal checks are recorded under selected_1_to_2_to_3. This does not close the broader registered 2-to-3-to-4 obligation."
   },
   "independent_iteration_2_successor": {
     "outcome": "passed",
@@ -1163,7 +1163,9 @@
     "scope": "Per-worktree execution-policy correction, private Rust build validation and sealed source transition remain in effect. Resumed third-fold generation was stopped by owner instruction. All dated counts and failed receipts are preserved. CI and Metal remain out of scope."
   },
   "selected_1_to_2_to_3": {
-    "outcome": "running",
+    "outcome": "passed",
+    "completed_utc": "2026-09-22T14:04:47.952118Z",
+    "confidence_target": "Selected 9/10 engineering conformance target met; not a cryptographic security bound or universal soundness claim.",
     "selected_iterations": [
       1,
       2,
@@ -1174,15 +1176,18 @@
       "2-to-3"
     ],
     "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected_123.py",
-    "driver_status": "Started 2026-09-22T08:18:51.042027Z; independent first-fold C/R/D generation and comparison passed; successor checks are running.",
-    "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
+    "driver_status": "Started 2026-09-22T08:18:51.042027Z; all nine selected commands passed with exit 0. Source, driver and bridge checks passed at completion.",
+    "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
     "first_fold_generation": {
-      "outcome": "running",
+      "outcome": "passed",
       "started_utc": "2026-09-22T08:18:51.042027Z",
+      "completed_utc": "2026-09-22T14:02:17.500496Z",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.json",
+      "elapsed_seconds": 20606.455368600786,
       "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-events.jsonl",
       "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.log",
       "standalone_first_checkpoint_reused": false,
-      "scope": "The selected driver owns the first-fold checkpoint. Independent C/R/D generation and comparison passed against its fresh native targets; successor checks, full direct current CPU1 comparisons and the complete input bridge remain pending.",
+      "scope": "The selected driver owns the completed first-fold checkpoint. Independent C/R/D and successor generation passed; direct current CPU1 comparisons and the complete first-to-second input connection also passed, as recorded below.",
       "C": {
         "outcome": "passed",
         "started_utc": "2026-09-22T08:43:30.987032Z",
@@ -1290,15 +1295,65 @@
             "scope": "PiDEC mutation checks only. The full NIFS mutation suite is not run by nifs-comparison."
           }
         },
-        "scope": "Independent first-fold R/D against this replay's fresh native targets. All parent and child digit coefficients, including omitted zero entries and tails, match. Complete public C/R/D outputs and all native NIFS proof bytes match the Lean result; all 17 D fields also match the normal native PiDEC wrapper. Selected-case conformance only. Successor checks, full direct current CPU1 comparisons and the complete first-to-second input connection remain pending."
+        "scope": "Independent first-fold R/D against this replay's fresh native targets. All parent and child digit coefficients, including omitted zero entries and tails, match. Complete public C/R/D outputs and all native NIFS proof bytes match the Lean result; all 17 D fields also match the normal native PiDEC wrapper. Selected-case conformance only. Successor, direct current CPU1 and complete input-connection results are recorded separately below."
+      },
+      "successor": {
+        "outcome": "passed",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "receipts": "caller, native-successor, physical, physical-witness-bytes, assignment, assignment-comparison, assignment-assemble, canonical-rows, canonical-row-rejections, fresh-witness-bytes, fresh-commitment-0..2, fresh-commitment-merge, fresh-claim-comparison, physical-rejections; each has a .json receipt and .log.",
+        "children": 16,
+        "sum_child_elapsed_seconds": 1145.589899778366,
+        "longest_child": "canonical-rows",
+        "longest_child_seconds": 495.8832268714905,
+        "caps_seconds": "Lean 1500; Rust, Python and static 300; all 16 children passed within their caps.",
+        "assignment_coefficients": 253011276,
+        "assignment_tail_coefficients": 45,
+        "changed_assignment_target_rejected": true,
+        "active_canonical_rows": 6377559,
+        "canonical_blocks": 23,
+        "canonical_row_rejection_cases": 8,
+        "physical_assignment_commitment_rejection_cases": 26,
+        "row_scope": "Executed active canonical rows on the new carrier; padding coverage uses the existing proof."
+      },
+      "current_CPU1_comparisons": {
+        "outcome": "passed",
+        "completed_utc": "2026-09-22T14:02:58.548409Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5",
+        "receipts": "selected-123-first-current-parent.json, selected-123-first-current-nifs.json and selected-123-first-current-outputs.json; each has a corresponding .log.",
+        "parent_elapsed_seconds": 19.242081084055826,
+        "nifs_elapsed_seconds": 19.841162463882938,
+        "outputs_elapsed_seconds": 1.9617384460289031,
+        "parent_coefficients": 253011276,
+        "nifs_proof_bytes": 945983,
+        "caller_bytes_each": 940444,
+        "physical_bytes_equal": 234755400,
+        "fresh_witness_Lean_bytes": 96258853,
+        "fresh_claim_Lean_bytes": 39388,
+        "fresh_result_comparison": "Complete bytes; the CPU witness and claim each add one final LF.",
+        "child_witnesses": 16,
+        "child_witness_bytes_each_side": 444373866,
+        "scope": "Complete parent, public C/R/D result, NIFS proof, caller, physical witness, fresh witness/claim and all child witnesses compared with current CPU1. Parent comparison is canonical field equality, not raw JSON byte equality. Text comparisons exclude final CR/LF."
       }
     },
     "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",
     "complete_input_connection": {
-      "outcome": "pending",
+      "outcome": "passed",
+      "completed_utc": "2026-09-22T14:03:46.952671Z",
       "helper": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/bridge_first_second.py",
-      "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/first-second-input-bridge/result.json",
-      "required_checks": [
+      "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/first-second-input-bridge/result.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-second-input-bridge.json",
+      "projection_logs": "selected-123-first-feedback-projection.log and selected-123-retained-original-projection.log in the run directory.",
+      "sources": 17,
+      "blocks_per_source": 4685394,
+      "public_bytes_per_projection": 410910,
+      "source_bytes_per_projection": 562056218,
+      "projection_scope": "Both feedback and original projections match the retained second-fold public.json and sources.jsonl in complete bytes.",
+      "state_words": 4,
+      "message_words": 4,
+      "caller_derived_frames": 17,
+      "frame_bytes_each": 32,
+      "retained_C_public_fields": [1, 2, 6],
+      "passed_checks": [
         "Exact complete public.json and sources.jsonl projections from all 17 first-successor witnesses match both original retained inputs and the sources consumed by iteration 2.",
         "Complete package bytes and selected verifier context.",
         "Full state, message and next-input request.",
@@ -1351,7 +1406,8 @@
         }
       ],
       "remaining_rejections": [],
-      "scope": "The existing native terminal predicate accepts the completed independent 2-to-3 result and rejects each selected CE-evaluation, CE-matrix-evaluation and fresh-private mutation on the actual retained witnesses. No new proof backend or first-fold completion is claimed.",
+      "scope": "The existing native terminal predicate accepts the completed independent 2-to-3 result and rejects each selected CE-evaluation, CE-matrix-evaluation and fresh-private mutation on the actual retained witnesses. The final selected driver checked and reused these completed receipts; no new proof backend is claimed.",
+      "final_driver_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-terminal-three.json",
       "coordinator_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.json",
       "coordinator_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.log",
       "coordinator_elapsed_seconds": 1129.1774398849811,
@@ -1374,6 +1430,12 @@
     "CI_execution": "out_of_scope_by_owner",
     "Metal_execution": "out_of_scope_by_owner",
     "protected_acceptance": "not claimed",
+    "final_current_cpu_handoff": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-current-cpu-handoff.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-current-cpu-handoff.log",
+      "elapsed_seconds": 2.4130181539803743
+    },
     "driver_preparation": {
       "stub_tests_passed": 10,
       "driver_sha256": "76f1745cceac6610a76dcccc40204361a069844bfdea2aa209305bac57b68101",

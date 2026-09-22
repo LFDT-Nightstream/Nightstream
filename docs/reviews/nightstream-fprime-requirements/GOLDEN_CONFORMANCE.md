@@ -168,11 +168,19 @@ authorize a new run. Historical results retain their original scope.
   its interrupted receipt is retained. This was an owner scope change, not
   a proof or data failure. Remaining 3→4 production and comparisons are no
   longer acceptance criteria. `third-fold-owner-stop.json` records the stop.
-- Final-state-3 terminal acceptance and both CE evaluation rejections pass.
-  The `fresh-private` rejection is still being checked. The
-  prepared `selected_123.py` driver and `bridge_first_second.py` helper cover
-  first-fold generation, full current CPU1 comparisons, the complete input
-  connection, and final-state-3 checks. Their results will be recorded in
+- All final-state-3 native terminal checks passed at 08:15:56 UTC on
+  2026-09-22. The valid result was accepted. Changed CE K and A evaluations
+  were rejected against the complete witness openings; changed fresh private
+  data failed relation row 0. All seven child commands, including the three
+  mutation preparations, passed within 300 seconds each. The longest child
+  took 246.751 seconds; the coordinator took 1,129.177 seconds in total.
+  `two-fold-terminal.json` and its log record this selected terminal predicate
+  on the actual retained witnesses, with no new proof backend.
+- The `selected_123.py` driver started independent first-fold generation at
+  08:18:51 UTC on 2026-09-22. It owns this first-fold checkpoint; no separate
+  completed first-fold receipt was reused. Generation is ongoing. The driver
+  and `bridge_first_second.py` helper cover full current CPU1 comparisons and
+  the complete input connection. Their results will be recorded in
   `independent-1-2-3-result.json` and `first-second-input-bridge/result.json`.
   Independent first-fold generation and the input connection have not yet
   passed. The selected 9/10 target is not yet complete.

@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, and independent iteration-2 C/R/D and successor comparisons have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold generation and the complete first-successor input connection remain pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
+  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, independent iteration-2 C/R/D and successor comparisons, and final-state-3 terminal acceptance and all three selected rejections have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold generation is running; the complete first-successor input connection remains pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -1163,7 +1163,7 @@
     "scope": "Per-worktree execution-policy correction, private Rust build validation and sealed source transition remain in effect. Resumed third-fold generation was stopped by owner instruction. All dated counts and failed receipts are preserved. CI and Metal remain out of scope."
   },
   "selected_1_to_2_to_3": {
-    "outcome": "incomplete",
+    "outcome": "running",
     "selected_iterations": [
       1,
       2,
@@ -1174,9 +1174,16 @@
       "2-to-3"
     ],
     "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected_123.py",
-    "driver_status": "prepared; final review and execution are not claimed by this record",
+    "driver_status": "Started 2026-09-22T08:18:51.042027Z; independent first-fold generation is running.",
     "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
-    "first_fold_generation": "pending",
+    "first_fold_generation": {
+      "outcome": "running",
+      "started_utc": "2026-09-22T08:18:51.042027Z",
+      "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-events.jsonl",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.log",
+      "standalone_first_checkpoint_reused": false,
+      "scope": "The selected driver owns the first-fold checkpoint. Neither first-fold completion nor its input bridge is claimed."
+    },
     "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",
     "complete_input_connection": {
       "outcome": "pending",
@@ -1194,8 +1201,8 @@
     },
     "final_terminal": {
       "iteration": 3,
-      "outcome": "incomplete",
-      "recorded_utc": "2026-09-22T08:13:55.451202+00:00",
+      "outcome": "passed",
+      "recorded_utc": "2026-09-22T08:15:56.100338Z",
       "passed_checks": [
         {
           "case": "accepted",
@@ -1203,7 +1210,8 @@
           "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-accepted.json",
           "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-accepted.json",
           "cap_seconds": 300,
-          "elapsed_seconds": 245.67641282081604
+          "elapsed_seconds": 245.67641282081604,
+          "verifier_result": "Ok(())"
         },
         {
           "case": "ce-evaluation",
@@ -1211,7 +1219,8 @@
           "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-evaluation.json",
           "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-evaluation.json",
           "cap_seconds": 300,
-          "elapsed_seconds": 245.80553460121155
+          "elapsed_seconds": 245.80553460121155,
+          "verifier_result": "Err(Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" })"
         },
         {
           "case": "ce-matrix-evaluation",
@@ -1219,13 +1228,29 @@
           "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-matrix-evaluation.json",
           "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-matrix-evaluation.json",
           "cap_seconds": 300,
-          "elapsed_seconds": 243.7867259979248
+          "elapsed_seconds": 243.7867259979248,
+          "verifier_result": "Err(Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" })"
+        },
+        {
+          "case": "fresh-private",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-fresh-private.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-fresh-private.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 246.75113320350647,
+          "verifier_result": "Err(FreshRelation(UnsatisfiedRow { row: 0 }))"
         }
       ],
-      "remaining_rejections": [
-        "fresh-private"
-      ],
-      "scope": "Acceptance and both CE evaluation rejections are recorded here. The fresh-private rejection remains pending; terminal completion is not claimed."
+      "remaining_rejections": [],
+      "scope": "The existing native terminal predicate accepts the completed independent 2-to-3 result and rejects each selected CE-evaluation, CE-matrix-evaluation and fresh-private mutation on the actual retained witnesses. No new proof backend or first-fold completion is claimed.",
+      "coordinator_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.json",
+      "coordinator_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.log",
+      "coordinator_elapsed_seconds": 1129.1774398849811,
+      "child_commands_passed": 7,
+      "mutation_preparations_passed": 3,
+      "max_child_seconds": 246.75113320350647,
+      "per_child_cap_seconds": 300,
+      "preparation_receipts": "terminal-prepare-ce-evaluation.json, terminal-prepare-ce-matrix-evaluation.json and terminal-prepare-fresh-private.json in the same logs directory."
     },
     "third_fold_owner_stop": {
       "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/third-fold-owner-stop.json",

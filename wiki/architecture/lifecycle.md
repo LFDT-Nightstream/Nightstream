@@ -1,6 +1,6 @@
 # Lifecycle
 
-`crates/neo-fold-clean/src/lifecycle/` owns the public direct-CCS lifecycle.
+`crates/neo-fold-legacy/src/lifecycle/` owns the public direct-CCS lifecycle.
 
 ```text
 preprocess

@@ -1,14 +1,14 @@
 # Glossary
 
 The authoritative paper-symbol → code mapping lives in
-`crates/neo-fold-clean/src/paper/mod.rs` and is kept current with the code. This page
+`crates/neo-fold-legacy/src/paper/mod.rs` and is kept current with the code. This page
 is the prose companion: what each term *means* and where it lives.
 
 ## Relations and claims
 
 | Term | Meaning | Code |
 |---|---|---|
-| CCS | Customizable Constraint System — the relation format being folded. A structure `s = ({M_j}, f)` of matrices plus a multivariate polynomial (SuperNeo Def. 11). | `neo_ccs::CcsStructure`, `neo-fold-clean` `paper::relations::Structure` |
+| CCS | Customizable Constraint System — the relation format being folded. A structure `s = ({M_j}, f)` of matrices plus a multivariate polynomial (SuperNeo Def. 11). | `neo_ccs::CcsStructure`, `neo-fold-legacy` `paper::relations::Structure` |
 | CCS(b, ℒ) | The committed CCS relation: a satisfying low-norm witness plus an Ajtai commitment (Def. 12). | `paper::relations::CcsRelation`, instance = `CcsInstance` |
 | MCS / CCS claim | One committed CCS (claim, witness) pair entering a fold. | `neo_ccs::CcsClaim`, `paper::relations::CcsInstance` |
 | CE(b, ℒ) / ME claim | Committed-evaluation claim `(c, x, r, {y_j})` — the universal foldable claim shape: "matrix `M_j` times committed witness, evaluated at point `r`, equals `y_j`" (Def. 13). | `neo_ccs::CeClaim`, `paper::relations::CeClaim` |

@@ -490,18 +490,18 @@ Decision: NSD-DOMAIN-001 and NSD-ENCODING-001.
 
 ### NS-SHAPE-LOGICAL — Selected logical shape
 
-The verifier-key relation artifact MUST supply the exact positive logical row
-count and the exact full committed assignment width `m` for `z=x||w`, with
-`m` a multiple of 54 and at most 16,777,206 fields, or 310,689 complete Phi81
-ring columns. The first 270 fields are `x`. The profile has one fresh claim
-and 16 running claims. Source order MUST be fresh claim 0 followed by running
-claims 0 through 15. A proof-supplied shape MUST NOT select these values.
+The verifier-key relation artifact MUST contain exactly 6,377,555 logical
+rows. Its full committed carrier for `z=x||w` MUST contain 264,627,486 fields,
+or 4,900,509 complete Phi81 ring columns. The first 270 fields are `x`. The
+profile has one fresh claim and 16 running claims. Source order MUST be fresh
+claim 0 followed by running claims 0 through 15. A proof-supplied shape MUST
+NOT select these values.
 
 Decision: NSD-DOMAIN-001 and NSD-CARRIER-001.
 
 ### NS-SHAPE-PADDING — Common row-cube injection
 
-The verifier MUST use a 24-variable Boolean row cube. Logical relation rows
+The verifier MUST use a 28-variable Boolean row cube. Logical relation rows
 and assignment coordinates MUST occupy their zero-based prefixes in
 little-endian Boolean index order. Every unused relation row and every cube
 position after the assignment prefix MUST be zero.
@@ -546,17 +546,20 @@ Decision: NSD-SPLIT-001.
 
 ### NS-COMMITMENT-PROFILE — Ajtai commitment key
 
-The v1 commitment MUST have `kappa=18` rows and exactly `m/54` message columns
-in `R_F`, where `m` comes from the verifier-key relation artifact. It MUST use
-`c_a=sum_j A_(a,j)z_j` as a left matrix-vector product. Setup MUST use
-`nightstream-ajtai-chacha8-setup-par-v1` from
-`src/profile/ajtai-setup-v1.toml`: derive row and fixed-size chunk seeds in
-order, then fill matrix entries in row, column, coefficient order. For each
-ring entry, read 54 little-endian `u64` values before replacement sampling;
-rejected values are replaced in coefficient order. A transpose, blinding
-column, commitment randomness, or affine term is not part of v1. The verifier
-key MUST bind the 32-byte setup seed, dimensions, setup ID, and 18-ring
-commitment encoding through a recomputed Poseidon2 digest.
+The v1 commitment MUST have `kappa=22` rows and exactly 4,900,509 message
+columns in `R_F`, and use `c_a=sum_j A_(a,j)z_j` as a left matrix-vector
+product. Setup MUST use `nightstream-ajtai-chacha20-wide256-v1` with the
+verifier-owned seed
+`fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702`.
+For each coefficient, the expander MUST index one RFC-8439 ChaCha20 block by nonce
+`row_u32_le || block_u64_le` and counter `lane_u32`, interpret its first 256 output
+bits as one little-endian integer, and reduce that integer modulo the
+Goldilocks prime. There is no rejection, retry, fallback, materialized full
+key, transpose, blinding column, commitment randomness, or affine term. The
+verification key MUST bind the seed, dimensions, setup ID, 256-bit reduction
+rule, and 22-ring commitment encoding through the recomputed Poseidon2
+verifier context. The selected post-allowance Module-SIS estimate is about
+110 bits; this estimate is not a formal theorem.
 
 Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.
 ## 6. Nightstream PaddedRowIdentity PiCCS
@@ -564,7 +567,7 @@ Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.
 ### NS-PICCS-VARIANT — Joint row-domain protocol
 
 Nightstream MUST use the reviewed joint PiCCS polynomial on the selected
-24-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 24-variable
+28-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 28-variable
 MLE of `z_i` followed by zero padding. It MUST use the paper's one row-domain
 SumCheck and MUST NOT add a second column-domain SumCheck.
 
@@ -573,16 +576,16 @@ Decision: NSD-PICCS-001 and NSD-NORM-BINDING-001.
 ### NS-PICCS-PADDING-EQUIVALENCE — Zero-row specialization
 
 For every application matrix, the padded output MUST equal its logical output
-on rows `0..14944218` and zero afterwards. The Structure MUST satisfy
+on rows `0..6377554` and zero afterwards. The Structure MUST satisfy
 `f_app(0,...,0)=0`. For `M_0`, the constant-term projection of its ring output
-MUST equal `z` on coordinates `0..11437037` and zero afterwards. The logical
+MUST equal `z` on coordinates `0..264627485` and zero afterwards. The logical
 and padded CCS relations MUST accept the same `(x,w)` pair.
 
 Decision: NSD-DOMAIN-MAP-001 and NSD-NORM-BINDING-001.
 
 ### NS-PICCS-COINS — Exact PiCCS challenge family
 
-PiCCS MUST use one `alpha in K_ext^24`, one `gamma in K_ext`, and one
+PiCCS MUST use one `alpha in K_ext^28`, one `gamma in K_ext`, and one
 `K_ext` SumCheck challenge per round. `beta_a`, `beta_r`, `beta_m`, and all
 other PiCCS batching coins MUST be absent.
 
@@ -590,7 +593,7 @@ Decision: NSD-BATCH-COINS-001 and NSD-TRANSCRIPT-001.
 
 ### NS-PICCS-SUMCHECK — Exact round shape
 
-The joint polynomial has `D_Q=9`. The proof MUST contain exactly 24 round
+The joint polynomial has `D_Q=9`. The proof MUST contain exactly 28 round
 polynomials, each encoded as 10 extension coefficients from degree 0 through
 9. The verifier MUST run SN-SUMCHECK-ROUNDS and reject a missing, extra, or
 noncanonical coefficient.
@@ -628,14 +631,14 @@ Decision: NSD-COLUMN-001 and NSD-COLUMN-MAP-001.
 
 ### NS-PICCS-CENSUS — Selected algebraic planning count
 
-For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
+For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=28`, and `D_f=8`, the profile
 MUST derive
 
 ```text
 D_Q = 9
-N_SC = 9*24 = 216
-D_SZ = max(24,41,12113) = 12113
-N_field = 12329
+N_SC = 9*28 = 252
+D_SZ = max(28,45,12113) = 12113
+N_field = 12365
 coordinate-fork numerator = K_fresh+k_rho+1 = 18.
 ```
 
@@ -750,9 +753,9 @@ The statement and proof MUST use the v1 magic, version, variant, ordered
 section IDs, and exact field and byte counts from the profile. Their decoders
 use checked integer arithmetic and compare the complete input length before
 payload allocation. Unknown, missing, duplicate, reordered, truncated, or
-trailing content MUST reject. The statement is exactly 318,832 bytes and
-39,848 base fields. The proof is exactly 463,528 bytes, with sections of 480,
-22,680, and 34,776 base fields. One statement-proof pair MUST encode one fold.
+trailing content MUST reject. The statement is exactly 392,336 bytes and
+49,036 base fields. The proof is exactly 555,752 bytes, with sections of 560,
+25,704, and 43,200 base fields. One statement-proof pair MUST encode one fold.
 A bounded sequence MUST contain exactly `fold_count` pairs in increasing
 `fold_index` order.
 
@@ -771,7 +774,7 @@ Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.
 
 ### NS-ENC-COMMITMENT — Commitment encoding
 
-A commitment MUST encode as 18 `R_F` elements in row order under NS-ENC-RING.
+A commitment MUST encode as 22 `R_F` elements in row order under NS-ENC-RING.
 
 Decision: NSD-ENCODING-001.
 
@@ -818,7 +821,7 @@ Decision: NSD-ENCODING-001, NSD-HASH-001, and NSD-TRANSCRIPT-001.
 ### NS-TRANSCRIPT-ORDER — Fold transcript schedule
 
 The transcript order MUST be session, verifier-key digest, statement, PiCCS
-input, alpha, gamma, 24 ordered SumCheck round messages and challenges, PiCCS
+input, alpha, gamma, 28 ordered SumCheck round messages and challenges, PiCCS
 outputs, indexed PiRLC sampler attempts, derived PiRLC output, PiDEC children,
 and fold finalization. Each fold in a bounded sequence MUST start with a fresh
 zero-state duplex and use the sequence's single selected verifier key and
@@ -832,7 +835,7 @@ Decision: NSD-TRANSCRIPT-001, NSD-PICCS-001, and NSD-SAMPLER-001.
 
 An `alpha`, `gamma`, or SumCheck challenge MUST be two consecutive uniform
 base-field squeeze lanes interpreted as `(c0,c1)`. Zero is valid. Alpha MUST
-contain 24 elements and SumCheck MUST sample one element after each round
+contain 28 elements and SumCheck MUST sample one element after each round
 message.
 
 Decision: NSD-TRANSCRIPT-001 and NSD-BATCH-COINS-001.
@@ -868,7 +871,7 @@ Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 The v1 security target MUST be at least 96 classical bits for one proof and
 one session per verifier key with at most 64 folds. The resource census MUST
 allow at most 262,144 adaptive oracle queries, including the derived maximum
-178,049 prescribed tagged squeezes per key. The release theorem MUST be an
+178,305 prescribed tagged squeezes per key. The release theorem MUST be an
 expected-polynomial-time proof of knowledge and MUST state the Ajtai setup or
 seeded-PRG assumption.
 

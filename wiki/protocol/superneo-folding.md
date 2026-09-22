@@ -3,7 +3,7 @@
 SuperNeo §7 defines Neo's folding scheme for CCS in the lattice setting. One fold
 takes `K` fresh committed CCS instances plus the carried accumulator of `k` CE claims
 and outputs a new accumulator of `k` low-norm CE claims. The composition of the three
-reductions is what `neo-fold-clean` calls `NIFS` (`src/paper/nifs/`).
+reductions is what `neo-fold-legacy` calls `NIFS` (`src/paper/nifs/`).
 
 ## The relations (SuperNeo §7.1)
 
@@ -26,7 +26,7 @@ claims `y′_{i,j}` at `r′`.
 
 - The math lives in `neo-reductions` (`api::pi_ccs_prove` / `pi_ccs_verify`, optimized
   and paper-exact engines).
-- The paper layer in `neo-fold-clean` exposes only a shape-checked seam:
+- The paper layer in `neo-fold-legacy` exposes only a shape-checked seam:
   `paper/reductions/pi_ccs.rs` wrapping `engine/optimized.rs`.
 - Sum-check soundness comes from the extension field `K = F_{q²}`; per-shape effective
   λ is validated at preprocessing (see [Parameters](parameters.md)).

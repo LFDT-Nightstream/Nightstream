@@ -17,6 +17,7 @@ import contract_checks as checks  # noqa: E402
 import contract_migration as migration  # noqa: E402
 import contract_model as model  # noqa: E402
 import contract_protocol as protocol  # noqa: E402
+import contract_render as render  # noqa: E402
 
 
 class ContractModelTests(unittest.TestCase):
@@ -26,11 +27,34 @@ class ContractModelTests(unittest.TestCase):
         self.assertEqual(len(current.protocol["events"]), 12)
         model.check_generated(current)
 
+    def test_current_repository_evidence_paths_resolve(self) -> None:
+        model.load_model(repository_mode=True)
+
+    def test_normative_profile_matches_selected_parameters(self) -> None:
+        current = model.load_model(repository_mode=False)
+        config = checks.load_config()
+        checks.check_profile_consistency(config)
+        checks.check_profile_rule_alignment(current, config)
+        current.rules["NS-PICCS-VARIANT"]["text"] = current.rules["NS-PICCS-VARIANT"]["text"].replace(
+            "28-variable", "24-variable"
+        )
+        with self.assertRaisesRegex(checks.ContractError, "normative profile values differ"):
+            checks.check_profile_rule_alignment(current, config)
+
     def test_generated_contract_has_banner_and_replacement(self) -> None:
         text = (CONTRACT_DIR / "superneo-v1.md").read_text()
         self.assertIn("Generated reading view", text)
+        current = model.load_model(repository_mode=False)
+        self.assertEqual(current.requirements["NS-PICCS-VARIANT"]["assembly"], "add")
+        self.assertNotIn("`NS-PICCS-VARIANT` replaces `SN-PICCS-IDENTITY`", text)
+        # Exercise override rendering without misclassifying the current
+        # padded specialization as a replacement of the paper identity.
+        changed = copy.deepcopy(current)
+        changed.requirements["NS-PICCS-VARIANT"]["assembly"] = "replace"
+        changed.requirements["NS-PICCS-VARIANT"]["replaces"] = ["SN-PICCS-IDENTITY"]
         self.assertIn(
-            "`NS-PICCS-VARIANT` replaces `SN-PICCS-IDENTITY`", text
+            "`NS-PICCS-VARIANT` replaces `SN-PICCS-IDENTITY`",
+            render._render_normative(changed).decode(),
         )
 
     def test_package_manifest_ignores_only_ephemeral_cache_files(self) -> None:
@@ -507,8 +531,20 @@ class ContractModelTests(unittest.TestCase):
 
     def test_ajtai_setup_stream_fault_fails(self) -> None:
         config = copy.deepcopy(checks.load_config())
-        config["ajtai_setup_v1"]["test_first_64_u32"][0] ^= 1
-        with self.assertRaisesRegex(checks.ContractError, "initial test vector differs"):
+        config["ajtai_rfc8439_test_v1"]["words"][0] ^= 1
+        with self.assertRaisesRegex(checks.ContractError, "RFC 8439 test vector differs"):
+            checks.check_profile_consistency(config)
+
+    def test_ajtai_setup_seed_fault_fails(self) -> None:
+        config = copy.deepcopy(checks.load_config())
+        config["ajtai_setup_v1"]["seed_hex"] = "00" * 32
+        with self.assertRaisesRegex(checks.ContractError, "seed_hex differs"):
+            checks.check_profile_consistency(config)
+
+    def test_ajtai_setup_reduction_fault_fails(self) -> None:
+        config = copy.deepcopy(checks.load_config())
+        config["ajtai_rfc8439_test_v1"]["coefficient"] ^= 1
+        with self.assertRaisesRegex(checks.ContractError, "256-bit reduction test vector differs"):
             checks.check_profile_consistency(config)
 
     def test_structure_encoding_fault_fails(self) -> None:

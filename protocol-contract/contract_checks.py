@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from contract_model import is_ephemeral_contract_path, is_packaged_path
+from contract_ajtai import check_ajtai_setup
 from contract_primitives import FieldDuplex, poseidon2_permute
 
 
@@ -572,10 +573,10 @@ def check_security_census(config: dict) -> None:
     )
     require(
         candidate["shape_authority"] == "verifier-key-relation-artifact-v1"
-        and candidate["logical_rows"] == "from-verifier-key-relation-artifact"
-        and candidate["logical_assignment_width"] == "from-verifier-key-relation-artifact"
-        and candidate["assignment_ring_columns"] == "logical-assignment-width-divided-by-54",
-        "Nightstream logical shape is not verifier-key-owned",
+        and candidate["logical_rows"] == 6377555
+        and candidate["logical_assignment_width"] == 264627486
+        and candidate["assignment_ring_columns"] * paper["phi_degree"] == candidate["logical_assignment_width"],
+        "Nightstream logical shape differs from the selected verifier-key profile",
     )
     require(
         candidate["padded_rows"] == 2 ** candidate["row_variables"],
@@ -586,6 +587,11 @@ def check_security_census(config: dict) -> None:
         == candidate["maximum_assignment_ring_columns"] * paper["phi_degree"]
         == candidate["padded_rows"] // paper["phi_degree"] * paper["phi_degree"],
         "Nightstream assignment capacity is not the largest complete ring prefix",
+    )
+    require(
+        0 < candidate["logical_rows"] <= candidate["padded_rows"]
+        and 0 < candidate["logical_assignment_width"] <= candidate["maximum_assignment_width"],
+        "Nightstream logical shape exceeds the row cube",
     )
     require(
         candidate["matrix_count"] == candidate["application_matrix_count"] + 1,
@@ -763,69 +769,31 @@ def _rotate_left_32(value: int, amount: int) -> int:
     return ((value << amount) | (value >> (32 - amount))) & 0xFFFF_FFFF
 
 
-def _chacha8_block(seed: list[int], block_counter: int) -> list[int]:
-    """Return one standard ChaCha8 block for a zero 64-bit stream ID."""
-    require(len(seed) == 32 and all(0 <= value <= 255 for value in seed), "invalid Ajtai ChaCha8 test seed")
-    require(0 <= block_counter < 2**64, "Ajtai ChaCha8 block counter is outside u64")
-    key = [
-        int.from_bytes(bytes(seed[index : index + 4]), "little")
-        for index in range(0, 32, 4)
-    ]
-    initial = [
-        0x61707865,
-        0x3320646E,
-        0x79622D32,
-        0x6B206574,
-        *key,
-        block_counter & 0xFFFF_FFFF,
-        block_counter >> 32,
-        0,
-        0,
-    ]
-    state = list(initial)
-
-    def quarter(a: int, b: int, c: int, d: int) -> None:
-        state[a] = (state[a] + state[b]) & 0xFFFF_FFFF
-        state[d] = _rotate_left_32(state[d] ^ state[a], 16)
-        state[c] = (state[c] + state[d]) & 0xFFFF_FFFF
-        state[b] = _rotate_left_32(state[b] ^ state[c], 12)
-        state[a] = (state[a] + state[b]) & 0xFFFF_FFFF
-        state[d] = _rotate_left_32(state[d] ^ state[a], 8)
-        state[c] = (state[c] + state[d]) & 0xFFFF_FFFF
-        state[b] = _rotate_left_32(state[b] ^ state[c], 7)
-
-    for _ in range(4):
-        quarter(0, 4, 8, 12)
-        quarter(1, 5, 9, 13)
-        quarter(2, 6, 10, 14)
-        quarter(3, 7, 11, 15)
-        quarter(0, 5, 10, 15)
-        quarter(1, 6, 11, 12)
-        quarter(2, 7, 8, 13)
-        quarter(3, 4, 9, 14)
-    return [
-        (state[index] + initial[index]) & 0xFFFF_FFFF
-        for index in range(16)
-    ]
-
-
-def _chacha8_words(seed: list[int], start: int, count: int) -> list[int]:
-    require(start >= 0 and count >= 0, "negative Ajtai ChaCha8 word range")
-    result = []
-    block = start // 16
-    offset = start % 16
-    while len(result) < count:
-        words = _chacha8_block(seed, block)
-        result.extend(words[offset:])
-        block += 1
-        offset = 0
-    return result[:count]
-
-
-def _chacha8_bytes(seed: list[int], count: int) -> list[int]:
-    words = _chacha8_words(seed, 0, (count + 3) // 4)
-    data = b"".join(value.to_bytes(4, "little") for value in words)
-    return list(data[:count])
+def check_profile_rule_alignment(model, config: dict) -> None:
+    """Reject stale prose for the profile values changed by the Stage 1 decision."""
+    candidate = config["nightstream_candidate"]
+    commitment = config["commitment_profile"]
+    setup = config["ajtai_setup_v1"]
+    sections = config["container_sections"]
+    ell = candidate["row_variables"]
+    fragments = {
+        "NS-SHAPE-LOGICAL": [f"{candidate['logical_rows']:,} logical rows", f"{candidate['logical_assignment_width']:,} fields"],
+        "NS-SHAPE-PADDING": [f"{ell}-variable Boolean row cube"],
+        "NS-COMMITMENT-PROFILE": [f"kappa={commitment['kappa']}", f"{commitment['message_ring_columns']:,} message columns", setup["id"], setup["seed_hex"]],
+        "NS-PICCS-VARIANT": [f"{ell}-variable row cube"],
+        "NS-PICCS-COINS": [f"alpha in K_ext^{ell}"],
+        "NS-PICCS-SUMCHECK": [f"exactly {ell} round polynomials"],
+        "NS-PICCS-CENSUS": [f"ell={ell}", f"N_SC = {candidate['sumcheck_degree']}*{ell} = {config['selected_joint_piccs']['N_SC']}", f"N_field = {config['selected_joint_piccs']['N_field']}"],
+        "NS-PICCS-PADDING-EQUIVALENCE": [f"rows `0..{candidate['logical_rows'] - 1}`", f"coordinates `0..{candidate['logical_assignment_width'] - 1}`"],
+        "NS-ENC-COMMITMENT": [f"encode as {commitment['kappa']} `R_F` elements"],
+        "NS-ENC-CONTAINER": [f"{sections['statement_total_bytes']:,} bytes", f"{sections['statement_total_base_fields']:,} base fields", f"{sections['proof_total_bytes']:,} bytes"],
+        "NS-TRANSCRIPT-ORDER": [f"{ell} ordered SumCheck round messages"],
+        "NS-CHALLENGE-EXTENSION": [f"contain {ell} elements"],
+        "NS-SECURITY-POLICY": [f"{config['security_accounting']['maximum_protocol_squeezes_per_key']:,} prescribed tagged squeezes"],
+    }
+    for rule_id, expected in fragments.items():
+        text = " ".join(model.rules[rule_id]["text"].split())
+        require(all(fragment in text for fragment in expected), f"normative profile values differ: {rule_id}")
 
 
 def check_profile_consistency(config: dict) -> None:
@@ -857,7 +825,7 @@ def check_profile_consistency(config: dict) -> None:
         (candidate, "relation_artifact_schema", 1),
         (candidate, "relation_artifact_payload_encoding", "rust-ccs-structure-serde-json-v1"),
         (candidate, "relation_artifact_compiler", "neo-fold-clean/r1cs-fprime-fixed-point-v1"),
-        (candidate, "row_domain", "single-little-endian-boolean-cube-24"),
+        (candidate, "row_domain", "single-little-endian-boolean-cube-28"),
         (candidate, "domain_padding_map", "logical-prefix-then-zero"),
         (candidate, "identity_matrix", "M_0=[I_m;0]-with-m-from-verifier-key-relation-artifact"),
         (candidate, "norm_terminal", "constant-term-of-y_ring-source-M_0"),
@@ -887,8 +855,8 @@ def check_profile_consistency(config: dict) -> None:
         (commitment, "transposed_or_affine_variant", "reject"),
         (commitment, "setup_mode", "verifier-key-seeded-matrix"),
         (commitment, "setup_scope", "commitment-parameter-generation-only"),
-        (commitment, "matrix_entries", "uniform-R_F-by-coefficient-rejection"),
-        (commitment, "commitment_encoding", "18-ring-elements-in-row-order"),
+        (commitment, "matrix_entries", "indexed-ChaCha20-first-256-bits-mod-q"),
+        (commitment, "commitment_encoding", "22-ring-elements-in-row-order"),
         (commitment, "seed_and_dimensions_bound_by", "verifier-key-Poseidon2-digest"),
         (transcript, "state_field", "Goldilocks"),
         (transcript, "absorb", "additive-rate-lanes"),
@@ -901,11 +869,6 @@ def check_profile_consistency(config: dict) -> None:
         (sampler_profile, "digit_map", "candidate-mod-5 maps 0,1,2,3,4 to -2,-1,0,1,2 then iota_q"),
         (sampler_profile, "counter_order", "source-major-then-coefficient-then-attempt"),
         (sampler_profile, "exhaustion", "reject-proof"),
-        (setup, "word_encoding", "sixteen-u32-little-endian-words-per-64-byte-block"),
-        (setup, "next_u64_encoding", "low-u32-then-high-u32"),
-        (setup, "column_to_chunk", "chunk=floor(column/chunk_size);local-column=column-mod-chunk-size"),
-        (setup, "chunk_stream_order", "local-column-then-ring-coefficient"),
-        (setup, "chunk_stream_counter_reset", "zero-for-each-chunk-seed"),
         (poseidon, "sbox", "x^7"),
         (poseidon, "external_matrix", "[[2*M4,M4],[M4,2*M4]]"),
         (poseidon, "internal_matrix", "all-ones-plus-diagonal"),
@@ -932,47 +895,14 @@ def check_profile_consistency(config: dict) -> None:
     require(algebra["proof_container_magic"] != algebra["statement_container_magic"], "container magics collide")
     require(algebra["container_version"] == 1 and algebra["container_variant"] == 1, "container version or variant differs")
     commitment_fields = commitment["commitment_ring_elements"] * paper["phi_degree"]
-    require(commitment["kappa"] == paper["kappa"], "commitment kappa differs from the paper profile")
+    require(commitment["kappa"] == 22, "commitment kappa differs from the selected Stage 1 profile")
     require(
-        commitment["message_ring_columns"] == "from-verifier-key-relation-artifact"
+        commitment["message_ring_columns"] == candidate["assignment_ring_columns"]
         and commitment["maximum_message_ring_columns"] == candidate["maximum_assignment_ring_columns"],
         "commitment message width authority differs",
     )
     require(commitment["commitment_ring_elements"] == commitment["kappa"], "commitment output width differs")
-    require(commitment["setup_expander"] == setup["id"], "commitment setup-expander ID differs")
-    require(setup["rounds"] == 8 and setup["seed_bytes"] == 32, "Ajtai setup ChaCha8 parameters differ")
-    require(setup["stream_id"] == 0 and setup["initial_block_counter"] == 0, "Ajtai setup stream position differs")
-    require(setup["selected_output_rows"] == commitment["kappa"], "Ajtai setup row count differs")
-    require(
-        setup["message_columns_authority"] == candidate["shape_authority"]
-        and setup["maximum_message_columns"] == commitment["maximum_message_ring_columns"],
-        "Ajtai setup message width authority differs",
-    )
-    require(setup["ring_coefficient_count"] == paper["phi_degree"], "Ajtai setup ring width differs")
-    require(setup["matrix_order"] == "output-row-then-message-column-then-ring-coefficient", "Ajtai matrix order differs")
-    require(setup["coefficient_batch"] == "read-54-consecutive-u64-values-before-any-fallback", "Ajtai coefficient batch differs")
-    require(setup["coefficient_accept"] == f"x<{q}", "Ajtai coefficient acceptance differs")
-    require(setup["coefficient_fallback"] == "replace-rejected-slots-in-index-order-with-next-accepted-u64", "Ajtai coefficient fallback differs")
-    test_seed = setup["test_seed"]
-    require(_chacha8_words(test_seed, 0, 64) == setup["test_first_64_u32"], "Ajtai ChaCha8 initial test vector differs")
-    require(
-        _chacha8_words(test_seed, setup["test_high_word_start"], 8)
-        == setup["test_high_8_u32"],
-        "Ajtai ChaCha8 random-access test vector differs",
-    )
-    test_chunk_size = max(1024, min(setup["test_setup_message_columns"], 32768))
-    test_chunk_count = (setup["test_setup_message_columns"] + test_chunk_size - 1) // test_chunk_size
-    row_seed_bytes = _chacha8_bytes(test_seed, setup["test_setup_rows"] * 32)
-    row_seeds = [row_seed_bytes[index : index + 32] for index in range(0, len(row_seed_bytes), 32)]
-    expected_chunk_seeds = [
-        [
-            _chacha8_bytes(row_seed, test_chunk_count * 32)[index : index + 32]
-            for index in range(0, test_chunk_count * 32, 32)
-        ]
-        for row_seed in row_seeds
-    ]
-    require(setup["test_setup_chunk_size"] == test_chunk_size, "Ajtai setup chunk test size differs")
-    require(setup["test_setup_chunk_seeds"] == expected_chunk_seeds, "Ajtai setup chunk-seed test vector differs")
+    check_ajtai_setup(config)
     require(structure["id"] == "nightstream-sparse-structure-v1", "Structure encoding ID differs")
     require(structure["encoding_version"] == 1, "Structure encoding version differs")
     require(structure["identity_variant_code"] == 1, "Structure identity variant differs")
@@ -1156,8 +1086,8 @@ def check_profile_consistency(config: dict) -> None:
     require(section_header_bytes == 8, "section header byte width differs")
     require(field_bytes == algebra["base_field_bytes"], "container field byte width differs")
     byte_censuses = (
-        ("statement", sections["statement_section_ids"], sections["statement_total_base_fields"], sections["statement_total_bytes"], 362896),
-        ("proof", sections["proof_section_ids"], sections["proof_total_base_fields"], sections["proof_total_bytes"], 527464),
+        ("statement", sections["statement_section_ids"], sections["statement_total_base_fields"], sections["statement_total_bytes"], 392336),
+        ("proof", sections["proof_section_ids"], sections["proof_total_base_fields"], sections["proof_total_bytes"], 555752),
     )
     for label, section_ids, total_fields, declared_bytes, expected_bytes in byte_censuses:
         computed_bytes = header_bytes + len(section_ids) * section_header_bytes + total_fields * field_bytes
@@ -1169,9 +1099,9 @@ def check_profile_consistency(config: dict) -> None:
     require(sections["lifecycle_fields"] == ["fold_index", "fold_count"], "lifecycle field order differs")
     require(sections["lifecycle_condition"] == "0<=fold_index<fold_count<=64", "lifecycle condition differs")
     require(sections["fresh_claim_order"] == "commitment-then-270-field-x", "fresh claim order differs")
-    require(sections["shared_row_point_order"] == "coordinate-0-through-23-each-as-c0-then-c1", "row point order differs")
+    require(sections["shared_row_point_order"] == "coordinate-0-through-27-each-as-c0-then-c1", "row point order differs")
     require(sections["running_claim_order"] == "source-0-through-15-each-as-commitment-then-270-field-x-then-14-y_ring-values", "running claim order differs")
-    require(sections["piccs_round_order"] == "round-0-through-23-each-as-degree-0-through-9-each-c0-then-c1", "PiCCS round order differs")
+    require(sections["piccs_round_order"] == "round-0-through-27-each-as-degree-0-through-9-each-c0-then-c1", "PiCCS round order differs")
     require(sections["piccs_output_order"] == "source-0-through-16-then-matrix-0-through-13-each-R_K-in-ring-order", "PiCCS output order differs")
     require(sections["pidec_child_order"] == "child-0-through-15-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived", "PiDEC child order differs")
 

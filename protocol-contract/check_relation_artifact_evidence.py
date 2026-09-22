@@ -333,7 +333,7 @@ def main() -> None:
     )
 
     producer = exact_keys(evidence["producer"], PRODUCER_KEYS, "producer")
-    require(producer["crate"] == "neo-fold-clean", "producer crate differs")
+    require(producer["crate"] == "neo-fold-legacy", "producer crate differs")
     binary = Path(producer["binary"])
     require(binary.is_file(), "producer binary does not exist")
     require(producer["binary_hash"] == hash_file(binary), "producer binary hash differs")

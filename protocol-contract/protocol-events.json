@@ -1,9 +1,9 @@
 {
   "schema_version": 4,
   "contract_id": "nightstream-superneo-v1",
-  "contract_hash": "940d9475acbad84c7dfd88f3726212f8ae5db20a2e9affcef7d972839cb1055a",
+  "contract_hash": "6dd218a97b507d346e839ccd57c5747669e91289e380a76b56da3e211461b966",
   "profile_id": "nightstream-superneo-fprime-v1",
-  "profile_hash": "02bdb96e3d30f7c236e95e80b77c238525252b353fa4aa79682793247e4bc443",
+  "profile_hash": "8d8299cbd286fc12052c4d3cb16112ce96b7fc64f417fe0e97cc822eb5df2e2e",
   "status": "specified",
   "states": [
     {
@@ -29,12 +29,12 @@
     {
       "id": "ST-PICCS-COINS",
       "terminal": false,
-      "description": "The 24 alpha coordinates and gamma are sampled from the bound PiCCS prefix."
+      "description": "The 28 alpha coordinates and gamma are sampled from the bound PiCCS prefix."
     },
     {
       "id": "ST-PICCS-SUMCHECK",
       "terminal": false,
-      "description": "All 24 joint PiCCS SumCheck rounds are accepted."
+      "description": "All 28 joint PiCCS SumCheck rounds are accepted."
     },
     {
       "id": "ST-PICCS-OUTPUT",
@@ -75,11 +75,11 @@
   "challenges": [
     {
       "id": "CH-PICCS-ALPHA",
-      "role": "Twenty-four equality-selector coordinates for the joint row cube",
-      "sample_space": "K_ext^24",
+      "role": "Twenty-eight equality-selector coordinates for the joint row cube",
+      "sample_space": "K_ext^28",
       "sampled_in_event": "EV-PICCS-COINS",
       "transcript_tag": "piccs_alpha",
-      "decoder": "48 consecutive base-field lanes, paired as (c0,c1) in coordinate order",
+      "decoder": "56 consecutive base-field lanes, paired as (c0,c1) in coordinate order",
       "after_events": [
         "EV-PICCS-ABSORB"
       ],
@@ -303,7 +303,7 @@
         "bound-piccs-prefix"
       ],
       "outputs": [
-        "alpha-24",
+        "alpha-28",
         "gamma"
       ],
       "reject_conditions": [
@@ -332,12 +332,12 @@
       ],
       "unresolved_blocker_ids": [],
       "inputs": [
-        "alpha-24",
+        "alpha-28",
         "gamma",
-        "24-ordered-round-polynomials"
+        "28-ordered-round-polynomials"
       ],
       "outputs": [
-        "24-round-challenges",
+        "28-round-challenges",
         "sumcheck-terminal-claim"
       ],
       "reject_conditions": [
@@ -346,7 +346,7 @@
         "REJECT-ROUND-RECURRENCE",
         "REJECT-ROUND-ENCODING"
       ],
-      "note": "For round j, absorb j and the ten ordered extension coefficients, check the SumCheck recurrence, and only then squeeze challenge j. Repeat for j=0 through 23."
+      "note": "For round j, absorb j and the ten ordered extension coefficients, check the SumCheck recurrence, and only then squeeze challenge j. Repeat for j=0 through 27."
     },
     {
       "id": "EV-PICCS-OUTPUT",
@@ -584,9 +584,9 @@
       "parent_id": null,
       "unit": "round",
       "index_variable": "round_index",
-      "minimum": 24,
-      "maximum": 24,
-      "index_order": "0-through-23",
+      "minimum": 28,
+      "maximum": 28,
+      "index_order": "0-through-27",
       "on_exhaustion": "reject-proof"
     },
     {
@@ -945,7 +945,7 @@
         "payload_layout": [
           "canonical_statement_sections_in_section_id_order"
         ],
-        "base_field_count": 45356
+        "base_field_count": 49036
       },
       {
         "id": "FR-PICCS-INPUT",
@@ -960,7 +960,7 @@
         "kind": "squeeze",
         "event_id": "EV-PICCS-COINS",
         "tag": "piccs_alpha",
-        "requested_base_fields": 48,
+        "requested_base_fields": 56,
         "challenge_id": "CH-PICCS-ALPHA"
       },
       {
@@ -1059,7 +1059,7 @@
           "mixed_y_ring",
           "shared_row_point_excluded_as_already_bound"
         ],
-        "base_field_count": 2754
+        "base_field_count": 2970
       },
       {
         "id": "FR-PIDEC-OUTPUT",
@@ -1069,7 +1069,7 @@
         "payload_layout": [
           "16_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"
         ],
-        "base_field_count": 44064
+        "base_field_count": 47520
       },
       {
         "id": "FR-FOLD-FINALIZE",

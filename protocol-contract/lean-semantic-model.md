@@ -53,7 +53,7 @@ The ambient family is `CE(B_amb,L)^15`. It is not `CE(b,L)^15` or
 ### LEAN-PADDED-IDENTITY
 
 For the artifact-owned assignment width `m`, define `pad(z)` as the length-`m`
-logical assignment followed by zeros in a vector of length `2^24`. For
+logical assignment followed by zeros in a vector of length `2^28`. For
 `M_0=[I_m;0]`, prove:
 
 ```text
@@ -87,17 +87,17 @@ to `PaddedRowIdentity`; shape equality alone is not enough.
 The model must instantiate:
 
 - the Phi81 five-element strong set and expansion `T=216`;
-- the guard `15*216*(2-1)=3240<16384`;
+- the guard `17*216*(2-1)=3672<65536`;
 - the exact signed-binary split;
-- the 24-round joint SumCheck and its 210 terminal ring values;
+- the 28-round joint SumCheck and its 238 terminal ring values;
 - the bounded three-attempt sampler and its distribution;
 - the exact transcript event dependencies;
 - the canonical Structure stream and verifier-key prehash;
 - the selected strong, weak, and sequential reductions.
 
 The model must keep the algebraic planning count separate from a Fiat-Shamir or
-end-to-end production theorem. Its query census must include 2,457 fold
-transcript squeezes and one public-image squeeze per fold, or at most 157,313
+end-to-end production theorem. Its query census must include 2,785 fold
+transcript squeezes and one public-image squeeze per fold, or at most 178,305
 tagged squeezes per verifier key.
 
 ## Encoding interface

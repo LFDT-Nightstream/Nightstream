@@ -246,3 +246,52 @@ coordinate reduction or proving-cost improvement is established.
 `remaining-witness-budget.md` records the actual costs and online sources.
 Package and fixture regeneration, Rust integration, and further benchmarks
 remain paused while the full producer proof is incomplete.
+
+## Producer-support continuation
+
+The next checked batch supplies the missing read-support interfaces without
+changing the relation, package data, or production witness behavior:
+
+- `StoredPhysicalPlan.EventSources` covers all eleven canonical source
+  families. `Plan.rowEvents_induction` applies their properties to the
+  unsorted event array. Its erased proof field is derived by `ofSources`.
+- `PiRLCCombinationWitnessReadSupport` proves actual arithmetic-recipe and
+  hint-source support for all canonical sampler/PiDEC/running witness
+  batches, their application shift, and the selected Poseidon application.
+  The generic application record receives no stronger assumption.
+- `StoredExecutionSupport` proves equal retained values and matching compact
+  success/rejection for the existing array interpreters under exact read
+  support and equal storage sizes. It covers writes, recipes, hints, ordinary
+  instructions, permutations, and compact rows.
+- `PiRLCCombinationInvocationOrigin` identifies canonical product templates
+  with their exact descriptors and preserves scratch bounds and input
+  separation through the application shift.
+- The stored compact executor now proves size preservation and agreement
+  outside local scratch after its initial output write. These theorems need
+  only the existing successful execution premise.
+
+The complete producer connection is still open. Sorted execution membership
+needs the existing `Array.qsort` membership proof; its signature inspection
+reached the three-round stop rule. The needed visibility form is a Lean
+`module` with `import all Init.Data.Array.QSort.Basic`, followed by a public
+proof interface. No replacement sort or unproved membership field was added.
+
+The dispatcher congruence attempt also reached the three-round stop rule.
+Its remaining error is a dependent Option-match comparison in the compact
+case, not an established semantic counterexample. The attempted extraction
+was removed and `StoredPhysicalReplayMain.lean` restored. The unaccepted
+draft is `/tmp/nightstream-stored-physical-execution-draft.lean`; it is not
+proof authority or checked source. A fresh proof must also connect canonical
+support for the remaining event families and compose full/direct execution.
+Production still computes the original scratch values.
+
+Focused checks passed for array support (55 s including dependencies),
+event sources (385 s including the leaf dependency rebuild; edited module
+3.7 s), witness read support (5 s), compact invariants (3 s), and invocation
+origin (3 s). Static checks passed. The full library passed all 4,020 jobs
+in 203 s, and the full axiom/test gate passed all 4,189 jobs in 6 s after
+adding the direct plan import to the audit file. All forty new or newly
+public theorem audits passed. Logs are `/tmp/nightstream-producer-support-`
+with suffixes `static.log`, `build.log`, and `axioms.log`.
+The 385 s focused build and 203 s library build include dependency rebuilds,
+not prover benchmarks. The original replay entry point is unchanged.

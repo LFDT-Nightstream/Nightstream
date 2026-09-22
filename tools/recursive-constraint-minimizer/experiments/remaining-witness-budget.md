@@ -181,18 +181,22 @@ interval `[21124070, 28972970)` and input/output separation. The interval has
 saving. Full/direct witness correspondence and custody concern computation
 and proof transport. They leave the checkpoint CCS coordinates, rows, and
 matrix nonzeros unchanged. No Rust timing or peak-memory result exists for
-this construction. The full producer bridge remains open: the public plan's
-row soundness does not supply ordered execution provenance for witness
-recipes and hints. Constraint-support proofs alone do not cover reads by
-PiDEC sign and canonical-u64 hints. Thus the local direct executor is not yet
-proved to replace the complete selected producer.
+this construction. The full producer bridge remains open. The producer-support
+batch proves canonical unsorted event provenance and actual recipe/hint support for sampler, PiDEC,
+running-transition, and selected application batches. The proof must still
+cover the sorted execution array, the remaining event families, and the
+actual full/direct dispatcher composition. Thus the local direct executor
+is not yet proved to replace the complete selected producer.
 
 Checkpoint validation passed: full Lean library, 4,018 jobs in 79 s; full
 axiom/test build, 4,177 jobs in 26 s. New focused checks include research
-bounds (3 s), scratch custody (25 s), and scratch geometry (4 s). The current
-research batch also passed static checks and the full 4,019-job Lean library
+bounds (3 s), scratch custody (25 s), and scratch geometry (4 s). Research
+checkpoint `a650fa77` passed static checks and the full 4,019-job Lean library
 build in 38 s. Its full axiom/test gate passed all 4,182 jobs in 7 s.
-These are build/check times, not prover benchmarks. Candidate checks measured 42.43 s
+The later producer-support batch passed static checks, the full library
+(4,020 jobs, 203 s), and the full axiom/test gate (4,189 jobs, 6 s). It leaves
+production witness execution unchanged. These are build/check times, not
+prover benchmarks. Candidate checks measured 42.43 s
 for all logical matrices, 26.67 s for physical matrices, 75.81 s for identity
 rejections, and 70.88 s for the complete base assignment. The combined
 assignment regression reached its 300 s cap; the output-digest recipe case
@@ -220,3 +224,19 @@ witness recovery for extraction, degree and norm bounds, and complete selected
 path preservation. This is the same obligation used for the quotient change
 and the [SuperNeo](https://eprint.iacr.org/2026/242) composition; fewer variables
 or a cvc5 `unsat` result alone do not discharge it.
+
+## Later matrix-cost candidate
+
+A source-level candidate keeps the same 54 quotient field slots and 108
+checks, but stores `Q(0), ..., Q(53)` instead of monomial coefficients. Fixed
+Lagrange interpolation recovers a polynomial of degree at most 53. The first
+54 quotient forms are singletons; the remaining 54 each use all 54 values.
+This gives `54 + 54*54 = 2970` weights per ring, versus
+`1 + 107*54 = 5779` now. If exact coefficient replay confirms the count, the
+expanded quotient contribution falls by `2809*41*969 = 111598761` entries.
+Total nonzeros would be 2,889,972,884, still above the original baseline.
+
+This candidate changes neither coordinate count nor logical rows. It still
+needs soundness, constructive witness maps, matrix placement proofs, cvc5
+controls, and runtime measurements. It has not been implemented or selected.
+The producer-support work remains first.

@@ -411,7 +411,7 @@ theorem weightedExpr_varsSatisfy (offset bitStart count : Nat)
       exact ⟨trivial, bitExpr_varsSatisfy offset (bitStart + count) allowed (by
         simpa [Nat.add_assoc] using supported count (by omega))⟩
 
-private theorem highDifference_varsSatisfy (offset : Nat)
+theorem highDifference_varsSatisfy (offset : Nat)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < auxiliaryCount →
       allowed (offset + index)) :
@@ -427,7 +427,7 @@ private theorem highDifference_varsSatisfy (offset : Nat)
             omega))
   · trivial
 
-private theorem flagRecipe_varsSatisfy (offset : Nat)
+theorem flagRecipe_varsSatisfy (offset : Nat)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < auxiliaryCount →
       allowed (offset + index)) :

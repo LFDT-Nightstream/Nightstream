@@ -11,10 +11,10 @@ import NightstreamFPrime.Export.Stage1.PreparedPhysicalInputs
 import NightstreamFPrime.Export.RowSemantics
 
 /-!
-Canonical physical preparation with final-state row coverage. Events are built
-once in canonical source order. Execution sorts a copy; final checks use the
-unsorted array. This proves row satisfaction from completed checks, not witness
-execution order, caller parsing, or source IO provenance.
+Canonical physical preparation with event-source provenance and final-state
+row coverage. Events are built once in canonical source order. Execution sorts
+a copy; final checks and source induction use the unsorted array.
+Witness execution and caller parsing remain separate obligations.
 -/
 
 set_option autoImplicit false
@@ -75,25 +75,8 @@ local notation "selectedApplication" => Poseidon2HashChainV1Package.application
 local notation "selectedShift" =>
   PerApplicationCachedShift.Context.ofProgram Poseidon2HashChainV1Package.application
 
-structure Plan where
-  pilot : { value : CircuitPackage // value = PilotData.circuitPackage () }
-  layout : PhysicalLayout
-  templates : Array CompactRowTemplate
-  templates_eq : templates.toList = Data.compactRowTemplates ()
-  rowEvents : Array Event
-  events : Array Event
-  assertions : Array SparseRow
-  sound : ∀ env : Env,
-    (∀ event ∈ rowEvents,
-      event.check { pilot.val with compactRowTemplates := templates.toList } env = true) →
-    (∀ row ∈ assertions, StoredPhysicalRowCheck.sparseRow row env = true) →
-    (Poseidon2HashChainV1Package.package ()).RowsHold env
-
-private structure Assembly where
-  rowEvents : Array Event
-  assertions : Array SparseRow
-
-private def compactEvent (shift : PerApplicationCachedShift.Context)
+/-- The compact event target comes from the selected canonical template. -/
+def compactEvent (shift : PerApplicationCachedShift.Context)
     (templates : Array CompactRowTemplate)
     (canonical : templates.toList = Data.compactRowTemplates ())
     (block : PackagePlan.CompactInvocationBlock)
@@ -108,6 +91,80 @@ private def compactEvent (shift : PerApplicationCachedShift.Context)
       invocation.property
   let template := templates[shifted.templateIndex]'bounded
   .compact (compactInputColumn shifted.inputRanges template.outputInput) shifted
+
+/-- The eleven existing source families provide an induction rule for event
+properties. All source lists are canonical; prepared payloads are not premises. -/
+structure EventSources (templates : Array CompactRowTemplate)
+    (canonical : templates.toList = Data.compactRowTemplates ()) (predicate : Event → Prop) : Prop where
+  hashes : ∀ chain ∈ [Data.priorChain, Data.outputChain], ∀ ordinal,
+    ordinal < (PerApplicationCachedShift.shiftHashChain selectedShift chain).absorbCount + 1 →
+    predicate (.hash (PerApplicationCachedShift.shiftHashChain selectedShift chain) ordinal)
+  permutations : ∀ block ∈ PermutationPlan.canonicalBlocks (),
+    ∀ invocation ∈ block.expand,
+    predicate (.permutation (PerApplicationCachedShift.shiftPermutationInvocation
+      selectedShift invocation))
+  applicationPermutations : ∀ invocation ∈
+    (PerApplicationPackage.directApplicationPlan selectedApplication).permutationInvocations,
+    predicate (.permutation invocation)
+  compact : ∀ block ∈ PackagePlan.canonicalCompactBlocks,
+    ∀ invocation : { value : CompactRowInvocation // value ∈ block.expand },
+    predicate (compactEvent selectedShift templates canonical block invocation)
+  pilotBatches : ∀ batch ∈ Data.liftPilotBatches (PilotData.priorWordBatches ()),
+    predicate (.batch (PerApplicationCachedShift.shiftBatch selectedShift batch))
+  piCcsBatches : ∀ batches ∈
+    [WitnessProgram.initialClaimBatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.sumcheckBatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.evalKBatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.evalABatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.ccsBatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.normBatches Data.logicalWidth Data.publicFits,
+     WitnessProgram.finalIdentityBatches Data.logicalWidth Data.publicFits],
+    ∀ batch ∈ batches,
+    predicate (.batch (PerApplicationCachedShift.shiftBatch selectedShift batch))
+  witnessBatches : ∀ block ∈ WitnessPlan.canonicalBlocks Data.logicalWidth Data.publicFits,
+    ∀ batch ∈ block.expand,
+    predicate (.batch (PerApplicationCachedShift.shiftBatch selectedShift batch))
+  applicationBatches : ∀ batch ∈
+    (PerApplicationPackage.directApplicationPlan selectedApplication).witnessBatches,
+    predicate (.batch batch)
+  pilotInstructions : ∀ instruction ∈
+    Data.liftPilotInstructions (PilotData.witnessInstructions ()),
+    predicate (.instruction
+      (PerApplicationCachedShift.shiftWitnessInstruction selectedShift instruction))
+  ordinaryInstructions : ∀ block ∈ OrdinaryRowPlan.canonicalBlocks (),
+    ∀ instruction ∈ Rows.witnessInstructionsTR (block.rows Data.logicalWidth Data.publicFits),
+    predicate (.instruction
+      (PerApplicationCachedShift.shiftWitnessInstruction selectedShift instruction))
+  applicationInstructions : ∀ instruction ∈
+    (PerApplicationPackage.directApplicationPlan selectedApplication).witnessInstructions,
+    predicate (.instruction instruction)
+
+structure Plan where
+  pilot : { value : CircuitPackage // value = PilotData.circuitPackage () }
+  layout : PhysicalLayout
+  templates : Array CompactRowTemplate
+  templates_eq : templates.toList = Data.compactRowTemplates ()
+  rowEvents : Array Event
+  events : Array Event
+  assertions : Array SparseRow
+  source_induction : ∀ predicate : Event → Prop,
+    EventSources templates templates_eq predicate →
+    ∀ event ∈ rowEvents, predicate event
+  sound : ∀ env : Env,
+    (∀ event ∈ rowEvents,
+      event.check { pilot.val with compactRowTemplates := templates.toList } env = true) →
+    (∀ row ∈ assertions, StoredPhysicalRowCheck.sparseRow row env = true) →
+    (Poseidon2HashChainV1Package.package ()).RowsHold env
+
+/-- Every canonical event is covered by its existing source family. -/
+theorem Plan.rowEvents_induction (plan : Plan) (predicate : Event → Prop)
+    (sources : EventSources plan.templates plan.templates_eq predicate) :
+    ∀ event ∈ plan.rowEvents, predicate event :=
+  plan.source_induction predicate sources
+
+private structure Assembly where
+  rowEvents : Array Event
+  assertions : Array SparseRow
 
 private def assemble (sources : PreparedPhysicalInputs.Inputs)
     (templates : Array CompactRowTemplate)
@@ -199,6 +256,60 @@ private theorem all_foldl_appendMap {Alpha Gamma : Type} {Beta : Alpha → Type}
         refine ⟨⟨priorChecks, checked item (by simp)⟩, ?_⟩
         intro selected member
         exact checked selected (List.mem_cons_of_mem item member)
+
+private theorem assemble_source_induction (sources : PreparedPhysicalInputs.Inputs)
+    (templates : Array CompactRowTemplate)
+    (canonical : templates.toList = Data.compactRowTemplates ())
+    (predicate : Event → Prop) (checked : EventSources templates canonical predicate) :
+    ∀ event ∈ (assemble sources templates canonical).rowEvents, predicate event := by
+  have hashes : ∀ chain ∈ [Data.priorChain, Data.outputChain],
+      ∀ ordinal ∈ List.range
+        ((PerApplicationCachedShift.shiftHashChain selectedShift chain).absorbCount + 1),
+      predicate (.hash (PerApplicationCachedShift.shiftHashChain selectedShift chain) ordinal) := by
+    intro chain member ordinal bounded
+    exact checked.hashes chain member ordinal (List.mem_range.mp bounded)
+  have permutations : ∀ block ∈ sources.permutations.blocks,
+      ∀ invocation ∈ block.expand,
+      predicate (.permutation
+        (PerApplicationCachedShift.shiftPermutationInvocation selectedShift invocation)) := by
+    simpa only [sources.permutations.blocks_eq] using checked.permutations
+  have groups : ∀ batches ∈
+      [sources.groups.initialClaim.batches, sources.groups.sumcheck.batches,
+       sources.groups.evalK.batches, sources.groups.evalA.batches,
+       sources.groups.ccs.batches, sources.groups.norm.batches,
+       sources.groups.finalIdentity.batches], ∀ batch ∈ batches,
+      predicate (.batch (PerApplicationCachedShift.shiftBatch selectedShift batch)) := by
+    simpa only [sources.groups.initialClaim.batches_eq, sources.groups.sumcheck.batches_eq,
+      sources.groups.evalK.batches_eq, sources.groups.evalA.batches_eq,
+      sources.groups.ccs.batches_eq, sources.groups.norm.batches_eq,
+      sources.groups.finalIdentity.batches_eq, PiCCSPackets.initialClaim_batches,
+      PiCCSPackets.sumcheck_batches, PiCCSPackets.evalK_batches, PiCCSPackets.evalA_batches,
+      PiCCSPackets.ccs_batches, PiCCSPackets.norm_batches,
+      PiCCSPackets.finalIdentity_batches] using checked.piCcsBatches
+  have ordinary : ∀ block ∈ sources.ordinary.blocks,
+      ∀ instruction ∈ block.witnessInstructions,
+      predicate (.instruction
+        (PerApplicationCachedShift.shiftWitnessInstruction selectedShift instruction)) := by
+    intro block member instruction instructionMember
+    have payloadMember : (block.witnessInstructions, block.assertionRows) ∈
+        sources.ordinary.blocks.map
+          (fun payload => (payload.witnessInstructions, payload.assertionRows)) :=
+      List.mem_map.mpr ⟨block, member, rfl⟩
+    rw [sources.ordinary.rows_eq] at payloadMember
+    rcases List.mem_map.mp payloadMember with ⟨source, sourceMember, equal⟩
+    have instructionsEqual : Rows.witnessInstructionsTR
+        (source.rows Data.logicalWidth Data.publicFits) = block.witnessInstructions :=
+      congrArg Prod.fst equal
+    apply checked.ordinaryInstructions source sourceMember instruction
+    rw [instructionsEqual]
+    exact instructionMember
+  simp only [assemble, all_appendMap, all_foldl_appendMap]
+  exact ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨by simp, hashes⟩, permutations⟩,
+    checked.applicationPermutations⟩,
+    fun block member invocation _ => checked.compact block member invocation⟩,
+    checked.pilotBatches⟩, groups⟩, checked.witnessBatches⟩,
+    checked.applicationBatches⟩, checked.pilotInstructions⟩, ordinary⟩,
+    checked.applicationInstructions⟩
 
 private theorem assemble_sound (sources : PreparedPhysicalInputs.Inputs)
     (templates : Array CompactRowTemplate)
@@ -304,6 +415,7 @@ def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
     rowEvents := assembled.rowEvents
     events := assembled.rowEvents.qsort (fun left right => decide (left.target < right.target))
     assertions := assembled.assertions
+    source_induction := assemble_source_induction sources templates canonical
     sound := assemble_sound sources templates canonical }
 
 /-- Concrete assembly coverage, independent of the execution sort or schedule. -/

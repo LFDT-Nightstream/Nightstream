@@ -76,3 +76,70 @@ emitter, and matrix products before claiming a speed or memory improvement.
 PiRLC's extension-valued evaluation families use two base-field components;
 the challenge is a base-field ring value, so the same product contract applies
 to each component without extension-field cross terms.
+
+## Poseidon reduction feasibility
+
+`poseidon_reduction.py` checks two restricted candidates against checkpoint
+`8b7c07d8`. It changes no production relation, profile, or package.
+
+```sh
+timeout --signal=KILL 300 python3 tools/recursive-constraint-minimizer/experiments/poseidon_reduction.py
+```
+
+All seven controls passed with cvc5 1.3.4. Exact queries, timings, integer
+replay, and coefficient data are in `poseidon_reduction.json`.
+
+| Candidate or control | Result |
+|---|---|
+| Encode the missing value with 40 signed trits and an unrestricted integer modulus quotient | `unsat` |
+| Encode it with the explicit 41-trit witness | `sat` |
+| Produce it with the seventh-power S-box | `sat` |
+| Nonzero bivariate relation of total degree at most 8 for `Y = X^49` | `unsat` |
+| Degree-49 relation `Y - X^49` | `sat` |
+| Incorrect replacement `Y = X^7` | `sat` counterexample |
+| Remove the first link from `Z = X^7; Y = Z^7` | `sat` counterexample |
+
+Forty signed trits have `3^40 = 12157665459056928801` possible encodings,
+fewer than the Goldilocks modulus. With the existing radix-three weights,
+their integer sum lies between `-6078832729528464400` and
+`6078832729528464400`. The value `6078832729528464401` has no such encoding,
+even modulo the field. It is the seventh power of `3194645001229403778`.
+The 41-trit witness is forty `-1` digits followed by `1`. Dropping its last
+digit changes the field value. The query uses exact integers and an
+unrestricted modulus quotient, with no bitvectors or overflow assumption.
+`tests/ConstraintReductionResearch.lean` now proves the cardinality bound,
+the field recomposition bound, and this exact S-box counterexample. It does
+not assert reachability of that S-box input in the complete protocol.
+
+The degree-eight class has 45 monomials. Substitution maps `X^i Y^j` to
+`X^(i+49j)`. These exponents are distinct and at most 392. The script checks
+the resulting coefficient-map injection directly; it does not sample inputs.
+The polynomial root bound needs 393 distinct nodes, which fit in Goldilocks.
+The same Lean module now proves universal field vanishing forces all 45
+coefficients to zero, using the field root bound and exponent injection.
+This excludes only this scalar bivariate class with no extra witnesses. It
+does not prove a lower bound for full Poseidon rounds, affine mixing, other
+encodings, lookups, or equations over additional state coordinates.
+
+The exact high-degree replacement has efficient witness maps: discard `Z`
+in one direction and compute `Z = X^7` in the other. Its degree is outside
+the fixed profile. Other replacements still need soundness, completeness,
+and efficient witness reconstruction proofs.
+
+Primary-source findings for further candidate selection:
+
+- [CLAP, section VI](https://arxiv.org/html/2405.12115v2#S6) describes affine
+  substitution, duplicate-expression removal, and removal of repeated range
+  checks. These support searches for equal input expressions and existing
+  range proofs. They establish no additional saving in this package.
+- [Plonky3's Poseidon2 AIR](https://github.com/Plonky3/Plonky3/blob/main/poseidon2-air/src/air.rs)
+  uses degree seven with no internal S-box register, or an extra cube
+  register with degree-three constraints. Adding that register cannot reduce
+  committed width here. Its tests also forge one retained value and recompute
+  later rounds, which is a useful check when proposing a row removal.
+- [cvc5's field documentation](https://cvc5.github.io/docs/latest/theories/finite_field.html)
+  supports exact prime-field equations. The coefficient query uses that
+  theory; the encoding query needs the separate integer-to-field argument.
+- [FF_CVC5_Lean](https://github.com/NethermindEth/FF_CVC5_Lean) demonstrates
+  Lean reconstruction of cvc5 field reasoning. This is a proof-integration
+  reference, not an installed dependency or an authority for these results.

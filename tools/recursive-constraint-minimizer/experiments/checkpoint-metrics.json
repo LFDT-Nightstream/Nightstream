@@ -1,0 +1,56 @@
+{
+  "scope": "Saved full logical-matrix conformance evidence; no benchmark or package generation was run for this record.",
+  "baseline": {
+    "source_commit": "469d12e2",
+    "artifact_sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+    "source_log": "/tmp/nightstream-unused-allocations-logical-matrices-1.log",
+    "committed_coordinates": 253011276,
+    "logical_rows": 6377559,
+    "matrix_nonzeros": [
+      33616548,
+      4650801,
+      139699430,
+      117473734,
+      315481803,
+      1535215502,
+      33006078,
+      1726758,
+      32220219,
+      30971178,
+      30233769,
+      31133970,
+      30392685,
+      0
+    ],
+    "matrix_nonzero_total": 2335822475
+  },
+  "checkpoint": {
+    "source_commit": "8b7c07d8",
+    "source_log": "/tmp/nightstream-quotient-logical.log",
+    "committed_coordinates": 184359564,
+    "logical_rows": 4703127,
+    "matrix_nonzeros": [
+      229698543,
+      4598475,
+      336477167,
+      83572300,
+      844999263,
+      1502121245,
+      0,
+      104652,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "matrix_nonzero_total": 3001571645
+  },
+  "delta": {
+    "committed_coordinates": -68651712,
+    "logical_rows": -1674432,
+    "matrix_nonzeros": 665749170
+  },
+  "interpretation": "Coordinates and logical rows decrease; matrix nonzeros increase. No overall proving-time or memory improvement has been established."
+}

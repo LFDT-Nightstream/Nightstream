@@ -1,0 +1,365 @@
+{
+  "scope": "Untrusted solver evidence for two restricted candidates, with exact integer/coefficient replay. No global Poseidon lower bound or production change.",
+  "checkpoint": "8b7c07d8",
+  "solver": "cvc5 1.3.4 [git f3b21c4 on branch HEAD]",
+  "field_modulus": 18446744069414584321,
+  "encoding": {
+    "current_trits": 41,
+    "candidate_trits": 40,
+    "candidate_capacity": 12157665459056928801,
+    "signed_radius": 6078832729528464400,
+    "missing_field_value": 6078832729528464401,
+    "seventh_root": 3194645001229403778,
+    "inverse_seven_mod_p_minus_one": 10540996611094048183,
+    "seventh_power_replay": 6078832729528464401,
+    "forty_one_trit_witness": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1
+    ],
+    "truncated_value": 12367911339886119921,
+    "translation_obligation": "Lean must equate signed-trit field recomposition with the exact integer sum modulo p, prove its interval bound, and connect the arbitrary S-box input to any selected protocol context. No bitvectors are used.",
+    "generality": "The cardinality 3^40<p also excludes any total independent encoding of all field values with 40 signed-unit coordinates. The explicit missing value is specific to radix-three reconstruction."
+  },
+  "pair_elimination": {
+    "candidate": "A nonzero polynomial R(X,Y) of total degree at most 8 that vanishes for every Y=X^49 over Goldilocks, with no additional witness variables.",
+    "degree_authority": "The existing selected relation has strict degree bound nine, so this candidate class has total degree at most eight; no profile change.",
+    "monomial_count": 45,
+    "expanded_degree": 392,
+    "enough_distinct_nodes_if_evaluated": 393,
+    "used_coefficient_certificate_instead_of_nodes": true,
+    "coefficient_rank": 45,
+    "monomial_exponent_map": [
+      {
+        "x_degree": 0,
+        "y_degree": 0,
+        "substituted_exponent": 0
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 0,
+        "substituted_exponent": 1
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 0,
+        "substituted_exponent": 2
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 0,
+        "substituted_exponent": 3
+      },
+      {
+        "x_degree": 4,
+        "y_degree": 0,
+        "substituted_exponent": 4
+      },
+      {
+        "x_degree": 5,
+        "y_degree": 0,
+        "substituted_exponent": 5
+      },
+      {
+        "x_degree": 6,
+        "y_degree": 0,
+        "substituted_exponent": 6
+      },
+      {
+        "x_degree": 7,
+        "y_degree": 0,
+        "substituted_exponent": 7
+      },
+      {
+        "x_degree": 8,
+        "y_degree": 0,
+        "substituted_exponent": 8
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 1,
+        "substituted_exponent": 49
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 1,
+        "substituted_exponent": 50
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 1,
+        "substituted_exponent": 51
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 1,
+        "substituted_exponent": 52
+      },
+      {
+        "x_degree": 4,
+        "y_degree": 1,
+        "substituted_exponent": 53
+      },
+      {
+        "x_degree": 5,
+        "y_degree": 1,
+        "substituted_exponent": 54
+      },
+      {
+        "x_degree": 6,
+        "y_degree": 1,
+        "substituted_exponent": 55
+      },
+      {
+        "x_degree": 7,
+        "y_degree": 1,
+        "substituted_exponent": 56
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 2,
+        "substituted_exponent": 98
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 2,
+        "substituted_exponent": 99
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 2,
+        "substituted_exponent": 100
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 2,
+        "substituted_exponent": 101
+      },
+      {
+        "x_degree": 4,
+        "y_degree": 2,
+        "substituted_exponent": 102
+      },
+      {
+        "x_degree": 5,
+        "y_degree": 2,
+        "substituted_exponent": 103
+      },
+      {
+        "x_degree": 6,
+        "y_degree": 2,
+        "substituted_exponent": 104
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 3,
+        "substituted_exponent": 147
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 3,
+        "substituted_exponent": 148
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 3,
+        "substituted_exponent": 149
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 3,
+        "substituted_exponent": 150
+      },
+      {
+        "x_degree": 4,
+        "y_degree": 3,
+        "substituted_exponent": 151
+      },
+      {
+        "x_degree": 5,
+        "y_degree": 3,
+        "substituted_exponent": 152
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 4,
+        "substituted_exponent": 196
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 4,
+        "substituted_exponent": 197
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 4,
+        "substituted_exponent": 198
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 4,
+        "substituted_exponent": 199
+      },
+      {
+        "x_degree": 4,
+        "y_degree": 4,
+        "substituted_exponent": 200
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 5,
+        "substituted_exponent": 245
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 5,
+        "substituted_exponent": 246
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 5,
+        "substituted_exponent": 247
+      },
+      {
+        "x_degree": 3,
+        "y_degree": 5,
+        "substituted_exponent": 248
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 6,
+        "substituted_exponent": 294
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 6,
+        "substituted_exponent": 295
+      },
+      {
+        "x_degree": 2,
+        "y_degree": 6,
+        "substituted_exponent": 296
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 7,
+        "substituted_exponent": 343
+      },
+      {
+        "x_degree": 1,
+        "y_degree": 7,
+        "substituted_exponent": 344
+      },
+      {
+        "x_degree": 0,
+        "y_degree": 8,
+        "substituted_exponent": 392
+      }
+    ],
+    "proof_obligation": "Lean must justify substitution, degree<field-cardinality, polynomial equality from universal field vanishing, and the coefficient-map injection. cvc5 checks only the displayed coefficient equations.",
+    "positive_control": "Y-X^49; coefficients 1 and -1; total degree 49, outside the selected degree bound.",
+    "witness_maps": "Dropping the intermediate z projects(x,z,y) to(x,y). Reconstruction z=x^7 is efficient for the exact relation Y=X^49; its degree violates the fixed profile. Endpoint-language checks alone do not justify other witness maps.",
+    "not_covered": "Full Poseidon rounds with affine mixing, other witness representations, extra variables, disjunctions, lookups, or equations coupling other state coordinates."
+  },
+  "counterexamples": {
+    "incorrect_fusion": {
+      "x": 2,
+      "shortcut_y": 128,
+      "valid_y": 562949953421312
+    },
+    "dropped_first_link": {
+      "x": 0,
+      "z": 1,
+      "y": 1
+    }
+  },
+  "runs": {
+    "forty_trits_missing_value": {
+      "status": "unsat",
+      "elapsed_seconds": 0.011781,
+      "stdout": "unsat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_LIA)\n(declare-const quotient Int)\n(declare-const d0 Int)\n(assert (and (<= (- 1) d0) (<= d0 1)))\n(declare-const d1 Int)\n(assert (and (<= (- 1) d1) (<= d1 1)))\n(declare-const d2 Int)\n(assert (and (<= (- 1) d2) (<= d2 1)))\n(declare-const d3 Int)\n(assert (and (<= (- 1) d3) (<= d3 1)))\n(declare-const d4 Int)\n(assert (and (<= (- 1) d4) (<= d4 1)))\n(declare-const d5 Int)\n(assert (and (<= (- 1) d5) (<= d5 1)))\n(declare-const d6 Int)\n(assert (and (<= (- 1) d6) (<= d6 1)))\n(declare-const d7 Int)\n(assert (and (<= (- 1) d7) (<= d7 1)))\n(declare-const d8 Int)\n(assert (and (<= (- 1) d8) (<= d8 1)))\n(declare-const d9 Int)\n(assert (and (<= (- 1) d9) (<= d9 1)))\n(declare-const d10 Int)\n(assert (and (<= (- 1) d10) (<= d10 1)))\n(declare-const d11 Int)\n(assert (and (<= (- 1) d11) (<= d11 1)))\n(declare-const d12 Int)\n(assert (and (<= (- 1) d12) (<= d12 1)))\n(declare-const d13 Int)\n(assert (and (<= (- 1) d13) (<= d13 1)))\n(declare-const d14 Int)\n(assert (and (<= (- 1) d14) (<= d14 1)))\n(declare-const d15 Int)\n(assert (and (<= (- 1) d15) (<= d15 1)))\n(declare-const d16 Int)\n(assert (and (<= (- 1) d16) (<= d16 1)))\n(declare-const d17 Int)\n(assert (and (<= (- 1) d17) (<= d17 1)))\n(declare-const d18 Int)\n(assert (and (<= (- 1) d18) (<= d18 1)))\n(declare-const d19 Int)\n(assert (and (<= (- 1) d19) (<= d19 1)))\n(declare-const d20 Int)\n(assert (and (<= (- 1) d20) (<= d20 1)))\n(declare-const d21 Int)\n(assert (and (<= (- 1) d21) (<= d21 1)))\n(declare-const d22 Int)\n(assert (and (<= (- 1) d22) (<= d22 1)))\n(declare-const d23 Int)\n(assert (and (<= (- 1) d23) (<= d23 1)))\n(declare-const d24 Int)\n(assert (and (<= (- 1) d24) (<= d24 1)))\n(declare-const d25 Int)\n(assert (and (<= (- 1) d25) (<= d25 1)))\n(declare-const d26 Int)\n(assert (and (<= (- 1) d26) (<= d26 1)))\n(declare-const d27 Int)\n(assert (and (<= (- 1) d27) (<= d27 1)))\n(declare-const d28 Int)\n(assert (and (<= (- 1) d28) (<= d28 1)))\n(declare-const d29 Int)\n(assert (and (<= (- 1) d29) (<= d29 1)))\n(declare-const d30 Int)\n(assert (and (<= (- 1) d30) (<= d30 1)))\n(declare-const d31 Int)\n(assert (and (<= (- 1) d31) (<= d31 1)))\n(declare-const d32 Int)\n(assert (and (<= (- 1) d32) (<= d32 1)))\n(declare-const d33 Int)\n(assert (and (<= (- 1) d33) (<= d33 1)))\n(declare-const d34 Int)\n(assert (and (<= (- 1) d34) (<= d34 1)))\n(declare-const d35 Int)\n(assert (and (<= (- 1) d35) (<= d35 1)))\n(declare-const d36 Int)\n(assert (and (<= (- 1) d36) (<= d36 1)))\n(declare-const d37 Int)\n(assert (and (<= (- 1) d37) (<= d37 1)))\n(declare-const d38 Int)\n(assert (and (<= (- 1) d38) (<= d38 1)))\n(declare-const d39 Int)\n(assert (and (<= (- 1) d39) (<= d39 1)))\n(assert (= (+ (* 1 d0) (* 3 d1) (* 9 d2) (* 27 d3) (* 81 d4) (* 243 d5) (* 729 d6) (* 2187 d7) (* 6561 d8) (* 19683 d9) (* 59049 d10) (* 177147 d11) (* 531441 d12) (* 1594323 d13) (* 4782969 d14) (* 14348907 d15) (* 43046721 d16) (* 129140163 d17) (* 387420489 d18) (* 1162261467 d19) (* 3486784401 d20) (* 10460353203 d21) (* 31381059609 d22) (* 94143178827 d23) (* 282429536481 d24) (* 847288609443 d25) (* 2541865828329 d26) (* 7625597484987 d27) (* 22876792454961 d28) (* 68630377364883 d29) (* 205891132094649 d30) (* 617673396283947 d31) (* 1853020188851841 d32) (* 5559060566555523 d33) (* 16677181699666569 d34) (* 50031545098999707 d35) (* 150094635296999121 d36) (* 450283905890997363 d37) (* 1350851717672992089 d38) (* 4052555153018976267 d39)) (+ 6078832729528464401 (* 18446744069414584321 quotient))))\n(check-sat)\n"
+    },
+    "forty_one_trits_positive_control": {
+      "status": "sat",
+      "elapsed_seconds": 0.007815,
+      "stdout": "sat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_LIA)\n(declare-const quotient Int)\n(declare-const d0 Int)\n(assert (and (<= (- 1) d0) (<= d0 1)))\n(declare-const d1 Int)\n(assert (and (<= (- 1) d1) (<= d1 1)))\n(declare-const d2 Int)\n(assert (and (<= (- 1) d2) (<= d2 1)))\n(declare-const d3 Int)\n(assert (and (<= (- 1) d3) (<= d3 1)))\n(declare-const d4 Int)\n(assert (and (<= (- 1) d4) (<= d4 1)))\n(declare-const d5 Int)\n(assert (and (<= (- 1) d5) (<= d5 1)))\n(declare-const d6 Int)\n(assert (and (<= (- 1) d6) (<= d6 1)))\n(declare-const d7 Int)\n(assert (and (<= (- 1) d7) (<= d7 1)))\n(declare-const d8 Int)\n(assert (and (<= (- 1) d8) (<= d8 1)))\n(declare-const d9 Int)\n(assert (and (<= (- 1) d9) (<= d9 1)))\n(declare-const d10 Int)\n(assert (and (<= (- 1) d10) (<= d10 1)))\n(declare-const d11 Int)\n(assert (and (<= (- 1) d11) (<= d11 1)))\n(declare-const d12 Int)\n(assert (and (<= (- 1) d12) (<= d12 1)))\n(declare-const d13 Int)\n(assert (and (<= (- 1) d13) (<= d13 1)))\n(declare-const d14 Int)\n(assert (and (<= (- 1) d14) (<= d14 1)))\n(declare-const d15 Int)\n(assert (and (<= (- 1) d15) (<= d15 1)))\n(declare-const d16 Int)\n(assert (and (<= (- 1) d16) (<= d16 1)))\n(declare-const d17 Int)\n(assert (and (<= (- 1) d17) (<= d17 1)))\n(declare-const d18 Int)\n(assert (and (<= (- 1) d18) (<= d18 1)))\n(declare-const d19 Int)\n(assert (and (<= (- 1) d19) (<= d19 1)))\n(declare-const d20 Int)\n(assert (and (<= (- 1) d20) (<= d20 1)))\n(declare-const d21 Int)\n(assert (and (<= (- 1) d21) (<= d21 1)))\n(declare-const d22 Int)\n(assert (and (<= (- 1) d22) (<= d22 1)))\n(declare-const d23 Int)\n(assert (and (<= (- 1) d23) (<= d23 1)))\n(declare-const d24 Int)\n(assert (and (<= (- 1) d24) (<= d24 1)))\n(declare-const d25 Int)\n(assert (and (<= (- 1) d25) (<= d25 1)))\n(declare-const d26 Int)\n(assert (and (<= (- 1) d26) (<= d26 1)))\n(declare-const d27 Int)\n(assert (and (<= (- 1) d27) (<= d27 1)))\n(declare-const d28 Int)\n(assert (and (<= (- 1) d28) (<= d28 1)))\n(declare-const d29 Int)\n(assert (and (<= (- 1) d29) (<= d29 1)))\n(declare-const d30 Int)\n(assert (and (<= (- 1) d30) (<= d30 1)))\n(declare-const d31 Int)\n(assert (and (<= (- 1) d31) (<= d31 1)))\n(declare-const d32 Int)\n(assert (and (<= (- 1) d32) (<= d32 1)))\n(declare-const d33 Int)\n(assert (and (<= (- 1) d33) (<= d33 1)))\n(declare-const d34 Int)\n(assert (and (<= (- 1) d34) (<= d34 1)))\n(declare-const d35 Int)\n(assert (and (<= (- 1) d35) (<= d35 1)))\n(declare-const d36 Int)\n(assert (and (<= (- 1) d36) (<= d36 1)))\n(declare-const d37 Int)\n(assert (and (<= (- 1) d37) (<= d37 1)))\n(declare-const d38 Int)\n(assert (and (<= (- 1) d38) (<= d38 1)))\n(declare-const d39 Int)\n(assert (and (<= (- 1) d39) (<= d39 1)))\n(declare-const d40 Int)\n(assert (and (<= (- 1) d40) (<= d40 1)))\n(assert (= (+ (* 1 d0) (* 3 d1) (* 9 d2) (* 27 d3) (* 81 d4) (* 243 d5) (* 729 d6) (* 2187 d7) (* 6561 d8) (* 19683 d9) (* 59049 d10) (* 177147 d11) (* 531441 d12) (* 1594323 d13) (* 4782969 d14) (* 14348907 d15) (* 43046721 d16) (* 129140163 d17) (* 387420489 d18) (* 1162261467 d19) (* 3486784401 d20) (* 10460353203 d21) (* 31381059609 d22) (* 94143178827 d23) (* 282429536481 d24) (* 847288609443 d25) (* 2541865828329 d26) (* 7625597484987 d27) (* 22876792454961 d28) (* 68630377364883 d29) (* 205891132094649 d30) (* 617673396283947 d31) (* 1853020188851841 d32) (* 5559060566555523 d33) (* 16677181699666569 d34) (* 50031545098999707 d35) (* 150094635296999121 d36) (* 450283905890997363 d37) (* 1350851717672992089 d38) (* 4052555153018976267 d39) (* 12157665459056928801 d40)) (+ 6078832729528464401 (* 18446744069414584321 quotient))))\n(assert (= quotient 0))\n(assert (= d0 (- 1)))\n(assert (= d1 (- 1)))\n(assert (= d2 (- 1)))\n(assert (= d3 (- 1)))\n(assert (= d4 (- 1)))\n(assert (= d5 (- 1)))\n(assert (= d6 (- 1)))\n(assert (= d7 (- 1)))\n(assert (= d8 (- 1)))\n(assert (= d9 (- 1)))\n(assert (= d10 (- 1)))\n(assert (= d11 (- 1)))\n(assert (= d12 (- 1)))\n(assert (= d13 (- 1)))\n(assert (= d14 (- 1)))\n(assert (= d15 (- 1)))\n(assert (= d16 (- 1)))\n(assert (= d17 (- 1)))\n(assert (= d18 (- 1)))\n(assert (= d19 (- 1)))\n(assert (= d20 (- 1)))\n(assert (= d21 (- 1)))\n(assert (= d22 (- 1)))\n(assert (= d23 (- 1)))\n(assert (= d24 (- 1)))\n(assert (= d25 (- 1)))\n(assert (= d26 (- 1)))\n(assert (= d27 (- 1)))\n(assert (= d28 (- 1)))\n(assert (= d29 (- 1)))\n(assert (= d30 (- 1)))\n(assert (= d31 (- 1)))\n(assert (= d32 (- 1)))\n(assert (= d33 (- 1)))\n(assert (= d34 (- 1)))\n(assert (= d35 (- 1)))\n(assert (= d36 (- 1)))\n(assert (= d37 (- 1)))\n(assert (= d38 (- 1)))\n(assert (= d39 (- 1)))\n(assert (= d40 1))\n(check-sat)\n"
+    },
+    "missing_value_is_sbox_output": {
+      "status": "sat",
+      "elapsed_seconds": 0.005028,
+      "stdout": "sat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x F)\n(assert (= x (as ff3194645001229403778 F)))\n(assert (= (ff.mul x x x x x x x) (as ff6078832729528464401 F)))\n(check-sat)\n"
+    },
+    "no_degree_eight_bivariate_relation": {
+      "status": "unsat",
+      "elapsed_seconds": 0.00642,
+      "stdout": "unsat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const c0 F)\n(declare-const c1 F)\n(declare-const c2 F)\n(declare-const c3 F)\n(declare-const c4 F)\n(declare-const c5 F)\n(declare-const c6 F)\n(declare-const c7 F)\n(declare-const c8 F)\n(declare-const c9 F)\n(declare-const c10 F)\n(declare-const c11 F)\n(declare-const c12 F)\n(declare-const c13 F)\n(declare-const c14 F)\n(declare-const c15 F)\n(declare-const c16 F)\n(declare-const c17 F)\n(declare-const c18 F)\n(declare-const c19 F)\n(declare-const c20 F)\n(declare-const c21 F)\n(declare-const c22 F)\n(declare-const c23 F)\n(declare-const c24 F)\n(declare-const c25 F)\n(declare-const c26 F)\n(declare-const c27 F)\n(declare-const c28 F)\n(declare-const c29 F)\n(declare-const c30 F)\n(declare-const c31 F)\n(declare-const c32 F)\n(declare-const c33 F)\n(declare-const c34 F)\n(declare-const c35 F)\n(declare-const c36 F)\n(declare-const c37 F)\n(declare-const c38 F)\n(declare-const c39 F)\n(declare-const c40 F)\n(declare-const c41 F)\n(declare-const c42 F)\n(declare-const c43 F)\n(declare-const c44 F)\n(assert (= c0 (as ff0 F)))\n(assert (= c1 (as ff0 F)))\n(assert (= c2 (as ff0 F)))\n(assert (= c3 (as ff0 F)))\n(assert (= c4 (as ff0 F)))\n(assert (= c5 (as ff0 F)))\n(assert (= c6 (as ff0 F)))\n(assert (= c7 (as ff0 F)))\n(assert (= c8 (as ff0 F)))\n(assert (= c9 (as ff0 F)))\n(assert (= c10 (as ff0 F)))\n(assert (= c11 (as ff0 F)))\n(assert (= c12 (as ff0 F)))\n(assert (= c13 (as ff0 F)))\n(assert (= c14 (as ff0 F)))\n(assert (= c15 (as ff0 F)))\n(assert (= c16 (as ff0 F)))\n(assert (= c17 (as ff0 F)))\n(assert (= c18 (as ff0 F)))\n(assert (= c19 (as ff0 F)))\n(assert (= c20 (as ff0 F)))\n(assert (= c21 (as ff0 F)))\n(assert (= c22 (as ff0 F)))\n(assert (= c23 (as ff0 F)))\n(assert (= c24 (as ff0 F)))\n(assert (= c25 (as ff0 F)))\n(assert (= c26 (as ff0 F)))\n(assert (= c27 (as ff0 F)))\n(assert (= c28 (as ff0 F)))\n(assert (= c29 (as ff0 F)))\n(assert (= c30 (as ff0 F)))\n(assert (= c31 (as ff0 F)))\n(assert (= c32 (as ff0 F)))\n(assert (= c33 (as ff0 F)))\n(assert (= c34 (as ff0 F)))\n(assert (= c35 (as ff0 F)))\n(assert (= c36 (as ff0 F)))\n(assert (= c37 (as ff0 F)))\n(assert (= c38 (as ff0 F)))\n(assert (= c39 (as ff0 F)))\n(assert (= c40 (as ff0 F)))\n(assert (= c41 (as ff0 F)))\n(assert (= c42 (as ff0 F)))\n(assert (= c43 (as ff0 F)))\n(assert (= c44 (as ff0 F)))\n(assert (or (not (= c0 (as ff0 F))) (not (= c1 (as ff0 F))) (not (= c2 (as ff0 F))) (not (= c3 (as ff0 F))) (not (= c4 (as ff0 F))) (not (= c5 (as ff0 F))) (not (= c6 (as ff0 F))) (not (= c7 (as ff0 F))) (not (= c8 (as ff0 F))) (not (= c9 (as ff0 F))) (not (= c10 (as ff0 F))) (not (= c11 (as ff0 F))) (not (= c12 (as ff0 F))) (not (= c13 (as ff0 F))) (not (= c14 (as ff0 F))) (not (= c15 (as ff0 F))) (not (= c16 (as ff0 F))) (not (= c17 (as ff0 F))) (not (= c18 (as ff0 F))) (not (= c19 (as ff0 F))) (not (= c20 (as ff0 F))) (not (= c21 (as ff0 F))) (not (= c22 (as ff0 F))) (not (= c23 (as ff0 F))) (not (= c24 (as ff0 F))) (not (= c25 (as ff0 F))) (not (= c26 (as ff0 F))) (not (= c27 (as ff0 F))) (not (= c28 (as ff0 F))) (not (= c29 (as ff0 F))) (not (= c30 (as ff0 F))) (not (= c31 (as ff0 F))) (not (= c32 (as ff0 F))) (not (= c33 (as ff0 F))) (not (= c34 (as ff0 F))) (not (= c35 (as ff0 F))) (not (= c36 (as ff0 F))) (not (= c37 (as ff0 F))) (not (= c38 (as ff0 F))) (not (= c39 (as ff0 F))) (not (= c40 (as ff0 F))) (not (= c41 (as ff0 F))) (not (= c42 (as ff0 F))) (not (= c43 (as ff0 F))) (not (= c44 (as ff0 F)))))\n(check-sat)\n"
+    },
+    "degree_forty_nine_positive_control": {
+      "status": "sat",
+      "elapsed_seconds": 0.005439,
+      "stdout": "sat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const c0 F)\n(declare-const c1 F)\n(assert (= (ff.add c0 c1) (as ff0 F)))\n(assert (or (not (= c0 (as ff0 F))) (not (= c1 (as ff0 F)))))\n(assert (= c0 (as ff1 F)))\n(check-sat)\n"
+    },
+    "wrong_seventh_power_fusion": {
+      "status": "sat",
+      "elapsed_seconds": 0.006211,
+      "stdout": "sat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x F)\n(declare-const y F)\n(assert (= x (as ff2 F)))\n(assert (= y (ff.mul x x x x x x x)))\n(assert (not (= y (ff.mul x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x))))\n(check-sat)\n"
+    },
+    "dropped_intermediate_link": {
+      "status": "sat",
+      "elapsed_seconds": 0.00479,
+      "stdout": "sat\n",
+      "stderr": "",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x F)\n(declare-const z F)\n(declare-const y F)\n(assert (= x (as ff0 F)))\n(assert (= z (as ff1 F)))\n(assert (= y (ff.mul z z z z z z z)))\n(assert (not (= y (ff.mul x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x))))\n(check-sat)\n"
+    }
+  }
+}

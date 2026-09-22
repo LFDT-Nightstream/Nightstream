@@ -79,7 +79,13 @@ The smaller witness does not establish lower execution cost. The complete
 candidate comparison counted 3,001,571,645 logical matrix nonzero entries:
 `[229698543, 4598475, 336477167, 83572300, 844999263, 1502121245, 0,
 104652, 0, 0, 0, 0, 0, 0]`. Physical A/B/C nonzeros are
-`[93701820, 39358148, 28868018]`. No before/after runtime comparison is complete.
+`[93701820, 39358148, 28868018]`. The saved baseline conformance log
+counts 2,335,822,475 logical matrix nonzeros. Its input file has the exact
+selected baseline artifact hash `043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f`
+and matching structural/package identities. Thus logical nonzeros increase
+by 665,749,170, or 28.5017%. `checkpoint-metrics.json` preserves both vectors.
+No before/after runtime comparison is complete; this is not an overall
+performance improvement claim.
 
 ## Research basis
 
@@ -206,3 +212,37 @@ the chosen layout and proofs are stable, complete the affected artifacts,
 Rust integration, and proving-time/peak-memory measurements. If the extra
 50% target appears infeasible, report the achieved reduction and concrete
 obstacles without weakening these requirements.
+
+## Checked research batch
+
+The direct PiRLC constructor evaluates only the required output recipes for
+all 52,326 canonical invocations. Lean proves successful reconstruction of
+the old scratch rows and equality outside the 7,848,900-column scratch
+interval. The custody proof covers all retained allocation blocks and proves
+equal complete CCS assignments and public digests at the phase boundary.
+No caller premise supplies scratch equality or successful full execution.
+
+This is not yet a replacement for the complete production witness builder.
+The existing stored plan proves final row satisfaction, but has no public
+canonical event-provenance contract. Witness recipe and hint read support,
+including PiDEC sign and canonical-u64 batches, is not implied by constraint
+support. Those proofs and the existing array dispatcher bridge remain open.
+No unconnected execution model or stronger assumptions were added.
+
+The cvc5 research rejects two restricted candidates: 40 independent ternary
+coordinates per arbitrary field value, and elimination of an adjacent scalar
+S-box pair through a nonzero bivariate equation of total degree below nine.
+Ten Lean research theorems establish the count bounds, exact counterexample,
+and coefficient/root argument without solver trust. These are local bounds;
+they do not prove a global lower bound for Poseidon circuits.
+
+Static checks passed. The full Lean library passed with 4,019 jobs in 38 s.
+The full axiom/test build passed with 4,182 jobs in 7 s after registering the
+new research module in the explicit test roots. All 38 new production
+theorems and ten research theorems passed their axiom audits.
+
+The achieved committed-coordinate reduction remains 27.1339%; no further
+coordinate reduction or proving-cost improvement is established.
+`remaining-witness-budget.md` records the actual costs and online sources.
+Package and fixture regeneration, Rust integration, and further benchmarks
+remain paused while the full producer proof is incomplete.

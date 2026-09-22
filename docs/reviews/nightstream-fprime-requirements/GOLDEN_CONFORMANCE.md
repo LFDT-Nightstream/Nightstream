@@ -69,15 +69,23 @@ authorize a new run. Historical results retain their original scope.
   The complete independent C input, phase and proof words also match the
   current CPU values. An explicit source/input audit permits reuse of the
   retained C computation. Its 21 previously unexecuted finish rejection cases
-  now pass. New R/D and successor work uses a separate continuation directory;
+  now pass. R/D and successor work uses a separate continuation directory;
   the old failed receipt remains unchanged.
+- Independent iteration-2 reductions now pass: all 39 D matrix batches,
+  final D acceptance, all 945,983 proof bytes, 55 native D rejections and
+  30 Lean finish rejections. C remains retained imported computation.
+  The direct current CPU parent comparison also passes for all 253,011,276
+  canonical field coefficients, including tail-mutation rejection. This is
+  field equality; the JSON representations differ. All 16 current child
+  witness files match the retained comparison targets in 579,873,475 bytes.
+  The parent receipt was written on 2026-09-22 at 01:33:25 UTC.
 - Required-check workflow wiring is implemented. Actual CI execution still
   needs the three missing published archives, confirmed Metal runner routing,
   and branch rules that require the final check. Local CPU-to-Lean handoff
   checks pass. Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
-  remaining independent reductions and recursive feedback through iteration 4
-  are also pending. The 9/10 target is not yet complete.
+  complete independent 2→3→4 successor and feedback sequence remains pending.
+  The 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
 source versions, exact comparison scope and failures will be recorded here

@@ -1,5 +1,6 @@
 mod common;
 
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{COL_OUTPUT_VALUE_LO_AFTER, COL_PC_ROM_CALL_RETURN_CHOICE, COL_STACK_READ_VALUE_LO};
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -71,7 +72,7 @@ fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
 #[test]
 fn call_trace_has_correct_fbp_and_call_stack_fields() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(run.results.as_slice(), &["6".to_string()], "expected add_one(5) = 6");
 
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -163,7 +164,7 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
 #[test]
 fn nested_two_param_call_trace_counts_down_param_init_rows() {
     let wasm = nested_two_param_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(run.results.as_slice(), &["11".to_string()], "expected sum2(4, 7) = 11");
 
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -205,7 +206,7 @@ fn nested_two_param_call_trace_counts_down_param_init_rows() {
 #[test]
 fn call_indirect_guest_target_initializes_params() {
     let wasm = call_indirect_param_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(
         run.results.as_slice(),
         &["6".to_string()],
@@ -234,7 +235,7 @@ fn call_indirect_guest_target_initializes_params() {
 fn call_trace_passes_witness_checks() {
     let wasm = add_one_wasm();
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     common::sanity_check_trace(&trace, &artifacts);
     common::ccs_check_trace(&trace);
@@ -293,7 +294,7 @@ fn guest_call_with_loop_only_pops_frame_at_function_end() {
 #[test]
 fn clean_halted_row_requires_empty_call_stack_depth() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let mut final_row = trace
         .iter()
@@ -321,7 +322,7 @@ fn nested_trap_may_halt_with_nonempty_call_stack_depth() {
                 call $divide))"#,
     )
     .expect("wat parse");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace nested trap");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace nested trap");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize nested trap");
     let trap = trace.last().expect("terminal trap row");
 
@@ -335,7 +336,7 @@ fn nested_trap_may_halt_with_nonempty_call_stack_depth() {
 #[test]
 fn call_row_pins_return_pc_rom_choice() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let call_row = trace
         .iter()
@@ -349,7 +350,7 @@ fn call_row_pins_return_pc_rom_choice() {
 #[test]
 fn final_halt_captures_simple_output() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let final_row = trace
         .iter()
@@ -365,7 +366,7 @@ fn final_halt_captures_simple_output() {
 #[test]
 fn clean_halt_with_a_result_requires_output_capture() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let mut final_row = trace
         .iter()
@@ -386,7 +387,7 @@ fn clean_halt_with_a_result_requires_output_capture() {
 #[test]
 fn final_halt_output_low_is_row_bound() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let final_row = trace
         .iter()
@@ -403,7 +404,7 @@ fn final_halt_output_low_is_row_bound() {
 fn final_halt_output_low_is_stack_memory_bound() {
     let wasm = add_one_wasm();
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let layout = build_wasm_relation_layout();
     let mut witnesses = build_witnesses(&trace);

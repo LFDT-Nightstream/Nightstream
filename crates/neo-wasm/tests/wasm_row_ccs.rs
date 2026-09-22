@@ -2,6 +2,7 @@ mod common;
 
 use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
     COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
@@ -22,7 +23,7 @@ use p3_field::PrimeCharacteristicRing;
 
 fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
 }
 
@@ -1152,7 +1153,7 @@ fn call_row_rejects_tampered_current_function_num_locals() {
     )
     .expect("wat");
 
-    let trace = collect_wasmtime_steps(&wasm, "run", &[])
+    let trace = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
         .and_then(|run| traces_from_wasmtime_steps(&run.steps))
         .expect("normalize");
     let row = trace

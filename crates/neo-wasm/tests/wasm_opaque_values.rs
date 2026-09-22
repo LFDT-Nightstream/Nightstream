@@ -12,7 +12,7 @@ use neo_wasm::host_event_bindings::{
 };
 use neo_wasm::layout::*;
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmHostEventSlotKind, WasmOpcode, WasmVmStep};
+use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
@@ -162,27 +162,10 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
     )
     .unwrap();
 
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&bytes, "run", |linker| {
-        linker
-            .root()
-            .func_wrap("host", |_store, (): ()| Ok(()))
-            .map_err(|err| neo_wasm::WasmBuildError::Trace(err.to_string()))
-    })
-    .unwrap();
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&bytes).expect("artifacts");
 
-    let export = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .unwrap();
-
-    let import = run
-        .steps
-        .iter()
-        .find(|row| row.opcode_decoded == Some(WasmOpcode::Call) && !row.target_function_is_guest)
-        .unwrap()
-        .function_ref
-        .unwrap();
+    let export = 2;
+    let import = 1;
 
     let mut events = Vec::new();
     let mut expected = Vec::new();
@@ -207,17 +190,19 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
         }
     }
     let old_gather_count = events.len() * 8;
-    let mut builder = HostEventBindingsBuilder::new(&run.program_tables);
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
     builder.export(export, vec![], vec![]).unwrap();
     builder.import(import, events).unwrap();
     let bindings = builder.finish().unwrap();
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&bytes, &bindings, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host", |_store, (): ()| Ok(()))
+            .map_err(|err| neo_wasm::WasmBuildError::Trace(err.to_string()))
+    })
     .unwrap();
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default()).unwrap();
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&bytes).unwrap();
     common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
@@ -371,25 +356,21 @@ fn setup() -> Setup {
     builder.export(export, entry, exit).unwrap();
     builder.import(import, call).unwrap();
     let bindings = builder.finish().unwrap();
-    let run = common::wasmtime_capture::component_i32(
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
         &bytes,
+        &bindings,
         "run",
         &[wasmtime::component::Val::S32(16), wasmtime::component::Val::S32(3)],
-        &bindings,
         |linker| {
             linker
                 .root()
                 .func_wrap("mul", |_store, (x, y): (i32, i32)| Ok((x * y,)))
                 .map_err(|err| neo_wasm::WasmBuildError::Trace(err.to_string()))
         },
-    );
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
     )
     .unwrap();
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default()).unwrap();
     let boundary = &bindings.exports[&export];
     let call = &bindings.imports[&import];
     let mut expected =
@@ -411,7 +392,7 @@ fn setup() -> Setup {
     Setup {
         trace,
         bindings,
-        artifacts: neo_wasm::extract_first_component_core_program_artifacts(&bytes).unwrap(),
+        artifacts: run.artifacts().clone(),
         expected,
     }
 }

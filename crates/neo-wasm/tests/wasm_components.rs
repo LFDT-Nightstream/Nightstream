@@ -1,5 +1,6 @@
 mod common;
 
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
     collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
     extract_first_component_core_program_artifacts, traces_from_wasmtime_component, traces_from_wasmtime_steps,
@@ -50,9 +51,30 @@ fn component_import_wat() -> &'static str {
 }
 
 #[test]
+fn invalid_capture_bindings_are_reported_after_lazy_discovery() {
+    let bytes = wat::parse_str(component_wat()).unwrap();
+    let mut bindings = HostEventBindings::default();
+    // The module has only function reference 1.
+    bindings.exports.insert(2, Default::default());
+    let expected = "binding fref 2 has no function-call metadata";
+    let mut configured_linker = false;
+    let error = collect_wasmtime_component_run_with_linker(&bytes, &bindings, "run", |_| {
+        configured_linker = true;
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(error.to_string().contains(expected));
+    assert!(
+        configured_linker,
+        "binding validation occurs at the first guest instruction"
+    );
+}
+
+#[test]
 fn wasmtime_component_debug_trace_captures_core_frames() {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
-    let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component debug trace");
+    let run = collect_wasmtime_component_run(&component_bytes, &HostEventBindings::default(), "run")
+        .expect("component debug trace");
     let steps = &run.steps;
     assert!(
         !steps.is_empty(),
@@ -117,24 +139,8 @@ fn wasmtime_component_import_can_lower_into_core_import() {
 #[test]
 fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     let component_bytes = wat::parse_str(component_import_wat()).expect("component wat");
-    let run = collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
-        linker
-            .root()
-            .func_wrap("host-double", |_store, (x,): (i32,)| Ok((x * 2,)))
-            .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
-    })
-    .expect("component trace run");
-    let import_fref = run
-        .steps
-        .iter()
-        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
-        .and_then(|row| row.function_ref)
-        .expect("host import fref");
-    let export_fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export fref");
+    let import_fref = 1;
+    let export_fref = 2;
     let mut slots = [neo_wasm::host_event_bindings::SlotBinding::Const(0); neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS];
     slots[0] = neo_wasm::host_event_bindings::SlotBinding::ArgElem {
         arg: 0,
@@ -146,7 +152,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     slots[2] = neo_wasm::host_event_bindings::SlotBinding::ResultElem {
         limb: neo_wasm::host_event_bindings::Limb::Hi,
     };
-    let mut bindings = neo_wasm::host_event_bindings::HostEventBindings::default();
+    let mut bindings = HostEventBindings::default();
     bindings.imports.insert(
         import_fref,
         neo_wasm::host_event_bindings::ImportTemplate {
@@ -155,9 +161,15 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         },
     );
     bindings.exports.insert(export_fref, Default::default());
-    let trace =
-        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
-            .expect("component trace normalization");
+    let run = collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-double", |_store, (x,): (i32,)| Ok((x * 2,)))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
+    })
+    .expect("component trace run");
+    let trace = traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("component trace normalization");
     let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
     common::ccs_check_trace(&trace);
     let witnesses: Vec<_> = trace
@@ -177,7 +189,8 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
 #[test]
 fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
-    let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component trace run");
+    let run = collect_wasmtime_component_run(&component_bytes, &HostEventBindings::default(), "run")
+        .expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
     let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
     check_component_trace(&trace, &artifacts);
@@ -192,7 +205,8 @@ fn check_component_trace(trace: &[neo_wasm::WasmVmStep], artifacts: &neo_wasm::W
 #[ignore = "debug dump for wasm component execution under Wasmtime"]
 fn dump_wasmtime_component_debug_trace() {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
-    let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component debug trace");
+    let run = collect_wasmtime_component_run(&component_bytes, &HostEventBindings::default(), "run")
+        .expect("component debug trace");
     let steps = run.steps;
     println!("component wasmtime steps: {}", steps.len());
     for step in steps {

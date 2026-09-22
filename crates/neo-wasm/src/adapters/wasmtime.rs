@@ -19,12 +19,12 @@ mod entry_inputs;
 mod memory_address;
 mod normalize;
 mod parse;
+mod registry;
 mod runtime_read;
-use decode::DecodedOpcode;
 use normalize::capture_frame;
-use parse::{parse_first_component_core_module_artifacts, parse_wasm_artifacts, ParsedFunctionMeta};
-pub use runtime_read::build_debug_function_id_map;
-use runtime_read::{build_single_trace_store_debug_function_id_map, val_to_string};
+use parse::{parse_first_component_core_module_artifacts, parse_wasm_artifacts};
+pub use registry::{WasmTraceSink, WasmtimeTraceRegistry, WasmtimeTraceState};
+use runtime_read::val_to_string;
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
 pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_host_events};
@@ -91,7 +91,7 @@ pub struct WasmtimeTraceStep {
     pub pc_after_instruction: Option<u64>,
     /// Per-call host-event input words recorded by the embedder's host
     /// function while servicing this host-call row (see
-    /// [`WasmtimeTraceState::record_call_inputs`]). Consumed by event-bound
+    /// [`WasmtimeTraceRegistry::record_call_inputs`]). Consumed by event-bound
     /// normalization.
     pub host_call_inputs: Vec<u64>,
     /// Bytes required by entry bindings, captured from Wasm memory 0
@@ -127,9 +127,8 @@ pub struct WasmtimeTraceMemoryAccess {
 
 #[derive(Clone, Debug)]
 pub struct WasmtimeTraceRun {
-    /// Verifier-owned static program tables used by host-event-aware
-    /// normalization and memory preloading.
-    pub program_tables: WasmProgramTables,
+    /// The configured artifacts used for capture, retained for normalization.
+    artifacts: Arc<WasmProgramArtifacts>,
     /// Normalized string form of the export results, as produced by the
     /// reference wasmtime interpreter (`func.call_async`).
     ///
@@ -142,7 +141,13 @@ pub struct WasmtimeTraceRun {
     pub steps: Vec<WasmtimeTraceStep>,
 }
 
-/// Single-step tracing hook for store data that exposes [`WasmtimeTraceState`].
+impl WasmtimeTraceRun {
+    pub fn artifacts(&self) -> &WasmProgramArtifacts {
+        &self.artifacts
+    }
+}
+
+/// Single-step tracing hook for store data exposing a [`WasmtimeTraceRegistry`].
 pub struct WasmtimeTraceHandler<T>(PhantomData<fn() -> T>);
 
 impl<T> WasmtimeTraceHandler<T> {
@@ -172,115 +177,11 @@ impl<T> std::fmt::Debug for WasmtimeTraceHandler<T> {
     }
 }
 
-#[derive(Debug, Default)]
-/// Store data used by Wasmtime guest-debug tracing. This is public so callers can
-/// configure component linkers for `*_component_*_with` helpers, which require
-/// `Linker<WasmtimeTraceState>` in their callback signature.
-pub struct WasmtimeTraceState {
-    next_step: u64,
-    steps: Vec<WasmtimeTraceStep>,
-    /// Per-module lowering tables, behind a single `Arc` so the breakpoint hook
-    /// can cheaply clone a handle out (one refcount bump) and read them while the
-    /// live frame is read through `&mut store`.
-    tables: Arc<LoweringTables>,
-}
-
-/// Per-instance lowering tables: the static decode/metadata derived from the
-/// module, plus the post-instantiation funcref-id map.
-#[derive(Clone, Debug, Default)]
+/// Module artifacts are shared; runtime function identities belong to one instance.
+#[derive(Debug)]
 pub(crate) struct LoweringTables {
-    pub(crate) export_bindings: BTreeMap<u32, crate::host_event_bindings::ExportTemplate>,
-    pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
-    /// Raw-funcref-pointer to module-local id, filled post-instantiation via
-    /// [`WasmtimeTraceState::set_func_ref_ids`] (empty until then).
+    pub(crate) artifacts: Arc<WasmProgramArtifacts>,
     pub(crate) func_ref_ids: BTreeMap<usize, u32>,
-    pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
-    pub(crate) imported_function_count: u32,
-    /// Declared max pages for memory 0 (a module constant), seeded from the parse
-    /// artifacts at construction. `None` when the module has no default memory.
-    pub(crate) memory_max_pages: Option<u32>,
-}
-
-/// Routes captured wasm steps to trace state keyed by `Instance::debug_index_in_store()`.
-pub trait WasmTraceSink {
-    fn wasm_trace_state(&self, instance_index: u32) -> Option<&WasmtimeTraceState>;
-    fn wasm_trace_state_mut(&mut self, instance_index: u32) -> Option<&mut WasmtimeTraceState>;
-    /// The debug hook cannot return errors, so missing trace registrations must
-    /// be surfaced through the sink.
-    fn record_untraced_instance(&mut self, instance_index: u32);
-}
-
-impl WasmTraceSink for WasmtimeTraceState {
-    fn wasm_trace_state(&self, _instance_index: u32) -> Option<&WasmtimeTraceState> {
-        Some(self)
-    }
-    fn wasm_trace_state_mut(&mut self, _instance_index: u32) -> Option<&mut WasmtimeTraceState> {
-        Some(self)
-    }
-    fn record_untraced_instance(&mut self, _instance_index: u32) {}
-}
-
-impl WasmtimeTraceState {
-    /// Build trace state from parsed program artifacts and capture bindings.
-    /// The export bindings select entry-memory bytes to capture. Empty default
-    /// bindings are sufficient when entry-memory capture is not needed.
-    ///
-    /// Funcref normalization also requires a post-instantiation
-    /// [`WasmtimeTraceState::set_func_ref_ids`] call.
-    pub fn from_program_artifacts(artifacts: &WasmProgramArtifacts, bindings: &HostEventBindings) -> Self {
-        WasmtimeTraceState {
-            next_step: 0,
-            steps: Vec::new(),
-            tables: Arc::new(LoweringTables {
-                export_bindings: bindings.exports.clone(),
-                opcode_map: artifacts.trace.opcode_map.clone(),
-                func_ref_ids: BTreeMap::new(),
-                function_metas: artifacts.trace.function_metas.clone(),
-                imported_function_count: artifacts.trace.imported_function_count,
-                memory_max_pages: artifacts.tables.max_memory_pages,
-            }),
-        }
-    }
-
-    /// The trace rows collected so far, in capture order.
-    pub fn steps(&self) -> &[WasmtimeTraceStep] {
-        &self.steps
-    }
-
-    /// Take ownership of the collected trace rows, leaving the state empty so it
-    /// can be reused for a subsequent run.
-    pub fn take_steps(&mut self) -> Vec<WasmtimeTraceStep> {
-        std::mem::take(&mut self.steps)
-    }
-
-    /// Install the post-instantiation raw-funcref to module-local id map.
-    ///
-    /// Install this before tracing rows that may contain funcrefs.
-    pub fn set_func_ref_ids(&mut self, func_ref_ids: BTreeMap<usize, u32>) {
-        Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
-    }
-
-    /// Record per-call host-event input words for the in-flight host call
-    /// (for example, ref ids or caller identities). Call from
-    /// inside a host-function implementation (`store.data_mut()`): the debug
-    /// hook captures each instruction before it executes, so the latest
-    /// captured step is the host-call row being serviced and the batch
-    /// attaches to it — no call-order bookkeeping. Repeated calls append.
-    pub fn record_call_inputs(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
-        let row = self.steps.last_mut().ok_or_else(|| {
-            WasmBuildError::Trace("record_call_inputs: no captured step; not inside a traced host call".to_string())
-        })?;
-        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
-            && !row.target_function_is_guest;
-        if !is_host_call {
-            return Err(WasmBuildError::Trace(format!(
-                "record_call_inputs: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
-                row.step, row.opcode
-            )));
-        }
-        row.host_call_inputs.extend_from_slice(words);
-        Ok(())
-    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -313,12 +214,16 @@ fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTrac
     }
 }
 
+/// Capture a core module, discovering its artifacts from the executing frame.
+/// Bindings are installed before instantiation, including start execution.
 pub fn collect_wasmtime_steps(
     wasm_bytes: &[u8],
+    bindings: &HostEventBindings,
     export: &str,
     params: &[i32],
 ) -> Result<WasmtimeTraceRun, WasmBuildError> {
-    let parsed = parse_wasm_artifacts(wasm_bytes)?;
+    let mut trace_state = WasmtimeTraceRegistry::default();
+    trace_state.register_module(wasm_bytes, bindings.clone())?;
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -330,11 +235,8 @@ pub fn collect_wasmtime_steps(
     let module = Module::from_binary(&engine, wasm_bytes)
         .map_err(|err| WasmBuildError::Trace(format!("failed to compile wasm bytes: {err}")))?;
 
-    let mut store = Store::new(
-        &engine,
-        WasmtimeTraceState::from_program_artifacts(&parsed, &HostEventBindings::default()),
-    );
-    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
+    let mut store = Store::new(&engine, trace_state);
+    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceRegistry>::new());
 
     {
         let mut edit = store
@@ -345,22 +247,31 @@ pub fn collect_wasmtime_steps(
     }
 
     let linker = Linker::new(&engine);
-    let instance = block_on(linker.instantiate_async(&mut store, &module))
-        .map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime module: {err}")))?;
-    let func_ref_ids = build_debug_function_id_map(&instance, &mut store)?;
-    store.data_mut().set_func_ref_ids(func_ref_ids);
+    let instance = block_on(linker.instantiate_async(&mut store, &module));
+    store.data().check_errors()?;
+    let instance =
+        instance.map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime module: {err}")))?;
     let func: Func = instance
         .get_func(&mut store, export)
         .ok_or_else(|| WasmBuildError::Trace(format!("export '{export}' not found")))?;
     let param_vals: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
     let mut results = vec![Val::I32(0)];
-    let results = match block_on(func.call_async(&mut store, &param_vals, &mut results)) {
+    let call_result = block_on(func.call_async(&mut store, &param_vals, &mut results));
+    store.data().check_errors()?;
+    let results = match call_result {
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
         // Traps with a modeled terminal state: keep the collected steps
         // (the faulting row included) and report no results. Other trap
         // causes (e.g. OOB access) are not provable yet and stay hard
         // errors.
-        Err(err) if is_modeled_terminal_trap(err.downcast_ref::<Trap>(), store.data().steps.last()) => Vec::new(),
+        Err(err)
+            if is_modeled_terminal_trap(
+                err.downcast_ref::<Trap>(),
+                store.data().single_instance()?.steps().last(),
+            ) =>
+        {
+            Vec::new()
+        }
         Err(err) => {
             return Err(WasmBuildError::Trace(format!(
                 "failed to execute Wasmtime export '{export}': {err}"
@@ -368,36 +279,35 @@ pub fn collect_wasmtime_steps(
         }
     };
 
-    let steps = store.data().steps.clone();
-
-    Ok(WasmtimeTraceRun {
-        program_tables: parsed.tables,
-        results,
-        steps,
-    })
+    store.into_data().into_run(results)
 }
 
 pub fn traces_from_wasmtime_wasm_bytes(wasm_bytes: &[u8], export: &str) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    let run = collect_wasmtime_steps(wasm_bytes, export, &[])?;
+    let run = collect_wasmtime_steps(wasm_bytes, &HostEventBindings::default(), export, &[])?;
     traces_from_wasmtime_steps(&run.steps)
 }
 
+/// Capture a component containing exactly one embedded core module.
+/// For multi-module components, select core bytes with [`WasmtimeTraceRegistry::register_module`].
 pub fn collect_wasmtime_component_run(
     component_bytes: &[u8],
+    bindings: &HostEventBindings,
     export: &str,
 ) -> Result<WasmtimeTraceRun, WasmBuildError> {
-    collect_wasmtime_component_run_with_linker(component_bytes, export, |_linker| Ok(()))
+    collect_wasmtime_component_run_with_linker(component_bytes, bindings, export, |_linker| Ok(()))
 }
 
+/// Capture a single-core-module component with host imports and bindings.
 pub fn collect_wasmtime_component_run_with_linker<F>(
     component_bytes: &[u8],
+    bindings: &HostEventBindings,
     export: &str,
     configure_linker: F,
 ) -> Result<WasmtimeTraceRun, WasmBuildError>
 where
-    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceRegistry>) -> Result<(), WasmBuildError>,
 {
-    collect_wasmtime_component_run_with_linker_and_args(component_bytes, export, &[], configure_linker)
+    collect_wasmtime_component_run_with_linker_and_args(component_bytes, bindings, export, &[], configure_linker)
 }
 
 /// [`collect_wasmtime_component_run_with_linker`] for exports with
@@ -405,14 +315,16 @@ where
 /// lowering lands them in the export's locals).
 pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
     component_bytes: &[u8],
+    bindings: &HostEventBindings,
     export: &str,
     args: &[ComponentVal],
     configure_linker: F,
 ) -> Result<WasmtimeTraceRun, WasmBuildError>
 where
-    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceRegistry>) -> Result<(), WasmBuildError>,
 {
-    let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
+    let mut trace_state = WasmtimeTraceRegistry::default();
+    trace_state.register_module(parse::single_component_core_module(component_bytes)?, bindings.clone())?;
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -425,11 +337,8 @@ where
     let component = WasmtimeComponent::new(&engine, component_bytes)
         .map_err(|err| WasmBuildError::Trace(format!("failed to compile component bytes: {err}")))?;
 
-    let mut store = Store::new(
-        &engine,
-        WasmtimeTraceState::from_program_artifacts(&parsed, &HostEventBindings::default()),
-    );
-    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
+    let mut store = Store::new(&engine, trace_state);
+    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceRegistry>::new());
 
     {
         let mut edit = store
@@ -441,10 +350,10 @@ where
 
     let mut linker = WasmtimeComponentLinker::new(&engine);
     configure_linker(&mut linker)?;
-    let instance = block_on(linker.instantiate_async(&mut store, &component))
-        .map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime component: {err}")))?;
-    let func_ref_ids = build_single_trace_store_debug_function_id_map(&mut store)?;
-    store.data_mut().set_func_ref_ids(func_ref_ids);
+    let instance = block_on(linker.instantiate_async(&mut store, &component));
+    store.data().check_errors()?;
+    let instance =
+        instance.map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime component: {err}")))?;
     let func = instance
         .get_func(&mut store, export)
         .ok_or_else(|| WasmBuildError::Trace(format!("component export '{export}' not found")))?;
@@ -453,23 +362,20 @@ where
         .results()
         .map(default_component_result_value)
         .collect::<Result<_, _>>()?;
-    block_on(func.call_async(&mut store, args, &mut results))
+    let call_result = block_on(func.call_async(&mut store, args, &mut results));
+    store.data().check_errors()?;
+    call_result
         .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
-    let steps = store.data().steps.clone();
-
-    Ok(WasmtimeTraceRun {
-        program_tables: parsed.tables,
-        results: results
-            .iter()
-            .map(component_val_to_string)
-            .collect::<Result<_, _>>()?,
-        steps,
-    })
+    let results = results
+        .iter()
+        .map(component_val_to_string)
+        .collect::<Result<_, _>>()?;
+    store.into_data().into_run(results)
 }
 
 pub fn traces_from_wasmtime_component(component_bytes: &[u8], export: &str) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    let run = collect_wasmtime_component_run(component_bytes, export)?;
+    let run = collect_wasmtime_component_run(component_bytes, &HostEventBindings::default(), export)?;
     traces_from_wasmtime_steps(&run.steps)
 }
 
@@ -479,9 +385,14 @@ pub fn traces_from_wasmtime_component_with_linker<F>(
     configure_linker: F,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError>
 where
-    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceRegistry>) -> Result<(), WasmBuildError>,
 {
-    let run = collect_wasmtime_component_run_with_linker(component_bytes, export, configure_linker)?;
+    let run = collect_wasmtime_component_run_with_linker(
+        component_bytes,
+        &HostEventBindings::default(),
+        export,
+        configure_linker,
+    )?;
     traces_from_wasmtime_steps(&run.steps)
 }
 
@@ -548,36 +459,11 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             let Some(frame) = frames.first() else {
                 return;
             };
-            let instance_index = match frame.instance(&mut store) {
-                Ok(instance) => instance.debug_index_in_store(),
-                // TODO: we may actually want to record errors into the store,
-                // so that they can't be surfaced later (even if we don't
-                // short-circuit, as the handle function can't error)
-                Err(_) => return,
-            };
-            let (tables, step) = match store.data().wasm_trace_state(instance_index) {
-                Some(state) => (state.tables.clone(), state.next_step),
-                None => {
-                    store.data_mut().record_untraced_instance(instance_index);
-                    return;
-                }
-            };
-            let row = match capture_frame(step, frame, &mut store, &tables) {
-                Ok(mut row) => {
-                    entry_inputs::capture_entry_memory(&mut row, frame, &mut store, &tables);
-                    row
-                }
-                Err(error) => WasmtimeTraceStep {
-                    step,
-                    function: "<frame-inspection-error>".to_string(),
-                    locals: vec![error.to_string()],
-                    ..Default::default()
-                },
-            };
-
-            if let Some(state) = store.data_mut().wasm_trace_state_mut(instance_index) {
-                state.next_step += 1;
-                state.steps.push(row);
+            if store.data().wasm_trace_registry().error.is_some() {
+                return;
+            }
+            if let Err(error) = registry::capture_step(frame, &mut store) {
+                store.data_mut().wasm_trace_registry_mut().error = Some(error);
             }
         }
     }

@@ -164,25 +164,8 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
                 (canon lift (core func $run))))"#,
     )
     .expect("valid component");
-    let run = collect_wasmtime_component_run_with_linker(&component, "run", |linker| {
-        linker
-            .root()
-            .func_wrap("host-touch", |_store, (_x,): (i32,)| Ok(()))
-            .map_err(|err| WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
-    })
-    .expect("component trace");
-    let export_fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref");
-    let import_fref = run
-        .steps
-        .iter()
-        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
-        .and_then(|row| row.function_ref)
-        .expect("import function ref");
-    assert_ne!(import_fref, export_fref);
+    let import_fref = 1;
+    let export_fref = 3;
 
     let mut slots = [SlotBinding::Const(0); COMM_CHAIN_EVENT_ARGS];
     slots[0] = SlotBinding::OutputElem { limb: Limb::Lo };
@@ -197,9 +180,15 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
             ..Default::default()
         },
     );
-    let trace =
-        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
-            .expect("guest tail call with event binding");
+    let run = collect_wasmtime_component_run_with_linker(&component, &bindings, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-touch", |_store, (_x,): (i32,)| Ok(()))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
+    })
+    .expect("component trace");
+    let trace = traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("guest tail call with event binding");
     common::ccs_check_trace(&trace);
     common::check_native_event_hashes(&trace).expect("native event hashes");
 
@@ -249,12 +238,7 @@ fn tail_call_exit_memory_uses_the_captured_output_pointer() {
                 return_call $callee))"#,
     )
     .expect("valid wasm");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("wasmtime trace");
-    let export_fref = run
-        .steps
-        .first()
-        .and_then(|row| row.current_function_ref)
-        .expect("export function ref");
+    let export_fref = 2;
     let exit = EventSequenceBuilder::op(1)
         .memory_read_i32(MemoryBase::Output, 0)
         .expect("valid exit memory slot")
@@ -269,9 +253,9 @@ fn tail_call_exit_memory_uses_the_captured_output_pointer() {
         },
     );
 
-    let trace =
-        traces_from_wasmtime_steps_with_host_events(&run.steps, &run.program_tables, &bindings, Default::default())
-            .expect("captured output survives replacement of the export frame");
+    let run = collect_wasmtime_steps(&wasm, &bindings, "run", &[]).expect("wasmtime trace");
+    let trace = traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("captured output survives replacement of the export frame");
     common::ccs_check_trace(&trace);
 }
 
@@ -298,12 +282,18 @@ fn return_call_to_an_import_remains_explicitly_unsupported() {
                 (canon lift (core func $run))))"#,
     )
     .expect("valid component");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component, "run", &[], |linker| {
-        linker
-            .root()
-            .func_wrap("host-identity", |_store, (x,): (i32,)| Ok((x,)))
-            .map_err(|err| WasmBuildError::Trace(format!("failed to define host-identity: {err}")))
-    })
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
+        &component,
+        &HostEventBindings::default(),
+        "run",
+        &[],
+        |linker| {
+            linker
+                .root()
+                .func_wrap("host-identity", |_store, (x,): (i32,)| Ok((x,)))
+                .map_err(|err| WasmBuildError::Trace(format!("failed to define host-identity: {err}")))
+        },
+    )
     .expect("component trace");
     let err = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect_err("import tail call must fail explicitly");
     assert!(matches!(err, WasmBuildError::Unsupported(_)));

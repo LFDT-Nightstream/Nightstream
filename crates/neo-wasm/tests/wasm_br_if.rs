@@ -1,5 +1,6 @@
 mod common;
 
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{collect_wasmtime_steps, traces_from_wasmtime_steps};
 
 // Loop that counts down: local[0] starts at 3, decrements to 0.
@@ -27,7 +28,7 @@ const COUNTDOWN_WAT: &str = r#"
 #[ignore = "debug dump for raw br_if trace collection"]
 fn print_br_if_raw_trace() {
     let wasm = wat::parse_str(COUNTDOWN_WAT).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
 
     println!("=== raw wasmtime steps ({}) ===", run.steps.len());
     for step in &run.steps {

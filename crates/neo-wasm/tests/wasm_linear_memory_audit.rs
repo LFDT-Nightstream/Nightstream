@@ -4,6 +4,7 @@ mod common;
 
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CMP_LOW, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE,
     COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3,
@@ -19,7 +20,7 @@ use p3_field::PrimeCharacteristicRing;
 
 fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
 }
 
@@ -88,7 +89,7 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     let (store_idx, store_row) = trace
         .iter()

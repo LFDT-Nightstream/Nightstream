@@ -2,16 +2,16 @@
 
 pub mod audit;
 pub mod host_event_fixture;
-pub mod wasmtime_capture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
-    build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    opcode_info_from_code, preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows,
-    top_level_initial_state_digest, traces_from_wasmtime_steps, witness_builder::build_witness_vector,
-    LinearMemoryAccess, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState, WasmPcEdgeKind,
-    WasmProgramArtifacts, WasmRowKind, WasmStepState, WasmVmStep, WasmtimeTraceRun,
+    build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code,
+    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
+    traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
+    WasmCountdownState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
+    WasmVmStep, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
@@ -28,8 +28,8 @@ pub fn checked_main(wat_src: &str) -> CheckedWasmRun {
 
 pub fn checked_wasm_run(wat_src: &str, export: &str) -> CheckedWasmRun {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, export, &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), export, &[]).expect("wasmtime trace");
+    let artifacts = run.artifacts().clone();
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     let witnesses = sanity_check_trace(&trace, &artifacts);
     ccs_check_trace(&trace);

@@ -2,33 +2,15 @@
 
 mod common;
 
-use std::collections::BTreeMap;
-
 use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding};
 use neo_wasm::{
-    WasmBuildError, WasmProgramArtifacts, WasmTraceSink, WasmVmStep, WasmtimeTraceHandler, WasmtimeTraceState,
-    WasmtimeTraceStep,
+    WasmBuildError, WasmProgramArtifacts, WasmVmStep, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceStep,
 };
 use wasmtime::{Config, Engine, Instance, Linker, Module, Store, Val};
 
-#[derive(Default)]
-struct Sink(BTreeMap<u32, WasmtimeTraceState>);
-
-impl WasmTraceSink for Sink {
-    fn wasm_trace_state(&self, instance: u32) -> Option<&WasmtimeTraceState> {
-        self.0.get(&instance)
-    }
-    fn wasm_trace_state_mut(&mut self, instance: u32) -> Option<&mut WasmtimeTraceState> {
-        self.0.get_mut(&instance)
-    }
-    fn record_untraced_instance(&mut self, instance: u32) {
-        panic!("unregistered instance {instance}")
-    }
-}
-
 struct Runtime {
     engine: Engine,
-    store: Store<Sink>,
+    store: Store<WasmtimeTraceRegistry>,
 }
 
 impl Runtime {
@@ -39,7 +21,7 @@ impl Runtime {
         config.wasm_function_references(true);
         config.wasm_tail_call(true);
         let engine = Engine::new(&config).unwrap();
-        let mut store = Store::new(&engine, Sink::default());
+        let mut store = Store::new(&engine, WasmtimeTraceRegistry::default());
         store.set_debug_handler(WasmtimeTraceHandler::new());
         store.edit_breakpoints().unwrap().single_step(true).unwrap();
         Self { engine, store }
@@ -47,19 +29,18 @@ impl Runtime {
 
     fn instantiate(&mut self, wat: &str, bindings: &HostEventBindings) -> (Instance, WasmProgramArtifacts) {
         let wasm = wat::parse_str(wat).unwrap();
-        let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).unwrap();
+        let mut artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).unwrap();
+        artifacts.host_event_bindings = bindings.clone();
         bindings
             .validate_against_program(&artifacts.tables)
+            .unwrap();
+        self.store
+            .data_mut()
+            .register_module(&wasm, bindings.clone())
             .unwrap();
         let module = Module::new(&self.engine, &wasm).unwrap();
         let instance =
             futures::executor::block_on(Linker::new(&self.engine).instantiate_async(&mut self.store, &module)).unwrap();
-        let mut state = WasmtimeTraceState::from_program_artifacts(&artifacts, bindings);
-        state.set_func_ref_ids(neo_wasm::build_debug_function_id_map(&instance, &mut self.store).unwrap());
-        self.store
-            .data_mut()
-            .0
-            .insert(instance.debug_index_in_store(), state);
         (instance, artifacts)
     }
 
@@ -69,7 +50,11 @@ impl Runtime {
     }
 
     fn steps(&self, instance: Instance) -> &[WasmtimeTraceStep] {
-        self.store.data().0[&instance.debug_index_in_store()].steps()
+        self.store
+            .data()
+            .instance(instance.debug_index_in_store())
+            .unwrap()
+            .steps()
     }
 
     fn write(&mut self, instance: Instance, address: usize, bytes: &[u8]) {
@@ -95,21 +80,17 @@ fn local(input: u8, local: u8, limb: Limb) -> SlotBinding {
     SlotBinding::InputLocal { input, local, limb }
 }
 
-fn normalize(
-    steps: &[WasmtimeTraceStep],
-    artifacts: &WasmProgramArtifacts,
-    bindings: &HostEventBindings,
-) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    neo_wasm::traces_from_wasmtime_steps_with_host_events(steps, &artifacts.tables, bindings, Default::default())
+fn normalize(steps: &[WasmtimeTraceStep], artifacts: &WasmProgramArtifacts) -> Result<Vec<WasmVmStep>, WasmBuildError> {
+    neo_wasm::traces_from_wasmtime_steps_with_host_events(steps, artifacts, Default::default())
 }
 
 fn check_entry_values(
     steps: &[WasmtimeTraceStep],
     artifacts: &WasmProgramArtifacts,
-    bindings: &HostEventBindings,
     inputs: &[Vec<u64>],
 ) -> Vec<WasmVmStep> {
-    let trace = normalize(steps, artifacts, bindings).unwrap();
+    let bindings = &artifacts.host_event_bindings;
+    let trace = normalize(steps, artifacts).unwrap();
     let mut turn = 0;
     for row in &trace {
         if row.row_kind == neo_wasm::WasmRowKind::Aux(neo_wasm::WasmAuxOpcode::TurnBoundary) {
@@ -189,7 +170,6 @@ fn entry_locals_shared_inputs_nested_calls_and_tail_calls_across_turns() {
             check_entry_values(
                 runtime.steps(instance),
                 &artifacts,
-                &bindings,
                 &[
                     vec![u32::MAX.into(), 0x8765_4321, 0x1234_5678],
                     vec![9, u64::from(u32::MAX - 1), u32::MAX.into()],
@@ -197,13 +177,13 @@ fn entry_locals_shared_inputs_nested_calls_and_tail_calls_across_turns() {
             );
             let mut conflicting = runtime.steps(instance).to_vec();
             conflicting[0].locals_words[2].0 = 7;
-            assert!(normalize(&conflicting, &artifacts, &bindings)
+            assert!(normalize(&conflicting, &artifacts)
                 .unwrap_err()
                 .to_string()
                 .contains("conflicting mappings"));
             let mut missing = runtime.steps(instance).to_vec();
             missing[0].locals_words.pop();
-            assert!(normalize(&missing, &artifacts, &bindings)
+            assert!(normalize(&missing, &artifacts)
                 .unwrap_err()
                 .to_string()
                 .contains("locals snapshot length"));
@@ -287,7 +267,7 @@ fn entry_memory_uses_pre_instruction_bytes_and_preserves_history_across_instance
             assert!(!bytes.contains_key(&21), "unselected byte is not captured");
         }
         let inputs = inputs.map(|entry| entry.to_vec());
-        let trace = check_entry_values(steps, &artifacts, &bindings, &inputs);
+        let trace = check_entry_values(steps, &artifacts, &inputs);
         let writes: Vec<_> = trace
             .iter()
             .filter(|row| {
@@ -322,26 +302,25 @@ fn cross_instance_call_captures_the_callee_memory_with_a_live_caller_frame() {
             local.get 0 i32.load16_u offset=6 drop))"#,
     )
     .unwrap();
-    let artifacts_b = neo_wasm::extract_wasm_program_artifacts(&wasm_b).unwrap();
+    let mut artifacts_b = neo_wasm::extract_wasm_program_artifacts(&wasm_b).unwrap();
     let mut bindings_b = memory_bindings(2);
     bindings_b.imports.insert(1, Default::default());
+    runtime
+        .store
+        .data_mut()
+        .register_module(&wasm_b, bindings_b.clone())
+        .unwrap();
     let module = Module::new(&runtime.engine, wasm_b).unwrap();
     let mut linker = Linker::new(&runtime.engine);
     let callee = a.get_func(&mut runtime.store, "run").unwrap();
     linker.define(&runtime.store, "a", "run", callee).unwrap();
     let b = futures::executor::block_on(linker.instantiate_async(&mut runtime.store, &module)).unwrap();
-    let mut state = WasmtimeTraceState::from_program_artifacts(&artifacts_b, &bindings_b);
-    state.set_func_ref_ids(neo_wasm::build_debug_function_id_map(&b, &mut runtime.store).unwrap());
-    runtime
-        .store
-        .data_mut()
-        .0
-        .insert(b.debug_index_in_store(), state);
+    artifacts_b.host_event_bindings = bindings_b;
     runtime.write(a, 16, &[11, 0, 0, 0, 12, 0xaa, 13, 0]);
     runtime.write(b, 16, &[22, 0, 0, 0, 23, 0xaa, 24, 0]);
     runtime.call(b, &[Val::I32(16), Val::I32(22)]);
-    check_entry_values(runtime.steps(a), &artifacts_a, &bindings_a, &[vec![16, 11, 12, 13]]);
-    check_entry_values(runtime.steps(b), &artifacts_b, &bindings_b, &[vec![16, 22, 23, 24]]);
+    check_entry_values(runtime.steps(a), &artifacts_a, &[vec![16, 11, 12, 13]]);
+    check_entry_values(runtime.steps(b), &artifacts_b, &[vec![16, 22, 23, 24]]);
 }
 
 #[test]
@@ -365,7 +344,7 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
                 .unwrap()
                 .remove(&16);
         }
-        assert!(normalize(&bad, &artifacts, &bindings)
+        assert!(normalize(&bad, &artifacts)
             .unwrap_err()
             .to_string()
             .contains("missing entry memory"));
@@ -378,19 +357,19 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
         .as_mut()
         .unwrap()
         .insert(16, 43);
-    assert!(normalize(&bad, &artifacts, &bindings)
+    assert!(normalize(&bad, &artifacts)
         .unwrap_err()
         .to_string()
         .contains("conflicting mappings"));
     let mut high_pointer = steps.to_vec();
     high_pointer[0].locals_words[0].1 = 1;
-    assert!(normalize(&high_pointer, &artifacts, &bindings)
+    assert!(normalize(&high_pointer, &artifacts)
         .unwrap_err()
         .to_string()
         .contains("not a wasm32 pointer"));
     let mut failed_read = steps.to_vec();
     failed_read[0].entry_memory = Some(Err("debug memory unavailable".into()));
-    assert!(normalize(&failed_read, &artifacts, &bindings)
+    assert!(normalize(&failed_read, &artifacts)
         .unwrap_err()
         .to_string()
         .contains("debug memory unavailable"));
@@ -400,12 +379,14 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
 fn entry_memory_requires_capture_configuration() {
     let mut runtime = Runtime::new();
     let bindings = memory_bindings(2);
-    let (instance, artifacts) = runtime.instantiate(MEMORY_WAT, &HostEventBindings::default());
+    let (instance, mut artifacts) = runtime.instantiate(MEMORY_WAT, &HostEventBindings::default());
     runtime.write(instance, 16, &[42, 0, 0, 0, 7, 0xaa, 8, 0]);
     runtime.call(instance, &[Val::I32(16), Val::I32(42)]);
     let steps = runtime.steps(instance);
     assert!(steps.iter().all(|step| step.entry_memory.is_none()));
-    assert!(normalize(steps, &artifacts, &bindings)
+    // Changing artifacts after capture cannot recover bytes that were never recorded.
+    artifacts.host_event_bindings = bindings;
+    assert!(normalize(steps, &artifacts)
         .unwrap_err()
         .to_string()
         .contains("configure capture bindings"));
@@ -438,7 +419,7 @@ fn recovery_requires_the_actual_entry_row_of_each_turn() {
         for start in [0, second_turn] {
             let mut skipped = steps.to_vec();
             skipped[start].opcode_decoded = None;
-            assert!(normalize(&skipped, &artifacts, &bindings)
+            assert!(normalize(&skipped, &artifacts)
                 .unwrap_err()
                 .to_string()
                 .contains("expected entry pc"));
@@ -446,7 +427,7 @@ fn recovery_requires_the_actual_entry_row_of_each_turn() {
             missing.drain(start..start + 2);
             // The next captured local has already been changed to 99. Recovery
             // must reject its PC instead of treating 99 as the entry argument.
-            assert!(normalize(&missing, &artifacts, &bindings)
+            assert!(normalize(&missing, &artifacts)
                 .unwrap_err()
                 .to_string()
                 .contains("expected entry pc"));
@@ -470,7 +451,7 @@ fn memory_mappings_can_share_an_input_at_disjoint_addresses() {
     let (instance, artifacts) = runtime.instantiate(MEMORY_WAT, &bindings);
     runtime.write(instance, 16, &[42, 0, 0, 0, 7, 0xaa, 7, 0]);
     runtime.call(instance, &[Val::I32(16), Val::I32(42)]);
-    check_entry_values(runtime.steps(instance), &artifacts, &bindings, &[vec![16, 42, 7]]);
+    check_entry_values(runtime.steps(instance), &artifacts, &[vec![16, 42, 7]]);
     let mut conflicting = runtime.steps(instance).to_vec();
     conflicting[0]
         .entry_memory
@@ -479,7 +460,7 @@ fn memory_mappings_can_share_an_input_at_disjoint_addresses() {
         .as_mut()
         .unwrap()
         .insert(22, 8);
-    assert!(normalize(&conflicting, &artifacts, &bindings)
+    assert!(normalize(&conflicting, &artifacts)
         .unwrap_err()
         .to_string()
         .contains("conflicting mappings"));
@@ -519,7 +500,7 @@ fn entry_memory_capture_rejects_invalid_accesses_and_overlapping_aliases() {
             .as_ref()
             .unwrap_err()
             .contains(expected));
-        assert!(normalize(steps, &artifacts, &bindings)
+        assert!(normalize(steps, &artifacts)
             .unwrap_err()
             .to_string()
             .contains(expected));
@@ -580,16 +561,10 @@ fn capture_and_replay_share_host_event_address_rules() {
             write_bindings
                 .exports
                 .insert(1, template(2, &[local(0, 0, Limb::Lo), write]));
-            let mut runtime = Runtime::new();
-            let (instance, artifacts) = runtime.instantiate(&wat, &write_bindings);
-            let function = instance.get_func(&mut runtime.store, "run").unwrap();
-            futures::executor::block_on(function.call_async(
-                &mut runtime.store,
-                &[Val::I32(base as i32)],
-                &mut [Val::I32(0)],
-            ))
-            .unwrap();
-            let steps = runtime.steps(instance);
+            let wasm = wat::parse_str(&wat).unwrap();
+            let run = neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[base as i32]).unwrap();
+            let artifacts = run.artifacts().clone();
+            let steps = &run.steps;
             let captured = steps[0].entry_memory.as_ref().unwrap();
 
             // Resolve the same address from the export's output, so an invalid
@@ -598,7 +573,9 @@ fn capture_and_replay_share_host_event_address_rules() {
             let mut read_template = template(1, &[local(0, 0, Limb::Lo)]);
             read_template.exit = template(0, &[read]).entry;
             read_bindings.exports.insert(1, read_template);
-            let replay = normalize(steps, &artifacts, &read_bindings);
+            let mut read_artifacts = artifacts.clone();
+            read_artifacts.host_event_bindings = read_bindings.clone();
+            let replay = normalize(steps, &read_artifacts);
             if let Some(expected) = error {
                 let capture_error = captured.as_ref().unwrap_err();
                 assert!(capture_error.contains(expected), "{capture_error}");
@@ -607,14 +584,14 @@ fn capture_and_replay_share_host_event_address_rules() {
                     capture_error.ends_with(&replay_error),
                     "capture: {capture_error}; replay: {replay_error}"
                 );
-                assert!(normalize(steps, &artifacts, &write_bindings)
+                assert!(normalize(steps, &artifacts)
                     .unwrap_err()
                     .to_string()
                     .contains(expected));
             } else {
                 assert_eq!(captured.as_ref().unwrap().len(), width as usize);
                 for (trace, bindings) in [
-                    (normalize(steps, &artifacts, &write_bindings).unwrap(), &write_bindings),
+                    (normalize(steps, &artifacts).unwrap(), &write_bindings),
                     (replay.unwrap(), &read_bindings),
                 ] {
                     common::sanity_check_trace_with_bindings(&trace, &artifacts, bindings);
@@ -657,7 +634,6 @@ fn nested_export_candidate_capture_errors_do_not_start_a_turn() {
     check_entry_values(
         runtime.steps(instance),
         &artifacts,
-        &bindings,
         &[Vec::<u64>::new(), Vec::<u64>::new()],
     );
 }
@@ -683,7 +659,7 @@ fn component_entry_memory_is_captured_after_canonical_argument_lowering() {
             (canon lift (core func $run) (memory $memory) (realloc $realloc))))"#,
     )
     .unwrap();
-    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&wasm).unwrap();
+    let mut artifacts = neo_wasm::extract_first_component_core_program_artifacts(&wasm).unwrap();
     let mut bindings = memory_bindings(2);
     let run = bindings.exports.get_mut(&2).unwrap();
     run.entry_input_count = 5;
@@ -716,27 +692,29 @@ fn component_entry_memory_is_captured_after_canonical_argument_lowering() {
     config.guest_debug(true);
     config.wasm_component_model(true);
     let engine = Engine::new(&config).unwrap();
-    let state = WasmtimeTraceState::from_program_artifacts(&artifacts, &bindings);
+    artifacts.host_event_bindings = bindings;
+    let mut state = WasmtimeTraceRegistry::default();
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        if let wasmparser::Payload::ModuleSection { unchecked_range, .. } = payload.unwrap() {
+            state
+                .register_module(&wasm[unchecked_range], artifacts.host_event_bindings.clone())
+                .unwrap();
+        }
+    }
     let mut store = Store::new(&engine, state);
     store.set_debug_handler(WasmtimeTraceHandler::new());
     store.edit_breakpoints().unwrap().single_step(true).unwrap();
     let component = Component::new(&engine, wasm).unwrap();
     let instance =
         futures::executor::block_on(ComponentLinker::new(&engine).instantiate_async(&mut store, &component)).unwrap();
-    let mut ids = BTreeMap::new();
-    for core in store.debug_all_instances() {
-        ids.extend(neo_wasm::build_debug_function_id_map(&core, &mut store).unwrap());
-    }
-    store.data_mut().set_func_ref_ids(ids);
     let function = instance.get_func(&mut store, "run").unwrap();
     for bytes in [[42, 0, 0, 0, 7, 0, 8, 0], [99, 0, 0, 0, 10, 0, 11, 0]] {
         let args = [ComponentVal::List(bytes.into_iter().map(ComponentVal::U8).collect())];
         futures::executor::block_on(function.call_async(&mut store, &args, &mut [])).unwrap();
     }
     check_entry_values(
-        store.data().steps(),
+        store.data().single_instance().unwrap().steps(),
         &artifacts,
-        &bindings,
         &[
             vec![0, 1, 8],
             vec![16, 8, 42, 7, 8],

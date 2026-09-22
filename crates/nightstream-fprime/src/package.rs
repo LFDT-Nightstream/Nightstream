@@ -409,6 +409,16 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
+        self.execute_assignment_source(private_inputs, public_values, false)
+    }
+
+    // A source with omitted scratch stays inside sealed CCS construction.
+    fn execute_assignment_source(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+        direct_product_outputs: bool,
+    ) -> Result<WitnessAssignment, PackageError> {
         if private_inputs.len() != self.private_input_count() {
             return Err(PackageError::Invalid("private input length"));
         }
@@ -461,7 +471,11 @@ impl LoadedPackage {
                     self.execute_invocation(invocation, &mut assignment)?;
                 }
                 ScheduledAssignment::Compact(invocation) => {
-                    compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
+                    if direct_product_outputs {
+                        compact::execute_ccs_invocation(invocation, &self.compact_templates, &mut assignment)?;
+                    } else {
+                        compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
+                    }
                 }
                 ScheduledAssignment::Batch(batch) => {
                     execute_witness_batch(batch, &mut assignment);

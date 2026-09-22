@@ -189,7 +189,7 @@ The current `Circuit` uses a prefix of the selected production commitment key.
 Private input words plus generated local words must be at most **7,701**. This
 comes from the existing layout
 `252,695,531 + 41 × (private_words + local_words)` and the selected key's
-253,011,276-coefficient capacity. The exported row and domain checks also apply.
+184,359,564-coefficient capacity. The exported row and domain checks also apply.
 A larger application needs a separately supported key; preparation rejects it.
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh

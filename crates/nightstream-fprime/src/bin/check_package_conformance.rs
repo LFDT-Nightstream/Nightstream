@@ -1,6 +1,8 @@
 //! Run one exact conformance gate on an external Lean-emitted candidate.
 //! Expected identities and metadata are separate caller-selected Lean outputs;
 //! no published production identity pin is changed by this executable.
+//! Assignment coverage requires assignment, assignment-phi81,
+//! assignment-first54, and assignment-output-digest as separate capped runs.
 
 #[allow(dead_code, unused_imports)]
 #[path = "../../tests/per_application_assignment.rs"]
@@ -25,7 +27,7 @@ fn main() {
     let mut arguments = env::args_os().skip(1);
     let mode = arguments
         .next()
-        .expect("mode: physical, logical, mutations, assignment, base, recursive, recursive-mutations, commitment, detached, or primitive")
+        .expect("mode: physical, logical, mutations, assignment, assignment-phi81, assignment-first54, assignment-output-digest, base, recursive, recursive-mutations, commitment, detached, or primitive")
         .into_string()
         .expect("mode text");
     if mode == "primitive" {

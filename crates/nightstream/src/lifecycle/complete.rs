@@ -136,13 +136,15 @@ impl PreparedLifecycle {
 
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let physical = self.execute_step_witness(inputs.pi_ccs(), inputs.pi_dec(), inputs.application_witness())?;
+        let logical = self.package.execute_stage1_v1_1_ccs_assignment(
+            inputs.pi_ccs(),
+            inputs.pi_dec(),
+            inputs.application_witness(),
+        )?;
         #[cfg(test)]
-        eprintln!("complete physical witness elapsed={:?}", started.elapsed());
+        eprintln!("complete CCS assignment elapsed={:?}", started.elapsed());
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let logical = self.package.execute_logical_assignment(&physical)?;
-        drop(physical);
         let blocks = self.structure.m.div_ceil(D);
         if logical.len() != self.structure.m || blocks == 0 || blocks > PRODUCTION_MESSAGE_COLUMNS as usize {
             return Err(CompleteStepError::Input(

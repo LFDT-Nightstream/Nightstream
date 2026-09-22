@@ -1,15 +1,20 @@
 # Committed witness reduction
 
-Status: the 27.1339% Lean carrier reduction remains proved, and the complete
-canonical direct producer proof now passes. The latest full library build
+Status: the 27.1339% Lean carrier reduction and complete canonical direct
+producer proof are saved in signed checkpoint `6bcdbb7c`. The latest full
+library build
 passed 4,020 jobs in 130 seconds; the full axiom/test build passed 4,207 jobs
 in 100 seconds, including 71 new public theorem audits. The reduced geometry
 and carrier inequality also passed their earlier axiom audit.
-A candidate package and its binding were emitted and checked independently.
-The candidate has not been selected: production identity pins and saved
-recursive fixtures remain unchanged. The owner requested a checkpoint here,
-then a pause in package/fixture generation and further Rust benchmarks while
-the next Lean experiments are evaluated. No runtime improvement is claimed.
+The quotient package and its supporting artifacts are now installed with new
+Rust identity pins. The selected Rust core and lifecycle use the direct
+producer; changed packages keep the full fallback. Independent assignment,
+rejection, commitment, pilot, binding, and identity checks passed. Actual NIFS
+regeneration and the complete independent comparison passed; native and Lean
+base/recursive fixtures are published. Final Nightstream tests passed.
+All correctness and integration checks for this quotient checkpoint are
+complete. The candidate lifecycle benchmark remains pending, and no runtime
+improvement is claimed.
 
 ## Contract
 
@@ -22,8 +27,9 @@ Keep the semantic specification, soundness, completeness, efficient witness
 extraction, and existing security assumptions. Keep Goldilocks, Poseidon2,
 `b = 2`, `k_rho = 16`, and `B = 65536`. Final production integration must
 connect the chosen layout to the canonical package and Rust consumer.
-Complete the research described below before selecting a new production
-artifact and refreshing recursive fixtures.
+The completed proof checkpoint has passed its selected Rust integration
+checks. The separate
+additional 50% coordinate target below remains a research target.
 
 Baseline source: `469d12e2dc01a7cd236aaef86950f0708260041f`.
 `Poseidon2HashChainV1Package.logicalWidth` gives 253,011,231 logical
@@ -71,7 +77,8 @@ and checks two points per lane. Lean proves these geometry values:
 The carrier reduction is 68,651,712 coordinates, or 27.1339%. The added
 carrier inequality theorem establishes the requested reduction of at least
 25%. Its axiom audit passed. Candidate decoding and complete independent
-matrix comparison confirmed these counts. The candidate is not selected.
+matrix comparison confirmed these counts. The same package bytes are now
+installed for the current integration checks.
 
 Complete logical rows decrease by 26.2551%. Physical R1CS rows and the
 fixed domain remain unchanged.
@@ -172,8 +179,8 @@ assignment check reached its 300-second cap. Before that cap it passed all
 mutations, all 13 matrix-slot probes, the zero-matrix insertion check, 256
 public-digest bit mutations, four digest-word mutations, and the Phi81 and
 First54 recipe identity/equation rejection cases. The output-digest recipe
-case remains unverified; the combined command is a failed gate at this
-checkpoint. No further Rust check will run before the research phase ends.
+case was unverified at that checkpoint. The original combined command remains
+a failed run; the separate current check below now closes the missing case.
 
 Two old probes were repaired without reducing coverage: a centered-unit
 value of zero changed by +1 is still valid, so probes now use each decoded
@@ -184,13 +191,71 @@ checks parallel ranges in canonical order and keeps the first failure.
 The completed old-layout CPU baseline used two application steps, including
 one active fold: preparation 21.399 s, base proving 17.132 s, active fold
 226.013 s, verification 152.593 s, total 417.137 s. Peak RSS was
-8,500,621,312 bytes. It verified the final state. No candidate runtime result
-has been recorded. `baseline-cpu.json` retains the measured result.
+8,500,621,312 bytes. It verified the final state. No matched candidate
+lifecycle benchmark has been recorded. `baseline-cpu.json` retains the
+measured result.
 
-Production identity pins, saved recursive fixtures, final Rust integration,
-and before/after runtime comparison remain pending. The shared formula and
-verifier exports in this checkpoint are candidate data; do not treat this
-checkpoint as a selected production release.
+The saved NIFS and recursive caller fixtures are published, and the final
+Nightstream correctness and integration checks passed. The before/after
+runtime comparison remains pending.
+
+## Current integration checks
+
+The current emitter passed in 58 seconds. It produced exactly the same
+128,098,903-byte package as the `8b7c07d8` candidate, with SHA-256
+`6216d1f62250a58d073ecf0a908bd074d3834957ec5be3361620bbdeb5a97642`.
+This hash records byte equality; it is not protocol authority. The package,
+expanded reference, binding, setup, PiCCS/PiDEC/PiRLC/application parity, and
+base fixture are installed. The three Rust identity pins now select this
+package. Matrix counts remain unchanged.
+
+The direct Rust producer is connected to the core and lifecycle. Its fast
+path requires the complete selected structural identity. Other packages use
+the full physical path. Current checks passed as follows:
+
+| Check | Result and scope | Time |
+|---|---|---:|
+| Fresh pilot parity | New verifier context emitted | 16.077 s |
+| Fresh PiCCS ownership sidecar | New structural identity emitted | 9.968 s |
+| Fresh sparse commitment parity | New final carrier coordinate emitted | 8.183 s |
+| Canonical identity | Emitted binding, saved binding, and Rust pins agree | 119.214 s |
+| Scratch and First54 unit checks | Passed | 177 s compilation; 0 s tests |
+| Full/direct agreement and changed-package fallback | Two tests passed, including error agreement | 72.05 s |
+| Independent assignment and rejection checks | All 4,703,127 rows, 304 ordinary mutation controls, and final output-digest recipe case passed | 178.363 s |
+| Sparse commitment | All 1,188 coefficients for three nonzero coordinates agree | 0.121 s |
+| Pilot parity tests | Five passed; the existing external-input test remains ignored | 26.02 s |
+| Production binding tests | Three passed | 70.94 s |
+| Complete Nightstream assembly equality and schema-2 rejection | Passed | 5.11 s tests; 112 s compilation |
+| Nightstream saved proof and transcript | Passed | 42.61 s |
+| Nightstream recursive caller fields and detached-input rejection | Exact fields and rejection checks passed | 64.22 s |
+
+The output-digest recipe mutation was rejected at row 3,864,779. The earlier
+Phi81 and First54 recipe checks remain valid for their unchanged source.
+The timed-out combined run above remains recorded as failed; it is not
+relabeled as a pass. Its missing output-digest case now has a completed
+separate check.
+
+Actual NIFS regeneration completed under
+`/tmp/nightstream-quotient-nifs-6bcdbb7c`. PiCCS proving and verification
+passed in 195.254 seconds, the PiRLC parent in 76.306 seconds, and parent
+replay/commitment/split checks in 166.380 seconds. Active children 0 through 5
+had separately computed openings in 221.122, 222.475, 221.158, 203.917,
+208.760, and 169.425 seconds. Complete assembly and verification passed in
+213.997 seconds and rejected all 43 NIFS mutations.
+
+The independent Lean base-NIFS result passed in 10.797 seconds; the recursive
+caller fixture passed in 11.906 seconds. `check-owned-nifs` passed the complete
+phase, child, transcript, and 945,983-byte proof comparison and rejected all
+55 PiDEC mutation cases. The native result/proof and both Lean fixtures are
+published. Their authoritative file hashes and source scope are in
+[the fixture record](../../../crates/neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs/README.md).
+The older evidence archive retains the old fixture and is not the source of
+these outputs. Rust integration is still uncommitted at this update.
+
+Final Nightstream tests passed, closing the required correctness and
+integration checks for this checkpoint. The candidate lifecycle benchmark
+remains pending. These stage timings do not establish an overall speed or
+memory improvement.
 
 ## Next research contract
 
@@ -199,8 +264,9 @@ The owner requested another 50% reduction from 184,359,564 to at most
 result. The first requirement was a direct CCS witness construction for the
 optimized ring products with proved witness mappings before removing the
 related R1CS work. The complete selected Lean producer now meets that proof
-requirement. Integration into the Rust producer remains pending. A complete
-compiler rewrite is outside this task.
+requirement. Its Rust core and lifecycle port is in place, and the integration
+checks above passed. A complete compiler rewrite is outside
+this task.
 
 Use the actual remaining witness budget, starting with the largest costs and
 Poseidon blocks. Search current papers, arXiv, blogs, webpages, and GitHub.
@@ -210,10 +276,9 @@ specification, security assumptions, and profile. Track coordinates, rows,
 and matrix nonzeros separately. Moving cost between these measures is not an
 overall performance improvement.
 
-Batch Lean experiments before further package or fixture generation. Once
-the chosen layout and proofs are stable, complete the affected artifacts,
-Rust integration, and proving-time/peak-memory measurements. If the extra
-50% target appears infeasible, report the achieved reduction and concrete
+The bounded Lean research batch is complete. Complete the affected artifacts,
+Rust integration, and proving-time/peak-memory measurements for this proved
+checkpoint. If the extra 50% target appears infeasible, report the achieved reduction and concrete
 obstacles without weakening these requirements.
 
 ## Checked research batch
@@ -247,8 +312,9 @@ their axiom audits.
 The achieved committed-coordinate reduction remains 27.1339%; no further
 coordinate reduction or proving-cost improvement is established.
 `remaining-witness-budget.md` records the actual costs and online sources.
-Package and fixture regeneration, Rust integration, and further benchmarks
-remain paused under the owner's research instruction.
+The owner paused package and fixture regeneration, Rust integration, and
+benchmarks at this earlier research checkpoint. Integration resumed after
+the complete producer proof passed.
 
 ## Complete canonical producer proof
 
@@ -288,9 +354,11 @@ the theorem has no caller-supplied support or scratch-equality premise.
 assignment and public digest for the selected Poseidon application.
 
 The full physical executor remains the reference path. The stored replay
-entry point uses the extracted full dispatcher and loop; selecting the direct
-constructor in the Rust producer remains pending. This proof closes the
-whole Lean producer connection, not Rust integration or a runtime benchmark.
+entry point uses the extracted full dispatcher and loop. The Rust core and
+lifecycle now select the direct constructor for the exact selected identity,
+with the full path as the fallback. The theorem closes the whole Lean producer
+connection. The selected Rust integration checks also passed; the benchmark
+remains separate and pending.
 
 The earlier sorted-membership and dispatcher attempts stopped under the
 three-round rule. The fresh continuation resolved both: it proves membership

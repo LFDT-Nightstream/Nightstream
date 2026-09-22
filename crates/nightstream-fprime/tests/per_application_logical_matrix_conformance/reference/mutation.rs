@@ -11,10 +11,6 @@ pub enum RecipeFamily {
     OutputDigest,
 }
 
-impl RecipeFamily {
-    pub const ALL: [Self; 3] = [Self::Phi81, Self::First54, Self::OutputDigest];
-}
-
 pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Result<Vec<u8>> {
     let mut sealed: Value =
         serde_json::from_slice(sealed_bytes).map_err(|error| format!("recipe-mutation package decode: {error}"))?;

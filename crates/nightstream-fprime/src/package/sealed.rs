@@ -292,6 +292,21 @@ impl LoadedPerApplicationPackage {
         self.assignment_plan.execute(&self.circuit.layout, physical)
     }
 
+    /// Construct the CCS assignment directly for the fixed selected package.
+    /// Other applications retain full physical execution. The selected identity
+    /// binds the complete package, including all witness recipes and sources.
+    pub fn execute_ccs_assignment(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let direct_product_outputs = self.structural_identifier == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER;
+        let source = self
+            .circuit
+            .execute_assignment_source(private_inputs, public_values, direct_product_outputs)?;
+        self.assignment_plan.execute(&self.circuit.layout, &source)
+    }
+
     /// Encode the typed PiCCS input through this verifier-owned package.
     ///
     /// The generic prefix validates the caller's package context. This final
@@ -359,6 +374,17 @@ impl LoadedPerApplicationPackage {
         let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
         self.circuit
             .execute_witness(encoded.private_values(), encoded.public_values())
+    }
+
+    /// Construct the final CCS assignment from typed Stage 1 inputs.
+    pub fn execute_stage1_v1_1_ccs_assignment(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.execute_ccs_assignment(encoded.private_values(), encoded.public_values())
     }
 
     /// Decode the PiCCS output segments through this verifier-owned package.

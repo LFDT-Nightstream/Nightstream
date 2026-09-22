@@ -8,16 +8,8 @@
 ## Build and smoke-test
 
 ```bash
-cargo build --release
-
-# Full workspace tests (always use --release; debug builds are far too slow)
-cargo test --workspace --release
-
-# Canonical end-to-end chain: encode F' steps, fold, finalize, verify
-cargo test -p neo-fold-clean --release --test system_fibonacci_bits_e2e -- --nocapture
-
-# Lifecycle red-team (tamper-rejection) suite
-cargo test -p neo-fold-clean --release --test system_lifecycle_redteam
+cargo build -p nightstream --release
+timeout --signal=KILL 300 cargo test -p nightstream --release
 ```
 
 Project test policies (enforced, see [CLAUDE.md](../CLAUDE.md)): every test invocation
@@ -25,14 +17,21 @@ gets a hard 5-minute timeout; tests always use `FoldingMode::Optimized` (never
 `PaperExact` without explicit approval); tests live under `tests/`, never inline in
 implementation files; run `cargo fmt --all` after modifying Rust code.
 
-## Lifecycle quickstart
+## Current lifecycle
 
-The only public surface a consumer needs is `neo_fold_clean::lifecycle` plus a
-frontend. The minimal frontend is direct-CCS: you supply an R1CS shape and satisfying
+Use [`nightstream`](../crates/nightstream/README.md) to compile an application,
+save and load its circuit package, and select a prover and verifier. Both require
+an explicit minimum statistical-security level from the caller.
+The same page gives the current CPU and Metal benchmark commands.
+
+## Legacy lifecycle reference
+
+The retained `neo_fold_legacy::lifecycle` API uses a frontend.
+The minimal frontend is direct-CCS: you supply an R1CS shape and satisfying
 assignments, it hands back foldable instances.
 
 ```rust
-use neo_fold_clean::{
+use neo_fold_legacy::{
     frontends::direct_ccs, prove, extend, finish_uncompressed,
     verify_uncompressed, CcsInstance, FoldSchedule,
 };
@@ -63,13 +62,16 @@ trail: `finish_uncompressed_with_audit` + `verify_uncompressed_audit`. See
 
 ## Where to start reading code
 
-1. `crates/neo-fold-clean/src/lifecycle/` — the public chain API and its two
+For current work, start with `crates/nightstream/src/circuit.rs` and
+`crates/nightstream/src/folding/`. The following paths describe the legacy API:
+
+1. `crates/neo-fold-legacy/src/lifecycle/` — the public chain API and its two
    verification paths. The module doc in `lifecycle/mod.rs` is the best single overview.
-2. `crates/neo-fold-clean/src/paper/mod.rs` — the paper-symbol → code glossary. Every
+2. `crates/neo-fold-legacy/src/paper/mod.rs` — the paper-symbol → code glossary. Every
    identifier in the `paper/` layer is a paper symbol or maps to one.
-3. `crates/neo-fold-clean/src/paper/construction2/` — IVC state transition, x_out
+3. `crates/neo-fold-legacy/src/paper/construction2/` — IVC state transition, x_out
    binding, finalization.
-4. `crates/neo-fold-clean/src/frontends/` — how user computation becomes foldable
+4. `crates/neo-fold-legacy/src/frontends/` — how user computation becomes foldable
    CCS instances, and the frontend soundness boundary.
 5. `crates/neo-reductions/src/api.rs` — `FoldingMode` and the Π_CCS / Π_RLC / Π_DEC
    engine entry points.

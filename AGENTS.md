@@ -140,13 +140,25 @@ State the authority or derivation whenever proposing or applying a limit. If no 
 
 ## Perf & Constraint Debugging
 
-Use these commands based on what you are measuring. All perf snapshots are `--ignored` by default.
+Use the `nightstream` Poseidon2 benchmark for current performance work. Build it
+before timing with `cargo build -p nightstream --release --features metal --bin nightstream-poseidon2-bench`
+on a supported Mac; omit `--features metal` for a CPU-only build.
+Replace `PACKAGE_PATH`, `STEP_COUNT`, and `MINIMUM_SECURITY_BITS` with the caller's
+choices. Use the same saved package and step count for both engines. A step count
+includes the base step; two or more steps execute active folds. The caller must
+set the security minimum; this table supplies no default.
 
 | Question | Command |
 |---|---|
-| How expensive is lifecycle fold/IVC append work for an F′ chain? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_bits_perf_snapshot` |
-| What R1CS shape does the full-history audit circuit hand to the decider? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot` (chain length via `NEO_FOLD_FIB_DECIDER_VALUES`) |
-| How do low-norm ring-action encodings compare in committed width/rows? | `cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture` |
+| How long does one-time circuit compilation and saving take? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output PACKAGE_PATH` |
+| How long do package loading, proving, and terminal verification take on CPU? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine optimized --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+| How long does the same lifecycle take on Metal? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine metal --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+
+The five-minute cap applies to each command. A timed-out run is incomplete.
+Use the Instruments procedure above for a longer profile, within its 30-minute cap.
+See [the benchmark instructions](crates/nightstream/README.md#poseidon2-benchmark)
+for phase logs and peak RSS measurement. Legacy performance tests are reference
+checks, not the default benchmark for current prover work.
 
 ## Profiling
 

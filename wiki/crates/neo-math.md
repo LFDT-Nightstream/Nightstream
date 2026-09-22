@@ -19,7 +19,7 @@ Field, ring, and embedding primitives. `#![forbid(unsafe_code)]`.
 ## Consumers
 
 Everything. `neo-ajtai` builds commitments from `Rq`/`SAction`; `neo-ccs` builds
-relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-clean`
+relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-legacy`
 maps these to paper symbols 1:1 (`paper/mod.rs` §4–5 tables).
 
 ## Formal backing

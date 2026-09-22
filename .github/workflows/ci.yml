@@ -30,7 +30,7 @@ jobs:
       run: cargo fmt --all --check
 
   test:
-    name: Nightstream tests
+    name: Nightstream and shared regression tests
     runs-on: self-hosted
     
     steps:
@@ -55,6 +55,18 @@ jobs:
           
     - name: Run Nightstream tests
       run: timeout --signal=KILL 300 cargo test -p nightstream --release
+
+    - name: Run packed witness tests
+      run: timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
+
+    - name: Run matrix row tests
+      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+
+    - name: Run application record and recipe stack tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
+
+    - name: Run native application tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 
   lean-assurance:
     name: Lean assurance

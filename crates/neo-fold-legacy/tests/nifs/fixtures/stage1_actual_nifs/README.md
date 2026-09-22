@@ -15,7 +15,7 @@ It establishes this fixture's conformance, not universal Rust semantics.
 From the repository root:
 
 ```sh
-timeout --signal=KILL 300 cargo test -p neo-fold-clean --release \
+timeout --signal=KILL 300 cargo test -p neo-fold-legacy --release \
   --test nifs_stage1_nifs selected_nifs_saved_actual_result_matches_lean \
   -- --exact --nocapture
 ```

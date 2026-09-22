@@ -16,7 +16,7 @@ workspace dependencies — this is the root crate.
 - **Shape-aware constructors** — `goldilocks_auto_r1cs_ccs_with` /
   `goldilocks_auto_ccs_with`: keep the B.2 core, derive the effective λ a concrete
   shape can support under `s = 2` (these back `Params::for_r1cs_shape*` in
-  `neo-fold-clean`).
+  `neo-fold-legacy`).
 - **`poseidon2_goldilocks`** — the production Poseidon2 instance every transcript and
   digest in the workspace must use.
 

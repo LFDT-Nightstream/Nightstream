@@ -11,10 +11,12 @@ Workspace members (root `Cargo.toml`), lowest layer first:
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript | [neo-transcript](neo-transcript.md) |
 | `neo-ajtai` | Ajtai (module-SIS) commitments, decomposition, S-module | [neo-ajtai](neo-ajtai.md) |
 | `neo-reductions` | Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact) | [neo-reductions](neo-reductions.md) |
-| `neo-fold-clean` | Main proving crate: lifecycle, Construction 2, F′, decider | [neo-fold-clean](neo-fold-clean.md) |
+| `nightstream` | Current circuit compilation, package loading, proving, and verification | [nightstream](../../crates/nightstream/README.md) |
+| `nightstream-fprime` | Shared package format and exported verifier execution | [source](../../crates/nightstream-fprime/src/lib.rs) |
+| `neo-fold-legacy` | Retained lifecycle, Construction 2, F′, and decider reference | [neo-fold-legacy](neo-fold-clean.md) |
 
 Dependency graph: see [Architecture](../architecture/index.md). The rule of thumb:
-authority flows downward (the paper layer of `neo-fold-clean` trusts the engine
+authority flows downward (the paper layer of `neo-fold-legacy` trusts the engine
 crates), data flows upward.
 
 ## Protocol authority

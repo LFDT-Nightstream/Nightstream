@@ -1,6 +1,7 @@
-# neo-fold-clean
+# neo-fold-legacy
 
-`neo-fold-clean` owns Nightstream's lifecycle and protocol integration.
+`neo-fold-legacy` retains the earlier lifecycle and protocol integration.
+Use [`nightstream`](../../crates/nightstream/README.md) for current prover work.
 
 | Module | Role |
 |---|---|

@@ -178,11 +178,12 @@ authorize a new run. Historical results retain their original scope.
   on the actual retained witnesses, with no new proof backend.
 - The `selected_123.py` driver started independent first-fold generation at
   08:18:51 UTC on 2026-09-22. It owns this first-fold checkpoint; no separate
-  completed first-fold receipt was reused. Generation is ongoing. The driver
+  completed first-fold receipt was reused. C/R/D generation and comparison
+  have passed; successor checks are ongoing. The driver
   and `bridge_first_second.py` helper cover full current CPU1 comparisons and
   the complete input connection. Their results will be recorded in
   `independent-1-2-3-result.json` and `first-second-input-bridge/result.json`.
-  Independent first-fold generation and the input connection have not yet
+  Complete first-fold execution and the input connection have not yet
   passed. The selected 9/10 target is not yet complete.
 - Independent first-fold C generation and comparison passed at 11:12:28 UTC
   on 2026-09-22. All 28 rounds, 560 round field words and 28 transcript
@@ -193,8 +194,25 @@ authorize a new run. Historical results retain their original scope.
   All 21 finish-input and output rejection cases passed. The 798 C child
   commands took 8,923.394 seconds in total; the longest took 598.218 seconds.
   Each child passed within its existing cap. Receipts are under
-  `independent-first/step-1-to-2/logs`. R/D, the successor, full current CPU1
-  comparisons and the complete first-to-second input connection remain open.
+  `independent-first/step-1-to-2/logs`.
+- Independent first-fold R/D passed at 13:43:10 UTC on 2026-09-22 against
+  this replay's fresh native targets. All 253,011,276 parent coefficients
+  and 4,048,180,416 digit coefficients matched, including zero entries and
+  tails. The D result covers 19,008 commitment words and 25,920 evaluation
+  words; 53 matrix ranges cover all 6,377,559 rows. Complete public C/R/D
+  outputs and all 945,983 native NIFS proof bytes matched the Lean result.
+  The normal native PiDEC wrapper also matched all 17 D result fields.
+  The R and D comparison routines each rejected a changed final coefficient.
+  Lean `checkPiDECInput from-replay` rejected all 30 selected input/output
+  cases; native `pi_dec::verify` rejected all 55 selected PiDEC mutations.
+  These 55 cases are not the full NIFS mutation suite. The separate native
+  parent-bound check also passed. All 180 recorded child runs passed:
+  175 Lean runs under 1,500 seconds each and five Rust/Python runs under
+  300 seconds each. Their aggregate elapsed time was 9,040.659 seconds;
+  the longest took 419.643 seconds. These totals exclude C and successor
+  work. Receipts and rejection owners are in `first_fold_generation.R_D`
+  in the adjacent JSON record. The successor, full direct current CPU1
+  comparisons and complete first-to-second input connection remain pending.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
 source versions, exact comparison scope and failures will be recorded here

@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, independent iteration-2 C/R/D and successor comparisons, and final-state-3 terminal acceptance and all three selected rejections have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold generation is running; the complete first-successor input connection remains pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
+  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, independent iteration-2 C/R/D and successor comparisons, and final-state-3 terminal acceptance and all three selected rejections have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold C/R/D generation and comparison passed against its fresh native targets; successor checks, full direct current CPU1 comparisons and the complete first-successor input connection remain pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -1174,7 +1174,7 @@
       "2-to-3"
     ],
     "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected_123.py",
-    "driver_status": "Started 2026-09-22T08:18:51.042027Z; independent first-fold generation is running.",
+    "driver_status": "Started 2026-09-22T08:18:51.042027Z; independent first-fold C/R/D generation and comparison passed; successor checks are running.",
     "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
     "first_fold_generation": {
       "outcome": "running",
@@ -1182,7 +1182,7 @@
       "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-events.jsonl",
       "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.log",
       "standalone_first_checkpoint_reused": false,
-      "scope": "The selected driver owns the first-fold checkpoint. Independent C generation and comparison passed; R/D, successor, full current CPU1 comparisons and the complete input bridge remain open.",
+      "scope": "The selected driver owns the first-fold checkpoint. Independent C/R/D generation and comparison passed against its fresh native targets; successor checks, full direct current CPU1 comparisons and the complete input bridge remain pending.",
       "C": {
         "outcome": "passed",
         "started_utc": "2026-09-22T08:43:30.987032Z",
@@ -1215,6 +1215,82 @@
         "exact_phase_bytes": 190581,
         "finish_input_and_output_rejections": 21,
         "scope": "Independent first-fold C against its fresh native target. Changed comparison targets and proof words were rejected. Full NIFS encoding, current CPU1 outputs and the first-to-second input bridge remain separate."
+      },
+      "R_D": {
+        "outcome": "passed",
+        "started_utc": "2026-09-22T11:12:28.679320Z",
+        "completed_utc": "2026-09-22T13:43:10.438767Z",
+        "nifs_comparison_completed_utc": "2026-09-22T13:42:27.472618Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "generation_receipts": "rlc-0/1, digits-0/1, parent-partition, d-commitment-0..63, d-pad-0..63, d-commitment-merge, d-pad-merge, d-matrix-batch-0..38, d-evaluations; each has a .json receipt and .log.",
+        "comparison_receipts": [
+          "rlc-comparison.json",
+          "digits-comparison.json",
+          "d-finish.json",
+          "nifs-comparison.json",
+          "d-finish-rejections.json"
+        ],
+        "children": 180,
+        "lean_children": 175,
+        "rust_children": 3,
+        "python_children": 2,
+        "sum_child_elapsed_seconds": 9040.659472942352,
+        "wall_span_seconds": 9041.759447574615,
+        "longest_child": "d-matrix-batch-6",
+        "longest_child_seconds": 419.64299273490906,
+        "cap_seconds": {
+          "lean": 1500,
+          "rust": 300,
+          "python": 300
+        },
+        "all_children_exit_zero": true,
+        "all_children_within_existing_caps": true,
+        "runtime_scope": "Top-level R, digits, parent-partition, D and nifs-comparison receipts only. Nested rejection calls are included in their Python receipt. C, builds, caller and successor are excluded.",
+        "carrier_blocks": 4685394,
+        "matched_parent_coefficients": 253011276,
+        "digit_children": 16,
+        "matched_digit_coefficients": 4048180416,
+        "commitment_ranges": 64,
+        "matched_commitment_field_words": 19008,
+        "pad_ranges": 64,
+        "matrix_ranges": 53,
+        "matrix_batches": 39,
+        "matrix_blocks": 23,
+        "matrix_rows": 6377559,
+        "matched_evaluation_field_words": 25920,
+        "evaluation_point_field_words": 56,
+        "complete_native_nifs_proof_bytes": 945983,
+        "native_pidec_result_fields": 17,
+        "normal_native_pidec_wrapper_accepted": true,
+        "rejections": {
+          "comparison_tails": {
+            "cases": 2,
+            "owners": "R compare_range and D compare_block coefficient comparisons; not protocol verifier rejection.",
+            "coordinates": "R: block 4685393, lane 53. D: child 15, block 4685393, lane 53."
+          },
+          "lean_from_replay": {
+            "cases": 30,
+            "owner": "Lean checkPiDECInput from-replay",
+            "classes": "3 output-path checks; 23 framing, shape or canonical-word checks; 1 derived-point check; 2 D recomposition checks; 1 changed C-round check.",
+            "output_safety": "Rejected calls create no outputs and preserve existing outputs and source inputs."
+          },
+          "native_pidec": {
+            "cases": 55,
+            "owner": "Rust pi_dec::verify",
+            "classes": {
+              "VerifyRejected": 34,
+              "ChildCount": 1,
+              "RShape": 1,
+              "EvaluationShape": 2,
+              "EvaluationPadding": 15,
+              "FoldDigest": 1,
+              "ChildXLowNorm": 1
+            },
+            "separate_parent_bound_check": "split_b and pi_dec::verify reject parent X[0,0] = 65536; this is a D result field, not one of the 55 named mutations.",
+            "scope": "PiDEC mutation checks only. The full NIFS mutation suite is not run by nifs-comparison."
+          }
+        },
+        "scope": "Independent first-fold R/D against this replay's fresh native targets. All parent and child digit coefficients, including omitted zero entries and tails, match. Complete public C/R/D outputs and all native NIFS proof bytes match the Lean result; all 17 D fields also match the normal native PiDEC wrapper. Selected-case conformance only. Successor checks, full direct current CPU1 comparisons and the complete first-to-second input connection remain pending."
       }
     },
     "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",

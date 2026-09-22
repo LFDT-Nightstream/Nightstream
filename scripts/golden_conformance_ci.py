@@ -32,7 +32,7 @@ def bounded(kind, command):
 
 def build(directory, engine, checker=False):
     target = "generate_pi_ccs_fixture" if checker else "nightstream"
-    arguments = (["build", "-p", "neo-fold-clean", "--bin", target] if checker else
+    arguments = (["build", "-p", "neo-fold-legacy", "--bin", target] if checker else
                  ["test", "-p", "nightstream", "--lib", "--no-run"])
     if not checker and engine == "metal":
         arguments += ["--features", "metal"]

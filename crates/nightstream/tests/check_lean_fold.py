@@ -204,7 +204,7 @@ class Check:
         self.phase(f"step-{step}-wire", "native", [self.native_checker, "encode-lean-nifs", result, wire])
         compare_files(wire, folder / "proof.native", "Lean/native proof wire")
         rejected = re.findall(r"^pi_dec_mutation=(\S+) rejected=", log, re.MULTILINE)
-        # Exact families in neo-fold-clean/tests/nifs/pi_dec_actual_mutations.rs.
+        # Exact families in neo-fold-legacy/tests/nifs/pi_dec_actual_mutations.rs.
         expected = {f"child_{child}_commitment" for child in range(CHILDREN)} | {
             f"child_eval_A{matrix}" for matrix in range(MATRICES)
         } | {f"nonzero_eval_A{matrix}_padding" for matrix in range(MATRICES)} | {

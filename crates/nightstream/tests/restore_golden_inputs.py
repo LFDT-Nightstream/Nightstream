@@ -101,7 +101,7 @@ def restore(archives, directory):
         shutil.copyfile(directory / "envelope/output" / name, first / name)
     shutil.copytree(directory / "children/child-witnesses", first / "material")
     original = directory / "original-sources/inputs/original-sources"
-    request = ROOT / "crates/neo-fold-clean/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json"
+    request = ROOT / "crates/neo-fold-legacy/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json"
     shutil.copyfile(request, original / "next-message-input.json")
     receipt = {
         "schema": 1,

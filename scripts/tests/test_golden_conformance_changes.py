@@ -28,8 +28,8 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "crates/neo-transcript/src/lib.rs", "crates/neo-math/src/lib.rs",
             "crates/neo-params/src/lib.rs", "crates/neo-ccs/src/lib.rs",
             "crates/neo-ajtai/src/lib.rs", "crates/wip-spartan/src/lib.rs",
-            "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
-            "crates/neo-fold-clean/tests/nifs/nifs_actual_mutations.rs",
+            "crates/neo-fold-legacy/src/bin/generate_pi_ccs_fixture.rs",
+            "crates/neo-fold-legacy/tests/nifs/nifs_actual_mutations.rs",
             "crates/nightstream/tests/run_recursive_phase.py",
             "crates/nightstream/Cargo.toml", "Cargo.toml", "Cargo.lock",
             "rust-toolchain.toml", ".cargo/config.toml", ".gitattributes",
@@ -53,7 +53,7 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "docs/reviews/nightstream-fprime-requirements/TERMINAL_REPLAY_INPUTS.json",
             "docs/reviews/nightstream-fprime-requirements/NONZERO_EXECUTION_RELEASE.json",
             "crates/nightstream/tests/restore_golden_inputs.py",
-            "crates/neo-fold-clean/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json",
+            "crates/neo-fold-legacy/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json",
             ".github/workflows/ci.yml", "scripts/golden_conformance_changes.py",
         ):
             with self.subTest(path=path):
@@ -83,7 +83,7 @@ class GoldenConformanceChangesTests(unittest.TestCase):
 
     def test_embedded_documentation_is_a_build_input(self):
         self.assertEqual(checks_for_path(
-            "crates/neo-fold-clean/tests/preprocessing_read_only.md"), ("native", "metal"))
+            "crates/neo-fold-legacy/tests/preprocessing_read_only.md"), ("native", "metal"))
 
     def test_mutation_archive_selects_native_regression_without_regeneration(self):
         path = "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"

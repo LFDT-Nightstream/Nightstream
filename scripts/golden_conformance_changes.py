@@ -16,11 +16,11 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-# Cargo path dependencies of nightstream, including its neo-fold-clean test
-# reference and that reference's wip-spartan dependency. Metal is checked
+# Cargo path dependencies of nightstream, optional GPU adapters, and the
+# legacy golden checker, including wip-spartan. Metal is checked
 # against the CPU result; CUDA currently has only an unavailable boundary.
 CRATES = {
-    "nightstream", "nightstream-fprime", "neo-fold-clean", "wip-spartan",
+    "nightstream", "nightstream-fprime", "neo-fold-legacy", "wip-spartan",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
     "neo-reductions", "neo-prover-metal", "neo-prover-cuda",
 }
@@ -28,8 +28,8 @@ NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")
 BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", ".gitattributes"}
 EMBEDDED_DOCS = {
-    "crates/neo-fold-clean/tests/preprocessing_read_only.md",
-    "crates/neo-fold-clean/tests/nebula_preprocessing_read_only.md",
+    "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
+    "crates/neo-fold-legacy/tests/nebula_preprocessing_read_only.md",
 }
 # These records locate the original witnesses/reference archive or supply the
 # replay coordinator's measured partitions. Other review reports are receipts.
@@ -112,7 +112,7 @@ def checks_for_path(name: str) -> tuple[str, ...]:
             return ALL if "fixtures" in path.parts[3:4] else NATIVE
         if crate == "nightstream-fprime":
             return NATIVE
-        if crate == "neo-fold-clean" and len(path.parts) > 3 and path.parts[3] == "nifs":
+        if crate == "neo-fold-legacy" and len(path.parts) > 3 and path.parts[3] == "nifs":
             return ALL if "fixtures" in path.parts[4:5] else NATIVE
         return ()
     if part in {"LICENSE", "rustfmt.toml", "open-questions", "tests-paper-exact"}:

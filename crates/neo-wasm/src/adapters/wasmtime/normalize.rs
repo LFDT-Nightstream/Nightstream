@@ -36,12 +36,16 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 ///
 /// Program tables supply the initial memory image used by host-event memory
 /// slots; they must describe the same core module that produced `rows`.
-/// Entry inputs are recovered from captured locals and memory. For memory
-/// inputs, supply bindings to the collector or register the core module and
-/// bindings with `WasmtimeTraceRegistry` before execution. Use the captured
-/// instance's artifacts here. Recovery rejects overlapping writes, including aliases
-/// through different pointer locals. Only memory zero with verifier-known
-/// initialization and local-based entry addresses is supported.
+/// Export-entry inputs are recovered from captured locals and memory. Import
+/// memory-write inputs are recovered when the caller resumes after the host
+/// returns, before its next instruction; scalar results come from its stack.
+/// Supply bindings to the collector or register them before execution, and use
+/// the captured instance's artifacts here. Recovery rejects overlapping writes.
+/// Only memory 0 with verifier-known initialization is supported; addresses use
+/// entry locals for exports and pre-call arguments for imports. Host memory
+/// growth and normalization of same-instance host reentry are unsupported.
+/// Import templates describe an atomic call: a return snapshot cannot recover
+/// intermediate host writes observed during reentry or through shared memory.
 /// Recovery supplies witness values, not independent evidence of the caller's
 /// intended arguments. Bootstrap checks ensure that the declared initialization
 /// reproduces the captured frame; the relation and memory checks validate the
@@ -113,8 +117,7 @@ struct NormalizedStep {
     locals_snapshot: Vec<(u32, u32)>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
-    /// Oracle words recorded on this (host-call) row at collection time.
-    host_call_inputs: Vec<u64>,
+    host_call_memory: Option<Result<std::collections::BTreeMap<u32, u8>, String>>,
     entry_memory: Option<Result<std::collections::BTreeMap<u32, u8>, String>>,
 }
 
@@ -275,7 +278,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         locals_snapshot: row.locals_words.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
-        host_call_inputs: row.host_call_inputs.clone(),
+        host_call_memory: row.host_call_memory.clone(),
         entry_memory: row.entry_memory.clone(),
     }))
 }
@@ -541,7 +544,7 @@ pub(crate) fn capture_frame<T>(
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
-        host_call_inputs: Vec::new(),
+        host_call_memory: None,
         entry_memory: None,
     })
 }

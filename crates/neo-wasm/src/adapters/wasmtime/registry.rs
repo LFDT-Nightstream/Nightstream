@@ -2,10 +2,12 @@
 //! embedder policy; discovered artifacts are witness data, not verifier authority.
 
 use super::{
-    capture_frame, entry_inputs, parse, runtime_read, LoweringTables, WasmProgramArtifacts, WasmtimeTraceStep,
+    capture_frame, entry_inputs, import_inputs::PendingImport, memory_inputs::capture_bytes, parse, runtime_read,
+    LoweringTables, WasmProgramArtifacts, WasmtimeTraceStep,
 };
 use crate::host_event_bindings::HostEventBindings;
-use crate::{WasmBuildError, WasmOpcode};
+use crate::WasmBuildError;
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use wasmtime::{FrameHandle, StoreContextMut};
@@ -107,6 +109,17 @@ impl WasmtimeTraceRegistry {
         Ok(self.instances.values().next().unwrap())
     }
 
+    /// An error unwinds the current host-to-guest activation. Outer suspended
+    /// calls may still return normally if their host catches this error.
+    pub(super) fn discard_unwound_imports(&mut self, activation_depth: usize) {
+        for state in self.instances.values_mut() {
+            state
+                .pending_imports
+                .retain(|pending| pending.activation_depth < activation_depth);
+        }
+        // Leave the failed calls' memory captures absent so replay rejects them.
+    }
+
     pub(super) fn into_run(self, results: Vec<String>) -> Result<super::WasmtimeTraceRun, WasmBuildError> {
         self.single_instance()?;
         let state = self.instances.into_values().next().unwrap();
@@ -116,24 +129,13 @@ impl WasmtimeTraceRegistry {
             steps: state.steps,
         })
     }
-
-    /// Attach advice to the latest host-call row of the specified instance.
-    /// Keep the caller's instance index across calls into other instances so
-    /// reentry cannot redirect advice to the callee's trace.
-    pub fn record_call_inputs(&mut self, instance_index: u32, words: &[u64]) -> Result<(), WasmBuildError> {
-        self.check_errors()?;
-        let state = self
-            .instances
-            .get_mut(&instance_index)
-            .ok_or_else(|| WasmBuildError::Trace(format!("no captured trace for instance {instance_index}")))?;
-        state.record_call_inputs(words)
-    }
 }
 
 /// A capture and the immutable module configuration actually used to produce it.
 #[derive(Debug)]
 pub struct WasmtimeTraceState {
     next_step: u64,
+    pending_imports: Vec<PendingImport>,
     steps: Vec<WasmtimeTraceStep>,
     tables: Arc<LoweringTables>,
 }
@@ -145,31 +147,11 @@ impl WasmtimeTraceState {
     pub fn steps(&self) -> &[WasmtimeTraceStep] {
         &self.steps
     }
-    /// Record per-call host-event input words for the in-flight host call
-    /// (for example, ref ids or caller identities). Call from
-    /// inside a host-function implementation (`store.data_mut()`): the debug
-    /// hook captures each instruction before it executes, so the latest
-    /// captured step is the host-call row being serviced and the batch
-    /// attaches to it — no call-order bookkeeping. Repeated calls append.
-    fn record_call_inputs(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
-        let row = self.steps.last_mut().ok_or_else(|| {
-            WasmBuildError::Trace("record_call_inputs: no captured step; not inside a traced host call".to_string())
-        })?;
-        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
-            && !row.target_function_is_guest;
-        if !is_host_call {
-            return Err(WasmBuildError::Trace(format!(
-                "record_call_inputs: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
-                row.step, row.opcode
-            )));
-        }
-        row.host_call_inputs.extend_from_slice(words);
-        Ok(())
-    }
 }
 
 pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     frame: &FrameHandle,
+    activation_depth: usize,
     store: &mut StoreContextMut<'_, T>,
 ) -> Result<(), WasmBuildError> {
     let instance = frame
@@ -227,6 +209,7 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
             index,
             WasmtimeTraceState {
                 next_step: 0,
+                pending_imports: Vec::new(),
                 steps: Vec::new(),
                 tables: Arc::new(LoweringTables {
                     artifacts,
@@ -240,9 +223,67 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     let tables = state.tables.clone();
     let step = state.next_step;
     let mut row = capture_frame(step, frame, store, &tables)?;
+    // Nested activations may execute arbitrary guest code before this host call
+    // returns. Only its original activation can supply the output buffer.
+    let pending = {
+        let state = store
+            .data_mut()
+            .wasm_trace_registry_mut()
+            .instances
+            .get_mut(&index)
+            .unwrap();
+        if let Some(pending) = state.pending_imports.last() {
+            match pending.activation_depth.cmp(&activation_depth) {
+                // Nested reentry: the original host call is still suspended.
+                Ordering::Less => None,
+                // Possible return: validate the caller and continuation below.
+                Ordering::Equal => state.pending_imports.pop(),
+                // A deeper pending call survived an unwind without cleanup.
+                Ordering::Greater => {
+                    return Err(WasmBuildError::Trace(format!(
+                        "host call at step {} did not resume at its expected continuation",
+                        pending.row
+                    )));
+                }
+            }
+        } else {
+            None
+        }
+    };
+    if let Some(pending) = pending {
+        if Some(pending.function_index) != row.function_index || Some(pending.return_pc) != row.pc.map(u64::from) {
+            return Err(WasmBuildError::Trace(format!(
+                "host call at step {} did not resume at its expected continuation",
+                pending.row
+            )));
+        }
+        let captured = pending
+            .writes
+            .and_then(|writes| {
+                if pending.memory_pages != row.memory_pages_before {
+                    return Err(WasmBuildError::Trace(
+                        "host memory growth across an import is unsupported".into(),
+                    ));
+                }
+                capture_bytes(&writes, frame, store)
+            })
+            .map_err(|err| format!("host call at step {}: {err}", pending.row));
+        store
+            .data_mut()
+            .wasm_trace_registry_mut()
+            .instances
+            .get_mut(&index)
+            .unwrap()
+            .steps[pending.row]
+            .host_call_memory = Some(captured);
+    }
+    let pending = PendingImport::from_call(&row, &tables, activation_depth)?;
     entry_inputs::capture_entry_memory(&mut row, frame, store, &tables);
     let registry = store.data_mut().wasm_trace_registry_mut();
     let state = registry.instances.get_mut(&index).unwrap();
+    if let Some(pending) = pending {
+        state.pending_imports.push(pending);
+    }
     state.next_step += 1;
     state.steps.push(row);
     Ok(())

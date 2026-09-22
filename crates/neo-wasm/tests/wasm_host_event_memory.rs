@@ -166,14 +166,14 @@ fn memory_bindings(host_fref: u32, export_fref: u32) -> HostEventBindings {
                             SlotBinding::MemoryWrite16 {
                                 input: 0,
                                 base: arg,
-                                byte_offset: 2,
+                                byte_offset: 12,
                             },
                         ),
                         (
                             3,
                             SlotBinding::MemoryRead16 {
                                 base: arg,
-                                byte_offset: 2,
+                                byte_offset: 12,
                             },
                         ),
                         (
@@ -210,10 +210,15 @@ fn import_memory_fixture() -> ImportMemoryFixture {
     let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
             .root()
-            .func_wrap("host-touch", |mut store, (_ptr,): (i32,)| {
+            .func_wrap("host-touch", |mut store, (ptr,): (i32,)| {
                 let frame = store.debug_exit_frames().next().expect("guest caller");
-                let instance = frame.instance(&mut store)?.debug_index_in_store();
-                store.data_mut().record_call_inputs(instance, &[77])?;
+                let memory = frame
+                    .instance(&mut store)?
+                    .debug_memory(&mut store, 0)
+                    .unwrap();
+                memory.write(&mut store, ptr as usize + 4, &77u32.to_le_bytes())?;
+                memory.write(&mut store, ptr as usize + 2, &[77])?;
+                memory.write(&mut store, ptr as usize + 12, &77u16.to_le_bytes())?;
                 Ok(())
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))

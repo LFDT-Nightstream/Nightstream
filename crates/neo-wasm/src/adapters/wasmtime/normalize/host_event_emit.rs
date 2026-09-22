@@ -21,7 +21,7 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
-use super::super::entry_inputs::entry_memory_pointer;
+use super::super::memory_address::memory_pointer;
 use super::memory::LinearMemoryImage;
 
 /// One gather row's plan: the staged word, its expected host-event ROM entry,
@@ -95,7 +95,7 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 let (value, access) = memory.read_aligned_word(pointer, byte_offset, memory_pages)?;
                 reads.push(value);
                 accesses.push(access);
@@ -104,7 +104,7 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 let (value, access) = memory.read_byte(pointer, byte_offset, memory_pages)?;
                 reads.push(u32::from(value));
                 accesses.push(access);
@@ -113,7 +113,7 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 let (value, access) = memory.read_half(pointer, byte_offset, memory_pages)?;
                 reads.push(u32::from(value));
                 accesses.push(access);
@@ -131,7 +131,7 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 accesses.push(memory.write_aligned_word(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite8 {
@@ -147,7 +147,7 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 accesses.push(memory.write_byte(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite16 {
@@ -163,23 +163,13 @@ fn resolve_import_memory(
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
-                let pointer = import_memory_pointer(import_args, arg)?;
+                let pointer = memory_pointer(import_args, arg, "import argument")?;
                 accesses.push(memory.write_half(pointer, byte_offset, value, memory_pages)?);
             }
             _ => {}
         }
     }
     Ok(ResolvedEventMemory { reads, accesses })
-}
-
-fn import_memory_pointer(import_args: &[(u32, u32)], arg: u8) -> Result<u32, WasmBuildError> {
-    let (lo, hi) = import_args[usize::from(arg)];
-    if hi != 0 {
-        return Err(WasmBuildError::Trace(format!(
-            "host-event memory base arg {arg} is not a wasm32 pointer: high limb is {hi}"
-        )));
-    }
-    Ok(lo)
 }
 
 fn event_memory_width(source: SlotBinding) -> WasmHostEventMemoryWidth {
@@ -211,7 +201,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = entry_memory_pointer(locals, local)?;
+                let pointer = memory_pointer(locals, local, "entry local")?;
                 accesses.push(memory.write_aligned_word(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite8 { base, byte_offset, .. } => {
@@ -220,7 +210,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = entry_memory_pointer(locals, local)?;
+                let pointer = memory_pointer(locals, local, "entry local")?;
                 accesses.push(memory.write_byte(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite16 { base, byte_offset, .. } => {
@@ -229,7 +219,7 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                let pointer = entry_memory_pointer(locals, local)?;
+                let pointer = memory_pointer(locals, local, "entry local")?;
                 accesses.push(memory.write_half(pointer, byte_offset, value, memory_pages)?);
             }
             _ => {}
@@ -588,7 +578,7 @@ pub(super) fn plan_export_blocks(
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
-                            let base_value = entry_memory_pointer(locals, local)?;
+                            let base_value = memory_pointer(locals, local, "entry local")?;
                             EventSlotRow {
                                 local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(

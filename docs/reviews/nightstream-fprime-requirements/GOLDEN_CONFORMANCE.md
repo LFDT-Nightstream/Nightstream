@@ -184,6 +184,17 @@ authorize a new run. Historical results retain their original scope.
   `independent-1-2-3-result.json` and `first-second-input-bridge/result.json`.
   Independent first-fold generation and the input connection have not yet
   passed. The selected 9/10 target is not yet complete.
+- Independent first-fold C generation and comparison passed at 11:12:28 UTC
+  on 2026-09-22. All 28 rounds, 560 round field words and 28 transcript
+  transitions matched the fresh native target. All 27,540 evaluation words,
+  29,288 proof-input words, 15 phase fields and eight outgoing transcript
+  words matched. The 271,058-byte Lean input differs from the native input
+  only by its optional final LF; the 190,581 phase bytes match exactly.
+  All 21 finish-input and output rejection cases passed. The 798 C child
+  commands took 8,923.394 seconds in total; the longest took 598.218 seconds.
+  Each child passed within its existing cap. Receipts are under
+  `independent-first/step-1-to-2/logs`. R/D, the successor, full current CPU1
+  comparisons and the complete first-to-second input connection remain open.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
 source versions, exact comparison scope and failures will be recorded here

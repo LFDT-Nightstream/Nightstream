@@ -43,9 +43,9 @@ Three layers use Fiat-Shamir differently:
 | F′ (Construction 2) | *Recomputes* the SuperNeo transcript to re-run NIFS.V in-circuit; separately hashes the compact Construction-2 public image (`x_out`). The image hash is linkage, not a substitute for the folding transcript. |
 | Spartan compression | Invents no new SuperNeo challenges; proves the F′ transcript and terminal relation checks were satisfied. |
 
-Red-team coverage: `crates/neo-fold-clean/tests/f_prime/transcript_redteam.rs` and
-`tests/reductions/nifs_v_transcript.rs` mutate absorbed material and assert challenge
-divergence.
+Legacy rejection tests in
+`crates/neo-fold-legacy/tests/reductions/nifs_v_transcript.rs` check that PiRLC and
+PiDEC cannot use a fresh transcript instead of continuing the PiCCS transcript.
 
 ## Digest authority rules
 
@@ -60,7 +60,7 @@ invariants the code is audited against:
 3. Self-consistent digest chains are not evidence of soundness: if an attacker can
    mutate data and re-digest upward, the verifier must still fail.
 
-`crates/neo-fold-clean/src/paper/digest.rs` owns the digest taxonomy: structure and
+`crates/neo-fold-legacy/src/paper/digest.rs` owns the digest taxonomy: structure and
 params digests (recomputed from preprocessing, never trusted from the wire),
 `state_x_out_digest` (the Construction-2 hash chain), accumulator digests, and the
 chunk public digest. In-circuit mirrors live in `paper/f_prime/digest_circuit.rs` and

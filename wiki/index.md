@@ -1,5 +1,10 @@
 # Nightstream Wiki
 
+The current prover API and benchmark are in [`nightstream`](../crates/nightstream/README.md).
+The lifecycle, frontend, and decider pages below describe the retained
+`neo-fold-legacy` implementation. They do not describe memory proving or a
+production compression backend in the new crate.
+
 Nightstream combines SuperNeo folding for CCS, HyperNova Construction 2, and
 Nebula memory checking. The active protocol uses Goldilocks, a degree-two
 extension field, Ajtai commitments, and Poseidon2 transcripts.

@@ -256,13 +256,13 @@ private theorem representedSemantics_imply_stepHoldsFor
         encodes.runningPrefix semantics.runningPrefix
         (PiRLCInputBounds.assumptions (relation application fits)
           (commonEnv application assignment base))
-  have runningPhysical : RunningTransitionLayout.PhysicalHolds
-      (PerApplicationFixedPoint.logicalWidth application)
-      (PerApplicationFixedPoint.publicFits application)
+  have runningSpec : Lifecycle.Stage1.RunningTransition.SpecHolds
+      (RunningTransitionInputs.interface
+        (PerApplicationFixedPoint.logicalWidth application)
+        (PerApplicationFixedPoint.publicFits application))
+      RunningTransitionInputs.phaseOffset
       (transitionEnv application base) := by
     simpa [transitionEnv] using semantics.runningPrefix.prior.transition
-  have runningSpec := RunningTransitionLayout.physical_implies_specHolds
-    (relation application fits) (transitionEnv application base) runningPhysical
   change FixedAugmentedTransition
     (setup (relation application fits) ajtai vk)
     (machineFor (PerApplicationFixedPoint.publicFits application) application)
@@ -294,9 +294,8 @@ private theorem representedSemantics_imply_stepHoldsFor
                 simpa using leftBound
               simpa using runningSpec.initialState fieldZero ⟨index, bounded⟩
           _ = input.zi := represents.currentState
-      have runningBase := RunningTransitionLayout.physical_implies_typed_base
-        (relation application fits) (transitionEnv application base)
-        runningPhysical fieldZero
+      have runningBase := RunningTransitionInputs.spec_typed_base
+        runningSpec fieldZero
       have defaultOutput : output.runningNext = fun _ =>
           (setup (relation application fits) ajtai
             vk).defaultRunning := by
@@ -329,9 +328,8 @@ private theorem representedSemantics_imply_stepHoldsFor
         intro fieldZero
         exact iterationNonzero (represents.iterationZero.mp fieldZero)
       have runningRecursive :=
-        RunningTransitionLayout.physical_implies_typed_recursive
-          (relation application fits) (transitionEnv application base)
-          runningPhysical fieldNonzero
+        RunningTransitionInputs.spec_typed_recursive_eq_piDecOutput
+          (relation application fits) runningSpec fieldNonzero
       have transitionOutput : output.runningNext functionIndex =
           RunningTransitionInputs.piDecRunningOutput
             (relation application fits) (transitionEnv application base) := by

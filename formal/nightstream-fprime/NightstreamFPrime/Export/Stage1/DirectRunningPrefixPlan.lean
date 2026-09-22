@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
+import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
 /-!
 Owns the one ordered direct 14-matrix plan through the running-instance
@@ -81,7 +82,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 3636010 := by
+    (plan relation payloadForms values geometry).rowCount = 3376354 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -130,8 +131,10 @@ structure Semantics
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   prior : DirectPrefixPlan.Semantics payloadForms (prefixGeometry geometry) assignment base
     groupValue products
-  transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
-    logicalWidth publicFits
+  transition : Lifecycle.Stage1.RunningTransition.SpecHolds
+    (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+      logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback
       (RunningTransitionDirectPlan.transitionEnv program base))
 
@@ -176,7 +179,9 @@ theorem rowsZero_implies_semantics
   · exact DirectPrefixPlan.rowsZero_implies_semantics
       payloadForms values (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.prior children.1
-  · exact (RunningTransitionDirectPlan.rowsZero_iff_physical
+  · apply NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.physical_implies_specHolds
+      relation
+    exact (RunningTransitionDirectPlan.rowsZero_iff_physical
       relation geometry assignment base groupValue products one
       encodes.transition).mp children.2
 

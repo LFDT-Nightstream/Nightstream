@@ -1,0 +1,51 @@
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixSemantics
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixComplete
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixState
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixPoint
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan
+import tests.AxiomAudit
+
+open NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixSemantics
+
+#audit_axioms sourceForm_location
+#audit_axioms sourceForm_state
+#audit_axioms sourceForm_output
+#audit_axioms sourceForm_piDec
+#audit_axioms sourceForm_point
+#audit_axioms sourceForm_flag
+#audit_axioms inverseForm_eq_source
+#audit_axioms retainedRule_form
+#audit_axioms wireForm_ofSemantic
+#audit_axioms flagProgram_form
+#audit_axioms baseProgram_form
+#audit_axioms flagGrid_row
+#audit_axioms bindingGrid_row
+#audit_axioms flagForms_preserve
+#audit_axioms bindingForms_preserve
+#audit_axioms stateGrid_row
+#audit_axioms stateForms_preserve
+
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixComplete.block_row_counts
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixComplete.accepts_iff_rows
+#audit_axioms pointLane_external
+#audit_axioms pointRule_form
+#audit_axioms pointRight_form
+#audit_axioms pointGrid_row
+#audit_axioms pointForms_preserve
+#audit_axioms pointHeaderGrid_row
+#audit_axioms pointHeaderForms_preserve
+
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan.Location.form_eval_of_encodes
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan.Location.form_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.decoded_external
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.decoded_inverse
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.decoded_flag
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.decoded_logical
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.rows_iff_source
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.accepts_implies_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedEncoding.physical_implies_accepts
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan.row_decodes
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan.plan_rowCount
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan.matrixProgram_row?
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan.rowsZero_iff_accepts

@@ -110,26 +110,26 @@ private theorem invocation_range {columns arity : Nat} (program : MatrixProgram.
     (invocation : Fin block.invocationCount) (interface : PoseidonSboxPlan.Interface columns)
     (loaded : PiDECPoseidonNumericBlock.loadInvocation? block columns invocation = some interface)
     (fits : ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ program.rowCount)
+      (Fin.encodeProd (invocation, (0 : Fin 86))).val + 86 ≤ program.rowCount)
     (port : Fin matrixCount) :
     let first := ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (0 : Fin 94))).val
+      (Fin.encodeProd (invocation, (0 : Fin 86))).val
     ((PiDECMatrixInvocation.sum first point (PiDECMatrixInvocation.prepare read interface)).get port).toRing =
-      ((range program sourceRow read first 94 point).get port).toRing := by
+      ((range program sourceRow read first 86 point).get port).toRing := by
   dsimp only
   let first := ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-    (Fin.encodeProd (invocation, (0 : Fin 94))).val
+    (Fin.encodeProd (invocation, (0 : Fin 86))).val
   change ((PiDECMatrixInvocation.sum first point
     (PiDECMatrixInvocation.prepare read interface)).get port).toRing = _
   funext output
   rw [PiDECMatrixInvocation.sum_prepare_value, range, PiDECEvaluationBatch.range_value]
-  apply numericSum_congr 94
+  apply numericSum_congr 86
   intro index live
   have globalBound : first + index < program.rowCount := by
-    change first + 94 ≤ program.rowCount at fits
+    change first + 86 ≤ program.rowCount at fits
     omega
   have encoded : ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (⟨index, live⟩ : Fin 94))).val = first + index := by
+      (Fin.encodeProd (invocation, (⟨index, live⟩ : Fin 86))).val = first + index := by
     dsimp only [first, Fin.encodeProd, Fin.mkDivMod]
     omega
   have sparse := PiDECMatrixSelectedBatch.invocation_sparse_value program sourceRow
@@ -149,14 +149,14 @@ private theorem invocation_ranges {columns arity count : Nat} (program : MatrixP
     (loaded : ∀ index : Fin count, PiDECPoseidonNumericBlock.loadInvocation? block columns
       ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
     (fits : ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      94 * firstInvocation + 94 * count ≤ program.rowCount) (port : Fin matrixCount) :
+      86 * firstInvocation + 86 * count ≤ program.rowCount) (port : Fin matrixCount) :
     let first := ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      94 * firstInvocation
+      86 * firstInvocation
     ((PiDECMatrixInvocationRange.sum first point read interfaces).get port).toRing =
-      ((range program sourceRow read first (94 * count) point).get port).toRing := by
+      ((range program sourceRow read first (86 * count) point).get port).toRing := by
   dsimp only
   let first := ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-    94 * firstInvocation
+    86 * firstInvocation
   change ((PiDECMatrixInvocationRange.sum first point read interfaces).get port).toRing = _
   unfold PiDECMatrixInvocationRange.sum range
   apply PiDECMatrixSelectedBatch.sumInvocationParts_eq_range first count point _ _ port port
@@ -166,13 +166,13 @@ private theorem invocation_ranges {columns arity count : Nat} (program : MatrixP
   have loadedIndex : PiDECPoseidonNumericBlock.loadInvocation? block columns invocation =
       some (interfaces.get ⟨index, live⟩) := loaded ⟨index, live⟩
   have startEq : ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (0 : Fin 94))).val = first + 94 * index := by
+      (Fin.encodeProd (invocation, (0 : Fin 86))).val = first + 86 * index := by
     dsimp only [invocation, first, Fin.encodeProd, Fin.mkDivMod]
     omega
   have invocationFits : ((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ program.rowCount := by
+      (Fin.encodeProd (invocation, (0 : Fin 86))).val + 86 ≤ program.rowCount := by
     rw [startEq]
-    change first + 94 * count ≤ program.rowCount at fits
+    change first + 86 * count ≤ program.rowCount at fits
     omega
   have single := invocation_range program sourceRow read point blockIndex block selected
     invocation (interfaces.get ⟨index, live⟩) loadedIndex invocationFits port
@@ -253,14 +253,14 @@ theorem invocations_eq_range (masks : Array (Array (Nat × Nat))) (point : Paper
     (loaded : ∀ index : Fin count, PiDECPoseidonNumericBlock.loadInvocation? block
       PiCCSSourceImages.logicalWidth ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
     (fits : ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      94 * firstInvocation + 94 * count ≤ selectedProgram.rowCount)
+      86 * firstInvocation + 86 * count ≤ selectedProgram.rowCount)
     (source : Fin productionShape.sourceCount) (port : Fin matrixCount) :
     let first := ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      94 * firstInvocation
+      86 * firstInvocation
     ((PiCCSOriginalMatrixBatch.sumInvocations first point
       (PiCCSOriginalReads.read (columns := PiCCSSourceImages.logicalWidth) (PiDECParentSparseRead.prepare ()) masks) interfaces).get
       (Fin.encodeProd (source, port))).toRing =
-      ((originalRange masks point first (94 * count) source).get port).toRing := by
+      ((originalRange masks point first (86 * count) source).get port).toRing := by
   dsimp only
   rw [PiCCSOriginalMatrixBatch.sumInvocations_source_port]
   exact invocation_ranges selectedProgram selectedSource

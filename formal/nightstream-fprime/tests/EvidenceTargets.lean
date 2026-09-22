@@ -635,7 +635,7 @@ def PiCCSStoredInvocation : Prop :=
     (interface : Layout.ProductionRelation.PoseidonSboxPlan.Interface columns),
     PiDECPoseidonNumericBlock.loadInvocation? block columns index = some interface →
     ∀ (basis : PiRLCPartialTrace.FixedArray (Vector K ringDegree) ringDegree)
-      (blocks : Nat → Vector K ringDegree) (row : Fin 94) (port : Fin Spec.ProductionRelation.matrixCount),
+      (blocks : Nat → Vector K ringDegree) (row : Fin 86) (port : Fin Spec.ProductionRelation.matrixCount),
     some (((PiCCSCarriedReadCache.invocation basis blocks interface).get row).get port) =
       (block.row? columns (Fin.encodeProd (index, row)).val).map (fun forms =>
         PiCCSSparseEvaluation.evaluateK

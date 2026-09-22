@@ -134,9 +134,9 @@ theorem invocation_sparse_value {columns : Nat}
     (interface : PoseidonSboxPlan.Interface columns)
     (loaded : PiDECPoseidonNumericBlock.loadInvocation? block columns invocation =
       some interface)
-    (row : Fin 94) (port : Fin matrixCount) :
-    some ((((PoseidonSboxPlan.rows interface).get
-      ⟨row.val, by rw [PoseidonSboxPlan.rows_length]; exact row.isLt⟩).portForm port).evalSparse
+    (row : Fin 86) (port : Fin matrixCount) :
+    some ((((PoseidonRetainedRows.rows interface).get
+      ⟨row.val, by rw [PoseidonRetainedRows.rows_length]; exact row.isLt⟩).portForm port).evalSparse
         read) =
       (program.row? columns source
         (((program.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
@@ -184,37 +184,37 @@ theorem selectedInvocation_eq_range
       some interface)
     (rangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ selectedProgram.rowCount)
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val + 86 ≤ selectedProgram.rowCount)
     (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
     let first :=
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val
     ((PiDECMatrixInvocation.sum first point
       (PiDECMatrixInvocation.prepare (parentRead parents child) interface)).get port).toRing =
-      ((PiDECEvaluationBatch.range first 94 point
+      ((PiDECEvaluationBatch.range first 86 point
         (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
   dsimp only
   let first :=
     ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      (Fin.encodeProd (invocation, (0 : Fin 94))).val
+      (Fin.encodeProd (invocation, (0 : Fin 86))).val
   change ((PiDECMatrixInvocation.sum first point
     (PiDECMatrixInvocation.prepare (parentRead parents child) interface)).get port).toRing = _
   have countEq : selectedProgram.rowCount = selectedPlan.rowCount :=
     PerApplicationMatrixProgram.matrixProgram_rowCount_eq_structuralPlan
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
-  have covered : first + 94 ≤ selectedPlan.rowCount := by
-    change first + 94 ≤ selectedProgram.rowCount at rangeFits
+  have covered : first + 86 ≤ selectedPlan.rowCount := by
+    change first + 86 ≤ selectedProgram.rowCount at rangeFits
     exact rangeFits.trans_eq countEq
   funext output
   rw [PiDECMatrixInvocation.sum_prepare_value, PiDECEvaluationBatch.range_value]
-  apply numericSum_congr 94
+  apply numericSum_congr 86
   intro index live
   rw [dif_pos live]
   have globalBound : first + index < selectedPlan.rowCount := by omega
   let globalRow : Fin selectedPlan.rowCount := ⟨first + index, globalBound⟩
   have encoded :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (⟨index, live⟩ : Fin 94))).val = first + index := by
+        (Fin.encodeProd (invocation, (⟨index, live⟩ : Fin 86))).val = first + index := by
     dsimp only [first, Fin.encodeProd, Fin.mkDivMod]
     omega
   have sparse := invocation_sparse_value selectedProgram selectedSource
@@ -227,8 +227,8 @@ theorem selectedInvocation_eq_range
     some (selectedPlan.forms globalRow) at canonical
   rw [canonical, Option.map_some] at sparse
   have rowValue :
-      (((PoseidonSboxPlan.rows interface).get
-        ⟨index, by rw [PoseidonSboxPlan.rows_length]; exact live⟩).portForm port).evalSparse
+      (((PoseidonRetainedRows.rows interface).get
+        ⟨index, by rw [PoseidonRetainedRows.rows_length]; exact live⟩).portForm port).evalSparse
           (parentRead parents child output) =
         (selectedPlan.portForm globalRow port).evalSparse
           (parentRead parents child output) := by
@@ -292,17 +292,17 @@ theorem selectedIntInvocation_eq_range
       some interface)
     (rangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ selectedProgram.rowCount)
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val + 86 ≤ selectedProgram.rowCount)
     (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
     let first :=
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val
     ((PiDECMatrixInvocation.sum first point
       (PiDECMatrixInvocation.prepare
         (intParentRead (fun block => (parents block).map
           (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
         interface)).get port).toRing =
-      ((PiDECEvaluationBatch.range first 94 point
+      ((PiDECEvaluationBatch.range first 86 point
         (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
   dsimp only
   rw [intParentRead_map_valMinAbs parents bounded child]
@@ -316,9 +316,9 @@ theorem sumInvocationParts_eq_range {arity ports children : Nat}
     (port : Fin ports) (child : Fin children) :
     (∀ index, index < count →
       ((parts index).get port).toRing =
-        ((PiDECEvaluationBatch.range (first + 94 * index) 94 point rows).get child).toRing) →
+        ((PiDECEvaluationBatch.range (first + 86 * index) 86 point rows).get child).toRing) →
     ((PiDECEvaluationBatch.sum count parts).get port).toRing =
-      ((PiDECEvaluationBatch.range first (94 * count) point rows).get child).toRing := by
+      ((PiDECEvaluationBatch.range first (86 * count) point rows).get child).toRing := by
   induction count with
   | zero =>
       intro _
@@ -330,7 +330,7 @@ theorem sumInvocationParts_eq_range {arity ports children : Nat}
       have previous := inductionHypothesis (fun index live =>
         each index (Nat.lt_trans live (Nat.lt_succ_self count)))
       have last := each count (Nat.lt_succ_self count)
-      have joined := PiDECEvaluationBatch.range_append first (94 * count) 94
+      have joined := PiDECEvaluationBatch.range_append first (86 * count) 86
         point rows child
       rw [PiDECEvaluationBatch.add_value] at joined
       have sumStep : PiDECEvaluationBatch.sum (count + 1) parts =
@@ -341,10 +341,10 @@ theorem sumInvocationParts_eq_range {arity ports children : Nat}
             ((parts count).get port).toRing := by
           rw [sumStep, PiDECEvaluationBatch.add_value]
         _ = ringKAdd
-            ((PiDECEvaluationBatch.range first (94 * count) point rows).get child).toRing
-            ((PiDECEvaluationBatch.range (first + 94 * count) 94 point rows).get child).toRing := by
+            ((PiDECEvaluationBatch.range first (86 * count) point rows).get child).toRing
+            ((PiDECEvaluationBatch.range (first + 86 * count) 86 point rows).get child).toRing := by
           rw [previous, last]
-        _ = ((PiDECEvaluationBatch.range first (94 * count + 94) point rows).get child).toRing :=
+        _ = ((PiDECEvaluationBatch.range first (86 * count + 86) point rows).get child).toRing :=
           joined.symm
         _ = _ := by rw [Nat.mul_succ]
 
@@ -367,21 +367,21 @@ theorem selectedIntInvocationRange_eq_range
         ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
     (rangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        94 * firstInvocation + 94 * count ≤ selectedProgram.rowCount)
+        86 * firstInvocation + 86 * count ≤ selectedProgram.rowCount)
     (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
     let first :=
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        94 * firstInvocation
+        86 * firstInvocation
     ((PiDECMatrixInvocationRange.sum first point
       (intParentRead (fun block => (parents block).map
         (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
       interfaces).get port).toRing =
-      ((PiDECEvaluationBatch.range first (94 * count) point
+      ((PiDECEvaluationBatch.range first (86 * count) point
         (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
   dsimp only
   let first :=
     ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-      94 * firstInvocation
+      86 * firstInvocation
   change ((PiDECMatrixInvocationRange.sum first point
     (intParentRead (fun block => (parents block).map
       (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
@@ -397,15 +397,15 @@ theorem selectedIntInvocationRange_eq_range
     loaded ⟨index, live⟩
   have startEq :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val = first + 94 * index := by
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val = first + 86 * index := by
     dsimp only [invocation, first, Fin.encodeProd, Fin.mkDivMod]
     omega
-  have lastFits : first + 94 * index + 94 ≤ selectedProgram.rowCount := by
-    change first + 94 * count ≤ selectedProgram.rowCount at rangeFits
+  have lastFits : first + 86 * index + 86 ≤ selectedProgram.rowCount := by
+    change first + 86 * count ≤ selectedProgram.rowCount at rangeFits
     omega
   have invocationFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        (Fin.encodeProd (invocation, (0 : Fin 94))).val + 94 ≤ selectedProgram.rowCount := by
+        (Fin.encodeProd (invocation, (0 : Fin 86))).val + 86 ≤ selectedProgram.rowCount := by
     rw [startEq]
     exact lastFits
   have single := selectedIntInvocation_eq_range parents bounded point blockIndex block
@@ -511,17 +511,17 @@ theorem selectedIntInvocationSlice_eq_range
         ⟨firstInvocation + index.val, by omega⟩ = some (interfaces.get index))
     (rangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        94 * firstInvocation + 94 * count ≤ selectedProgram.rowCount)
+        86 * firstInvocation + 86 * count ≤ selectedProgram.rowCount)
     (lo hi : Nat) (lo_le_hi : lo ≤ hi) (hi_le_count : hi ≤ count)
     (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
     let first :=
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        94 * firstInvocation
-    ((PiDECMatrixInvocationRange.sum (first + 94 * lo) point
+        86 * firstInvocation
+    ((PiDECMatrixInvocationRange.sum (first + 86 * lo) point
       (intParentRead (fun block => (parents block).map
         (fun value => ZMod.valMinAbs (n := goldilocksModulus) value)) child)
       (interfaces.extract lo hi)).get port).toRing =
-      ((PiDECEvaluationBatch.range (first + 94 * lo) (94 * (hi - lo)) point
+      ((PiDECEvaluationBatch.range (first + 86 * lo) (86 * (hi - lo)) point
         (PiDECEvaluationFromBlocks.matrixRow (splitBlocks parents) port)).get child).toRing := by
   have sliceFits : firstInvocation + lo + (min hi count - lo) ≤ block.invocationCount := by
     rw [Nat.min_eq_left hi_le_count]
@@ -541,7 +541,7 @@ theorem selectedIntInvocationSlice_eq_range
     simpa only [Nat.add_assoc, Vector.get] using loaded ⟨lo + index.val, fullBound⟩
   have sliceRangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
-        94 * (firstInvocation + lo) + 94 * (min hi count - lo) ≤
+        86 * (firstInvocation + lo) + 86 * (min hi count - lo) ≤
           selectedProgram.rowCount := by
     rw [Nat.min_eq_left hi_le_count]
     omega

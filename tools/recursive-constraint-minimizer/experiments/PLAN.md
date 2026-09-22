@@ -13,8 +13,38 @@ rejection, commitment, pilot, binding, and identity checks passed. Actual NIFS
 regeneration and the complete independent comparison passed; native and Lean
 base/recursive fixtures are published. Final Nightstream tests passed.
 All correctness and integration checks for this quotient checkpoint are
-complete. The candidate lifecycle benchmark remains pending, and no runtime
-improvement is claimed.
+complete. The owner stopped timing comparisons and directed further work to
+constraint reduction. The candidate lifecycle benchmark was not started and
+is not a blocker for this research. No runtime improvement is claimed.
+
+The next Lean experiment batch tests a shared Boolean flag for the running
+transition and redundant final Poseidon output rows. Packages and fixtures
+remain at the proved quotient checkpoint during these experiments. See
+`running_transition_reduction.json` for the new local cvc5 controls and the
+conditional geometry; these are not installed-package counts.
+
+The [shared flag](running-transition-next-candidate.md) would save 12,141,630
+committed coordinates and 296,136 rows. Its local row equivalence, soundness,
+constructive completeness, executable witness maps in both directions, and
+low-norm flag proofs passed their focused Lean check and eleven axiom audits.
+The maps preserve all cells outside their stated local intervals. The proof
+uses named constraint equalities and a generic lowering lemma to keep the
+large constraint list opaque. The six compact matrix families now decode to
+the complete reduced relation. The reduced encoding proves soundness against
+the original source packet without retaining the removed scratch values;
+the original physical witness proves acceptance of the new rows. The
+composable production plan has 49,359 rows, and its exact matrix decoder and
+axiom audits passed. Full selected layout transport remains open.
+
+The [Poseidon pin change](poseidon-next-candidates.md) removes 259,656
+rows without changing the witness. It is now selected in Lean; the complete
+library, matrix proof audits, and formula-expansion checks passed. Lean has
+4,443,471 rows, while installed artifacts still have 4,703,127. Rust and
+artifact regeneration remain paused during the candidate batch.
+The two changes together would give 172,217,934 committed
+coordinates and 4,147,335 rows, conditional on complete layout integration.
+Matrix counts are reported separately in the candidate notes. The additional
+half-coordinate target is not established.
 
 ## Contract
 

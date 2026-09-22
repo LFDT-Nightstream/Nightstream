@@ -71,21 +71,21 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (block geometry).rowCount = 14382 := by
+    (block geometry).rowCount = 13158 := by
   calc
     (block geometry).rowCount =
-        PiRLCSamplerPoseidonPlan.invocationCount * 94 := by
+        PiRLCSamplerPoseidonPlan.invocationCount * 86 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.oneColumn geometry) (inputProgram program)
-    _ = 14382 := by
+    _ = 13158 := by
       norm_num [PiRLCSamplerPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 14382 := by
+    (matrixProgram geometry).rowCount = 13158 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

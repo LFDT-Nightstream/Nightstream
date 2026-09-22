@@ -156,13 +156,13 @@ def transitionPlan
 @[simp] theorem pilotPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotPlan geometry).rowCount = 2321800 := by
+    (pilotPlan geometry).rowCount = 2124200 := by
   simp [pilotPlan, DirectPrefixPlan.pilotPlan]
 
 @[simp] theorem piCcsPoseidonPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPlan geometry).rowCount = 729984 := by
+    (piCcsPoseidonPlan geometry).rowCount = 669152 := by
   simp [piCcsPoseidonPlan, DirectPrefixPlan.piCcsPlan]
 
 @[simp] theorem piCcsEndpointPlan_rowCount
@@ -186,7 +186,7 @@ def transitionPlan
 @[simp] theorem samplerPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPlan geometry).rowCount = 14382 := by
+    (samplerPlan geometry).rowCount = 13158 := by
   simp [samplerPlan, DirectPrefixPlan.samplerPlan]
 
 @[simp] theorem piRlcPlan_rowCount
@@ -213,7 +213,7 @@ def piCcsPoseidonPrefix
 @[simp] theorem piCcsPoseidonPrefix_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPrefix geometry).rowCount = 3051784 := by
+    (piCcsPoseidonPrefix geometry).rowCount = 2793352 := by
   simp [piCcsPoseidonPrefix]
 
 private theorem piCcsCoreRowCount_le
@@ -243,7 +243,7 @@ def piCcsCorePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCorePlan relation geometry).rowCount = 3863453 := by
+    (piCcsCorePlan relation geometry).rowCount = 3605021 := by
   simp [piCcsCorePlan, piCcsOrdinaryPlan]
 
 private theorem pilotOrdinaryPrefixRowCount_le
@@ -272,7 +272,7 @@ def pilotOrdinaryPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 3864783 := by
+    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 3606351 := by
   simp [pilotOrdinaryPrefixPlan]
 
 private theorem pilotBindingPrefixRowCount_le
@@ -301,7 +301,7 @@ def pilotBindingPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotBindingPrefixPlan relation geometry).rowCount = 3864791 := by
+    (pilotBindingPrefixPlan relation geometry).rowCount = 3606359 := by
   simp [pilotBindingPrefixPlan]
 
 private theorem piCcsCompleteRowCount_le
@@ -330,7 +330,7 @@ def piCcsCompletePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCompletePlan relation geometry).rowCount = 3864823 := by
+    (piCcsCompletePlan relation geometry).rowCount = 3606391 := by
   simp [piCcsCompletePlan]
 
 private theorem samplerPrefixRowCount_le
@@ -357,7 +357,7 @@ def samplerPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 3879205 := by
+    (samplerPrefixPlan relation geometry).rowCount = 3619549 := by
   simp [samplerPrefixPlan]
 
 private theorem piRlcPrefixRowCount_le
@@ -384,7 +384,7 @@ def piRlcPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPrefixPlan relation geometry).rowCount = 4103554 := by
+    (piRlcPrefixPlan relation geometry).rowCount = 3843898 := by
   simp [piRlcPrefixPlan]
 
 private theorem piDecPrefixRowCount_le
@@ -414,7 +414,7 @@ def piDecPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piDecPrefixPlan relation geometry).rowCount = 4129042 := by
+    (piDecPrefixPlan relation geometry).rowCount = 3869386 := by
   simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 private theorem totalRowCount_le
@@ -443,7 +443,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 4474537 := by
+    (plan relation geometry).rowCount = 4214881 := by
   simp [plan, transitionPlan]
 
 /-- The complete ordered prefix depends on the verified relation shape, but
@@ -565,8 +565,9 @@ structure Semantics
     (RunningTransitionDirectPlan.transitionEnv application base)
     (PiDECOrdinaryDirectSource.sourceRows relationLogicalWidth
       relationPublicFits)
-  transition : RunningTransitionLayout.PhysicalHolds relationLogicalWidth
-    relationPublicFits
+  transition : Lifecycle.Stage1.RunningTransition.SpecHolds
+    (RunningTransitionInputs.interface relationLogicalWidth relationPublicFits)
+    RunningTransitionInputs.phaseOffset
     (Spartan.pullback
       (RunningTransitionDirectPlan.transitionEnv application base))
 
@@ -653,7 +654,8 @@ theorem rowsZero_implies_semantics
       encodes.pilotOrdinary.prior).mp piCcsOrdinaryRows
   · exact (PiDECDirectPlan.rowsZero_iff_rowsHold relation geometry assignment
       base groupValue products one encodes.piDec).mp piDecRows
-  · exact (RunningTransitionDirectPlan.rowsZero_iff_physical relation
+  · apply RunningTransitionLayout.physical_implies_specHolds relation
+    exact (RunningTransitionDirectPlan.rowsZero_iff_physical relation
       (runningGeometry geometry) assignment base groupValue products one
       encodes.running.transition).mp transitionRows
 

@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
 All 14 matrix ports and 54 coefficient lanes reach the actual selected
-matrix source. The packet starts at global logical row 4347115.
+matrix source. The packet starts at global logical row 4087459.
 SuperNeo v1.1 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
 Section 7.5 and Appendix B.4 own these commitment recomposition rows.
 
@@ -84,7 +84,7 @@ private def fullRow (row : Fin 1188) :
     (DirectApplicationPrefixPlan.publicOutputPlan geometry).rowCount next
 
 private theorem fullRow_val (row : Fin 1188) :
-    (fullRow relation fits geometry row).val = 4347115 + row.val := by
+    (fullRow relation fits geometry row).val = 4087459 + row.val := by
   simp only [fullRow, ProductionRelation.Plan.leftIndex_val, ProductionRelation.Plan.rightIndex_val,
     PiDECDirectPlan.publicPlan_rowCount,
     DirectPiRLCSamplerCompletePrefixPlan.piRlcCompletePlan_rowCount,
@@ -120,12 +120,12 @@ private theorem plan_port_transport {columns : Nat} (left right : ProductionRela
 /-- The constant offset is checked against the exact append tree below.
 This coordinate is a semantic reference; entry does not execute this map. -/
 def globalRow (row : Fin 1188) : Fin selectedPlan.rowCount :=
-  ⟨4347115 + row.val, by
+  ⟨4087459 + row.val, by
     have bound := row.isLt
     rw [Poseidon2HashChainV1Package.structuralRowCount]
     omega⟩
 
-theorem globalRow_val (row : Fin 1188) : (globalRow row).val = 4347115 + row.val := rfl
+theorem globalRow_val (row : Fin 1188) : (globalRow row).val = 4087459 + row.val := rfl
 
 private theorem globalRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRelation.matrixCount) :
     selectedPlan.portForm (globalRow row) matrix =

@@ -136,9 +136,21 @@ authorize a new run. Historical results retain their original scope.
   inodes or symlinks into the original target. The checker bytes match, and
   its release build passed in 0.213 seconds under the 300-second cap.
   `private-rust-target.json` and `private-rust-build.json` in the run directory
-  record these checks. The explicit source transition and new resume remain
-  pending. This policy and build update adds no prover-generation result;
-  the completed iteration-3 D counts remain 16 commitments and 15 pads.
+  record these checks.
+- `worktree-source-transition.json` sealed the source transition at
+  07:40:10 UTC on 2026-09-22. Only the guard and its focused test differ from
+  the continuation's saved source map; its original pin is unchanged.
+  The first fold's 19 original files match current CPU step 1 in 89,980,008
+  exact bytes. Its previously absent pin was then created normally. The
+  audit records a new default-runtime baseline; the old continuation pin
+  had no selected-runtime entry. Both source/input maps, runtime and private
+  checker are checked at replay initialization. Six stub tests passed.
+  The new driver started at 07:42:53 UTC. `d-pad-15-worktree` passed in
+  30.946 seconds with the original command and 1,500-second cap. At the
+  07:45:27 UTC snapshot, commitment and pad batches 0–16 had passed.
+  D generation is continuing. All earlier counts and failures remain dated
+  records; neither complete D3 nor independent first-fold generation is
+  claimed. The JSON record links the audit, driver identity and new receipts.
 - Independent first-fold generation is implemented but has not run. The
   remaining D work for 3→4, successor generation, final terminal checks and
   direct current CPU3 comparisons are incomplete. The full independent

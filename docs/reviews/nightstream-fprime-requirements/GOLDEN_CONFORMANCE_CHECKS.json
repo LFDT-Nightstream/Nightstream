@@ -742,7 +742,7 @@
     "scope": "Completed new independent iteration-3 C generation and comparison. Remaining iteration-3 D work, successor, final terminal checks and direct complete current CPU3 comparisons remain pending; neither the full independent 2-to-3-to-4 sequence nor first-fold independent generation is complete."
   },
   "independent_iteration_3_reductions": {
-    "outcome": "interrupted",
+    "outcome": "running",
     "source_iteration": 3,
     "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
     "previous_attempt": {
@@ -810,7 +810,7 @@
         "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
       }
     },
-    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation stopped at the guard before d-pad-15 launched after the third shared build-queue conflict; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation.",
+    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation resumed under the sealed per-worktree source transition; complete D3, successor, final terminal and direct current CPU3 comparisons remain pending. First-fold independent generation has not run.",
     "continuation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.json",
     "D_generation": {
       "outcome": "interrupted",
@@ -843,7 +843,7 @@
         "elapsed_seconds": 967.488341890974,
         "scope": "The external driver waited on observed build processes before each new guarded child; the third shared-host guard rejection still occurred."
       },
-      "continuation_requirement": "Resume with the per-worktree guard and private Rust target after the explicit source transition is reviewed. Source transition and new resume remain pending. Other worktrees do not need to pause.",
+      "continuation_requirement": "The earlier stop is preserved as a dated snapshot. The per-worktree source transition is sealed and the new resume is recorded in execution_policy_update.new_resume; other worktrees do not need to pause.",
       "scope": "The 31 listed Lean stages passed. The guard stopped pad batch 15 before producer launch. Remaining D proof generation is incomplete; no mathematical mismatch is recorded.",
       "previous_attempt": {
         "outcome": "interrupted",
@@ -862,7 +862,8 @@
         "continuation_failed_utc": "2026-09-22T06:50:30.684049Z",
         "scope": "The seven listed Lean stages passed. The guard stopped the next stage before launch; remaining D generation is incomplete."
       },
-      "historical_stop_policy": "The third guard rejection stopped continuation under the then-current three-round stop-and-report rule. All three failed child receipts remain unchanged."
+      "historical_stop_policy": "The third guard rejection stopped continuation under the then-current three-round stop-and-report rule. All three failed child receipts remain unchanged.",
+      "snapshot_utc": "2026-09-22T07:19:31.669662Z"
     }
   },
   "preserved_failures": [
@@ -1110,8 +1111,52 @@
       "guard_source_commit": "48da0896",
       "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-build.log"
     },
-    "source_transition": "pending",
-    "new_resume": "pending",
-    "scope": "Execution-policy correction and private build validation only. No new prover generation or comparison is claimed. Iteration-3 D remains at 16 passed commitment batches and 15 passed pad batches; all historical failed receipts remain unchanged."
+    "source_transition": {
+      "outcome": "sealed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-source-transition.json",
+      "recorded_utc": "2026-09-22T07:40:10.214012+00:00",
+      "source_commit": "48da089692ba2905feab6fc53c5742056932cdf1",
+      "changed_paths": [
+        "scripts/lean_graph/guard.py",
+        "scripts/lean_graph/tests/test_guard.py"
+      ],
+      "change_scope": "Exactly the reviewed guard and focused test; all other pinned source/input fields remain equal. Prover arguments, caps and validate.sh are unchanged.",
+      "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree_resume.py",
+      "driver_identity": {
+        "kind": "file",
+        "bytes": 16490,
+        "sha256": "3fadf51e6b334f1aa9e651fd3059e090a6b1b3388473c74e44033bb5d94a6c01"
+      },
+      "continuation_pin_unchanged": true,
+      "continuation_pin_sha256": "7022c3f31c6f676598652e2e84db4530eebb02f4f9361f1f0425552d79df6e86",
+      "first_pin_previously_present": false,
+      "first_pin_creation": "Existing pin_sources function after exact comparison of original inputs with current CPU step 1.",
+      "first_original_current_CPU_files": 19,
+      "first_original_current_CPU_bytes": 89980008,
+      "old_selected_runtime_pin_present": false,
+      "runtime_scope": "New default-runtime custody baseline; no original runtime pin is claimed.",
+      "revalidation": "Each replay initialization checks its full source/input map, immutable source pin, imported coordinators, default runtime and private checker. Existing saved-output validation remains active.",
+      "stub_tests_passed": 6,
+      "digest_scope": "File custody only; no mathematical comparison authority."
+    },
+    "new_resume": {
+      "outcome": "running",
+      "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-events.jsonl",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-step-3-reductions.log",
+      "started_utc": "2026-09-22T07:42:53.320314Z",
+      "snapshot_utc": "2026-09-22T07:45:27.168506Z",
+      "pad_15_retry": {
+        "outcome": "passed",
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/d-pad-15-worktree.json",
+        "elapsed_seconds": 30.946044445037842,
+        "cap_seconds": 1500,
+        "scope": "Exact original command under the corrected per-worktree guard; the failed d-pad-15.json receipt remains unchanged."
+      },
+      "passed_commitment_batches_at_snapshot": 17,
+      "passed_pad_batches_at_snapshot": 17,
+      "snapshot_receipts": "Commitment and pad indices 0 through 16; pad 3 uses d-pad-3-after-queue.json and pad 15 uses d-pad-15-worktree.json. All receipts are under the existing iteration-3 logs directory.",
+      "scope": "Live continuation after the source transition. Full D3, remaining 3-to-4 work and independent first-fold generation are not complete."
+    },
+    "scope": "Per-worktree execution-policy correction, private Rust build validation, sealed source transition and resumed D generation. Earlier failed runs retain their dated counts and receipts. Complete D3 and independent first-fold generation remain pending; CI and Metal remain outside the owner-approved scope."
   }
 }

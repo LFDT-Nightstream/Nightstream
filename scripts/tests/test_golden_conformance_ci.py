@@ -98,7 +98,7 @@ class GoldenCITests(unittest.TestCase):
         calls = [call.args[0] for call in run.call_args_list]
         native = [call for call in calls if Path(call[2]).name == "run_golden_conformance.py"]
         self.assertEqual(len(native), 1)
-        self.assertEqual(native[0][-2:], ["--engine", "optimized"])
+        self.assertNotIn("--engine", native[0])
         lean = [call for call in calls if Path(call[2]).name == "check_lean_fold.py"]
         self.assertEqual([call[call.index("--step") + 1] for call in lean], [1, 2])
         self.assertEqual(build.call_count, 2)
@@ -111,17 +111,6 @@ class GoldenCITests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, "required check failed"):
             ci.execute("cpu", self.root / "archives", output)
         self.assertFalse((output / "cpu-result.json").exists())
-
-    def test_metal_requires_capability_and_same_cpu_handoff(self):
-        with patch.object(ci.sys, "platform", "linux"), self.assertRaisesRegex(ValueError, "macOS host"):
-            ci.execute("metal", self.root / "archives", self.root / "metal", self.root / "handoff")
-        with patch.object(ci.sys, "platform", "darwin"), self.assertRaisesRegex(ValueError, "CPU handoff"):
-            ci.execute("metal", self.root / "archives", self.root / "metal")
-        with patch.object(ci.sys, "platform", "darwin"), patch.object(ci, "run") as run, \
-                patch.object(ci, "build", return_value=Path("current-metal")), patch.object(ci, "cpu_handoff") as handoff:
-            ci.execute("metal", self.root / "archives", self.root / "metal", self.root / "handoff")
-        self.assertEqual([call.args[0] for call in handoff.call_args_list], [self.root / "handoff"] * 2)
-        self.assertEqual(run.call_args.args[0][-2:], ["--cpu-reference", self.root / "handoff/cpu"])
 
     def test_independent_mode_requires_real_generator_and_comparison_completion(self):
         output = self.root / "independent"
@@ -141,7 +130,7 @@ class GoldenCITests(unittest.TestCase):
         with patch.object(ci, "run") as run, patch.object(ci, "compare_json"), \
                 patch.object(ci, "compare_envelope"), patch.object(ci.shutil, "copyfile"), \
                 patch.object(ci.shutil, "copytree", side_effect=lambda source, target: target.mkdir(parents=True)):
-            ci.independent_expectations(output, self.root / "references", Path("current-checker"), handoff)
+            ci.independent_expectations(output, self.root / "references", handoff)
         commands = [call.args[0] for call in run.call_args_list]
         replay = [command for command in commands if Path(command[2]).name == "replay_recursive_loop.py"]
         self.assertEqual([(command[-2], command[-1]) for command in replay],
@@ -157,7 +146,7 @@ class GoldenCITests(unittest.TestCase):
 
         with patch.object(ci.subprocess, "run", side_effect=fake_run), \
                 self.assertRaisesRegex(ValueError, "exactly one current executable"):
-            ci.build(self.root, "optimized")
+            ci.build(self.root)
 
 
 if __name__ == "__main__":

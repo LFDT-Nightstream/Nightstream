@@ -69,16 +69,14 @@ def phase(binary, directory, name, commands, **arguments):
     require(result.get("cap_seconds") == CAPS["rust"], f"wrong phase cap: {receipt}")
 
 
-def compare_fold(directory, fold, reference, commands, engine=None, receipt=None):
-    receipt = receipt or directory / f"comparison-fold-{fold}.json"
+def compare_fold(directory, fold, reference, commands):
+    receipt = directory / f"comparison-fold-{fold}.json"
     require(not receipt.exists(), f"comparison receipt already exists: {receipt}")
     command = ["timeout", "--signal=KILL", str(CAPS["python"]), sys.executable, "-B",
                str(TESTS / "compare_recursive_outputs.py"), "--directory", str(directory),
                "--fold", str(fold), "--receipt", str(receipt)]
     if reference is not None:
         command += ["--reference", str(reference)]
-    if engine is not None:
-        command += ["--engine-directory", str(engine)]
     commands.append({"command": command, "receipt": str(receipt)})
     subprocess.run(command, cwd=ROOT, check=True)
     result = read(receipt)
@@ -86,10 +84,6 @@ def compare_fold(directory, fold, reference, commands, engine=None, receipt=None
             and result.get("run_directory") == str(directory)
             and result.get("reference_directory") == (str(reference) if reference else None),
             f"comparison did not pass: {receipt}")
-    if engine is not None:
-        compared = result.get("later_fold", {}).get("engine_comparisons", [])
-        require([entry.get("engine_directory") for entry in compared] == [str(engine)],
-                f"missing engine comparison: {receipt}")
 
 
 def main():
@@ -97,52 +91,36 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--references", type=Path, required=True)
-    parser.add_argument("--engine", choices=("optimized", "metal"), required=True)
-    parser.add_argument("--cpu-reference", type=Path)
     args = parser.parse_args()
-    if (args.engine == "metal") != (args.cpu_reference is not None):
-        parser.error("Metal requires --cpu-reference; optimized does not use it")
     binary, directory, references = args.binary.resolve(), args.directory.resolve(), args.references.resolve()
-    cpu = args.cpu_reference.resolve() if args.cpu_reference else None
     require(binary.is_file(), f"missing test binary: {binary}")
     for name in ("reference-first", "reference-later"):
         require((references / name).is_dir(), f"missing restored reference: {references / name}")
-    if cpu is not None:
-        for step in (1, 2):
-            require((cpu / f"fold-{step}/proof.native").is_file(), f"missing CPU proof for fold {step}")
     require(not directory.exists(), f"run directory already exists: {directory}")
     # Capture custody before creating any run outputs. These hashes identify
     # files; they do not prove build correctness or protocol semantics.
-    record = {"schema": 1, "outcome": "running", "engine": args.engine,
+    record = {"schema": 1, "outcome": "running", "engine": "optimized",
               "binary": file_identity(binary), "source": source_identity(), "commands": [],
-              "references": str(references), "cpu_reference": str(cpu) if cpu else None,
+              "references": str(references),
               "identity_scope": "file custody only; not proof of binary/source correspondence",
               "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, "
                        "with archive output comparisons. No fresh Lean execution or universal correctness claim."}
     directory.mkdir(parents=True)
     try:
-        phase(binary, directory, "base", record["commands"], engine=args.engine)
+        phase(binary, directory, "base", record["commands"], engine="optimized")
         for step in (1, 2):
-            phase(binary, directory, "sources", record["commands"], step=step, engine=args.engine)
-            if args.engine == "optimized":
-                phase(binary, directory, "ccs", record["commands"], step=step, engine=args.engine)
-                phase(binary, directory, "rlc", record["commands"], step=step)
-                phase(binary, directory, "split", record["commands"], step=step)
-                phase(binary, directory, "openings", record["commands"], step=step)
-                phase(binary, directory, "nifs", record["commands"], step=step)
-            else:
-                phase(binary, directory, "prove", record["commands"], step=step, engine=args.engine,
-                      reference_proof=str(cpu / f"fold-{step}/proof.native"))
-            phase(binary, directory, "successor", record["commands"], step=step, engine=args.engine)
-        phase(binary, directory, "terminal", record["commands"], step=3, engine=args.engine)
+            phase(binary, directory, "sources", record["commands"], step=step, engine="optimized")
+            phase(binary, directory, "ccs", record["commands"], step=step, engine="optimized")
+            phase(binary, directory, "rlc", record["commands"], step=step)
+            phase(binary, directory, "split", record["commands"], step=step)
+            phase(binary, directory, "openings", record["commands"], step=step)
+            phase(binary, directory, "nifs", record["commands"], step=step)
+            phase(binary, directory, "successor", record["commands"], step=step, engine="optimized")
+        phase(binary, directory, "terminal", record["commands"], step=3, engine="optimized")
         phase(binary, directory, "mutation", record["commands"], step=3)
-        phase(binary, directory, "reject", record["commands"], step=3, engine=args.engine)
-        if cpu is None:
-            for fold, name in ((1, "reference-first"), (2, "reference-later")):
-                compare_fold(directory, fold, references / name, record["commands"])
-        else:
-            compare_fold(cpu, 2, references / "reference-later", record["commands"],
-                         engine=directory, receipt=directory / "comparison-lean-cpu-engine.json")
+        phase(binary, directory, "reject", record["commands"], step=3, engine="optimized")
+        for fold, name in ((1, "reference-first"), (2, "reference-later")):
+            compare_fold(directory, fold, references / name, record["commands"])
         record["outcome"] = "passed"
         print(f"native golden conformance passed: {directory}", flush=True)
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:

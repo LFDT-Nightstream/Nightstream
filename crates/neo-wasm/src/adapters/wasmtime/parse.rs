@@ -19,10 +19,17 @@ use wasmparser::{Parser, Payload};
 
 const WASM32_MAX_PAGES: u32 = 65_536;
 
+/// Parsed program tables and capture metadata, paired with application-authored
+/// host-event bindings. Lazy capture constructs this pair from the executing
+/// module and its registered bindings; retain it for normalization.
 #[derive(Clone, Debug)]
 pub struct WasmProgramArtifacts {
     /// Verifier/proof-bound static tables derived only from the wasm program.
     pub tables: WasmProgramTables,
+    /// Application-authored bindings shared by capture and normalization.
+    /// Standalone parsing leaves these empty. Capture installs the bindings
+    /// registered for the executing module.
+    pub host_event_bindings: crate::host_event_bindings::HostEventBindings,
     // Adapter-only helper state needed to turn Wasmtime debug frames into trace rows.
     pub(crate) trace: WasmTraceLoweringTables,
 }
@@ -181,6 +188,25 @@ pub(crate) fn parse_first_component_core_module_artifacts(
     ))
 }
 
+/// The convenience collector deliberately refuses ambiguous component routing.
+pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmBuildError> {
+    let mut module = None;
+    for payload in Parser::new(0).parse_all(bytes) {
+        if let Payload::ModuleSection { unchecked_range, .. } =
+            payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component: {err}")))?
+        {
+            if module.is_some() {
+                return Err(WasmBuildError::Unsupported(
+                    "component collector requires exactly one core module; use WasmtimeTraceRegistry to select modules"
+                        .into(),
+                ));
+            }
+            module = bytes.get(unchecked_range);
+        }
+    }
+    module.ok_or_else(|| WasmBuildError::Trace("component has no embedded core module".into()))
+}
+
 struct ParsedWasmArtifactsBuilder {
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
@@ -315,6 +341,7 @@ impl ParsedWasmArtifactsBuilder {
         module_types.sort_unstable();
         module_types.dedup();
         Ok(WasmProgramArtifacts {
+            host_event_bindings: Default::default(),
             tables: WasmProgramTables {
                 has_imported_memory: self.has_imported_memory,
                 imported_global_count: self.imported_global_count,

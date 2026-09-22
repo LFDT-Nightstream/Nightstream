@@ -37,9 +37,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 /// Program tables supply the initial memory image used by host-event memory
 /// slots; they must describe the same core module that produced `rows`.
 /// Entry inputs are recovered from captured locals and memory. For memory
-/// inputs, pass these bindings to [`super::WasmtimeTraceState::from_program_artifacts`]
-/// when creating the caller-owned store's trace state; the convenience collectors do
-/// not configure entry-memory capture. Recovery rejects overlapping writes, including aliases
+/// inputs, supply bindings to the collector or register the core module and
+/// bindings with `WasmtimeTraceRegistry` before execution. Use the captured
+/// instance's artifacts here. Recovery rejects overlapping writes, including aliases
 /// through different pointer locals. Only memory zero with verifier-known
 /// initialization and local-based entry addresses is supported.
 /// Recovery supplies witness values, not independent evidence of the caller's
@@ -48,10 +48,11 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 /// resulting execution against the verifier's program and bindings.
 pub fn traces_from_wasmtime_steps_with_host_events(
     rows: &[WasmtimeTraceStep],
-    program: &super::WasmProgramTables,
-    bindings: &crate::host_event_bindings::HostEventBindings,
+    artifacts: &super::WasmProgramArtifacts,
     initial_comm_chain: crate::comm_chain::CommChainState,
 ) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
+    let program = &artifacts.tables;
+    let bindings = &artifacts.host_event_bindings;
     bindings.validate_against_program(program)?;
     let linear_memory = memory::LinearMemoryImage::for_host_events(bindings, program)?;
     trace_build::build_trace(rows, Some((bindings, program)), initial_comm_chain, linear_memory)
@@ -297,14 +298,24 @@ pub(crate) fn capture_frame<T>(
         None => ("<host-or-unknown>".to_string(), None, None),
     };
     let decoded_opcode = match function_index.zip(byte_offset) {
-        Some(key) => Some(tables.opcode_map.get(&key).cloned().ok_or_else(|| {
-            WasmBuildError::Trace(format!("missing decoded instruction for function/byte offset {key:?}"))
-        })?),
+        Some(key) => Some(
+            tables
+                .artifacts
+                .trace
+                .opcode_map
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!("missing decoded instruction for function/byte offset {key:?}"))
+                })?,
+        ),
         None => None,
     };
     let pc = decoded_opcode.as_ref().map(|decoded| decoded.pc);
     let current_function_ref = function_index.and_then(|index| {
         tables
+            .artifacts
+            .trace
             .imported_function_count
             .checked_add(index)
             .and_then(|function_ref| function_ref.checked_add(1))
@@ -360,7 +371,7 @@ pub(crate) fn capture_frame<T>(
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
     // Module constant seeded from parse artifacts.
-    let memory_max_now = tables.memory_max_pages;
+    let memory_max_now = tables.artifacts.tables.max_memory_pages;
     let (global_value_before, global_value_before_hi) = match global_index {
         Some(index) => {
             let (lo, hi) = read_global_lanes(index, frame, store, func_ref_ids)?;
@@ -413,15 +424,15 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let function_type_id = match opcode_decoded {
-        Some(WasmOpcode::RefFunc) => {
-            immediate_i32.and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas))
-        }
+        Some(WasmOpcode::RefFunc) => immediate_i32
+            .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         Some(
             WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect,
-        ) => table_value.and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas)),
+        ) => table_value
+            .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
             .and_then(|function_index| function_index.checked_add(1))
-            .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas)),
+            .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         _ => None,
     };
     let function_ref = match opcode_decoded {
@@ -436,10 +447,10 @@ pub(crate) fn capture_frame<T>(
     let (call_param_count, call_result_count) = match opcode_decoded {
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
             .and_then(|function_index| function_index.checked_add(1))
-            .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.function_metas))
+            .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.artifacts.trace.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value
-            .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.function_metas))
+            .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.artifacts.trace.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         _ => (None, None),
     };
@@ -512,7 +523,7 @@ pub(crate) fn capture_frame<T>(
         function_ref,
         current_function_ref,
         target_function_is_guest: function_ref
-            .is_some_and(|function_ref| function_ref > tables.imported_function_count),
+            .is_some_and(|function_ref| function_ref > tables.artifacts.trace.imported_function_count),
         function_type_id,
         call_indirect_type_index,
         expected_type_id: decoded_opcode.as_ref().and_then(|d| d.expected_type_id),

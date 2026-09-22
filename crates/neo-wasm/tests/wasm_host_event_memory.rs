@@ -48,21 +48,6 @@ fn component_wat() -> &'static str {
     "#
 }
 
-fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (u32, u32) {
-    let host = run
-        .steps
-        .iter()
-        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
-        .and_then(|row| row.function_ref)
-        .expect("host function ref");
-    let export = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref");
-    (host, export)
-}
-
 fn memory_bindings(host_fref: u32, export_fref: u32) -> HostEventBindings {
     let arg = MemoryBase::Arg(0);
     let mut bindings = HostEventBindings::default();
@@ -220,25 +205,22 @@ struct ImportMemoryFixture {
 
 fn import_memory_fixture() -> ImportMemoryFixture {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
+    let (host_fref, export_fref) = (1, 2);
+    let bindings = memory_bindings(host_fref, export_fref);
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
             .root()
             .func_wrap("host-touch", |mut store, (_ptr,): (i32,)| {
-                store.data_mut().record_call_inputs(&[77])?;
+                let frame = store.debug_exit_frames().next().expect("guest caller");
+                let instance = frame.instance(&mut store)?.debug_index_in_store();
+                store.data_mut().record_call_inputs(instance, &[77])?;
                 Ok(())
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
     })
     .expect("component run");
-    let (host_fref, export_fref) = run_frefs(&run);
-    let bindings = memory_bindings(host_fref, export_fref);
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
 
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
@@ -307,6 +289,7 @@ fn import_memory_accesses_use_argument_based_addresses() {
 #[test]
 fn import_memory_normalization_rejects_invalid_addresses() {
     let fixture = import_memory_fixture();
+    let mut artifacts = fixture.run.artifacts().clone();
 
     for offset in [1, 3] {
         let mut bindings = fixture.bindings.clone();
@@ -323,13 +306,10 @@ fn import_memory_normalization_rejects_invalid_addresses() {
             })
             .unwrap();
         *write = offset;
-        let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-            &fixture.run.steps,
-            &fixture.run.program_tables,
-            &bindings,
-            Default::default(),
-        )
-        .expect_err("unaligned halfword writes must return an error, including across a word boundary");
+        artifacts.host_event_bindings = bindings.clone();
+        let err =
+            neo_wasm::traces_from_wasmtime_steps_with_host_events(&fixture.run.steps, &artifacts, Default::default())
+                .expect_err("unaligned halfword writes must return an error, including across a word boundary");
         assert!(err.to_string().contains("is not naturally aligned"));
     }
 
@@ -347,13 +327,9 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         })
         .expect("half-word read");
     *half_read = 1;
-    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &fixture.run.steps,
-        &fixture.run.program_tables,
-        &misaligned_bindings,
-        Default::default(),
-    )
-    .expect_err("misaligned bindings half-word access must be rejected");
+    artifacts.host_event_bindings = misaligned_bindings.clone();
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(&fixture.run.steps, &artifacts, Default::default())
+        .expect_err("misaligned bindings half-word access must be rejected");
     assert!(err.to_string().contains("is not naturally aligned"));
 
     let mut high_pointer_steps = fixture.run.steps.clone();
@@ -368,13 +344,10 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         .operand_stack_words_hi
         .last_mut()
         .expect("pointer argument high limb") = 1;
-    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &high_pointer_steps,
-        &fixture.run.program_tables,
-        &fixture.bindings,
-        Default::default(),
-    )
-    .expect_err("wasm32 bindings pointer with a high limb must be rejected");
+    artifacts.host_event_bindings = fixture.bindings.clone();
+    let err =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&high_pointer_steps, &artifacts, Default::default())
+            .expect_err("wasm32 bindings pointer with a high limb must be rejected");
     assert!(err.to_string().contains("not a wasm32 pointer"));
 }
 

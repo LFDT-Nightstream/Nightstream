@@ -7,6 +7,7 @@
 
 mod common;
 
+use neo_wasm::host_event_bindings::HostEventBindings;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -295,7 +296,8 @@ fn wasm_nebula_pipeline_profile() {
     let artifacts_elapsed = started.elapsed();
 
     let started = Instant::now();
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run =
+        neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let execute_elapsed = started.elapsed();
     assert_eq!(run.results.as_slice(), &["297".to_string()]);
 
@@ -681,7 +683,8 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     let wall_started = Instant::now();
     let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run =
+        neo_wasm::collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     assert_eq!(run.results.as_slice(), &["297".to_string()]);
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
     let _witnesses = common::sanity_check_trace(&trace, &artifacts);

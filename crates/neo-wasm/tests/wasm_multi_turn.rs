@@ -25,19 +25,17 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
 }
 
 struct TracedTestComponent {
-    store: Store<neo_wasm::WasmtimeTraceState>,
+    store: Store<neo_wasm::WasmtimeTraceRegistry>,
     instance: Instance,
-    program_tables: neo_wasm::WasmProgramTables,
 }
 
 struct CollectedTestTrace {
     steps: Vec<neo_wasm::WasmtimeTraceStep>,
-    program_tables: neo_wasm::WasmProgramTables,
+    artifacts: neo_wasm::WasmProgramArtifacts,
 }
 
 impl TracedTestComponent {
-    fn new(component_bytes: &[u8]) -> Self {
-        let artifacts = neo_wasm::extract_first_component_core_program_artifacts(component_bytes).expect("artifacts");
+    fn new(component_bytes: &[u8], bindings: &HostEventBindings) -> Self {
         let mut config = Config::new();
         config.guest_debug(true);
         config.wasm_reference_types(true);
@@ -45,10 +43,15 @@ impl TracedTestComponent {
         config.wasm_component_model(true);
         let engine = Engine::new(&config).expect("engine");
         let component = Component::new(&engine, component_bytes).expect("component");
-        let mut store = Store::new(
-            &engine,
-            neo_wasm::WasmtimeTraceState::from_program_artifacts(&artifacts, &Default::default()),
-        );
+        let mut registry = neo_wasm::WasmtimeTraceRegistry::default();
+        for payload in wasmparser::Parser::new(0).parse_all(component_bytes) {
+            if let wasmparser::Payload::ModuleSection { unchecked_range, .. } = payload.unwrap() {
+                registry
+                    .register_module(&component_bytes[unchecked_range], bindings.clone())
+                    .unwrap();
+            }
+        }
+        let mut store = Store::new(&engine, registry);
         store.set_debug_handler(neo_wasm::WasmtimeTraceHandler::new());
         store
             .edit_breakpoints()
@@ -58,17 +61,7 @@ impl TracedTestComponent {
         let linker = Linker::new(&engine);
         let instance = futures::executor::block_on(linker.instantiate_async(&mut store, &component))
             .expect("instantiate component");
-        let mut function_ids = std::collections::BTreeMap::new();
-        for core_instance in store.debug_all_instances() {
-            function_ids
-                .extend(neo_wasm::build_debug_function_id_map(&core_instance, &mut store).expect("function ids"));
-        }
-        store.data_mut().set_func_ref_ids(function_ids);
-        Self {
-            store,
-            instance,
-            program_tables: artifacts.tables,
-        }
+        Self { store, instance }
     }
 
     fn call(&mut self, export: &str, args: &[ComponentVal], results: &mut [ComponentVal]) {
@@ -81,16 +74,16 @@ impl TracedTestComponent {
     }
 
     fn finish(self) -> CollectedTestTrace {
-        let steps = self.store.data().steps().to_vec();
+        let captured = self.store.data().single_instance().unwrap();
         CollectedTestTrace {
-            steps,
-            program_tables: self.program_tables,
+            steps: captured.steps().to_vec(),
+            artifacts: captured.artifacts().clone(),
         }
     }
 }
 
-fn run_counter_turns(component_bytes: &[u8]) -> CollectedTestTrace {
-    let mut runtime = TracedTestComponent::new(component_bytes);
+fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings) -> CollectedTestTrace {
+    let mut runtime = TracedTestComponent::new(component_bytes, bindings);
     let mut first = [ComponentVal::S32(0)];
     runtime.call("add", &[ComponentVal::S32(7)], &mut first);
     let mut second = [ComponentVal::S32(0)];
@@ -173,46 +166,27 @@ struct MultiTurnSetup {
 
 fn multi_turn_setup() -> MultiTurnSetup {
     let component_bytes = wat::parse_str(counter_component_wat()).expect("component wat");
-    let run = run_counter_turns(&component_bytes);
+    let add_fref = 1;
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(add_fref, add_template());
+    let run = run_counter_turns(&component_bytes, &bindings);
 
     let without_bindings = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(
         without_bindings.is_err(),
-        "a multi-turn trace containing host imports requires an event bindings"
+        "multi-turn traces require explicit export bindings"
     );
 
-    let component_first = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &HostEventBindings::default(),
-        Default::default(),
+    let mut missing_bindings = run.artifacts.clone();
+    missing_bindings.host_event_bindings = HostEventBindings::default();
+    assert!(
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &missing_bindings, Default::default(),)
+            .is_err(),
+        "missing export template must be rejected"
     );
-    assert!(component_first.is_err(), "missing export template must be rejected");
 
-    // Resolve the export fref from a single import-free run.
-    let single = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
-        &component_bytes,
-        "add",
-        &[ComponentVal::S32(1)],
-        |_| Ok(()),
-    )
-    .expect("single run");
-    let add_fref = single
-        .steps
-        .iter()
-        .find_map(|step| step.current_function_ref)
-        .expect("export function ref");
-
-    let mut bindings = HostEventBindings::default();
-    bindings.exports.insert(add_fref, add_template());
-
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("multi-turn bindings trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default())
+        .expect("multi-turn bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -247,26 +221,18 @@ fn expected_transcript(
 #[test]
 fn multi_turn_rejects_an_empty_reentry_template() {
     let component_bytes = wat::parse_str(zero_local_component_wat()).expect("component wat");
-    let mut runtime = TracedTestComponent::new(&component_bytes);
+
+    let fref = 1;
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(fref, ExportTemplate::default());
+    let mut runtime = TracedTestComponent::new(&component_bytes, &bindings);
     let mut first = [ComponentVal::S32(0)];
     runtime.call("tick", &[], &mut first);
     let mut second = [ComponentVal::S32(0)];
     runtime.call("tick", &[], &mut second);
     let run = runtime.finish();
-    let fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export fref");
-    let mut bindings = HostEventBindings::default();
-    bindings.exports.insert(fref, ExportTemplate::default());
-    let error = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect_err("re-entry without any events must be rejected");
+    let error = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default())
+        .expect_err("re-entry without any events must be rejected");
     assert!(error
         .to_string()
         .contains("requires at least one entry or exit event"));
@@ -275,18 +241,8 @@ fn multi_turn_rejects_an_empty_reentry_template() {
 #[test]
 fn exit_only_template_allows_reentry_and_commits_each_return() {
     let component_bytes = wat::parse_str(zero_local_component_wat()).unwrap();
-    let mut runtime = TracedTestComponent::new(&component_bytes);
-    for expected in [1, 2] {
-        let mut result = [ComponentVal::S32(0)];
-        runtime.call("tick", &[], &mut result);
-        assert_eq!(result, [ComponentVal::S32(expected)]);
-    }
-    let run = runtime.finish();
-    let fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .unwrap();
+
+    let fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
         fref,
@@ -299,13 +255,15 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
             entry_input_count: 0,
         },
     );
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .unwrap();
+    let mut runtime = TracedTestComponent::new(&component_bytes, &bindings);
+    for expected in [1, 2] {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("tick", &[], &mut result);
+        assert_eq!(result, [ComponentVal::S32(expected)]);
+    }
+    let run = runtime.finish();
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default()).unwrap();
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
     let witnesses = common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
     common::ccs_check_trace(&trace);
@@ -371,18 +329,8 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
     "#,
     )
     .unwrap();
-    let mut runtime = TracedTestComponent::new(&component_bytes);
-    for x in [7, 35] {
-        let mut result = [ComponentVal::S32(0)];
-        runtime.call("run", &[ComponentVal::S32(x)], &mut result);
-        assert_eq!(result, [ComponentVal::S32(x)]);
-    }
-    let run = runtime.finish();
-    let fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .unwrap();
+
+    let fref = 1;
     let template = ExportTemplate {
         entry: EventSequenceBuilder::advice()
             .input_local_i32(0, 0)
@@ -398,13 +346,15 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
     };
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(fref, template);
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .unwrap();
+    let mut runtime = TracedTestComponent::new(&component_bytes, &bindings);
+    for x in [7, 35] {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("run", &[ComponentVal::S32(x)], &mut result);
+        assert_eq!(result, [ComponentVal::S32(x)]);
+    }
+    let run = runtime.finish();
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default()).unwrap();
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
     common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
     common::ccs_check_trace(&trace);
@@ -698,26 +648,9 @@ fn resultless_turn_can_precede_another_turn() {
         "#,
     )
     .expect("component wat");
-    let mut runtime = TracedTestComponent::new(&component_bytes);
-    runtime.call("poke", &[ComponentVal::S32(41)], &mut []);
-    let mut read_result = [ComponentVal::S32(0)];
-    runtime.call("read", &[], &mut read_result);
-    assert_eq!(read_result, [ComponentVal::S32(41)]);
-    let run = runtime.finish();
 
-    // Resolve both frefs from single import-free runs.
-    let fref_of = |export: &str, args: &[ComponentVal]| {
-        let single =
-            neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, export, args, |_| Ok(()))
-                .expect("single run");
-        single
-            .steps
-            .iter()
-            .find_map(|step| step.current_function_ref)
-            .expect("export function ref")
-    };
-    let poke_fref = fref_of("poke", &[ComponentVal::S32(1)]);
-    let read_fref = fref_of("read", &[]);
+    let poke_fref = 1;
+    let read_fref = 2;
 
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
@@ -749,13 +682,14 @@ fn resultless_turn_can_precede_another_turn() {
             entry_input_count: 0,
         },
     );
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("resultless-then-value trace");
+    let mut runtime = TracedTestComponent::new(&component_bytes, &bindings);
+    runtime.call("poke", &[ComponentVal::S32(41)], &mut []);
+    let mut read_result = [ComponentVal::S32(0)];
+    runtime.call("read", &[], &mut read_result);
+    assert_eq!(read_result, [ComponentVal::S32(41)]);
+    let mut run = runtime.finish();
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default())
+        .expect("resultless-then-value trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -828,14 +762,9 @@ fn resultless_turn_can_precede_another_turn() {
         17,
         slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
     )];
+    run.artifacts.host_event_bindings = bad_bindings.clone();
     assert!(
-        neo_wasm::traces_from_wasmtime_steps_with_host_events(
-            &run.steps,
-            &run.program_tables,
-            &bad_bindings,
-            Default::default(),
-        )
-        .is_err(),
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default()).is_err(),
         "output-dependent exit events on a resultless turn must be rejected"
     );
 }

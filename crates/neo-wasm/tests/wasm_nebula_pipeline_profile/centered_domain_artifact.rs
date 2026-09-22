@@ -2,8 +2,8 @@
 
 use std::fmt::Write as _;
 
-use neo_fold_clean::frontends::r1cs_f_prime::SELECTIVE_ROW_ARTIFACT_SCHEMA_VERSION;
-use neo_fold_clean::paper::relations::Structure;
+use neo_fold_legacy::frontends::r1cs_f_prime::SELECTIVE_ROW_ARTIFACT_SCHEMA_VERSION;
+use neo_fold_legacy::paper::relations::Structure;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 

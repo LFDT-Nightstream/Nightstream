@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
-use neo_fold_clean::frontends::nebula::f_prime::{
+use neo_fold_legacy::frontends::nebula::f_prime::{
     NebulaFPrimeBranch, NebulaFPrimeChainBuilder, NebulaFPrimeConstraintSourceAudit, NebulaFPrimePreprocessing,
     NebulaFPrimeRelation,
 };
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
-use neo_fold_clean::frontends::nebula::trace::Memory;
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::frontends::nebula::layout::NebulaParams;
+use neo_fold_legacy::frontends::nebula::plan::NebulaPlan;
+use neo_fold_legacy::frontends::nebula::trace::Memory;
+use neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_legacy::paper::params::Params;
 use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use nightstream_constraint_exporter::{
@@ -40,7 +40,7 @@ fn minimal_params() -> Params {
     Params::test_only_from_neo_params(inner)
 }
 
-fn source_audit() -> neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {
+fn source_audit() -> neo_fold_legacy::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {
     let params = minimal_params();
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step memory profile");
     let plan = NebulaPlan::new(memory, vec![7], [0xD9; 32], params.kappa() as usize).expect("Nebula plan");
@@ -333,7 +333,7 @@ fn compact_seeded_row_slice_binds_and_renders_without_dense_expansion() {
         .expect("seeded source row has one compiler owner");
     assert_eq!(
         owner.disposition(),
-        neo_fold_clean::frontends::r1cs_f_prime::SelectiveSourceRowDisposition::Retained,
+        neo_fold_legacy::frontends::r1cs_f_prime::SelectiveSourceRowDisposition::Retained,
     );
     let emitted_row = owner
         .emitted_start()
@@ -459,7 +459,7 @@ fn centered_unit_source_to_empty_rewrite_binds_to_the_final_plan() {
         .iter()
         .find(|rewrite| {
             rewrite.arm() == branch.relation_arm_index()
-                && rewrite.kind() == neo_fold_clean::frontends::r1cs_f_prime::SelectiveRewriteKind::CenteredUnit
+                && rewrite.kind() == neo_fold_legacy::frontends::r1cs_f_prime::SelectiveRewriteKind::CenteredUnit
                 && rewrite.emitted_rows().is_empty()
         })
         .expect("one centered-unit source-to-empty rewrite");
@@ -578,7 +578,7 @@ fn recursive_pi_rlc_padding_has_an_exact_scalar_certificate() {
         .is_empty());
     assert_eq!(candidate_export.binding().emitted_rows().len(), 840);
     assert!(candidate_export.binding().rewrites().iter().all(|rewrite| {
-        rewrite.kind() == neo_fold_clean::frontends::r1cs_f_prime::SelectiveRewriteKind::LinearDefinition
+        rewrite.kind() == neo_fold_legacy::frontends::r1cs_f_prime::SelectiveRewriteKind::LinearDefinition
             && rewrite.emitted_rows().is_empty()
     }));
     let export = export_nebula_problem(

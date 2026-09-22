@@ -1,10 +1,10 @@
 use neo_ccs::Mat;
-use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::direct_ccs::R1cs;
-use neo_fold_clean::frontends::f_prime::recursive_plan::{RecursiveStepImagePlan, StateXOutPlanOptions};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcRelation};
-use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_legacy::frontends::direct_ccs::R1cs;
+use neo_fold_legacy::frontends::f_prime::recursive_plan::{RecursiveStepImagePlan, StateXOutPlanOptions};
+use neo_fold_legacy::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcRelation};
+use neo_fold_legacy::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use neo_fold_legacy::paper::params::Params;
 use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use nightstream_constraint_exporter::{

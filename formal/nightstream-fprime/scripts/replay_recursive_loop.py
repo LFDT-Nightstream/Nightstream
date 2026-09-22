@@ -174,7 +174,7 @@ class Replay:
 
     def rust(self, name, *args, outputs=()):
         self.run(name, "rust", REPO,
-                 ["cargo", "run", "--locked", "-p", "neo-fold-clean", "--release",
+                 ["cargo", "run", "--locked", "-p", "neo-fold-legacy", "--release",
                   "--features", "perf-timers", "--bin", "generate_pi_ccs_fixture", "--", *args],
                  outputs)
 

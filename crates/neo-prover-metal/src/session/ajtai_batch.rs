@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::time::Duration;
 
 #[cfg(feature = "legacy-adapter")]
-use neo_fold_clean::paper::relations::LaneRanges;
+use neo_fold_legacy::paper::relations::LaneRanges;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
 use super::{command_gpu_duration, MetalAjtaiLowNormPlan, MetalSession, MetalWitnessMasks};

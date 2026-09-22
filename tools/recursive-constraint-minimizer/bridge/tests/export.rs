@@ -1,12 +1,12 @@
-use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
-use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
+use neo_fold_legacy::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_legacy::engine::r1cs_circuit::{Lc, R1csBuilder};
+use neo_fold_legacy::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_math::F;
 use nightstream_constraint_exporter::{export_problem, export_sparse_problem, sparse_family_census, ExportRequest};
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::Scope;
 
-fn source() -> (neo_fold_clean::engine::r1cs_circuit::R1csSnapshot, Vec<RowFamilyRange>) {
+fn source() -> (neo_fold_legacy::engine::r1cs_circuit::R1csSnapshot, Vec<RowFamilyRange>) {
     let mut builder = R1csBuilder::new();
     let x = builder.alloc(F::ZERO);
     let one = Lc::from_const(F::ONE);
@@ -32,7 +32,7 @@ fn request(source_rows: Vec<usize>, complete_families: Vec<&str>) -> ExportReque
     }
 }
 
-fn sparse_source() -> neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs {
+fn sparse_source() -> neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs {
     let mut builder = R1csBuilder::new();
     builder.begin_encoding_stage("outer");
     let x = builder.alloc(F::ZERO);

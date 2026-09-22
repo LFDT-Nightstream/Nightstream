@@ -1333,7 +1333,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-fold-clean"
+name = "neo-fold-legacy"
 version = "0.1.0"
 dependencies = [
  "bellpepper",
@@ -1391,7 +1391,7 @@ name = "neo-prover-cuda"
 version = "0.1.0"
 dependencies = [
  "cuda-core",
- "neo-fold-clean",
+ "neo-fold-legacy",
 ]
 
 [[package]]
@@ -1401,7 +1401,7 @@ dependencies = [
  "dispatch2",
  "neo-ajtai",
  "neo-ccs",
- "neo-fold-clean",
+ "neo-fold-legacy",
  "neo-math",
  "neo-params",
  "neo-reductions",
@@ -1469,7 +1469,7 @@ dependencies = [
  "futures",
  "neo-ajtai",
  "neo-ccs",
- "neo-fold-clean",
+ "neo-fold-legacy",
  "neo-math",
  "neo-params",
  "neo-prover-cuda",
@@ -1500,7 +1500,6 @@ version = "0.1.0"
 dependencies = [
  "neo-ajtai",
  "neo-ccs",
- "neo-fold-clean",
  "neo-math",
  "neo-params",
  "neo-prover-cuda",

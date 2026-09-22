@@ -1369,7 +1369,7 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test per_
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::saved_proof_and_transcript_match_lean -- --exact
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle poseidon_base_step_matches_lean_and_verifies -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle rust_addition_base_step_verifies -- --exact --ignored --nocapture
-timeout --signal=KILL 300 cargo test -p nightstream --release --test lifecycle_baseline unchanged_old_poseidon_base_lifecycle -- --exact --ignored --nocapture
+timeout --signal=KILL 300 cargo test -p neo-fold-legacy --release --test nightstream_baseline unchanged_old_poseidon_base_lifecycle -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::base::base_extension_matches_full_lean_assignment_and_terminal -- --exact --ignored --nocapture
 ```
 

@@ -13,6 +13,30 @@ use super::{
 };
 use crate::PiCcsError;
 
+pub struct TerminalEvaluations {
+    pub openings: Vec<V1_1Evaluations<K>>,
+    pub first_unsatisfied_row: Option<usize>,
+}
+
+/// Evaluate running openings and the fresh relation from the same row windows.
+pub fn evaluate_terminal_rows(
+    source: &dyn MatrixRows,
+    point: &[K],
+    witnesses: &[SuperneoZBlocks],
+    polynomial: &SparsePoly<F>,
+    fresh: &SuperneoZBlocks,
+    workspace_bytes: usize,
+) -> Result<TerminalEvaluations, PiCcsError> {
+    evaluate_rows(
+        source,
+        point,
+        witnesses,
+        workspace_bytes,
+        Vec::new(),
+        Some((polynomial, fresh)),
+    )
+}
+
 /// The workspace bounds matrix-window construction; witness and opening-form
 /// storage belong to the caller's separate live-allocation accounting.
 pub fn eval_real_v1_1_openings_from_rows(
@@ -31,8 +55,24 @@ pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
     workspace_bytes: usize,
     storage: Vec<K>,
 ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, None)?.openings)
+}
+
+fn evaluate_rows(
+    source: &dyn MatrixRows,
+    point: &[K],
+    witnesses: &[SuperneoZBlocks],
+    workspace_bytes: usize,
+    storage: Vec<K>,
+    terminal: Option<(&SparsePoly<F>, &SuperneoZBlocks)>,
+) -> Result<TerminalEvaluations, PiCcsError> {
     let shape = source.shape();
     shape.validate(&(0..shape.rows))?;
+    if let Some((polynomial, fresh)) = terminal {
+        if fresh.block_len().checked_mul(D) != Some(shape.columns) || polynomial.arity() != shape.matrices {
+            return Err(PiCcsError::InvalidInput("streamed terminal relation shape".into()));
+        }
+    }
     let variables = (usize::BITS
         - shape
             .rows
@@ -64,29 +104,48 @@ pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
         .enumerate()
         .filter_map(|(index, witness)| (!witness.real_is_zero()).then_some(index))
         .collect::<Vec<_>>();
-    if active.is_empty() {
-        return Ok(result);
+    if active.is_empty() && terminal.is_none() {
+        return Ok(TerminalEvaluations {
+            openings: result,
+            first_unsatisfied_row: None,
+        });
     }
-    let mut scratch = RingEvalScratch::reuse(storage, shape.columns / D);
+    let row_bytes = if terminal.is_some() {
+        shape
+            .matrices
+            .checked_mul(size_of::<F>())
+            .ok_or_else(|| PiCcsError::InvalidInput("streamed terminal row size overflow".into()))?
+            .max(size_of::<K>())
+    } else {
+        size_of::<K>()
+    };
+    let mut scratch = (!active.is_empty()).then(|| RingEvalScratch::reuse(storage, shape.columns / D));
     let mut next = 0;
     while next < shape.rows {
-        let window = MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, size_of::<K>())?;
+        let window = MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, row_bytes)?;
         let range = window.rows();
-        let row_weights: Vec<_> = range.clone().map(|row| weights.at(row)).collect();
+        let row_weights: Vec<_> = if scratch.is_some() {
+            range.clone().map(|row| weights.at(row)).collect()
+        } else {
+            Vec::new()
+        };
         for (matrix, cache) in window.cache().matrix_caches().iter().enumerate() {
+            let Some(scratch) = scratch.as_mut() else {
+                break;
+            };
             // Each local cache contains original coefficients. Reuse the same
             // global row weights across its matrices, then release both owners.
-            cache.accumulate_original_ring_form_with(range.len(), &mut scratch, |row| row_weights[row]);
+            cache.accumulate_original_ring_form_with(range.len(), scratch, |row| row_weights[row]);
             scratch.bar_active();
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let values: Vec<_> = active
                 .par_iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
+                .map(|&index| eval_ring_scratch_real_z_blocks(scratch, &witnesses[index]))
                 .collect();
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             let values: Vec<_> = active
                 .iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
+                .map(|&index| eval_ring_scratch_real_z_blocks(scratch, &witnesses[index]))
                 .collect();
             for (&index, value) in active.iter().zip(values) {
                 for (total, part) in result[index].eval_a[matrix].iter_mut().zip(value) {
@@ -95,9 +154,25 @@ pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
             }
             scratch.clear_active();
         }
+        drop(row_weights);
+        if let Some((polynomial, fresh)) = terminal {
+            match check_ccs_relation_zero_cached_with_blocks(window.cache(), polynomial, fresh) {
+                Ok(()) => {}
+                Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => {
+                    return Ok(TerminalEvaluations {
+                        openings: result,
+                        first_unsatisfied_row: Some(range.start + row),
+                    })
+                }
+                Err(error) => return Err(PiCcsError::InvalidInput(error.to_string())),
+            }
+        }
         next = range.end;
     }
-    Ok(result)
+    Ok(TerminalEvaluations {
+        openings: result,
+        first_unsatisfied_row: None,
+    })
 }
 
 pub(crate) fn fill_weighted_rows_from_source(

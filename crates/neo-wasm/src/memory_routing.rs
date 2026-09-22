@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind};
+use neo_fold_legacy::frontends::nebula::application::{MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind};
 
 use crate::isa::{opcode_code, opcode_info_from_code, WasmMemoryAccessKind, WasmOpcode};
 use crate::layout::{

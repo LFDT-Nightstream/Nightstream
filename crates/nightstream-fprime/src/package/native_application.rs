@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, ops::ControlFlow, sync::Arc};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
-use crate::application_records::{ApplicationForm, ApplicationRecipeNode, ApplicationRecords, RecipeEvaluator};
+use crate::application_records::{ApplicationRecipeNode, ApplicationRecords, RecipeEvaluator};
 use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, SparseTerm};
 
 use super::{canonical_field, sealed::LoadedApplicationPlan, Layout, LoadedPackage, PackageError};
@@ -221,17 +221,38 @@ impl PreparedApplication {
         Ok(())
     }
 
+    pub(super) fn apply_values(
+        &self,
+        values: &[Goldilocks],
+        assignment: &mut [Goldilocks],
+    ) -> Result<(), PackageError> {
+        if values.len() != self.variable_count {
+            return Err(PackageError::Invalid("precomputed application value count"));
+        }
+        let generated = self.variable_count - self.plan.private_range().len();
+        for (local, &value) in values.iter().enumerate() {
+            let column = self.column(local)?;
+            if local < generated {
+                if value != assignment[column] {
+                    return Err(PackageError::Invalid("precomputed application input or output differs"));
+                }
+            } else {
+                assignment[column] = value;
+            }
+        }
+        // The enclosing witness executor still checks every assertion row.
+        Ok(())
+    }
+
     fn check_assertions(&self, assignment: &[Goldilocks]) -> Result<(), PackageError> {
         for row in 0..self.records.row_count() {
-            let mut values = [Goldilocks::ZERO; 3];
-            for (index, form) in [ApplicationForm::A, ApplicationForm::B, ApplicationForm::C]
-                .into_iter()
-                .enumerate()
-            {
-                values[index] = Goldilocks::from_u64(self.records.evaluate_form(row, form, |variable| {
-                    Ok(assignment[self.column(variable)?].as_canonical_u64())
-                })?);
-            }
+            let values = self
+                .records
+                .evaluate_row(
+                    row,
+                    |variable| Ok(assignment[self.column(variable)?].as_canonical_u64()),
+                )?
+                .map(Goldilocks::from_u64);
             if values[0] * values[1] != values[2] {
                 return Err(PackageError::UnsatisfiedAssertionRow {
                     row: self.plan.row_range().start + row,

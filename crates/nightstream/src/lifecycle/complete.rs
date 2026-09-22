@@ -23,6 +23,13 @@ pub struct Stage1Envelope {
 }
 
 impl Stage1Envelope {
+    pub(crate) fn snapshot(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+            proof: self.proof.clone(),
+        }
+    }
+
     /// Load untrusted active proof data. Only the selected terminal verifier
     /// can establish acceptance of its statement and openings.
     #[cfg(test)]
@@ -84,6 +91,7 @@ impl PreparedLifecycle {
         &self,
         inputs: Stage1StepInputs,
         child_witnesses: Vec<Mat<F>>,
+        application_values: Option<&[F]>,
     ) -> Result<Stage1Envelope, CompleteStepError> {
         if child_witnesses.len() != PI_DEC_V1_1_CHILD_COUNT
             || inputs.next_running().claims.len() != PI_DEC_V1_1_CHILD_COUNT
@@ -136,7 +144,17 @@ impl PreparedLifecycle {
 
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let physical = self.execute_step_witness(inputs.pi_ccs(), inputs.pi_dec(), inputs.application_witness())?;
+        let physical = match application_values {
+            Some(values) => self
+                .package
+                .execute_stage1_v1_1_witness_with_application_values(
+                    inputs.pi_ccs(),
+                    inputs.pi_dec(),
+                    inputs.application_witness(),
+                    values,
+                )?,
+            None => self.execute_step_witness(inputs.pi_ccs(), inputs.pi_dec(), inputs.application_witness())?,
+        };
         #[cfg(test)]
         eprintln!("complete physical witness elapsed={:?}", started.elapsed());
         #[cfg(test)]

@@ -10,14 +10,14 @@ use std::fmt::{self, Write as _};
 use std::io;
 
 use neo_ccs::CcsMatrix;
-use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
-use neo_fold_clean::engine::r1cs_circuit::{PhysicalStageRange, R1csSnapshot, Var};
-use neo_fold_clean::frontends::nebula::f_prime::{
+use neo_fold_legacy::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_legacy::engine::r1cs_circuit::{PhysicalStageRange, R1csSnapshot, Var};
+use neo_fold_legacy::frontends::nebula::f_prime::{
     NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit, NebulaFPrimeStreamingLifecycleArm,
     NebulaFPrimeStreamingLifecycleArmProfile, NebulaFPrimeStreamingLifecycleSourceArms,
 };
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::{MultiBranchLowNormR1cs, SparseR1cs};
+use neo_fold_legacy::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::{MultiBranchLowNormR1cs, SparseR1cs};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::{
@@ -659,7 +659,7 @@ fn validate_nebula_stage_vocabulary(
     audit: &NebulaFPrimeConstraintSourceAudit,
     branch: NebulaFPrimeBranch,
 ) -> Result<(), ExportError> {
-    use neo_fold_clean::paper::f_prime::stage as fprime_stage;
+    use neo_fold_legacy::paper::f_prime::stage as fprime_stage;
 
     let arm = audit.arm(branch);
     validate_physical_stages(arm)?;
@@ -692,11 +692,11 @@ fn validate_nebula_stage_vocabulary(
 }
 
 fn fixed_point_stage_vocabulary(branch: R1csIvcBranch) -> BTreeSet<&'static str> {
-    use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_stage;
-    use neo_fold_clean::paper::f_prime::stage as fprime_stage;
-    use neo_fold_clean::paper::nifs::circuit::stage as nifs_stage;
-    use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
-    use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
+    use neo_fold_legacy::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_stage;
+    use neo_fold_legacy::paper::f_prime::stage as fprime_stage;
+    use neo_fold_legacy::paper::nifs::circuit::stage as nifs_stage;
+    use neo_fold_legacy::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
+    use neo_fold_legacy::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 
     match branch {
         R1csIvcBranch::Base => fprime_stage::BASE_ALL

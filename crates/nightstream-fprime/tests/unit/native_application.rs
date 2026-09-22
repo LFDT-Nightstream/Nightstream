@@ -1,5 +1,5 @@
 use super::*;
-use crate::application_records::{ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm};
+use crate::application_records::{ApplicationForm, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm};
 use crate::package::{PermutationTemplate, Segment};
 use serde_json::{json, Value};
 
@@ -152,6 +152,33 @@ fn native_recipes_execute_stored_syntax_and_report_global_assertion_failure() {
     assert_eq!(assignment[9], Goldilocks::from_u64(15));
     assert!(matches!(
         changed.check_assertions(&assignment),
+        Err(PackageError::UnsatisfiedAssertionRow { row: 2 })
+    ));
+}
+
+#[test]
+fn precomputed_application_values_keep_input_output_and_constraint_checks() {
+    let application = PreparedApplication::from_metadata(&metadata(), records(4, 4)).unwrap();
+    application.validate(&layout()).unwrap();
+    let mut assignment = vec![Goldilocks::ZERO; layout().total_column_count];
+    assignment[8] = Goldilocks::from_u64(2);
+    assignment[4] = Goldilocks::from_u64(6);
+    let values = [0, 0, 0, 0, 2, 6, 0, 0, 0, 6].map(Goldilocks::from_u64);
+    application.apply_values(&values, &mut assignment).unwrap();
+    application.check_assertions(&assignment).unwrap();
+    for local in [0, 4, 5] {
+        let mut changed = values;
+        changed[local] += Goldilocks::ONE;
+        assert!(application.apply_values(&changed, &mut assignment).is_err());
+    }
+    assert!(application
+        .apply_values(&values[..9], &mut assignment)
+        .is_err());
+    let mut changed = values;
+    changed[9] += Goldilocks::ONE;
+    application.apply_values(&changed, &mut assignment).unwrap();
+    assert!(matches!(
+        application.check_assertions(&assignment),
         Err(PackageError::UnsatisfiedAssertionRow { row: 2 })
     ));
 }

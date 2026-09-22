@@ -74,6 +74,52 @@ fn compiled_fixture() -> &'static Circuit {
     })
 }
 
+#[test]
+fn security_minimum_is_explicit_and_cannot_be_lowered_by_preparation() {
+    let circuit = compiled_fixture();
+    for minimum in [0, 125] {
+        assert!(matches!(
+            circuit.prover(Engine::Optimized, minimum),
+            Err(Error::Parameters(_))
+        ));
+        assert!(matches!(
+            Verifier::from_package(circuit, Engine::Optimized, minimum),
+            Err(Error::Parameters(_))
+        ));
+    }
+    assert!(circuit.prover(Engine::Optimized, 114).is_ok());
+    assert!(Verifier::from_package(circuit, Engine::Optimized, 114).is_ok());
+}
+
+#[test]
+fn extension_errors_leave_the_supplied_proof_unchanged() {
+    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let original = Stage1Envelope::initial([F::ZERO; 4]);
+    assert!(matches!(prover.extend(&original, &[]), Err(Error::Application(_))));
+    assert!(original.is_initial());
+    assert_eq!(original.state().iteration(), 0);
+    // This reaches lifecycle validation after valid application execution.
+    let invalid = Stage1Envelope::from_parts(
+        Stage1State::new(1, [F::ZERO; 4], [F::ZERO; 4]),
+        crate::folding::RunningInstance::default(),
+        crate::folding::CcsInstance {
+            claim: crate::folding::CcsClaim {
+                c: neo_ajtai::Commitment::zeros(neo_math::D, 22),
+                x: Vec::new(),
+                m_in: 0,
+                adv: None,
+            },
+            witness: crate::folding::CcsWitness {
+                w: Vec::new(),
+                Z: neo_ccs::Mat::virtual_constant(0, 0, F::ZERO),
+            },
+        },
+    );
+    let before = format!("{invalid:?}");
+    assert!(prover.extend(&invalid, &[F::ONE, F::ONE]).is_err());
+    assert_eq!(format!("{invalid:?}"), before);
+}
+
 fn assert_same_data(expected: &Circuit, actual: &Circuit) {
     assert_eq!(actual.identity(), expected.identity());
     assert_eq!(actual.compiled.binding, expected.compiled.binding);
@@ -312,7 +358,7 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     drop(changed);
     copy_cached_identity_components(&original_path, &changed_path);
 
-    let prover = Prover::load(&changed_path, Engine::Metal).unwrap();
+    let prover = Prover::load(&changed_path, Engine::Metal, 114).unwrap();
     assert_eq!(prover.engine(), Engine::Metal);
     assert_eq!(
         prover.compiled.binding, original.compiled.binding,
@@ -324,7 +370,7 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     drop(prover);
     eprintln!("changed-package Metal proof built elapsed={:?}", started.elapsed());
 
-    let verifier = Verifier::from_package(&original, Engine::Metal).unwrap();
+    let verifier = Verifier::from_package(&original, Engine::Metal, 114).unwrap();
     assert_eq!(verifier.engine(), Engine::Metal);
     match verifier.verify(&expected, &proof) {
         Err(Error::Verify(VerifyError::FreshRelation(SuperneoCachedRelationError::UnsatisfiedRow { row }))) => {

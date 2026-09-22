@@ -33,12 +33,13 @@ enum Command {
         package: PathBuf,
         engine: Engine,
         steps: u64,
+        minimum_security_bits: u32,
     },
 }
 
 fn usage() {
     println!("Usage: nightstream-poseidon2-bench compile --output PATH");
-    println!("       nightstream-poseidon2-bench run --package PATH --engine optimized|metal|cuda --steps COUNT");
+    println!("       nightstream-poseidon2-bench run --package PATH --engine optimized|metal|cuda --steps COUNT --minimum-security-bits BITS");
     println!("Run uses the caller-selected package for proving and verification.");
     println!("COUNT includes the base step. Counts of 2 or more execute active folds.");
     println!("Build with --release. AGENTS.md caps: 300 seconds normally; 1800 seconds for Instruments.");
@@ -59,6 +60,7 @@ fn options() -> Result<Option<Command>> {
     let mut package = None;
     let mut engine = None;
     let mut steps = None;
+    let mut minimum_security_bits = None;
     while let Some(argument) = args.next() {
         match argument.as_str() {
             "--help" | "-h" => {
@@ -89,6 +91,16 @@ fn options() -> Result<Option<Command>> {
                 }
                 steps = Some(count);
             }
+            "--minimum-security-bits" if command == "run" && minimum_security_bits.is_none() => {
+                let bits: u32 = args
+                    .next()
+                    .ok_or("--minimum-security-bits requires a positive integer")?
+                    .parse()?;
+                if bits == 0 {
+                    return Err("--minimum-security-bits must be positive".into());
+                }
+                minimum_security_bits = Some(bits);
+            }
             _ => return Err(format!("unknown or repeated argument: {argument}").into()),
         }
     }
@@ -101,6 +113,7 @@ fn options() -> Result<Option<Command>> {
             package: package.ok_or("--package is required")?,
             engine: engine.ok_or("--engine is required")?,
             steps: steps.ok_or("--steps is required")?,
+            minimum_security_bits: minimum_security_bits.ok_or("--minimum-security-bits is required")?,
         }
     }))
 }
@@ -148,13 +161,14 @@ fn compile(output: &Path) -> Result<()> {
     }))
 }
 
-fn benchmark(package: &Path, engine: Engine, steps: u64) -> Result<()> {
+fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: u32) -> Result<()> {
     let profile = neo_params::NeoParams::nightstream_goldilocks_k16();
     emit(json!({
         "event":"benchmark_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "timing_scope":"prepared_package_load_prove_verify", "package":package,
         "engine":format!("{engine:?}").to_lowercase(),
         "steps":steps, "active_extends":steps - 1,
+        "minimum_security_bits":minimum_security_bits,
         "initial_state":INITIAL, "message":MESSAGE,
         "profile":{"b":profile.b, "k_rho":profile.k_rho, "B":profile.B},
     }))?;
@@ -163,8 +177,8 @@ fn benchmark(package: &Path, engine: Engine, steps: u64) -> Result<()> {
     // The caller selects the package. Loading and both selected-engine
     // capabilities are part of the measured lifecycle.
     let circuit = Circuit::load(package)?;
-    let prover = circuit.prover(engine)?;
-    let verifier = Verifier::from_package(&circuit, engine)?;
+    let prover = circuit.prover(engine, minimum_security_bits)?;
+    let verifier = Verifier::from_package(&circuit, engine, minimum_security_bits)?;
     end("load", None, started)?;
 
     let initial = INITIAL.map(F::from_u64);
@@ -180,7 +194,7 @@ fn benchmark(package: &Path, engine: Engine, steps: u64) -> Result<()> {
     for step in 2..=steps {
         expected = State::new(step, initial, poseidon2_hash_chain_step(expected.current(), message));
         let started = begin("extend", Some(step))?;
-        proof = prover.extend(proof, &message)?;
+        proof = prover.extend(&proof, &message)?;
         end("extend", Some(step), started)?;
         if proof.state() != &expected {
             return Err(format!("step {step} differs from native Poseidon2").into());
@@ -208,7 +222,12 @@ fn run() -> Result<()> {
     }
     match command {
         Command::Compile { output } => compile(&output),
-        Command::Run { package, engine, steps } => benchmark(&package, engine, steps),
+        Command::Run {
+            package,
+            engine,
+            steps,
+            minimum_security_bits,
+        } => benchmark(&package, engine, steps, minimum_security_bits),
     }
 }
 

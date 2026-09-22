@@ -7,10 +7,7 @@ use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
 use neo_reductions::{
     common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero},
-    superneo_eval::{
-        eval_real_v1_1_openings_from_rows, first_unsatisfied_row_from_rows, SuperneoCachedRelationError,
-        SuperneoZBlocks,
-    },
+    superneo_eval::{evaluate_terminal_rows, SuperneoCachedRelationError, SuperneoZBlocks},
     PiCcsError,
 };
 use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
@@ -183,12 +180,19 @@ impl PreparedLifecycle {
 
         let rows = self.matrix_rows();
         let workspace_bytes = self.matrix_workspace_bytes()?;
-        let openings = match &self.backend {
+        let evaluated = match &self.backend {
             #[cfg(feature = "metal")]
             crate::engine::Backend::Metal(device) => device
                 .lock()
                 .map_err(|_| device_lock_error())?
-                .child_openings(&rows, workspace_bytes, &running.witnesses, point, self.structure.m)
+                .evaluate_terminal_rows(
+                    &rows,
+                    workspace_bytes,
+                    &self.structure,
+                    &running.witnesses,
+                    point,
+                    &fresh.witness.Z,
+                )
                 .map_err(VerifyError::Device)?,
             _ => {
                 let blocks = running
@@ -202,10 +206,18 @@ impl PreparedLifecycle {
                         })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                eval_real_v1_1_openings_from_rows(&rows, point, &blocks, workspace_bytes)
+                let fresh_blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
+                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
+                evaluate_terminal_rows(&rows, point, &blocks, &self.structure.f, &fresh_blocks, workspace_bytes)
                     .map_err(VerifyError::RunningOpenings)?
             }
         };
+        if let Some(row) = evaluated.first_unsatisfied_row {
+            return Err(VerifyError::FreshRelation(
+                SuperneoCachedRelationError::UnsatisfiedRow { row },
+            ));
+        }
+        let openings = evaluated.openings;
         for (index, claim) in running.claims.iter().enumerate() {
             let actual = openings.get(index).ok_or(VerifyError::Running {
                 index,
@@ -230,35 +242,7 @@ impl PreparedLifecycle {
                 });
             }
         }
-        drop(openings);
-
-        // Z is the full opening. CcsWitness.w is a redundant caller cache.
-        match &self.backend {
-            #[cfg(feature = "metal")]
-            crate::engine::Backend::Metal(device) => {
-                let row = device
-                    .lock()
-                    .map_err(|_| device_lock_error())?
-                    .first_unsatisfied_row(&rows, workspace_bytes, &self.structure, &fresh.witness.Z)
-                    .map_err(VerifyError::Device)?;
-                row.map_or(Ok(()), |row| {
-                    Err(VerifyError::FreshRelation(
-                        SuperneoCachedRelationError::UnsatisfiedRow { row },
-                    ))
-                })
-            }
-            _ => {
-                let blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
-                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
-                let failed = first_unsatisfied_row_from_rows(&rows, &self.structure.f, &blocks, workspace_bytes)
-                    .map_err(VerifyError::RunningOpenings)?;
-                failed.map_or(Ok(()), |row| {
-                    Err(VerifyError::FreshRelation(
-                        SuperneoCachedRelationError::UnsatisfiedRow { row },
-                    ))
-                })
-            }
-        }
+        Ok(())
     }
 }
 

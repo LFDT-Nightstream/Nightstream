@@ -38,7 +38,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     let digits = (0..16)
         .map(|child| load(&directory.join(format!("digit-{child}.json"))))
         .collect();
-    let envelope = package.complete_step(packet, digits).unwrap();
+    let envelope = package.complete_step(packet, digits, None).unwrap();
     assert_eq!(envelope.state(), &expected_state(step + 1));
     save_envelope(&package, &envelope, &step_dir(root, step + 1), Some(&directory));
 }

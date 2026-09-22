@@ -3,7 +3,7 @@
 //! The protocol crates remain authoritative for transcript order, proof
 //! assembly, and verification. This crate owns Metal device state and the
 //! row evaluator. The default `legacy-adapter` feature also exposes the old
-//! `neo-fold-clean` NIFS adapter. Other consumers can disable that feature.
+//! `neo-fold-legacy` NIFS adapter. Other consumers can disable that feature.
 
 pub mod poseidon2;
 

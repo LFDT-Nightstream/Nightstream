@@ -4,7 +4,7 @@ use std::mem::size_of;
 #[cfg(test)]
 use std::sync::Arc;
 
-use neo_ccs::{Mat, V1_1Evaluations};
+use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::{PaperJointOracleInput, PaperJointRoundOracle};
 use neo_reductions::superneo_eval::{weighted_projection_basis_forms, MatrixRows, SuperneoEvalCache, SuperneoZBlocks};
@@ -167,6 +167,36 @@ impl MetalSession {
         drop(source_blocks);
         let openings = self.eval_streamed_joint_openings(plan, &masks, point, witnesses.len(), assignment_width)?;
         Ok(Some(openings))
+    }
+
+    pub(crate) fn evaluate_terminal_rows(
+        &self,
+        plan: &MetalJointMatrixPlan,
+        structure: &CcsStructure<F>,
+        witnesses: &[Mat<F>],
+        point: &[K],
+        fresh: &Mat<F>,
+    ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
+        let variables = (usize::BITS
+            - plan
+                .rows
+                .max(plan.blocks * D)
+                .saturating_sub(1)
+                .leading_zeros()) as usize;
+        if witnesses.is_empty() || point.len() != variables {
+            return Err(MetalError::Shape("terminal running opening shape"));
+        }
+        let terminal = self.prepare_terminal_row_check(plan, structure, fresh)?;
+        let blocks = witnesses
+            .iter()
+            .map(|witness| {
+                SuperneoZBlocks::from_witness_mat(witness, structure.m)
+                    .map_err(|_| MetalError::Shape("terminal running witness shape"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let masks = self.prepare_joint_witness_masks(&blocks, 2, structure.m)?;
+        drop(blocks);
+        self.eval_streamed_rows(plan, &masks, point, witnesses.len(), structure.m, Some(&terminal))
     }
 
     pub(crate) fn prepare_joint_matrix_plan<'a>(
@@ -500,7 +530,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         drop(source_blocks);
         #[cfg(feature = "legacy-adapter")]
         let selective_f_prime = input.params.b == 2
-            && neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
+            && neo_fold_legacy::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
         #[cfg(not(feature = "legacy-adapter"))]
         let selective_f_prime = false;
         let (common, common_len) = session

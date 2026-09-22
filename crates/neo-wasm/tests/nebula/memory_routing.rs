@@ -10,9 +10,9 @@ use crate::layout::{
 };
 use crate::nebula::{WasmNebulaLimits, WasmNebulaProfile};
 use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
-use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPortActivation, MemoryPortKind};
-use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
+use neo_fold_legacy::frontends::nebula::application::{MemoryOpSlot, MemoryPortActivation, MemoryPortKind};
+use neo_fold_legacy::frontends::nebula::circuit::SMemCircuit;
+use neo_fold_legacy::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
 
 fn paper_memory_profile() -> WasmNebulaProfile {

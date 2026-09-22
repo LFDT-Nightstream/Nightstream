@@ -3,9 +3,9 @@
 //! A saved assignment is untrusted diagnostic input. This module checks its
 //! identity and replays every source row before it can become solver input.
 
-use neo_fold_clean::engine::r1cs_circuit::Var;
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_legacy::engine::r1cs_circuit::Var;
+use neo_fold_legacy::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::GOLDILOCKS_MODULUS;

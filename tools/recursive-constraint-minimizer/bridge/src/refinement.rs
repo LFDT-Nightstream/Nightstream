@@ -3,12 +3,12 @@
 use std::error::Error;
 use std::fmt;
 
-use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
-use neo_fold_clean::engine::r1cs_circuit::R1csSnapshot;
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::TerminalR1csConstraintAudit;
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_legacy::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_legacy::engine::r1cs_circuit::R1csSnapshot;
+use neo_fold_legacy::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::TerminalR1csConstraintAudit;
+use neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::{

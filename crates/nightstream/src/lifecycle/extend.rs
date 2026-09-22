@@ -20,8 +20,6 @@ pub enum ExtendError {
     #[error("selected extension input: {0}")]
     Input(&'static str),
     #[error(transparent)]
-    Parameters(#[from] neo_params::ParamsError),
-    #[error(transparent)]
     Bridge(#[from] PiCcsV1_1PackageBridgeError),
     #[error(transparent)]
     Package(#[from] PackageError),
@@ -51,17 +49,13 @@ impl PreparedLifecycle {
         envelope: Stage1Envelope,
         application_witness: &[u64],
         output: [F; 4],
+        application_values: Option<&[F]>,
     ) -> Result<Stage1Envelope, ExtendError> {
         let (state, proof) = envelope.into_parts();
         if state.iteration() >= F::ORDER_U64 - 1 {
             return Err(ExtendError::Input("iteration has no canonical successor"));
         }
-        let params = Params::for_ccs_shape(
-            self.structure.n,
-            self.structure.m,
-            self.structure.t(),
-            self.structure.max_degree(),
-        )?;
+        let params = &self.params;
         match proof {
             ProofState::Initial => {
                 if state.iteration() != 0 || state.current() != state.z0() {
@@ -69,8 +63,8 @@ impl PreparedLifecycle {
                         "bottom requires zero iterations and equal endpoints",
                     ));
                 }
-                let (inputs, witnesses) = self.base_inputs(&params, state.z0(), application_witness, output)?;
-                Ok(self.complete_step(inputs, witnesses)?)
+                let (inputs, witnesses) = self.base_inputs(params, state.z0(), application_witness, output)?;
+                Ok(self.complete_step(inputs, witnesses, application_values)?)
             }
             ProofState::Active {
                 mut running,
@@ -84,8 +78,8 @@ impl PreparedLifecycle {
                     .pop()
                     .ok_or(ExtendError::Input("missing fresh instance"))?;
                 let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
-                prepare_running(&mut running, &params, digest);
-                nifs::validate_running_parent_authority(&params, &self.structure, ajtai_dec_mixer, &running)
+                prepare_running(&mut running, params, digest);
+                nifs::validate_running_parent_authority(params, &self.structure, ajtai_dec_mixer, &running)
                     .map_err(ExtendError::PriorFamily)?;
                 // The complete Z opening is the source; w is a redundant cache.
                 fresh.witness.w.clear();
@@ -93,7 +87,7 @@ impl PreparedLifecycle {
                 let fresh_claim = fresh.claim.clone();
                 let (next, proof) = self.prove(vec![fresh], running)?;
                 let inputs = self.step_inputs(&state, &prior, &fresh_claim, &proof, application_witness, output)?;
-                Ok(self.complete_step(inputs, next.witnesses)?)
+                Ok(self.complete_step(inputs, next.witnesses, application_values)?)
             }
         }
     }

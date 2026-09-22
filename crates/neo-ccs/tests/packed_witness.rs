@@ -3,6 +3,22 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
 #[test]
+fn packed_clones_share_storage_and_mutation_keeps_the_source() {
+    let source = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(4, 2, &[1, 2], &[4, 8]).unwrap();
+    let mut copy = source.clone();
+    let (a, b) = source.packed_signed_unit_column_masks().unwrap();
+    let (x, y) = copy.packed_signed_unit_column_masks().unwrap();
+    assert_eq!(a.as_ptr(), x.as_ptr());
+    assert_eq!(b.as_ptr(), y.as_ptr());
+    let encoded = serde_json::to_vec(&source).unwrap();
+    copy[(0, 0)] = Goldilocks::ZERO;
+    assert_eq!(source[(0, 0)], Goldilocks::ONE);
+    assert_eq!(copy[(0, 0)], Goldilocks::ZERO);
+    assert_eq!(serde_json::to_vec(&source).unwrap(), encoded);
+    assert_eq!(serde_json::from_slice::<Mat<Goldilocks>>(&encoded).unwrap(), source);
+}
+
+#[test]
 fn packed_witness_reconstructs_private_suffix_without_flat_copy() {
     let assignment = (0..11).map(Goldilocks::from_u64).collect::<Vec<_>>();
     let mut packed = Mat::zero(3, 4, Goldilocks::ZERO);

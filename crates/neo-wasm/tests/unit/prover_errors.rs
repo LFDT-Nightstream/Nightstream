@@ -1,6 +1,6 @@
 use super::is_backend_error;
 use crate::WasmNebulaError;
-use neo_fold_clean::{
+use neo_fold_legacy::{
     frontends::nebula::NebulaFPrimeChainError,
     lifecycle,
     paper::{construction2, nifs, pi_ccs, pi_dec},
@@ -23,14 +23,14 @@ fn device_errors_trigger_fallback_at_both_lifecycle_entrypoints() {
             phase: "commitment",
             reason: "allocation failed".into(),
         },
-        pi_ccs::Error::from(neo_fold_clean::engine::optimized::Error::from(
+        pi_ccs::Error::from(neo_fold_legacy::engine::optimized::Error::from(
             PiCcsError::BackendFailure {
                 backend: "metal",
                 reason: "oracle allocation failed".into(),
             },
         ))
         .into(),
-        pi_dec::Error::from(neo_fold_clean::engine::optimized::Error::from(
+        pi_dec::Error::from(neo_fold_legacy::engine::optimized::Error::from(
             PiCcsError::BackendFailure {
                 backend: "metal",
                 reason: "openings failed".into(),
@@ -59,7 +59,7 @@ fn protocol_and_input_errors_do_not_trigger_fallback() {
         PiCcsError::InvalidInput("claim width".into()),
         PiCcsError::SumcheckError("terminal identity".into()),
     ] {
-        let error = lifecycle_error(pi_ccs::Error::from(neo_fold_clean::engine::optimized::Error::from(error)).into());
+        let error = lifecycle_error(pi_ccs::Error::from(neo_fold_legacy::engine::optimized::Error::from(error)).into());
         assert!(!is_backend_error(&WasmNebulaError::Lifecycle(error)));
     }
     assert!(!is_backend_error(&WasmNebulaError::EmptyTrace));

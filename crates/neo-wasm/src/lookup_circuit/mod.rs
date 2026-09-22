@@ -8,7 +8,7 @@ mod builder;
 mod compact;
 
 use neo_ccs::{CcsMatrix, CscMat};
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
@@ -182,7 +182,7 @@ pub enum LookupCircuitError {
     #[error("lookup relation has {columns} base columns and cannot address constant column {constant}")]
     MissingConstantColumn { columns: usize, constant: usize },
     #[error(transparent)]
-    Frontend(#[from] neo_fold_clean::frontends::direct_ccs::FrontendError),
+    Frontend(#[from] neo_fold_legacy::frontends::direct_ccs::FrontendError),
 }
 
 impl From<String> for LookupCircuitError {

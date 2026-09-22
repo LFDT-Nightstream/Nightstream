@@ -14,23 +14,23 @@
 use std::sync::Arc;
 
 use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock};
-use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
-use neo_fold_clean::engine::transcript::Transcript;
-use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::r1cs_f_prime::{
+use neo_fold_legacy::engine::r1cs_circuit::boolean::enforce_bit;
+use neo_fold_legacy::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_legacy::engine::transcript::Transcript;
+use neo_fold_legacy::frontends::direct_ccs::{self, R1cs};
+use neo_fold_legacy::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
 };
-use neo_fold_clean::paper::construction2::LaneCommitmentMode;
-use neo_fold_clean::paper::nifs::{
+use neo_fold_legacy::paper::construction2::LaneCommitmentMode;
+use neo_fold_legacy::paper::nifs::{
     self, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment, NifsFreshSignedUnitInstancesRequest,
     NifsProverAdapter,
 };
-use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
+use neo_fold_legacy::paper::reductions::accumulator_sis_circuit::{
     enforce_commit_fields, ACCUMULATOR_CE_CLAIM_SIS_CONFIG,
 };
-use neo_fold_clean::paper::relations::{CcsInstance, LaneRanges, LaneScheme};
-use neo_fold_clean::{FinalWitnessOpeningBackend, RunningInstance};
+use neo_fold_legacy::paper::relations::{CcsInstance, LaneRanges, LaneScheme};
+use neo_fold_legacy::{FinalWitnessOpeningBackend, RunningInstance};
 use neo_math::{D, F, K};
 use neo_prover_metal::MetalNifsProver;
 use p3_field::PrimeCharacteristicRing;
@@ -55,10 +55,10 @@ fn assignment(columns: usize, lhs: u64, rhs: u64) -> Vec<F> {
     values
 }
 
-fn radix_four_params(structure: &neo_ccs::CcsStructure<F>) -> neo_fold_clean::Params {
-    let base = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+fn radix_four_params(structure: &neo_ccs::CcsStructure<F>) -> neo_fold_legacy::Params {
+    let base = neo_fold_legacy::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("radix-four base parameters");
-    neo_fold_clean::Params::test_only_from_neo_params(
+    neo_fold_legacy::Params::test_only_from_neo_params(
         neo_params::NeoParams::new(
             base.q(),
             base.eta(),
@@ -94,7 +94,7 @@ fn with_extra_sparse_term(matrix: &CcsMatrix<F>, row: usize, column: usize, coef
     .expect("rebuild test matrix")
 }
 
-fn canonical_running(prep: &neo_fold_clean::Preprocessing) -> RunningInstance {
+fn canonical_running(prep: &neo_fold_legacy::Preprocessing) -> RunningInstance {
     RunningInstance::canonical_zero(
         prep.params(),
         prep.structure(),
@@ -206,10 +206,10 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows
         vec![GeometricRowRun::new(0, 1, 2, F::ONE, F::ONE)],
     )
     .expect("compact geometric A matrix");
-    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+    let params = neo_fold_legacy::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("geometric parameters");
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x4745_4f4d_4554);
-    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
+    let prep = neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
         .expect("geometric preprocessing");
     assert_eq!(
         prep.optimized_cache()
@@ -283,7 +283,7 @@ fn metal_radix_four_geometric_running_oracle_matches_the_host() {
     .expect("radix-four geometric A matrix");
     let params = radix_four_params(&structure);
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5241_4434_4745);
-    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(D))
+    let prep = neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(D))
         .expect("radix-four geometric preprocessing");
     let values = |lhs: u64, rhs: u64| {
         let mut values = vec![F::ZERO; columns];
@@ -489,7 +489,7 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
     let relation =
         build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, D, 0).expect("build selective relation");
     assert!(
-        neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&relation.structure().f)
+        neo_fold_legacy::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&relation.structure().f)
     );
     let assignment = relation
         .encode(1, &fixtures[1].1)
@@ -497,11 +497,11 @@ fn metal_selective_f_prime_oracle_matches_the_canonical_host() {
     assert!(relation.is_satisfied(&assignment));
 
     let structure = relation.structure().clone();
-    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+    let params = neo_fold_legacy::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("selective parameters");
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5345_4c45_4354);
     let prep =
-        neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
+        neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
             .expect("selective preprocessing");
     let fresh = CcsInstance::from_low_norm_assignment(
         prep.params(),
@@ -642,7 +642,7 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     let relation =
         build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, D, 0).expect("build selective relation");
     assert!(
-        neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&relation.structure().f)
+        neo_fold_legacy::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&relation.structure().f)
     );
     assert!(relation.structure().matrices.iter().any(|matrix| matches!(
         matrix,
@@ -672,11 +672,11 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         neo_ccs::check_ccs_rowwise_zero(&fallback_structure, &assignment, &[]).is_ok(),
         "the fallback fixture must remain a valid selective assignment"
     );
-    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+    let params = neo_fold_legacy::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("selective parameters");
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5345_4544_4544);
     let prep =
-        neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
+        neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(relation.public_input_len()))
             .expect("selective preprocessing");
     let fresh = CcsInstance::from_low_norm_assignment(
         prep.params(),
@@ -728,7 +728,7 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         cpu.1.pi_ccs.sumcheck.canonical_bytes(),
     );
 
-    let fallback_params = neo_fold_clean::config::ccs_params(
+    let fallback_params = neo_fold_legacy::config::ccs_params(
         fallback_structure.n,
         fallback_structure.m,
         fallback_structure.t(),
@@ -736,7 +736,7 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     )
     .expect("fallback parameters");
     let fallback_log = direct_ccs::ajtai::setup_seeded(&fallback_params, &fallback_structure, 0x5345_4544_4642);
-    let fallback_prep = neo_fold_clean::lifecycle::preprocess_with_test_log(
+    let fallback_prep = neo_fold_legacy::lifecycle::preprocess_with_test_log(
         fallback_params,
         fallback_structure,
         fallback_log,
@@ -883,7 +883,7 @@ fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
     let structure = r1cs.to_structure();
     let params = radix_four_params(&structure);
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5241_4449_5834);
-    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
+    let prep = neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
         .expect("radix-four preprocessing");
 
     let initial_fresh =
@@ -1001,10 +1001,10 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
         .expect("R1CS matrix has a sparse component")
         .clone();
     structure.matrices[2] = CcsMatrix::csc_with_seeded_phi81(sparse, vec![seeded]).expect("attach seeded block to C");
-    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+    let params = neo_fold_legacy::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("seeded parameters");
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x4d45_5441_4c5f);
-    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
+    let prep = neo_fold_legacy::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
         .expect("seeded preprocessing");
     let fresh = CcsInstance::from_low_norm_assignment(
         prep.params(),

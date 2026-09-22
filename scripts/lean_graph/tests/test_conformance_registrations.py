@@ -185,7 +185,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
         self.assertIn("stage1-test-build", self.selected("stage1-baseline"))
         command = self.gates["stage1-test-build"]["commands"][0]
         self.assertEqual(command["argv"],
-                         ["cargo", "test", "-p", "neo-fold-clean", "--release", "--no-run"])
+                         ["cargo", "test", "-p", "neo-fold-legacy", "--release", "--no-run"])
         lines = ["Finished `release` profile",
                  "Executable unittests src/bin/generate_pi_ccs_fixture.rs",
                  "Executable tests/nifs/stage1_nifs_execution.rs"]

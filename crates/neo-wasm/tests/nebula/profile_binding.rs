@@ -1,7 +1,7 @@
 //! Profile-level ROM layout and program-binding checks.
 
 use super::{build_memory_backend, rom_component_bits, WasmNebulaProfile, WasmNebulaRomLimits};
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
+use neo_fold_legacy::frontends::nebula::plan::NebulaPlan;
 
 const SHORT_PROGRAM: &str = r#"
 (module

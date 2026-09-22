@@ -1,12 +1,12 @@
 //! Bounded cvc5 attacks for the complete streaming terminal lifecycle.
 
-#[path = "../../../../crates/neo-fold-clean/tests/support/streaming_terminal_fixture.rs"]
+#[path = "../../../../crates/neo-fold-legacy/tests/support/streaming_terminal_fixture.rs"]
 mod streaming_terminal_fixture;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::STREAMING_TERMINAL_R1CS_FAMILY_NAMES;
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::STREAMING_TERMINAL_R1CS_FAMILY_NAMES;
 use nightstream_constraint_exporter::{export_problem, ExportRequest};
 use recursive_constraint_minimizer::{
     audit_complete_typed_family, Conclusion, Problem, Scope, Selection, SolverConfig, SolverMode, SolverStatus,

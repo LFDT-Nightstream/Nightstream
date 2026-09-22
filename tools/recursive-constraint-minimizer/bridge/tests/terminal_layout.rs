@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::TERMINAL_R1CS_FAMILY_NAMES;
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::TERMINAL_R1CS_FAMILY_NAMES;
 use nightstream_constraint_exporter::{terminal_verifier_native_guard_names, TerminalColumnLayout};
 
 #[test]

@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
-use neo_fold_clean::frontends::nebula::f_prime::{
+use neo_fold_legacy::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_legacy::frontends::nebula::f_prime::{
     enforce_streaming_lifecycle_semantic_link, streaming_phase_semantic_digest, StreamingLifecycleSemanticLinkWires,
     STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, STREAMING_LIFECYCLE_PAYLOAD_DOMAIN_FAMILY,
     STREAMING_LIFECYCLE_SEMANTIC_LINK_FAMILY,

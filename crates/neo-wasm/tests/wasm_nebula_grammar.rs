@@ -6,8 +6,8 @@
 mod common;
 
 use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, ENTRY_CLAIMS};
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::frontends::nebula::layout::NebulaParams;
+use neo_fold_legacy::paper::params::Params;
 #[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
 

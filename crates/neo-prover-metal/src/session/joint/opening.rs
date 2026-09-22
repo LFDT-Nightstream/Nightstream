@@ -248,6 +248,20 @@ impl MetalSession {
         witness_count: usize,
         assignment_width: usize,
     ) -> Result<Vec<V1_1Evaluations<K>>, MetalError> {
+        Ok(self
+            .eval_streamed_rows(plan, masks, point, witness_count, assignment_width, None)?
+            .openings)
+    }
+
+    pub(super) fn eval_streamed_rows(
+        &self,
+        plan: &MetalJointMatrixPlan<'_>,
+        masks: &MetalWitnessMasks,
+        point: &[K],
+        witness_count: usize,
+        assignment_width: usize,
+        terminal: Option<&super::relation::TerminalRowCheck<'_>>,
+    ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
         let domain = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("opening point domain overflow"))?;
@@ -260,8 +274,11 @@ impl MetalSession {
             return Err(MetalError::Shape("streamed opening dimensions are invalid"));
         }
         let mut result = to_evaluations(vec![vec![vec![K::ZERO; D]; plan.matrix_count + 1]; witness_count]);
-        if masks.active_witnesses().is_empty() {
-            return Ok(result);
+        if masks.active_witnesses().is_empty() && terminal.is_none() {
+            return Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+                openings: result,
+                first_unsatisfied_row: None,
+            });
         }
         let mut next_row = 0;
         while next_row < plan.rows {
@@ -284,7 +301,14 @@ impl MetalSession {
                     continue;
                 }
                 let layout = OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad)?;
-                let evaluation = layout.evaluation_bytes(count, point.len(), masks.active_witnesses().len())?;
+                let evaluation = layout
+                    .evaluation_bytes(count, point.len(), masks.active_witnesses().len())?
+                    .max(
+                        terminal
+                            .map(|check| check.workspace_bytes(count))
+                            .transpose()?
+                            .unwrap_or(0),
+                    );
                 let available = checked_sum(&[super::application::available_workspace(self, 0), window.upload_bytes])?;
                 let budget = plan
                     .workspace_bytes
@@ -294,32 +318,45 @@ impl MetalSession {
                     requested_end = next_row + smaller_window(count, metadata, budget)?;
                     continue;
                 }
-                let opening = self.prepare_joint_opening_plan(
-                    window.cache.matrix_caches(),
-                    &window.matrices,
-                    plan.blocks * D,
-                    window.rows.start,
-                    include_pad,
-                    &layout,
-                )?;
-                let values = self.eval_joint_openings(&opening, masks, point, witness_count, assignment_width)?;
-                for (result, value) in result.iter_mut().zip(values) {
-                    if include_pad {
-                        result.eval_k = value.eval_k;
-                    }
-                    for (matrix, contribution) in result.eval_a.iter_mut().zip(value.eval_a) {
-                        for (coefficient, value) in matrix.iter_mut().zip(contribution) {
-                            *coefficient += value;
+                if !masks.active_witnesses().is_empty() {
+                    let opening = self.prepare_joint_opening_plan(
+                        window.cache.matrix_caches(),
+                        &window.matrices,
+                        plan.blocks * D,
+                        window.rows.start,
+                        include_pad,
+                        &layout,
+                    )?;
+                    let values = self.eval_joint_openings(&opening, masks, point, witness_count, assignment_width)?;
+                    for (result, value) in result.iter_mut().zip(values) {
+                        if include_pad {
+                            result.eval_k = value.eval_k;
                         }
+                        for (matrix, contribution) in result.eval_a.iter_mut().zip(value.eval_a) {
+                            for (coefficient, value) in matrix.iter_mut().zip(contribution) {
+                                *coefficient += value;
+                            }
+                        }
+                    }
+                    drop(opening);
+                }
+                if let Some(check) = terminal {
+                    if let Some(row) = check.check_window(self, plan, &window)? {
+                        return Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+                            openings: result,
+                            first_unsatisfied_row: Some(row),
+                        });
                     }
                 }
                 next_row = window.rows.end;
-                drop(opening);
                 drop(window);
                 break;
             }
         }
-        Ok(result)
+        Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+            openings: result,
+            first_unsatisfied_row: None,
+        })
     }
 
     fn prepare_joint_opening_plan(

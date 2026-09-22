@@ -169,7 +169,7 @@ done
 # 10. The superseded Rust PiCCS/F' circuit is private diagnostic code. Once
 # PiCCS rows reached the sealed package, no public constructor or registered
 # integration target may reopen that native relation or an unapproved backend.
-RUST_ROOT="$ROOT/../../crates/neo-fold-clean"
+RUST_ROOT="$ROOT/../../crates/neo-fold-legacy"
 while IFS=: read -r file pattern; do
   if grep -nE "$pattern" "$RUST_ROOT/$file"; then
     fail "public superseded Rust F' authority in $file"

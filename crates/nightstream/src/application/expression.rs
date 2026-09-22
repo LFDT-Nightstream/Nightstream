@@ -1,6 +1,6 @@
 //! Retains application expression order for the existing package wire identity.
 
-use std::{ops::Range, sync::Arc};
+use std::{collections::HashSet, ops::Range, sync::Arc};
 
 use nightstream_fprime::ApplicationRecipeNode;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -18,22 +18,65 @@ pub(crate) enum Expression {
 
 impl Expression {
     pub(super) fn validate(&self, count: usize, outputs: Range<usize>, causal: bool) -> Result<(), ApplicationError> {
-        match self {
-            Self::Variable(variable) => {
-                if variable.index() >= count {
-                    return Err(ApplicationError::VariableOutOfScope(variable.index()));
-                }
-                if causal && outputs.contains(&variable.index()) {
-                    return Err(ApplicationError::OutputDependency(variable.index()));
-                }
-                Ok(())
+        let mut seen = HashSet::new();
+        let mut pending = vec![self];
+        while let Some(expression) = pending.pop() {
+            if !seen.insert(expression as *const Self) {
+                continue;
             }
-            Self::Constant(_) => Ok(()),
-            Self::Add(left, right) | Self::Multiply(left, right) => {
-                left.validate(count, outputs.clone(), causal)?;
-                right.validate(count, outputs, causal)
+            match expression {
+                Self::Variable(variable) => {
+                    if variable.index() >= count {
+                        return Err(ApplicationError::VariableOutOfScope(variable.index()));
+                    }
+                    if causal && outputs.contains(&variable.index()) {
+                        return Err(ApplicationError::OutputDependency(variable.index()));
+                    }
+                }
+                Self::Constant(_) => {}
+                Self::Add(left, right) | Self::Multiply(left, right) => {
+                    pending.push(right);
+                    pending.push(left);
+                }
             }
         }
+        Ok(())
+    }
+
+    pub(super) fn has_nested_shared_operations(&self) -> bool {
+        let mut seen = HashSet::new();
+        let mut shared = HashSet::new();
+        let mut pending = vec![self];
+        while let Some(expression) = pending.pop() {
+            if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
+                let pointer = expression as *const Self;
+                if !seen.insert(pointer) {
+                    shared.insert(pointer);
+                    continue;
+                }
+                pending.push(right);
+                pending.push(left);
+            }
+        }
+        // Flat sharing has no repeated branching along a path. Preserve that
+        // existing recipe syntax; nested sharing can expand exponentially.
+        let mut visited = HashSet::new();
+        let mut pending = vec![(self, false)];
+        while let Some((expression, shared_parent)) = pending.pop() {
+            if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
+                let pointer = expression as *const Self;
+                if !visited.insert((pointer, shared_parent)) {
+                    continue;
+                }
+                let is_shared = shared.contains(&pointer);
+                if shared_parent && is_shared {
+                    return true;
+                }
+                pending.push((right, shared_parent || is_shared));
+                pending.push((left, shared_parent || is_shared));
+            }
+        }
+        false
     }
 
     pub(super) fn nodes(&self) -> RecipeNodes<'_> {

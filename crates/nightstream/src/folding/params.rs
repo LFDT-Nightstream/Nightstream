@@ -15,7 +15,13 @@ impl Params {
         columns: usize,
         matrix_count: usize,
         poly_degree: u32,
+        minimum_security_bits: u32,
     ) -> Result<Self, neo_params::ParamsError> {
+        if minimum_security_bits == 0 {
+            return Err(neo_params::ParamsError::Invalid(
+                "minimum statistical security must be positive",
+            ));
+        }
         let mut inner = NeoParams::nightstream_goldilocks_k16();
         let summary = inner.padded_row_security_summary_for_shape(
             rows,
@@ -25,10 +31,10 @@ impl Params {
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )?;
         inner.lambda = inner.lambda.min(summary.security_bits);
-        if inner.lambda == 0 {
+        if inner.lambda < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
-                required: 1,
-                available: 0,
+                required: minimum_security_bits,
+                available: inner.lambda,
             });
         }
         Ok(Self { inner })

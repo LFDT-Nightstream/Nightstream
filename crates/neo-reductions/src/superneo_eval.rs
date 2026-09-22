@@ -55,7 +55,9 @@ use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_
 pub(crate) use weighted_table::fill_combined_projection;
 #[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
-pub use window_eval::{eval_real_v1_1_openings_from_rows, first_unsatisfied_row_from_rows};
+pub use window_eval::{
+    eval_real_v1_1_openings_from_rows, evaluate_terminal_rows, first_unsatisfied_row_from_rows, TerminalEvaluations,
+};
 pub(crate) use window_eval::{eval_real_v1_1_openings_from_rows_reusing, fill_weighted_rows_from_source};
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the

@@ -35,19 +35,26 @@ pub struct PreparedLifecycle {
     structure: Structure,
     binding: Stage1VerifierBinding,
     backend: Backend,
+    params: crate::folding::Params,
 }
 impl PreparedLifecycle {
     pub(crate) fn from_package(
         package: std::sync::Arc<LoadedPerApplicationPackage>,
         binding: Stage1VerifierBinding,
         backend: Backend,
-    ) -> Result<Self, PackageError> {
+        minimum_security_bits: u32,
+    ) -> Result<Self, super::Error> {
         if package.production_verifier_binding()? != binding {
-            return Err(PackageError::Invalid(
-                "lifecycle binding differs from the prepared relation",
-            ));
+            return Err(PackageError::Invalid("lifecycle binding differs from the prepared relation").into());
         }
         let structure = package.ccs_structure_header()?;
+        let params = crate::folding::Params::for_ccs_shape(
+            structure.n,
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            minimum_security_bits,
+        )?;
         validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
         if matches!(backend.engine(), Engine::PaperExact | Engine::Crosscheck) {
             package.validate_all_matrix_rows()?;
@@ -57,6 +64,7 @@ impl PreparedLifecycle {
             structure,
             binding,
             backend,
+            params,
         })
     }
     pub(crate) fn engine(&self) -> Engine {

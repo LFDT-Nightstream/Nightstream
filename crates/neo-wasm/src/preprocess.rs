@@ -33,26 +33,26 @@ use crate::layout::{
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
-use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
-use neo_fold_clean::frontends::f_prime::recursive_plan::{
+use neo_fold_legacy::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_legacy::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
+use neo_fold_legacy::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, build_semantic_state_preimage_fields, AccumulatorPlanOptions,
     RecursiveStepImagePlan, StateXOutPlanOptions,
 };
-use neo_fold_clean::frontends::f_prime::structure::FPrimeStructure;
-use neo_fold_clean::frontends::f_prime::NifsCeClaimShape;
-use neo_fold_clean::frontends::r1cs_f_prime::{build_r1cs_f_prime_structure, SparseR1cs};
-use neo_fold_clean::paper::digest::digest_fields_as_digest32;
-use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
-use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::frontends::f_prime::structure::FPrimeStructure;
+use neo_fold_legacy::frontends::f_prime::NifsCeClaimShape;
+use neo_fold_legacy::frontends::r1cs_f_prime::{build_r1cs_f_prime_structure, SparseR1cs};
+use neo_fold_legacy::paper::digest::digest_fields_as_digest32;
+use neo_fold_legacy::paper::f_prime::poseidon_trace::encode_poseidon_trace;
+use neo_fold_legacy::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use neo_fold_legacy::paper::params::Params;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WasmPreprocessError {
     #[error(transparent)]
-    Frontend(#[from] neo_fold_clean::frontends::direct_ccs::FrontendError),
+    Frontend(#[from] neo_fold_legacy::frontends::direct_ccs::FrontendError),
     #[error(transparent)]
     Batch(#[from] BatchError),
     #[error(transparent)]

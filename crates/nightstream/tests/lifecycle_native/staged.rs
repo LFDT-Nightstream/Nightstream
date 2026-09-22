@@ -202,7 +202,7 @@ fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (package, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(package.into(), binding, prover).unwrap();
+    let package = PreparedLifecycle::from_package(package.into(), binding, prover, 114).unwrap();
     eprintln!("staged circuit preparation elapsed={:?}", started.elapsed());
     package
 }
@@ -212,6 +212,7 @@ fn params(package: &PreparedLifecycle) -> Params {
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),
+        114,
     )
     .unwrap()
 }
@@ -356,6 +357,7 @@ fn base(root: &Path, engine: EvaluationEngine) {
             Stage1Envelope::initial(expected.z0()),
             &message.map(|value| value.as_canonical_u64()),
             output,
+            None,
         )
         .unwrap();
     assert_eq!(envelope.state(), &expected);

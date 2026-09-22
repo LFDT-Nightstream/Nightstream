@@ -1,5 +1,6 @@
 use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum PackedSignedUnitBits {
@@ -80,7 +81,9 @@ pub struct Mat<T> {
     /// materializes the dense backing vector first.
     constant_hint: Option<T>,
     /// Bit-packed storage for matrices over the exact alphabet `{0, 1, -1}`.
-    packed_signed_unit: Option<PackedSignedUnit<T>>,
+    // Packed witnesses are immutable. Clones share their buffers; mutable
+    // access materializes a private dense matrix before changing any value.
+    packed_signed_unit: Option<Arc<PackedSignedUnit<T>>>,
     /// Fast-path marker for identity matrices created via `Mat::identity`.
     ///
     /// This is intentionally skipped for serde and ignored for equality: it is an optimization only.
@@ -109,7 +112,7 @@ impl<T: serde::Serialize> serde::Serialize for Mat<T> {
         wire.serialize_field("cols", &self.cols)?;
         wire.serialize_field("data", &self.data)?;
         wire.serialize_field("constant_hint", &self.constant_hint)?;
-        wire.serialize_field("packed_signed_unit", &self.packed_signed_unit)?;
+        wire.serialize_field("packed_signed_unit", &self.packed_signed_unit.as_deref())?;
         wire.end()
     }
 }
@@ -215,7 +218,7 @@ where
             cols: wire.cols,
             data: wire.data,
             constant_hint: wire.constant_hint,
-            packed_signed_unit: wire.packed_signed_unit,
+            packed_signed_unit: wire.packed_signed_unit.map(Arc::new),
             identity_hint: false,
         })
     }
@@ -311,7 +314,7 @@ impl<T: Clone> Mat<T> {
     pub fn packed_signed_unit_nonzero_count(&self) -> Option<usize> {
         self.packed_signed_unit
             .as_ref()
-            .map(PackedSignedUnit::nonzero_count)
+            .map(|packed| packed.nonzero_count())
     }
 
     /// Borrow the validated per-column positive and negative row masks when
@@ -513,11 +516,11 @@ where
             cols,
             data: Vec::new(),
             constant_hint: None,
-            packed_signed_unit: Some(PackedSignedUnit {
+            packed_signed_unit: Some(Arc::new(PackedSignedUnit {
                 bits: PackedSignedUnitBits::RowMajor { positive, negative },
                 values: [F::ZERO, F::ONE, neg_one],
                 cols,
-            }),
+            })),
             identity_hint: false,
         }
     }
@@ -559,14 +562,14 @@ where
             cols,
             data: Vec::new(),
             constant_hint: None,
-            packed_signed_unit: Some(PackedSignedUnit {
+            packed_signed_unit: Some(Arc::new(PackedSignedUnit {
                 bits: PackedSignedUnitBits::ColumnMasks {
                     positive: positive_columns.to_vec(),
                     negative: negative_columns.to_vec(),
                 },
                 values: [F::ZERO, F::ONE, neg_one],
                 cols,
-            }),
+            })),
             identity_hint: false,
         })
     }

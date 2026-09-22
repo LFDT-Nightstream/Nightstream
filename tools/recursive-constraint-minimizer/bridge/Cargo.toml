@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 bincode = "=1.3.3"
 neo-ccs = { path = "../../../crates/neo-ccs" }
-neo-fold-clean = { path = "../../../crates/neo-fold-clean" }
+neo-fold-legacy = { path = "../../../crates/neo-fold-legacy" }
 neo-math = { path = "../../../crates/neo-math" }
 p3-field = "=0.5.3"
 recursive-constraint-minimizer = { path = ".." }

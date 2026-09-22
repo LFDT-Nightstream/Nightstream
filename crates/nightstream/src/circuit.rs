@@ -30,6 +30,8 @@ pub enum Error {
     Extend(#[from] ExtendError),
     #[error(transparent)]
     Verify(#[from] VerifyError),
+    #[error(transparent)]
+    Parameters(#[from] neo_params::ParamsError),
 }
 
 struct CompiledCircuit {
@@ -39,11 +41,12 @@ struct CompiledCircuit {
 }
 
 impl CompiledCircuit {
-    fn lifecycle(&self, backend: Backend) -> Result<PreparedLifecycle, Error> {
+    fn lifecycle(&self, backend: Backend, minimum_security_bits: u32) -> Result<PreparedLifecycle, Error> {
         Ok(PreparedLifecycle::from_package(
             Arc::clone(&self.package),
             self.binding.clone(),
             backend,
+            minimum_security_bits,
         )?)
     }
 }
@@ -85,12 +88,17 @@ impl Circuit {
         })
     }
 
+    /// Return the package's claimed circuit identifier.
+    /// Compilation computes it from the circuit. Loading preserves the saved
+    /// value without recomputing it, so equality does not authenticate a loaded
+    /// package. The caller selects the expected verifier configuration.
     pub fn identity(&self) -> [u64; 4] {
         self.compiled.binding.package_identity()
     }
 
-    pub fn prover(&self, engine: Engine) -> Result<Prover, Error> {
-        Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?)
+    /// Require the selected profile to meet the caller's positive statistical minimum.
+    pub fn prover(&self, engine: Engine, minimum_security_bits: u32) -> Result<Prover, Error> {
+        Prover::new(Arc::clone(&self.compiled), Backend::new(engine)?, minimum_security_bits)
     }
 }
 
@@ -101,16 +109,16 @@ pub struct Prover {
 }
 
 impl Prover {
-    fn new(compiled: Arc<CompiledCircuit>, backend: Backend) -> Result<Self, Error> {
-        let lifecycle = compiled.lifecycle(backend)?;
+    fn new(compiled: Arc<CompiledCircuit>, backend: Backend, minimum_security_bits: u32) -> Result<Self, Error> {
+        let lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
         Ok(Self { compiled, lifecycle })
     }
 
     /// Load proving data without repeating compilation or whole-circuit hashing.
     /// Saved identities are claims; verification uses an independently configured circuit.
-    pub fn load(path: impl AsRef<Path>, engine: Engine) -> Result<Self, Error> {
+    pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         let backend = Backend::new(engine)?;
-        Self::new(Arc::new(storage::read(path.as_ref())?), backend)
+        Self::new(Arc::new(storage::read(path.as_ref())?), backend, minimum_security_bits)
     }
 
     pub fn engine(&self) -> Engine {
@@ -118,10 +126,12 @@ impl Prover {
     }
 
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Stage1Envelope, Error> {
-        self.extend(Stage1Envelope::initial(initial_state), private_inputs)
+        self.extend(&Stage1Envelope::initial(initial_state), private_inputs)
     }
 
-    pub fn extend(&self, proof: Stage1Envelope, private_inputs: &[F]) -> Result<Stage1Envelope, Error> {
+    /// Construct the next proof without changing the supplied proof, including
+    /// on input, device, or I/O failure. Packed witnesses share immutable storage.
+    pub fn extend(&self, proof: &Stage1Envelope, private_inputs: &[F]) -> Result<Stage1Envelope, Error> {
         let witness = self
             .compiled
             .application
@@ -130,9 +140,12 @@ impl Prover {
             .iter()
             .map(PrimeField64::as_canonical_u64)
             .collect();
-        Ok(self
-            .lifecycle
-            .extend_with_output(proof, &words, witness.output_state())?)
+        Ok(self.lifecycle.extend_with_output(
+            proof.snapshot(),
+            &words,
+            witness.output_state(),
+            Some(witness.values()),
+        )?)
     }
 }
 
@@ -144,15 +157,27 @@ pub struct Verifier {
 impl Verifier {
     /// Use the caller-selected package as the expected circuit configuration.
     /// This does not establish the package's provenance.
-    pub fn from_package(package: &Circuit, engine: Engine) -> Result<Self, Error> {
+    /// Reject a profile below the caller's positive statistical minimum.
+    pub fn from_package(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Ok(Self {
-            lifecycle: package.compiled.lifecycle(Backend::new(engine)?)?,
+            lifecycle: package
+                .compiled
+                .lifecycle(Backend::new(engine)?, minimum_security_bits)?,
         })
     }
 
     /// Compile a local application and use it as the expected configuration.
-    pub fn compile(reference_bytes: &[u8], application: ApplicationCircuit, engine: Engine) -> Result<Self, Error> {
-        Self::from_package(&Circuit::compile(reference_bytes, application)?, engine)
+    pub fn compile(
+        reference_bytes: &[u8],
+        application: ApplicationCircuit,
+        engine: Engine,
+        minimum_security_bits: u32,
+    ) -> Result<Self, Error> {
+        Self::from_package(
+            &Circuit::compile(reference_bytes, application)?,
+            engine,
+            minimum_security_bits,
+        )
     }
 
     pub fn engine(&self) -> Engine {

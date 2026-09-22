@@ -49,7 +49,7 @@ fn export_matches_retained_lean_input_and_every_native_c_trace_field() {
     )
     .unwrap();
     let structure = loaded.ccs_structure_header().unwrap();
-    let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree()).unwrap();
+    let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree(), 114).unwrap();
     let (accepted, trace) = optimized_verify_with_trace(
         &mut Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 8], 0),
         params.inner(),

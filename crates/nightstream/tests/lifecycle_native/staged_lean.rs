@@ -1,5 +1,5 @@
 //! Numeric checker inputs and observed C/R/D values from a verified native fold.
-//! Schema: neo-fold-clean/tests/nifs/stage1_values.rs. No expected values enter here.
+//! Schema: neo-fold-legacy/tests/nifs/stage1_values.rs. No expected values enter here.
 
 use super::*;
 use neo_math::KExtensions;

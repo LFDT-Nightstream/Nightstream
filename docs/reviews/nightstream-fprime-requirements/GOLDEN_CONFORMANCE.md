@@ -4,24 +4,22 @@ Status: active. This record belongs to `nico/golden-conformance`.
 
 The goal is reproducible local conformance checks for the existing
 Nightstream Goldilocks profile (`b = 2`, `k_rho = 16`, `B = 65536`). The
-engineering target is at least 9/10 confidence for the selected first-fold
-and recursive cases. This rating is not a cryptographic security bound.
-At the owner's request, CI enforcement is out of scope and is not an
-acceptance criterion or a pending blocker.
+engineering target is at least 9/10 confidence for the selected CPU–Lean
+first-fold and recursive cases. This rating is not a cryptographic security
+bound. At the owner's request, CI enforcement and Metal validation are out
+of scope. Neither is an acceptance criterion or a pending blocker.
 
 ## Acceptance
 
 - Restore the recorded archives into a clean directory and run the selected
   comparisons there. A local restore does not close protected external
   reproduction or backend approval.
-- Connect the Lean-checked reference to the current CPU result used by every
-  engine comparison. Compare actual canonical proof bytes and the complete
-  additional fields in scope. SHA-256 identifies evidence files only.
+- Connect the Lean-checked reference to the current CPU result.
+  Compare actual canonical proof bytes and all additional fields in scope.
+  SHA-256 identifies evidence files only.
 - Keep first-fold Lean checking. Check fresh recursive CPU C/R/D outputs with
   Lean, and record mutation rejection by its actual verifier or decoder.
-- Run current engine code. CPU is the common reference. Other engines need
-  CPU comparisons on the same inputs and output scope, without separate Lean
-  generation for each engine.
+- Run current CPU code for the selected first-fold and recursive cases.
 - Run the staged checks locally with recorded source, build and input
   identities. Missing selected artifacts or failed phases must fail the run.
 - Independently generate the exact first-fold expectation and complete the
@@ -117,7 +115,6 @@ authorize a new run. Historical results retain their original scope.
   Lean processes were active. The continuation exited with status 1; the
   remaining D work is incomplete. Paths and scope are in
   `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_reductions`.
-- Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
   remaining D work for 3→4, successor generation, final terminal checks and
   direct current CPU3 comparisons are incomplete. The full independent

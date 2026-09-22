@@ -1182,7 +1182,40 @@
       "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-events.jsonl",
       "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.log",
       "standalone_first_checkpoint_reused": false,
-      "scope": "The selected driver owns the first-fold checkpoint. Neither first-fold completion nor its input bridge is claimed."
+      "scope": "The selected driver owns the first-fold checkpoint. Independent C generation and comparison passed; R/D, successor, full current CPU1 comparisons and the complete input bridge remain open.",
+      "C": {
+        "outcome": "passed",
+        "started_utc": "2026-09-22T08:43:30.987032Z",
+        "completed_utc": "2026-09-22T11:12:28.676482Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "comparison_receipts": [
+          "c-round-comparison.json",
+          "c-terminal-prefix-comparison.json",
+          "c-evaluation-comparison.json",
+          "c-complete-bytes.json",
+          "c-finish-rejections.json"
+        ],
+        "children": 798,
+        "lean_children": 286,
+        "python_children": 512,
+        "sum_child_elapsed_seconds": 8923.393733263016,
+        "longest_child": "q0-fresh",
+        "longest_child_seconds": 598.21803855896,
+        "all_children_within_existing_caps": true,
+        "rounds": 28,
+        "matched_round_field_words": 560,
+        "matched_transcript_transitions": 28,
+        "matched_evaluation_field_words": 27540,
+        "matched_proof_input_field_words": 29288,
+        "matched_phase_fields": 15,
+        "matched_outgoing_state_words": 8,
+        "lean_input_bytes": 271058,
+        "native_input_bytes": 271059,
+        "input_comparison": "Complete canonical input equality after removing one optional final LF.",
+        "exact_phase_bytes": 190581,
+        "finish_input_and_output_rejections": 21,
+        "scope": "Independent first-fold C against its fresh native target. Changed comparison targets and proof words were rejected. Full NIFS encoding, current CPU1 outputs and the first-to-second input bridge remain separate."
+      }
     },
     "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",
     "complete_input_connection": {

@@ -1,7 +1,9 @@
 # Selected golden-vector conformance
 
-Status: revalidation of the rebased PR is in progress. The completed run at
-`74508b1fc63d642b8570da957d2fbae0a618b6de` does not certify the rebased CPU code.
+Status: passed for the selected 1→2→3 cases on the rebased implementation.
+[GOLDEN_CONFORMANCE_REVALIDATION.json](GOLDEN_CONFORMANCE_REVALIDATION.json)
+records the current run, source audit and update to base `c92d6e148`. The older
+run at `74508b1fc` remains a separate historical record.
 
 The selected scope is CPU–Lean **1→2→3**, for the Nightstream Goldilocks
 profile `b = 2`, `k_rho = 16`, `B = 65536`. It includes the first fold, one
@@ -46,6 +48,33 @@ The selected entrypoints stop at state 3. The separate registered
 `fresh-recursive-loop` obligation still covers 2→3→4 and remains open; it is
 not an acceptance criterion for this goal. Local archive restoration does
 not claim protected external acceptance or publication of new release assets.
+
+## Current validation
+
+- 72 focused Python tests pass, including checks with a symlinked temporary
+  directory. Release builds and Rust formatting pass.
+- All 18 selected CPU stages pass. The longest took 189.48 seconds; peak
+  RSS was 12,444,114,944 bytes (11.59 GiB), below the 16 GiB guard.
+- The first terminal rejection test exposed an old error-order expectation.
+  The combined row evaluator checks the fresh relation before running
+  openings. Both test assertions now require that specific relation error.
+  The repeated rejection passed; the failed receipt remains in the archive.
+  The other 17 passed stages were retained with complete byte comparisons.
+  Production Rust, Lean and build inputs did not change during this repair.
+- Both fresh Lean checks pass: all proof bytes, 177,326 private caller words,
+  278 public caller words, all seven result fields and 234,755,400 physical
+  bytes per fold. Each records 34 Lean public-check rejections, ten decoder
+  rejections, one C rejection, two internal checks and 55 native D rejections.
+- Both retained independent results match the current CPU proof, parent,
+  children, caller, physical witness and fresh outputs. All 17 first-successor
+  sources connect to the second fold's consumed inputs. The source audit
+  permits only the comparison-crate rename; independent generation was reused.
+- Fresh state-3 terminal acceptance and the three specified rejection cases
+  pass. All 20 comparison stages pass; the longest took 247.13 seconds,
+  within the 300-second native/Python cap.
+- The subsequent base merge changes none of the validated Rust/Lean code,
+  selected artifacts, build inputs or replay coordinators. Its source diff
+  check is recorded with the results.
 
 ## Historical evidence
 

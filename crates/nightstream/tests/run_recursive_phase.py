@@ -132,7 +132,7 @@ def run_test(command: list[str], request: dict, output) -> dict:
         "system_seconds": after.ru_stime - before.ru_stime,
         "maximum_resident_bytes": peak, "sampled_maximum_resident_bytes": sampled_peak,
         "memory_cap_bytes": RSS_CAP_BYTES, "memory_cap_metric": "RSS",
-        "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md:37-47",
+        "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
         "memory_cap_exceeded": peak > RSS_CAP_BYTES,
         "memory_enforcement": "killed on observed RSS excess" if stopped_for_memory
                               else "peak RSS acceptance check after exit",

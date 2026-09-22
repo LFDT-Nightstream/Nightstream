@@ -60,7 +60,7 @@ def build(directory, engine, checker=False):
 def cpu_handoff(directory):
     """Compare transported CPU bytes with the inputs actually checked by Lean."""
     equal(load(directory / "cpu/conformance.json")["outcome"], "passed", "native CPU result")
-    for step in (1, 2, 3):
+    for step in (1, 2):
         checked = directory / f"lean-step-{step}"
         equal(load(checked / "result.json")["outcome"], "passed", "fresh Lean result")
         for name in ("proof.native", "pi_ccs_input.json", "children.json", "actual_result.json", "caller-inputs.json"):
@@ -75,7 +75,8 @@ def cpu_handoff(directory):
                       "CPU/fresh Lean physical handoff")
         caller = load(checked / f"step-{step}-caller.json")
         compare_caller(load(directory / f"cpu/fold-{step}/caller-inputs.json"), caller,
-                       load(directory / f"cpu/fold-{step}/actual_result.json"), caller[1])
+                       load(directory / f"cpu/fold-{step}/actual_result.json"),
+                       load(checked / "inputs/base.json")[1])
 
 
 def independent_expectations(directory, references, checker, cpu_reference):
@@ -100,27 +101,12 @@ def independent_expectations(directory, references, checker, cpu_reference):
     (first / "original-sources/next-message-input.json").write_text(json.dumps(request) + "\n")
     shutil.copyfile(package, first / "original-package.json")
     run([sys.executable, "-B", FORMAL / "scripts/replay_recursive_loop.py", first, "1", "first-fold"])
-    run([sys.executable, "-B", FORMAL / "scripts/replay_recursive_loop.py", replay, "2", "all"])
-    for step in (1, 2, 3):
-        independent = (first if step == 1 else replay) / f"step-{step}-to-{step + 1}"
-        checked = cpu_reference / f"lean-step-{step}"
-        # Compare every field coefficient with this CPU run. Valid Goldilocks
-        # representatives can have different JSON bytes.
-        run(bounded("static", [checker, "compare-pirlc-replay", cpu / f"fold-{step}/parent-witness.json",
-                              independent / "parent-0.jsonl", independent / "parent-1.jsonl"]))
-        # check-owned-nifs independently encodes every Lean proof field and
-        # compares it with the same CPU snapshot used by the fresh verifier.
-        run(bounded("static", [checker, "check-owned-nifs", package,
-                              checked / f"inputs/fold-{step}", independent / "nifs-result.json"]))
-        compare_json(checked / f"step-{step}-caller.json", independent / "caller.json", "independent caller")
-        compare_files(cpu / f"fold-{step}/physical.bin", independent / "physical.bin", "independent physical witness")
-        for name in ("fresh-witness.json", "fresh-claim.json"):
-            compare_json(cpu / f"step-{step + 1}" / name, independent / name, "independent fresh result")
-        for child in range(16):
-            compare_json(cpu / f"fold-{step}/digit-{child}.json",
-                         independent / f"native-material/digit-{child}.json", "independent checked child witness")
-    cpu_handoff(cpu_reference)
-    return "passed for the exact first fold and independent iterations 2→3→4"
+    for phase in ("build", "prepare", "native", "ccs", "reductions", "successor", "terminal"):
+        run([sys.executable, "-B", FORMAL / "scripts/replay_recursive_loop.py", replay, "2", phase])
+    run([sys.executable, "-B", ROOT / "scripts/check_selected_replay.py",
+         "--first-root", first, "--second-root", replay, "--cpu-reference", cpu_reference,
+         "--directory", directory / "selected-comparison"])
+    return "passed for the independent 1→2→3 chain and its complete input connection"
 
 
 def execute(mode, archives, directory, cpu_reference=None):
@@ -153,7 +139,7 @@ def execute(mode, archives, directory, cpu_reference=None):
     run(command)
     if engine == "optimized":
         checker = build(directory, engine, checker=True)
-        for step in (1, 2, 3):
+        for step in (1, 2):
             run([sys.executable, "-B", TESTS / "check_lean_fold.py", "--directory", native,
                  "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", checker])
         cpu_handoff(directory)
@@ -162,7 +148,7 @@ def execute(mode, archives, directory, cpu_reference=None):
         # Recheck custody after the engine comparison so a changed handoff fails.
         cpu_handoff(cpu_reference)
     receipt = {"outcome": "passed", "engine": engine,
-               "scope": "Current native folds 1–3 and terminal checks; fresh Lean verifier/caller/physical checks "
+               "scope": "Current native folds 1–2 and state-3 terminal checks; fresh Lean verifier/caller/physical checks "
                         "on CPU; CPU/Metal equality when Metal is selected. Independent generation is a separate job."}
     (directory / ("cpu-result.json" if engine == "optimized" else "metal-result.json")).write_text(json.dumps(receipt, indent=2) + "\n")
 

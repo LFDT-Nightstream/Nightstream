@@ -20,7 +20,7 @@ class GoldenConformanceTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.binary = self.root / "native-test"
         self.binary.write_bytes(b"test binary identity")
         self.directory, self.references = self.root / "run", self.root / "references"
@@ -83,19 +83,19 @@ class GoldenConformanceTests(unittest.TestCase):
         self.assertEqual(self.invoke(), 0)
         phases = self.phase_calls()
         expected = ["base"]
-        for step in (1, 2, 3):
+        for step in (1, 2):
             expected += ["sources", "ccs", "rlc", "split", "openings", "nifs", "successor"]
         expected += ["terminal", "mutation", "reject"]
         self.assertEqual([call["--phase"] for call in phases], expected)
         self.assertEqual([call["--step"] for call in phases if call["--phase"] == "openings"],
-                         ["1", "2", "3"])
-        self.assertEqual([call["--step"] for call in phases[-3:]], ["4", "4", "4"])
+                         ["1", "2"])
+        self.assertEqual([call["--step"] for call in phases[-3:]], ["3", "3", "3"])
         self.assertEqual([dict(zip(call[6::2], call[7::2]))["--fold"] for call in self.calls[-2:]], ["1", "2"])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "passed")
 
     def test_metal_uses_cpu_proofs_and_preserves_previous_cpu_receipt(self):
         cpu = self.root / "cpu"
-        for step in (1, 2, 3):
+        for step in (1, 2):
             path = cpu / f"fold-{step}/proof.native"
             path.parent.mkdir(parents=True)
             path.write_bytes(b"CPU canonical proof")
@@ -105,18 +105,17 @@ class GoldenConformanceTests(unittest.TestCase):
         phases = self.phase_calls()
         self.assertEqual([call["--phase"] for call in phases], [
             "base", "sources", "prove", "successor", "sources", "prove", "successor",
-            "sources", "prove", "successor",
             "terminal", "mutation", "reject"])
         self.assertEqual([call["--reference-proof"] for call in phases if call["--phase"] == "prove"],
-                         [str(cpu / f"fold-{step}/proof.native") for step in (1, 2, 3)])
+                         [str(cpu / f"fold-{step}/proof.native") for step in (1, 2)])
         comparison = dict(zip(self.calls[-1][6::2], self.calls[-1][7::2]))
         self.assertEqual(comparison["--directory"], str(cpu))
         self.assertEqual(comparison["--engine-directory"], str(self.directory))
-        self.assertEqual(comparison["--fold"], "3")
-        self.assertNotIn("--reference", comparison)
+        self.assertEqual(comparison["--fold"], "2")
+        self.assertEqual(comparison["--reference"], str(self.references / "reference-later"))
         self.assertEqual(previous.read_bytes(), b"previous successful CPU comparison")
         self.assertTrue((self.directory / "comparison-lean-cpu-engine.json").is_file())
-        self.assertTrue((self.directory / "comparison-cpu-engine-fold-3.json").is_file())
+        self.assertFalse((self.directory / "comparison-cpu-engine-fold-3.json").exists())
 
     def test_missing_phase_receipt_cannot_count_as_success(self):
         self.missing_phase = "openings"

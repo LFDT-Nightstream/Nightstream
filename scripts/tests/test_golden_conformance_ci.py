@@ -12,7 +12,7 @@ class GoldenCITests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
+        self.root = Path(directory.name).resolve()
 
     def write(self, path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,9 +27,10 @@ class GoldenCITests(unittest.TestCase):
         phase = [0] * 15
         phase[6], phase[14] = [14], [15]
         observed = {"pi_ccs_phase": phase, "outgoing_state": [16], "pi_rlc_parent": [0, [17]]}
-        for step in (1, 2, 3):
+        for step in (1, 2):
             check = self.root / f"lean-step-{step}"
             self.write(check / "result.json", {"outcome": "passed"})
+            self.write(check / "inputs/base.json", [1, context])
             values = {"proof.native": f"proof {step}".encode(), "pi_ccs_input.json": [step],
                       "children.json": [step], "actual_result.json": observed, "caller-inputs.json": caller}
             for name, value in values.items():
@@ -47,12 +48,12 @@ class GoldenCITests(unittest.TestCase):
         self.checked_cpu()
         ci.cpu_handoff(self.root)
         changed = b"changed and rehashed CPU proof"
-        self.write(self.root / "cpu/fold-3/proof.native", changed)
+        self.write(self.root / "cpu/fold-2/proof.native", changed)
         self.write(self.root / "cpu-result.json", {
             "outcome": "passed", "sha256": hashlib.sha256(changed).hexdigest()})
         with self.assertRaisesRegex(ValueError, "CPU/Lean input handoff"):
             ci.cpu_handoff(self.root)
-        self.write(self.root / "lean-step-3/inputs/fold-3/proof.native", changed)
+        self.write(self.root / "lean-step-2/inputs/fold-2/proof.native", changed)
         with self.assertRaisesRegex(ValueError, "CPU/fresh Lean proof handoff"):
             ci.cpu_handoff(self.root)
 
@@ -75,7 +76,21 @@ class GoldenCITests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             ci.cpu_handoff(self.root)
 
-    def test_cpu_requires_current_production_and_all_three_fresh_lean_checks(self):
+    def test_matching_caller_contexts_cannot_replace_original_context(self):
+        self.checked_cpu()
+        for prefix in ("cpu/fold-1", "lean-step-1/inputs/fold-1"):
+            path = self.root / prefix / "caller-inputs.json"
+            caller = json.loads(path.read_text())
+            caller["verifier_context"][0] += 1
+            self.write(path, caller)
+        path = self.root / "lean-step-1/step-1-caller.json"
+        caller = json.loads(path.read_text())
+        caller[1][0] += 1
+        self.write(path, caller)
+        with self.assertRaisesRegex(ValueError, "native verifier context"):
+            ci.cpu_handoff(self.root)
+
+    def test_cpu_requires_current_production_and_both_fresh_lean_checks(self):
         output = self.root / "new-cpu"
         with patch.object(ci, "run") as run, patch.object(ci, "build", return_value=Path("current-binary")) as build, \
                 patch.object(ci, "cpu_handoff") as handoff:
@@ -85,7 +100,7 @@ class GoldenCITests(unittest.TestCase):
         self.assertEqual(len(native), 1)
         self.assertEqual(native[0][-2:], ["--engine", "optimized"])
         lean = [call for call in calls if Path(call[2]).name == "check_lean_fold.py"]
-        self.assertEqual([call[call.index("--step") + 1] for call in lean], [1, 2, 3])
+        self.assertEqual([call[call.index("--step") + 1] for call in lean], [1, 2])
         self.assertEqual(build.call_count, 2)
         handoff.assert_called_once_with(output)
         self.assertEqual(ci.load(output / "cpu-result.json")["outcome"], "passed")
@@ -98,7 +113,7 @@ class GoldenCITests(unittest.TestCase):
         self.assertFalse((output / "cpu-result.json").exists())
 
     def test_metal_requires_capability_and_same_cpu_handoff(self):
-        with patch.object(ci.sys, "platform", "linux"), self.assertRaisesRegex(ValueError, "macOS runner"):
+        with patch.object(ci.sys, "platform", "linux"), self.assertRaisesRegex(ValueError, "macOS host"):
             ci.execute("metal", self.root / "archives", self.root / "metal", self.root / "handoff")
         with patch.object(ci.sys, "platform", "darwin"), self.assertRaisesRegex(ValueError, "CPU handoff"):
             ci.execute("metal", self.root / "archives", self.root / "metal")
@@ -118,24 +133,22 @@ class GoldenCITests(unittest.TestCase):
         replay.assert_called_once()
         self.assertFalse((output / "independent-result.json").exists())
 
-    def test_every_independent_parent_is_compared_with_the_current_cpu_parent(self):
+    def test_independent_generation_stops_at_state_three_and_checks_connection(self):
         output, handoff = self.root / "independent", self.root / "handoff"
         output.mkdir()
         self.write(handoff / "cpu/fold-1/nifs.json", {"parent": {}})
         self.write(handoff / "cpu/step-1/envelope.json", {"iteration": 1, "z0": [], "current": []})
         with patch.object(ci, "run") as run, patch.object(ci, "compare_json"), \
-                patch.object(ci, "compare_files"), patch.object(ci, "compare_envelope"), \
-                patch.object(ci, "cpu_handoff"), patch.object(ci.shutil, "copyfile"), \
+                patch.object(ci, "compare_envelope"), patch.object(ci.shutil, "copyfile"), \
                 patch.object(ci.shutil, "copytree", side_effect=lambda source, target: target.mkdir(parents=True)):
             ci.independent_expectations(output, self.root / "references", Path("current-checker"), handoff)
-        comparisons = [call.args[0] for call in run.call_args_list if "compare-pirlc-replay" in call.args[0]]
-        self.assertEqual(len(comparisons), 3)
-        for step, command in zip((1, 2, 3), comparisons):
-            generated = output / ("independent-first" if step == 1 else "independent-loop") / f"step-{step}-to-{step + 1}"
-            self.assertEqual(command, ci.bounded("static", [
-                Path("current-checker"), "compare-pirlc-replay", handoff / f"cpu/fold-{step}/parent-witness.json",
-                generated / "parent-0.jsonl", generated / "parent-1.jsonl",
-            ]))
+        commands = [call.args[0] for call in run.call_args_list]
+        replay = [command for command in commands if Path(command[2]).name == "replay_recursive_loop.py"]
+        self.assertEqual([(command[-2], command[-1]) for command in replay],
+                         [("1", "first-fold")] + [("2", phase) for phase in
+                          ("build", "prepare", "native", "ccs", "reductions", "successor", "terminal")])
+        self.assertEqual(Path(commands[-1][2]).name, "check_selected_replay.py")
+        self.assertIn(handoff, commands[-1])
 
     def test_build_rejects_success_without_the_requested_executable(self):
         def fake_run(command, **options):

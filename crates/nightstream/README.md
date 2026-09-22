@@ -25,19 +25,33 @@ Load the saved data and select execution engines:
 use nightstream::{Circuit, Engine, Verifier};
 
 let package = Circuit::load("app.nsc")?;
-let prover = package.prover(Engine::Metal)?;
-let verifier = Verifier::from_package(&package, Engine::Metal)?;
+// Set this from the integrating application's security policy.
+let minimum_security_bits = policy.minimum_statistical_security_bits;
+let prover = package.prover(Engine::Metal, minimum_security_bits)?;
+let verifier = Verifier::from_package(&package, Engine::Metal, minimum_security_bits)?;
 let proof = prover.prove(initial_state, &private_inputs)?;
 verifier.verify(&expected_state, &proof)?;
 ```
 
 Loading checks the format, layout, dimensions and recipe structure. It does not
-repeat whole-circuit identity hashing. `Prover::load(path, engine)` is available
+repeat whole-circuit identity hashing. `Circuit::identity()` returns the saved
+claim; comparing it with a known value does not authenticate the loaded data.
+`Prover::load(path, engine, minimum_security_bits)` is available
 when only proving data is needed. `Verifier::compile` derives expected
 configuration from a local application. The caller selects the verifier's
 expected configuration and is responsible for its provenance; the crate does
 not impose an authentication policy. Proof data cannot replace that configured
 relation.
+
+Prover and verifier creation require an explicit, positive statistical-security
+minimum. Preparation rejects a profile below that minimum. The current stored
+Poseidon2 profile's estimator reports 114 bits; this is a statistical estimate,
+not a claim about the complete system's security. The application selects its
+own acceptance policy. Compilation and loading do not change that policy.
+
+`prover.extend(&proof, inputs)` returns a new proof. The supplied proof remains
+usable if extension fails. Packed witness buffers are shared and immutable;
+the prior proof remains live until the caller replaces or drops it.
 
 Engine selection applies to proof arithmetic and terminal row checks. It does
 not change the circuit identity, formulas or fixed commitment key. An unavailable
@@ -54,7 +68,7 @@ engine returns an error without a CPU fallback.
 Metal retains its device session and matrix plan across folds. PiRLC, witness
 generation, and verifier control flow use the shared host code. Fixed-key
 commitments, terminal row arithmetic, and nonzero running openings use Metal.
-The GPU dependencies do not add `neo-fold-clean` to the production graph.
+The GPU dependencies do not add `neo-fold-legacy` to the production graph.
 
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
@@ -234,9 +248,12 @@ On macOS, run the compiled binary under GNU `timeout` and the OS process timer:
 
 ```sh
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 > cpu.jsonl 2> cpu.time
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine metal --steps 3 > metal.jsonl 2> metal.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 114 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine metal --steps 3 --minimum-security-bits 114 > metal.jsonl 2> metal.time
 ```
+
+These benchmark commands explicitly accept the retained fixture's 114-bit
+estimate. They do not select a production security policy.
 
 `maximum resident set size` in the `.time` file is peak process memory in bytes
 on macOS. It is separate from GPU allocation counters. On Linux, build the CPU
@@ -274,8 +291,8 @@ contract is `NIGHTSTREAM_CRATE_GOAL.md` in the repository root. See the
 and the separate maintainer workflow.
 
 The Cargo package includes the saved test inputs. Tests use package-local data
-and do not run Lean. `neo-fold-clean` is a development dependency for comparison
-with the unchanged implementation; it is not a production dependency.
+and do not run Lean. The crate has no production or development dependency on
+`neo-fold-legacy`. The old timing baseline lives in the legacy crate.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.

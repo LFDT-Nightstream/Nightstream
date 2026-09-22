@@ -3,17 +3,17 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use neo_fold_clean::frontends::nebula::f_prime::{
+use neo_fold_legacy::frontends::nebula::f_prime::{
     prepare_streaming_lifecycle_preprocessing, production_streaming_lifecycle_profile,
     synthesize_streaming_lifecycle_source_arms, NebulaFPrimeStreamingLifecycleArm,
     NebulaFPrimeStreamingLifecycleSourceArms,
 };
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
-use neo_fold_clean::frontends::r1cs_f_prime::build_multi_branch_selective_low_norm_r1cs_with_alignment;
-use neo_fold_clean::paper::digest::digest32_as_fields;
-use neo_fold_clean::paper::f_prime::stage as fprime_stage;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::frontends::nebula::layout::NebulaParams;
+use neo_fold_legacy::frontends::nebula::plan::NebulaPlan;
+use neo_fold_legacy::frontends::r1cs_f_prime::build_multi_branch_selective_low_norm_r1cs_with_alignment;
+use neo_fold_legacy::paper::digest::digest32_as_fields;
+use neo_fold_legacy::paper::f_prime::stage as fprime_stage;
+use neo_fold_legacy::paper::params::Params;
 use neo_math::{D, F};
 use nightstream_constraint_exporter::{
     export_complete_streaming_lifecycle_problem, export_sparse_problem, sparse_family_census,
@@ -48,9 +48,9 @@ fn lifecycle_source(seed: u64) -> LifecycleFixture {
     )
     .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
-    let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(&params, plan.circuit().structure(), seed);
+    let log = neo_fold_legacy::frontends::direct_ccs::ajtai::setup_seeded(&params, plan.circuit().structure(), seed);
     let preprocessing =
-        neo_fold_clean::lifecycle::preprocess_with_test_log(params, plan.circuit().structure().clone(), log, Some(648))
+        neo_fold_legacy::lifecycle::preprocess_with_test_log(params, plan.circuit().structure().clone(), log, Some(648))
             .expect("verifier-owned lifecycle preprocessing");
     let preprocessing =
         prepare_streaming_lifecycle_preprocessing(preprocessing, &plan).expect("fixed streaming lifecycle policy");

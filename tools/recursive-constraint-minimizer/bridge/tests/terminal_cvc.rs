@@ -2,12 +2,12 @@ use std::collections::BTreeSet;
 
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::frontends::direct_ccs::ajtai;
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
+use neo_fold_legacy::frontends::direct_ccs::ajtai;
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::{
     compile_combined_terminal_r1cs, TerminalR1csInput, TERMINAL_R1CS_FAMILY_NAMES,
 };
-use neo_fold_clean::paper::params::Params;
-use neo_fold_clean::paper::relations::{
+use neo_fold_legacy::paper::params::Params;
+use neo_fold_legacy::paper::relations::{
     superneo_has_canonical_x_shape, superneo_public_x_cols, CcsInstance, CeClaim, WitnessMat,
 };
 use neo_math::{D, F, K};
@@ -17,7 +17,7 @@ use nightstream_constraint_exporter::{
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::{Conclusion, Scope, Selection, SolverConfig, SolverStatus};
 
-#[path = "../../../../crates/neo-fold-clean/tests/support/lean_manifest_fixture.rs"]
+#[path = "../../../../crates/neo-fold-legacy/tests/support/lean_manifest_fixture.rs"]
 mod lean_manifest_fixture;
 use lean_manifest_fixture::{combined_manifest, parse_combined, TEST_AJTAI_SEED};
 
@@ -27,7 +27,7 @@ fn zero_superneo_public_x(m_in: usize) -> Mat<F> {
     x
 }
 
-fn compile_fixture() -> neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::CompiledTerminalR1cs {
+fn compile_fixture() -> neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::CompiledTerminalR1cs {
     let manifest = parse_combined(&combined_manifest()).expect("valid combined manifest");
     let mut public = vec![F::ZERO; manifest.public_carrier_width()];
     public[0] = F::ONE;

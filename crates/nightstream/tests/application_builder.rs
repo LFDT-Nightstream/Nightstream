@@ -3,6 +3,30 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
 #[test]
+fn shared_affine_operations_do_not_expand_the_saved_records() {
+    let mut builder = ApplicationBuilder::new(0).unwrap();
+    let input = builder.input_state();
+    let mut doubled = Affine::from(input[0]);
+    let mut shared = Affine::from(input[1]);
+    for _ in 0..16 {
+        doubled = doubled.clone() + doubled;
+        shared = (shared.clone() + Affine::constant(Goldilocks::ONE)) + shared;
+    }
+    let a = builder.affine(doubled).unwrap();
+    let b = builder.affine(shared).unwrap();
+    let circuit = builder
+        .finish([a.into(), b.into(), input[2].into(), input[3].into()])
+        .unwrap();
+    assert_eq!(circuit.records().row_header(0).unwrap().term_counts, [1, 0, 1]);
+    assert_eq!(circuit.records().row_header(1).unwrap().term_counts, [1, 0, 1]);
+    let witness = circuit.execute([Goldilocks::ONE; 4], &[]).unwrap();
+    assert_eq!(
+        witness.output_state(),
+        [65_536, 131_071, 1, 1].map(Goldilocks::from_u64)
+    );
+}
+
+#[test]
 fn rust_defined_addition_uses_the_same_application_interface() {
     let mut builder = ApplicationBuilder::new(4).unwrap();
     let input = builder.input_state();

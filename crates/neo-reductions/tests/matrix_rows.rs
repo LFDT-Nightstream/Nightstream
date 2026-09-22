@@ -19,6 +19,44 @@ use neo_reductions::{
 };
 use p3_field::PrimeCharacteristicRing;
 
+#[test]
+fn terminal_checks_share_row_reads_and_still_reject_a_false_fresh_witness() {
+    use neo_reductions::superneo_eval::evaluate_terminal_rows;
+    let source = PatternRows::new(5);
+    let shape = source.shape();
+    let point = vec![K::from(F::from_u64(7)); shape.columns.next_power_of_two().ilog2() as usize];
+    let running = vec![SuperneoZBlocks::from_z(&vec![K::ONE; shape.columns])];
+    let fresh = SuperneoZBlocks::from_z(&vec![K::ZERO; shape.columns]);
+    let polynomial = SparsePoly::new(
+        3,
+        vec![Term {
+            coeff: F::ONE,
+            exps: vec![0, 0, 1],
+        }],
+    );
+    let expected = eval_real_v1_1_openings_from_rows(&source, &point, &running, usize::MAX).unwrap();
+    assert_eq!(
+        first_unsatisfied_row_from_rows(&source, &polynomial, &fresh, usize::MAX).unwrap(),
+        None
+    );
+    let separate_visits = source.visits.lock().unwrap().len();
+    source.visits.lock().unwrap().clear();
+    let actual = evaluate_terminal_rows(&source, &point, &running, &polynomial, &fresh, usize::MAX).unwrap();
+    assert_eq!(actual.first_unsatisfied_row, None);
+    for (a, b) in actual.openings.iter().zip(&expected) {
+        assert_eq!(a.eval_k, b.eval_k);
+        assert_eq!(a.eval_a, b.eval_a);
+    }
+    assert_eq!(source.visits.lock().unwrap().len() * 2, separate_visits);
+    let mut false_values = vec![K::ZERO; shape.columns];
+    false_values[2] = K::ONE;
+    let false_fresh = SuperneoZBlocks::from_z(&false_values);
+    let zero_running = vec![SuperneoZBlocks::from_z(&vec![K::ZERO; shape.columns])];
+    let rejected =
+        evaluate_terminal_rows(&source, &point, &zero_running, &polynomial, &false_fresh, usize::MAX).unwrap();
+    assert_eq!(rejected.first_unsatisfied_row, Some(0));
+}
+
 struct PatternRows {
     rows: usize,
     ignore_stop: bool,

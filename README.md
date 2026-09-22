@@ -7,6 +7,10 @@ and protocol transcripts use Poseidon2 only.
 
 Nightstream is not production-ready and has not had an independent audit.
 
+New application integrations use [`nightstream`](crates/nightstream/README.md).
+The previous lifecycle remains in [`neo-fold-legacy`](crates/neo-fold-legacy/README.md)
+for existing consumers and reference. Rust CI tests the maintained `nightstream` crate.
+
 ## Implemented paths
 
 - SuperNeo NIFS: PiCCS, PiRLC, and PiDEC
@@ -28,7 +32,8 @@ direct CCS proofs still require the audit replay path.
 
 | Crate | Ownership |
 |---|---|
-| `neo-fold-clean` | Lifecycle, F', NIFS composition, frontends, and terminal statement |
+| `nightstream` | Application circuits, prepared packages, CPU/Metal proving, and terminal verification |
+| `neo-fold-legacy` | Deprecated lifecycle and frontends retained for existing consumers |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
@@ -55,7 +60,7 @@ The proof format and verifier do not depend on the prover choice.
 ```sh
 cargo build --release
 timeout 300s cargo test -p neo-reductions --release
-timeout 300s cargo test -p neo-fold-clean --release --test nifs_round_trip
+timeout --signal=KILL 300 cargo test -p nightstream --release
 timeout 300s cargo test -p wip-spartan --release
 ```
 

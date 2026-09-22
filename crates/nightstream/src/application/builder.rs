@@ -102,11 +102,17 @@ impl ApplicationBuilder {
     }
 
     pub fn affine(&mut self, value: Affine) -> Result<Variable, ApplicationError> {
+        self.validate(&value, true)?;
+        let value = value.compact_shared();
         let recipe = value.expression.clone();
         self.generate(value, Affine::constant(Goldilocks::ONE), recipe)
     }
 
     pub fn multiply(&mut self, a: Affine, b: Affine) -> Result<Variable, ApplicationError> {
+        self.validate(&a, true)?;
+        self.validate(&b, true)?;
+        let a = a.compact_shared();
+        let b = b.compact_shared();
         let recipe = Arc::new(Expression::Multiply(a.expression.clone(), b.expression.clone()));
         self.generate(a, b, recipe)
     }
@@ -136,6 +142,8 @@ impl ApplicationBuilder {
     fn equality_row(&mut self, left: Affine, right: Affine) -> Result<OutputRow, ApplicationError> {
         self.validate(&left, false)?;
         self.validate(&right, false)?;
+        let left = left.compact_shared();
+        let right = right.compact_shared();
         // This direction preserves the existing Lean direct-recipe lowering.
         let (row, form) = if left.as_variable().is_some() {
             (
@@ -340,8 +348,8 @@ impl ApplicationCircuit {
         values[4..self.generated_start - 4].copy_from_slice(private_inputs);
         for offset in 0..self.records.recipe_count() {
             let row = self.records.recipe_row(offset)?;
-            values[self.generated_start + offset] =
-                self.evaluate(row, ApplicationForm::A, &values)? * self.evaluate(row, ApplicationForm::B, &values)?;
+            let [a, b, _] = self.evaluate_row(row, &values)?;
+            values[self.generated_start + offset] = a * b;
         }
         // All output variables remain zero here. The non-variable lowering's
         // A form is original_expression - output_variable, so it has the same value.
@@ -362,13 +370,24 @@ impl ApplicationCircuit {
             });
         }
         for index in 0..self.row_count() {
-            if self.evaluate(index, ApplicationForm::A, values)? * self.evaluate(index, ApplicationForm::B, values)?
-                != self.evaluate(index, ApplicationForm::C, values)?
-            {
+            let [a, b, c] = self.evaluate_row(index, values)?;
+            if a * b != c {
                 return Err(ApplicationError::UnsatisfiedRow(index));
             }
         }
         Ok(())
+    }
+
+    fn evaluate_row(&self, row: usize, values: &[Goldilocks]) -> Result<[Goldilocks; 3], ApplicationError> {
+        Ok(self
+            .records
+            .evaluate_row(row, |index| {
+                values
+                    .get(index)
+                    .map(PrimeField64::as_canonical_u64)
+                    .ok_or(PackageError::Invalid("application record variable out of scope"))
+            })?
+            .map(Goldilocks::from_u64))
     }
 
     fn evaluate(

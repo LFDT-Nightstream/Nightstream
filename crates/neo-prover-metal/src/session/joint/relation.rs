@@ -5,8 +5,68 @@ use neo_math::{D, F};
 use neo_reductions::superneo_eval::SuperneoZBlocks;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
-use super::{application, joint_term_metadata, nonempty, ApplicationTables, MetalJointMatrixPlan, MetalSession};
+use super::{
+    application, joint_term_metadata, nonempty, ApplicationTables, Buffer, MetalJointMatrixPlan, MetalSession,
+    MetalWitnessMasks,
+};
 use crate::MetalError;
+
+pub(super) struct TerminalRowCheck<'a> {
+    structure: &'a CcsStructure<F>,
+    masks: MetalWitnessMasks,
+    headers: Buffer,
+    variables: Buffer,
+    first_failure: Buffer,
+    rows: u32,
+}
+
+impl TerminalRowCheck<'_> {
+    pub(super) fn workspace_bytes(&self, rows: usize) -> Result<usize, MetalError> {
+        rows.checked_mul(self.structure.t())
+            .and_then(|n| n.checked_mul(size_of::<F>()))
+            .and_then(|n| n.checked_add(3 * size_of::<u64>()))
+            .ok_or(MetalError::Shape("terminal row workspace overflow"))
+    }
+
+    pub(super) fn check_window(
+        &self,
+        session: &MetalSession,
+        plan: &MetalJointMatrixPlan,
+        window: &super::matrix_window::MetalMatrixWindow,
+    ) -> Result<Option<usize>, MetalError> {
+        let tables = session.build_application_from_matrix_window(plan, &self.masks, window)?;
+        self.check_tables(session, &tables, window.rows.start, window.rows.len())
+    }
+
+    fn check_tables(
+        &self,
+        session: &MetalSession,
+        tables: &Buffer,
+        row_start: usize,
+        count: usize,
+    ) -> Result<Option<usize>, MetalError> {
+        let shape =
+            session.buffer_from_slice(&[count as u64, self.structure.f.terms().len() as u64, row_start as u64])?;
+        let command = session.command_buffer("nightstream.terminal.relation")?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&session.ccs_first_unsatisfied_row);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(tables), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&self.headers), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&self.variables), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&self.first_failure), 0, 4);
+        }
+        session.dispatch(&encoder, &session.ccs_first_unsatisfied_row, count);
+        encoder.endEncoding();
+        session.finish(&command)?;
+        let first = session.read_buffer::<u32>(&self.first_failure, 1)[0];
+        if first > self.rows {
+            return Err(MetalError::Execution("terminal row result exceeds the relation".into()));
+        }
+        Ok((first < self.rows).then_some(first as usize))
+    }
+}
 
 impl MetalSession {
     pub(crate) fn first_unsatisfied_row(
@@ -36,6 +96,38 @@ impl MetalSession {
         witness: &Mat<F>,
         workspace: Option<usize>,
     ) -> Result<Option<usize>, MetalError> {
+        let check = self.prepare_terminal_row_check(plan, structure, witness)?;
+        let reserved = ApplicationTables::scratch_bytes(plan, 1)? + 3 * size_of::<u64>();
+        let budget = application::available_workspace(self, reserved).min(workspace.unwrap_or(usize::MAX));
+        let row_bytes = plan
+            .matrix_count
+            .checked_mul(size_of::<F>())
+            .filter(|&n| n > 0)
+            .ok_or(MetalError::Shape("terminal matrix row size overflow"))?;
+        let capacity = (budget / row_bytes).min(plan.rows);
+        if capacity == 0 {
+            return Err(MetalError::MemoryLimit {
+                requested: row_bytes,
+                allocated: 0,
+                limit: budget,
+            });
+        }
+        for row_start in (0..plan.rows).step_by(capacity) {
+            let count = capacity.min(plan.rows - row_start);
+            // Exact verification never uses the prover's satisfied-row substitution.
+            let tables = self.build_joint_application_window(plan, &check.masks, 1, count, row_start)?;
+            if let Some(row) = check.check_tables(self, &tables, row_start, count)? {
+                return Ok(Some(row));
+            }
+        }
+        Ok(None)
+    }
+    pub(super) fn prepare_terminal_row_check<'a>(
+        &self,
+        plan: &MetalJointMatrixPlan,
+        structure: &'a CcsStructure<F>,
+        witness: &Mat<F>,
+    ) -> Result<TerminalRowCheck<'a>, MetalError> {
         if structure.n != plan.rows
             || structure.m.div_ceil(D) != plan.blocks
             || structure.t() != plan.matrix_count
@@ -62,48 +154,14 @@ impl MetalSession {
         let headers = self.buffer_from_slice(nonempty(&headers))?;
         let variables = self.buffer_from_slice(nonempty(&variables))?;
         let first_failure = self.buffer_from_slice(&[rows])?;
-        let reserved = ApplicationTables::scratch_bytes(plan, 1)? + 3 * size_of::<u64>();
-        let budget = application::available_workspace(self, reserved).min(workspace.unwrap_or(usize::MAX));
-        let row_bytes = plan
-            .matrix_count
-            .checked_mul(size_of::<F>())
-            .filter(|&n| n > 0)
-            .ok_or(MetalError::Shape("terminal matrix row size overflow"))?;
-        let capacity = (budget / row_bytes).min(plan.rows);
-        if capacity == 0 {
-            return Err(MetalError::MemoryLimit {
-                requested: row_bytes,
-                allocated: 0,
-                limit: budget,
-            });
-        }
-        for row_start in (0..plan.rows).step_by(capacity) {
-            let count = capacity.min(plan.rows - row_start);
-            // Exact verification never uses the prover's satisfied-row substitution.
-            let tables = self.build_joint_application_window(plan, &masks, 1, count, row_start)?;
-            let shape = self.buffer_from_slice(&[count as u64, structure.f.terms().len() as u64, row_start as u64])?;
-            let command = self.command_buffer("nightstream.terminal.relation")?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.ccs_first_unsatisfied_row);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&tables), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&headers), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&variables), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&first_failure), 0, 4);
-            }
-            self.dispatch(&encoder, &self.ccs_first_unsatisfied_row, count);
-            encoder.endEncoding();
-            self.finish(&command)?;
-            let first = self.read_buffer::<u32>(&first_failure, 1)[0];
-            if first > rows {
-                return Err(MetalError::Execution("terminal row result exceeds the relation".into()));
-            }
-            if first < rows {
-                return Ok(Some(first as usize));
-            }
-        }
-        Ok(None)
+        Ok(TerminalRowCheck {
+            structure,
+            masks,
+            headers,
+            variables,
+            first_failure,
+            rows,
+        })
     }
 }
 

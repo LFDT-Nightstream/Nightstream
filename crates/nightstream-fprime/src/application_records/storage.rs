@@ -190,6 +190,14 @@ pub(super) struct Reader {
 }
 
 impl Reader {
+    pub(super) fn tail(&self, offset: u64) -> Result<BufReader<Cursor<'_>>, PackageError> {
+        let bytes = self
+            .length
+            .checked_sub(offset)
+            .ok_or(PackageError::Invalid("application record offset exceeds file"))?;
+        self.cursor(offset, bytes)
+    }
+
     #[cfg(test)]
     pub(super) fn rejects_writes(&self) -> bool {
         #[cfg(unix)]
@@ -264,65 +272,87 @@ pub(super) fn read_word(input: &mut (impl Read + ?Sized)) -> Result<u64, Package
     Ok(u64::from_le_bytes(word))
 }
 
-/// Recipe evaluation keeps its continuation stack on disk, independent of depth.
+/// A buffered continuation stack. Its resident block follows the standard
+/// library I/O buffer policy; only deeper frames spill to the private file.
 pub(super) struct RecipeStack {
     file: File,
     _reader: File,
     _cleanup: Cleanup,
-    len: u64,
+    spilled: u64,
+    frames: Vec<[u64; 3]>,
+    block_frames: usize,
 }
 
 impl RecipeStack {
     pub(super) fn new() -> Result<Self, PackageError> {
         let (file, reader, cleanup) = private_file()?;
+        let block_frames = (BufReader::new(&file).capacity() / size_of::<[u64; 3]>()).max(1);
         Ok(Self {
             file,
             _reader: reader,
             _cleanup: cleanup,
-            len: 0,
+            spilled: 0,
+            frames: Vec::with_capacity(block_frames),
+            block_frames,
         })
     }
 
     pub(super) fn reset(&mut self) {
-        // Reuse file slots from zero, including after a failed evaluation.
-        // The file retains only the greatest stack depth reached so far.
-        self.len = 0;
+        self.spilled = 0;
+        self.frames.clear();
     }
 
     pub(super) fn push(&mut self, frame: [u64; 3]) -> Result<(), PackageError> {
-        let offset = self
-            .len
-            .checked_mul(3 * size_of::<u64>() as u64)
-            .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
-        self.file.seek(SeekFrom::Start(offset))?;
-        let mut encoded = [0; 3 * size_of::<u64>()];
-        for (word, value) in encoded.chunks_exact_mut(size_of::<u64>()).zip(frame) {
-            word.copy_from_slice(&value.to_le_bytes());
+        if self.frames.len() == self.block_frames {
+            let offset = self
+                .spilled
+                .checked_mul(size_of::<[u64; 3]>() as u64)
+                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+            let next = self
+                .spilled
+                .checked_add(self.frames.len() as u64)
+                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+            let bytes: Vec<_> = self
+                .frames
+                .iter()
+                .flatten()
+                .flat_map(|word| word.to_le_bytes())
+                .collect();
+            self.file.seek(SeekFrom::Start(offset))?;
+            self.file.write_all(&bytes)?;
+            self.spilled = next;
+            self.frames.clear();
         }
-        self.file.write_all(&encoded)?;
-        self.len = self
-            .len
-            .checked_add(1)
-            .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+        self.frames.push(frame);
         Ok(())
     }
 
     pub(super) fn pop(&mut self) -> Result<Option<[u64; 3]>, PackageError> {
-        if self.len == 0 {
-            return Ok(None);
+        if self.frames.is_empty() && self.spilled != 0 {
+            let count = self.spilled.min(self.block_frames as u64) as usize;
+            let start = self.spilled - count as u64;
+            let offset = start
+                .checked_mul(size_of::<[u64; 3]>() as u64)
+                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+            self.file.seek(SeekFrom::Start(offset))?;
+            let mut bytes = vec![0; count * size_of::<[u64; 3]>()];
+            self.file.read_exact(&mut bytes)?;
+            self.frames
+                .extend(bytes.chunks_exact(size_of::<[u64; 3]>()).map(|frame| {
+                    std::array::from_fn(|index| {
+                        u64::from_le_bytes(
+                            frame[index * 8..index * 8 + 8]
+                                .try_into()
+                                .expect("complete stack word"),
+                        )
+                    })
+                }));
+            self.spilled = start;
         }
-        self.len -= 1;
-        self.file
-            .seek(SeekFrom::Start(self.len * 3 * size_of::<u64>() as u64))?;
-        let mut encoded = [0; 3 * size_of::<u64>()];
-        self.file.read_exact(&mut encoded)?;
-        Ok(Some(std::array::from_fn(|index| {
-            let start = index * size_of::<u64>();
-            u64::from_le_bytes(
-                encoded[start..start + size_of::<u64>()]
-                    .try_into()
-                    .expect("complete stack word"),
-            )
-        })))
+        Ok(self.frames.pop())
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/recipe_stack.rs"]
+mod tests;

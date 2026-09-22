@@ -371,6 +371,26 @@ impl MetalSession {
         let table_count = fresh_count
             .checked_mul(plan.matrix_count)
             .ok_or(MetalError::Shape("one-joint application table count overflow"))?;
+        let output = self.zero_application_table(table_count, n_eff)?;
+
+        let reserved = table_bytes(table_count, 12, size_of::<u64>())?;
+        let mut next_row = row_start;
+        while next_row < valid_end {
+            let window = self.load_matrix_window(plan, next_row..valid_end, reserved)?;
+            self.fill_application_from_matrix_window(
+                plan,
+                masks,
+                fresh_count,
+                row_start..row_start + n_eff,
+                &window,
+                &output,
+            )?;
+            next_row = window.rows.end;
+            drop(window);
+        }
+        Ok(output)
+    }
+    fn zero_application_table(&self, table_count: usize, n_eff: usize) -> Result<Buffer, MetalError> {
         let bytes = table_bytes(table_count, n_eff, size_of::<u64>())?;
         let output = self.buffer(bytes)?;
         let command = self.command_buffer("nightstream.pi_ccs.joint.application.zero")?;
@@ -383,55 +403,69 @@ impl MetalSession {
         drop(encoder);
         drop(command);
 
-        let reserved = table_bytes(table_count, 12, size_of::<u64>())?;
-        let mut next_row = row_start;
-        while next_row < valid_end {
-            let window = self.load_matrix_window(plan, next_row..valid_end, reserved)?;
-            let local_rows = window.rows.end - window.rows.start;
-            let command = self.command_buffer("nightstream.pi_ccs.joint.application")?;
-            let mut resources = Vec::new();
-            for source in 0..fresh_count.min(masks.stored_witnesses()) {
-                for (matrix_index, matrix) in window.matrices.iter().enumerate() {
-                    let shape = self.buffer_from_slice(&[
-                        local_rows as u64,
-                        plan.blocks as u64,
-                        plan.rows as u64,
-                        n_eff as u64,
-                        source as u64,
-                        (source * plan.matrix_count + matrix_index) as u64,
-                        matrix.row_offset_width,
-                        u64::from(matrix.identity),
-                        masks.magnitudes() as u64,
-                        matrix.geometric_row_offset_width,
-                        window.rows.start as u64,
-                        (window.rows.start - row_start) as u64,
-                    ])?;
-                    let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                    encoder.setComputePipelineState(&self.joint_build_application_tables);
-                    unsafe {
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-                        encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
-                        encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
-                        encoder.setBuffer_offset_atIndex(Some(&output), 0, 9);
-                        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
-                    }
-                    self.dispatch(&encoder, &self.joint_build_application_tables, local_rows);
-                    encoder.endEncoding();
-                    resources.push(shape);
-                }
-            }
-            self.finish(&command)?;
-            next_row = window.rows.end;
-            drop(command);
-            drop(resources);
-            drop(window);
-        }
         Ok(output)
+    }
+
+    pub(super) fn build_application_from_matrix_window(
+        &self,
+        plan: &MetalJointMatrixPlan<'_>,
+        masks: &MetalWitnessMasks,
+        window: &super::matrix_window::MetalMatrixWindow,
+    ) -> Result<Buffer, MetalError> {
+        let output = self.zero_application_table(plan.matrix_count, window.rows.len())?;
+        self.fill_application_from_matrix_window(plan, masks, 1, window.rows.clone(), window, &output)?;
+        Ok(output)
+    }
+
+    fn fill_application_from_matrix_window(
+        &self,
+        plan: &MetalJointMatrixPlan<'_>,
+        masks: &MetalWitnessMasks,
+        fresh_count: usize,
+        output_rows: std::ops::Range<usize>,
+        window: &super::matrix_window::MetalMatrixWindow,
+        output: &Buffer,
+    ) -> Result<(), MetalError> {
+        let local_rows = window.rows.end - window.rows.start;
+        let command = self.command_buffer("nightstream.pi_ccs.joint.application")?;
+        let mut resources = Vec::new();
+        for source in 0..fresh_count.min(masks.stored_witnesses()) {
+            for (matrix_index, matrix) in window.matrices.iter().enumerate() {
+                let shape = self.buffer_from_slice(&[
+                    local_rows as u64,
+                    plan.blocks as u64,
+                    plan.rows as u64,
+                    output_rows.len() as u64,
+                    source as u64,
+                    (source * plan.matrix_count + matrix_index) as u64,
+                    matrix.row_offset_width,
+                    u64::from(matrix.identity),
+                    masks.magnitudes() as u64,
+                    matrix.geometric_row_offset_width,
+                    window.rows.start as u64,
+                    (window.rows.start - output_rows.start) as u64,
+                ])?;
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setComputePipelineState(&self.joint_build_application_tables);
+                unsafe {
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
+                    encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
+                    encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
+                    encoder.setBuffer_offset_atIndex(Some(output), 0, 9);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
+                }
+                self.dispatch(&encoder, &self.joint_build_application_tables, local_rows);
+                encoder.endEncoding();
+                resources.push(shape);
+            }
+        }
+        self.finish(&command)?;
+        Ok(())
     }
 }

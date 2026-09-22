@@ -15,7 +15,7 @@ use super::{
     PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs, PreparedLifecycle,
 };
 use crate::folding::transcript::Transcript;
-use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, Params, RunningInstance};
+use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, RunningInstance};
 
 /// Caller-supplied state coordinates. Construction assigns no authority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,8 +47,6 @@ impl Stage1State {
 pub enum StepInputError {
     #[error("selected Stage 1 caller input: {0}")]
     Input(&'static str),
-    #[error(transparent)]
-    Parameters(#[from] neo_params::ParamsError),
     #[error(transparent)]
     Nifs(#[from] nifs::Error),
     #[error(transparent)]
@@ -151,16 +149,11 @@ impl PreparedLifecycle {
                 "running child or parent frame differs from the prior state hash",
             ));
         }
-        let params = Params::for_ccs_shape(
-            self.structure.n,
-            self.structure.m,
-            self.structure.t(),
-            self.structure.max_degree(),
-        )?;
+        let params = &self.params;
         let mut transcript = Transcript::session();
         let mut next_running = nifs::verify(
             &mut transcript,
-            &params,
+            params,
             &self.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,

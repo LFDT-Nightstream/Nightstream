@@ -5,9 +5,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
-use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot};
-use neo_fold_clean::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
+use neo_fold_legacy::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_legacy::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot};
+use neo_fold_legacy::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
 use neo_math::F;
 use nightstream_constraint_exporter::{refine_sparse_with_cvc5, refine_with_cvc5, ExportRequest};
 use p3_field::PrimeCharacteristicRing;

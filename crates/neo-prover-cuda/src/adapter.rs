@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use cuda_core::CudaContext;
-use neo_fold_clean::paper::nifs::{Error, NifsProof, NifsProverAdapter, NifsProverRequest};
-use neo_fold_clean::RunningInstance;
+use neo_fold_legacy::paper::nifs::{Error, NifsProof, NifsProverAdapter, NifsProverRequest};
+use neo_fold_legacy::RunningInstance;
 
 use crate::CANONICAL_KERNEL_UNAVAILABLE as MISSING_KERNEL;
 

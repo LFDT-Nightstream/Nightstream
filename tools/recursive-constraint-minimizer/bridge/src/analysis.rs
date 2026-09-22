@@ -1,8 +1,8 @@
 //! Fail-closed fixed-point family analysis.
 
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::TerminalR1csConstraintAudit;
+use neo_fold_legacy::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::TerminalR1csConstraintAudit;
 use neo_math::F;
 use recursive_constraint_minimizer::{
     derive_scalar_certificate, validate_scalar_certificate, Conclusion, ScalarCertificate, Scope, Selection,

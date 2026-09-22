@@ -13,7 +13,7 @@ workspace = true
 
 [features]
 default = ["legacy-adapter"]
-legacy-adapter = ["dep:neo-fold-clean"]
+legacy-adapter = ["dep:neo-fold-legacy"]
 # CUDA backend. Build and run through `cargo +nightly-2026-04-03 oxide` only;
 # plain cargo builds must keep this feature off so the workspace stays green
 # without a GPU or the cuda-oxide codegen backend.
@@ -21,8 +21,8 @@ cuda = [
     "dep:cuda-core",
 ]
 # Per-phase stderr timings, following the workspace perf-timers convention.
-perf-timers = ["neo-fold-clean?/perf-timers"]
+perf-timers = ["neo-fold-legacy?/perf-timers"]
 
 [dependencies]
 cuda-core = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8", optional = true }
-neo-fold-clean = { path = "../neo-fold-clean", optional = true }
+neo-fold-legacy = { path = "../neo-fold-legacy", optional = true }

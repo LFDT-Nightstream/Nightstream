@@ -423,6 +423,18 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
+        self.execute_witness_with_application(private_inputs, public_values, None)
+    }
+
+    fn execute_witness_with_application(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+        application_values: Option<&[Goldilocks]>,
+    ) -> Result<WitnessAssignment, PackageError> {
+        if application_values.is_some() && self.native_application.is_none() {
+            return Err(PackageError::Invalid("precomputed values require a native application"));
+        }
         if private_inputs.len() != self.private_input_count() {
             return Err(PackageError::Invalid("private input length"));
         }
@@ -485,7 +497,10 @@ impl LoadedPackage {
                     let right = eval_sparse_combination(&instruction.b, &assignment);
                     assignment[instruction.target] = left * right;
                 }
-                ScheduledAssignment::Application(application) => application.execute_recipes(&mut assignment)?,
+                ScheduledAssignment::Application(application) => match application_values {
+                    Some(values) => application.apply_values(values, &mut assignment)?,
+                    None => application.execute_recipes(&mut assignment)?,
+                },
             }
         }
         self.check_assertions(&assignment)?;

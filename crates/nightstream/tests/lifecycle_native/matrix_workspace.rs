@@ -145,7 +145,7 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     drop(bytes);
     let binding = loaded.production_verifier_binding().unwrap();
     let mut package =
-        PreparedLifecycle::from_package(loaded.into(), binding, crate::engine::Backend::Optimized).unwrap();
+        PreparedLifecycle::from_package(loaded.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
     assert_eq!(
         package.structure.n,
         dimension(manifest.geometry.logical_rows, manifest.reference),

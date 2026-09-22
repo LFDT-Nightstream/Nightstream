@@ -78,7 +78,7 @@ impl Fixture {
         let n = matrices[0].len();
         let rows = Rows { n, matrices };
         let structure = Structure::new_verifier_artifact_header(n, D + 1, rows.matrices.len(), polynomial).unwrap();
-        let params = Params::for_ccs_shape(n, D + 1, structure.t(), structure.max_degree()).unwrap();
+        let params = Params::for_ccs_shape(n, D + 1, structure.t(), structure.max_degree(), 114).unwrap();
         let mut cache = SuperneoEvalCacheBuilder::new(n, D + 1, structure.t()).unwrap();
         for row in 0..n {
             for matrix in 0..structure.t() {

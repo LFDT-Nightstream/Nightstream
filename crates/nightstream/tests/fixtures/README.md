@@ -50,7 +50,9 @@ The assembly test also compares the complete raw application plan, including
 duplicate sparse terms and witness expression order. A separate test compares
 the complete assembled package value with the selected saved reference.
 
-The following links expose existing recorded outputs to package-local tests:
+The Lean entries below are links to retained exports. The three Stage 1 Rust
+fixtures are independent copies, so tests do not need the legacy crate. Their
+recorded source paths retain the historical name at the source commit:
 
 | Package path | Recorded source |
 | --- | --- |

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::ops::Range;
 
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::{
     TerminalR1csConstraintAudit, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES,
     TERMINAL_STATEMENT_GUARD_NAMES,
 };

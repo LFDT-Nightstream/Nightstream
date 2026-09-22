@@ -384,6 +384,29 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
+    /// Evaluate all three forms from one sequential row read.
+    pub fn evaluate_row(
+        &self,
+        row: usize,
+        mut value: impl FnMut(usize) -> Result<u64, PackageError>,
+    ) -> Result<[u64; 3], PackageError> {
+        let mut input = self.data.tail(self.row_offset(row)?)?;
+        let mut values = [Goldilocks::ZERO; 3];
+        let mut counts = [0; 3];
+        for form in 0..3 {
+            values[form] = canonical(read_word(&mut input)?)?;
+            counts[form] = index(read_word(&mut input)?)?;
+        }
+        for form in 0..3 {
+            for _ in 0..counts[form] {
+                let variable = index(read_word(&mut input)?)?;
+                let coefficient = canonical(read_word(&mut input)?)?;
+                values[form] += coefficient * canonical(value(variable)?)?;
+            }
+        }
+        Ok(values.map(|value| value.as_canonical_u64()))
+    }
+
     pub fn evaluate_form(
         &self,
         row: usize,

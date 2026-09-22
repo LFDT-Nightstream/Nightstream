@@ -36,8 +36,8 @@
 //! initial semantic-state digest.
 
 use neo_ccs::{CcsMatrix, CscMat};
-use neo_fold_clean::frontends::direct_ccs::FrontendError;
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_legacy::frontends::direct_ccs::FrontendError;
+use neo_fold_legacy::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 

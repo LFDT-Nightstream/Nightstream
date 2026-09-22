@@ -4,7 +4,7 @@
 //! only the prover-side choice between optimized CPU, PaperExact, Metal, and
 //! CUDA.
 
-use neo_fold_clean::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver, PaperExactNifsProver};
+use neo_fold_legacy::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver, PaperExactNifsProver};
 
 use crate::nebula::{prove_with_nifs_adapter, WasmNebulaError, WasmNebulaPreprocessing, WasmNebulaProof};
 use crate::WasmVmStep;
@@ -197,7 +197,7 @@ impl WasmProver {
 fn is_backend_error(error: &WasmNebulaError) -> bool {
     match error {
         WasmNebulaError::Chain(error) => match error {
-            neo_fold_clean::frontends::nebula::NebulaFPrimeChainError::Lifecycle(error) => {
+            neo_fold_legacy::frontends::nebula::NebulaFPrimeChainError::Lifecycle(error) => {
                 is_lifecycle_backend_error(error)
             }
             _ => false,
@@ -207,8 +207,8 @@ fn is_backend_error(error: &WasmNebulaError) -> bool {
     }
 }
 
-fn is_lifecycle_backend_error(error: &neo_fold_clean::lifecycle::Error) -> bool {
-    use neo_fold_clean::{
+fn is_lifecycle_backend_error(error: &neo_fold_legacy::lifecycle::Error) -> bool {
+    use neo_fold_legacy::{
         engine::optimized,
         lifecycle,
         paper::{construction2, nifs, pi_ccs, pi_dec, pi_rlc},

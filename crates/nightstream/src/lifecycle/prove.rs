@@ -1,7 +1,7 @@
 //! Selected native proof construction from the prepared relation.
 use super::PreparedLifecycle;
 use crate::engine::{paper_exact, Backend};
-use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, Params, RunningInstance};
+use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, RunningInstance};
 use neo_math::D;
 use nightstream_fprime::{
     PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_1_SOURCE_COUNT, PI_DEC_V1_1_CHILD_COUNT,
@@ -15,8 +15,6 @@ pub enum ProveError {
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error(transparent)]
-    Parameters(#[from] neo_params::ParamsError),
-    #[error(transparent)]
     Nifs(#[from] nifs::Error),
 }
 impl PreparedLifecycle {
@@ -26,12 +24,7 @@ impl PreparedLifecycle {
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
         self.validate_prover_sources(&fresh, &running)?;
-        let params = Params::for_ccs_shape(
-            self.structure.n,
-            self.structure.m,
-            self.structure.t(),
-            self.structure.max_degree(),
-        )?;
+        let params = &self.params;
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();
         let workspace_bytes = self.matrix_workspace_bytes()?;
@@ -45,7 +38,7 @@ impl PreparedLifecycle {
                 crate::engine::metal::prove(
                     &mut device,
                     &mut transcript,
-                    &params,
+                    params,
                     &self.structure,
                     &rows,
                     workspace_bytes,
@@ -55,7 +48,7 @@ impl PreparedLifecycle {
             }
             Backend::Optimized => nifs::prove_owned_with_rows(
                 &mut transcript,
-                &params,
+                params,
                 &self.structure,
                 &rows,
                 workspace_bytes,
@@ -64,7 +57,7 @@ impl PreparedLifecycle {
             )?,
             Backend::PaperExact => paper_exact::prove(
                 &mut transcript,
-                &params,
+                params,
                 &self.structure,
                 &paper_exact::PackageRows(&self.package),
                 fresh,
@@ -72,7 +65,7 @@ impl PreparedLifecycle {
             )?,
             Backend::Crosscheck => crate::engine::crosscheck::prove(
                 &mut transcript,
-                &params,
+                params,
                 &self.structure,
                 &rows,
                 workspace_bytes,

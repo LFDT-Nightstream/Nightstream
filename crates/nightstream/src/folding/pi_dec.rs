@@ -130,7 +130,7 @@ pub fn verify(
     parent: &CeClaim,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    validate_verifier_inputs(pp, s, parent, proof)?;
     let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
     if !ok {
         return Err(Error::VerifyRejected);
@@ -138,13 +138,7 @@ pub fn verify(
     Ok(proof.children.clone())
 }
 
-fn validate_verifier_inputs(
-    pp: &Params,
-    s: &Structure,
-    combine: DecMixer,
-    parent: &CeClaim,
-    proof: &Proof,
-) -> Result<(), Error> {
+fn validate_verifier_inputs(pp: &Params, s: &Structure, parent: &CeClaim, proof: &Proof) -> Result<(), Error> {
     validate_child_count(pp, proof.children.len())?;
     validate_fold_digest_canonical("parent", parent)?;
     for child in &proof.children {
@@ -156,7 +150,6 @@ fn validate_verifier_inputs(
     validate_child_x_low_norm(pp, &proof.children)?;
     validate_evaluation_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
-    let _ = combine;
     if parent.adv.is_some() || proof.children.iter().any(|c| c.adv.is_some()) {
         return Err(Error::Auxiliary);
     }

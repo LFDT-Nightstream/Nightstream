@@ -91,6 +91,23 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
         actual
     };
     assert_eq!(compare(&structure, &witness), None);
+    let point = vec![K::from_coeffs([F::from_u64(3), F::ONE]); rows.next_power_of_two().ilog2() as usize];
+    let running = [witness.clone()];
+    let expected_openings = session
+        .eval_joint_dec_openings(&plan, &running, &point, columns)
+        .unwrap()
+        .unwrap();
+    let actual = session
+        .evaluate_terminal_rows(&plan, &structure, &running, &point, &witness)
+        .unwrap();
+    let mut wrong_point = point.clone();
+    wrong_point.push(K::ONE);
+    assert!(session
+        .evaluate_terminal_rows(&plan, &structure, &running, &wrong_point, &witness)
+        .is_err());
+    assert_eq!(actual.first_unsatisfied_row, None);
+    assert_eq!(actual.openings[0].eval_k, expected_openings[0].eval_k);
+    assert_eq!(actual.openings[0].eval_a, expected_openings[0].eval_a);
     witness[(0, 1)] = -F::ONE;
     assert!(compare(&structure, &witness).is_some_and(|row| row > 0));
     witness[(0, 1)] = F::ONE;
@@ -108,6 +125,14 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
         }],
     );
     assert_eq!(compare(&structure, &witness), Some(0));
+    let zero_running = [Mat::virtual_constant(D, columns.div_ceil(D), F::ZERO)];
+    assert_eq!(
+        session
+            .evaluate_terminal_rows(&plan, &structure, &zero_running, &point, &witness)
+            .unwrap()
+            .first_unsatisfied_row,
+        Some(0)
+    );
     let before = session.activity().dispatches;
     witness[(0, 0)] = F::from_u64(2);
     assert!(session

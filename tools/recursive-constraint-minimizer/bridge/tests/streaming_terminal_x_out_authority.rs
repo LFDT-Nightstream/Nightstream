@@ -5,9 +5,9 @@ use std::fmt::Write as _;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use neo_fold_clean::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder};
-use neo_fold_clean::frontends::nebula::f_prime::STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS;
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
+use neo_fold_legacy::engine::r1cs_circuit::{enforce_poseidon2_permutation, R1csBuilder};
+use neo_fold_legacy::frontends::nebula::f_prime::STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS;
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::{
     streaming_terminal_x_out_authority_audit, STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
 };
 use neo_math::F;

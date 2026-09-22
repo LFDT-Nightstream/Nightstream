@@ -101,6 +101,34 @@ impl MetalRowProver {
             Err(oracle_error(MetalError::Unavailable))
         }
     }
+
+    /// Compute running openings and check the fresh relation while each
+    /// original matrix window remains loaded. Both operations run on Metal.
+    pub fn evaluate_terminal_rows(
+        &mut self,
+        rows: &dyn MatrixRows,
+        workspace_bytes: usize,
+        structure: &CcsStructure<F>,
+        running: &[Mat<F>],
+        point: &[K],
+        fresh: &Mat<F>,
+    ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, PiCcsError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            let plan = self
+                .session
+                .prepare_joint_matrix_plan(rows, workspace_bytes)
+                .map_err(oracle_error)?;
+            self.session
+                .evaluate_terminal_rows(&plan, structure, running, point, fresh)
+                .map_err(oracle_error)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (rows, workspace_bytes, structure, running, point, fresh);
+            Err(oracle_error(MetalError::Unavailable))
+        }
+    }
 }
 
 impl PaperJointOracleBackend for MetalRowProver {

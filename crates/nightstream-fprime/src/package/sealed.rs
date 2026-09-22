@@ -406,6 +406,23 @@ impl LoadedPerApplicationPackage {
             .execute_witness(encoded.private_values(), encoded.public_values())
     }
 
+    /// Reuse application values already computed by the caller. Inputs and
+    /// outputs must match the frame, and all circuit assertions are checked.
+    pub fn execute_stage1_v1_1_witness_with_application_values(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+        application_values: &[Goldilocks],
+    ) -> Result<WitnessAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.circuit.execute_witness_with_application(
+            encoded.private_values(),
+            encoded.public_values(),
+            Some(application_values),
+        )
+    }
+
     /// Decode the PiCCS output segments through this verifier-owned package.
     pub fn pi_ccs_v1_1_output_evaluations(
         &self,

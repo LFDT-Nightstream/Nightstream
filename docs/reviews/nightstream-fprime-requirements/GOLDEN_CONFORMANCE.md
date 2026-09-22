@@ -5,7 +5,8 @@ Status: active. This record belongs to `nico/golden-conformance`.
 The goal is reproducible local conformance checks for the existing
 Nightstream Goldilocks profile (`b = 2`, `k_rho = 16`, `B = 65536`). The
 engineering target is at least 9/10 confidence for the selected CPU–Lean
-first-fold and recursive cases. This rating is not a cryptographic security
+1→2→3 sequence: the first fold and one recursive fold, with their complete
+input connection. This rating is not a cryptographic security
 bound. At the owner's request, CI enforcement and Metal validation are out
 of scope. Neither is an acceptance criterion or a pending blocker.
 
@@ -22,9 +23,19 @@ of scope. Neither is an acceptance criterion or a pending blocker.
 - Run current CPU code for the selected first-fold and recursive cases.
 - Run the staged checks locally with recorded source, build and input
   identities. Missing selected artifacts or failed phases must fail the run.
-- Independently generate the exact first-fold expectation and complete the
-  registered recursive loop. Each producer uses its own successor as its
-  next input. Rust expected outputs never produce Lean expected values.
+- Independently generate the exact 1→2 expectation and connect its complete
+  successor to the inputs of the completed independent 2→3 fold. Compare
+  all 17 source witnesses and their public values, package and context,
+  state and message request, carried parent, all 17 successor digest frames,
+  caller C/R/D links and the public input consumed by the retained C replay.
+  A digest match alone does not establish this input connection.
+- Check final-state-3 terminal acceptance and the `ce-evaluation`,
+  `ce-matrix-evaluation` and `fresh-private` rejections. Rust expected outputs
+  never produce Lean expected values.
+
+The registered `fresh-recursive-loop` obligation requires the broader
+2→3→4 replay. It remains open; completion of this selected 1→2→3 goal does
+not close that obligation. A third independent fold is not required here.
 
 ## Execution rules
 
@@ -100,7 +111,8 @@ authorize a new run. Historical results retain their original scope.
   its longest Lean child took 1,220.85 seconds and its longest Python child
   took 23.50 seconds, within their 1,500- and 300-second caps. The comparison
   target is the newly generated native iteration-3 result. Direct complete
-  current CPU3 comparisons remain pending. Receipts and exact counts are in
+  current CPU3 comparisons were not completed and are now outside this goal.
+  Receipts and exact counts are in
   `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_C`.
 - Independent iteration-3 R and digit generation passed for both ranges.
   The R comparison with this continuation's native parent passed for all
@@ -148,14 +160,22 @@ authorize a new run. Historical results retain their original scope.
   The new driver started at 07:42:53 UTC. `d-pad-15-worktree` passed in
   30.946 seconds with the original command and 1,500-second cap. At the
   07:45:27 UTC snapshot, commitment and pad batches 0–16 had passed.
-  D generation is continuing. All earlier counts and failures remain dated
-  records; neither complete D3 nor independent first-fold generation is
-  claimed. The JSON record links the audit, driver identity and new receipts.
-- Independent first-fold generation is implemented but has not run. The
-  remaining D work for 3→4, successor generation, final terminal checks and
-  direct current CPU3 comparisons are incomplete. The full independent
-  2→3→4 sequence is still incomplete.
-  The 9/10 target is not yet complete.
+  D generation continued after that snapshot. All earlier counts and failures
+  remain dated records. The JSON record links the audit, driver identity and
+  new receipts.
+- At 07:53:12 UTC on 2026-09-22, the owner selected 1→2→3 with the complete
+  input connection. The owned third-fold guard was stopped with `SIGTERM`;
+  its interrupted receipt is retained. This was an owner scope change, not
+  a proof or data failure. Remaining 3→4 production and comparisons are no
+  longer acceptance criteria. `third-fold-owner-stop.json` records the stop.
+- Final-state-3 terminal acceptance and both CE evaluation rejections pass.
+  The `fresh-private` rejection is still being checked. The
+  prepared `selected_123.py` driver and `bridge_first_second.py` helper cover
+  first-fold generation, full current CPU1 comparisons, the complete input
+  connection, and final-state-3 checks. Their results will be recorded in
+  `independent-1-2-3-result.json` and `first-second-input-bridge/result.json`.
+  Independent first-fold generation and the input connection have not yet
+  passed. The selected 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
 source versions, exact comparison scope and failures will be recorded here

@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C, R and digit generation from Lean's own successor. Iteration-3 R and digit comparisons with the continuation native targets passed; the prior digit guard failure remains recorded. Iteration-2 C is retained imported computation. Independent first-fold generation, remaining independent 3-to-4 D work, successor, final terminal checks, direct complete current CPU3 comparisons and protected external reproduction remain separate and pending.",
+  "scope": "Selected local CPU–Lean conformance goal: independent 1-to-2 and 2-to-3 folds with the complete input connection and final-state-3 terminal checks. Archive restoration, current CPU staged execution, fresh Lean verifier checks, complete CPU/Lean handoff comparisons, and independent iteration-2 C/R/D and successor comparisons have passed; iteration-2 C is retained computation under its source/input audit. Independent first-fold generation and the complete first-successor input connection remain pending. Third-fold work is retained as historical evidence and was stopped by owner instruction. The broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -558,7 +558,7 @@
       "bytes_compared": 579873475,
       "scope": "Exact current CPU child file bytes equal the retained targets checked against new independent Lean digit ranges."
     },
-    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. This does not complete independent first-fold generation or the full independent 2-to-3-to-4 successor and feedback sequence."
+    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. The selected 1-to-2-to-3 goal still needs first-fold independent generation, the complete input connection and final-state-3 terminal checks. This does not close the broader registered 2-to-3-to-4 obligation."
   },
   "independent_iteration_2_successor": {
     "outcome": "passed",
@@ -656,9 +656,9 @@
       "mode": "feedback",
       "public_bytes": 470997,
       "source_bytes": 731303596,
-      "scope": "Prepared iteration-3 inputs from the newly generated Lean successor. The next independent fold and final terminal checks remain pending."
+      "scope": "Historical preparation of iteration-3 inputs from the newly generated Lean successor. Independent 3-to-4 production is outside the selected 1-to-2-to-3 goal."
     },
-    "scope": "Completed 2-to-3 successor generation, canonical-row and rejection checks, current CPU comparisons, and preparation of Lean's own iteration-3 input. First-fold independent generation and the complete 2-to-3-to-4 sequence are not complete."
+    "scope": "Completed 2-to-3 successor generation, canonical-row and rejection checks, current CPU comparisons, and historical preparation of Lean iteration-3 input. The selected goal requires the complete input connection from independently generated 1-to-2 and final-state-3 terminal checks; it does not require a third independent fold."
   },
   "independent_iteration_3_C": {
     "outcome": "passed",
@@ -737,9 +737,9 @@
     },
     "comparison_target": {
       "native_generation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-native.json",
-      "scope": "Freshly generated native iteration-3 target in this continuation. Direct complete comparisons with cpu-current-fixed/fold-3 remain pending."
+      "scope": "Freshly generated native iteration-3 target in this continuation. Direct complete comparisons with cpu-current-fixed/fold-3 were not completed and are outside the selected goal."
     },
-    "scope": "Completed new independent iteration-3 C generation and comparison. Remaining iteration-3 D work, successor, final terminal checks and direct complete current CPU3 comparisons remain pending; neither the full independent 2-to-3-to-4 sequence nor first-fold independent generation is complete."
+    "scope": "Historical completed independent iteration-3 C generation and comparison. Remaining 3-to-4 production and comparison are outside the owner-selected 1-to-2-to-3 goal. The broader registered 2-to-3-to-4 obligation is not closed."
   },
   "independent_iteration_3_reductions": {
     "outcome": "running",
@@ -783,7 +783,7 @@
       "cap_seconds": 300,
       "coefficients_compared": 253011276,
       "tail_mutation_rejected": true,
-      "scope": "Complete typed field comparison with this continuation native-parent/parent-witness.json. Direct current CPU3 comparison remains pending."
+      "scope": "Complete typed field comparison with this continuation native-parent/parent-witness.json. Direct current CPU3 comparison was not completed and is outside the selected goal."
     },
     "digit_comparison": {
       "outcome": "passed",
@@ -797,7 +797,7 @@
       "blocks_compared": 4685394,
       "coefficients_compared": 4048180416,
       "tail_mutation_rejected": true,
-      "scope": "The same original command and cap compare all typed child coefficients against this continuation native-material target. Direct current CPU3 comparison remains pending.",
+      "scope": "The same original command and cap compare all typed child coefficients against this continuation native-material target. Direct current CPU3 comparison was not completed and is outside the selected goal.",
       "previous_attempt": {
         "outcome": "guard_rejected_before_checker_launch",
         "receipt": "digits-comparison.json",
@@ -810,7 +810,7 @@
         "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
       }
     },
-    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation resumed under the sealed per-worktree source transition; complete D3, successor, final terminal and direct current CPU3 comparisons remain pending. First-fold independent generation has not run.",
+    "scope": "Historical independent iteration-3 R and digit generation and both comparisons with continuation native targets. D generation resumed under the per-worktree source transition, then the owner stopped third-fold work. Remaining D3, successor, terminal-state-4 and current CPU3 comparisons are outside the selected goal; completed receipts remain unchanged.",
     "continuation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.json",
     "D_generation": {
       "outcome": "interrupted",
@@ -843,7 +843,7 @@
         "elapsed_seconds": 967.488341890974,
         "scope": "The external driver waited on observed build processes before each new guarded child; the third shared-host guard rejection still occurred."
       },
-      "continuation_requirement": "The earlier stop is preserved as a dated snapshot. The per-worktree source transition is sealed and the new resume is recorded in execution_policy_update.new_resume; other worktrees do not need to pause.",
+      "continuation_requirement": "None for the selected goal: the owner stopped the third independent fold and selected 1-to-2-to-3 with the complete input connection and final-state-3 terminal checks.",
       "scope": "The 31 listed Lean stages passed. The guard stopped pad batch 15 before producer launch. Remaining D proof generation is incomplete; no mathematical mismatch is recorded.",
       "previous_attempt": {
         "outcome": "interrupted",
@@ -1049,9 +1049,11 @@
   "owner_scope": {
     "CI_enforcement": "out_of_scope",
     "reason": "Owner excluded CI enforcement because of its execution cost and separately excluded Metal validation. Actual CI, required workflows and other-engine execution are not acceptance criteria or pending blockers.",
-    "retained_requirements": "Local/manual reproducible current CPU–Lean checks, source/input custody, archive restoration, completion of the independent replay, and C/R/D acceptance and rejection checks.",
+    "retained_requirements": "Local/manual reproducible current CPU–Lean checks, source/input custody, archive restoration, independent 1-to-2 and completed 2-to-3 with their complete input connection, and final-state-3 terminal acceptance and rejections.",
     "Metal_validation": "out_of_scope",
-    "confidence_target": "At least 9/10 conformance confidence for the selected CPU–Lean first-fold and recursive cases; not a cryptographic security bound."
+    "confidence_target": "At least 9/10 conformance confidence for the selected CPU–Lean 1-to-2-to-3 sequence; not a cryptographic security bound.",
+    "third_independent_fold": "out_of_scope",
+    "broader_registered_obligation": "fresh-recursive-loop remains open; this selected goal does not close its 2-to-3-to-4 execution requirement."
   },
   "execution_policy_update": {
     "owner_clarification": "One Lean or Rust build process at a time per worktree. The earlier host-wide interpretation was wrong.",
@@ -1140,7 +1142,7 @@
       "digest_scope": "File custody only; no mathematical comparison authority."
     },
     "new_resume": {
-      "outcome": "running",
+      "outcome": "stopped_by_owner",
       "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-events.jsonl",
       "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-step-3-reductions.log",
       "started_utc": "2026-09-22T07:42:53.320314Z",
@@ -1155,8 +1157,94 @@
       "passed_commitment_batches_at_snapshot": 17,
       "passed_pad_batches_at_snapshot": 17,
       "snapshot_receipts": "Commitment and pad indices 0 through 16; pad 3 uses d-pad-3-after-queue.json and pad 15 uses d-pad-15-worktree.json. All receipts are under the existing iteration-3 logs directory.",
-      "scope": "Live continuation after the source transition. Full D3, remaining 3-to-4 work and independent first-fold generation are not complete."
+      "scope": "Historical continuation after the source transition, intentionally stopped by owner instruction at 07:53:12 UTC on 2026-09-22. Snapshot counts remain unchanged; no complete D3 result or mathematical failure is claimed.",
+      "owner_stop_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/third-fold-owner-stop.json"
     },
-    "scope": "Per-worktree execution-policy correction, private Rust build validation, sealed source transition and resumed D generation. Earlier failed runs retain their dated counts and receipts. Complete D3 and independent first-fold generation remain pending; CI and Metal remain outside the owner-approved scope."
+    "scope": "Per-worktree execution-policy correction, private Rust build validation and sealed source transition remain in effect. Resumed third-fold generation was stopped by owner instruction. All dated counts and failed receipts are preserved. CI and Metal remain out of scope."
+  },
+  "selected_1_to_2_to_3": {
+    "outcome": "incomplete",
+    "selected_iterations": [
+      1,
+      2,
+      3
+    ],
+    "independent_folds": [
+      "1-to-2",
+      "2-to-3"
+    ],
+    "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected_123.py",
+    "driver_status": "prepared; final review and execution are not claimed by this record",
+    "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
+    "first_fold_generation": "pending",
+    "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",
+    "complete_input_connection": {
+      "outcome": "pending",
+      "helper": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/bridge_first_second.py",
+      "expected_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/first-second-input-bridge/result.json",
+      "required_checks": [
+        "Exact complete public.json and sources.jsonl projections from all 17 first-successor witnesses match both original retained inputs and the sources consumed by iteration 2.",
+        "Complete package bytes and selected verifier context.",
+        "Full state, message and next-input request.",
+        "Complete carried R parent and all 17 successor digest frames.",
+        "Caller links to C/R/D acceptance, point, public values and outgoing transcript states.",
+        "Exact public input consumed by the retained C replay."
+      ],
+      "digest_scope": "File custody only; digest agreement does not replace complete value comparisons."
+    },
+    "final_terminal": {
+      "iteration": 3,
+      "outcome": "incomplete",
+      "recorded_utc": "2026-09-22T08:13:55.451202+00:00",
+      "passed_checks": [
+        {
+          "case": "accepted",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-accepted.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-accepted.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 245.67641282081604
+        },
+        {
+          "case": "ce-evaluation",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-evaluation.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-evaluation.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 245.80553460121155
+        },
+        {
+          "case": "ce-matrix-evaluation",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-matrix-evaluation.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-matrix-evaluation.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 243.7867259979248
+        }
+      ],
+      "remaining_rejections": [
+        "fresh-private"
+      ],
+      "scope": "Acceptance and both CE evaluation rejections are recorded here. The fresh-private rejection remains pending; terminal completion is not claimed."
+    },
+    "third_fold_owner_stop": {
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/third-fold-owner-stop.json",
+      "at_utc": "2026-09-22T07:53:12.715641+00:00",
+      "failed_driver_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-failed-20260922T075312.788702Z.json",
+      "signal": "SIGTERM",
+      "stopped_stage": "d-commitment-25",
+      "classification": "Intentional stop after owner scope change, not a proof or data failure.",
+      "scope": "Only the owned third-fold guard was stopped. Completed outputs and historical failures remain unchanged."
+    },
+    "broader_registered_obligation": "fresh-recursive-loop remains open and retains its 2-to-3-to-4 requirement.",
+    "CI_execution": "out_of_scope_by_owner",
+    "Metal_execution": "out_of_scope_by_owner",
+    "protected_acceptance": "not claimed",
+    "driver_preparation": {
+      "stub_tests_passed": 10,
+      "driver_sha256": "76f1745cceac6610a76dcccc40204361a069844bfdea2aa209305bac57b68101",
+      "helper_sha256": "5d22182e30e768e35e7229fe9f2469fc699709625e9e4d6ad77e0ea51b7a1fed",
+      "digest_scope": "File custody only; no execution or comparison completion is implied."
+    }
   }
 }

@@ -34,8 +34,9 @@ is part of this task.
 
 Each native test invocation has an outer 300-second cap. Each Lean command
 uses `formal/nightstream-fprime/scripts/validate.sh` and an outer 1,500-second
-cap. Use one build/execution queue. The current production RSS guard is
-16 GiB, as recorded in `NIGHTSTREAM_CRATE_GOAL.md`; old exceptions do not
+cap. Use one build/execution queue per worktree. Other worktrees can run
+their own builds with separate writable build outputs. The current production
+RSS guard is 16 GiB, as recorded in `NIGHTSTREAM_CRATE_GOAL.md`; old exceptions do not
 authorize a new run. Historical results retain their original scope.
 
 ## Current work
@@ -121,11 +122,23 @@ authorize a new run. Historical results retain their original scope.
   `d-pad-15` before launch because another `lake` process was active. The
   queued driver exited with status 1. This was the third build-queue conflict,
   despite waiting before each child command; no mathematical mismatch was
-  recorded. All previous failure receipts remain intact. Execution is stopped
-  and needs an exclusive or coordinated build queue before continuation.
-  No fourth retry was launched, under the formal project's three-round
+  recorded. All previous failure receipts remain intact. At that point,
+  execution stopped under the formal project's then-current three-round
   stop-and-report rule. The JSON record identifies the queued driver, its
   custody hash, completed batches and failed receipt.
+- The owner clarified that build serialization applies per worktree. The
+  earlier host-wide interpretation was wrong; other worktrees do not need
+  to pause. Commit `3ddf6eb9` records this scope and changes the formal
+  stop-and-report rule to five rounds. Commit `48da0896` scopes the guard's
+  lock and process checks to the canonical worktree; all 13 focused tests
+  pass. Caps and command restrictions are unchanged. This task now has a
+  private Rust target: 5,532 regular files were checked, with no shared file
+  inodes or symlinks into the original target. The checker bytes match, and
+  its release build passed in 0.213 seconds under the 300-second cap.
+  `private-rust-target.json` and `private-rust-build.json` in the run directory
+  record these checks. The explicit source transition and new resume remain
+  pending. This policy and build update adds no prover-generation result;
+  the completed iteration-3 D counts remain 16 commitments and 15 pads.
 - Independent first-fold generation is implemented but has not run. The
   remaining D work for 3→4, successor generation, final terminal checks and
   direct current CPU3 comparisons are incomplete. The full independent

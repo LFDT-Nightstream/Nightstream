@@ -843,7 +843,7 @@
         "elapsed_seconds": 967.488341890974,
         "scope": "The external driver waited on observed build processes before each new guarded child; the third shared-host guard rejection still occurred."
       },
-      "continuation_requirement": "An exclusive or coordinated build queue is needed. No fourth retry was launched under formal/nightstream-fprime/AGENTS.md: three rounds without closure, stop and report.",
+      "continuation_requirement": "Resume with the per-worktree guard and private Rust target after the explicit source transition is reviewed. Source transition and new resume remain pending. Other worktrees do not need to pause.",
       "scope": "The 31 listed Lean stages passed. The guard stopped pad batch 15 before producer launch. Remaining D proof generation is incomplete; no mathematical mismatch is recorded.",
       "previous_attempt": {
         "outcome": "interrupted",
@@ -861,7 +861,8 @@
         "continuation_exit": 1,
         "continuation_failed_utc": "2026-09-22T06:50:30.684049Z",
         "scope": "The seven listed Lean stages passed. The guard stopped the next stage before launch; remaining D generation is incomplete."
-      }
+      },
+      "historical_stop_policy": "The third guard rejection stopped continuation under the then-current three-round stop-and-report rule. All three failed child receipts remain unchanged."
     }
   },
   "preserved_failures": [
@@ -1050,5 +1051,67 @@
     "retained_requirements": "Local/manual reproducible current CPU–Lean checks, source/input custody, archive restoration, completion of the independent replay, and C/R/D acceptance and rejection checks.",
     "Metal_validation": "out_of_scope",
     "confidence_target": "At least 9/10 conformance confidence for the selected CPU–Lean first-fold and recursive cases; not a cryptographic security bound."
+  },
+  "execution_policy_update": {
+    "owner_clarification": "One Lean or Rust build process at a time per worktree. The earlier host-wide interpretation was wrong.",
+    "formal_policy_commit": "3ddf6eb9",
+    "formal_stop_and_report_rounds": 5,
+    "guard_commit": "48da0896",
+    "guard_scope": "Lock identity uses the canonical checkout root. The process check rejects active Lean or Rust processes whose resolved working directory is within that worktree.",
+    "focused_validation": {
+      "outcome": "passed",
+      "tests": 13,
+      "elapsed_seconds": 0.195,
+      "outer_cap_seconds": 300,
+      "scope": "Same-worktree lock exclusion and process rejection; different-worktree lock and process independence; symlink scope; process cwd lookup; unchanged caps and command restrictions."
+    },
+    "caps_and_command_restrictions": "unchanged",
+    "private_Rust_target": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-target.json",
+      "source_release_directory": "/home/nicoarq/develop/Nightstream/target/release",
+      "private_release_directory": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target/release",
+      "regular_files_checked": 5532,
+      "shared_file_inodes": false,
+      "symlinks_into_source_target": false,
+      "checker_bytes_equal": true,
+      "checker_sha256": "501b86f1dcdc7e78dfbef4280a3e8265599ad92ae40ecff7ce0023df538d2657",
+      "digest_scope": "file custody only; no protocol authority",
+      "reason": "Owner clarified builds are serial within each worktree; this task uses independent writable Rust build files."
+    },
+    "private_Rust_build": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-build.json",
+      "argv": [
+        "timeout",
+        "--signal=TERM",
+        "300s",
+        "python3",
+        "-B",
+        "/home/nicoarq/.codex/worktrees/8421/Nightstream/scripts/lean_graph/guard.py",
+        "--kind",
+        "rust",
+        "--cwd",
+        "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+        "--",
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.21336851106025279,
+      "cap_seconds": 300,
+      "target_directory": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target",
+      "guard_source_commit": "48da0896",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-build.log"
+    },
+    "source_transition": "pending",
+    "new_resume": "pending",
+    "scope": "Execution-policy correction and private build validation only. No new prover generation or comparison is claimed. Iteration-3 D remains at 16 passed commitment batches and 15 passed pad batches; all historical failed receipts remain unchanged."
   }
 }

@@ -8,7 +8,7 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F, K};
-use neo_reductions::superneo_eval::SuperneoEvalCache;
+use neo_reductions::superneo_eval::{eval_real_v1_1_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -48,7 +48,8 @@ pub struct Proof {
 pub(crate) fn prove_with_production_key(
     pp: &Params,
     s: &Structure,
-    cache: &SuperneoEvalCache,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
     parent: &CeClaim,
     parent_witness: Mat<F>,
 ) -> Result<(Children, Proof), Error> {
@@ -60,7 +61,12 @@ pub(crate) fn prove_with_production_key(
         || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
         || blocks == 0
         || blocks > PRODUCTION_MESSAGE_COLUMNS as usize
-        || cache.relation_shape() != Some((s.n, blocks * D, s.t()))
+        || rows.shape()
+            != (MatrixShape {
+                rows: s.n,
+                columns: blocks * D,
+                matrices: s.t(),
+            })
     {
         return Err(engine::Error::from(neo_reductions::PiCcsError::InvalidInput(
             "selected PiDEC production key or row-cache shape mismatch".into(),
@@ -77,6 +83,14 @@ pub(crate) fn prove_with_production_key(
     // The split owns every coefficient needed by commitments and openings.
     drop(parent_witness);
     let commitments = commit_production_signed_unit_prefix_matrices(&digits).map_err(|error| error.into_error())?;
+    let blocks = digits
+        .iter()
+        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(engine::Error::from)?;
+    let openings =
+        eval_real_v1_1_openings_from_rows(rows, &parent.r, &blocks, workspace_bytes).map_err(engine::Error::from)?;
+    drop(blocks);
     let (children, ok_y, ok_x, ok_c) =
         neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             neo_reductions::api::FoldingMode::Optimized,
@@ -88,9 +102,9 @@ pub(crate) fn prove_with_production_key(
             D.next_power_of_two().trailing_zeros() as usize,
             &commitments,
             ajtai_dec_mixer,
-            Some(cache),
             None,
             None,
+            Some(&openings),
         );
     if children.is_empty() {
         return Err(engine::Error::PiDecFailed.into());
@@ -116,7 +130,7 @@ pub fn verify(
     parent: &CeClaim,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    validate_verifier_inputs(pp, s, parent, proof)?;
     let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
     if !ok {
         return Err(Error::VerifyRejected);
@@ -124,13 +138,7 @@ pub fn verify(
     Ok(proof.children.clone())
 }
 
-fn validate_verifier_inputs(
-    pp: &Params,
-    s: &Structure,
-    combine: DecMixer,
-    parent: &CeClaim,
-    proof: &Proof,
-) -> Result<(), Error> {
+fn validate_verifier_inputs(pp: &Params, s: &Structure, parent: &CeClaim, proof: &Proof) -> Result<(), Error> {
     validate_child_count(pp, proof.children.len())?;
     validate_fold_digest_canonical("parent", parent)?;
     for child in &proof.children {
@@ -142,7 +150,6 @@ fn validate_verifier_inputs(
     validate_child_x_low_norm(pp, &proof.children)?;
     validate_evaluation_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
-    let _ = combine;
     if parent.adv.is_some() || proof.children.iter().any(|c| c.adv.is_some()) {
         return Err(Error::Auxiliary);
     }

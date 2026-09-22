@@ -6,12 +6,16 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
+#[path = "application.rs"]
+mod application;
+
 use super::prefix::{self, Assignment};
 use crate::engines::pi_ccs_joint::{gamma_power, range_product, JointDims};
 use crate::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_1OutputOpening};
 use crate::engines::pi_ccs_protocol::Challenges;
-use crate::superneo_eval::{fill_combined_projection, EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
+use crate::superneo_eval::{fill_combined_projection, EqualityWeights, MatrixRows, SuperneoZBlocks};
 use crate::PiCcsError;
+use application::ApplicationTables;
 
 // The production call uses offset zero. An offset preserves absolute tensor
 // indices for a separately stored contiguous input range.
@@ -51,7 +55,8 @@ fn norm_coefficients(
 
 pub struct OptimizedPaperJointOracle<'a> {
     structure: &'a CcsStructure<F>,
-    cache: &'a SuperneoEvalCache,
+    source: &'a dyn MatrixRows,
+    workspace_bytes: usize,
     base: u32,
     challenges: Challenges,
     dims: JointDims,
@@ -59,7 +64,7 @@ pub struct OptimizedPaperJointOracle<'a> {
     fixed_equality: K,
     prior_point: Option<Vec<K>>,
     fixed_prior_equality: K,
-    fresh_tables: Vec<Vec<Vec<K>>>,
+    fresh_tables: ApplicationTables,
     assignments: Vec<Assignment<'a>>,
     witness_blocks: Vec<SuperneoZBlocks>,
     evaluation_table: Vec<K>,
@@ -76,35 +81,14 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         challenges: Challenges,
         prior_point: Option<&[K]>,
         dims: JointDims,
-        cache: &'a super::OptimizedStructureCache,
+        source: &'a dyn MatrixRows,
+        workspace_bytes: usize,
     ) -> Result<Self, PiCcsError> {
-        Self::from_rows(
-            structure,
-            params,
-            fresh,
-            running,
-            challenges,
-            prior_point,
-            dims,
-            cache.superneo(),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn from_rows(
-        structure: &'a CcsStructure<F>,
-        params: &neo_params::NeoParams,
-        fresh: &'a [CcsWitness<F>],
-        running: &'a [Mat<F>],
-        challenges: Challenges,
-        prior_point: Option<&[K]>,
-        dims: JointDims,
-        cache: &'a SuperneoEvalCache,
-    ) -> Result<Self, PiCcsError> {
+        let shape = source.shape();
         if !challenges.has_expected_dimension(dims.variables)
             || running.is_empty() != prior_point.is_none()
             || prior_point.is_some_and(|point| point.len() != dims.variables)
-            || cache.relation_shape() != Some((structure.n, dims.assignment_width, structure.t()))
+            || (shape.rows, shape.columns, shape.matrices) != (structure.n, dims.assignment_width, structure.t())
             || structure.f.eval(&vec![F::ZERO; structure.t()]) != F::ZERO
         {
             return Err(PiCcsError::InvalidInput("optimized CPU oracle input shape".into()));
@@ -122,38 +106,19 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             .iter()
             .map(|source| Assignment::new(source, dims.assignment_width))
             .collect::<Vec<_>>();
-        let mut fresh_tables = Vec::with_capacity(fresh.len());
-        for blocks in witness_blocks.iter().take(fresh.len()) {
-            let table = |matrix: &crate::superneo_eval::SuperneoMatrixCache| {
-                if matrix.compact_device_parts().is_some_and(|parts| {
-                    !parts.identity && parts.row_blocks.is_empty() && parts.geometric_runs.is_empty()
-                }) && !matrix.has_compact_seeded_phi81_blocks()
-                {
-                    return Vec::new();
-                }
-                let mut values = vec![F::ZERO; structure.n];
-                matrix.fill_row_dots_base_with_blocks(&mut values, blocks);
-                while values.last().is_some_and(|value| *value == F::ZERO) {
-                    values.pop();
-                }
-                values.into_iter().map(K::from).collect()
-            };
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let tables = cache.matrix_caches().par_iter().map(table).collect();
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let tables = cache.matrix_caches().iter().map(table).collect();
-            fresh_tables.push(tables);
-        }
+        let fresh_tables = ApplicationTables::new(source, &witness_blocks[..fresh.len()], workspace_bytes)?;
         let evaluation_table = carried_table(
-            cache,
+            source,
             &witness_blocks[fresh.len()..],
             challenges.gamma,
             dims,
             structure.n,
-        );
+            workspace_bytes,
+        )?;
         Ok(Self {
             structure,
-            cache,
+            source,
+            workspace_bytes,
             base: params.b,
             challenges: challenges.clone(),
             dims,
@@ -169,71 +134,15 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         })
     }
 
-    fn matrix_coefficients(&self, points: &[K], weights: &EqualityWeights) -> Vec<K> {
-        let pairs = self
-            .fresh_tables
-            .iter()
-            .flatten()
-            .map(|table| table.len().div_ceil(2))
-            .max()
-            .unwrap_or(0);
-        let evaluate = |mut state: (Vec<K>, Vec<K>), index| {
-            let weight = weights.at(index);
-            for (output, &point) in state.0.iter_mut().zip(points) {
-                for (source, tables) in self.fresh_tables.iter().enumerate() {
-                    for (value, table) in state.1.iter_mut().zip(tables) {
-                        let (low, high) = prefix::pair(table, index);
-                        *value = prefix::interpolate(low, high, point);
-                    }
-                    // Skip zero factors just as the sparse polynomial does
-                    // algebraically; this is important for the active prefix.
-                    let polynomial: K = self
-                        .structure
-                        .f
-                        .terms()
-                        .iter()
-                        .map(|term| {
-                            let mut value = K::from(term.coeff);
-                            for (&coordinate, &exponent) in state.1.iter().zip(&term.exps) {
-                                if exponent == 0 {
-                                    continue;
-                                }
-                                if coordinate == K::ZERO {
-                                    return K::ZERO;
-                                }
-                                for _ in 0..exponent {
-                                    value *= coordinate;
-                                }
-                            }
-                            value
-                        })
-                        .sum();
-                    *output += weight * gamma_power(self.challenges.gamma, source) * polynomial;
-                }
-            }
-            state
-        };
-        let initial = || (vec![K::ZERO; points.len()], vec![K::ZERO; self.structure.t()]);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        {
-            (0..pairs)
-                .into_par_iter()
-                .fold(initial, evaluate)
-                .map(|state| state.0)
-                .reduce(
-                    || vec![K::ZERO; points.len()],
-                    |mut left, right| {
-                        for (left, right) in left.iter_mut().zip(right) {
-                            *left += right;
-                        }
-                        left
-                    },
-                )
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            (0..pairs).fold(initial(), evaluate).0
-        }
+    fn matrix_coefficients(&mut self, points: &[K], weights: &EqualityWeights) -> Result<Vec<K>, PiCcsError> {
+        self.fresh_tables.evals_at(
+            self.source,
+            &self.witness_blocks[..self.fresh_tables.fresh_count()],
+            &self.structure.f,
+            self.challenges.gamma,
+            points,
+            weights,
+        )
     }
 
     fn norm_coefficients(&self, weights: &EqualityWeights) -> [K; 4] {
@@ -285,7 +194,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             return Err(PiCcsError::InvalidInput("completed optimized CPU oracle".into()));
         }
         let weights = EqualityWeights::new(&self.challenges.alpha[round + 1..]);
-        let matrix = self.matrix_coefficients(points, &weights);
+        let matrix = self.matrix_coefficients(points, &weights)?;
         let norm = if self.base == 2 {
             self.norm_coefficients(&weights)
         } else {
@@ -316,7 +225,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
                     + self.constraint_shift
                         * self.fixed_equality
                         * equality
-                        * (matrix + gamma_power(self.challenges.gamma, self.fresh_tables.len()) * norm)
+                        * (matrix + gamma_power(self.challenges.gamma, self.fresh_tables.fresh_count()) * norm)
             })
             .collect())
     }
@@ -334,9 +243,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         for table in &mut self.assignments {
             table.fold(challenge);
         }
-        for table in self.fresh_tables.iter_mut().flatten() {
-            prefix::fold(table, challenge);
-        }
+        self.fresh_tables.fold(challenge);
         prefix::fold(&mut self.evaluation_table, challenge);
         let alpha = self.challenges.alpha[round];
         self.fixed_equality *= (K::ONE - challenge) * (K::ONE - alpha) + challenge * alpha;
@@ -357,21 +264,27 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         self.assignments.clear();
         self.fresh_tables.clear();
         let storage = core::mem::take(&mut self.evaluation_table);
-        self.cache
-            .eval_real_v1_1_openings_reusing(point, &self.witness_blocks, storage)
-            .map(Some)
+        crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
+            self.source,
+            point,
+            &self.witness_blocks,
+            self.workspace_bytes,
+            storage,
+        )
+        .map(Some)
     }
 }
 
 fn carried_table(
-    cache: &SuperneoEvalCache,
+    source: &dyn MatrixRows,
     running: &[SuperneoZBlocks],
     gamma: K,
     dims: JointDims,
     rows: usize,
-) -> Vec<K> {
+    workspace_bytes: usize,
+) -> Result<Vec<K>, PiCcsError> {
     if running.iter().all(SuperneoZBlocks::is_zero) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let powers = (0..running.len())
         .map(|source| gamma_power(gamma, source))
@@ -384,7 +297,14 @@ fn carried_table(
     let width = dims.assignment_width;
     let mut result = vec![K::ZERO; width.max(rows)];
     fill_combined_projection(running, &powers, &matrix_weights, &mut result[..width]);
-    let matrix = cache.eval_weighted_rows_from_projection(&result[..width], &matrix_coefficients, rows, rows);
+    let mut matrix = vec![K::ZERO; rows];
+    crate::superneo_eval::fill_weighted_rows_from_source(
+        source,
+        &result[..width],
+        &matrix_coefficients,
+        &mut matrix,
+        workspace_bytes,
+    )?;
     let pad_weights = std::array::from_fn(|coefficient| gamma_power(gamma, running.len() * coefficient));
     fill_combined_projection(running, &powers, &pad_weights, &mut result[..width]);
     let matrix_shift = gamma_power(gamma, running.len() * D);
@@ -394,7 +314,7 @@ fn carried_table(
     while result.last().is_some_and(|value| *value == K::ZERO) {
         result.pop();
     }
-    result
+    Ok(result)
 }
 
 #[cfg(test)]

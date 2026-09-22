@@ -12,12 +12,12 @@ workspace = true
 default = ["metal"]
 metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
 cuda = ["dep:neo-prover-cuda", "neo-prover-cuda/cuda"]
-perf-timers = ["neo-fold-clean/perf-timers"]
+perf-timers = ["neo-fold-legacy/perf-timers"]
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
-neo-fold-clean = { path = "../neo-fold-clean" }
+neo-fold-legacy = { path = "../neo-fold-legacy" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-prover-cuda = { path = "../neo-prover-cuda", optional = true }

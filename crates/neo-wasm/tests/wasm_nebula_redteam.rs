@@ -5,8 +5,8 @@ mod common;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use neo_fold_clean::frontends::nebula::application::{MemoryPort, MemoryPortActivation, MemoryPortKind};
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::frontends::nebula::application::{MemoryPort, MemoryPortActivation, MemoryPortKind};
+use neo_fold_legacy::paper::params::Params;
 #[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
 use neo_wasm::layout::{COL_OP_TABLE_ENABLED, COL_STACK_WRITE0_VALUE_LO};
@@ -166,9 +166,9 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             assert_eq!(
                 region.kind(),
                 if declared_memory.is_rom {
-                    neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Rom
+                    neo_fold_legacy::frontends::nebula::application::MemoryRegionKind::Rom
                 } else {
-                    neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Ram
+                    neo_fold_legacy::frontends::nebula::application::MemoryRegionKind::Ram
                 }
             );
         }
@@ -327,7 +327,7 @@ fn wasm_nebula_terminal_only_rejects_earlier_fold_tamper() {
         .data[0] += neo_math::F::ONE;
 
     let mut backend = MetalNifsProver::new().expect("Metal opening verifier");
-    neo_fold_clean::lifecycle::verify_uncompressed_with_opening_backend(
+    neo_fold_legacy::lifecycle::verify_uncompressed_with_opening_backend(
         fixture.prep.inner().preprocessing(),
         &tampered,
         &mut backend,

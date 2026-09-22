@@ -1,0 +1,10 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 12.62s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 2 tests
+test session::joint::opening::tests::geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once ... ok
+test session::joint::opening::tests::compact_openings_match_cpu_across_parallel_and_tiled_lists ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.30s
+

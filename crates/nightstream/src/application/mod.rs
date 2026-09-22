@@ -61,14 +61,6 @@ impl Affine {
         &self.terms
     }
 
-    pub(super) fn evaluate(&self, values: &[Goldilocks]) -> Goldilocks {
-        self.terms
-            .iter()
-            .fold(self.constant, |sum, (variable, coefficient)| {
-                sum + *coefficient * values[variable.0]
-            })
-    }
-
     pub(super) fn as_variable(&self) -> Option<Variable> {
         match self.terms.as_slice() {
             [(variable, coefficient)] if self.constant == Goldilocks::ZERO && *coefficient == Goldilocks::ONE => {
@@ -76,6 +68,27 @@ impl Affine {
             }
             _ => None,
         }
+    }
+
+    // Preserve the saved recipe syntax for trees. Nested shared operations must use
+    // the already canonical coefficients instead of expanding a DAG as a tree.
+    pub(super) fn compact_shared(self) -> Self {
+        if !self.expression.has_nested_shared_operations() {
+            return self;
+        }
+        let expression = self.terms.iter().fold(
+            Arc::new(Expression::Constant(self.constant)),
+            |sum, (variable, coefficient)| {
+                Arc::new(Expression::Add(
+                    sum,
+                    Arc::new(Expression::Multiply(
+                        Arc::new(Expression::Constant(*coefficient)),
+                        Arc::new(Expression::Variable(*variable)),
+                    )),
+                ))
+            },
+        );
+        Self { expression, ..self }
     }
 }
 
@@ -97,19 +110,24 @@ impl Add for Affine {
     fn add(mut self, rhs: Self) -> Self {
         self.expression = Arc::new(Expression::Add(self.expression, rhs.expression));
         self.constant += rhs.constant;
-        self.terms.extend(rhs.terms);
-        self.terms.sort_unstable_by_key(|(variable, _)| *variable);
-        let mut merged: Vec<(Variable, Goldilocks)> = Vec::with_capacity(self.terms.len());
-        for (variable, coefficient) in self.terms {
-            if let Some((last, value)) = merged.last_mut() {
-                if *last == variable {
-                    *value += coefficient;
-                    continue;
+        let mut merged = Vec::with_capacity(self.terms.len() + rhs.terms.len());
+        let mut left = self.terms.into_iter().peekable();
+        let mut right = rhs.terms.into_iter().peekable();
+        while let (Some(&(a, _)), Some(&(b, _))) = (left.peek(), right.peek()) {
+            match a.cmp(&b) {
+                std::cmp::Ordering::Less => merged.push(left.next().unwrap()),
+                std::cmp::Ordering::Greater => merged.push(right.next().unwrap()),
+                std::cmp::Ordering::Equal => {
+                    let (_, coefficient) = left.next().unwrap();
+                    let coefficient = coefficient + right.next().unwrap().1;
+                    if coefficient != Goldilocks::ZERO {
+                        merged.push((a, coefficient));
+                    }
                 }
             }
-            merged.push((variable, coefficient));
         }
-        merged.retain(|(_, coefficient)| *coefficient != Goldilocks::ZERO);
+        merged.extend(left);
+        merged.extend(right);
         self.terms = merged;
         self
     }
@@ -141,26 +159,8 @@ impl Mul<Goldilocks> for Affine {
     }
 }
 
-/// One application constraint, `A(values) * B(values) = C(values)`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct R1csRow {
+struct R1csRow {
     pub(super) a: Affine,
     pub(super) b: Affine,
     pub(super) c: Affine,
-}
-
-impl R1csRow {
-    pub fn a(&self) -> &Affine {
-        &self.a
-    }
-    pub fn b(&self) -> &Affine {
-        &self.b
-    }
-    pub fn c(&self) -> &Affine {
-        &self.c
-    }
-
-    pub(super) fn holds(&self, values: &[Goldilocks]) -> bool {
-        self.a.evaluate(values) * self.b.evaluate(values) == self.c.evaluate(values)
-    }
 }

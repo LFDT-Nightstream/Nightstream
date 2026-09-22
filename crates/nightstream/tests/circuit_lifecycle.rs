@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf, time::Instant};
 
 use nightstream::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
-    Circuit, Engine, State,
+    Circuit, Engine, State, Verifier,
 };
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
@@ -61,15 +61,23 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     let message = message.map(F::from_u64);
     let output = recorded_output.map(F::from_u64);
 
-    let circuit =
-        Circuit::prepare_with_engine(&selected_reference(), poseidon2_hash_chain_v1().unwrap(), engine).unwrap();
-    assert_eq!(circuit.engine(), engine);
+    let circuit = Circuit::compile(&selected_reference(), poseidon2_hash_chain_v1().unwrap()).unwrap();
+    let prover = circuit.prover(engine, 114).unwrap();
+    let verifier = Verifier::from_package(&circuit, engine, 114).unwrap();
+    assert_eq!(prover.engine(), engine);
     eprintln!("poseidon preparation engine={engine:?} elapsed={:?}", started.elapsed());
     let proving = Instant::now();
-    let mut proof = circuit.prove(initial, &message).unwrap();
+    let mut proof = prover.prove(initial, &message).unwrap();
     eprintln!("poseidon base proving elapsed={:?}", proving.elapsed());
     let mut expected = State::new(1, initial, output);
     assert_eq!(proof.state(), &expected);
+
+    assert!(prover.extend(&proof, &message[..3]).is_err());
+    assert_eq!(
+        proof.state(),
+        &expected,
+        "failed extension retains the valid prior proof"
+    );
 
     if recursive {
         let fixture: Value = serde_json::from_slice(
@@ -94,7 +102,7 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
             }
             let extending = Instant::now();
             eprintln!("poseidon public extend step={step} started");
-            proof = circuit.extend(proof, &message).unwrap();
+            proof = prover.extend(&proof, &message).unwrap();
             eprintln!("poseidon public extend step={step} elapsed={:?}", extending.elapsed());
             expected = State::new(step, initial, next);
             assert_eq!(proof.state(), &expected);
@@ -102,11 +110,11 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     }
 
     let verification = Instant::now();
-    circuit.verify(&expected, &proof).unwrap();
+    verifier.verify(&expected, &proof).unwrap();
     eprintln!("poseidon terminal verification elapsed={:?}", verification.elapsed());
     let mut changed_output = expected.current();
     changed_output[0] += F::ONE;
-    assert!(circuit
+    assert!(verifier
         .verify(&State::new(expected.iteration(), initial, changed_output), &proof)
         .is_err());
     eprintln!("poseidon public lifecycle elapsed={:?}", started.elapsed());
@@ -126,18 +134,20 @@ fn rust_addition_base_step_verifies() {
             .unwrap()
             .into();
     }
-    let circuit = Circuit::prepare(&selected_reference(), builder.finish(outputs).unwrap()).unwrap();
+    let circuit = Circuit::compile(&selected_reference(), builder.finish(outputs).unwrap()).unwrap();
+    let prover = circuit.prover(Engine::Optimized, 114).unwrap();
+    let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
     eprintln!("addition preparation elapsed={:?}", started.elapsed());
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let private = [5, 6, 7, 8].map(F::from_u64);
     let expected = State::new(1, initial, [6, 8, 10, 12].map(F::from_u64));
 
     let proving = Instant::now();
-    let proof = circuit.prove(initial, &private).unwrap();
+    let proof = prover.prove(initial, &private).unwrap();
     eprintln!("addition base proving elapsed={:?}", proving.elapsed());
     assert_eq!(proof.state(), &expected);
     let verification = Instant::now();
-    circuit.verify(&expected, &proof).unwrap();
+    verifier.verify(&expected, &proof).unwrap();
     eprintln!("addition terminal verification elapsed={:?}", verification.elapsed());
     eprintln!("addition public lifecycle elapsed={:?}", started.elapsed());
 }

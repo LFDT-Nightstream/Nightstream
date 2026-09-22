@@ -1,0 +1,11 @@
+{
+  "image": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/incremental-count-benchmark-binary",
+  "uuid": "UUID: 89776242-C7BC-32FF-8174-47B117EBFF79 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/incremental-count-benchmark-binary",
+  "profile": "release opt3/fatLTO/codegen1; strip=none",
+  "features": [
+    "metal",
+    "cuda"
+  ],
+  "source_patch": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/incremental-count-source.patch",
+  "new_source_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/incremental-count-new-source.tar.gz"
+}

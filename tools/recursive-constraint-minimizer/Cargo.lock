@@ -371,7 +371,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-fold-clean"
+name = "neo-fold-legacy"
 version = "0.1.0"
 dependencies = [
  "bellpepper-core",
@@ -382,6 +382,7 @@ dependencies = [
  "neo-params",
  "neo-reductions",
  "neo-transcript",
+ "nightstream-fprime",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
  "rand_chacha 0.10.0",
@@ -460,7 +461,7 @@ dependencies = [
  "bincode",
  "neo-ajtai",
  "neo-ccs",
- "neo-fold-clean",
+ "neo-fold-legacy",
  "neo-math",
  "neo-params",
  "p3-field 0.5.3",
@@ -468,6 +469,21 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "nightstream-fprime"
+version = "0.1.0"
+dependencies = [
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-transcript",
+ "p3-field 0.5.3",
+ "p3-goldilocks 0.5.3",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

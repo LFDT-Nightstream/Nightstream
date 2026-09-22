@@ -850,14 +850,15 @@ kernel void fe_weighted_row_table(
     device const ulong *shape [[buffer(9)]],
     device ulong *output [[buffer(10)]],
     device const uint2 *dense_row_blocks [[buffer(11)]],
-    uint row [[thread_position_in_grid]]) {
+    uint local_row [[thread_position_in_grid]]) {
     ulong rows = shape[0];
     ulong n_eff = shape[1];
     ulong n_pad = shape[2];
     ulong offset_width = shape[3];
     bool identity = shape[4] != 0;
     ulong geometric_offset_width = shape[5];
-    if (row >= n_pad) {
+    ulong row = shape[6] + (ulong)local_row;
+    if ((ulong)local_row >= rows || row >= n_pad) {
         return;
     }
     Kx value = Kx{0, 0};
@@ -865,8 +866,8 @@ kernel void fe_weighted_row_table(
         if (identity) {
             value = load_k(qk, row);
         } else {
-            ulong start = compact_row_offset(row_offsets, row, offset_width);
-            ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
+            ulong start = compact_row_offset(row_offsets, local_row, offset_width);
+            ulong end = compact_row_offset(row_offsets, (ulong)local_row + 1, offset_width);
             for (ulong entry = start; entry < end; ++entry) {
                 uint reference = row_blocks[entry];
                 if ((reference & COMPACT_DENSE_BLOCK_TAG) == 0) {
@@ -889,8 +890,8 @@ kernel void fe_weighted_row_table(
                 }
             }
             if (geometric_offset_width != 0) {
-                ulong geometric_start = compact_row_offset(geometric_row_offsets, row, geometric_offset_width);
-                ulong geometric_end = compact_row_offset(geometric_row_offsets, row + 1, geometric_offset_width);
+                ulong geometric_start = compact_row_offset(geometric_row_offsets, local_row, geometric_offset_width);
+                ulong geometric_end = compact_row_offset(geometric_row_offsets, (ulong)local_row + 1, geometric_offset_width);
                 for (ulong run = geometric_start; run < geometric_end; ++run) {
                     ulong packed = geometric_runs[3 * run];
                     ulong column = packed & 0xfffffffful;

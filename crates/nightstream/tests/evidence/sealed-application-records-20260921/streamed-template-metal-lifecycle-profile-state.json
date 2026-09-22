@@ -1,0 +1,17 @@
+{
+  "label": "streamed-template-metal-lifecycle-profile",
+  "engine": "metal",
+  "controller_pid": 1051,
+  "controller_start": "Tue Sep 22 00:14:13 2026",
+  "controller_command": "timeout --signal=KILL 1800 python3 -B /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/profile_streamed_template_lifecycle.py metal streamed-template-metal-lifecycle-profile",
+  "driver_pid": 1053,
+  "deadline_unix_seconds": 1790055853.0,
+  "time_authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap.",
+  "target_command": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary --engine metal --steps 3",
+  "trace_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile.trace",
+  "target_pid": 1066,
+  "target_start": "Tue Sep 22 00:14:15 2026",
+  "recorder_finished": true,
+  "recorder_pid": 1057,
+  "watchdog_pid": 1058
+}

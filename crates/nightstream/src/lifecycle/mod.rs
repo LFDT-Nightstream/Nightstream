@@ -2,17 +2,15 @@
 //! Application witness and output values come from the Rust application owner.
 //! The generated rows and fixed key determine whether those values are accepted.
 
-use crate::engine::{Engine, Prover};
+use crate::engine::{Backend, Engine};
 use crate::folding::{CcsInstance, RunningInstance, Structure};
 use neo_ajtai::nightstream_fprime_setup::{
     authority_words, PRODUCTION_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_math::D;
-use neo_reductions::superneo_eval::SuperneoEvalCache;
 use nightstream_fprime::{LoadedPerApplicationPackage, PackageError, Stage1VerifierBinding};
 #[cfg(test)]
 use nightstream_fprime::{PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, WitnessAssignment};
-use std::sync::{Arc, OnceLock};
 mod base;
 mod complete;
 mod evaluation;
@@ -32,43 +30,50 @@ pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
 pub use verify::VerifyError;
 
 pub struct PreparedLifecycle {
-    package: LoadedPerApplicationPackage,
+    package: std::sync::Arc<LoadedPerApplicationPackage>,
     structure: Structure,
     binding: Stage1VerifierBinding,
-    cache: OnceLock<Arc<SuperneoEvalCache>>,
-    prover: Prover,
+    backend: Backend,
+    params: crate::folding::Params,
 }
 impl PreparedLifecycle {
     pub(crate) fn from_package(
-        package: LoadedPerApplicationPackage,
+        package: std::sync::Arc<LoadedPerApplicationPackage>,
         binding: Stage1VerifierBinding,
-        prover: Prover,
-    ) -> Result<Self, PackageError> {
+        backend: Backend,
+        minimum_security_bits: u32,
+    ) -> Result<Self, super::Error> {
         if package.production_verifier_binding()? != binding {
-            return Err(PackageError::Invalid(
-                "lifecycle binding differs from the prepared relation",
-            ));
+            return Err(PackageError::Invalid("lifecycle binding differs from the prepared relation").into());
         }
         let structure = package.ccs_structure_header()?;
+        let params = crate::folding::Params::for_ccs_shape(
+            structure.n,
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            minimum_security_bits,
+        )?;
         validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
-        if matches!(prover.engine(), Engine::PaperExact | Engine::Crosscheck) {
+        if matches!(backend.engine(), Engine::PaperExact | Engine::Crosscheck) {
             package.validate_all_matrix_rows()?;
         }
         Ok(Self {
             package,
             structure,
             binding,
-            cache: OnceLock::new(),
-            prover,
+            backend,
+            params,
         })
     }
     pub(crate) fn engine(&self) -> Engine {
-        self.prover.engine()
+        self.backend.engine()
     }
     #[cfg(test)]
     pub(crate) fn structure(&self) -> &Structure {
         &self.structure
     }
+    #[cfg(test)]
     pub fn package_identity(&self) -> [u64; 4] {
         self.binding.package_identity()
     }
@@ -84,7 +89,7 @@ impl PreparedLifecycle {
     }
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
-fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
+pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
     if logical_width == 0 || logical_width > PRODUCTION_CARRIER_WIDTH {
         return Err(PackageError::Invalid("logical width exceeds the selected key prefix"));
     }

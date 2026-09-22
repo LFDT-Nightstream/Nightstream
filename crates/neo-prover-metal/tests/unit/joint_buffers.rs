@@ -1,43 +1,89 @@
+use super::opening::tests::matrix_workspace;
 use super::*;
 use neo_ccs::{CcsStructure, SparsePoly};
-use neo_reductions::{engines::pi_ccs_joint::build_joint_dims, superneo_eval::SuperneoEvalCacheBuilder, Challenges};
+use neo_reductions::{
+    engines::pi_ccs_joint::build_joint_dims,
+    superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder},
+    Challenges,
+};
 
-fn empty_matrix(session: &MetalSession) -> (Arc<SuperneoEvalCache>, MetalJointMatrixPlan) {
+fn empty_matrix() -> Arc<SuperneoEvalCache> {
     let mut cache = SuperneoEvalCacheBuilder::new(1, D, 1).unwrap();
     cache.push_row(0, 0, Vec::new()).unwrap();
-    let cache = Arc::new(cache.finish().unwrap());
-    let plan = session
-        .prepare_joint_matrix_plan(Arc::clone(&cache))
-        .unwrap();
-    (cache, plan)
+    Arc::new(cache.finish().unwrap())
 }
 
 #[test]
 fn empty_rows_do_not_read_dummy_offsets() {
     let session = MetalSession::new().unwrap();
-    let (cache, plan) = empty_matrix(&session);
-    assert_eq!(plan.matrices[0].row_offset_width, 0);
+    let cache = empty_matrix();
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace = matrix_workspace(&source, 0..source.shape().rows);
+    let plan = session
+        .prepare_joint_matrix_plan(&source, workspace)
+        .unwrap();
+    let window = session
+        .load_matrix_window(&plan, 0..1, 12 * size_of::<u64>())
+        .unwrap();
+    let matrix = &window.matrices[0];
+    assert_eq!(matrix.row_offset_width, 0);
     // Empty-table buffers carry no entries. Poison them with a plausible
     // nonzero row so an accidental read produces the wrong application value.
     session
-        .write_shared(&plan.matrices[0].row_offsets, &[0u32, 1u32])
+        .write_shared(&matrix.row_offsets, &[0u32, 1u32])
         .unwrap();
-    session
-        .write_shared(&plan.matrices[0].row_blocks, &[0u32])
-        .unwrap();
+    session.write_shared(&matrix.row_blocks, &[0u32]).unwrap();
     let masks = session
         .prepare_witness_digit_masks(&[1, 0], 1, 1, 1, D)
         .unwrap();
-    let table = session
-        .build_joint_application_tables(&plan, &cache, &masks, 1, 1, 1, false)
+    let table = session.buffer(size_of::<u64>()).unwrap();
+    let shape = session
+        .buffer_from_slice(&[
+            1u64,
+            1,
+            1,
+            1,
+            0,
+            0,
+            matrix.row_offset_width,
+            0,
+            1,
+            matrix.geometric_row_offset_width,
+            0,
+            0,
+        ])
         .unwrap();
+    let command = session.command_buffer("test.empty_matrix_offsets").unwrap();
+    let encoder = command.computeCommandEncoder().unwrap();
+    encoder.setComputePipelineState(&session.joint_build_application_tables);
+    unsafe {
+        encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
+        encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
+        encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
+        encoder.setBuffer_offset_atIndex(Some(&table), 0, 9);
+        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
+    }
+    session.dispatch(&encoder, &session.joint_build_application_tables, 1);
+    encoder.endEncoding();
+    session.finish(&command).unwrap();
     assert_eq!(session.read_buffer::<u64>(&table, 1), vec![0]);
 }
 
 #[test]
 fn zero_carried_tables_fit_their_advertised_length() {
     let session = MetalSession::new().unwrap();
-    let (cache, plan) = empty_matrix(&session);
+    let cache = empty_matrix();
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace = matrix_workspace(&source, 0..source.shape().rows);
+    let plan = session
+        .prepare_joint_matrix_plan(&source, workspace)
+        .unwrap();
     let structure = CcsStructure::new_verifier_artifact_header(1, D, 1, SparsePoly::new(1, vec![])).unwrap();
     let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
     let security = params
@@ -65,7 +111,8 @@ fn zero_carried_tables_fit_their_advertised_length() {
         challenges: Challenges::new(point.clone(), K::ONE),
         prior_point: Some(&point),
         dims,
-        cache,
+        rows: &source,
+        workspace_bytes: workspace,
     };
     let count = fresh.len() + running.len();
     let masks = session
@@ -90,8 +137,10 @@ fn application_storage_does_not_reserve_future_rounds() {
             cache.push_row(0, row, Vec::new()).unwrap();
         }
         let cache = Arc::new(cache.finish().unwrap());
+        let source = CachedMatrixRows::new(&cache).unwrap();
+        let workspace = matrix_workspace(&source, 0..source.shape().rows);
         let plan = session
-            .prepare_joint_matrix_plan(Arc::clone(&cache))
+            .prepare_joint_matrix_plan(&source, workspace)
             .unwrap();
         let polynomial = SparsePoly::new(
             1,
@@ -133,12 +182,14 @@ fn application_storage_does_not_reserve_future_rounds() {
             challenges: Challenges::new(point.clone(), K::ONE),
             prior_point: Some(&point),
             dims,
-            cache,
+            rows: &source,
+            workspace_bytes: workspace,
         };
         let before = session.activity().allocated_bytes;
-        let _oracle = MetalPaperJointOracle::new(&session, &plan, input).unwrap();
+        let _oracle = MetalPaperJointOracle::new(&session, plan, input).unwrap();
         bytes.push(session.activity().allocated_bytes - before);
     }
+    // Empty matrices have no row-offset arrays: only two current F values grow.
     assert_eq!(bytes[1] - bytes[0], (2 * size_of::<F>()) as u64);
 }
 
@@ -153,8 +204,10 @@ fn application_row_scratch_does_not_expand_the_carrier() {
             .push_row(0, 0, [(columns - 1, F::from_u64(7))])
             .unwrap();
         let cache = Arc::new(cache.finish().unwrap());
+        let source = CachedMatrixRows::new(&cache).unwrap();
+        let workspace = matrix_workspace(&source, 0..source.shape().rows);
         let plan = session
-            .prepare_joint_matrix_plan(Arc::clone(&cache))
+            .prepare_joint_matrix_plan(&source, workspace)
             .unwrap();
         let mut words = vec![0u64; 2 * blocks];
         words[2 * blocks - 1] = 1 << (D - 1);
@@ -163,7 +216,7 @@ fn application_row_scratch_does_not_expand_the_carrier() {
             .unwrap();
         let before = session.activity().allocated_bytes;
         let table = session
-            .build_joint_application_tables(&plan, &cache, &masks, 1, 1, 1, false)
+            .build_joint_application_tables(&plan, &masks, 1, 1)
             .unwrap();
         bytes.push(session.activity().allocated_bytes - before);
         assert_eq!(

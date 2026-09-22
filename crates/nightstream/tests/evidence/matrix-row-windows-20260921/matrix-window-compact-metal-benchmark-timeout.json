@@ -1,0 +1,11 @@
+{
+  "outcome": "time-cap",
+  "exit": 137,
+  "cap_seconds": 300,
+  "complete": false,
+  "phase_at_cap": "terminal verify",
+  "last_sample_seconds": 299.96730008299346,
+  "maximum_sampled_resident_bytes": 12546441216,
+  "final_native_maximum_resident_bytes": null,
+  "rss_note": "Final peak unavailable after outer timeout; saved samples do not prove final native peak."
+}

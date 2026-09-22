@@ -1,0 +1,11 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 36.99s
+     Running tests/engine_selection.rs (target/release/deps/engine_selection-bfc81db76bb673e4)
+
+running 2 tests
+test unavailable_engines_fail_before_loading_the_circuit ... ok
+test explicit_cpu_selection_keeps_circuit_validation ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

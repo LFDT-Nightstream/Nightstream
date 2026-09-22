@@ -1,0 +1,9 @@
+{
+  "outcome": "passed",
+  "full_start_records_equal": true,
+  "full_finish_records_equal_except_seconds": true,
+  "new_seconds": 264.522361916,
+  "previous_seconds": 290.798678833,
+  "fraction_less_time": 0.09035913444465804,
+  "scope": "Sequential uninstrumented Metal runs; one observation per saved image. No new CPU/Metal ratio inferred."
+}

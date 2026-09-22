@@ -170,7 +170,9 @@ kernel void dec_sparse_ring_partials(
                 uint term = (uint)ctz(positive);
                 positive &= positive - 1;
                 ulong value = forms[((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient - term];
-                value = gl_mul(value, magnitude);
+                if (magnitude != 1) {
+                    value = gl_mul(value, magnitude);
+                }
                 ulong next = positive_lo + value;
                 positive_hi += next < positive_lo;
                 positive_lo = next;
@@ -180,7 +182,9 @@ kernel void dec_sparse_ring_partials(
                 uint term = (uint)ctz(negative);
                 negative &= negative - 1;
                 ulong value = forms[((active - shape[7]) * 2 + component) * RING_DEGREE + coefficient - term];
-                value = gl_mul(value, magnitude);
+                if (magnitude != 1) {
+                    value = gl_mul(value, magnitude);
+                }
                 ulong next = negative_lo + value;
                 negative_hi += next < negative_lo;
                 negative_lo = next;

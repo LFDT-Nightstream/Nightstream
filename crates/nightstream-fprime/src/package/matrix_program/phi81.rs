@@ -1,12 +1,14 @@
 //! Phi81 quotient matrix blocks, with 108 evaluations per complete ring product.
 
+use std::ops::ControlFlow;
+
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::{
-    checked_add, checked_mul, decode_list, exact_array, template, usize_atom, Form, PackageError, RetainedBlock,
-    RowForms, SourceSubstitution,
+    checked_add, checked_mul, decode_list, exact_array, owned_row, template, usize_atom, Form, PackageError,
+    RetainedBlock, RowForms, RowView, SourceSubstitution,
 };
 
 const RING_DEGREE: usize = 54;
@@ -132,60 +134,55 @@ impl Block {
         if ordinal >= self.row_count()? {
             return Err(PackageError::Invalid("Phi81 product row ordinal"));
         }
-        if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("Phi81 one column"));
-        }
-        let descriptor = self.descriptor(ordinal / ROWS_PER_RING)?;
-        let local_row = ordinal % ROWS_PER_RING;
-        self.invocation_rows(logical_width, descriptor, local_row, local_row + 1)?
-            .pop()
-            .ok_or(PackageError::Invalid("Phi81 template row count"))
+        let mut result = None;
+        let _ = self.visit_rows_until(logical_width, ordinal, ordinal + 1, |row| {
+            result = Some(owned_row(row));
+            Ok(ControlFlow::Break(()))
+        })?;
+        result.ok_or(PackageError::Invalid("Phi81 template row count"))
     }
 
-    pub(super) fn visit_rows(
+    pub(super) fn visit_rows_until(
         &self,
         logical_width: usize,
         start: usize,
         end: usize,
-        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
+        mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         if start > end || end > self.row_count()? {
             return Err(PackageError::Invalid("Phi81 product row range"));
         }
         if start == end {
-            return Ok(());
+            return Ok(ControlFlow::Continue(()));
         }
         if self.one_column >= logical_width {
             return Err(PackageError::Invalid("Phi81 one column"));
         }
 
+        let mut scratch = template::RowScratch::default();
         let first_invocation = start / ROWS_PER_RING;
         let last_invocation = (end - 1) / ROWS_PER_RING;
         for invocation in first_invocation..=last_invocation {
             let invocation_start = checked_mul(invocation, ROWS_PER_RING, "Phi81 product row")?;
             let local_start = start.saturating_sub(invocation_start).min(ROWS_PER_RING);
             let local_end = end.saturating_sub(invocation_start).min(ROWS_PER_RING);
-            self.visit_invocation_rows(logical_width, invocation, local_start, local_end, &mut visit)?;
+            let descriptor = self.descriptor(invocation)?;
+            let inputs = self.invocation_inputs(logical_width, descriptor)?;
+            if scratch
+                .visit_rows_until(
+                    "phi81-product-v1",
+                    0,
+                    &inputs,
+                    logical_width,
+                    local_start..local_end,
+                    &mut visit,
+                )?
+                .is_break()
+            {
+                return Ok(ControlFlow::Break(()));
+            }
         }
-        Ok(())
-    }
-
-    fn visit_invocation_rows(
-        &self,
-        logical_width: usize,
-        invocation: usize,
-        local_start: usize,
-        local_end: usize,
-        visit: &mut impl FnMut(RowForms) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
-        if local_start > local_end || local_end > ROWS_PER_RING {
-            return Err(PackageError::Invalid("Phi81 invocation row range"));
-        }
-        let descriptor = self.descriptor(invocation)?;
-        for row in self.invocation_rows(logical_width, descriptor, local_start, local_end)? {
-            visit(row)?;
-        }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 
     fn descriptor(&self, mut index: usize) -> Result<Descriptor, PackageError> {
@@ -236,13 +233,7 @@ impl Block {
         })
     }
 
-    fn invocation_rows(
-        &self,
-        logical_width: usize,
-        descriptor: Descriptor,
-        start: usize,
-        end: usize,
-    ) -> Result<Vec<RowForms>, PackageError> {
+    fn invocation_inputs(&self, logical_width: usize, descriptor: Descriptor) -> Result<Vec<Form>, PackageError> {
         let mut inputs = Vec::with_capacity(1 + 5 * RING_DEGREE);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(self.challenge_state(logical_width, descriptor)?);
@@ -268,7 +259,7 @@ impl Block {
             self.output
                 .form(logical_width, descriptor.invocation_at_lane(lane)?)
         })?);
-        template::rows("phi81-product-v1", 0, &inputs, logical_width, start..end)
+        Ok(inputs)
     }
 }
 

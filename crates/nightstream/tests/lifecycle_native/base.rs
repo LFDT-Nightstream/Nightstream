@@ -10,7 +10,8 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let source = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let binding = source.production_verifier_binding().unwrap();
-    let package = PreparedLifecycle::from_package(source, binding, crate::engine::Prover::Optimized).unwrap();
+    let package =
+        PreparedLifecycle::from_package(source.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
     let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let reference: Value =
         serde_json::from_slice(&fs::read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json")).unwrap())
@@ -37,7 +38,12 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
         .verify(&Stage1State::new(0, z0, z0), &initial)
         .unwrap();
     let envelope = package
-        .extend_with_output(initial, &message.map(|f| f.as_canonical_u64()), output(z0, message))
+        .extend_with_output(
+            initial,
+            &message.map(|f| f.as_canonical_u64()),
+            output(z0, message),
+            None,
+        )
         .expect("public base extension");
     assert_eq!(envelope.state(), &expected);
     println!("public_base_constructed elapsed={:?}", started.elapsed());
@@ -93,7 +99,8 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
             package.extend_with_output(
                 invalid,
                 &message.map(|f| f.as_canonical_u64()),
-                output(current, message)
+                output(current, message),
+                None
             ),
             Err(ExtendError::Input(_)) | Err(ExtendError::StepInputs(_))
         ));

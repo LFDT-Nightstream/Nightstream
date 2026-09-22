@@ -1,13 +1,4 @@
-use nightstream::{
-    application::{Affine, ApplicationBuilder},
-    Circuit, Engine, EngineError, Error,
-};
-
-fn identity() -> nightstream::application::ApplicationCircuit {
-    let builder = ApplicationBuilder::new(0).unwrap();
-    let state = builder.input_state().map(Affine::from);
-    builder.finish(state).unwrap()
-}
+use nightstream::{Engine, EngineError, Error, Prover};
 
 #[test]
 fn unavailable_engines_fail_before_loading_the_circuit() {
@@ -17,7 +8,11 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
         Engine::Cuda,
     ];
     for engine in engines {
-        let result = Circuit::prepare_with_engine(b"not a circuit", identity(), engine);
+        let result = Prover::load(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
+            engine,
+            114,
+        );
         assert!(
             matches!(result, Err(Error::Engine(EngineError::Unavailable { engine: actual, .. })) if actual == engine)
         );
@@ -28,8 +23,12 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
 fn explicit_cpu_selection_keeps_circuit_validation() {
     for engine in [Engine::Optimized, Engine::PaperExact, Engine::Crosscheck] {
         assert!(matches!(
-            Circuit::prepare_with_engine(b"not a circuit", identity(), engine),
-            Err(Error::Assembly(_))
+            Prover::load(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
+                engine,
+                114
+            ),
+            Err(Error::Package(_))
         ));
     }
 }

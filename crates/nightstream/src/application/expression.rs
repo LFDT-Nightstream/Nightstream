@@ -1,10 +1,10 @@
 //! Retains application expression order for the existing package wire identity.
 
-use std::{ops::Range, sync::Arc};
+use std::{collections::HashSet, ops::Range, sync::Arc};
 
+use nightstream_fprime::ApplicationRecipeNode;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use serde_json::{json, Value};
 
 use super::{ApplicationError, Variable};
 
@@ -18,70 +18,137 @@ pub(crate) enum Expression {
 
 impl Expression {
     pub(super) fn validate(&self, count: usize, outputs: Range<usize>, causal: bool) -> Result<(), ApplicationError> {
-        match self {
-            Self::Variable(variable) => {
-                if variable.index() >= count {
-                    return Err(ApplicationError::VariableOutOfScope(variable.index()));
-                }
-                if causal && outputs.contains(&variable.index()) {
-                    return Err(ApplicationError::OutputDependency(variable.index()));
-                }
-                Ok(())
+        let mut seen = HashSet::new();
+        let mut pending = vec![self];
+        while let Some(expression) = pending.pop() {
+            if !seen.insert(expression as *const Self) {
+                continue;
             }
-            Self::Constant(_) => Ok(()),
-            Self::Add(left, right) | Self::Multiply(left, right) => {
-                left.validate(count, outputs.clone(), causal)?;
-                right.validate(count, outputs, causal)
-            }
-        }
-    }
-
-    pub(crate) fn encode(&self, columns: &[usize]) -> Value {
-        match self {
-            Self::Variable(variable) => json!([0, columns[variable.index()]]),
-            Self::Constant(value) => json!([1, value.as_canonical_u64()]),
-            Self::Add(left, right) => json!([2, left.encode(columns), right.encode(columns)]),
-            Self::Multiply(left, right) => json!([3, left.encode(columns), right.encode(columns)]),
-        }
-    }
-
-    pub(crate) fn affine(&self, columns: &[usize]) -> Value {
-        let (constant, terms) = self.affine_parts(columns);
-        json!([
-            constant.as_canonical_u64(),
-            terms
-                .into_iter()
-                .map(|(column, value)| (column, value.as_canonical_u64()))
-                .collect::<Vec<_>>()
-        ])
-    }
-
-    fn affine_parts(&self, columns: &[usize]) -> (Goldilocks, Vec<(usize, Goldilocks)>) {
-        match self {
-            Self::Variable(variable) => (Goldilocks::ZERO, vec![(columns[variable.index()], Goldilocks::ONE)]),
-            Self::Constant(value) => (*value, Vec::new()),
-            Self::Add(left, right) => {
-                let (left_constant, mut terms) = left.affine_parts(columns);
-                let (right_constant, right_terms) = right.affine_parts(columns);
-                terms.extend(right_terms);
-                (left_constant + right_constant, terms)
-            }
-            Self::Multiply(left, right) => {
-                let (coefficient, expression) = match (&**left, &**right) {
-                    (Self::Constant(coefficient), expression) | (expression, Self::Constant(coefficient)) => {
-                        (*coefficient, expression)
+            match expression {
+                Self::Variable(variable) => {
+                    if variable.index() >= count {
+                        return Err(ApplicationError::VariableOutOfScope(variable.index()));
                     }
-                    _ => unreachable!("Affine only constructs products with a scalar"),
-                };
-                let (constant, terms) = expression.affine_parts(columns);
-                (
-                    coefficient * constant,
-                    terms
-                        .into_iter()
-                        .map(|(column, value)| (column, coefficient * value))
-                        .collect(),
-                )
+                    if causal && outputs.contains(&variable.index()) {
+                        return Err(ApplicationError::OutputDependency(variable.index()));
+                    }
+                }
+                Self::Constant(_) => {}
+                Self::Add(left, right) | Self::Multiply(left, right) => {
+                    pending.push(right);
+                    pending.push(left);
+                }
             }
         }
+        Ok(())
+    }
+
+    pub(super) fn has_nested_shared_operations(&self) -> bool {
+        let mut seen = HashSet::new();
+        let mut shared = HashSet::new();
+        let mut pending = vec![self];
+        while let Some(expression) = pending.pop() {
+            if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
+                let pointer = expression as *const Self;
+                if !seen.insert(pointer) {
+                    shared.insert(pointer);
+                    continue;
+                }
+                pending.push(right);
+                pending.push(left);
+            }
+        }
+        // Flat sharing has no repeated branching along a path. Preserve that
+        // existing recipe syntax; nested sharing can expand exponentially.
+        let mut visited = HashSet::new();
+        let mut pending = vec![(self, false)];
+        while let Some((expression, shared_parent)) = pending.pop() {
+            if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
+                let pointer = expression as *const Self;
+                if !visited.insert((pointer, shared_parent)) {
+                    continue;
+                }
+                let is_shared = shared.contains(&pointer);
+                if shared_parent && is_shared {
+                    return true;
+                }
+                pending.push((right, shared_parent || is_shared));
+                pending.push((left, shared_parent || is_shared));
+            }
+        }
+        false
+    }
+
+    pub(super) fn nodes(&self) -> RecipeNodes<'_> {
+        RecipeNodes { stack: vec![self] }
+    }
+
+    pub(super) fn ordered_terms(&self) -> OrderedTerms<'_> {
+        OrderedTerms {
+            stack: vec![(self, Goldilocks::ONE)],
+        }
+    }
+
+    pub(super) fn term_count(&self) -> Result<usize, ApplicationError> {
+        self.ordered_terms().try_fold(0usize, |count, _| {
+            count
+                .checked_add(1)
+                .ok_or(ApplicationError::DimensionOverflow)
+        })
+    }
+}
+
+// These cursors borrow the caller's live expression while it is appended. No
+// tree or term vector survives in the builder or sealed record owner.
+pub(super) struct OrderedTerms<'a> {
+    stack: Vec<(&'a Expression, Goldilocks)>,
+}
+
+impl Iterator for OrderedTerms<'_> {
+    type Item = (Variable, Goldilocks);
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((expression, scale)) = self.stack.pop() {
+            match expression {
+                Expression::Variable(variable) => return Some((*variable, scale)),
+                Expression::Constant(_) => {}
+                Expression::Add(left, right) => {
+                    self.stack.push((right, scale));
+                    self.stack.push((left, scale));
+                }
+                Expression::Multiply(left, right) => {
+                    let (coefficient, expression) = match (&**left, &**right) {
+                        (Expression::Constant(coefficient), expression)
+                        | (expression, Expression::Constant(coefficient)) => (*coefficient, expression),
+                        _ => unreachable!("Affine only constructs products with a scalar"),
+                    };
+                    self.stack.push((expression, scale * coefficient));
+                }
+            }
+        }
+        None
+    }
+}
+
+pub(super) struct RecipeNodes<'a> {
+    stack: Vec<&'a Expression>,
+}
+
+impl Iterator for RecipeNodes<'_> {
+    type Item = ApplicationRecipeNode;
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(match self.stack.pop()? {
+            Expression::Variable(variable) => ApplicationRecipeNode::Variable(variable.index()),
+            Expression::Constant(value) => ApplicationRecipeNode::Constant(value.as_canonical_u64()),
+            Expression::Add(left, right) => {
+                self.stack.push(right);
+                self.stack.push(left);
+                ApplicationRecipeNode::Add
+            }
+            Expression::Multiply(left, right) => {
+                self.stack.push(right);
+                self.stack.push(left);
+                ApplicationRecipeNode::Multiply
+            }
+        })
     }
 }

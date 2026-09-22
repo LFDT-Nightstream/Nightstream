@@ -195,14 +195,14 @@ fn prepare() -> PreparedLifecycle {
 fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
     let started = Instant::now();
     let prover = match engine {
-        EvaluationEngine::Optimized => crate::engine::Prover::Optimized,
+        EvaluationEngine::Optimized => crate::engine::Backend::Optimized,
         #[cfg(feature = "metal")]
-        EvaluationEngine::Metal => crate::engine::Prover::new(crate::Engine::Metal).unwrap(),
+        EvaluationEngine::Metal => crate::engine::Backend::new(crate::Engine::Metal).unwrap(),
     };
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (package, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(package, binding, prover).unwrap();
+    let package = PreparedLifecycle::from_package(package.into(), binding, prover, 114).unwrap();
     eprintln!("staged circuit preparation elapsed={:?}", started.elapsed());
     package
 }
@@ -212,6 +212,7 @@ fn params(package: &PreparedLifecycle) -> Params {
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),
+        114,
     )
     .unwrap()
 }
@@ -356,6 +357,7 @@ fn base(root: &Path, engine: EvaluationEngine) {
             Stage1Envelope::initial(expected.z0()),
             &message.map(|value| value.as_canonical_u64()),
             output,
+            None,
         )
         .unwrap();
     assert_eq!(envelope.state(), &expected);
@@ -369,7 +371,7 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
     let started = Instant::now();
     assert_eq!(
         package
-            .prover
+            .backend
             .commit(std::slice::from_ref(&source.fresh.witness.Z))
             .unwrap()
             .remove(0),
@@ -379,12 +381,12 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
         "fresh source commitment engine={engine:?} elapsed={:?}",
         started.elapsed()
     );
-    let commitments = package.prover.commit(&source.running.witnesses).unwrap();
+    let commitments = package.backend.commit(&source.running.witnesses).unwrap();
     for (claim, commitment) in source.running.claims.iter().zip(commitments) {
         assert_eq!(commitment, claim.c);
     }
     #[cfg(feature = "metal")]
-    if let crate::engine::Prover::Metal(device) = &package.prover {
+    if let crate::engine::Backend::Metal(device) = &package.backend {
         eprintln!(
             "source commitment device activity={:?}",
             device.lock().unwrap().activity()

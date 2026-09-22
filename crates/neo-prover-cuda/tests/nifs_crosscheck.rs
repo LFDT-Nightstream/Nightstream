@@ -2,7 +2,7 @@
 
 //! CUDA backend availability boundary.
 
-use neo_fold_clean::paper::nifs::Error;
+use neo_fold_legacy::paper::nifs::Error;
 use neo_prover_cuda::CudaNifsProver;
 
 #[test]

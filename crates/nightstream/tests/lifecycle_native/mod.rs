@@ -186,7 +186,8 @@ impl Fixture {
         let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
         let source = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
         let binding = source.production_verifier_binding().unwrap();
-        let package = PreparedLifecycle::from_package(source, binding, crate::engine::Prover::Optimized).unwrap();
+        let package =
+            PreparedLifecycle::from_package(source.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
         let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
         let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
         let expected = read(artifact(
@@ -202,6 +203,7 @@ impl Fixture {
             package.structure().m,
             package.structure().t(),
             package.structure().max_degree(),
+            114,
         )
         .unwrap();
         let mut running = RunningInstance::canonical_zero(&params, package.structure(), 270)
@@ -468,6 +470,7 @@ fn saved_proof_and_transcript_match_lean() {
         fixture.package.structure.m,
         fixture.package.structure.t(),
         fixture.package.structure.max_degree(),
+        114,
     )
     .unwrap();
     let mut transcript = folding::transcript::Transcript::session();
@@ -508,6 +511,7 @@ fn saved_proof_and_transcript_match_lean() {
 mod base;
 
 mod key_prefix;
+mod matrix_workspace;
 mod recursive;
 
 mod staged;

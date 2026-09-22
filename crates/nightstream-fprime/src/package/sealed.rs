@@ -5,7 +5,10 @@
 //! production verifier path, which must also bind the commitment setup and
 //! verification key.
 
-use std::ops::Range;
+use std::{
+    ops::{ControlFlow, Range},
+    sync::Arc,
+};
 
 use neo_ccs::{poly::SparsePoly, poly::Term, CcsStructure};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -15,14 +18,17 @@ use serde_json::Value;
 
 use super::assignment_transport;
 use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS};
+use super::native_application::PreparedApplication;
 use super::{
     relation_identifier, validate_per_application_package_schema, Layout, LoadedAssignmentPlan, LoadedPackage,
     LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_1EncodedInputs,
     PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, RawPackage,
     PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
 };
+use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
-    stage1_verifier_binding, value_preimage_words, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
+    native_application_identity, native_relation_identifier, stage1_verifier_binding, value_preimage_words,
+    visit_native_application_words, ApplicationIdentity, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
     POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER, POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 use crate::Stage1VerifierBinding;
@@ -157,8 +163,8 @@ fn logical_matrix_row(forms: RowForms) -> Result<LogicalMatrixRow, PackageError>
     })
 }
 
-/// A structurally identity-bound per-application package. Final production
-/// acceptance remains unavailable until the concrete key binding is checked.
+/// Decoded per-application execution data. Compilation computes its identities;
+/// prepared loading retains cached components without granting verifier authority.
 #[derive(Clone, Debug)]
 pub struct LoadedPerApplicationPackage {
     circuit: LoadedPackage,
@@ -170,9 +176,37 @@ pub struct LoadedPerApplicationPackage {
     structural_identifier: [u64; 4],
     relation_value_words: Vec<u64>,
     application_words: Vec<u64>,
+    application_identity: ApplicationIdentity,
+    native_application: Option<Arc<PreparedApplication>>,
+    prepared_source: Option<Arc<PrivateSnapshot>>,
 }
 
 impl LoadedPerApplicationPackage {
+    /// Write reusable execution data. The caller selects the expected verifier
+    /// configuration independently of proof data; this format imposes no provenance policy.
+    pub fn write_prepared(&self, output: impl std::io::Write) -> Result<(), PackageError> {
+        let source = self
+            .prepared_source
+            .as_deref()
+            .ok_or(PackageError::Invalid("package has no prepared native source"))?;
+        let records = self
+            .application_records()
+            .ok_or(PackageError::Invalid("package has no native application records"))?;
+        super::prepared::write(
+            output,
+            source,
+            records,
+            self.structural_identifier,
+            &self.application_identity,
+        )
+    }
+
+    pub fn application_records(&self) -> Option<&Arc<ApplicationRecords>> {
+        self.native_application
+            .as_ref()
+            .map(|application| application.records_arc())
+    }
+
     pub fn structural_identifier(&self) -> [u64; 4] {
         self.structural_identifier
     }
@@ -197,9 +231,8 @@ impl LoadedPerApplicationPackage {
         self.circuit.ccs_relation()
     }
 
-    /// Construct the matrix-content-free CCS header for the separately
-    /// verified cache. Every dimension and polynomial term comes from this
-    /// identity-checked Lean package.
+    /// Build the CCS dimensions and polynomial. Matrix rows stay in the
+    /// decoded program.
     pub fn ccs_structure_header(&self) -> Result<CcsStructure<Goldilocks>, PackageError> {
         let relation = self.ccs_relation();
         let terms = relation
@@ -263,16 +296,28 @@ impl LoadedPerApplicationPackage {
         self.next_preimage_rows.clone()
     }
 
-    /// Recompute the complete final package and verification-key binding
-    /// from this identity-checked package, its carrier width, and the fixed
-    /// production setup seed and rank.
+    /// Rebuild the final package and verification-key binding from stored
+    /// identity components, carrier width, and the fixed production setup.
+    /// This computation does not establish a prepared artifact's provenance.
     pub fn production_verifier_binding(&self) -> Result<Stage1VerifierBinding, PackageError> {
         stage1_verifier_binding(
             self.structural_identifier,
             self.logical_column_count(),
             &self.relation_value_words,
-            &self.application_words,
+            &self.application_identity,
         )
+    }
+
+    /// Replay the exact application preimage from the package-owned snapshot.
+    pub fn visit_application_words(
+        &self,
+        visit: &mut dyn FnMut(&[u64]) -> Result<(), PackageError>,
+    ) -> Result<(), PackageError> {
+        if let Some(application) = &self.native_application {
+            visit_native_application_words(application, visit)
+        } else {
+            visit(&self.application_words)
+        }
     }
 
     /// Execute only the witness program carried by this identity-bound
@@ -300,10 +345,22 @@ impl LoadedPerApplicationPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<LogicalAssignment, PackageError> {
+        self.execute_ccs_assignment_with_application(private_inputs, public_values, None)
+    }
+
+    fn execute_ccs_assignment_with_application(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+        application_values: Option<&[Goldilocks]>,
+    ) -> Result<LogicalAssignment, PackageError> {
         let direct_product_outputs = self.structural_identifier == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER;
-        let source = self
-            .circuit
-            .execute_assignment_source(private_inputs, public_values, direct_product_outputs)?;
+        let source = self.circuit.execute_assignment_source(
+            private_inputs,
+            public_values,
+            direct_product_outputs,
+            application_values,
+        )?;
         self.assignment_plan.execute(&self.circuit.layout, &source)
     }
 
@@ -387,6 +444,40 @@ impl LoadedPerApplicationPackage {
         self.execute_ccs_assignment(encoded.private_values(), encoded.public_values())
     }
 
+    /// Reuse checked application values when constructing the final CCS assignment.
+    pub fn execute_stage1_v1_1_ccs_assignment_with_application_values(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+        application_values: &[Goldilocks],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.execute_ccs_assignment_with_application(
+            encoded.private_values(),
+            encoded.public_values(),
+            Some(application_values),
+        )
+    }
+
+    /// Reuse application values already computed by the caller. Inputs and
+    /// outputs must match the frame, and all circuit assertions are checked.
+    pub fn execute_stage1_v1_1_witness_with_application_values(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+        application_values: &[Goldilocks],
+    ) -> Result<WitnessAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.circuit.execute_assignment_source(
+            encoded.private_values(),
+            encoded.public_values(),
+            false,
+            Some(application_values),
+        )
+    }
+
     /// Decode the PiCCS output segments through this verifier-owned package.
     pub fn pi_ccs_v1_1_output_evaluations(
         &self,
@@ -458,6 +549,29 @@ impl LoadedPerApplicationPackage {
             },
         )
     }
+
+    /// Stop after the visitor accepts a complete prefix of original matrix rows.
+    pub fn visit_matrix_runs_until(
+        &self,
+        rows: Range<usize>,
+        mut visit: impl FnMut(usize, [&[MatrixRun]; MATRIX_COUNT]) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
+        if rows.start > rows.end || rows.end > self.row_count() {
+            return Err(PackageError::Invalid("logical matrix row range"));
+        }
+        self.matrix_program.visit_rows_until(
+            self.logical_column_count(),
+            rows.start,
+            rows.end,
+            &|source| self.circuit.source_row(source),
+            |ordinal, forms| {
+                visit(
+                    ordinal,
+                    std::array::from_fn(|matrix| forms.get(matrix).copied().unwrap_or(&[])),
+                )
+            },
+        )
+    }
 }
 
 /// Strictly decode one canonical Lean sealed value and pin its complete
@@ -493,6 +607,198 @@ pub fn load_prepared_application_value(value: Value) -> Result<LoadedPerApplicat
     decode_per_application_value(value, computed)
 }
 
+/// Prepare the fixed envelope with a sealed application record snapshot.
+/// Dynamic row and recipe arrays must be empty; the snapshot supplies both
+/// canonical occurrences and the runtime rows from the same immutable owner.
+pub fn load_prepared_application_records(
+    fixed_envelope: Value,
+    records: Arc<ApplicationRecords>,
+) -> Result<LoadedPerApplicationPackage, PackageError> {
+    let decoded = decode_native_application_records(&fixed_envelope, records)?;
+    let computed = native_relation_identifier(&fixed_envelope, decoded.application())?;
+    let application_identity = native_application_identity(decoded.application())?;
+    let source = super::prepared::snapshot(&fixed_envelope)?;
+    Ok(decoded.bind(computed, application_identity, source))
+}
+
+pub(super) struct NativePackage {
+    circuit: LoadedPackage,
+    matrix_program: MatrixProgram,
+    application: Arc<PreparedApplication>,
+    assignment_plan: LoadedAssignmentPlan,
+    next_preimage_rows: Range<usize>,
+    logical_public_input_count: usize,
+    relation_value_words: Vec<u64>,
+}
+
+impl NativePackage {
+    pub(super) fn application(&self) -> &PreparedApplication {
+        &self.application
+    }
+
+    pub(super) fn bind(
+        mut self,
+        structural_identifier: [u64; 4],
+        application_identity: ApplicationIdentity,
+        source: PrivateSnapshot,
+    ) -> LoadedPerApplicationPackage {
+        self.circuit.relation_identifier = structural_identifier;
+        LoadedPerApplicationPackage {
+            circuit: self.circuit,
+            matrix_program: self.matrix_program,
+            application: self.application.plan().clone(),
+            assignment_plan: self.assignment_plan,
+            next_preimage_rows: self.next_preimage_rows,
+            logical_public_input_count: self.logical_public_input_count,
+            structural_identifier,
+            relation_value_words: self.relation_value_words,
+            application_words: Vec::new(),
+            application_identity,
+            native_application: Some(self.application),
+            prepared_source: Some(Arc::new(source)),
+        }
+    }
+}
+
+pub(super) fn decode_native_application_records(
+    fixed_envelope: &Value,
+    records: Arc<ApplicationRecords>,
+) -> Result<NativePackage, PackageError> {
+    let application = PreparedApplication::from_metadata(
+        fixed_envelope
+            .get(3)
+            .ok_or(PackageError::Invalid("native application metadata"))?,
+        records,
+    )?;
+    let source = fixed_envelope
+        .get(1)
+        .and_then(Value::as_array)
+        .ok_or(PackageError::Invalid("sealed circuit package"))?;
+    // Reject dynamic payloads before cloning or decoding the fixed envelope.
+    for (field, range) in [
+        (CIRCUIT_ASSERTION_ROWS, application.plan().row_range()),
+        (CIRCUIT_WITNESS_INSTRUCTIONS, application.plan().row_range()),
+        (CIRCUIT_WITNESS_BATCHES, application.plan().private_range()),
+    ] {
+        let entries = source
+            .get(field)
+            .and_then(Value::as_array)
+            .ok_or(PackageError::Invalid("native fixed source array"))?;
+        for entry in entries {
+            let start = entry
+                .get(0)
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or(PackageError::Invalid("native fixed source index"))?;
+            if range.contains(&start) {
+                return Err(PackageError::Invalid(
+                    "native application dynamic source slots are not empty",
+                ));
+            }
+        }
+    }
+    let RawSealedPackage(
+        schema,
+        raw_circuit,
+        raw_matrix,
+        _raw_application,
+        raw_assignment,
+        raw_next_preimage,
+        raw_public,
+    ): RawSealedPackage = serde_json::from_value(fixed_envelope.clone())?;
+    if schema != SEALED_PACKAGE_SCHEMA {
+        return Err(PackageError::Invalid("sealed package schema version"));
+    }
+    let circuit = super::validate_package_schema_with_layout(
+        raw_circuit,
+        [0; 4],
+        INNER_PACKAGE_SCHEMA,
+        super::LayoutProfile::PerApplication,
+        Some(application),
+    )?;
+    let application = circuit
+        .native_application
+        .as_ref()
+        .expect("validated native application")
+        .clone();
+    let next_preimage_rows = decode_next_preimage_range(raw_next_preimage, &circuit.layout)?;
+    if application.plan().row_range().end != next_preimage_rows.start {
+        return Err(PackageError::Invalid("application plan range"));
+    }
+    let circuit_value = fixed_envelope
+        .get(1)
+        .ok_or(PackageError::Invalid("sealed circuit package"))?;
+    validate_next_preimage_assertion_suffix(circuit_value, &next_preimage_rows)?;
+    let matrix_program = MatrixProgram::decode(&raw_matrix)?;
+    matrix_program.validate(circuit.layout.row_count)?;
+    if matrix_program.row_count()? != circuit.relation.row_count() {
+        return Err(PackageError::Invalid("matrix program relation row count"));
+    }
+    let logical_public_input_count = word_to_usize(raw_public, "logical public input count")?;
+    if logical_public_input_count != PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS
+        || logical_public_input_count > circuit.relation.column_count()
+    {
+        return Err(PackageError::Invalid("logical public input count"));
+    }
+    let assignment_plan = assignment_transport::decode(
+        &raw_assignment,
+        circuit.layout.total_column_count,
+        logical_public_input_count,
+        circuit.relation.column_count(),
+    )?;
+    let relation_value_words = value_preimage_words(
+        circuit_value
+            .get(4)
+            .ok_or(PackageError::Invalid("sealed relation authority"))?,
+    )?;
+    Ok(NativePackage {
+        circuit,
+        matrix_program,
+        application,
+        assignment_plan,
+        next_preimage_rows,
+        logical_public_input_count,
+        relation_value_words,
+    })
+}
+
+pub(super) fn prepared_record_counts(fixed: &Value) -> Result<(usize, usize), PackageError> {
+    let envelope = fixed
+        .as_array()
+        .filter(|values| values.len() == 7 && values[0].as_u64() == Some(SEALED_PACKAGE_SCHEMA))
+        .ok_or(PackageError::Invalid("prepared package envelope"))?;
+    let source = envelope[1]
+        .as_array()
+        .filter(|values| values.len() == 14 && values[0].as_u64() == Some(INNER_PACKAGE_SCHEMA))
+        .ok_or(PackageError::Invalid("prepared source package"))?;
+    super::validate_profile(serde_json::from_value(source[1].clone())?)?;
+    super::validate_poseidon(serde_json::from_value(source[2].clone())?)?;
+    let layout = super::validate_layout(
+        serde_json::from_value(source[3].clone())?,
+        super::LayoutProfile::PerApplication,
+    )?;
+    let application = decode_native_application_plan(&envelope[3])?;
+    let witness = layout
+        .private_segments
+        .iter()
+        .find(|segment| segment.role == APPLICATION_WITNESS_ROLE)
+        .ok_or(PackageError::Invalid("application witness segment"))?;
+    let local = layout
+        .private_segments
+        .iter()
+        .find(|segment| segment.role == APPLICATION_LOCAL_ROLE)
+        .ok_or(PackageError::Invalid("application local segment"))?;
+    if application.witness_word_count() != witness.length
+        || application.private_range().start != local.start
+        || application.private_range().len() != local.length
+        || application.private_range().end > layout.constant_column
+        || application.row_range().end > layout.row_count
+    {
+        return Err(PackageError::Invalid("prepared application record dimensions"));
+    }
+    Ok((application.row_range().len(), application.private_range().len()))
+}
+
 fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<LoadedPerApplicationPackage, PackageError> {
     let circuit_value = value
         .as_array()
@@ -517,6 +823,7 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
         .ok_or(PackageError::Invalid("sealed relation authority"))?;
     let relation_value_words = value_preimage_words(relation_value)?;
     let application_words = value_preimage_words(&raw_application)?;
+    let application_identity = ApplicationIdentity::from_words(&application_words)?;
     let circuit = validate_per_application_package_schema(raw_circuit, computed, INNER_PACKAGE_SCHEMA)?;
     let matrix_program = MatrixProgram::decode(&raw_matrix)?;
     matrix_program.validate(circuit.layout.row_count)?;
@@ -550,6 +857,9 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
         structural_identifier: computed,
         relation_value_words,
         application_words,
+        application_identity,
+        native_application: None,
+        prepared_source: None,
     })
 }
 
@@ -699,6 +1009,81 @@ fn decode_application_plan(
         input_columns,
         witness_columns,
         output_columns,
+        private_start,
+        private_count,
+        row_start,
+        row_count,
+    })
+}
+
+pub(super) fn decode_native_application_plan(value: &Value) -> Result<LoadedApplicationPlan, PackageError> {
+    let fields = value
+        .as_array()
+        .filter(|fields| fields.len() == 16)
+        .ok_or(PackageError::Invalid("native application metadata"))?;
+    if fields[9..]
+        .iter()
+        .any(|value| value.as_array().is_none_or(|values| !values.is_empty()))
+    {
+        return Err(PackageError::Invalid(
+            "native application dynamic plan slots are not empty",
+        ));
+    }
+    let RawApplicationPlan(
+        schema,
+        witness_word_count,
+        input_columns,
+        witness_columns,
+        output_columns,
+        private_start,
+        private_count,
+        row_start,
+        row_count,
+        hash_chains,
+        permutations,
+        templates,
+        invocations,
+        batches,
+        instructions,
+        rows,
+    ) = serde_json::from_value(value.clone())?;
+    if schema != APPLICATION_PLAN_SCHEMA
+        || [
+            &hash_chains,
+            &permutations,
+            &templates,
+            &invocations,
+            &batches,
+            &instructions,
+            &rows,
+        ]
+        .iter()
+        .any(|values| !values.is_empty())
+    {
+        return Err(PackageError::Invalid(
+            "native application dynamic plan slots are not empty",
+        ));
+    }
+    let private_start = word_to_usize(private_start, "application private start")?;
+    let private_count = word_to_usize(private_count, "application private count")?;
+    let row_start = word_to_usize(row_start, "application row start")?;
+    let row_count = word_to_usize(row_count, "application row count")?;
+    private_start
+        .checked_add(private_count)
+        .ok_or(PackageError::Invalid("application private range"))?;
+    row_start
+        .checked_add(row_count)
+        .ok_or(PackageError::Invalid("application row range"))?;
+    let witness_word_count = word_to_usize(witness_word_count, "application witness width")?;
+    let witness_columns = columns(witness_columns, "application witness column")?;
+    if witness_columns.len() != witness_word_count {
+        return Err(PackageError::Invalid("application witness width"));
+    }
+    Ok(LoadedApplicationPlan {
+        witness_word_count,
+        input_columns: fixed_columns(input_columns, "application input width")?,
+        witness_columns,
+        output_columns: fixed_columns(output_columns, "application output width")?,
         private_start,
         private_count,
         row_start,

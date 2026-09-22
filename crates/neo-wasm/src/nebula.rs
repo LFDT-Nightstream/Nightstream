@@ -3,21 +3,21 @@
 use std::collections::BTreeMap;
 
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
-use neo_fold_clean::frontends::nebula::application::{
+use neo_fold_legacy::frontends::nebula::application::ApplicationSegmentTrace;
+use neo_fold_legacy::frontends::nebula::application::{
     ApplicationError, MemoryPortLayout, MemoryRegion, MemoryRegionKind, NebulaApplication,
 };
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
-use neo_fold_clean::frontends::nebula::trace::Memory;
-use neo_fold_clean::frontends::nebula::{
+use neo_fold_legacy::frontends::nebula::layout::NebulaParams;
+use neo_fold_legacy::frontends::nebula::plan::{NebulaPlan, PlanError};
+use neo_fold_legacy::frontends::nebula::trace::Memory;
+use neo_fold_legacy::frontends::nebula::{
     NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
 };
-use neo_fold_clean::lifecycle::{
+use neo_fold_legacy::lifecycle::{
     verify_uncompressed, verify_uncompressed_with_opening_backend, FinalWitnessOpeningBackend, Uncompressed,
 };
-use neo_fold_clean::paper::nifs::NifsProverAdapter;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::paper::nifs::NifsProverAdapter;
+use neo_fold_legacy::paper::params::Params;
 use thiserror::Error;
 
 use crate::adapters::wasmtime::WasmProgramArtifacts;
@@ -381,7 +381,7 @@ pub fn prepare_profile_with_artifacts(
     initial_locals: &[u32],
     entry_pc: u64,
     cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-    encoder_artifact: neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
+    encoder_artifact: neo_fold_legacy::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
     prepare_profile_inner(
@@ -418,7 +418,7 @@ pub fn prepare_profile_seeded_reduced_memory_with_artifacts_test_only(
     entry_pc: u64,
     seed: u64,
     cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-    encoder_artifact: neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
+    encoder_artifact: neo_fold_legacy::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     reject_host_imports(artifacts)?;
     prepare_profile_inner(
@@ -540,7 +540,7 @@ fn prepare_profile_inner(
     seed: Option<u64>,
     profile_artifacts: Option<(
         neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
-        neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
+        neo_fold_legacy::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact,
     )>,
 ) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
     let program = build_program_binding(&params, profile, artifacts, initial_locals, entry_pc, None)?;
@@ -1181,9 +1181,9 @@ pub enum WasmNebulaError {
     #[error(transparent)]
     Chain(#[from] NebulaFPrimeChainError),
     #[error(transparent)]
-    Lifecycle(#[from] neo_fold_clean::lifecycle::Error),
+    Lifecycle(#[from] neo_fold_legacy::lifecycle::Error),
     #[error(transparent)]
-    Trace(#[from] neo_fold_clean::frontends::nebula::trace::TraceError),
+    Trace(#[from] neo_fold_legacy::frontends::nebula::trace::TraceError),
     #[error("WASM Nebula limit `{name}` must be a power of two >= 2, got {value}")]
     NonPowerOfTwoLimit { name: &'static str, value: u64 },
     #[error("WASM Nebula instruction batch size must be nonzero")]

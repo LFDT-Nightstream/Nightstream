@@ -3,12 +3,12 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
 
-use neo_fold_clean::frontends::nebula::f_prime::{
+use neo_fold_legacy::frontends::nebula::f_prime::{
     production_streaming_lifecycle_profile, NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit,
     NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleProfile, NebulaFPrimeStreamingLifecycleSourceArms,
 };
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::{
+use neo_fold_legacy::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
+use neo_fold_legacy::frontends::r1cs_f_prime::{
     MultiBranchLowNormR1cs, SelectiveCompilerAudit, SelectiveEmittedRowFamily, SelectiveProjectedRowArtifact,
     SelectiveProjectedRowsAudit, SelectiveRewriteKind, SelectiveRowMappingAudit, SelectiveSourceRowDisposition,
     SparseR1cs, R1CS_F_PRIME_COMPILER_ID,
@@ -481,7 +481,7 @@ fn bind_selective_problem(
 }
 
 fn validate_source_partition(
-    runs: &[neo_fold_clean::frontends::r1cs_f_prime::SelectiveSourceRowRunAudit],
+    runs: &[neo_fold_legacy::frontends::r1cs_f_prime::SelectiveSourceRowRunAudit],
     source_rows: usize,
 ) -> Result<(), ExportError> {
     let mut cursor = 0usize;
@@ -503,7 +503,7 @@ fn validate_source_partition(
 }
 
 fn validate_rewrite_runs(
-    runs: &[neo_fold_clean::frontends::r1cs_f_prime::SelectiveSourceRowRunAudit],
+    runs: &[neo_fold_legacy::frontends::r1cs_f_prime::SelectiveSourceRowRunAudit],
     rewrite_id: usize,
     kind: SelectiveRewriteKind,
     recorded_ranges: &[Range<usize>],

@@ -25,7 +25,7 @@ DEFAULT_MANIFEST = Path("FPRIME_STAGE1_REVIEW_MANIFEST.json")
 RECURSIVE_ROOTS = (
     Path("formal/nightstream-fprime"),
     Path("crates/nightstream-fprime"),
-    Path("crates/neo-fold-clean"),
+    Path("crates/neo-fold-legacy"),
     Path("crates/neo-math"),
     Path("crates/neo-params"),
     Path("crates/neo-ccs"),

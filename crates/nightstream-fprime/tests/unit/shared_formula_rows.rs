@@ -1,6 +1,8 @@
 use super::*;
+use crate::components::SparseForm;
 use p3_field::PrimeField64;
 use serde_json::json;
+use std::ops::ControlFlow;
 
 #[allow(dead_code)]
 #[path = "../per_application_logical_matrix_conformance/reference/mod.rs"]
@@ -41,12 +43,13 @@ fn shared_poseidon_templates_match_every_reference_row() {
         let count = actual.row_count().unwrap();
         assert_eq!(count, expected.row_count().unwrap());
         let mut visited = Vec::new();
-        actual
-            .visit_rows(logical_width, 0, count, |row| {
-                visited.push(row);
-                Ok(())
+        let flow = actual
+            .visit_rows_until(logical_width, 0, count, |row| {
+                visited.push(owned_row(row));
+                Ok(ControlFlow::Continue(()))
             })
             .unwrap();
+        assert_eq!(flow, ControlFlow::Continue(()));
         assert_eq!(visited.len(), count);
         for (ordinal, row) in visited.iter().enumerate() {
             equal_row(row, &expected.row(logical_width, ordinal).unwrap(), ordinal);
@@ -58,16 +61,17 @@ fn shared_poseidon_templates_match_every_reference_row() {
         assert_eq!(output.terms()[0].column_count(), 41);
         assert_eq!(output.entries().len(), 41);
         let mut partial = Vec::new();
-        actual
-            .visit_rows(logical_width, 86, count - 1, |row| {
-                partial.push(row);
-                Ok(())
+        let flow = actual
+            .visit_rows_until(logical_width, 86, count - 1, |row| {
+                partial.push(owned_row(row));
+                Ok(ControlFlow::Continue(()))
             })
             .unwrap();
+        assert_eq!(flow, ControlFlow::Continue(()));
         assert_eq!(partial, visited[86..count - 1]);
         assert!(actual.row(logical_width, count).is_err());
         assert!(actual
-            .visit_rows(logical_width, count, count - 1, |_| Ok(()))
+            .visit_rows_until(logical_width, count, count - 1, |_| Ok(ControlFlow::Continue(())))
             .is_err());
     }
 }
@@ -92,28 +96,30 @@ fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
     assert_eq!(count, 9 * 108);
     assert_eq!(count, expected.row_count().unwrap());
     let mut visited = Vec::new();
-    actual
-        .visit_rows(logical_width, 0, count, |row| {
-            visited.push(row);
-            Ok(())
+    let flow = actual
+        .visit_rows_until(logical_width, 0, count, |row| {
+            visited.push(owned_row(row));
+            Ok(ControlFlow::Continue(()))
         })
         .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
     assert_eq!(visited.len(), count);
     for (ordinal, row) in visited.iter().enumerate() {
         equal_row(row, &expected.row(logical_width, ordinal).unwrap(), ordinal);
         assert_eq!(*row, actual.row(logical_width, ordinal).unwrap());
     }
     let mut partial = Vec::new();
-    actual
-        .visit_rows(logical_width, 107, count - 1, |row| {
-            partial.push(row);
-            Ok(())
+    let flow = actual
+        .visit_rows_until(logical_width, 107, count - 1, |row| {
+            partial.push(owned_row(row));
+            Ok(ControlFlow::Continue(()))
         })
         .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
     assert_eq!(partial, visited[107..count - 1]);
     assert!(actual.row(logical_width, count).is_err());
     assert!(actual
-        .visit_rows(logical_width, count, count - 1, |_| Ok(()))
+        .visit_rows_until(logical_width, count, count - 1, |_| Ok(ControlFlow::Continue(())))
         .is_err());
 }
 
@@ -132,12 +138,13 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
     ]))
     .unwrap();
     let mut rows = Vec::new();
-    block
-        .visit_rows(logical_width, 0, 108, |row| {
-            rows.push(row);
-            Ok(())
+    let flow = block
+        .visit_rows_until(logical_width, 0, 108, |row| {
+            rows.push(owned_row(row));
+            Ok(ControlFlow::Continue(()))
         })
         .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
     let residuals = |values: &[Goldilocks]| {
         rows.iter()
             .map(|row| {
@@ -289,12 +296,113 @@ fn retained_runs_add_overlapping_scalars_and_reject_partial_columns() {
 }
 
 #[test]
+fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
+    let field = Form::retained(5, 41);
+    let positive = field
+        .clone()
+        .append(Form::singleton(1, Goldilocks::from_u64(7)));
+    let inputs = [
+        positive.clone(),
+        positive.scaled(-Goldilocks::ONE),
+        field
+            .scaled(Goldilocks::from_u64(2))
+            .append(Form::singleton(6, -Goldilocks::from_u64(6))),
+        Form::retained(5, 2),
+        Form::retained(7, 41),
+        Form::default(),
+        Form::singleton(5, Goldilocks::from_u64(11)),
+    ];
+    let cases = [
+        vec![(0, 3), (1, 3), (2, 1), (3, 1), (4, 1), (5, 7), (6, 1)],
+        vec![(2, 1)],
+        vec![(5, 1)],
+        vec![(2, GOLDILOCKS_MODULUS - 1)],
+        vec![(2, 0)],
+        vec![(0, 1), (1, 1)],
+        vec![(0, 1), (1, 1), (2, 1)],
+        vec![(0, 0), (1, 0)],
+    ];
+    let mut terms = Vec::new();
+    let mut allocation = None;
+    for (case, coefficients) in cases.into_iter().enumerate() {
+        let sparse = SparseForm::new(coefficients).unwrap();
+        let expected = sparse
+            .entries()
+            .fold(Form::default(), |sum, (input, coefficient)| {
+                sum.append(
+                    inputs[input]
+                        .clone()
+                        .scaled(Goldilocks::from_u64(coefficient)),
+                )
+            });
+        template::substitute_into(&sparse, &inputs, &mut terms).unwrap();
+        assert_eq!(terms, expected.terms(), "canonical run sequence, case {case}");
+        assert_eq!(form::entries(&terms), expected.entries(), "scalar values, case {case}");
+        if case == 0 {
+            assert_eq!(terms.len(), 5, "different overlapping keys stay separate");
+            allocation = Some((terms.as_ptr(), terms.capacity()));
+        } else {
+            assert_eq!(Some((terms.as_ptr(), terms.capacity())), allocation);
+        }
+    }
+    assert!(terms.is_empty(), "the last zero port clears the preceding row");
+}
+
+#[test]
+fn template_visitors_stop_before_invalid_later_invocations() {
+    let logical_width = 12_000;
+    let poseidon = json!([2, [2, 0, [2, 2 * 86, 100], [[[1, 1, 0, 1], [0, [0, 0, 0], 0, 0, 0]]]]]);
+    let phi81 = json!([
+        3,
+        [
+            [[2, 1, 1]],
+            0,
+            [0, 54, 20],
+            0,
+            54,
+            [[[0, 54, [0, 54, 74], 0]], []],
+            [0, 54, 128],
+            [0, 54, 182]
+        ]
+    ]);
+    for (encoded, invalid_row) in [(poseidon, 94), (phi81, 108)] {
+        let program = MatrixProgram::decode(&json!([encoded])).unwrap();
+        let source = |_| panic!("template rows do not read ordinary source rows");
+        let expected = program.row(logical_width, 0, &source).unwrap();
+        assert!(program.row(logical_width, invalid_row, &source).is_err());
+        let count = program.row_count().unwrap();
+        let mut visited = 0;
+        let flow = program
+            .visit_rows_until(logical_width, 0, count, &source, |ordinal, row| {
+                assert_eq!(ordinal, 0);
+                assert_eq!(row, borrowed_row(&expected));
+                visited += 1;
+                Ok(ControlFlow::Break(()))
+            })
+            .unwrap();
+        assert_eq!(flow, ControlFlow::Break(()));
+        assert_eq!(visited, 1);
+
+        let failure = program.visit_rows_until(logical_width, 0, count, &source, |_, _| {
+            Err(PackageError::Invalid("test visitor stop"))
+        });
+        assert!(matches!(failure, Err(PackageError::Invalid("test visitor stop"))));
+    }
+}
+
+#[test]
 fn shared_templates_preserve_empty_invocation_ranges() {
     let poseidon = poseidon::Block::decode(&json!([0, 0, [2, 0, 0], []])).unwrap();
-    poseidon.visit_rows(0, 0, 0, |_| panic!("no rows")).unwrap();
+    let flow = poseidon
+        .visit_rows_until(0, 0, 0, |_| panic!("no rows"))
+        .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
     assert!(poseidon.row(0, 0).is_err());
     let phi81 = phi81::Block::decode(&json!([[], 0, [0, 0, 0], 0, 54, [[], []], [0, 0, 0], [0, 0, 0]])).unwrap();
-    phi81.visit_rows(0, 0, 0, |_| panic!("no rows")).unwrap();
+    let flow = phi81
+        .visit_rows_until(0, 0, 0, |_| panic!("no rows"))
+        .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
     assert!(phi81.row(0, 0).is_err());
 }
 

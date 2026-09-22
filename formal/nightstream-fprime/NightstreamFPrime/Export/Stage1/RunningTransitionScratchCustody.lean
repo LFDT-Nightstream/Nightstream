@@ -684,4 +684,3 @@ theorem retainedNonTransitionValues_eq (application : Stage1.Application.Program
   agree _ (retainedNonTransitionSource_outside application kind different slot)
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionScratchCustody
-

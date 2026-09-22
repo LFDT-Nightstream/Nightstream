@@ -39,7 +39,7 @@ pub enum EngineError {
     },
 }
 
-pub(crate) enum Prover {
+pub(crate) enum Backend {
     #[cfg(feature = "metal")]
     Metal(Box<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
     PaperExact,
@@ -47,7 +47,7 @@ pub(crate) enum Prover {
     Crosscheck,
 }
 
-impl Prover {
+impl Backend {
     pub(crate) fn commit(&self, witnesses: &[Mat<F>]) -> Result<Vec<Commitment>, EngineError> {
         let failure = |reason: String| EngineError::Failure {
             engine: self.engine(),

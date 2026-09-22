@@ -25,13 +25,13 @@ use std::time::{Duration, Instant};
 
 use neo_ccs::{CcsMatrix, CcsStructure};
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::config;
+use neo_fold_legacy::config;
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::frontends::nebula::NebulaFPrimeChainBuilder;
-use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
+use neo_fold_legacy::frontends::nebula::NebulaFPrimeChainBuilder;
+use neo_fold_legacy::frontends::r1cs_f_prime::R1csShape;
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::paper::construction2::ProofState;
+use neo_fold_legacy::paper::params::Params;
 use neo_math::{D, F};
 #[cfg(all(feature = "perf-timers", feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
@@ -482,7 +482,7 @@ fn wasm_nebula_pipeline_profile() {
     // One application step owns the complete ten-instruction trace and the
     // complete reduced-memory scan. The proof still performs its required
     // delayed terminal NIFS fold.
-    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
+    let memory = neo_fold_legacy::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
         .expect("one-step reduced Nebula scan");
     let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
     let batch_size = profile.batch_size();
@@ -824,7 +824,7 @@ fn wasm_nebula_compact_cache_artifact_profile() {
     let second_wasm = wat::parse_str(PROFILE_WAT_VARIANT).expect("valid second profile WAT");
     let second_artifacts = neo_wasm::extract_wasm_program_artifacts(&second_wasm).expect("second program artifacts");
     let second_run = neo_wasm::collect_wasmtime_steps(&second_wasm, "main", &[]).expect("second wasmtime trace");
-    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
+    let memory = neo_fold_legacy::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
         .expect("one-step reduced Nebula scan");
     let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
     let entry_pc = common::single_function_entry_pc(&artifacts);
@@ -875,7 +875,7 @@ fn wasm_nebula_compact_cache_artifact_profile() {
         structure.m.div_ceil(D) * D,
         structure.t(),
     );
-    let encoder_limits = neo_fold_clean::frontends::r1cs_f_prime::LowNormEncoderArtifactLimits::new(
+    let encoder_limits = neo_fold_legacy::frontends::r1cs_f_prime::LowNormEncoderArtifactLimits::new(
         encoder_receipt.encoder().artifact_bytes(),
         structure.n,
         structure.m,
@@ -912,7 +912,7 @@ fn wasm_nebula_compact_cache_artifact_profile() {
         let encoder = scope.spawn(|| {
             let started = Instant::now();
             let file = File::open(&encoder_artifact_path).expect("open encoder artifact");
-            let loaded = neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
+            let loaded = neo_fold_legacy::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
                 BufReader::new(file),
                 &encoder_receipt,
                 encoder_limits,
@@ -1070,7 +1070,7 @@ fn wasm_nebula_all_branch_metal_profile() {
 
     // Four application folds force the deterministic branch schedule:
     // base, bootstrap-recursive, steady-recursive, steady-recursive.
-    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 1024, 16)
+    let memory = neo_fold_legacy::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 1024, 16)
         .expect("four-fold reduced Nebula scan");
     let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
     assert_eq!(profile.memory().steps_per_segment(), 4);

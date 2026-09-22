@@ -79,7 +79,11 @@ fn exported_round_constants_rebuild_the_canonical_permutation() {
         .iter()
         .map(|&c| Goldilocks::from_u64(c))
         .collect();
+    // Plonky3's AArch64 fused constructor borrows; other targets take ownership.
+    #[cfg(target_arch = "aarch64")]
     let rebuilt = Poseidon2Goldilocks::<{ p2::WIDTH }>::new(&external, &internal);
+    #[cfg(not(target_arch = "aarch64"))]
+    let rebuilt = Poseidon2Goldilocks::<{ p2::WIDTH }>::new(external, internal);
 
     let mut rng = StdRng::seed_from_u64(0x7032_5f72_635f_7631);
     for _ in 0..64 {

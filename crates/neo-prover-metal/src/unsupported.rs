@@ -166,7 +166,7 @@ impl MetalSession {
         _masks: &MetalWitnessMasks,
         _count: usize,
         _full_cols: usize,
-        _ranges: &neo_fold_clean::paper::relations::LaneRanges,
+        _ranges: &neo_fold_legacy::paper::relations::LaneRanges,
     ) -> Result<(Vec<u64>, Duration), MetalError> {
         Err(MetalError::Unavailable)
     }
@@ -174,7 +174,7 @@ impl MetalSession {
     #[cfg(feature = "legacy-adapter")]
     pub fn sis_accumulator_digest(
         &self,
-        _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
+        _config: neo_fold_legacy::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
         _fields: &[neo_math::F],
     ) -> Result<[neo_math::F; 4], MetalError> {
         Err(MetalError::Unavailable)
@@ -183,7 +183,7 @@ impl MetalSession {
     #[cfg(feature = "legacy-adapter")]
     pub(crate) fn sis_accumulator_digest_resident(
         &self,
-        _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
+        _config: neo_fold_legacy::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
         _fields: &[neo_math::F],
     ) -> Result<[neo_math::F; 4], MetalError> {
         Err(MetalError::Unavailable)

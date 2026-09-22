@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the selected CI checks through the existing bounded coordinators."""
+"""Run explicit golden checks through the existing bounded coordinators."""
 
 import argparse
 import json
@@ -19,7 +19,7 @@ from compare_recursive_outputs import compare_envelope, compare_json, equal, loa
 
 def run(command):
     command = list(map(str, command))
-    print("golden CI: " + " ".join(command), flush=True)
+    print("golden conformance: " + " ".join(command), flush=True)
     subprocess.run(command, cwd=ROOT, check=True)
 
 
@@ -125,7 +125,7 @@ def independent_expectations(directory, references, checker, cpu_reference):
 
 def execute(mode, archives, directory, cpu_reference=None):
     if mode == "metal" and sys.platform != "darwin":
-        raise ValueError("selected Metal check needs a macOS runner with an available Metal device; runner routing is not configured")
+        raise ValueError("selected Metal check needs a macOS host with an available Metal device")
     if mode in ("metal", "independent") and cpu_reference is None:
         raise ValueError(f"{mode} requires the CPU handoff artifact")
     if mode == "cpu" and cpu_reference is not None:
@@ -182,4 +182,4 @@ if __name__ == "__main__":
     try:
         main()
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
-        sys.exit(f"golden CI failed: {error}")
+        sys.exit(f"golden conformance failed: {error}")

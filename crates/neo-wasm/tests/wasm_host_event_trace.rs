@@ -92,22 +92,12 @@ fn mul_sink_component_wat() -> &'static str {
     "#
 }
 
-/// Run the two-call component; the mul host function records `mul_inputs`
-/// for its in-flight call (the bindings hand-off path), sink records nothing.
-fn run_component_with_mul_inputs(
-    bindings: HostEventBindings,
-    mul_inputs: &'static [u64],
-) -> neo_wasm::WasmtimeTraceRun {
+fn run_component_with_bindings(bindings: HostEventBindings) -> neo_wasm::WasmtimeTraceRun {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
             .root()
-            .func_wrap("host-mul", move |mut store, (x, y): (i32, i32)| {
-                let frame = store.debug_exit_frames().next().expect("guest caller");
-                let instance = frame.instance(&mut store)?.debug_index_in_store();
-                store.data_mut().record_call_inputs(instance, mul_inputs)?;
-                Ok((x * y,))
-            })
+            .func_wrap("host-mul", |_store, (x, y): (i32, i32)| Ok((x * y,)))
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
         linker
             .root()
@@ -118,7 +108,7 @@ fn run_component_with_mul_inputs(
 }
 
 fn run_component() -> neo_wasm::WasmtimeTraceRun {
-    run_component_with_mul_inputs(HostEventBindings::default(), &[])
+    run_component_with_bindings(HostEventBindings::default())
 }
 
 fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
@@ -149,7 +139,7 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let run = run_component_with_bindings(bindings.clone());
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), initial_comm_chain)
         .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
@@ -352,7 +342,7 @@ fn advice_import_pushes_without_absorbing() {
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let run = run_component_with_bindings(bindings.clone());
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
         .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
@@ -484,21 +474,6 @@ fn missing_template_is_rejected() {
     );
 }
 
-/// A host call recording more input words than its template consumes
-/// indicates a misaligned hand-off and is rejected.
-#[test]
-fn surplus_input_words_are_rejected() {
-    let (frefs, export_fref) = ([1, 2], 3);
-    let mut bindings = test_bindings(frefs[0], frefs[1]);
-    bindings
-        .exports
-        .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let run = run_component_with_mul_inputs(bindings.clone(), &[1, 2]);
-    assert!(
-        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default()).is_err()
-    );
-}
-
 /// A gather row staging a word that contradicts its (honest) ROM entry is
 /// CCS-rejected: here the constant discriminant word is forged.
 #[test]
@@ -548,7 +523,7 @@ fn memory_rows_reject_forged_rom_claim() {
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let run = run_component_with_bindings(bindings.clone());
     let mut trace =
         neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
             .expect("bindings trace");

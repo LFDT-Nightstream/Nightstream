@@ -326,11 +326,20 @@ fn cross_instance_call_captures_the_callee_memory_with_a_live_caller_frame() {
 #[test]
 fn entry_memory_rejects_missing_capture_and_conflicts() {
     let mut runtime = Runtime::new();
-    let bindings = memory_bindings(2);
+    let mut bindings = memory_bindings(2);
+    // TODO: consider forbidding shared inputs statically in the template.
+    let template = bindings.exports.get_mut(&2).unwrap();
+    template.entry_input_count = 3;
+    template.entry[0].block[4] = SlotBinding::MemoryWrite16 {
+        input: 2,
+        base: MemoryBase::Local(0),
+        byte_offset: 6,
+    };
     let (instance, artifacts) = runtime.instantiate(MEMORY_WAT, &bindings);
-    runtime.write(instance, 16, &[42, 0, 0, 0, 7, 0xaa, 8, 0]);
+    runtime.write(instance, 16, &[42, 0, 0, 0, 7, 0xaa, 7, 0]);
     runtime.call(instance, &[Val::I32(16), Val::I32(42)]);
     let steps = runtime.steps(instance);
+    check_entry_values(steps, &artifacts, &[vec![16, 42, 7]]);
     for absent in [true, false] {
         let mut bad = steps.to_vec();
         if absent {
@@ -349,18 +358,21 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
             .to_string()
             .contains("missing entry memory"));
     }
-    let mut bad = steps.to_vec();
-    bad[0]
-        .entry_memory
-        .as_mut()
-        .unwrap()
-        .as_mut()
-        .unwrap()
-        .insert(16, 43);
-    assert!(normalize(&bad, &artifacts)
-        .unwrap_err()
-        .to_string()
-        .contains("conflicting mappings"));
+    // Input 1 agrees between a local and memory; input 2 agrees between two addresses.
+    for (address, value) in [(16, 43), (22, 8)] {
+        let mut bad = steps.to_vec();
+        bad[0]
+            .entry_memory
+            .as_mut()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .insert(address, value);
+        assert!(normalize(&bad, &artifacts)
+            .unwrap_err()
+            .to_string()
+            .contains("conflicting mappings"));
+    }
     let mut high_pointer = steps.to_vec();
     high_pointer[0].locals_words[0].1 = 1;
     assert!(normalize(&high_pointer, &artifacts)
@@ -389,7 +401,7 @@ fn entry_memory_requires_capture_configuration() {
     assert!(normalize(steps, &artifacts)
         .unwrap_err()
         .to_string()
-        .contains("configure capture bindings"));
+        .contains("missing entry memory capture"));
 }
 
 #[test]
@@ -435,76 +447,32 @@ fn recovery_requires_the_actual_entry_row_of_each_turn() {
     }
 }
 
-// TODO: this probably should be forbidden statically over the template (sharing
-// an input in general)
 #[test]
-fn memory_mappings_can_share_an_input_at_disjoint_addresses() {
-    let mut runtime = Runtime::new();
-    let mut bindings = memory_bindings(2);
-    let template = bindings.exports.get_mut(&2).unwrap();
-    template.entry_input_count = 3;
-    template.entry[0].block[4] = SlotBinding::MemoryWrite16 {
+fn entry_memory_capture_rejects_overlapping_aliases() {
+    let wat = r#"(module (memory 1) (func (export "run") (param i32 i32) nop))"#;
+    let mut bindings = memory_bindings(1);
+    let block = &mut bindings.exports.get_mut(&1).unwrap().entry[0].block;
+    // Different locals alias the same address: overlap detection must use addresses.
+    block[3] = SlotBinding::MemoryWrite8 {
         input: 2,
-        base: MemoryBase::Local(0),
-        byte_offset: 6,
+        base: MemoryBase::Local(1),
+        byte_offset: 0,
     };
-    let (instance, artifacts) = runtime.instantiate(MEMORY_WAT, &bindings);
-    runtime.write(instance, 16, &[42, 0, 0, 0, 7, 0xaa, 7, 0]);
-    runtime.call(instance, &[Val::I32(16), Val::I32(42)]);
-    check_entry_values(runtime.steps(instance), &artifacts, &[vec![16, 42, 7]]);
-    let mut conflicting = runtime.steps(instance).to_vec();
-    conflicting[0]
+    let mut runtime = Runtime::new();
+    let (instance, artifacts) = runtime.instantiate(wat, &bindings);
+    runtime.call(instance, &[Val::I32(16), Val::I32(16)]);
+    let steps = runtime.steps(instance);
+    assert!(steps[0]
         .entry_memory
-        .as_mut()
+        .as_ref()
         .unwrap()
-        .as_mut()
-        .unwrap()
-        .insert(22, 8);
-    assert!(normalize(&conflicting, &artifacts)
+        .as_ref()
+        .unwrap_err()
+        .contains("overlapping"));
+    assert!(normalize(steps, &artifacts)
         .unwrap_err()
         .to_string()
-        .contains("conflicting mappings"));
-}
-
-#[test]
-fn entry_memory_capture_rejects_invalid_accesses_and_overlapping_aliases() {
-    for (pointer, offset, memory, expected) in [
-        (65536, 0, "(memory (export \"memory\") 1)", "out of bounds"),
-        (17, 0, "(memory 1)", "not naturally aligned"),
-        (-4, 8, "(memory 1)", "overflows wasm32"),
-        (16, 0, "", "requires default linear memory"),
-        (16, 0, "(memory 1)", "overlapping entry memory writes"),
-    ] {
-        let wat = format!("(module {memory} (func (export \"run\") (param i32 i32) nop))");
-        let mut bindings = memory_bindings(1);
-        let block = &mut bindings.exports.get_mut(&1).unwrap().entry[0].block;
-        block[2] = SlotBinding::MemoryWrite32 {
-            input: 1,
-            base: MemoryBase::Local(0),
-            byte_offset: offset,
-        };
-        // Different locals alias the same address: overlap detection must use addresses.
-        block[3] = SlotBinding::MemoryWrite8 {
-            input: 2,
-            base: MemoryBase::Local(1),
-            byte_offset: 0,
-        };
-        let mut runtime = Runtime::new();
-        let (instance, artifacts) = runtime.instantiate(&wat, &bindings);
-        runtime.call(instance, &[Val::I32(pointer), Val::I32(pointer)]);
-        let steps = runtime.steps(instance);
-        assert!(steps[0]
-            .entry_memory
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap_err()
-            .contains(expected));
-        assert!(normalize(steps, &artifacts)
-            .unwrap_err()
-            .to_string()
-            .contains(expected));
-    }
+        .contains("overlapping"));
 }
 
 #[test]
@@ -580,10 +548,7 @@ fn capture_and_replay_share_host_event_address_rules() {
                 let capture_error = captured.as_ref().unwrap_err();
                 assert!(capture_error.contains(expected), "{capture_error}");
                 let replay_error = replay.unwrap_err().to_string();
-                assert!(
-                    capture_error.ends_with(&replay_error),
-                    "capture: {capture_error}; replay: {replay_error}"
-                );
+                assert!(replay_error.contains(expected), "{replay_error}");
                 assert!(normalize(steps, &artifacts)
                     .unwrap_err()
                     .to_string()

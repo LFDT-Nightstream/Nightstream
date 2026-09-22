@@ -14,6 +14,7 @@ mod values;
 
 use self::turn::{plan_turn_exit, setup_turn};
 use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
+use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::host_event_emit::{
@@ -452,6 +453,19 @@ pub(super) fn build_trace(
                     current.cycle
                 ))
             })?;
+            let template = bindings.imports.get(&host_callee_fref).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "no host-event template for host import fref {host_callee_fref} at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if template.input_count > 0 && next.is_none_or(|row| Some(u64::from(row.pc)) != current.call_return_pc) {
+                return Err(WasmBuildError::Trace(format!(
+                    "import memory recovery at cycle {} requires the caller continuation; \
+                     same-instance reentry is not supported by normalization",
+                    current.cycle
+                )));
+            }
             let param_count = current.call_param_count.ok_or_else(|| {
                 WasmBuildError::Trace(format!(
                     "missing call parameter count for host call at cycle {}",
@@ -514,12 +528,12 @@ pub(super) fn build_trace(
             } else {
                 None
             };
-            let template = bindings.imports.get(&host_callee_fref).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "no host-event template for host import fref {host_callee_fref} at cycle {}",
-                    current.cycle
-                ))
-            })?;
+            let inputs = recover_import_inputs(
+                template,
+                &arg_limbs,
+                current.memory_pages_before,
+                current.host_call_memory.as_ref(),
+            )?;
             let args_base = sp_before - index_pops as u64 - u64::from(param_count);
             host_event_plan = Some(
                 plan_import_call(
@@ -527,7 +541,7 @@ pub(super) fn build_trace(
                     args_base,
                     &arg_limbs,
                     result_limbs,
-                    &current.host_call_inputs,
+                    &inputs,
                     current.memory_pages_before,
                     &mut linear_memory,
                 )

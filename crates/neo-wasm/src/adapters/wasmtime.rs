@@ -16,7 +16,9 @@ use wasmtime::{
 
 mod decode;
 mod entry_inputs;
+mod import_inputs;
 mod memory_address;
+mod memory_inputs;
 mod normalize;
 mod parse;
 mod registry;
@@ -89,11 +91,10 @@ pub struct WasmtimeTraceStep {
     /// necessarily the runtime next PC. Halting rows retain this value even
     /// when it does not name an instruction in the current function.
     pub pc_after_instruction: Option<u64>,
-    /// Per-call host-event input words recorded by the embedder's host
-    /// function while servicing this host-call row (see
-    /// [`WasmtimeTraceRegistry::record_call_inputs`]). Consumed by event-bound
-    /// normalization.
-    pub host_call_inputs: Vec<u64>,
+    /// Declared import-write bytes from memory 0, captured when the calling
+    /// activation resumes, before its next instruction. Stored on the call row.
+    /// Supplies witness inputs to replay writes, never memory initialization.
+    pub host_call_memory: Option<Result<BTreeMap<u32, u8>, String>>,
     /// Bytes required by entry bindings, captured from Wasm memory 0
     /// before the bound function's first instruction.
     /// Candidate captures also occur on nested guest calls; normalization uses
@@ -449,7 +450,10 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
         event: DebugEvent<'_>,
     ) -> impl Future<Output = ()> + Send {
         async move {
-            if !matches!(event, DebugEvent::Breakpoint) {
+            if !matches!(
+                event,
+                DebugEvent::Breakpoint | DebugEvent::HostcallError(_) | DebugEvent::Trap(_)
+            ) {
                 return;
             }
 
@@ -462,7 +466,17 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             if store.data().wasm_trace_registry().error.is_some() {
                 return;
             }
-            if let Err(error) = registry::capture_step(frame, &mut store) {
+            if matches!(event, DebugEvent::HostcallError(_) | DebugEvent::Trap(_)) {
+                // These notifications arrive before the current activation unwinds.
+                // Wasmtime does not report every native trap; unexplained
+                // continuation mismatches still fail instead of being discarded.
+                store
+                    .data_mut()
+                    .wasm_trace_registry_mut()
+                    .discard_unwound_imports(frames.len());
+                return;
+            }
+            if let Err(error) = registry::capture_step(frame, frames.len(), &mut store) {
                 store.data_mut().wasm_trace_registry_mut().error = Some(error);
             }
         }

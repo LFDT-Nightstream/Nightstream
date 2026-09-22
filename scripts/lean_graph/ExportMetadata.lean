@@ -1,5 +1,6 @@
 import tests.EvidenceTargets
 import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingWork
+import NightstreamFPrime.Export.Stage1.CanonicalDirectPhysicalExecution
 
 /-! Standalone inspection driver. Each witness graph includes its exact target.
 Run through validate.sh after building the library and tests.EvidenceTargets.
@@ -25,3 +26,4 @@ Run through validate.sh after building the library and tests.EvidenceTargets.
 #evidence_export LeanGraph.Targets.hyperNovaTerminalFalseAcceptance
 #evidence_export LeanGraph.Targets.piRLCWitnessReplay
 #evidence_export NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse.preparedWitnessBlockPartials_honestResponse
+#evidence_export NightstreamFPrime.Export.Stage1.CanonicalDirectPhysicalExecution.successful_assignment_eq

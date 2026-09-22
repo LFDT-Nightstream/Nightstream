@@ -70,8 +70,8 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 6_377_559;
-const EXPECTED_LOGICAL_COLUMNS: usize = 253_011_231;
+const EXPECTED_ACTIVE_ROWS: usize = 4_703_127;
+const EXPECTED_LOGICAL_COLUMNS: usize = 184_359_519;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
 const EXPECTED_PHYSICAL_ROWS: usize = 29_225_729;
@@ -281,7 +281,7 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
 }
 
 #[test]
-#[ignore = "full independent 6,377,559-row matrix interpretation; run the documented release target under the 300-second cap"]
+#[ignore = "full independent 4,703,127-row matrix interpretation; run the documented release target under the 300-second cap"]
 fn final_fourteen_matrices_equal_the_independent_sealed_interpretation() {
     let sealed_bytes = fs::read(artifact_path()).expect("Lean-emitted sealed package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("production package decoder");

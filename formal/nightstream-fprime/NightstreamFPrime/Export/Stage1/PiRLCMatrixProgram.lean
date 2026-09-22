@@ -26,7 +26,7 @@ def matrixProgram {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 1898781 := by
+    (matrixProgram geometry).rowCount = 224349 := by
   simp [matrixProgram]
 
 /-- Every row in the compact PiRLC program is the exact row in the canonical

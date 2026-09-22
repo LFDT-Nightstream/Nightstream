@@ -166,8 +166,77 @@ deriving Repr, DecidableEq
 def Block.invocationCount (block : Block) : Nat :=
   Phi81Product.invocationCount block.families
 
+def Family.ringCount (family : Family) : Nat :=
+  family.sourceCount * (family.blockCount * family.cellCount)
+
+def ringCount (families : List Family) : Nat :=
+  (families.map Family.ringCount).sum
+
+/-- Decode a full ring while retaining the original lane/cell source order. -/
+def Family.ringDescriptor? (family : Family) (familyOffset index : Nat) :
+    Option Descriptor :=
+  if bound : index < family.ringCount then
+    let sourceAndCell : Fin family.sourceCount ×
+        Fin (family.blockCount * family.cellCount) := Fin.decodeProd ⟨index, bound⟩
+    let blockAndCell : Fin family.blockCount × Fin family.cellCount :=
+      Fin.decodeProd sourceAndCell.2
+    some {
+      family, familyOffset
+      source := sourceAndCell.1
+      coordinate := CombinationStep.indexOf blockAndCell.1 ⟨0, by decide⟩ blockAndCell.2 }
+  else none
+
+def ringDescriptorFrom? : List Family → Nat → Nat → Option Descriptor
+  | [], _, _ => none
+  | family :: rest, familyOffset, index =>
+      if index < family.ringCount then
+        family.ringDescriptor? familyOffset index
+      else
+        ringDescriptorFrom? rest (familyOffset + family.invocationCount)
+          (index - family.ringCount)
+
+def ringDescriptor? (families : List Family) (index : Nat) : Option Descriptor :=
+  ringDescriptorFrom? families 0 index
+
+@[simp] theorem Family.ringDescriptor?_encode (family : Family)
+    (familyOffset : Nat) (source : Fin family.sourceCount)
+    (block : Fin family.blockCount) (cell : Fin family.cellCount) :
+    family.ringDescriptor? familyOffset
+        (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val =
+      some {
+        family := family
+        familyOffset := familyOffset
+        source := source
+        coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
+  unfold Family.ringDescriptor? Family.ringCount
+  rw [dif_pos (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt]
+  simp
+
+@[simp] theorem ringDescriptorFrom?_head (family : Family)
+    (rest : List Family) (familyOffset : Nat) (source : Fin family.sourceCount)
+    (block : Fin family.blockCount) (cell : Fin family.cellCount) :
+    ringDescriptorFrom? (family :: rest) familyOffset
+        (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val =
+      some {
+        family := family
+        familyOffset := familyOffset
+        source := source
+        coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
+  have bound : (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val <
+      family.ringCount := (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt
+  simp only [ringDescriptorFrom?, bound, if_pos]
+  exact family.ringDescriptor?_encode familyOffset source block cell
+
+theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
+    (familyOffset index : Nat) :
+    ringDescriptorFrom? (family :: rest) familyOffset
+        (family.ringCount + index) =
+      ringDescriptorFrom? rest (familyOffset + family.invocationCount) index := by
+  change (if family.ringCount + index < family.ringCount then _ else _) = _
+  rw [if_neg (by omega), Nat.add_sub_cancel_left]
+
 def Block.rowCount (block : Block) : Nat :=
-  block.invocationCount * 34
+  ringCount block.families * 108
 
 /-- Load a fixed finite function. Any missing element rejects the complete
 function. -/
@@ -222,57 +291,58 @@ def Block.inputState? (block : Block) (logicalWidth : Nat)
   loadFin? ringDegree fun lane =>
     block.input.form? logicalWidth (descriptor.invocationAtLane lane)
 
-def Block.groupOutput? (block : Block) (logicalWidth : Nat)
+def Block.quotientState? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
-    Option (Fin 33 → SparseForm logicalWidth) :=
-  loadFin? 33 fun group =>
-    block.group.form? logicalWidth (descriptor.invocation * 33 + group.val)
+    Option (Phi81ProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.group.form? logicalWidth (descriptor.invocationAtLane lane)
 
-/-- Reconstruct the exact direct product-row interface for one invocation.
-Every retained lookup and the constant column fail closed. -/
+def Block.outputState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (Phi81ProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.output.form? logicalWidth (descriptor.invocationAtLane lane)
+
+def Block.priorState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (Phi81ProductPlan.State logicalWidth) :=
+  if descriptor.source.val = 0 then some (fun _ => SparseForm.empty)
+  else loadFin? ringDegree fun lane =>
+    block.output.form? logicalWidth
+      (descriptor.invocationAtLane lane - descriptor.family.privateCount)
+
+/-- Reconstruct one complete ring equation from its canonical retained data. -/
 def Block.interface? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
-    Option (ProductSumPlan.Interface logicalWidth) := do
+    Option (Phi81ProductPlan.Interface logicalWidth) := do
   let oneColumn ← block.oneColumn? logicalWidth
   let challenge ← block.challengeState? logicalWidth descriptor
   let input ← block.inputState? logicalWidth descriptor
-  let groupOutput ← block.groupOutput? logicalWidth descriptor
-  let prior ← if descriptor.source.val = 0 then
-      some SparseForm.empty
-    else
-      block.output.form? logicalWidth
-        (descriptor.invocation - descriptor.family.privateCount)
-  let output ← block.output.form? logicalWidth descriptor.invocation
+  let quotient ← block.quotientState? logicalWidth descriptor
+  let prior ← block.priorState? logicalWidth descriptor
+  let output ← block.outputState? logicalWidth descriptor
   let left : Phi81ProductPlan.State logicalWidth := fun lane =>
-    SparseForm.add (challenge lane)
-      (SparseForm.singleton oneColumn (-2))
-  pure {
-    oneColumn
-    terms := Phi81ProductPlan.terms left input descriptor.lane
-    groupOutput
-    prior
-    output }
+    SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
+  pure { oneColumn, left, right := input, quotient, prior, output }
 
-/-- Select one compact product row without expanding the family. -/
+/-- Ring-major order, then every fixed evaluation point in increasing order. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (RowForms logicalWidth) :=
   if ordinal < block.rowCount then do
-    let descriptor ← descriptor? block.families (ordinal / 34)
+    let descriptor ← ringDescriptor? block.families (ordinal / 108)
     let interface ← block.interface? logicalWidth descriptor
-    let row ← (ProductSumPlan.rows interface)[ordinal % 34]?
+    let row ← (Phi81ProductPlan.rows interface)[ordinal % 108]?
     pure row.meaningfulForm
-  else
-    none
+  else none
 
 theorem Block.row?_of_loaded (block : Block) (logicalWidth ordinal : Nat)
     (bound : ordinal < block.rowCount)
     (descriptor : Descriptor)
-    (selected : descriptor? block.families (ordinal / 34) = some descriptor)
-    (interface : ProductSumPlan.Interface logicalWidth)
+    (selected : ringDescriptor? block.families (ordinal / 108) = some descriptor)
+    (interface : Phi81ProductPlan.Interface logicalWidth)
     (loaded : block.interface? logicalWidth descriptor = some interface)
     (row : ProductSumPlan.Row logicalWidth)
-    (rowSelected : (ProductSumPlan.rows interface)[ordinal % 34]? =
-      some row) :
+    (rowSelected : (Phi81ProductPlan.rows interface)[ordinal % 108]? = some row) :
     block.row? logicalWidth ordinal = some row.meaningfulForm := by
   simp [Block.row?, bound, selected, loaded, rowSelected]
 

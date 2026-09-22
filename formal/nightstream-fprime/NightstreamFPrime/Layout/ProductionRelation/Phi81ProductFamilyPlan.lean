@@ -2,11 +2,12 @@ import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
 /-!
-Owns an invocation-major family of fixed 34-row Phi81 product plans. Each
-invocation selects its lane, input rings, prior value, output value, and 33
-retained group-output forms. The family is one actual 14-matrix plan.
+Owns an invocation-major family of 108-row Phi81 quotient product plans.
+Each invocation owns one complete ring product, its prior and output rings,
+and 54 retained quotient coefficients. The family uses the fixed CCS
+polynomial and all 14 matrix ports.
 
-This module does not select a concrete Stage 1 invocation schedule.
+This module does not select the concrete Stage 1 invocation schedule.
 -/
 
 namespace NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
@@ -17,86 +18,61 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Sparse forms supplied by one ordered family of product invocations. -/
+/-- Sparse forms for an ordered family of complete ring products. -/
 structure Interface (logicalWidth invocationCount : Nat) where
   oneColumn : Fin logicalWidth
-  lane : Fin invocationCount → Fin ringDegree
   left : Fin invocationCount → Phi81ProductPlan.State logicalWidth
   right : Fin invocationCount → Phi81ProductPlan.State logicalWidth
-  groupOutput : Fin invocationCount → Fin 33 → SparseForm logicalWidth
-  prior : Fin invocationCount → SparseForm logicalWidth
-  output : Fin invocationCount → SparseForm logicalWidth
+  quotient : Fin invocationCount → Phi81ProductPlan.State logicalWidth
+  prior : Fin invocationCount → Phi81ProductPlan.State logicalWidth
+  output : Fin invocationCount → Phi81ProductPlan.State logicalWidth
 
-def groupOutputAt {logicalWidth invocationCount : Nat}
+def ringInterface {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount)
-    (group : Fin (ProductSumPlan.groups
-      (Phi81ProductPlan.terms (interface.left invocation)
-        (interface.right invocation) (interface.lane invocation))).length) :
-    SparseForm logicalWidth :=
-  interface.groupOutput invocation ⟨group.val, by
-    simpa using group.isLt⟩
-
-def laneInterface {logicalWidth invocationCount : Nat}
-    (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) :
-    ProductSumPlan.Interface logicalWidth :=
+    (invocation : Fin invocationCount) : Phi81ProductPlan.Interface logicalWidth :=
   { oneColumn := interface.oneColumn
-    terms := Phi81ProductPlan.terms (interface.left invocation)
-      (interface.right invocation) (interface.lane invocation)
-    groupOutput := groupOutputAt interface invocation
+    left := interface.left invocation
+    right := interface.right invocation
+    quotient := interface.quotient invocation
     prior := interface.prior invocation
     output := interface.output invocation }
 
-@[simp] theorem laneRows_length {logicalWidth invocationCount : Nat}
-    (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) :
-    (ProductSumPlan.rows (laneInterface interface invocation)).length = 34 := by
-  simpa [laneInterface] using Phi81ProductPlan.rows_length
-    interface.oneColumn (interface.left invocation) (interface.right invocation)
-    (interface.lane invocation) (groupOutputAt interface invocation)
-    (interface.prior invocation) (interface.output invocation)
-
 def rowAt {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 34) :
+    (invocation : Fin invocationCount) (row : Fin 108) :
     ProductSumPlan.Row logicalWidth :=
-  (ProductSumPlan.rows (laneInterface interface invocation)).get
-    ⟨row.val, by
-      rw [laneRows_length]
-      exact row.isLt⟩
+  Phi81ProductPlan.rowAt (ringInterface interface invocation) row
 
 def rowForms {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 34)
+    (invocation : Fin invocationCount) (row : Fin 108)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     SparseForm logicalWidth :=
   (rowAt interface invocation row).meaningfulForm port
 
-/-- Exact invocation-major family plan. -/
 def plan {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.indexed (rowForms interface) rowCount_le
 
 @[simp] theorem plan_rowCount {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
-    (plan interface rowCount_le).rowCount = invocationCount * 34 := by
+    (plan interface rowCount_le).rowCount = invocationCount * 108 := by
   rfl
 
 theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 34) :
+    (invocation : Fin invocationCount) (row : Fin 108) :
     (plan interface rowCount_le).rowImage assignment
         ((plan interface rowCount_le).rowLayout.toVertex
-          (ProductionRelation.Plan.indexedRow invocationCount 34
+          (ProductionRelation.Plan.indexedRow invocationCount 108
             invocation row)) =
       (rowAt interface invocation row).portImages assignment := by
   rw [ProductionRelation.Plan.rowImage_toVertex]
@@ -110,7 +86,7 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
       simp only [ProductionRelation.Plan.portForm,
         ProductSumPlan.Row.portForm, found]
       rw [show (plan interface rowCount_le).forms
-            (ProductionRelation.Plan.indexedRow invocationCount 34
+            (ProductionRelation.Plan.indexedRow invocationCount 108
               invocation row) meaningful =
           rowForms interface invocation row meaningful by
         exact ProductionRelation.Plan.indexed_forms
@@ -119,92 +95,72 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
 
 theorem plan_residual_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 34) :
+    (invocation : Fin invocationCount) (row : Fin 108) :
     evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         ((plan interface rowCount_le).rowImage assignment
           ((plan interface rowCount_le).rowLayout.toVertex
-            (ProductionRelation.Plan.indexedRow invocationCount 34
+            (ProductionRelation.Plan.indexedRow invocationCount 108
               invocation row))) =
       (rowAt interface invocation row).residual assignment := by
   rw [plan_rowImage_at]
   exact ProductSumPlan.Row.polynomial_eq_residual _ _
 
-theorem rowAt_mem {logicalWidth invocationCount : Nat}
-    (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 34) :
-    rowAt interface invocation row ∈
-      ProductSumPlan.rows (laneInterface interface invocation) := by
-  unfold rowAt
-  exact List.get_mem _ _
-
-/-- The family plan vanishes exactly when every invocation satisfies its
-grouped-product equations. -/
+/-- The actual family rows encode exactly the quotient evaluation equations. -/
 theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
     (one : assignment interface.oneColumn = 1) :
     (plan interface rowCount_le).RowsZero assignment ↔
       ∀ invocation,
-        ProductSumPlan.Equations (laneInterface interface invocation)
+        Phi81ProductPlan.Equations (ringInterface interface invocation)
           assignment := by
   constructor
   · intro rowsZero invocation
-    apply (ProductSumPlan.rowsZero_iff_equations
-      (laneInterface interface invocation) assignment one).mp
-    intro localRow member
-    rcases List.mem_iff_get.mp member with ⟨index, rfl⟩
-    let row : Fin 34 := ⟨index.val, by
-      exact Nat.lt_of_lt_of_eq index.isLt
-        (laneRows_length interface invocation)⟩
-    have rowEqual :
-        rowAt interface invocation row =
-          (ProductSumPlan.rows (laneInterface interface invocation)).get
-            index := by
-      unfold rowAt row
-      congr 1
-    rw [← rowEqual]
+    apply (Phi81ProductPlan.rowsZero_iff_equations
+      (ringInterface interface invocation) assignment one).mp
+    intro row
+    change (rowAt interface invocation row).residual assignment = 0
     rw [← plan_residual_at interface rowCount_le assignment invocation row]
     exact rowsZero
-      (ProductionRelation.Plan.indexedRow invocationCount 34 invocation row)
+      (ProductionRelation.Plan.indexedRow invocationCount 108 invocation row)
   · intro equations globalRow
-    let decoded : Fin invocationCount × Fin 34 := Fin.decodeProd globalRow
+    let decoded : Fin invocationCount × Fin 108 := Fin.decodeProd globalRow
     have encodedEqual :
-        ProductionRelation.Plan.indexedRow invocationCount 34
+        ProductionRelation.Plan.indexedRow invocationCount 108
           decoded.1 decoded.2 = globalRow := by
       unfold ProductionRelation.Plan.indexedRow decoded
       exact Fin.encodeProd_decodeProd globalRow
     rw [← encodedEqual]
     rw [plan_residual_at]
-    have localRows :=
-      (ProductSumPlan.rowsZero_iff_equations
-        (laneInterface interface decoded.1) assignment one).mpr
-          (equations decoded.1)
-    exact localRows (rowAt interface decoded.1 decoded.2)
-      (rowAt_mem interface decoded.1 decoded.2)
+    exact (Phi81ProductPlan.rowsZero_iff_equations
+      (ringInterface interface decoded.1) assignment one).mpr
+        (equations decoded.1) decoded.2
 
-/-- Satisfying family rows force every exact `prior + ringFMul` output. -/
+/-- Satisfying family rows force every complete `prior + ringFMul` result. -/
 theorem planRowsZero_implies_ringProduct {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 34 ≤
+    (rowCount_le : invocationCount * 108 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
     (one : assignment interface.oneColumn = 1)
     (rowsZero : (plan interface rowCount_le).RowsZero assignment)
     (invocation : Fin invocationCount) :
-    (interface.output invocation).eval assignment =
-      (interface.prior invocation).eval assignment +
-        ringFMul
+    Phi81ProductPlan.evalState assignment (interface.output invocation) =
+      ringFAdd
+        (Phi81ProductPlan.evalState assignment (interface.prior invocation))
+        (ringFMul
           (Phi81ProductPlan.evalState assignment (interface.left invocation))
-          (Phi81ProductPlan.evalState assignment (interface.right invocation))
-          (interface.lane invocation) := by
-  have equations := (planRowsZero_iff interface rowCount_le assignment one).mp
-    rowsZero invocation
-  rw [← Phi81ProductPlan.terms_total]
-  exact equations.final
+          (Phi81ProductPlan.evalState assignment (interface.right invocation))) := by
+  apply Phi81ProductPlan.rowsZero_implies_ringProduct
+    (ringInterface interface invocation) assignment one
+  exact (Phi81ProductPlan.rowsZero_iff_equations
+    (ringInterface interface invocation) assignment one).mpr
+      ((planRowsZero_iff interface rowCount_le assignment one).mp rowsZero
+        invocation)
 
 end NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan

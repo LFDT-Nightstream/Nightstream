@@ -123,8 +123,11 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let expected: Value = serde_json::from_slice(&bytes).unwrap();
-    let reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    reference.assignment.schema = 2;
+    assert!(manifest.check_reference(&reference).is_err());
+    reference.assignment.schema = 3;
     let application = poseidon2_hash_chain_v1().unwrap();
     let fixed = assemble(reference, &manifest, &application).unwrap();
     let actual = materialized_assembly(fixed, &application, &manifest);

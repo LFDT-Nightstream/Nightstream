@@ -426,7 +426,7 @@ theorem poseidonGrid_form?
     unfold PiRLCSamplerOrdinaryDirectPlan.Location.form
       PiRLCSamplerPoseidonPlan.interface
       PoseidonRetainedFamily.familyInterface
-      PoseidonRetainedFamily.outputState
+      PoseidonSboxFamilyPlan.Interface.output
     apply congrArg (fun state => SparseLayer.external state
       (DigestWindow.rateLane lane))
     funext selected

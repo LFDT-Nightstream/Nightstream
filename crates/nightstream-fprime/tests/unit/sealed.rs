@@ -51,15 +51,15 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
     const PHYSICAL_WIDTH: usize = 60_000;
     const LOGICAL_PUBLIC_WIDTH: usize = 270;
     const PHI81_INVOCATIONS: usize = 52_326;
-    const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * 33;
+    const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
     const FIRST54_PRODUCTS: usize = 1_088;
 
-    let product_source_start = PHYSICAL_WIDTH + PHI81_GROUP_VALUES;
+    let product_source_start = PHYSICAL_WIDTH + PHI81_QUOTIENT_VALUES;
     let mut logical_width = LOGICAL_PUBLIC_WIDTH;
     let blocks = (0..crate::package::assignment_transport::BLOCK_COUNT)
         .map(|opcode| {
             let (kind, slot_count, source_first) = match opcode {
-                3 => (2, PHI81_GROUP_VALUES, PHYSICAL_WIDTH),
+                3 => (2, PHI81_QUOTIENT_VALUES, PHYSICAL_WIDTH),
                 4 => (0, FIRST54_PRODUCTS, 0),
                 5 => (2, FIRST54_PRODUCTS, 0),
                 7 => (2, 58_752, 0),
@@ -81,17 +81,13 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
         })
         .collect::<Vec<_>>();
     let transport = json!([
-        2,
+        3,
         blocks,
         [
             54,
             27,
             81,
-            106,
-            3,
-            162,
-            5,
-            33,
+            54,
             [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]],
             7,
             3402,
@@ -113,6 +109,8 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
 
     for (pointer, value, expected) in [
         ("/0", json!(1), "assignment transport schema version"),
+        ("/0", json!(2), "assignment transport schema version"),
+        ("/2/3", json!(53), "Phi81 assignment constants"),
         ("/1/28/3", json!(2), "assignment source domain"),
         ("/4", json!(26), "output digest block selector"),
         ("/1/17/0", json!(18), "assignment block order"),

@@ -8,10 +8,9 @@ use neo_ajtai::nightstream_fprime_setup::{
     authority_words, PRODUCTION_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_math::D;
-use nightstream_fprime::{
-    LoadedPerApplicationPackage, PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding,
-    WitnessAssignment,
-};
+use nightstream_fprime::{LoadedPerApplicationPackage, PackageError, Stage1VerifierBinding};
+#[cfg(test)]
+use nightstream_fprime::{PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, WitnessAssignment};
 mod base;
 mod complete;
 mod evaluation;
@@ -78,6 +77,7 @@ impl PreparedLifecycle {
     pub fn package_identity(&self) -> [u64; 4] {
         self.binding.package_identity()
     }
+    #[cfg(test)]
     pub(crate) fn execute_step_witness(
         &self,
         c: &PiCcsV1_1PackageInputs,

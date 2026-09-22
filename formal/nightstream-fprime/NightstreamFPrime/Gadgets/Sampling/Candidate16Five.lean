@@ -968,7 +968,7 @@ theorem flatConstraints_varsBelow
         exact ⟨⟨⟨⟨remainderBelow, differenceBelow 1⟩,
           differenceBelow 2⟩, differenceBelow 3⟩, differenceBelow 4⟩
 
-private theorem productExpr_varsSatisfy (bit : Nat → Expr) (count : Nat)
+theorem productExpr_varsSatisfy (bit : Nat → Expr) (count : Nat)
     (allowed : Nat → Prop)
     (bitsSupported : ∀ index, index < count →
       (bit index).VarsSatisfy allowed) :

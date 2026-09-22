@@ -161,18 +161,18 @@ pub(super) fn assignment(reference: &mut Envelope, manifest: &Manifest, counts: 
         return Err(AssemblyError::Invalid("assignment templates differ from reference"));
     }
     reference.assignment.blocks = assignment_blocks(manifest, counts)?;
-    // Phi81Recipe's field 13 is valueSources in the existing typed transport ABI.
+    // The schema-3 quotient recipe stores valueSources at field 9.
     let phi81 = reference
         .assignment
         .phi81
         .as_array_mut()
-        .filter(|fields| fields.len() == 15)
+        .filter(|fields| fields.len() == 11)
         .ok_or(AssemblyError::Invalid("Phi81 assignment recipe"))?;
-    if phi81[13] != serde_json::to_value(runs(&manifest.phi81_value_sources, manifest.reference())?)? {
+    if phi81[9] != serde_json::to_value(runs(&manifest.phi81_value_sources, manifest.reference())?)? {
         return Err(AssemblyError::Invalid(
             "Phi81 value source template differs from reference",
         ));
     }
-    phi81[13] = serde_json::to_value(runs(&manifest.phi81_value_sources, counts)?)?;
+    phi81[9] = serde_json::to_value(runs(&manifest.phi81_value_sources, counts)?)?;
     Ok(())
 }

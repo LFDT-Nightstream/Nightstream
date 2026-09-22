@@ -1,4 +1,4 @@
-//! Independent interpreter for the 34-row Phi81 product opcode.
+//! Independent polynomial-evaluation interpreter for the Phi81 quotient opcode.
 
 use serde_json::Value;
 
@@ -8,10 +8,7 @@ use super::{
 };
 
 const RING_DEGREE: usize = 54;
-const MIDDLE_DEGREE: usize = 27;
-const TERMS_PER_GROUP: usize = 5;
-const GROUP_COUNT: usize = 33;
-const ROWS_PER_INVOCATION: usize = 34;
+const ROWS_PER_RING: usize = 108;
 
 #[derive(Clone, Copy, Debug)]
 struct Family {
@@ -30,16 +27,16 @@ impl Family {
         })
     }
 
-    fn private_count(self) -> Result<usize> {
-        checked_mul(
-            self.block_count,
-            checked_mul(RING_DEGREE, self.cell_count, "Phi81 private lanes")?,
-            "Phi81 private count",
-        )
+    fn rings_per_source(self) -> Result<usize> {
+        checked_mul(self.block_count, self.cell_count, "Phi81 rings per source")
     }
 
-    fn invocation_count(self) -> Result<usize> {
-        checked_mul(self.source_count, self.private_count()?, "Phi81 invocation count")
+    fn ring_count(self) -> Result<usize> {
+        checked_mul(self.source_count, self.rings_per_source()?, "Phi81 ring count")
+    }
+
+    fn private_count(self) -> Result<usize> {
+        checked_mul(self.rings_per_source()?, RING_DEGREE, "Phi81 private count")
     }
 }
 
@@ -49,16 +46,10 @@ struct Descriptor {
     family_offset: usize,
     source: usize,
     block: usize,
-    lane: usize,
     cell: usize,
-    local_invocation: usize,
 }
 
 impl Descriptor {
-    fn invocation(self) -> Result<usize> {
-        checked_add(self.family_offset, self.local_invocation, "Phi81 invocation")
-    }
-
     fn invocation_at_lane(self, lane: usize) -> Result<usize> {
         let block = checked_mul(
             self.block,
@@ -82,6 +73,13 @@ impl Descriptor {
     }
 }
 
+struct RingForms {
+    left: [Form; RING_DEGREE],
+    right: [Form; RING_DEGREE],
+    quotient: [Form; RING_DEGREE],
+    difference: [Form; RING_DEGREE],
+}
+
 #[derive(Clone, Debug)]
 pub struct Block {
     families: Vec<Family>,
@@ -91,7 +89,7 @@ pub struct Block {
     challenge_source_stride: usize,
     input: SourceSubstitution,
     output: RetainedBlock,
-    group: RetainedBlock,
+    quotient: RetainedBlock,
 }
 
 impl Block {
@@ -105,43 +103,31 @@ impl Block {
             challenge_source_stride: word(&fields[4], "Phi81 challenge source stride")?,
             input: SourceSubstitution::decode(&fields[5], logical_width)?,
             output: RetainedBlock::decode(&fields[6])?,
-            group: RetainedBlock::decode(&fields[7])?,
+            quotient: RetainedBlock::decode(&fields[7])?,
         };
         if block.one_column != 0 || block.one_column >= logical_width {
             return Err("Phi81 one column is not logical column zero".into());
         }
-        for retained in [&block.challenge, &block.output, &block.group] {
+        for retained in [&block.challenge, &block.output, &block.quotient] {
             retained.validate(logical_width)?;
         }
         Ok(block)
     }
 
     pub fn row_count(&self) -> Result<usize> {
-        let invocations = self.families.iter().try_fold(0usize, |count, family| {
-            checked_add(count, family.invocation_count()?, "Phi81 invocation count")
+        let rings = self.families.iter().try_fold(0usize, |count, family| {
+            checked_add(count, family.ring_count()?, "Phi81 ring count")
         })?;
-        checked_mul(invocations, ROWS_PER_INVOCATION, "Phi81 row count")
+        checked_mul(rings, ROWS_PER_RING, "Phi81 row count")
     }
 
     pub fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
         if ordinal >= self.row_count()? || self.one_column >= logical_width {
             return Err("Phi81 matrix row is out of range".into());
         }
-        let descriptor = self.descriptor(ordinal / ROWS_PER_INVOCATION)?;
-        let local_row = ordinal % ROWS_PER_INVOCATION;
-        if local_row == GROUP_COUNT {
-            return self.final_row(logical_width, descriptor);
-        }
-
-        let challenge = self.challenge_state(logical_width, descriptor)?;
-        let input = self.input_state(logical_width, descriptor)?;
-        let left: [Form; RING_DEGREE] = std::array::from_fn(|lane| {
-            challenge[lane].clone().append(Form::singleton(
-                self.one_column,
-                -Field::checked(2, "Phi81 two").expect("two is canonical"),
-            ))
-        });
-        self.product_row(logical_width, descriptor, &left, &input, local_row)
+        let descriptor = self.descriptor(ordinal / ROWS_PER_RING)?;
+        let forms = self.ring_forms(logical_width, descriptor)?;
+        self.evaluation_row(&forms, ordinal % ROWS_PER_RING)
     }
 
     pub fn visit_rows(
@@ -160,42 +146,11 @@ impl Block {
         if self.one_column >= logical_width {
             return Err("Phi81 one column is out of range".into());
         }
-
-        let first_invocation = start / ROWS_PER_INVOCATION;
-        let last_invocation = (end - 1) / ROWS_PER_INVOCATION;
-        for invocation in first_invocation..=last_invocation {
-            let invocation_start = checked_mul(invocation, ROWS_PER_INVOCATION, "Phi81 matrix row")?;
-            let local_start = start
-                .saturating_sub(invocation_start)
-                .min(ROWS_PER_INVOCATION);
-            let local_end = end
-                .saturating_sub(invocation_start)
-                .min(ROWS_PER_INVOCATION);
-            let descriptor = self.descriptor(invocation)?;
-            let product_state = if local_start < local_end.min(GROUP_COUNT) {
-                let challenge = self.challenge_state(logical_width, descriptor)?;
-                let input = self.input_state(logical_width, descriptor)?;
-                let negative_two = -Field::checked(2, "Phi81 two")?;
-                let left = std::array::from_fn(|lane| {
-                    challenge[lane]
-                        .clone()
-                        .append(Form::singleton(self.one_column, negative_two))
-                });
-                Some((left, input))
-            } else {
-                None
-            };
-
-            for local_row in local_start..local_end {
-                let row = if local_row < GROUP_COUNT {
-                    let (left, input) = product_state
-                        .as_ref()
-                        .ok_or_else(|| "missing Phi81 product state".to_string())?;
-                    self.product_row(logical_width, descriptor, left, input, local_row)?
-                } else {
-                    self.final_row(logical_width, descriptor)?
-                };
-                visit(invocation_start + local_row, row)?;
+        for ring in start / ROWS_PER_RING..=(end - 1) / ROWS_PER_RING {
+            let ring_start = checked_mul(ring, ROWS_PER_RING, "Phi81 ring row")?;
+            let forms = self.ring_forms(logical_width, self.descriptor(ring)?)?;
+            for ordinal in start.max(ring_start)..end.min(ring_start + ROWS_PER_RING) {
+                visit(ordinal, self.evaluation_row(&forms, ordinal - ring_start)?)?;
             }
         }
         Ok(())
@@ -204,33 +159,33 @@ impl Block {
     fn descriptor(&self, mut index: usize) -> Result<Descriptor> {
         let mut family_offset = 0usize;
         for &family in &self.families {
-            let count = family.invocation_count()?;
+            let count = family.ring_count()?;
             if index < count {
-                let private_count = family.private_count()?;
-                let lane_cells = checked_mul(RING_DEGREE, family.cell_count, "Phi81 lane cells")?;
-                if private_count == 0 || lane_cells == 0 {
+                let per_source = family.rings_per_source()?;
+                if per_source == 0 || family.cell_count == 0 {
                     return Err("zero Phi81 family geometry".into());
                 }
-                let source = index / private_count;
-                let coordinate = index % private_count;
+                let coordinate = index % per_source;
                 return Ok(Descriptor {
                     family,
                     family_offset,
-                    source,
-                    block: coordinate / lane_cells,
-                    lane: (coordinate % lane_cells) / family.cell_count,
+                    source: index / per_source,
+                    block: coordinate / family.cell_count,
                     cell: coordinate % family.cell_count,
-                    local_invocation: index,
                 });
             }
-            family_offset = checked_add(family_offset, count, "Phi81 family offset")?;
+            family_offset = checked_add(
+                family_offset,
+                checked_mul(count, RING_DEGREE, "Phi81 family width")?,
+                "Phi81 family offset",
+            )?;
             index -= count;
         }
-        Err("Phi81 invocation is out of range".into())
+        Err("Phi81 ring is out of range".into())
     }
 
-    fn challenge_state(&self, logical_width: usize, descriptor: Descriptor) -> Result<[Form; RING_DEGREE]> {
-        let base = checked_add(
+    fn ring_forms(&self, logical_width: usize, descriptor: Descriptor) -> Result<RingForms> {
+        let challenge_base = checked_add(
             self.challenge_slot_start,
             checked_mul(
                 descriptor.source,
@@ -239,77 +194,61 @@ impl Block {
             )?,
             "Phi81 challenge base",
         )?;
-        fixed_state(|lane| {
-            self.challenge
-                .form(logical_width, checked_add(base, lane, "Phi81 challenge lane")?)
+        let negative_two = -Field::checked(2, "Phi81 centering")?;
+        Ok(RingForms {
+            left: fixed_state(|lane| {
+                Ok(self
+                    .challenge
+                    .form(
+                        logical_width,
+                        checked_add(challenge_base, lane, "Phi81 challenge lane")?,
+                    )?
+                    .append(Form::singleton(self.one_column, negative_two)))
+            })?,
+            right: fixed_state(|lane| {
+                self.input
+                    .form(logical_width, descriptor.invocation_at_lane(lane)?)
+            })?,
+            quotient: fixed_state(|lane| {
+                self.quotient
+                    .form(logical_width, descriptor.invocation_at_lane(lane)?)
+            })?,
+            difference: fixed_state(|lane| {
+                let invocation = descriptor.invocation_at_lane(lane)?;
+                let output = self.output.form(logical_width, invocation)?;
+                if descriptor.source == 0 {
+                    Ok(output)
+                } else {
+                    let prior = invocation
+                        .checked_sub(descriptor.family.private_count()?)
+                        .ok_or_else(|| "Phi81 prior output underflow".to_string())?;
+                    Ok(output.append(self.output.form(logical_width, prior)?.scaled(-Field::ONE)))
+                }
+            })?,
         })
     }
 
-    fn input_state(&self, logical_width: usize, descriptor: Descriptor) -> Result<[Form; RING_DEGREE]> {
-        fixed_state(|lane| {
-            self.input
-                .form(logical_width, descriptor.invocation_at_lane(lane)?)
-        })
-    }
-
-    fn product_row(
-        &self,
-        logical_width: usize,
-        descriptor: Descriptor,
-        left: &[Form; RING_DEGREE],
-        right: &[Form; RING_DEGREE],
-        group: usize,
-    ) -> Result<RowForms> {
-        let mut row = empty_row();
-        let left_ports = [0, 3, 6, 9, 11];
-        let right_ports = [2, 5, 8, 10, 12];
-        let first = checked_mul(group, TERMS_PER_GROUP, "Phi81 group term")?;
-        for offset in 0..TERMS_PER_GROUP {
-            let term = first + offset;
-            if term < 3 * RING_DEGREE {
-                let (a, b) = convolution_term(left, right, descriptor.lane, term);
-                row[left_ports[offset]] = a;
-                row[right_ports[offset]] = b;
-            }
+    fn evaluation_row(&self, forms: &RingForms, point: usize) -> Result<RowForms> {
+        let point = Field::checked(point as u64, "Phi81 evaluation node")?;
+        let mut powers = [Field::ONE; 55];
+        for degree in 1..powers.len() {
+            powers[degree] = powers[degree - 1] * point;
         }
-        row[4] = self.group.form(
-            logical_width,
-            checked_add(
-                checked_mul(descriptor.invocation()?, GROUP_COUNT, "Phi81 group base")?,
-                group,
-                "Phi81 group slot",
-            )?,
-        )?;
+        let phi81 = powers[54] + powers[27] + Field::ONE;
+        let mut row = empty_row();
+        for (degree, &power) in powers[..54].iter().enumerate() {
+            row[0] = row[0]
+                .clone()
+                .append(forms.left[degree].clone().scaled(power));
+            row[2] = row[2]
+                .clone()
+                .append(forms.right[degree].clone().scaled(power));
+            row[4] = row[4]
+                .clone()
+                .append(forms.difference[degree].clone().scaled(power))
+                .append(forms.quotient[degree].clone().scaled(phi81 * power));
+        }
         row[7] = Form::singleton(self.one_column, Field::ONE);
-        Ok(row)
-    }
-
-    fn final_row(&self, logical_width: usize, descriptor: Descriptor) -> Result<RowForms> {
-        let invocation = descriptor.invocation()?;
-        let output = self.output.form(logical_width, invocation)?;
-        let prior = if descriptor.source == 0 {
-            Form::default()
-        } else {
-            self.output.form(
-                logical_width,
-                invocation
-                    .checked_sub(descriptor.family.private_count()?)
-                    .ok_or_else(|| "Phi81 prior output underflow".to_string())?,
-            )?
-        };
-        let base = checked_mul(invocation, GROUP_COUNT, "Phi81 group base")?;
-        let mut groups = Form::default();
-        for group in 0..GROUP_COUNT {
-            groups = groups.append(
-                self.group
-                    .form(logical_width, checked_add(base, group, "Phi81 group slot")?)?,
-            );
-        }
-        let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[4] = output
-            .append(prior.scaled(-Field::ONE))
-            .append(groups.scaled(-Field::ONE));
         Ok(row)
     }
 }
@@ -319,26 +258,4 @@ fn fixed_state(mut load: impl FnMut(usize) -> Result<Form>) -> Result<[Form; RIN
         .map(&mut load)
         .collect::<Result<Vec<_>>>()?;
     Ok(forms.try_into().expect("Phi81 state has 54 forms"))
-}
-
-fn convolution_term(left: &[Form; RING_DEGREE], right: &[Form; RING_DEGREE], lane: usize, term: usize) -> (Form, Form) {
-    let section = term / RING_DEGREE;
-    let source = term % RING_DEGREE;
-    let folded = if lane < MIDDLE_DEGREE {
-        lane + RING_DEGREE
-    } else {
-        lane + MIDDLE_DEGREE
-    };
-    let (degree, coefficient) = match section {
-        0 => (lane, Field::ONE),
-        1 => (folded, -Field::ONE),
-        2 if lane + 81 <= 106 => (lane + 81, Field::ONE),
-        2 => return (Form::default(), Form::default()),
-        _ => unreachable!("three Phi81 convolution sections"),
-    };
-    if source <= degree && degree - source < RING_DEGREE {
-        (left[source].clone().scaled(coefficient), right[degree - source].clone())
-    } else {
-        (Form::default(), Form::default())
-    }
 }

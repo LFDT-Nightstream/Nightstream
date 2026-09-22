@@ -8,7 +8,7 @@ pub mod assemble;
 use std::{
     fs::{self, File, OpenOptions},
     io::{BufReader, BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -444,9 +444,7 @@ pub fn check(package_path: &Path, source_path: &Path, input: &Path, material: &P
     );
 }
 
-fn check_digit(params: &Params, parent: &Mat<F>, loaded: &Mat<F>, child: usize) -> bool {
-    let (expected, flags) = split_b_matrix_k_with_nonzero_flags(parent, params.k_rho() as usize, params.b())
-        .expect("canonical split of the saved R witness");
+fn check_digit(expected: &[Mat<F>], flags: &[bool], loaded: &Mat<F>, child: usize) -> bool {
     assert!(child < expected.len(), "selected D child index");
     assert!(
         loaded == &expected[child],
@@ -455,12 +453,56 @@ fn check_digit(params: &Params, parent: &Mat<F>, loaded: &Mat<F>, child: usize) 
     flags[child]
 }
 
-/// Compute one actual D opening with the normal selected evaluator. The
-/// saved digit is checked against a freshly computed canonical split, and
-/// its commitment is recomputed before the evaluator sees it. The output
-/// is proof data; later assembly must run the normal D and NIFS verifiers.
+fn validate_children(children: &[usize], count: usize) {
+    assert!(!children.is_empty(), "nonempty D child batch");
+    for (position, &child) in children.iter().enumerate() {
+        assert!(child < count, "selected D child index");
+        assert!(!children[..position].contains(&child), "distinct D child indices");
+    }
+}
+
+/// Compute one actual D opening through the same checked batch core.
 pub fn open_child(package_path: &Path, source_path: &Path, input: &Path, material: &Path, child: usize, output: &Path) {
-    assert!(!output.exists(), "fresh child opening file");
+    open_child_batch(
+        package_path,
+        source_path,
+        input,
+        material,
+        &[(child, output.to_path_buf())],
+    );
+}
+
+/// Replay the authoritative sources once and share the canonical split and
+/// matrix cache across the requested children. Saved digits and commitments
+/// are checked before the normal evaluator receives any witness blocks.
+pub fn open_children(
+    package_path: &Path,
+    source_path: &Path,
+    input: &Path,
+    material: &Path,
+    children: &[usize],
+    output: &Path,
+) {
+    assert!(!output.exists(), "fresh child opening directory");
+    let outputs = children
+        .iter()
+        .map(|&child| (child, output.join(format!("child-{child}.json"))))
+        .collect::<Vec<_>>();
+    fs::create_dir(output).expect("fresh child opening directory");
+    open_child_batch(package_path, source_path, input, material, &outputs);
+}
+
+fn open_child_batch(
+    package_path: &Path,
+    source_path: &Path,
+    input: &Path,
+    material: &Path,
+    outputs: &[(usize, PathBuf)],
+) {
+    assert!(
+        outputs.iter().all(|(_, output)| !output.exists()),
+        "fresh child opening files"
+    );
     let started = Instant::now();
     let (actual, saved) = load_verified_parent(package_path, source_path, input);
     let ActualSources {
@@ -470,8 +512,10 @@ pub fn open_child(package_path: &Path, source_path: &Path, input: &Path, materia
         running,
     } = actual;
     drop((fresh, running));
+    let children = outputs.iter().map(|(child, _)| *child).collect::<Vec<_>>();
+    validate_children(&children, params.k_rho() as usize);
     println!(
-        "actual_selected_child={child} original_sources_replayed_elapsed={:?}",
+        "actual_selected_children={children:?} original_sources_replayed_elapsed={:?}",
         started.elapsed()
     );
     let split: SavedSplit = load(&material.join("split.json"));
@@ -479,111 +523,87 @@ pub fn open_child(package_path: &Path, source_path: &Path, input: &Path, materia
     assert_eq!(split.parent, saved.rlc_parent, "same replayed R parent");
     assert_eq!(split.commitments.len(), params.k_rho() as usize);
     assert_eq!(split.nonzero.len(), params.k_rho() as usize);
-    assert!(child < params.k_rho() as usize, "selected D child index");
     assert_eq!(
         ajtai_dec_mixer(&split.commitments, params.b()),
         saved.rlc_parent.c,
         "ordered saved commitments recompose to the replayed R parent"
     );
     let parent: Mat<F> = load(&input.join("parent-witness.json"));
-    let digit: Mat<F> = load(&material.join(format!("digit-{child}.json")));
     validate_superneo_witness_mat(&parent, package.structure().m).expect("selected R witness carrier");
-    validate_superneo_witness_mat(&digit, package.structure().m).expect("selected D digit carrier");
-    let nonzero = check_digit(&params, &parent, &digit, child);
-    assert_eq!(split.nonzero[child], nonzero, "recomputed child activity");
+    let (expected, flags) = split_b_matrix_k_with_nonzero_flags(&parent, params.k_rho() as usize, params.b())
+        .expect("canonical split of the saved R witness");
     drop(parent);
     println!(
-        "actual_selected_child={child} parent_loaded_split_compared_elapsed={:?}",
+        "actual_selected_children={children:?} parent_split_elapsed={:?}",
         started.elapsed()
     );
-    let commitment = commit_production_signed_unit_matrix(&digit).expect("actual saved child commitment");
-    assert_eq!(commitment, split.commitments[child], "same ordered child commitment");
-    println!(
-        "actual_selected_child={child} commitment_recomputed_elapsed={:?}",
-        started.elapsed()
-    );
-    let opening = if nonzero {
+    let mut blocks = Vec::with_capacity(children.len());
+    let mut commitments = Vec::with_capacity(children.len());
+    for &child in &children {
+        let digit: Mat<F> = load(&material.join(format!("digit-{child}.json")));
+        validate_superneo_witness_mat(&digit, package.structure().m).expect("selected D digit carrier");
+        let nonzero = check_digit(&expected, &flags, &digit, child);
+        assert_eq!(split.nonzero[child], nonzero, "recomputed child activity");
+        let commitment = commit_production_signed_unit_matrix(&digit).expect("actual saved child commitment");
+        assert_eq!(commitment, split.commitments[child], "same ordered child commitment");
+        blocks.push(SuperneoZBlocks::from_witness_mat(&digit, package.structure().m).expect("actual child block view"));
+        commitments.push(commitment);
+        println!(
+            "actual_selected_child={child} digit_checked_commitment_recomputed_elapsed={:?}",
+            started.elapsed()
+        );
+    }
+    drop(expected);
+    let openings = if children.iter().any(|&child| flags[child]) {
         let cache = package
             .build_superneo_cache()
             .expect("owner-built selected matrix rows");
         println!(
-            "actual_selected_child={child} cache_built_elapsed={:?}",
+            "actual_selected_children={children:?} cache_built_elapsed={:?}",
             started.elapsed()
         );
-        let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure().m).expect("actual child block view");
-        let mut openings = cache
-            .eval_real_v1_1_openings(&saved.rlc_parent.r, std::slice::from_ref(&blocks))
+        let openings = cache
+            .eval_real_v1_1_openings(&saved.rlc_parent.r, &blocks)
             .expect("normal selected D child opening evaluator");
-        assert_eq!(openings.len(), 1);
-        let opening = openings.pop().unwrap();
         println!(
-            "actual_selected_child={child} opening_evaluated_elapsed={:?}",
+            "actual_selected_children={children:?} openings_evaluated_elapsed={:?}",
             started.elapsed()
         );
-        opening
+        openings
     } else {
-        // Same inactive-digit result as optimized_engine::common::witness_openings.
-        // The exact split above establishes inactivity; the saved flag is not authority.
+        // Inactivity follows from the recomputed split and exact digit equality.
+        // This is the same inactive-digit result as the normal D evaluator.
+        children
+            .iter()
+            .map(|_| V1_1Evaluations {
+                eval_k: vec![K::ZERO; D],
+                eval_a: vec![vec![K::ZERO; D]; package.structure().t()],
+            })
+            .collect()
+    };
+    assert_eq!(openings.len(), children.len());
+    drop(blocks);
+    for (((child, output), commitment), opening) in outputs.iter().zip(commitments).zip(openings) {
+        save(
+            output,
+            &SavedChildOpening {
+                schema: 1,
+                child: *child,
+                parent: saved.rlc_parent.clone(),
+                commitment,
+                opening,
+                transcript_state: saved.transcript_state,
+                transcript_absorbed: saved.transcript_absorbed,
+            },
+        );
         println!(
-            "actual_selected_child={child} zero_opening_from_checked_split_elapsed={:?}",
+            "actual_selected_child={child} opening=computed output={} elapsed={:?}",
+            output.display(),
             started.elapsed()
         );
-        V1_1Evaluations {
-            eval_k: vec![K::ZERO; D],
-            eval_a: vec![vec![K::ZERO; D]; package.structure().t()],
-        }
-    };
-    drop(digit);
-    save(
-        output,
-        &SavedChildOpening {
-            schema: 1,
-            child,
-            parent: saved.rlc_parent,
-            commitment,
-            opening,
-            transcript_state: saved.transcript_state,
-            transcript_absorbed: saved.transcript_absorbed,
-        },
-    );
-    println!(
-        "actual_selected_child={child} opening=computed output={} elapsed={:?}",
-        output.display(),
-        started.elapsed()
-    );
+    }
 }
 
-#[test]
-fn saved_digit_must_equal_canonical_parent_split() {
-    let params = Params::production();
-    let mut values = vec![F::ZERO; D];
-    values[0] = F::from_u64(5);
-    let parent = Mat::from_row_major(D, 1, values);
-    let (digits, _) = split_b_matrix_k_with_nonzero_flags(&parent, params.k_rho() as usize, params.b()).unwrap();
-    assert!(check_digit(&params, &parent, &digits[0], 0));
-    assert!(!check_digit(&params, &parent, &digits[1], 1));
-    assert!(check_digit(&params, &parent, &digits[2], 2));
-    assert!(std::panic::catch_unwind(|| check_digit(&params, &parent, &digits[1], 0)).is_err());
-    assert!(std::panic::catch_unwind(|| check_digit(&params, &parent, &digits[0], 1)).is_err());
-}
-
-#[test]
-fn saved_witness_must_open_parent_commitment() {
-    use neo_ajtai::nightstream_fprime_setup::PRODUCTION_MESSAGE_COLUMNS;
-
-    let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
-    let mut positive = vec![0u64; columns];
-    let negative = vec![0u64; columns];
-    positive[0] = 1;
-    let original = Mat::<F>::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap();
-    let expected = commit_production_signed_unit_matrix(&original).unwrap();
-    drop((original, positive, negative));
-    let altered = Mat::virtual_constant(D, columns, F::ZERO);
-    let params = Params::production();
-    let zero = Commitment::zeros(D, params.inner().kappa as usize);
-    assert_ne!(expected, zero, "the original saved witness has a nonzero commitment");
-    let checked = commit_parent(&params, &altered, &zero);
-    assert!(checked.nonzero.iter().all(|flag| !flag));
-    assert_eq!(checked.digits.len(), params.k_rho() as usize);
-    assert!(std::panic::catch_unwind(|| commit_parent(&params, &altered, &expected)).is_err());
-}
+#[cfg(test)]
+#[path = "stage1_parent_tests.rs"]
+mod tests;

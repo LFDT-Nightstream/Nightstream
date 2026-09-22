@@ -10,17 +10,16 @@ use crate::WitnessAssignment;
 
 use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
 
-const TRANSPORT_SCHEMA: usize = 2;
+const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 30;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
-const PHI81_GROUPS: usize = 33;
-const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
+const PHI81_RING_DEGREE: usize = 54;
 const FIRST54_PRODUCTS: usize = 1_088;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
-const PRODUCT_GROUP_BLOCK: usize = 3;
+const PRODUCT_QUOTIENT_BLOCK: usize = 3;
 const FIRST54_REJECT_BLOCK: usize = 4;
 const FIRST54_SYMBOL_BLOCK: usize = 5;
 const FIRST54_VALUE_BLOCK: usize = 7;
@@ -58,7 +57,7 @@ impl LoadedAssignmentPlan {
             physical.value(column)?;
         }
 
-        let groups = derive_phi81_groups(self, &physical)?;
+        let quotients = derive_phi81_quotients(self, &physical)?;
         let products = derive_first54_products(self, &physical)?;
         let output_digest: [u64; OUTPUT_DIGEST_WORDS] = self
             .output_digest_expressions
@@ -69,7 +68,7 @@ impl LoadedAssignmentPlan {
             .map_err(|_| PackageError::Invalid("output digest word count"))?;
         let domains = Domains {
             physical,
-            groups,
+            quotients,
             products,
         };
         validate_derived_block_sources(self, &domains, output_digest)?;
@@ -455,27 +454,20 @@ impl Phi81FamilyShape {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Phi81Recipe {
     ring_degree: usize,
-    middle_degree: usize,
-    fold_offset: usize,
-    twice_cutoff: usize,
-    raw_convolution_count: usize,
-    raw_term_count: usize,
-    group_width: usize,
-    group_count: usize,
     family_shapes: Vec<Phi81FamilyShape>,
     challenge_block: usize,
     challenge_slot_base: usize,
     challenge_source_stride: usize,
     challenge_shift: u64,
     value_sources: Vec<Run>,
-    group_output_block: usize,
+    quotient_output_block: usize,
 }
 
 impl Phi81Recipe {
     fn decode(value: &Value, physical_width: usize) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 15, "Phi81 assignment recipe")?;
-        let expected_constants = [54, 27, 81, 106, 3, 162, 5, PHI81_GROUPS];
-        let constants = fields[..8]
+        let fields = exact_array(value, 11, "Phi81 assignment recipe")?;
+        let expected_constants = [54, 27, 81, 54];
+        let constants = fields[..4]
             .iter()
             .map(|value| word(value, "Phi81 assignment constant"))
             .collect::<Result<Vec<_>, _>>()?;
@@ -484,7 +476,7 @@ impl Phi81Recipe {
         }
 
         let expected_shapes = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]];
-        let shapes = exact_array(&fields[8], expected_shapes.len(), "Phi81 family shapes")?;
+        let shapes = exact_array(&fields[4], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;
         let mut family_shapes = Vec::with_capacity(expected_shapes.len());
         for (value, expected) in shapes.iter().zip(expected_shapes) {
@@ -513,31 +505,24 @@ impl Phi81Recipe {
         }
 
         let selectors = [
-            word(&fields[9], "Phi81 challenge block")?,
-            word(&fields[10], "Phi81 challenge slot base")?,
-            word(&fields[11], "Phi81 challenge source stride")?,
-            word(&fields[12], "Phi81 challenge shift")?,
-            word(&fields[14], "Phi81 group output block")?,
+            word(&fields[5], "Phi81 challenge block")?,
+            word(&fields[6], "Phi81 challenge slot base")?,
+            word(&fields[7], "Phi81 challenge source stride")?,
+            word(&fields[8], "Phi81 challenge shift")?,
+            word(&fields[10], "Phi81 quotient output block")?,
         ];
-        if selectors != [FIRST54_VALUE_BLOCK, 3_402, 3_456, 2, PRODUCT_GROUP_BLOCK] {
+        if selectors != [FIRST54_VALUE_BLOCK, 3_402, 3_456, 2, PRODUCT_QUOTIENT_BLOCK] {
             return Err(PackageError::Invalid("Phi81 assignment selectors"));
         }
         Ok(Self {
             ring_degree: constants[0],
-            middle_degree: constants[1],
-            fold_offset: constants[2],
-            twice_cutoff: constants[3],
-            raw_convolution_count: constants[4],
-            raw_term_count: constants[5],
-            group_width: constants[6],
-            group_count: constants[7],
             family_shapes,
             challenge_block: selectors[0],
             challenge_slot_base: selectors[1],
             challenge_source_stride: selectors[2],
             challenge_shift: selectors[3] as u64,
-            value_sources: decode_source_runs(&fields[13], first_invocation, physical_width)?,
-            group_output_block: selectors[4],
+            value_sources: decode_source_runs(&fields[9], first_invocation, physical_width)?,
+            quotient_output_block: selectors[4],
         })
     }
 
@@ -551,17 +536,15 @@ impl Phi81Recipe {
 
     fn validate(&self, blocks: &[BlockPlan], physical_width: usize) -> Result<(), PackageError> {
         let challenge = block(blocks, self.challenge_block)?;
-        let output = block(blocks, self.group_output_block)?;
+        let output = block(blocks, self.quotient_output_block)?;
 
         let invocation_count = self.invocation_count()?;
-        let group_value_count = invocation_count
-            .checked_mul(self.group_count)
-            .ok_or(PackageError::Invalid("Phi81 group count overflow"))?;
+        let quotient_value_count = invocation_count;
 
         challenge.require_physical_sources(physical_width)?;
         challenge.require_field_count(58_752)?;
-        output.require_field_count(group_value_count)?;
-        output.require_exact_range(physical_width, group_value_count)?;
+        output.require_field_count(quotient_value_count)?;
+        output.require_exact_range(physical_width, quotient_value_count)?;
 
         let final_source = self
             .family_shapes
@@ -662,15 +645,12 @@ pub(super) fn decode(
 
     let phi81 = Phi81Recipe::decode(&fields[2], physical_width)?;
     let first54 = First54Recipe::decode(&fields[3])?;
-    let group_value_count = phi81
-        .invocation_count()?
-        .checked_mul(phi81.group_count)
-        .ok_or(PackageError::Invalid("Phi81 group count overflow"))?;
-    if group_value_count != PHI81_GROUP_VALUES {
-        return Err(PackageError::Invalid("Phi81 group value count"));
+    let quotient_value_count = phi81.invocation_count()?;
+    if quotient_value_count != PHI81_INVOCATIONS {
+        return Err(PackageError::Invalid("Phi81 quotient value count"));
     }
     let retained_width = physical_width
-        .checked_add(group_value_count)
+        .checked_add(quotient_value_count)
         .and_then(|width| width.checked_add(first54.candidate_count))
         .ok_or(PackageError::Invalid("assignment retained source width overflow"))?;
     let raw_blocks = exact_array(&fields[1], BLOCK_COUNT, "assignment block plans")?;
@@ -697,7 +677,7 @@ pub(super) fn decode(
 
     phi81.validate(&blocks, physical_width)?;
     let product_source_start = physical_width
-        .checked_add(group_value_count)
+        .checked_add(quotient_value_count)
         .ok_or(PackageError::Invalid("First54 product source start overflow"))?;
     first54.validate(&blocks, physical_width, product_source_start)?;
 
@@ -799,7 +779,7 @@ impl<'a> PhysicalAssignment<'a> {
 
 struct Domains<'a> {
     physical: PhysicalAssignment<'a>,
-    groups: Vec<u64>,
+    quotients: Vec<u64>,
     products: Vec<u64>,
 }
 
@@ -809,10 +789,10 @@ impl Domains<'_> {
             return self.physical.value(index);
         }
         let index = index - self.physical.total_columns;
-        if let Some(value) = self.groups.get(index) {
+        if let Some(value) = self.quotients.get(index) {
             return Ok(*value);
         }
-        let index = index - self.groups.len();
+        let index = index - self.quotients.len();
         self.products
             .get(index)
             .copied()
@@ -838,99 +818,68 @@ fn raw_block_value(block: &BlockPlan, slot: usize, physical: &PhysicalAssignment
     physical.value(source)
 }
 
-fn derive_phi81_groups(
+/// Canonical quotient of the raw product by X^54 + X^27 + 1.
+fn phi81_quotient(left: &[u64; PHI81_RING_DEGREE], right: &[u64; PHI81_RING_DEGREE]) -> [u64; PHI81_RING_DEGREE] {
+    let mut high_product = [0u64; 2 * PHI81_RING_DEGREE - 1];
+    for (left_degree, &left_value) in left.iter().enumerate() {
+        for (right_degree, &right_value) in right.iter().enumerate() {
+            let degree = left_degree + right_degree;
+            if degree >= PHI81_RING_DEGREE {
+                high_product[degree] = add_mod(high_product[degree], mul_mod(left_value, right_value));
+            }
+        }
+    }
+    std::array::from_fn(|degree| {
+        sub_mod(
+            high_product.get(degree + 54).copied().unwrap_or(0),
+            high_product.get(degree + 81).copied().unwrap_or(0),
+        )
+    })
+}
+
+fn derive_phi81_quotients(
     transport: &LoadedAssignmentPlan,
     physical: &PhysicalAssignment<'_>,
 ) -> Result<Vec<u64>, PackageError> {
     let recipe = &transport.phi81;
     let challenge = transport.block(recipe.challenge_block)?;
-    let output = transport.block(recipe.group_output_block)?;
-    let invocation_count = recipe.invocation_count()?;
-    let expected_count = invocation_count
-        .checked_mul(recipe.group_count)
-        .ok_or(PackageError::Invalid("Phi81 group count overflow"))?;
-    if recipe.ring_degree == 0 || recipe.group_count == 0 || output.slot_count != expected_count {
-        return Err(PackageError::Invalid("Phi81 group output count"));
+    let output = transport.block(recipe.quotient_output_block)?;
+    let expected_count = recipe.invocation_count()?;
+    if output.slot_count != expected_count {
+        return Err(PackageError::Invalid("Phi81 quotient output count"));
     }
 
-    let mut groups = Vec::with_capacity(expected_count);
+    let mut quotients = vec![0; expected_count];
     for family in &recipe.family_shapes {
         for source in 0..family.source_count {
+            let mut left = [0; PHI81_RING_DEGREE];
+            for (lane, coefficient) in left.iter_mut().enumerate() {
+                let challenge_slot = source
+                    .checked_mul(recipe.challenge_source_stride)
+                    .and_then(|offset| recipe.challenge_slot_base.checked_add(offset))
+                    .and_then(|slot| slot.checked_add(lane))
+                    .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?;
+                *coefficient = sub_mod(
+                    raw_block_value(challenge, challenge_slot, physical)?,
+                    recipe.challenge_shift,
+                );
+            }
             for block_index in 0..family.block_count {
-                for lane in 0..recipe.ring_degree {
-                    for cell in 0..family.cell_count {
+                for cell in 0..family.cell_count {
+                    let mut right = [0; PHI81_RING_DEGREE];
+                    for (lane, coefficient) in right.iter_mut().enumerate() {
                         let invocation = family.invocation(recipe.ring_degree, source, block_index, lane, cell)?;
-                        if invocation != groups.len() / recipe.group_count {
-                            return Err(PackageError::Invalid("Phi81 invocation order"));
-                        }
-                        for group in 0..recipe.group_count {
-                            let raw_start = group
-                                .checked_mul(recipe.group_width)
-                                .ok_or(PackageError::Invalid("Phi81 raw term range overflow"))?;
-                            let raw_end = group
-                                .checked_add(1)
-                                .and_then(|group| group.checked_mul(recipe.group_width))
-                                .map(|end| end.min(recipe.raw_term_count))
-                                .ok_or(PackageError::Invalid("Phi81 raw term range overflow"))?;
-                            let mut sum = 0u64;
-                            for raw_term in raw_start..raw_end {
-                                let section = raw_term / recipe.ring_degree;
-                                if section >= recipe.raw_convolution_count {
-                                    return Err(PackageError::Invalid("Phi81 raw convolution"));
-                                }
-                                let convolution_source = raw_term % recipe.ring_degree;
-                                let (degree, negative) = match section {
-                                    0 => (lane, false),
-                                    1 => (
-                                        lane.checked_add(if lane < recipe.middle_degree {
-                                            recipe.ring_degree
-                                        } else {
-                                            recipe.middle_degree
-                                        })
-                                        .ok_or(PackageError::Invalid("Phi81 folded degree overflow"))?,
-                                        true,
-                                    ),
-                                    2 => {
-                                        let degree = lane
-                                            .checked_add(recipe.fold_offset)
-                                            .ok_or(PackageError::Invalid("Phi81 folded degree overflow"))?;
-                                        if degree > recipe.twice_cutoff {
-                                            continue;
-                                        }
-                                        (degree, false)
-                                    }
-                                    _ => return Err(PackageError::Invalid("Phi81 raw convolution")),
-                                };
-                                if convolution_source > degree || degree - convolution_source >= recipe.ring_degree {
-                                    continue;
-                                }
-                                let challenge_slot = source
-                                    .checked_mul(recipe.challenge_source_stride)
-                                    .and_then(|offset| recipe.challenge_slot_base.checked_add(offset))
-                                    .and_then(|slot| slot.checked_add(convolution_source))
-                                    .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?;
-                                let challenge_value = raw_block_value(challenge, challenge_slot, physical)?;
-                                let shifted_challenge = sub_mod(challenge_value, recipe.challenge_shift);
-                                let value_lane = degree - convolution_source;
-                                let value_slot =
-                                    family.invocation(recipe.ring_degree, source, block_index, value_lane, cell)?;
-                                let product = mul_mod(
-                                    shifted_challenge,
-                                    physical.value(source_run_at(&recipe.value_sources, value_slot)?)?,
-                                );
-                                sum = add_mod(sum, if negative { neg_mod(product) } else { product });
-                            }
-                            groups.push(sum);
-                        }
+                        *coefficient = physical.value(source_run_at(&recipe.value_sources, invocation)?)?;
+                    }
+                    for (lane, coefficient) in phi81_quotient(&left, &right).into_iter().enumerate() {
+                        let invocation = family.invocation(recipe.ring_degree, source, block_index, lane, cell)?;
+                        quotients[invocation] = coefficient;
                     }
                 }
             }
         }
     }
-    if groups.len() != expected_count {
-        return Err(PackageError::Invalid("Phi81 derived group count"));
-    }
-    Ok(groups)
+    Ok(quotients)
 }
 
 fn derive_first54_products(
@@ -958,14 +907,14 @@ fn validate_derived_block_sources(
     domains: &Domains<'_>,
     output_digest: [u64; OUTPUT_DIGEST_WORDS],
 ) -> Result<(), PackageError> {
-    let group = transport.block(transport.phi81.group_output_block)?;
-    for slot in 0..group.slot_count {
+    let quotient = transport.block(transport.phi81.quotient_output_block)?;
+    for slot in 0..quotient.slot_count {
         let expected = *domains
-            .groups
+            .quotients
             .get(slot)
-            .ok_or(PackageError::Invalid("Phi81 group output count"))?;
-        if domains.value(group.domain, group.source(slot)?)? != expected {
-            return Err(PackageError::Invalid("Phi81 group source map"));
+            .ok_or(PackageError::Invalid("Phi81 quotient output count"))?;
+        if domains.value(quotient.domain, quotient.source(slot)?)? != expected {
+            return Err(PackageError::Invalid("Phi81 quotient source map"));
         }
     }
 
@@ -1110,3 +1059,7 @@ fn word(value: &Value, location: &'static str) -> Result<usize, PackageError> {
         .and_then(|word| usize::try_from(word).ok())
         .ok_or(PackageError::Invalid(location))
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/phi81_quotient_assignment.rs"]
+mod quotient_tests;

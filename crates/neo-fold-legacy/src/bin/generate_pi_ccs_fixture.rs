@@ -527,6 +527,26 @@ fn main() {
     }
     if arguments
         .first()
+        .is_some_and(|mode| mode == "open-owned-children")
+    {
+        assert_eq!(arguments.len(), 7,
+            "usage: generate_pi_ccs_fixture open-owned-children <published-package> <base-fixture-or-source-directory> <parent-directory> <material-directory> <comma-separated-child-indices> <fresh-output-directory>");
+        let children = arguments[5]
+            .split(',')
+            .map(|child| child.parse().expect("D child index"))
+            .collect::<Vec<_>>();
+        owned_nifs::parent::open_children(
+            Path::new(&arguments[1]),
+            Path::new(&arguments[2]),
+            Path::new(&arguments[3]),
+            Path::new(&arguments[4]),
+            &children,
+            Path::new(&arguments[6]),
+        );
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "prove-owned-nifs" || mode == "assemble-owned-nifs")
     {
         let staged = arguments[0] == "assemble-owned-nifs";

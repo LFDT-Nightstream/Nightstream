@@ -25,9 +25,9 @@ They are not producer inputs or prerequisites for a consumer's proof run.
 Those tests use only package-local paths. Their source records are in
 `tests/fixtures/README.md`.
 
-The selected blueprint is retained from repository snapshot
-`9787d8e77069246e3e2afc7dcfab755556fd5023`. Its data was last changed by
-`dd38a22f9e213538966bf0d5c867e477b3bc016d`. The manifest source is
+The selected blueprint uses the proved quotient layout at `8b7c07d8`.
+Current-source emission after the direct witness proof at `6bcdbb7c` produced
+identical package bytes. The manifest source is
 `formal/nightstream-fprime/NightstreamFPrime/Export/SharedVerifier.lean`.
 Its definitions and contract names are recorded in the JSON. The maintainer
 toolchain is `leanprover/lean4:v4.30.0`, as set by the formal project's
@@ -42,8 +42,8 @@ for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 The current Rust `Circuit` supports at most 7,701 witness and local words
 together. This bound follows from the
 [selected key's](../../neo-ajtai/src/nightstream_fprime_setup.rs)
-253,011,276-coordinate carrier and the exported width
-`252695531 + 41 * (witness_words + local_words)`. Assembly-only dimension checks
+184,359,564-coordinate carrier and the exported width
+`184043819 + 41 * (witness_words + local_words)`. Assembly-only dimension checks
 also require the source rows, source columns, and padded retained carrier to fit
 the declared domain.
 

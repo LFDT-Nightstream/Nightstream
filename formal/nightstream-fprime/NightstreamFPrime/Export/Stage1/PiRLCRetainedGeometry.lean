@@ -119,7 +119,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 189945072 := by
+    prefixLogicalWidth program = 121293360 := by
   unfold prefixLogicalWidth productOutputStart
     first54ProductStart valueStart positionStart symbolStart rejectStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
@@ -136,7 +136,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 /-- The prefix owns a fixed number of coordinates. Reading its width does
 not need the selected application's source-domain size or circuit. -/
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  189945072
+  121293360
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by
@@ -146,7 +146,7 @@ def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) :
 /-- Fixed candidate-block starts avoid rebuilding the earlier Poseidon
 invocation geometry for each direct source lookup. -/
 def directRejectStart (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  185240730
+  116589018
 
 @[csimp] theorem rejectStart_eq_directRejectStart :
     @rejectStart = @directRejectStart := by
@@ -165,7 +165,7 @@ def directRejectStart (_program : Lifecycle.Stage1.Application.Program) : Nat :=
   omega
 
 def directSymbolStart (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  185241818
+  116590106
 
 @[csimp] theorem symbolStart_eq_directSymbolStart :
     @symbolStart = @directSymbolStart := by

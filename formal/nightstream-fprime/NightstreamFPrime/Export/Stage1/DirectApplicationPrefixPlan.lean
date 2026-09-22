@@ -182,7 +182,7 @@ def plan
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     (plan relation fits geometry).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      4435762 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
@@ -288,7 +288,7 @@ structure Encodes
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
     (prefixGeometry geometry) assignment base groupValue products
@@ -305,7 +305,7 @@ structure Semantics
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
     (prefixGeometry geometry) assignment base groupValue products
@@ -340,7 +340,7 @@ theorem rowsZero_implies_semantics
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue products)

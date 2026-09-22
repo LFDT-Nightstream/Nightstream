@@ -337,6 +337,33 @@ impl LoadedPerApplicationPackage {
         self.assignment_plan.execute(&self.circuit.layout, physical)
     }
 
+    /// Construct the CCS assignment directly for the fixed selected package.
+    /// Other applications retain full physical execution. The selected identity
+    /// binds the complete package, including all witness recipes and sources.
+    pub fn execute_ccs_assignment(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+    ) -> Result<LogicalAssignment, PackageError> {
+        self.execute_ccs_assignment_with_application(private_inputs, public_values, None)
+    }
+
+    fn execute_ccs_assignment_with_application(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+        application_values: Option<&[Goldilocks]>,
+    ) -> Result<LogicalAssignment, PackageError> {
+        let direct_product_outputs = self.structural_identifier == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER;
+        let source = self.circuit.execute_assignment_source(
+            private_inputs,
+            public_values,
+            direct_product_outputs,
+            application_values,
+        )?;
+        self.assignment_plan.execute(&self.circuit.layout, &source)
+    }
+
     /// Encode the typed PiCCS input through this verifier-owned package.
     ///
     /// The generic prefix validates the caller's package context. This final
@@ -406,6 +433,33 @@ impl LoadedPerApplicationPackage {
             .execute_witness(encoded.private_values(), encoded.public_values())
     }
 
+    /// Construct the final CCS assignment from typed Stage 1 inputs.
+    pub fn execute_stage1_v1_1_ccs_assignment(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.execute_ccs_assignment(encoded.private_values(), encoded.public_values())
+    }
+
+    /// Reuse checked application values when constructing the final CCS assignment.
+    pub fn execute_stage1_v1_1_ccs_assignment_with_application_values(
+        &self,
+        pi_ccs: &PiCcsV1_1PackageInputs,
+        pi_dec: &PiDecV1_1PackageInputs,
+        application_witness: &[u64],
+        application_values: &[Goldilocks],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
+        self.execute_ccs_assignment_with_application(
+            encoded.private_values(),
+            encoded.public_values(),
+            Some(application_values),
+        )
+    }
+
     /// Reuse application values already computed by the caller. Inputs and
     /// outputs must match the frame, and all circuit assertions are checked.
     pub fn execute_stage1_v1_1_witness_with_application_values(
@@ -416,9 +470,10 @@ impl LoadedPerApplicationPackage {
         application_values: &[Goldilocks],
     ) -> Result<WitnessAssignment, PackageError> {
         let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
-        self.circuit.execute_witness_with_application(
+        self.circuit.execute_assignment_source(
             encoded.private_values(),
             encoded.public_values(),
+            false,
             Some(application_values),
         )
     }

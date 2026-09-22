@@ -1,5 +1,49 @@
 # Replacement crate validation
 
+## Current quotient integration
+
+The quotient layout from `8b7c07d8` and the complete Lean direct-producer proof
+at signed checkpoint `6bcdbb7c` are now connected to the selected Rust core
+and lifecycle. Rust integration is still uncommitted at this update.
+The installed package has SHA-256
+`6216d1f62250a58d073ecf0a908bd074d3834957ec5be3361620bbdeb5a97642`.
+The hash identifies these bytes; canonical Poseidon2 binding owns authority.
+
+The selected profile stays Goldilocks, Poseidon2, `b = 2`, `k_rho = 16`, and
+`B = 65536`. The package has **184,359,564 committed coordinates**,
+**4,703,127 logical rows**, and **3,001,571,645 matrix nonzeros**. The
+coordinate reduction is 27.1339%; matrix nonzeros increase by 28.5017% from
+the original baseline. No overall speed or memory improvement is established.
+
+The independent complete assignment check, direct/full result and error
+agreement, changed-package fallback, identity, binding, pilot, and sparse
+commitment checks passed. Fresh actual base C → R → D execution also passed:
+the parent and canonical split were recomputed, six active child openings
+were computed, all 43 NIFS mutations were rejected, and the complete
+945,983-byte native proof matched the independent Lean result. The saved
+comparison rejected all 55 PiDEC mutation cases. New native outputs and
+independent Lean base-NIFS and recursive caller fixtures are published; see
+[the current fixture record](../neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs/README.md)
+and [the integration plan](../../tools/recursive-constraint-minimizer/experiments/PLAN.md).
+The two small application reference files and the state/message request are
+unchanged. The final Nightstream checks also passed:
+
+| Check | Result | Time |
+| --- | --- | ---: |
+| Complete assembly equality and schema-2 rejection | Passed | 5.11 s tests; 112 s compilation |
+| Saved native proof and transcript | Passed | 42.61 s |
+| Exact recursive caller fields and detached-input rejection | Passed | 64.22 s |
+
+All correctness and integration checks for this quotient checkpoint are
+complete. The candidate lifecycle benchmark remains pending. These check
+times do not establish an overall performance improvement.
+
+## Historical migration and engine evidence
+
+All sections below record earlier source and package runs. Their identities,
+dimensions, timings, and completed-goal statements apply to those historical
+runs and do not establish validation of the current quotient package.
+
 Work branch: `nico/nightstream-crate`, based on
 `9787d8e77069246e3e2afc7dcfab755556fd5023`.
 At the migration checkpoint, `neo-fold-clean` was the unchanged reference and

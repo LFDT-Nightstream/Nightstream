@@ -71,4 +71,38 @@ def witnessBatchesForSource (source : Expr) (offset : Nat) : List WitnessBatch :
   change witnesses (Circuit.ops (main interface) offset) = _
   exact witnesses_main interface offset
 
+/-- The nine actual batches read only the transcript lane or this child's
+100 allocated cells. Child operations remain behind their witness contracts. -/
+theorem witnessBatches_readsSatisfy (interface : Interface) (offset : Nat)
+    (allowed : Nat → Prop)
+    (sourceSupported : (interface.source offset).VarsSatisfy allowed)
+    (localSupported : ∀ index, index < logicalPrivateCount → allowed (offset + index)) :
+    ∀ batch ∈ witnessBatches interface offset, batch.ReadsSatisfy allowed := by
+  have canonical := CanonicalU64.witnessBatches_readsSatisfy
+    (canonicalInterface interface offset) (canonicalOffset offset) allowed
+    sourceSupported (by
+      intro index bounded
+      exact localSupported index (by
+        change index < 66 at bounded
+        change index < 100
+        omega))
+  have decoder (part : Fin 2) := Candidate16Five.witnessBatches_readsSatisfy
+    (decoderInterface offset part) (decoderOffset offset part) allowed
+    (decoderCandidate_varsSatisfy offset part allowed localSupported)
+    (decoderBits_varsSatisfy offset part allowed localSupported) (by
+      intro index bounded
+      have partBound := part.isLt
+      unfold decoderOffset
+      simpa [Nat.add_assoc] using localSupported
+        (CanonicalU64.auxiliaryCount + part.val * Candidate16Five.auxiliaryCount + index) (by
+          change index < 17 at bounded
+          change 66 + part.val * 17 + index < 100
+          omega))
+  intro batch member
+  simp only [witnessBatches, List.mem_append] at member
+  rcases member with (member | member) | member
+  · exact canonical batch member
+  · exact decoder lowPart batch member
+  · exact decoder highPart batch member
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane

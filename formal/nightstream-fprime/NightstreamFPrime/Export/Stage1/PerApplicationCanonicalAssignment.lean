@@ -58,7 +58,7 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 /-- Raw prover values before canonical low-norm coordinate encoding. -/
 structure RawValues (application : Program) where
   base : Fin (PiRLCProductPlan.baseSourceWidth application) → F
-  groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F
+  groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F
   products : Fin PiRLCFirst54DirectSchedule.candidateCount → F
 
 namespace RawValues

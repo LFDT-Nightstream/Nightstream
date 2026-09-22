@@ -13,6 +13,7 @@
 mod common;
 
 use common::audit::{prove_batched, verify};
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::{
     collect_wasmtime_steps, extract_wasm_program_artifacts, top_level_initial_state_digest, traces_from_wasmtime_steps,
@@ -66,7 +67,7 @@ fn folding_proof_covers_operand_held_across_call() {
     )
     .expect("wat");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     assert_eq!(run.results.as_slice(), &["11".to_string()]);
 

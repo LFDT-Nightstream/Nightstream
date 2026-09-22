@@ -25,10 +25,12 @@ pub(super) fn capture_entry_memory<T>(
     let Some(fref) = row.current_function_ref else {
         return;
     };
-    let Some(template) = tables.export_bindings.get(&fref) else {
+    let Some(template) = tables.artifacts.host_event_bindings.exports.get(&fref) else {
         return;
     };
     let entry_pc = tables
+        .artifacts
+        .trace
         .function_metas
         .get(&fref)
         .and_then(|meta| meta.entry_pc);

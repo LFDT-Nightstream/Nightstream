@@ -74,12 +74,8 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
                 local.get 0))"#,
     )?;
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[37])?;
-    let export_fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref");
+
+    let export_fref = 1;
 
     let schema = [1, 2, 3, 4];
     let entry = EventSequenceBuilder::op(1)
@@ -92,19 +88,16 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
 
     let exit = EventSequenceBuilder::absorbing().output_i32()?.finish()?;
 
-    let mut builder = HostEventBindingsBuilder::new(&run.program_tables);
+    let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
 
     builder.export(export_fref, entry, exit)?;
 
     let bindings = builder.finish()?;
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        CommChainState::default(),
-    )?;
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, &bindings, "run", &[37])?;
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), CommChainState::default())?;
 
-    common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
+    common::sanity_check_trace_with_bindings(&trace, run.artifacts(), &bindings);
 
     common::ccs_check_trace(&trace);
 
@@ -721,7 +714,7 @@ fn program_validation_rejects_output_on_a_resultless_export() {
         .first()
         .expect("export function entry");
     let fref = u32::try_from(fref).expect("function ref");
-    let mut bindings = neo_wasm::host_event_bindings::HostEventBindings::default();
+    let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
         fref,
         ExportTemplate {
@@ -917,10 +910,11 @@ fn memory_slots_validate_phase_base_and_input_source() {
 fn mismatched_runtime_locals_return_an_error() {
     let runtime_wasm =
         wat::parse_str("(module (func (export \"run\") (result i32) i32.const 0))").expect("runtime wasm");
-    let run = neo_wasm::collect_wasmtime_steps(&runtime_wasm, "run", &[]).expect("runtime trace");
+    let run = neo_wasm::collect_wasmtime_steps(&runtime_wasm, &HostEventBindings::default(), "run", &[])
+        .expect("runtime trace");
     let table_wasm =
         wat::parse_str("(module (func (export \"run\") (param i32) (result i32) local.get 0))").expect("table wasm");
-    let artifacts = neo_wasm::extract_wasm_program_artifacts(&table_wasm).expect("program artifacts");
+    let mut artifacts = neo_wasm::extract_wasm_program_artifacts(&table_wasm).expect("program artifacts");
     let runtime_fref = run
         .steps
         .first()
@@ -948,12 +942,8 @@ fn mismatched_runtime_locals_return_an_error() {
             ..Default::default()
         },
     );
-    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &artifacts.tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect_err("mismatched runtime locals must not panic");
+    artifacts.host_event_bindings = bindings.clone();
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &artifacts, Default::default())
+        .expect_err("mismatched runtime locals must not panic");
     assert!(err.to_string().contains("runtime locals snapshot"));
 }

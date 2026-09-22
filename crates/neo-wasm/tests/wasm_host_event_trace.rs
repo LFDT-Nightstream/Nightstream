@@ -94,13 +94,18 @@ fn mul_sink_component_wat() -> &'static str {
 
 /// Run the two-call component; the mul host function records `mul_inputs`
 /// for its in-flight call (the bindings hand-off path), sink records nothing.
-fn run_component_with_mul_inputs(mul_inputs: &'static [u64]) -> neo_wasm::WasmtimeTraceRun {
+fn run_component_with_mul_inputs(
+    bindings: HostEventBindings,
+    mul_inputs: &'static [u64],
+) -> neo_wasm::WasmtimeTraceRun {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
-    neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
+    neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
             .root()
             .func_wrap("host-mul", move |mut store, (x, y): (i32, i32)| {
-                store.data_mut().record_call_inputs(mul_inputs)?;
+                let frame = store.debug_exit_frames().next().expect("guest caller");
+                let instance = frame.instance(&mut store)?.debug_index_in_store();
+                store.data_mut().record_call_inputs(instance, mul_inputs)?;
                 Ok((x * y,))
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
@@ -113,7 +118,7 @@ fn run_component_with_mul_inputs(mul_inputs: &'static [u64]) -> neo_wasm::Wasmti
 }
 
 fn run_component() -> neo_wasm::WasmtimeTraceRun {
-    run_component_with_mul_inputs(&[])
+    run_component_with_mul_inputs(HostEventBindings::default(), &[])
 }
 
 fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
@@ -138,20 +143,15 @@ fn host_event_trace() -> Vec<WasmVmStep> {
 }
 
 fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmVmStep> {
-    let run = run_component();
-    let (frefs, export_fref) = run_frefs(&run);
+    let (frefs, export_fref) = ([1, 2], 3);
     assert_eq!(frefs.len(), 2);
     let mut bindings = test_bindings(frefs[0], frefs[1]);
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        initial_comm_chain,
-    )
-    .expect("bindings trace");
+    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), initial_comm_chain)
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -211,14 +211,7 @@ fn i64_result_lane_writes() {
         "#,
     )
     .expect("component wat");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
-        linker
-            .root()
-            .func_wrap("host-add64", |_store, (x, y): (i64, i64)| Ok((x + y,)))
-            .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-add64: {err}")))
-    })
-    .expect("component run");
-    let (frefs, export_fref) = run_frefs(&run);
+    let (frefs, export_fref) = ([1], 2);
     assert_eq!(frefs.len(), 1);
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let mut bindings = HostEventBindings::default();
@@ -249,13 +242,15 @@ fn i64_result_lane_writes() {
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-add64", |_store, (x, y): (i64, i64)| Ok((x + y,)))
+            .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-add64: {err}")))
+    })
+    .expect("component run");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
@@ -333,8 +328,7 @@ fn i64_result_lane_writes() {
 /// Advice events keep their VM effects without changing the transcript.
 #[test]
 fn advice_import_pushes_without_absorbing() {
-    let run = run_component_with_mul_inputs(&[]);
-    let (frefs, export_fref) = run_frefs(&run);
+    let (frefs, export_fref) = ([1, 2], 3);
     // `mul` is advice; `sink` remains transcript-bound.
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let mut bindings = HostEventBindings::default();
@@ -358,13 +352,9 @@ fn advice_import_pushes_without_absorbing() {
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -489,33 +479,24 @@ fn host_event_trace_folds_from_explicit_initial_state() {
 #[test]
 fn missing_template_is_rejected() {
     let run = run_component();
-    let bindings = HostEventBindings::default();
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .is_err());
+    assert!(
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default()).is_err()
+    );
 }
 
 /// A host call recording more input words than its template consumes
 /// indicates a misaligned hand-off and is rejected.
 #[test]
 fn surplus_input_words_are_rejected() {
-    let run = run_component_with_mul_inputs(&[1, 2]);
-    let (frefs, export_fref) = run_frefs(&run);
+    let (frefs, export_fref) = ([1, 2], 3);
     let mut bindings = test_bindings(frefs[0], frefs[1]);
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .is_err());
+    let run = run_component_with_mul_inputs(bindings.clone(), &[1, 2]);
+    assert!(
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default()).is_err()
+    );
 }
 
 /// A gather row staging a word that contradicts its (honest) ROM entry is
@@ -562,19 +543,15 @@ fn ccs_rejects_redirected_gather_read() {
 /// content check (the native stand-in for the lookup argument).
 #[test]
 fn memory_rows_reject_forged_rom_claim() {
-    let run = run_component();
-    let (frefs, export_fref) = run_frefs(&run);
+    let (frefs, export_fref) = ([1, 2], 3);
     let mut bindings = test_bindings(frefs[0], frefs[1]);
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let run = run_component_with_mul_inputs(bindings.clone(), &[]);
+    let mut trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+            .expect("bindings trace");
 
     let idx = trace
         .iter()

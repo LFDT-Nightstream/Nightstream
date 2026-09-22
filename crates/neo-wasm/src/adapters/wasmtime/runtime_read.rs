@@ -10,10 +10,10 @@
 use super::parse::ParsedFunctionMeta;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
-use wasmtime::{FrameHandle, Store, StoreContextMut, Val};
+use wasmtime::{FrameHandle, StoreContextMut, Val};
 
 /// Build the raw-funcref to module-local function-id map for one instance.
-pub fn build_debug_function_id_map<T: 'static>(
+pub(super) fn build_debug_function_id_map<T: 'static>(
     instance: &wasmtime::Instance,
     mut store: impl wasmtime::AsContextMut<Data = T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
@@ -23,18 +23,6 @@ pub fn build_debug_function_id_map<T: 'static>(
         let raw = func.to_raw(store.as_context_mut()) as usize;
         out.insert(raw, function_index.saturating_add(1));
         function_index = function_index.saturating_add(1);
-    }
-    Ok(out)
-}
-
-pub(crate) fn build_single_trace_store_debug_function_id_map<T: 'static>(
-    store: &mut Store<T>,
-) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
-    let mut out = BTreeMap::new();
-    for instance in store.debug_all_instances() {
-        for (raw, function_id) in build_debug_function_id_map(&instance, &mut *store)? {
-            out.insert(raw, function_id);
-        }
     }
     Ok(out)
 }

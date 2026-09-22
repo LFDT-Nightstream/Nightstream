@@ -105,21 +105,6 @@ pub fn sink_fref(bindings: &HostEventBindings) -> u32 {
         .0
 }
 
-fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
-    let imports = run
-        .steps
-        .iter()
-        .filter(|row| matches!(row.opcode_decoded, Some(neo_wasm::WasmOpcode::Call)) && !row.target_function_is_guest)
-        .filter_map(|row| row.function_ref)
-        .collect();
-    let export = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref");
-    (imports, export)
-}
-
 pub struct HostEventLifecycleSetup {
     pub trace: Vec<WasmVmStep>,
     pub bindings: HostEventBindings,
@@ -129,7 +114,12 @@ pub struct HostEventLifecycleSetup {
 
 pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+
+    let (frefs, run_fref) = ([1, 2], 3);
+    let bindings = test_bindings(&artifacts.tables, frefs[0], frefs[1], run_fref).expect("build bindings");
+
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
             .root()
             .func_wrap("host-mul", |_store, (x, y): (i32, i32)| Ok((x * y,)))
@@ -140,17 +130,8 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-sink: {err}")))
     })
     .expect("component run");
-
-    let (frefs, run_fref) = run_frefs(&run);
-    let bindings = test_bindings(&run.program_tables, frefs[0], frefs[1], run_fref).expect("build bindings");
-
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     super::check_native_event_hashes(&trace).expect("native event hashes");
     HostEventLifecycleSetup {
         trace,

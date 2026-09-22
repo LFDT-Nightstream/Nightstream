@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Select golden checks from changed repository paths.
 
-``lean_reference`` requires independent regeneration of changed Lean or fixture
-inputs. Fresh Lean verification is part of ``native`` even when this flag is
-false. These flags select work; they do not establish that any check passed.
+``lean_reference`` selects an independent-source/input audit. Changed Lean
+computation or inputs require regeneration. Fresh Lean verification is part
+of ``native`` even when this flag is false. These flags do not prove success.
 """
 
 from __future__ import annotations
@@ -83,6 +83,8 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     if name.startswith(("formal/nightstream-fprime/", "scripts/lean_graph/")):
         return ALL
     if (name.startswith(("scripts/golden_conformance", "scripts/tests/test_golden_conformance"))
+            or name in {"scripts/bridge_first_second.py", "scripts/check_selected_replay.py",
+                        "scripts/tests/test_bridge_first_second.py", "scripts/tests/test_check_selected_replay.py"}
             or name == "scripts/package_nightstream_fprime_bundle.py"
             or name == "scripts/fprime_stage1_review_manifest.py"
             or name.startswith(".github/workflows/")):

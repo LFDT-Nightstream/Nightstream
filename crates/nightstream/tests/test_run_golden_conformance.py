@@ -57,19 +57,15 @@ class GoldenConformanceTests(unittest.TestCase):
             })
         else:
             self.assertEqual(Path(command[5]).name, "compare_recursive_outputs.py")
-            engine = options.get("--engine-directory")
             self.save(Path(options["--receipt"]), {
                 "outcome": "passed", "fold": int(options["--fold"]),
                 "run_directory": str(directory), "reference_directory": options.get("--reference"),
-                "later_fold": {"engine_comparisons": [{"engine_directory": engine}] if engine else []},
             })
         return subprocess.CompletedProcess(command, 0)
 
-    def invoke(self, engine="optimized", cpu=None):
+    def invoke(self):
         argv = ["run_golden_conformance.py", "--binary", str(self.binary),
-                "--directory", str(self.directory), "--references", str(self.references), "--engine", engine]
-        if cpu is not None:
-            argv += ["--cpu-reference", str(cpu)]
+                "--directory", str(self.directory), "--references", str(self.references)]
         with patch.object(sys, "argv", argv), patch.object(runner, "source_identity", return_value={"commit": "test"}), \
                 patch.object(runner.subprocess, "run", side_effect=self.execute), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -92,30 +88,6 @@ class GoldenConformanceTests(unittest.TestCase):
         self.assertEqual([call["--step"] for call in phases[-3:]], ["3", "3", "3"])
         self.assertEqual([dict(zip(call[6::2], call[7::2]))["--fold"] for call in self.calls[-2:]], ["1", "2"])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "passed")
-
-    def test_metal_uses_cpu_proofs_and_preserves_previous_cpu_receipt(self):
-        cpu = self.root / "cpu"
-        for step in (1, 2):
-            path = cpu / f"fold-{step}/proof.native"
-            path.parent.mkdir(parents=True)
-            path.write_bytes(b"CPU canonical proof")
-        previous = cpu / "comparison-fold-2.json"
-        previous.write_bytes(b"previous successful CPU comparison")
-        self.assertEqual(self.invoke("metal", cpu), 0)
-        phases = self.phase_calls()
-        self.assertEqual([call["--phase"] for call in phases], [
-            "base", "sources", "prove", "successor", "sources", "prove", "successor",
-            "terminal", "mutation", "reject"])
-        self.assertEqual([call["--reference-proof"] for call in phases if call["--phase"] == "prove"],
-                         [str(cpu / f"fold-{step}/proof.native") for step in (1, 2)])
-        comparison = dict(zip(self.calls[-1][6::2], self.calls[-1][7::2]))
-        self.assertEqual(comparison["--directory"], str(cpu))
-        self.assertEqual(comparison["--engine-directory"], str(self.directory))
-        self.assertEqual(comparison["--fold"], "2")
-        self.assertEqual(comparison["--reference"], str(self.references / "reference-later"))
-        self.assertEqual(previous.read_bytes(), b"previous successful CPU comparison")
-        self.assertTrue((self.directory / "comparison-lean-cpu-engine.json").is_file())
-        self.assertFalse((self.directory / "comparison-cpu-engine-fold-3.json").exists())
 
     def test_missing_phase_receipt_cannot_count_as_success(self):
         self.missing_phase = "openings"

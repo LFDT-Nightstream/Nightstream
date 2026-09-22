@@ -30,12 +30,10 @@ def bounded(kind, command):
             "--kind", kind, "--cwd", ROOT, "--", *command]
 
 
-def build(directory, engine, checker=False):
+def build(directory, checker=False):
     target = "generate_pi_ccs_fixture" if checker else "nightstream"
     arguments = (["build", "-p", "neo-fold-legacy", "--bin", target] if checker else
                  ["test", "-p", "nightstream", "--lib", "--no-run"])
-    if not checker and engine == "metal":
-        arguments += ["--features", "metal"]
     toolchain = tomllib.loads((ROOT / "rust-toolchain.toml").read_text())["toolchain"]["channel"]
     command = bounded("rust", ["cargo", f"+{toolchain}", *arguments, "--locked", "--release", "--message-format=json"])
     log = directory / f"build-{target}.jsonl"
@@ -79,7 +77,7 @@ def cpu_handoff(directory):
                        load(checked / "inputs/base.json")[1])
 
 
-def independent_expectations(directory, references, checker, cpu_reference):
+def independent_expectations(directory, references, cpu_reference):
     replay = directory / "independent-loop"
     replay.mkdir()
     original = references / "original-sources/inputs/original-sources"
@@ -110,52 +108,39 @@ def independent_expectations(directory, references, checker, cpu_reference):
 
 
 def execute(mode, archives, directory, cpu_reference=None):
-    if mode == "metal" and sys.platform != "darwin":
-        raise ValueError("selected Metal check needs a macOS host with an available Metal device")
-    if mode in ("metal", "independent") and cpu_reference is None:
-        raise ValueError(f"{mode} requires the CPU handoff artifact")
+    if mode == "independent" and cpu_reference is None:
+        raise ValueError("independent requires the CPU handoff artifact")
     if mode == "cpu" and cpu_reference is not None:
         raise ValueError("CPU generation cannot use another CPU result")
     directory.mkdir(parents=True, exist_ok=False)
     references = directory / "references"
     run(bounded("python", [sys.executable, "-B", TESTS / "restore_golden_inputs.py",
                            "--archives", archives, "--directory", references]))
-    if cpu_reference is not None:
-        cpu_handoff(cpu_reference)
     if mode == "independent":
-        checker = build(directory, "optimized", checker=True)
-        scope = independent_expectations(directory, references, checker, cpu_reference)
+        cpu_handoff(cpu_reference)
+        scope = independent_expectations(directory, references, cpu_reference)
         result = {"outcome": "passed", "scope": scope}
         (directory / "independent-result.json").write_text(json.dumps(result) + "\n")
         print(json.dumps(result), flush=True)
         return
-    engine = "optimized" if mode == "cpu" else "metal"
-    binary = build(directory, engine)
-    native = directory / ("cpu" if engine == "optimized" else "metal")
-    command = [sys.executable, "-B", TESTS / "run_golden_conformance.py", "--binary", binary,
-               "--directory", native, "--references", references, "--engine", engine]
-    if cpu_reference is not None:
-        command += ["--cpu-reference", cpu_reference / "cpu"]
-    run(command)
-    if engine == "optimized":
-        checker = build(directory, engine, checker=True)
-        for step in (1, 2):
-            run([sys.executable, "-B", TESTS / "check_lean_fold.py", "--directory", native,
-                 "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", checker])
-        cpu_handoff(directory)
-    else:
-        # The comparison coordinator consumes the same transported CPU files.
-        # Recheck custody after the engine comparison so a changed handoff fails.
-        cpu_handoff(cpu_reference)
-    receipt = {"outcome": "passed", "engine": engine,
-               "scope": "Current native folds 1–2 and state-3 terminal checks; fresh Lean verifier/caller/physical checks "
-                        "on CPU; CPU/Metal equality when Metal is selected. Independent generation is a separate job."}
-    (directory / ("cpu-result.json" if engine == "optimized" else "metal-result.json")).write_text(json.dumps(receipt, indent=2) + "\n")
+    binary = build(directory)
+    native = directory / "cpu"
+    run([sys.executable, "-B", TESTS / "run_golden_conformance.py", "--binary", binary,
+         "--directory", native, "--references", references])
+    checker = build(directory, checker=True)
+    for step in (1, 2):
+        run([sys.executable, "-B", TESTS / "check_lean_fold.py", "--directory", native,
+             "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", checker])
+    cpu_handoff(directory)
+    receipt = {"outcome": "passed", "engine": "optimized",
+               "scope": "Current CPU folds 1–2 and state-3 terminal checks; fresh Lean verifier, caller "
+                        "and physical checks. Independent generation is a separate command."}
+    (directory / "cpu-result.json").write_text(json.dumps(receipt, indent=2) + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("cpu", "metal", "independent"))
+    parser.add_argument("mode", choices=("cpu", "independent"))
     parser.add_argument("--archives", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--cpu-reference", type=Path)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare selected staged folds with archives, engines, or raw Lean-field bytes."""
+"""Compare a fresh staged fold with its recorded complete reference outputs."""
 
 from __future__ import annotations
 
@@ -99,44 +99,7 @@ def compare_envelope(run, fold, reference, parent):
     return record, actual
 
 
-def compare_engine(run, engine, cpu_proof, fold=2):
-    """Compare complete engine inputs and outputs with the selected CPU fold."""
-    files = []
-    for name in ["envelope.json", "fresh-claim.json", "fresh-witness.json"] + [
-            f"digit-{child}.json" for child in range(16)]:
-        files.append(compare_json(engine / f"step-{fold}" / name, run / f"step-{fold}" / name,
-                                  f"complete fold input {name}"))
-    for name in ["parent.json", "nifs.json"] + [f"digit-{child}.json" for child in range(16)]:
-        files.append(compare_json(engine / f"fold-{fold}" / name, run / f"fold-{fold}" / name,
-                                  f"complete fold output {name}"))
-    if fold == 3:
-        for name in ("envelope.json", "fresh-claim.json", "fresh-witness.json"):
-            files.append(compare_json(engine / "step-4" / name, run / "step-4" / name,
-                                      f"complete successor {name}"))
-        files.append(compare_json(engine / "fold-3/caller-inputs.json", run / "fold-3/caller-inputs.json",
-                                  "complete successor caller"))
-        actual, expected = engine / "fold-3/physical.bin", run / "fold-3/physical.bin"
-        equal(actual.read_bytes(), expected.read_bytes(), "every physical assignment byte")
-        files.append(file_record(actual, expected, "every physical assignment byte", "exact bytes"))
-    proof = engine / f"fold-{fold}" / "proof.native"
-    # Use the same CPU bytes as the archive comparison, not another receipt
-    # or a second read of a possibly changed CPU proof file.
-    equal(proof.read_bytes(), cpu_proof, "every engine/CPU proof byte")
-    record = file_record(proof, run / f"fold-{fold}" / "proof.native",
-                         "every canonical proof byte", "exact bytes")
-    record["matched_sha256"] = hashlib.sha256(cpu_proof).hexdigest()
-    return {
-        "engine_directory": str(engine), "files": files, "proof": record,
-        "scope": "Complete source envelope, fresh claim and witness, carried witnesses, "
-                 "returned child witnesses, parent and NIFS fields equal the CPU values. "
-                 "Canonical proof bytes equal the supplied CPU proof bytes. " + (
-                     "Complete successor caller, physical assignment, envelope, fresh claim and witness equal CPU. "
-                     "This comparison alone makes no Lean conformance claim." if fold == 3 else
-                     "No engine successor caller or fresh assignment comparison."),
-    }
-
-
-def compare_later(run, reference, nifs, envelope, engines=()):
+def compare_later(run, reference, nifs, envelope):
     directory = reference / "nonzero-nifs"
     native_path = directory / "actual_result.json"
     lean_path = directory / "nightstream-native-nonzero-nifs-1.lean.json"
@@ -172,8 +135,7 @@ def compare_later(run, reference, nifs, envelope, engines=()):
     cpu_proof = proof.read_bytes()
     equal(cpu_proof, expected_proof.read_bytes(), "every later proof byte")
     proof_record = file_record(proof, expected_proof, "every canonical proof byte", "exact bytes")
-    # SHA-256 identifies retained files only. Actual byte comparisons above
-    # and below establish equality; the hash is not protocol authority.
+    # File custody only. The complete comparison above establishes equality.
     proof_record["matched_sha256"] = hashlib.sha256(cpu_proof).hexdigest()
     caller_path = reference / "nonzero-successor" / "nightstream-native-nonzero-step-1.json"
     caller = load(caller_path)
@@ -183,7 +145,6 @@ def compare_later(run, reference, nifs, envelope, engines=()):
     equal([word["value"] for word in fresh["x"]], caller[4][2], "Lean fresh public input")
     return {
         "proof": proof_record,
-        "engine_comparisons": [compare_engine(run, engine, cpu_proof) for engine in engines],
         "native_result": {"path": str(native_path), "bytes": native_path.stat().st_size},
         "lean_result": {"path": str(lean_path), "bytes": lean_path.stat().st_size},
         "native_lean_fields": list(mappings) + ["D outgoing state"],
@@ -199,61 +160,29 @@ def compare_later(run, reference, nifs, envelope, engines=()):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--fold", type=int, choices=(1, 2, 3), required=True)
-    parser.add_argument("--reference", type=Path, help="archive reference for fold 1 or 2")
-    parser.add_argument("--lean-proof", type=Path,
-                        help="fold-3 raw Lean-field proof encoding; provenance must be established separately")
-    parser.add_argument("--receipt", type=Path,
-                        help="new comparison receipt path; existing files are never replaced")
-    parser.add_argument("--engine-directory", type=Path, action="append", default=[],
-                        help="fold-2 or fold-3 engine run to compare with the same CPU content")
+    parser.add_argument("--fold", type=int, choices=(1, 2), required=True)
+    parser.add_argument("--reference", type=Path, required=True)
+    parser.add_argument("--receipt", type=Path, help="new comparison receipt; never replace a previous result")
     args = parser.parse_args()
-    if args.fold == 3:
-        if args.reference or not (args.engine_directory or args.lean_proof):
-            parser.error("fold 3 requires --engine-directory or --lean-proof, without an archive --reference")
-    elif args.reference is None or args.lean_proof:
-        parser.error("fold 1 and 2 require --reference; --lean-proof is for fold 3")
-    if args.engine_directory and args.fold == 1:
-        parser.error("--engine-directory requires --fold 2 or 3")
-    run = args.directory.resolve()
-    reference = args.reference.resolve() if args.reference else None
-    engines = [path.resolve() for path in args.engine_directory]
-    if run in engines:
-        parser.error("--engine-directory must differ from the CPU --directory")
+    run, reference = args.directory.resolve(), args.reference.resolve()
     receipt_path = args.receipt.resolve() if args.receipt else run / f"comparison-fold-{args.fold}.json"
     if receipt_path.exists():
         parser.error(f"comparison receipt already exists: {receipt_path}")
+    material = reference / ("material" if args.fold == 1 else "output/material")
+    reference_envelope = reference if args.fold == 1 else reference / "output/envelope"
     files = []
-    if args.fold == 3:
-        proof = run / "fold-3/proof.native"
-        cpu_proof = proof.read_bytes()
-        later = {"cpu_proof": {"path": str(proof), "bytes": len(cpu_proof),
-                               "sha256": hashlib.sha256(cpu_proof).hexdigest()}}
-        if args.lean_proof:
-            lean_proof = args.lean_proof.resolve()
-            equal(cpu_proof, lean_proof.read_bytes(), "every fresh Lean-field/CPU proof byte")
-            later["proof"] = file_record(proof, lean_proof, "every canonical proof byte", "exact bytes")
-            later["proof"]["matched_sha256"] = hashlib.sha256(cpu_proof).hexdigest()
-            later["lean_proof_scope"] = (
-                "Provided encoding bytes only; the filename does not establish provenance. "
-                "Encoding a Lean verifier result is verifier parity evidence. Independent prover conformance "
-                "also requires separately established independent generation of the encoded fields.")
-        later["engine_comparisons"] = [compare_engine(run, engine, cpu_proof, 3) for engine in engines]
-    else:
-        material = reference / ("material" if args.fold == 1 else "output/material")
-        reference_envelope = reference if args.fold == 1 else reference / "output/envelope"
-        for child in range(16):
-            name = f"digit-{child}.json"
-            files.append(compare_json(run / f"fold-{args.fold}" / name, material / name,
-                                      f"complete child {child} matrix, including the full carrier"))
-        for name in ("fresh-witness.json", "fresh-claim.json"):
-            files.append(compare_json(run / f"step-{args.fold + 1}" / name,
-                                      reference_envelope / name, f"complete {name}"))
-        nifs = load(run / f"fold-{args.fold}" / "nifs.json")
-        equal(nifs["parent"], load(run / f"fold-{args.fold}" / "parent.json"), "saved NIFS parent")
-        envelope_record, envelope = compare_envelope(run, args.fold, reference_envelope, nifs["parent"])
-        files.append(envelope_record)
-        later = compare_later(run, reference, nifs, envelope, engines) if args.fold == 2 else None
+    for child in range(16):
+        name = f"digit-{child}.json"
+        files.append(compare_json(run / f"fold-{args.fold}" / name, material / name,
+                                  f"complete child {child} matrix, including the full carrier"))
+    for name in ("fresh-witness.json", "fresh-claim.json"):
+        files.append(compare_json(run / f"step-{args.fold + 1}" / name,
+                                  reference_envelope / name, f"complete {name}"))
+    nifs = load(run / f"fold-{args.fold}" / "nifs.json")
+    equal(nifs["parent"], load(run / f"fold-{args.fold}" / "parent.json"), "saved NIFS parent")
+    envelope_record, envelope = compare_envelope(run, args.fold, reference_envelope, nifs["parent"])
+    files.append(envelope_record)
+    later = compare_later(run, reference, nifs, envelope) if args.fold == 2 else None
     producer_sources = []
     for path in sorted((run / "logs").glob("*.json")):
         record = load(path)
@@ -263,22 +192,18 @@ def main():
                                      "source_changes": record["source_changes"], "outcome": record["outcome"]})
     receipt = {
         "schema": 1, "outcome": "passed", "fold": args.fold,
-        "run_directory": str(run), "reference_directory": str(reference) if reference else None,
+        "run_directory": str(run), "reference_directory": str(reference),
         "comparison_source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "comparison_source_changes": subprocess.check_output(
             ["git", "status", "--porcelain"], cwd=ROOT, text=True).splitlines(),
         "command": [sys.executable, str(Path(__file__).resolve()), "--directory", str(run),
-                    "--fold", str(args.fold)] + (["--reference", str(reference)] if reference else []) + [
-                        value for engine in engines for value in ("--engine-directory", str(engine))] + (
-                        ["--receipt", str(receipt_path)] if args.receipt else []) + (
-                        ["--lean-proof", str(args.lean_proof.resolve())] if args.lean_proof else []),
+                    "--fold", str(args.fold), "--reference", str(reference)] +
+                   (["--receipt", str(receipt_path)] if args.receipt else []),
         "producer_sources": producer_sources, "files": files, "later_fold": later,
-        "scope": ("Selected fold-3 CPU proof compared with supplied engine outputs and/or Lean-field encoding. "
-                  "No Lean provenance or independent-generation claim is inferred." if args.fold == 3 else
-                 "Complete child and fresh assignments, fresh claim and semantic envelope equality. "
+        "scope": "Complete child and fresh assignments, fresh claim and semantic envelope equality. "
                  "Fold 2 also checks proof bytes, transcript and applicable Lean result fields. "
-                 "No direct complete caller-word comparison or new proof claim."),
+                 "No direct complete caller-word comparison or new proof claim.",
     }
     with receipt_path.open("x") as output:
         json.dump(receipt, output, indent=2)

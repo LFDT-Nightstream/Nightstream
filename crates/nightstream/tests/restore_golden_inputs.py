@@ -58,7 +58,7 @@ def restore_independent(archive, output):
 
 
 def expected_assets():
-    """The same retained archive identities drive download and restoration."""
+    """Retained archive identities used for restoration."""
     release = read("EVIDENCE_RELEASE.json")
     envelope = next(item for item in release["assets"]
                     if item["source_path"].endswith("/NATIVE_ENVELOPE_EVIDENCE.zip"))

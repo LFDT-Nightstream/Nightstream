@@ -55,6 +55,8 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "crates/nightstream/tests/restore_golden_inputs.py",
             "crates/neo-fold-legacy/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json",
             ".github/workflows/ci.yml", "scripts/golden_conformance_changes.py",
+            "scripts/bridge_first_second.py", "scripts/check_selected_replay.py",
+            "scripts/tests/test_bridge_first_second.py", "scripts/tests/test_check_selected_replay.py",
         ):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ("native", "lean_reference", "metal"))

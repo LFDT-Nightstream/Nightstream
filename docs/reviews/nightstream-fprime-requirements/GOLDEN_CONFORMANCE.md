@@ -1,13 +1,14 @@
 # Selected golden-vector conformance
 
-Status: active. This record belongs to `nico/golden-conformance`.
+Status: complete for the selected 1→2→3 goal, at 14:04:47 UTC on 2026-09-22.
+This record belongs to `nico/golden-conformance`.
 
 The goal is reproducible local conformance checks for the existing
 Nightstream Goldilocks profile (`b = 2`, `k_rho = 16`, `B = 65536`). The
-engineering target is at least 9/10 confidence for the selected CPU–Lean
+engineering target of at least 9/10 conformance confidence is met for the CPU–Lean
 1→2→3 sequence: the first fold and one recursive fold, with their complete
-input connection. This rating is not a cryptographic security
-bound. At the owner's request, CI enforcement and Metal validation are out
+input connection. This rating is not a cryptographic security bound or a
+universal soundness claim. At the owner's request, CI enforcement and Metal validation are out
 of scope. Neither is an acceptance criterion or a pending blocker.
 
 ## Acceptance
@@ -178,13 +179,11 @@ authorize a new run. Historical results retain their original scope.
   on the actual retained witnesses, with no new proof backend.
 - The `selected_123.py` driver started independent first-fold generation at
   08:18:51 UTC on 2026-09-22. It owns this first-fold checkpoint; no separate
-  completed first-fold receipt was reused. C/R/D generation and comparison
-  have passed; successor checks are ongoing. The driver
-  and `bridge_first_second.py` helper cover full current CPU1 comparisons and
-  the complete input connection. Their results will be recorded in
-  `independent-1-2-3-result.json` and `first-second-input-bridge/result.json`.
-  Complete first-fold execution and the input connection have not yet
-  passed. The selected 9/10 target is not yet complete.
+  completed first-fold receipt was reused. Full generation passed at
+  14:02:17 UTC in 20,606.455 seconds. The selected driver finished with exit 0
+  at 14:04:47 UTC. `independent-1-2-3-result.json` records the complete
+  selected result; `first-second-input-bridge/result.json` records the input
+  connection. Source, driver and bridge checks also passed at completion.
 - Independent first-fold C generation and comparison passed at 11:12:28 UTC
   on 2026-09-22. All 28 rounds, 560 round field words and 28 transcript
   transitions matched the fresh native target. All 27,540 evaluation words,
@@ -211,9 +210,31 @@ authorize a new run. Historical results retain their original scope.
   300 seconds each. Their aggregate elapsed time was 9,040.659 seconds;
   the longest took 419.643 seconds. These totals exclude C and successor
   work. Receipts and rejection owners are in `first_fold_generation.R_D`
-  in the adjacent JSON record. The successor, full direct current CPU1
-  comparisons and complete first-to-second input connection remain pending.
+  in the adjacent JSON record.
+- The independent first successor passed all 16 child runs in 1,145.590
+  seconds in total. The longest, `canonical-rows`, took 495.883 seconds.
+  All 253,011,276 assignment coefficients and 6,377,559 active rows passed;
+  all eight row rejection cases and 26 physical, assignment and commitment
+  rejection cases passed. Direct current CPU1 comparisons then passed for
+  the complete R parent, NIFS result and proof, 940,444 caller bytes,
+  234,755,400 physical bytes and all 16 child witnesses (444,373,866 bytes).
+  The 96,258,853-byte fresh witness and 39,388-byte claim match the CPU
+  results after the CPU files' final LF is removed. Their receipts and logs
+  are `selected-123-first-current-{parent,nifs,outputs}` in the run directory.
+- The complete first-to-second input connection passed at 14:03:46 UTC.
+  All 17 sources cover 4,685,394 blocks each. Both the first-successor and
+  original-input projections match the second fold's retained input:
+  410,910 public bytes and 562,056,218 source bytes per projection. Checks
+  also passed for the full four-word state and message, next request,
+  carried R parent, all 17 caller-derived 32-byte frames, package, verifier
+  context, caller links and retained C public fields 1, 2 and 6. Digests do
+  not replace these value comparisons. The final driver checked and reused
+  the completed state-3 terminal acceptance and three rejection receipts,
+  then passed the current CPU/Lean handoff check. Iteration-2 C remains
+  retained computation under its explicit source/input audit. The selected
+  goal is complete; protected external acceptance and the broader 2→3→4
+  obligation are not closed. CI and Metal remain outside the selected scope.
 
 Large generated inputs and outputs stay outside Git. Completed commands,
-source versions, exact comparison scope and failures will be recorded here
+source versions, exact comparison scope and failures are recorded here
 or in adjacent JSON evidence. No completion is inferred from old receipts.

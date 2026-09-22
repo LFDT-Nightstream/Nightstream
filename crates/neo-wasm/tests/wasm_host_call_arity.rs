@@ -10,7 +10,7 @@ mod common;
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{EventBlock, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmBuildError, WasmHostEventSlotKind, WasmOpcode, WasmVmStep, WasmtimeTraceState};
+use neo_wasm::{WasmBuildError, WasmHostEventSlotKind, WasmOpcode, WasmVmStep, WasmtimeTraceRegistry};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
@@ -35,41 +35,20 @@ struct CheckedImportRun {
 fn checked_import_run(
     component_wat: &str,
     template: ImportTemplate,
-    define_host: impl FnOnce(&mut wasmtime::component::Linker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+    define_host: impl FnOnce(&mut wasmtime::component::Linker<WasmtimeTraceRegistry>) -> Result<(), WasmBuildError>,
 ) -> CheckedImportRun {
     let component_bytes = wat::parse_str(component_wat).expect("component wat");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", define_host)
-        .expect("component run");
-    let mut import_frefs: Vec<u32> = run
-        .steps
-        .iter()
-        .filter(|row| {
-            matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
-                && !row.target_function_is_guest
-        })
-        .filter_map(|row| row.function_ref)
-        .collect();
-    import_frefs.dedup();
-    let [import_fref] = import_frefs[..] else {
-        panic!("expected exactly one host import call, got {import_frefs:?}");
-    };
-    let export_fref = run
-        .steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref");
+    let import_fref = 1;
+    let export_fref = 2;
     let mut bindings = HostEventBindings::default();
     bindings.imports.insert(import_fref, template);
     bindings
         .exports
         .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect("bindings trace");
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", define_host)
+        .expect("component run");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");

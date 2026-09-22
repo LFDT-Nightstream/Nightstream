@@ -1,0 +1,18 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-metal", step: 2, engine: Metal, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu") }
+staged circuit preparation elapsed=34.795997667s
+C cache elapsed=4.919974459s
+[pi-ccs/phase] oracle-build=9.679s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+[pi-ccs/phase] rounds=9.274s
+[pi-ccs/phase] outputs=10.590s
+C Metal activity=MetalActivity { command_buffers: 101, dispatches: 326, host_waits: 101, allocated_bytes: 24318564769, uploaded_bytes: 3770968550, downloaded_bytes: 89152, current_allocated_bytes: 3247538176 }
+C proving engine=Metal elapsed=29.687246083s
+C CPU proof byte equality passed; source files also match
+C completed elapsed=34.620316042s
+staged phase passed elapsed=71.280098125s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 71.28s
+

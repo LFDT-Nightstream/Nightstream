@@ -7,17 +7,26 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use rayon::prelude::*;
 use serde_json::Value;
+use std::ops::ControlFlow;
 
 use super::{PackageError, GOLDILOCKS_MODULUS};
 
 mod affine;
+mod form;
+use form::Form;
+pub use form::MatrixRun;
 mod phi81;
 mod poseidon;
 mod poseidon_input;
+mod template;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/matrix_program.rs"]
 mod matrix_program_tests;
+
+#[cfg(test)]
+#[path = "../../../tests/unit/shared_formula_rows.rs"]
+mod shared_formula_rows_tests;
 
 use affine::{AffineProgram, Coordinate};
 
@@ -29,149 +38,16 @@ pub(super) struct Entry {
     pub(super) coefficient: Goldilocks,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) enum Form {
-    #[default]
-    Empty,
-    One(Entry),
-    Many(Vec<Entry>),
-}
-
-impl Form {
-    pub(super) fn singleton(column: usize, coefficient: Goldilocks) -> Self {
-        if coefficient == Goldilocks::ZERO {
-            Self::default()
-        } else {
-            Self::One(Entry { column, coefficient })
-        }
-    }
-
-    fn from_canonical_entries(mut entries: Vec<Entry>) -> Self {
-        match entries.len() {
-            0 => Self::Empty,
-            1 => Self::One(entries.pop().expect("one form entry")),
-            _ => Self::Many(entries),
-        }
-    }
-
-    fn from_entries(mut entries: Vec<Entry>) -> Self {
-        entries.sort_unstable_by_key(|entry| entry.column);
-        let mut combined: Vec<Entry> = Vec::with_capacity(entries.len());
-        for entry in entries {
-            if let Some(last) = combined.last_mut() {
-                if last.column == entry.column {
-                    last.coefficient += entry.coefficient;
-                    if last.coefficient == Goldilocks::ZERO {
-                        combined.pop();
-                    }
-                    continue;
-                }
-            }
-            if entry.coefficient != Goldilocks::ZERO {
-                combined.push(entry);
-            }
-        }
-        Self::from_canonical_entries(combined)
-    }
-
-    pub(super) fn entries(&self) -> &[Entry] {
-        match self {
-            Self::Empty => &[],
-            Self::One(entry) => std::slice::from_ref(entry),
-            Self::Many(entries) => entries,
-        }
-    }
-
-    pub(super) fn into_entries(self) -> Vec<Entry> {
-        match self {
-            Self::Empty => Vec::new(),
-            Self::One(entry) => vec![entry],
-            Self::Many(entries) => entries,
-        }
-    }
-
-    pub(super) fn append(self, other: Self) -> Self {
-        let (left, right) = match (self, other) {
-            (Self::Empty, other) => return other,
-            (form, Self::Empty) => return form,
-            (Self::One(left), Self::One(right)) => {
-                return match left.column.cmp(&right.column) {
-                    std::cmp::Ordering::Less => Self::Many(vec![left, right]),
-                    std::cmp::Ordering::Greater => Self::Many(vec![right, left]),
-                    std::cmp::Ordering::Equal => Self::singleton(left.column, left.coefficient + right.coefficient),
-                };
-            }
-            (Self::Many(mut left), Self::Many(right))
-                if left.last().expect("nonempty form").column < right.first().expect("nonempty form").column =>
-            {
-                left.extend(right);
-                return Self::Many(left);
-            }
-            (Self::Many(left), Self::Many(mut right))
-                if right.last().expect("nonempty form").column < left.first().expect("nonempty form").column =>
-            {
-                right.extend(left);
-                return Self::Many(right);
-            }
-            (Self::Many(mut entries), Self::One(entry))
-                if entries.last().expect("nonempty form").column < entry.column =>
-            {
-                entries.push(entry);
-                return Self::Many(entries);
-            }
-            (Self::One(entry), Self::Many(mut entries))
-                if entries.last().expect("nonempty form").column < entry.column =>
-            {
-                entries.push(entry);
-                return Self::Many(entries);
-            }
-            (left, right) => (left.into_entries(), right.into_entries()),
-        };
-        let mut left = left.into_iter().peekable();
-        let mut right = right.into_iter().peekable();
-        let mut entries = Vec::with_capacity(left.len() + right.len());
-        while let (Some(left_entry), Some(right_entry)) = (left.peek(), right.peek()) {
-            match left_entry.column.cmp(&right_entry.column) {
-                std::cmp::Ordering::Less => {
-                    entries.push(left.next().expect("peeked left entry"));
-                }
-                std::cmp::Ordering::Greater => {
-                    entries.push(right.next().expect("peeked right entry"));
-                }
-                std::cmp::Ordering::Equal => {
-                    let left_entry = left.next().expect("peeked left entry");
-                    let right_entry = right.next().expect("peeked right entry");
-                    let coefficient = left_entry.coefficient + right_entry.coefficient;
-                    if coefficient != Goldilocks::ZERO {
-                        entries.push(Entry {
-                            column: left_entry.column,
-                            coefficient,
-                        });
-                    }
-                }
-            }
-        }
-        entries.extend(left);
-        entries.extend(right);
-        Self::from_canonical_entries(entries)
-    }
-
-    pub(super) fn scaled(mut self, scalar: Goldilocks) -> Self {
-        if scalar == Goldilocks::ZERO {
-            return Self::default();
-        }
-        for entry in match &mut self {
-            Self::Empty => &mut [],
-            Self::One(entry) => std::slice::from_mut(entry),
-            Self::Many(entries) => entries,
-        } {
-            entry.coefficient *= scalar;
-        }
-        self
-    }
-}
-
 pub(super) type RowForms = [Form; MEANINGFUL_PORTS];
+pub(super) type RowView<'a> = [&'a [MatrixRun]; MEANINGFUL_PORTS];
+
+fn borrowed_row(row: &RowForms) -> RowView<'_> {
+    std::array::from_fn(|port| row[port].terms())
+}
+
+fn owned_row(row: RowView<'_>) -> RowForms {
+    row.map(|runs| Form::from_terms(runs.to_vec()))
+}
 
 pub(super) fn empty_row() -> RowForms {
     std::array::from_fn(|_| Form::default())
@@ -266,17 +142,7 @@ impl RetainedBlock {
                     .ok_or(PackageError::Invalid("retained slot offset"))?,
             )
             .ok_or(PackageError::Invalid("retained slot offset"))?;
-        let mut entries = Vec::with_capacity(width);
-        let mut weight = Goldilocks::ONE;
-        let radix = Goldilocks::from_u64(3);
-        for coordinate in 0..width {
-            entries.push(Entry {
-                column: first + coordinate,
-                coefficient: weight,
-            });
-            weight *= radix;
-        }
-        Ok(Form::from_canonical_entries(entries))
+        Ok(Form::retained(first, width))
     }
 
     pub(super) fn external_form(
@@ -295,7 +161,7 @@ impl RetainedBlock {
                 checked_add(slot_base, selected, "retained external slot")?,
             )?);
         }
-        Ok(external_layer(&state)?[lane].clone())
+        Ok(external_layer(&state, logical_width)?[lane].clone())
     }
 }
 
@@ -890,26 +756,29 @@ impl Block {
         }
     }
 
-    fn visit_rows(
+    fn visit_rows_until(
         &self,
         logical_width: usize,
         start: usize,
         end: usize,
         source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
-        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
+        mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         match self {
-            Self::Poseidon(block) => return block.visit_rows(logical_width, start, end, visit),
-            Self::Phi81(block) => return block.visit_rows(logical_width, start, end, visit),
+            Self::Poseidon(block) => return block.visit_rows_until(logical_width, start, end, visit),
+            Self::Phi81(block) => return block.visit_rows_until(logical_width, start, end, visit),
             _ => {}
         }
         if start > end || end > self.row_count()? {
             return Err(PackageError::Invalid("matrix block row range"));
         }
         for ordinal in start..end {
-            visit(self.row(logical_width, ordinal, source_row)?)?;
+            let row = self.row(logical_width, ordinal, source_row)?;
+            if visit(borrowed_row(&row))?.is_break() {
+                return Ok(ControlFlow::Break(()));
+            }
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 }
 
@@ -947,6 +816,20 @@ impl MatrixProgram {
         source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
         mut visit: impl FnMut(usize, RowForms) -> Result<(), PackageError>,
     ) -> Result<(), PackageError> {
+        let _ = self.visit_rows_until(logical_width, start, end, source_row, |row, forms| {
+            visit(row, owned_row(forms)).map(ControlFlow::Continue)
+        })?;
+        Ok(())
+    }
+
+    pub(super) fn visit_rows_until(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
+        mut visit: impl FnMut(usize, RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         let row_count = self.row_count()?;
         if start > end || end > row_count {
             return Err(PackageError::Invalid("matrix program row range"));
@@ -964,17 +847,20 @@ impl MatrixProgram {
                 if next != expected_start {
                     return Err(PackageError::Invalid("non-contiguous matrix program visit"));
                 }
-                block.visit_rows(logical_width, local_start, local_end, source_row, |forms| {
+                let flow = block.visit_rows_until(logical_width, local_start, local_end, source_row, |forms| {
                     if next >= expected_end {
                         return Err(PackageError::Invalid("extra matrix program row"));
                     }
                     let ordinal = next;
-                    visit(ordinal, forms)?;
+                    let flow = visit(ordinal, forms)?;
                     next = next
                         .checked_add(1)
                         .ok_or(PackageError::Invalid("matrix program visit ordinal"))?;
-                    Ok(())
+                    Ok(flow)
                 })?;
+                if flow.is_break() {
+                    return Ok(flow);
+                }
                 if next != expected_end {
                     return Err(PackageError::Invalid("missing matrix program row"));
                 }
@@ -984,7 +870,7 @@ impl MatrixProgram {
         if block_start != row_count || next != end {
             return Err(PackageError::Invalid("incomplete matrix program visit"));
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 
     pub(super) fn validate_all_rows(
@@ -1010,10 +896,11 @@ impl MatrixProgram {
             .try_fold(
                 || [0u64; MEANINGFUL_PORTS],
                 |mut counts, (block, start, end)| {
-                    block.visit_rows(logical_width, start, end, source_row, |forms| {
+                    let _ = block.visit_rows_until(logical_width, start, end, source_row, |forms| {
                         for (matrix, form) in forms.iter().enumerate() {
                             let mut previous = None;
-                            for entry in form.entries() {
+                            let entries = form::entries(form);
+                            for entry in &entries {
                                 if entry.column >= logical_width
                                     || entry.coefficient == Goldilocks::ZERO
                                     || previous.is_some_and(|previous| previous >= entry.column)
@@ -1024,12 +911,12 @@ impl MatrixProgram {
                             }
                             counts[matrix] = counts[matrix]
                                 .checked_add(
-                                    u64::try_from(form.entries().len())
+                                    u64::try_from(entries.len())
                                         .map_err(|_| PackageError::Invalid("logical matrix nonzero count"))?,
                                 )
                                 .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
                         }
-                        Ok(())
+                        Ok(ControlFlow::Continue(()))
                     })?;
                     Ok(counts)
                 },
@@ -1065,51 +952,15 @@ impl MatrixProgram {
     }
 }
 
-pub(super) fn external_layer(state: &[Form]) -> Result<Vec<Form>, PackageError> {
+pub(super) fn external_layer(state: &[Form], logical_width: usize) -> Result<Vec<Form>, PackageError> {
     if state.len() != 8 {
         return Err(PackageError::Invalid("matrix Poseidon2 state"));
     }
-    let mut blocks = Vec::with_capacity(8);
-    for base in [0usize, 4] {
-        for lane in 0..4 {
-            let coefficients = match lane {
-                0 => [2, 3, 1, 1],
-                1 => [1, 2, 3, 1],
-                2 => [1, 1, 2, 3],
-                _ => [3, 1, 1, 2],
-            };
-            let mut form = Form::default();
-            for (offset, coefficient) in coefficients.into_iter().enumerate() {
-                form = form.append(
-                    state[base + offset]
-                        .clone()
-                        .scaled(Goldilocks::from_u64(coefficient)),
-                );
-            }
-            blocks.push(form);
-        }
-    }
-    let mut output = Vec::with_capacity(8);
-    for lane in 0..8 {
-        output.push(
-            blocks[lane]
-                .clone()
-                .append(blocks[lane % 4].clone())
-                .append(blocks[lane % 4 + 4].clone()),
-        );
-    }
-    Ok(output)
+    template::outputs("poseidon2-external-v1", state, logical_width)
 }
 
 pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), PackageError> {
-    if form
-        .entries()
-        .iter()
-        .any(|entry| entry.column >= logical_width)
-    {
-        return Err(PackageError::Invalid("matrix sparse column"));
-    }
-    Ok(())
+    form.validate(logical_width)
 }
 
 pub(super) fn field(value: u64, location: &'static str) -> Result<Goldilocks, PackageError> {

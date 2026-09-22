@@ -1,0 +1,12 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 18.31s
+     Running tests/superneo_row_source.rs (target/release/deps/superneo_row_source-a75c23b71945a692)
+
+running 4 tests
+test row_source_rejects_invalid_runs_and_cannot_finish_after_failure ... ok
+test row_source_rejects_noncanonical_entries_and_incomplete_coverage ... ok
+test row_source_matches_matrix_derived_cache_and_implicit_zero_slot ... ok
+test unexpanded_runs_match_scalar_matrices_for_rows_and_openings ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

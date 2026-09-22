@@ -1,0 +1,11 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 13.59s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 3 tests
+test session::production_commitment::tests::production_commitment_checks_all_inputs_before_device_work ... ok
+test session::production_commitment::tests::production_key_coefficients_use_exact_first_and_last_indexed_addresses ... ok
+test session::production_commitment::tests::production_key_commitments_match_cpu_across_tiles_and_representations ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.50s
+

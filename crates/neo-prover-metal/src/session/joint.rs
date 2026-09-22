@@ -1,56 +1,49 @@
 //! Metal tables for the canonical one-joint padded-row PiCCS oracle.
 
-use std::collections::BTreeMap;
 use std::mem::size_of;
+#[cfg(test)]
 use std::sync::Arc;
 
 use neo_ccs::{Mat, V1_1Evaluations};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::{PaperJointOracleInput, PaperJointRoundOracle};
-use neo_reductions::superneo_eval::{
-    weighted_projection_basis_forms, SuperneoCompactRowOffsets, SuperneoEvalCache, SuperneoZBlocks,
-};
+use neo_reductions::superneo_eval::{weighted_projection_basis_forms, MatrixRows, SuperneoEvalCache, SuperneoZBlocks};
 use objc2_foundation::NSString;
 use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
+#[cfg(test)]
+use p3_field::PrimeField64;
 
 use super::{Buffer, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
+mod application;
+mod assignments;
+mod matrix_window;
 mod opening;
+mod relation;
 mod support;
 
 use crate::oracle_error;
-use opening::MetalJointOpeningPlan;
+use application::ApplicationTables;
+use assignments::AssignmentTables;
 use support::*;
+
+#[cfg(test)]
+#[path = "../../tests/unit/joint_buffers.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/carried_projection.rs"]
+mod carried_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/application_replay.rs"]
+mod application_tests;
 
 const EQUALITY_CHUNK_BITS: usize = 8;
 const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
-const SEEDED_CHUNK_COLUMNS: usize = 128;
-const RING_PRODUCT_COEFFICIENTS: usize = 2 * D - 1;
-const SEEDED_OUTPUT_HEADER_WORDS: usize = 9;
-const SEEDED_WORK_HEADER_WORDS: usize = 3;
-
-struct DeviceSeededRows {
-    output_headers: Buffer,
-    work_headers: Buffer,
-    word_starts: Buffer,
-    rotations: Buffer,
-    eval_group_headers: Buffer,
-    eval_group_outputs: Buffer,
-    base_group_headers: Buffer,
-    base_group_outputs: Buffer,
-    work_count: usize,
-    eval_group_count: usize,
-    base_group_count: usize,
-    selective_copy_compatible: bool,
-}
-
-struct SeededOutputMeta {
-    matrix: usize,
-    row_start: usize,
-}
 
 struct MetalCompactMatrix {
     row_offsets: Buffer,
@@ -66,35 +59,35 @@ struct MetalCompactMatrix {
     identity: bool,
 }
 
-/// Structure-static compact matrix index for the one-joint oracle.
-pub(crate) struct MetalJointMatrixPlan {
-    matrices: Vec<MetalCompactMatrix>,
-    opening: MetalJointOpeningPlan,
+/// Borrowed matrix authority and shape; device metadata belongs to one row window.
+pub(crate) struct MetalJointMatrixPlan<'a> {
+    source: &'a dyn MatrixRows,
     matrix_count: usize,
     rows: usize,
     blocks: usize,
-    seeded: Option<DeviceSeededRows>,
-    has_seeded: bool,
-    cache_owner: Arc<SuperneoEvalCache>,
+    workspace_bytes: usize,
 }
 
-impl MetalJointMatrixPlan {
-    pub(crate) fn matches(&self, cache: &SuperneoEvalCache) -> bool {
-        std::ptr::eq(self.cache_owner.as_ref(), cache) && self.matrix_count == cache.matrix_caches().len()
+impl MetalJointMatrixPlan<'_> {
+    pub(crate) fn matches(&self, source: &dyn MatrixRows) -> bool {
+        let shape = source.shape();
+        std::ptr::eq(self.source, source)
+            && self.rows == shape.rows
+            && self.blocks * D == shape.columns
+            && self.matrix_count == shape.matrices
     }
 }
 
 /// Device-resident implementation of the reduction engine's oracle seam.
 pub(crate) struct MetalPaperJointOracle<'a> {
     session: &'a MetalSession,
-    plan: &'a MetalJointMatrixPlan,
+    plan: MetalJointMatrixPlan<'a>,
     masks: MetalWitnessMasks,
-    application_base: Option<Buffer>,
-    application_k: Option<[Buffer; 2]>,
-    assignments_k: Option<[Buffer; 2]>,
-    common: Option<[Buffer; 2]>,
+    application: Option<ApplicationTables>,
+    application_peak_bytes: usize,
+    assignments: Option<AssignmentTables>,
+    common: Option<Buffer>,
     common_len: usize,
-    assignment_sources: Buffer,
     equality_chunks: Buffer,
     prior_equality_chunks: Buffer,
     equality_chunks_per_round: usize,
@@ -105,7 +98,6 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     weights: Buffer,
     term_headers: Buffer,
     term_variables: Buffer,
-    partials: Buffer,
     output: Buffer,
     challenge: Buffer,
     fresh_count: usize,
@@ -117,14 +109,13 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     coefficient_count: usize,
     range_base: u32,
     selective_f_prime: bool,
+    zero_application_padding: bool,
     rounds: usize,
     round: usize,
     current_len: usize,
     active_len: usize,
     application_len: usize,
     assignment_len: usize,
-    k_slot: usize,
-    common_slot: usize,
 }
 
 impl MetalSession {
@@ -135,7 +126,13 @@ impl MetalSession {
         point: &[K],
         assignment_width: usize,
     ) -> Result<Option<Vec<V1_1Evaluations<K>>>, MetalError> {
-        if witnesses.is_empty() || assignment_width > plan.blocks * D {
+        let variables = (usize::BITS
+            - plan
+                .rows
+                .max(plan.blocks * D)
+                .saturating_sub(1)
+                .leading_zeros()) as usize;
+        if witnesses.is_empty() || assignment_width.div_ceil(D) != plan.blocks || point.len() != variables {
             return Err(MetalError::Shape("one-joint PiDEC opening shape is invalid"));
         }
         let source_blocks = witnesses
@@ -145,6 +142,17 @@ impl MetalSession {
                     .map_err(|_| MetalError::Shape("one-joint PiDEC witness is not canonical"))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if source_blocks.iter().all(SuperneoZBlocks::is_zero) {
+            return Ok(Some(
+                witnesses
+                    .iter()
+                    .map(|_| V1_1Evaluations {
+                        eval_k: vec![K::ZERO; D],
+                        eval_a: vec![vec![K::ZERO; D]; plan.matrix_count],
+                    })
+                    .collect(),
+            ));
+        }
         let signed_unit = source_blocks
             .iter()
             .zip(witnesses)
@@ -154,437 +162,29 @@ impl MetalSession {
                         .virtual_constant_value()
                         .is_some_and(|value| *value == F::ZERO)
             });
-        let magnitudes = if signed_unit { 1 } else { 3 };
-        let mut mask_words = Vec::with_capacity(witnesses.len() * plan.blocks * 2 * magnitudes);
-        for blocks in &source_blocks {
-            let Some(words) = blocks.signed_digit_masks((magnitudes + 1) as u32) else {
-                return Ok(None);
-            };
-            if words.len() != plan.blocks * 2 * magnitudes {
-                return Err(MetalError::Shape(
-                    "one-joint PiDEC witness width does not match the matrix plan",
-                ));
-            }
-            mask_words.extend(words);
-        }
-        let masks =
-            self.prepare_witness_digit_masks(&mask_words, witnesses.len(), plan.blocks, magnitudes, assignment_width)?;
-        let openings = self.eval_joint_openings(
-            &plan.opening,
-            plan.seeded.as_ref(),
-            &masks,
-            point,
-            witnesses.len(),
-            assignment_width,
-        )?;
+        let base = if signed_unit { 2 } else { 4 };
+        let masks = self.prepare_joint_witness_masks(&source_blocks, base, assignment_width)?;
+        drop(source_blocks);
+        let openings = self.eval_streamed_joint_openings(plan, &masks, point, witnesses.len(), assignment_width)?;
         Ok(Some(openings))
     }
 
-    pub(crate) fn prepare_joint_matrix_plan(
+    pub(crate) fn prepare_joint_matrix_plan<'a>(
         &self,
-        cache: Arc<SuperneoEvalCache>,
-    ) -> Result<MetalJointMatrixPlan, MetalError> {
-        let cache_matrices = cache.matrix_caches();
-        let Some(first) = cache_matrices.first() else {
-            return Err(MetalError::Shape("one-joint oracle requires application matrices"));
-        };
-        let (rows, scalar_columns, _) = first.compact_explicit_shape();
-        let blocks = scalar_columns.div_ceil(D);
-        if rows == 0 || blocks == 0 {
-            return Err(MetalError::Shape("one-joint matrices have an empty shape"));
+        source: &'a dyn MatrixRows,
+        workspace_bytes: usize,
+    ) -> Result<MetalJointMatrixPlan<'a>, MetalError> {
+        let shape = source.shape();
+        if shape.rows == 0 || shape.columns == 0 || shape.matrices == 0 || !shape.columns.is_multiple_of(D) {
+            return Err(MetalError::Shape("one-joint matrix source has an invalid shape"));
         }
-
-        let has_seeded = cache_matrices
-            .iter()
-            .any(|matrix| matrix.has_compact_seeded_phi81_blocks());
-        let seeded = self.prepare_joint_seeded_rows(cache_matrices, rows)?;
-        let matrices = cache_matrices
-            .iter()
-            .map(|matrix| {
-                let (matrix_rows, matrix_columns, identity) = matrix.compact_explicit_shape();
-                if matrix_rows != rows || matrix_columns != scalar_columns {
-                    return Err(MetalError::Shape("one-joint matrices have inconsistent shapes"));
-                }
-                let parts = matrix
-                    .compact_device_parts()
-                    .ok_or(MetalError::Shape("one-joint compact matrix cache is not finished"))?;
-                let (row_offsets, row_offset_width) = match parts.row_offsets {
-                    SuperneoCompactRowOffsets::Empty => (self.buffer(size_of::<u64>())?, 0),
-                    SuperneoCompactRowOffsets::U16Chunked {
-                        chunk_offsets,
-                        local_offsets,
-                        chunk_rows,
-                    } => {
-                        let expanded = local_offsets
-                            .iter()
-                            .enumerate()
-                            .map(|(index, &local)| chunk_offsets[index / chunk_rows] + u32::from(local))
-                            .collect::<Vec<_>>();
-                        (self.buffer_from_slice(&expanded)?, 4)
-                    }
-                    SuperneoCompactRowOffsets::U24(values) => (self.buffer_from_slice(values)?, 3),
-                    SuperneoCompactRowOffsets::U32(values) => (self.buffer_from_slice(values)?, 4),
-                };
-                let row_blocks = if parts.row_blocks.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.row_blocks)?
-                };
-                let dense_row_blocks = if parts.dense_row_blocks.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.dense_row_blocks)?
-                };
-                let dense_offsets = if parts.dense_offsets.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.dense_offsets)?
-                };
-                let dense_locals = if parts.dense_locals.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.dense_locals)?
-                };
-                let dense_coefficients = if parts.dense_coefficients.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.dense_coefficients)?
-                };
-                let (geometric_row_offsets, geometric_row_offset_width) = match parts.geometric_row_offsets {
-                    SuperneoCompactRowOffsets::Empty => (self.buffer(size_of::<u64>())?, 0),
-                    SuperneoCompactRowOffsets::U16Chunked {
-                        chunk_offsets,
-                        local_offsets,
-                        chunk_rows,
-                    } => {
-                        let expanded = local_offsets
-                            .iter()
-                            .enumerate()
-                            .map(|(index, &local)| chunk_offsets[index / chunk_rows] + u32::from(local))
-                            .collect::<Vec<_>>();
-                        (self.buffer_from_slice(&expanded)?, 4)
-                    }
-                    SuperneoCompactRowOffsets::U24(values) => (self.buffer_from_slice(values)?, 3),
-                    SuperneoCompactRowOffsets::U32(values) => (self.buffer_from_slice(values)?, 4),
-                };
-                let geometric_runs = if parts.geometric_runs.is_empty() {
-                    self.buffer(size_of::<u64>())?
-                } else {
-                    self.buffer_from_slice(parts.geometric_runs)?
-                };
-                Ok(MetalCompactMatrix {
-                    row_offsets,
-                    row_offset_width,
-                    row_blocks,
-                    dense_row_blocks,
-                    dense_offsets,
-                    dense_locals,
-                    dense_coefficients,
-                    geometric_row_offsets,
-                    geometric_row_offset_width,
-                    geometric_runs,
-                    identity,
-                })
-            })
-            .collect::<Result<Vec<_>, MetalError>>()?;
-        let opening = self.prepare_joint_opening_plan(cache_matrices, &matrices, scalar_columns, seeded.as_ref())?;
-
         Ok(MetalJointMatrixPlan {
-            matrix_count: matrices.len(),
-            matrices,
-            opening,
-            rows,
-            blocks,
-            seeded,
-            has_seeded,
-            cache_owner: cache,
+            source,
+            matrix_count: shape.matrices,
+            rows: shape.rows,
+            blocks: shape.columns / D,
+            workspace_bytes,
         })
-    }
-
-    fn prepare_joint_seeded_rows(
-        &self,
-        matrices: &[neo_reductions::superneo_eval::SuperneoMatrixCache],
-        rows: usize,
-    ) -> Result<Option<DeviceSeededRows>, MetalError> {
-        let blocks = matrices
-            .iter()
-            .flat_map(|matrix| matrix.compact_seeded_phi81_blocks())
-            .collect::<Vec<_>>();
-        if blocks.is_empty() {
-            return Ok(None);
-        }
-        if blocks
-            .iter()
-            .any(|block| block.has_superneo_transformed_columns())
-        {
-            return Ok(None);
-        }
-
-        let mut output_headers = Vec::<u64>::new();
-        let mut output_meta = Vec::<SeededOutputMeta>::new();
-        let mut work_headers = Vec::<u64>::new();
-        let mut word_starts = Vec::<u32>::new();
-        let mut rotations = Vec::<u64>::new();
-        for (matrix, cache) in matrices.iter().enumerate() {
-            for block in cache.compact_seeded_phi81_blocks() {
-                if block.row_end() > rows {
-                    return Err(MetalError::Shape("one-joint seeded row range exceeds matrix"));
-                }
-                let word_base = word_starts.len();
-                word_starts.extend(
-                    block
-                        .word_starts()
-                        .iter()
-                        .map(|&column| {
-                            u32::try_from(column).map_err(|_| MetalError::Shape("one-joint seeded column exceeds u32"))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                );
-                for output in 0..block.kappa() {
-                    let output_index = output_meta.len();
-                    let row_start = block.row_start() + output * D;
-                    let rotation_base = rotations.len();
-                    let mut next_message_col = 0usize;
-                    block.for_each_original_output_rotation::<F, _>(output, |message_col, rotation| {
-                        debug_assert_eq!(message_col, next_message_col);
-                        next_message_col += 1;
-                        rotations.extend(rotation.iter().map(PrimeField64::as_canonical_u64));
-                    });
-                    if next_message_col != block.message_cols()
-                        || rotations.len() - rotation_base != block.message_cols() * D
-                    {
-                        return Err(MetalError::Shape("one-joint seeded rotation stream changed"));
-                    }
-                    let work_base = work_headers.len() / SEEDED_WORK_HEADER_WORDS;
-                    for start in (0..block.message_cols()).step_by(SEEDED_CHUNK_COLUMNS) {
-                        work_headers.extend_from_slice(&[
-                            output_index as u64,
-                            start as u64,
-                            block.message_cols().min(start + SEEDED_CHUNK_COLUMNS) as u64,
-                        ]);
-                    }
-                    let work_count = work_headers.len() / SEEDED_WORK_HEADER_WORDS - work_base;
-                    output_headers.extend_from_slice(&[
-                        matrix as u64,
-                        row_start as u64,
-                        block.message_cols() as u64,
-                        block.word_width() as u64,
-                        block.word_starts().len() as u64,
-                        word_base as u64,
-                        rotation_base as u64,
-                        work_base as u64,
-                        work_count as u64,
-                    ]);
-                    output_meta.push(SeededOutputMeta { matrix, row_start });
-                }
-            }
-        }
-
-        let mut eval_groups = BTreeMap::<usize, Vec<u32>>::new();
-        for (output, meta) in output_meta.iter().enumerate() {
-            let output =
-                u32::try_from(output).map_err(|_| MetalError::Shape("one-joint seeded output count exceeds u32"))?;
-            eval_groups.entry(meta.row_start).or_default().push(output);
-        }
-        let mut eval_group_headers = Vec::<u64>::new();
-        let mut eval_group_outputs = Vec::<u32>::new();
-        for (row_start, outputs) in eval_groups {
-            let output_base = eval_group_outputs.len();
-            eval_group_outputs.extend_from_slice(&outputs);
-            eval_group_headers.extend_from_slice(&[row_start as u64, output_base as u64, outputs.len() as u64]);
-        }
-        let mut base_groups = BTreeMap::<(usize, usize), Vec<u32>>::new();
-        for (output, meta) in output_meta.iter().enumerate() {
-            let output =
-                u32::try_from(output).map_err(|_| MetalError::Shape("one-joint seeded output count exceeds u32"))?;
-            base_groups
-                .entry((meta.matrix, meta.row_start))
-                .or_default()
-                .push(output);
-        }
-        let mut base_group_headers = Vec::<u64>::new();
-        let mut base_group_outputs = Vec::<u32>::new();
-        for ((matrix, row_start), outputs) in base_groups {
-            let output_base = base_group_outputs.len();
-            base_group_outputs.extend_from_slice(&outputs);
-            base_group_headers.extend_from_slice(&[
-                matrix as u64,
-                row_start as u64,
-                output_base as u64,
-                outputs.len() as u64,
-            ]);
-        }
-        let work_count = work_headers.len() / SEEDED_WORK_HEADER_WORDS;
-        let eval_group_count = eval_group_headers.len() / 3;
-        let base_group_count = base_group_headers.len() / 4;
-        if output_headers.len() != output_meta.len() * SEEDED_OUTPUT_HEADER_WORDS
-            || work_count == 0
-            || eval_group_count == 0
-            || base_group_count == 0
-        {
-            return Err(MetalError::Shape("one-joint seeded device plan is incomplete"));
-        }
-        Ok(Some(DeviceSeededRows {
-            output_headers: self.buffer_from_slice(&output_headers)?,
-            work_headers: self.buffer_from_slice(&work_headers)?,
-            word_starts: self.buffer_from_slice(&word_starts)?,
-            rotations: self.buffer_from_slice(&rotations)?,
-            eval_group_headers: self.buffer_from_slice(&eval_group_headers)?,
-            eval_group_outputs: self.buffer_from_slice(&eval_group_outputs)?,
-            base_group_headers: self.buffer_from_slice(&base_group_headers)?,
-            base_group_outputs: self.buffer_from_slice(&base_group_outputs)?,
-            work_count,
-            eval_group_count,
-            base_group_count,
-            selective_copy_compatible: selective_seeded_copy_compatible(matrices, &output_meta),
-        }))
-    }
-
-    fn build_joint_application_tables(
-        &self,
-        plan: &MetalJointMatrixPlan,
-        cache: &SuperneoEvalCache,
-        masks: &MetalWitnessMasks,
-        fresh_count: usize,
-        n_eff: usize,
-        _n_pad: usize,
-        selective_f_prime: bool,
-    ) -> Result<Buffer, MetalError> {
-        if !plan.matches(cache) || n_eff == 0 || n_eff > plan.rows {
-            return Err(MetalError::Shape("one-joint application table shape is invalid"));
-        }
-        let table_count = fresh_count
-            .checked_mul(plan.matrix_count)
-            .ok_or(MetalError::Shape("one-joint application table count overflow"))?;
-        let output = self.buffer(
-            table_count
-                .checked_mul(n_eff)
-                .and_then(|words| words.checked_mul(size_of::<u64>()))
-                .ok_or(MetalError::Shape("one-joint application table size overflow"))?,
-        )?;
-        let command = self.command_buffer("nightstream.pi_ccs.joint.application")?;
-        let mut resources = Vec::<Buffer>::new();
-        let assignment_width = plan.blocks * D;
-        let dense_assignments = self.buffer(fresh_count * assignment_width * size_of::<u64>())?;
-        let dense_shape = self.buffer_from_slice(&[
-            plan.blocks as u64,
-            fresh_count as u64,
-            assignment_width as u64,
-            masks.magnitudes() as u64,
-        ])?;
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_expand_mask_assignments_f);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&dense_shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&dense_assignments), 0, 2);
-        }
-        self.dispatch(
-            &encoder,
-            &self.joint_expand_mask_assignments_f,
-            fresh_count * assignment_width,
-        );
-        encoder.endEncoding();
-        for source in 0..fresh_count {
-            for (matrix_index, matrix) in plan.matrices.iter().enumerate() {
-                let shape = self.buffer_from_slice(&[
-                    plan.rows as u64,
-                    plan.blocks as u64,
-                    n_eff as u64,
-                    n_eff as u64,
-                    source as u64,
-                    (source * plan.matrix_count + matrix_index) as u64,
-                    matrix.row_offset_width,
-                    u64::from(matrix.identity),
-                    assignment_width as u64,
-                    matrix.geometric_row_offset_width,
-                ])?;
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.joint_build_application_tables);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&dense_assignments), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
-                    encoder.setBuffer_offset_atIndex(Some(&output), 0, 9);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
-                }
-                self.dispatch(&encoder, &self.joint_build_application_tables, n_eff);
-                encoder.endEncoding();
-                resources.push(shape);
-            }
-
-            if let Some(seeded) = &plan.seeded {
-                if selective_f_prime && seeded.selective_copy_compatible && plan.matrix_count > 4 {
-                    let copy_shape = self.buffer_from_slice(&[n_eff as u64, (source * plan.matrix_count) as u64, 4])?;
-                    let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                    encoder.setComputePipelineState(&self.joint_copy_seeded_satisfied_rows);
-                    unsafe {
-                        encoder.setBuffer_offset_atIndex(Some(&seeded.base_group_headers), 0, 0);
-                        encoder.setBuffer_offset_atIndex(Some(&copy_shape), 0, 1);
-                        encoder.setBuffer_offset_atIndex(Some(&output), 0, 2);
-                    }
-                    self.dispatch(
-                        &encoder,
-                        &self.joint_copy_seeded_satisfied_rows,
-                        seeded.base_group_count * D,
-                    );
-                    encoder.endEncoding();
-                    resources.push(copy_shape);
-                    continue;
-                }
-                let partial_values = seeded
-                    .work_count
-                    .checked_mul(RING_PRODUCT_COEFFICIENTS)
-                    .ok_or(MetalError::Shape("one-joint seeded base partial size overflow"))?;
-                let partials = self.buffer(partial_values * size_of::<u64>())?;
-                let seeded_shape = self.buffer_from_slice(&[
-                    plan.blocks as u64,
-                    source as u64,
-                    n_eff as u64,
-                    n_eff as u64,
-                    (source * plan.matrix_count) as u64,
-                    masks.magnitudes() as u64,
-                ])?;
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.joint_seeded_base_partials);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.output_headers), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.work_headers), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.word_starts), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.rotations), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded_shape), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&partials), 0, 6);
-                }
-                self.dispatch(&encoder, &self.joint_seeded_base_partials, partial_values);
-                encoder.endEncoding();
-
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.joint_seeded_base_reduce);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.output_headers), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.base_group_headers), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.base_group_outputs), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded_shape), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&partials), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&output), 0, 5);
-                }
-                self.dispatch(&encoder, &self.joint_seeded_base_reduce, seeded.base_group_count * D);
-                encoder.endEncoding();
-                resources.extend([seeded_shape, partials]);
-            }
-        }
-        self.finish(&command)?;
-        drop(dense_shape);
-        drop(dense_assignments);
-        drop(resources);
-        Ok(output)
     }
 
     fn build_joint_common_tables(
@@ -593,32 +193,25 @@ impl MetalSession {
         input: &PaperJointOracleInput<'_>,
         masks: &MetalWitnessMasks,
         has_carried: bool,
-    ) -> Result<([Buffer; 2], usize), MetalError> {
-        let common_len = input.structure.n.max(input.dims.assignment_width);
-        let first_words = has_carried
-            .then_some(common_len)
-            .unwrap_or(1)
+    ) -> Result<(Buffer, usize), MetalError> {
+        // A zero carried family has a single zero value, with zero padding.
+        // Device reads and folds must use that allocated length as well.
+        let common_len = if has_carried {
+            input.structure.n.max(input.dims.assignment_width)
+        } else {
+            1
+        };
+        let first_words = common_len
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
-        let second_words = has_carried
-            .then_some(common_len.div_ceil(2))
-            .unwrap_or(1)
-            .checked_mul(2)
-            .ok_or(MetalError::Shape("one-joint folded common table size overflow"))?;
         let first = self.buffer(first_words * size_of::<u64>())?;
-        let second = self.buffer(second_words * size_of::<u64>())?;
 
         if has_carried {
-            let command = self.command_buffer("nightstream.pi_ccs.joint.common.zero")?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.joint_zero_words);
-            unsafe { encoder.setBuffer_offset_atIndex(Some(&first), 0, 0) };
-            self.dispatch(&encoder, &self.joint_zero_words, first_words);
-            encoder.endEncoding();
-            self.finish(&command)?;
-            self.build_joint_carried_table(plan, input, masks, &first, 0, common_len)?;
+            self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
+        } else {
+            self.write_shared(&first, &[0u64; 2])?;
         }
-        Ok(([first, second], common_len))
+        Ok((first, common_len))
     }
 
     fn encode_joint_tensor_point(
@@ -660,50 +253,72 @@ impl MetalSession {
         input: &PaperJointOracleInput<'_>,
         masks: &MetalWitnessMasks,
         output: &Buffer,
-        output_offset: usize,
         table_len: usize,
     ) -> Result<(), MetalError> {
-        if plan.has_seeded && plan.seeded.is_none() {
-            return Err(MetalError::Shape("one-joint seeded carried table is unsupported"));
+        let width = plan.blocks * D;
+        let rows = input.structure.n;
+        if input.dims.assignment_width != width
+            || rows == 0
+            || table_len < width.max(rows)
+            || output.length() / size_of::<K>() < table_len
+        {
+            return Err(MetalError::Shape("carried output cannot hold the complete projection"));
         }
         let running_count = input.running_witnesses.len();
         let fresh_count = input.fresh_witnesses.len();
+        let stored_running = masks
+            .stored_witnesses()
+            .saturating_sub(fresh_count)
+            .min(running_count);
+        if stored_running == 0 {
+            return Err(MetalError::Shape("carried projection has no stored running witness"));
+        }
         let matrix_count = plan.matrix_count;
         let gamma = input.challenges.gamma;
         let carried_coefficients = (0..running_count)
             .map(|running| k_power(gamma, running))
             .collect::<Vec<_>>();
         let weights = std::array::from_fn(|coefficient| k_power(gamma, running_count * matrix_count * coefficient));
-        let identity_coefficient = K::ONE;
         let matrix_coefficients = (0..plan.matrix_count)
             .map(|matrix| k_power(gamma, running_count * D + running_count * matrix))
             .collect::<Vec<_>>();
         let coeffs = self.buffer_from_slice(&k_words(&carried_coefficients))?;
         let mat_coeffs = self.buffer_from_slice(&k_words(&matrix_coefficients))?;
-        let identity_coeff = self.buffer_from_slice(&k_words(&[identity_coefficient]))?;
         let (basis_re, basis_im) = weighted_projection_basis_forms(&weights);
         let basis_re = self.buffer_from_slice(&ring_words(&basis_re))?;
         let basis_im = self.buffer_from_slice(&ring_words(&basis_im))?;
-        let n_pad = table_len;
+        let pad_weights = std::array::from_fn(|coefficient| k_power(gamma, running_count * coefficient));
+        let (pad_re, pad_im) = weighted_projection_basis_forms(&pad_weights);
+        let pad_re = self.buffer_from_slice(&ring_words(&pad_re))?;
+        let pad_im = self.buffer_from_slice(&ring_words(&pad_im))?;
+        let row_sums = self.buffer(
+            rows.checked_mul(size_of::<K>())
+                .ok_or(MetalError::Shape("carried row sums overflow"))?,
+        )?;
         let shape = self.buffer_from_slice(&[
-            running_count as u64,
+            stored_running as u64,
             plan.blocks as u64,
             plan.matrix_count as u64,
             plan.rows as u64,
             input.structure.n as u64,
-            n_pad as u64,
+            rows as u64,
             masks.magnitudes() as u64,
+            width as u64,
+            0,
         ])?;
-        let identity_shape = self.buffer_from_slice(&[input.dims.assignment_width as u64, n_pad as u64])?;
-        let plane_len = plan.blocks * D;
-        let z_re = self.buffer(plane_len * size_of::<u64>())?;
-        let z_im = self.buffer(plane_len * size_of::<u64>())?;
-        let qk = self.buffer(2 * plane_len * size_of::<u64>())?;
         let command = self.command_buffer("nightstream.pi_ccs.joint.carried")?;
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.joint_zero_words);
+        unsafe { encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 0) };
+        self.dispatch(&encoder, &self.joint_zero_words, rows * 2);
+        encoder.endEncoding();
+        drop(encoder);
+
+        // The common output temporarily holds the matrix projection.
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.joint.carried.combine")));
-        encoder.setComputePipelineState(&self.fe_carried_mask_lin_comb);
+        encoder.setComputePipelineState(&self.joint_carried_projection);
         unsafe {
             encoder.setBuffer_offset_atIndex(
                 Some(masks.words()),
@@ -712,123 +327,107 @@ impl MetalSession {
             );
             encoder.setBuffer_offset_atIndex(Some(&coeffs), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&z_re), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&z_im), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&basis_re), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&basis_im), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 5);
+            encoder.setBuffer_offset_atIndex(Some(output), 0, 6);
         }
-        self.dispatch(&encoder, &self.fe_carried_mask_lin_comb, plane_len);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.fe_weighted_basis_dots);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&basis_re), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&basis_im), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&z_re), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&z_im), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 5);
-        }
-        self.dispatch(&encoder, &self.fe_weighted_basis_dots, plane_len);
-        encoder.endEncoding();
-
-        let mut matrix_shapes = Vec::with_capacity(plan.matrix_count);
-        for (matrix_index, matrix) in plan.matrices.iter().enumerate() {
-            let matrix_shape = self.buffer_from_slice(&[
-                plan.rows as u64,
-                input.structure.n as u64,
-                n_pad as u64,
-                matrix.row_offset_width,
-                u64::from(matrix.identity),
-                matrix.geometric_row_offset_width,
-            ])?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.fe_weighted_row_table);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-                encoder.setBuffer_offset_atIndex(Some(&qk), 0, 7);
-                encoder.setBuffer_offset_atIndex(Some(&mat_coeffs), matrix_index * 2 * size_of::<u64>(), 8);
-                encoder.setBuffer_offset_atIndex(Some(&matrix_shape), 0, 9);
-                encoder.setBuffer_offset_atIndex(Some(output), output_offset, 10);
-                encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 11);
-            }
-            self.dispatch(&encoder, &self.fe_weighted_row_table, n_pad);
-            encoder.endEncoding();
-            matrix_shapes.push(matrix_shape);
-        }
-
-        let seeded_partials = if let Some(seeded) = &plan.seeded {
-            let partial_values = seeded
-                .work_count
-                .checked_mul(RING_PRODUCT_COEFFICIENTS)
-                .ok_or(MetalError::Shape("one-joint seeded partial size overflow"))?;
-            let partials = self.buffer(2 * partial_values * size_of::<u64>())?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.joint_seeded_k_partials);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&seeded.output_headers), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&seeded.work_headers), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&seeded.word_starts), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&seeded.rotations), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&qk), 0, 4);
-                encoder.setBuffer_offset_atIndex(Some(&mat_coeffs), 0, 5);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 6);
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 7);
-            }
-            self.dispatch(&encoder, &self.joint_seeded_k_partials, partial_values);
-            encoder.endEncoding();
-
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.joint_seeded_k_reduce);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&seeded.output_headers), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&seeded.eval_group_headers), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&seeded.eval_group_outputs), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 4);
-                encoder.setBuffer_offset_atIndex(Some(output), output_offset, 5);
-            }
-            self.dispatch(&encoder, &self.joint_seeded_k_reduce, seeded.eval_group_count * D);
-            encoder.endEncoding();
-            Some(partials)
-        } else {
-            None
-        };
-        let pad_weights = std::array::from_fn(|coefficient| k_power(gamma, running_count * coefficient));
-        let (pad_re, pad_im) = weighted_projection_basis_forms(&pad_weights);
-        let pad_re = self.buffer_from_slice(&ring_words(&pad_re))?;
-        let pad_im = self.buffer_from_slice(&ring_words(&pad_im))?;
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.fe_weighted_basis_dots);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&pad_re), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&pad_im), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&z_re), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&z_im), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 5);
-        }
-        self.dispatch(&encoder, &self.fe_weighted_basis_dots, plane_len);
-        encoder.endEncoding();
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_add_identity_carried);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&qk), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&identity_coeff), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&identity_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(output), output_offset, 3);
-        }
-        self.dispatch(&encoder, &self.joint_add_identity_carried, input.dims.assignment_width);
+        self.dispatch_threadgroups(
+            &encoder,
+            &self.joint_carried_projection,
+            plan.blocks,
+            D.next_power_of_two(),
+        );
         encoder.endEncoding();
 
         self.finish(&command)?;
-        drop(matrix_shapes);
-        drop(seeded_partials);
+        drop(encoder);
+        drop(command);
+
+        let reserved = plan
+            .matrix_count
+            .checked_mul(7 * size_of::<u64>())
+            .ok_or(MetalError::Shape("carried matrix metadata size overflow"))?;
+        let mut next_row = 0;
+        while next_row < rows {
+            let window = self.load_matrix_window(plan, next_row..rows, reserved)?;
+            let local_rows = window.rows.end - window.rows.start;
+            let command = self.command_buffer("nightstream.pi_ccs.joint.carried.rows")?;
+            let mut matrix_shapes = Vec::with_capacity(plan.matrix_count);
+            for (matrix_index, matrix) in window.matrices.iter().enumerate() {
+                let matrix_shape = self.buffer_from_slice(&[
+                    local_rows as u64,
+                    rows as u64,
+                    rows as u64,
+                    matrix.row_offset_width,
+                    u64::from(matrix.identity),
+                    matrix.geometric_row_offset_width,
+                    window.rows.start as u64,
+                ])?;
+                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setComputePipelineState(&self.fe_weighted_row_table);
+                unsafe {
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
+                    encoder.setBuffer_offset_atIndex(Some(output), 0, 7);
+                    encoder.setBuffer_offset_atIndex(Some(&mat_coeffs), matrix_index * 2 * size_of::<u64>(), 8);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix_shape), 0, 9);
+                    encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 10);
+                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 11);
+                }
+                self.dispatch(&encoder, &self.fe_weighted_row_table, local_rows);
+                encoder.endEncoding();
+                matrix_shapes.push(matrix_shape);
+            }
+            self.finish(&command)?;
+            next_row = window.rows.end;
+            drop(command);
+            drop(matrix_shapes);
+            drop(window);
+        }
+
+        let command = self.command_buffer("nightstream.pi_ccs.joint.carried.pad")?;
+        // All matrix reads are complete. Replace the temporary projection
+        // with the identity term and add the matrix contribution where it exists.
+        let final_shape = self.buffer_from_slice(&[
+            stored_running as u64,
+            plan.blocks as u64,
+            plan.matrix_count as u64,
+            plan.rows as u64,
+            rows as u64,
+            rows as u64,
+            masks.magnitudes() as u64,
+            table_len as u64,
+            rows as u64,
+        ])?;
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.joint_carried_projection);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(
+                Some(masks.words()),
+                fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
+                0,
+            );
+            encoder.setBuffer_offset_atIndex(Some(&coeffs), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&final_shape), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&pad_re), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&pad_im), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 5);
+            encoder.setBuffer_offset_atIndex(Some(output), 0, 6);
+        }
+        self.dispatch_threadgroups(
+            &encoder,
+            &self.joint_carried_projection,
+            table_len.div_ceil(D),
+            D.next_power_of_two(),
+        );
+        encoder.endEncoding();
+        self.finish(&command)?;
         Ok(())
     }
 }
@@ -836,10 +435,29 @@ impl MetalSession {
 impl<'a> MetalPaperJointOracle<'a> {
     pub(crate) fn new(
         session: &'a MetalSession,
-        plan: &'a MetalJointMatrixPlan,
+        plan: MetalJointMatrixPlan<'a>,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Self, neo_reductions::PiCcsError> {
-        if !plan.matches(input.cache.superneo())
+        Self::with_application_workspace(session, plan, input, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_application_workspace(
+        session: &'a MetalSession,
+        plan: MetalJointMatrixPlan<'a>,
+        input: PaperJointOracleInput<'a>,
+        workspace_bytes: usize,
+    ) -> Result<Self, neo_reductions::PiCcsError> {
+        Self::with_application_workspace(session, plan, input, Some(workspace_bytes))
+    }
+
+    fn with_application_workspace(
+        session: &'a MetalSession,
+        plan: MetalJointMatrixPlan<'a>,
+        input: PaperJointOracleInput<'a>,
+        workspace: Option<usize>,
+    ) -> Result<Self, neo_reductions::PiCcsError> {
+        if !plan.matches(input.rows)
             || plan.rows != input.structure.n
             || plan.matrix_count != input.structure.t()
             || !matches!(input.params.b, 2 | 4)
@@ -857,8 +475,6 @@ impl<'a> MetalPaperJointOracle<'a> {
                 "one-joint prior point and running witnesses disagree",
             )));
         }
-        let magnitudes = (input.params.b - 1) as usize;
-        let mut mask_words = Vec::with_capacity(opening_assignment_count * plan.blocks * 2 * magnitudes);
         let witness_mats = input
             .fresh_witnesses
             .iter()
@@ -869,85 +485,31 @@ impl<'a> MetalPaperJointOracle<'a> {
             .iter()
             .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m))
             .collect::<Result<Vec<_>, _>>()?;
-        for blocks in &source_blocks {
-            let words = blocks.signed_digit_masks(input.params.b).ok_or_else(|| {
-                oracle_error(MetalError::Shape(
-                    "Metal one-joint witness is outside the configured radix alphabet",
-                ))
-            })?;
-            if words.len() != plan.blocks * 2 * magnitudes {
-                return Err(oracle_error(MetalError::Shape(
-                    "Metal one-joint witness width does not match the matrix plan",
-                )));
-            }
-            mask_words.extend(words);
-        }
-        let words_per_source = plan.blocks * 2 * magnitudes;
-        let assignment_source_indices = mask_words
-            .chunks_exact(words_per_source)
-            .enumerate()
-            .filter_map(|(source, words)| words.iter().any(|&word| word != 0).then_some(source))
+        let masks = session
+            .prepare_joint_witness_masks(&source_blocks, input.params.b, input.structure.m)
+            .map_err(oracle_error)?;
+        let assignment_source_indices = masks
+            .active_witnesses()
+            .iter()
+            .map(|&source| source as usize)
             .collect::<Vec<_>>();
         let assignment_count = assignment_source_indices.len();
         let has_carried = assignment_source_indices
             .iter()
             .any(|&source| source >= fresh_count);
-        let assignment_source_words = assignment_source_indices
-            .iter()
-            .map(|&source| source as u64)
-            .collect::<Vec<_>>();
-        let assignment_sources = session
-            .buffer_from_slice(nonempty(&assignment_source_words))
-            .map_err(oracle_error)?;
-        let masks = session
-            .prepare_witness_digit_masks(
-                &mask_words,
-                opening_assignment_count,
-                plan.blocks,
-                magnitudes,
-                input.structure.m,
-            )
-            .map_err(oracle_error)?;
+        drop(source_blocks);
+        #[cfg(feature = "legacy-adapter")]
         let selective_f_prime = input.params.b == 2
             && neo_fold_clean::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
-        let application_base = session
-            .build_joint_application_tables(
-                plan,
-                input.cache.superneo(),
-                &masks,
-                fresh_count,
-                input.structure.n,
-                input.dims.row_count,
-                selective_f_prime,
-            )
-            .map_err(oracle_error)?;
+        #[cfg(not(feature = "legacy-adapter"))]
+        let selective_f_prime = false;
         let (common, common_len) = session
-            .build_joint_common_tables(plan, &input, &masks, has_carried)
+            .build_joint_common_tables(&plan, &input, &masks, has_carried)
             .map_err(oracle_error)?;
 
-        let application_count = fresh_count * plan.matrix_count;
         let application_len = input.structure.n;
         let assignment_len = input.dims.assignment_width;
-        let application_half = application_len.div_ceil(2).max(1);
-        let application_quarter = application_half.div_ceil(2).max(1);
-        let assignment_half = assignment_len.div_ceil(2).max(1);
-        let assignment_quarter = assignment_half.div_ceil(2).max(1);
-        let application_k = [
-            session
-                .buffer(application_count * application_half * 2 * size_of::<u64>())
-                .map_err(oracle_error)?,
-            session
-                .buffer(application_count * application_quarter * 2 * size_of::<u64>())
-                .map_err(oracle_error)?,
-        ];
-        let assignments_k = [
-            session
-                .buffer(assignment_count * assignment_half * 2 * size_of::<u64>())
-                .map_err(oracle_error)?,
-            session
-                .buffer(assignment_count * assignment_quarter * 2 * size_of::<u64>())
-                .map_err(oracle_error)?,
-        ];
+        let assignments = AssignmentTables::new(session, &masks, assignment_len).map_err(oracle_error)?;
 
         let constraint_exponent = input.running_witnesses.len() * D * (plan.matrix_count + 1);
         let mut weights = Vec::with_capacity(fresh_count + assignment_count);
@@ -969,10 +531,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             .map_err(oracle_error)?;
         let coefficient_count = input.dims.degree + 1;
         let active_len = input.structure.n.max(input.dims.assignment_width);
-        let groups = active_len.div_ceil(2).div_ceil(64).max(1);
-        let partials = session
-            .buffer(groups * coefficient_count * 2 * size_of::<u64>())
-            .map_err(oracle_error)?;
         let output = session
             .buffer(coefficient_count * 2 * size_of::<u64>())
             .map_err(oracle_error)?;
@@ -1003,16 +561,22 @@ impl<'a> MetalPaperJointOracle<'a> {
             )
             .map_err(oracle_error)?;
 
+        let reserved = ApplicationTables::scratch_bytes(&plan, fresh_count)
+            .map_err(oracle_error)?
+            .max(
+                active_len.div_ceil(2).div_ceil(64).max(1) * coefficient_count * size_of::<K>() + 33 * size_of::<u64>(),
+            );
+        let application =
+            ApplicationTables::new(session, &plan, &masks, fresh_count, workspace, reserved).map_err(oracle_error)?;
+
         Ok(Self {
             session,
-            plan,
             masks,
-            application_base: Some(application_base),
-            application_k: Some(application_k),
-            assignments_k: Some(assignments_k),
+            application_peak_bytes: application.peak_bytes(),
+            application: Some(application),
+            assignments: Some(assignments),
             common: Some(common),
             common_len,
-            assignment_sources,
             equality_chunks,
             prior_equality_chunks,
             equality_chunks_per_round,
@@ -1023,7 +587,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             weights,
             term_headers,
             term_variables,
-            partials,
             output,
             challenge,
             fresh_count,
@@ -1035,37 +598,85 @@ impl<'a> MetalPaperJointOracle<'a> {
             coefficient_count,
             range_base: input.params.b,
             selective_f_prime,
+            zero_application_padding: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
             current_len: input.dims.row_count,
             active_len,
             application_len,
             assignment_len,
-            k_slot: 0,
-            common_slot: 0,
+            plan,
         })
     }
 
+    #[cfg(test)]
+    fn application_workspace_peak_bytes(&self) -> usize {
+        self.application
+            .as_ref()
+            .map_or(self.application_peak_bytes, |tables| {
+                tables.peak_bytes().max(self.application_peak_bytes)
+            })
+    }
+
+    #[cfg(test)]
+    fn application_is_resident(&self) -> bool {
+        self.application
+            .as_ref()
+            .is_some_and(|tables| tables.resident().is_some())
+    }
+
     fn round_coefficients(&mut self) -> Result<Vec<K>, MetalError> {
+        let mut application = self.application.take().ok_or(MetalError::Shape(
+            "one-joint application tables were released too early",
+        ))?;
+        let result = (|| {
+            let reserved = ApplicationTables::scratch_bytes(&self.plan, self.fresh_count)?.max(
+                self.active_len.div_ceil(2).div_ceil(64).max(1) * self.coefficient_count * size_of::<K>()
+                    + 33 * size_of::<u64>(),
+            );
+            application.prepare_round(self.session, &self.plan, &self.masks, reserved)?;
+            if let Some(window) = application.resident() {
+                return self.round_window(&window.values, 0, window.stride, 0, self.active_len.div_ceil(2));
+            }
+            let mut coefficients = vec![K::ZERO; self.coefficient_count];
+            let pairs = self.application_len.div_ceil(2);
+            let window_pairs = application.window_rows()? / 2;
+            for pair in (0..pairs).step_by(window_pairs) {
+                let count = (pairs - pair).min(window_pairs);
+                let window = application.replay_window(self.session, &self.plan, &self.masks, pair * 2)?;
+                let partial = self.round_window(&window.values, pair * 2, window.stride, pair, count)?;
+                for (sum, value) in coefficients.iter_mut().zip(partial) {
+                    *sum += value;
+                }
+            }
+            let remaining = self.active_len.div_ceil(2) - pairs;
+            if remaining != 0 {
+                // No application coordinate is read in this assignment-only suffix.
+                let partial = self.round_window(&self.output, pairs * 2, 0, pairs, remaining)?;
+                for (sum, value) in coefficients.iter_mut().zip(partial) {
+                    *sum += value;
+                }
+            }
+            Ok(coefficients)
+        })();
+        self.application_peak_bytes = self.application_peak_bytes.max(application.peak_bytes());
+        self.application = Some(application);
+        result
+    }
+
+    fn round_window(
+        &self,
+        application: &Buffer,
+        application_offset: usize,
+        application_stride: usize,
+        pair_offset: usize,
+        pair_count: usize,
+    ) -> Result<Vec<K>, MetalError> {
         let base_round = self.round == 0;
-        let application = if base_round {
-            self.application_base
-                .as_ref()
-                .ok_or(MetalError::Shape("one-joint base tables were released too early"))?
-        } else {
-            &self
-                .application_k
-                .as_ref()
-                .expect("one-joint application tables exist during SumCheck")[self.k_slot]
-        };
-        let assignments = if base_round {
-            self.masks.words()
-        } else {
-            &self
-                .assignments_k
-                .as_ref()
-                .expect("one-joint assignment tables exist during SumCheck")[self.k_slot]
-        };
+        let assignments = self
+            .assignments
+            .as_ref()
+            .expect("assignment prefixes exist during SumCheck");
         let (alpha_low, alpha_slope) = equality_round_affine(&self.alpha_point, self.alpha_prefix, self.round);
         let (prior_low, prior_slope) = self
             .prior_point
@@ -1102,8 +713,17 @@ impl<'a> MetalPaperJointOracle<'a> {
             prior_slope_re,
             prior_slope_im,
             self.range_base as u64,
+            u64::from(self.zero_application_padding),
+            assignments.encoding() as u64,
+            pair_offset as u64,
+            pair_count as u64,
+            application_offset as u64,
+            application_stride as u64,
         ])?;
-        let groups = self.active_len.div_ceil(2).div_ceil(64).max(1);
+        let groups = pair_count.div_ceil(64).max(1);
+        let partials = self
+            .session
+            .buffer(groups * self.coefficient_count * size_of::<K>())?;
         let reduction_shape = self
             .session
             .buffer_from_slice(&[groups as u64, self.coefficient_count as u64])?;
@@ -1119,13 +739,12 @@ impl<'a> MetalPaperJointOracle<'a> {
         encoder.setComputePipelineState(round_pipeline);
         unsafe {
             encoder.setBuffer_offset_atIndex(Some(application), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(assignments), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(assignments.data(&self.masks)), 0, 1);
             encoder.setBuffer_offset_atIndex(
                 Some(
-                    &self
-                        .common
+                    self.common
                         .as_ref()
-                        .expect("one-joint common tables exist during SumCheck")[self.common_slot],
+                        .expect("one-joint common tables exist during SumCheck"),
                 ),
                 0,
                 2,
@@ -1134,10 +753,11 @@ impl<'a> MetalPaperJointOracle<'a> {
             encoder.setBuffer_offset_atIndex(Some(&self.weights), 0, 4);
             encoder.setBuffer_offset_atIndex(Some(&self.term_headers), 0, 5);
             encoder.setBuffer_offset_atIndex(Some(&self.term_variables), 0, 6);
-            encoder.setBuffer_offset_atIndex(Some(&self.partials), 0, 7);
+            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 7);
             encoder.setBuffer_offset_atIndex(Some(&self.equality_chunks), 0, 8);
             encoder.setBuffer_offset_atIndex(Some(&self.prior_equality_chunks), 0, 9);
-            encoder.setBuffer_offset_atIndex(Some(&self.assignment_sources), 0, 10);
+            encoder.setBuffer_offset_atIndex(Some(&assignments.sources), 0, 10);
+            encoder.setBuffer_offset_atIndex(Some(assignments.values()), 0, 11);
         }
         self.session
             .dispatch_threadgroups(&encoder, round_pipeline, groups, 64);
@@ -1146,7 +766,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.session.sumcheck_reduce_partials);
         unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&self.partials), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(&reduction_shape), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(&self.output), 0, 2);
         }
@@ -1169,127 +789,60 @@ impl<'a> MetalPaperJointOracle<'a> {
         let half = self.current_len / 2;
         let application_next_len = self.application_len.div_ceil(2).max(1);
         let assignment_next_len = self.assignment_len.div_ceil(2).max(1);
+        let common_scratch = if self.prior_point.is_some() {
+            self.common_len.div_ceil(2) * size_of::<K>() + 2 * size_of::<u64>()
+        } else {
+            0
+        };
+        let assignment_scratch = self
+            .assignments
+            .as_ref()
+            .expect("assignment prefixes exist")
+            .fold_allocation_bytes()?;
+        let application = self
+            .application
+            .as_mut()
+            .expect("application prefixes exist");
+        application.fold(
+            self.session,
+            challenge,
+            common_scratch.max(assignment_scratch) + 4 * size_of::<u64>(),
+        )?;
+        self.application_peak_bytes = self.application_peak_bytes.max(application.peak_bytes());
         let command = self
             .session
             .command_buffer("nightstream.pi_ccs.joint.fold")?;
-        if self.round == 0 {
-            let app_shape = self.session.buffer_from_slice(&[
-                self.application_len as u64,
-                (self.fresh_count * self.matrix_count) as u64,
-            ])?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.session.joint_fold_base_tables);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(
-                    Some(
-                        self.application_base
-                            .as_ref()
-                            .expect("one-joint base tables exist during the first fold"),
-                    ),
-                    0,
-                    0,
-                );
-                encoder.setBuffer_offset_atIndex(Some(&self.challenge), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&app_shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(
-                    Some(
-                        &self
-                            .application_k
-                            .as_ref()
-                            .expect("one-joint application tables exist during SumCheck")[0],
-                    ),
-                    0,
-                    3,
-                );
-            }
-            self.session.dispatch(
-                &encoder,
-                &self.session.joint_fold_base_tables,
-                self.fresh_count * self.matrix_count * application_next_len,
-            );
-            encoder.endEncoding();
-
-            let assignment_shape = self.session.buffer_from_slice(&[
-                self.assignment_len as u64,
-                self.assignment_count as u64,
-                self.blocks as u64,
-                self.assignment_width as u64,
-                self.masks.magnitudes() as u64,
-            ])?;
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.session.joint_fold_mask_assignments);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(self.masks.words()), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&self.challenge), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&assignment_shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(
-                    Some(
-                        &self
-                            .assignments_k
-                            .as_ref()
-                            .expect("one-joint assignment tables exist during SumCheck")[0],
-                    ),
-                    0,
-                    3,
-                );
-                encoder.setBuffer_offset_atIndex(Some(&self.assignment_sources), 0, 4);
-            }
-            self.session.dispatch(
-                &encoder,
-                &self.session.joint_fold_mask_assignments,
-                self.assignment_count * assignment_next_len,
-            );
-            encoder.endEncoding();
-            self.k_slot = 0;
-        } else {
-            let next = self.k_slot ^ 1;
-            let application_k = self
-                .application_k
-                .as_ref()
-                .expect("one-joint application tables exist during SumCheck");
+        let next_common = if self.prior_point.is_some() {
+            let next_len = self.common_len.div_ceil(2).max(1);
+            let output = self.session.buffer(next_len * size_of::<K>())?;
             self.encode_compact_k_fold(
                 &command,
-                &application_k[self.k_slot],
-                &application_k[next],
-                self.application_len,
-                self.fresh_count * self.matrix_count,
-            )?;
-            let assignments_k = self
-                .assignments_k
-                .as_ref()
-                .expect("one-joint assignment tables exist during SumCheck");
-            self.encode_compact_k_fold(
-                &command,
-                &assignments_k[self.k_slot],
-                &assignments_k[next],
-                self.assignment_len,
-                self.assignment_count,
-            )?;
-            self.k_slot = next;
-        }
-        if self.prior_point.is_some() {
-            let common_next = self.common_slot ^ 1;
-            let common = self
-                .common
-                .as_ref()
-                .expect("one-joint carried tables exist during SumCheck");
-            self.encode_compact_k_fold(
-                &command,
-                &common[self.common_slot],
-                &common[common_next],
+                self.common
+                    .as_ref()
+                    .expect("one-joint carried table exists during SumCheck"),
+                &output,
                 self.common_len,
                 1,
             )?;
-            self.common_slot = common_next;
+            Some(output)
+        } else {
+            None
+        };
+        self.session.finish(&command)?;
+        if let Some(common) = next_common {
+            self.common = Some(common);
             self.common_len = self.common_len.div_ceil(2).max(1);
         }
-        self.session.finish(&command)?;
+        // Release the completed command and old tables before allocating
+        // the next norm prefix.
+        drop(command);
+        self.assignments
+            .as_mut()
+            .expect("assignment prefixes exist during SumCheck")
+            .fold(self.session, &self.masks, challenge)?;
         self.alpha_prefix = restrict_equality_prefix(self.alpha_prefix, self.alpha_point[self.round], challenge);
         if let Some(prior_point) = &self.prior_point {
             self.prior_prefix = restrict_equality_prefix(self.prior_prefix, prior_point[self.round], challenge);
-        }
-        if self.round == 0 {
-            self.application_base = None;
         }
         self.current_len = half;
         self.application_len = application_next_len;
@@ -1326,64 +879,6 @@ impl<'a> MetalPaperJointOracle<'a> {
         encoder.endEncoding();
         Ok(())
     }
-}
-
-fn selective_seeded_copy_compatible(
-    matrices: &[neo_reductions::superneo_eval::SuperneoMatrixCache],
-    outputs: &[SeededOutputMeta],
-) -> bool {
-    const UNUSED_MATRICES: [usize; 9] = [0, 5, 6, 7, 8, 9, 10, 11, 12];
-    if matrices.len() != 13 || outputs.is_empty() || outputs.iter().any(|output| output.matrix != 2) {
-        return false;
-    }
-    outputs.iter().all(|output| {
-        (output.row_start..output.row_start + D).all(|row| {
-            compact_row_is_constant_one(&matrices[3], row)
-                && UNUSED_MATRICES
-                    .iter()
-                    .all(|&matrix| compact_row_is_zero(&matrices[matrix], row))
-        })
-    })
-}
-
-fn compact_row_is_zero(matrix: &neo_reductions::superneo_eval::SuperneoMatrixCache, row: usize) -> bool {
-    let (_, columns, identity) = matrix.compact_explicit_shape();
-    if (identity && row < columns)
-        || matrix
-            .compact_seeded_phi81_blocks()
-            .iter()
-            .any(|block| (block.row_start()..block.row_end()).contains(&row))
-        || matrix.has_compact_geometric_row(row)
-    {
-        return false;
-    }
-    let mut nonzero = false;
-    matrix.for_each_compact_explicit_row_coefficient(row, |_, _, coefficient| {
-        nonzero |= coefficient != F::ZERO;
-    });
-    !nonzero
-}
-
-fn compact_row_is_constant_one(matrix: &neo_reductions::superneo_eval::SuperneoMatrixCache, row: usize) -> bool {
-    let (_, columns, identity) = matrix.compact_explicit_shape();
-    if matrix
-        .compact_seeded_phi81_blocks()
-        .iter()
-        .any(|block| (block.row_start()..block.row_end()).contains(&row))
-        || matrix.has_compact_geometric_row(row)
-    {
-        return false;
-    }
-    if identity {
-        return row == 0 && row < columns;
-    }
-    let mut terms = 0usize;
-    let mut exact = true;
-    matrix.for_each_compact_explicit_row_coefficient(row, |block, local, coefficient| {
-        terms += 1;
-        exact &= block as usize * D + local as usize == 0 && coefficient == F::ONE;
-    });
-    terms == 1 && exact
 }
 
 impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
@@ -1426,14 +921,12 @@ impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
     }
 
     fn output_openings(&mut self, point: &[K]) -> Result<Option<Vec<V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
-        self.application_base = None;
-        self.application_k = None;
-        self.assignments_k = None;
+        self.application = None;
+        self.assignments = None;
         self.common = None;
         self.session
-            .eval_joint_openings(
-                &self.plan.opening,
-                self.plan.seeded.as_ref(),
+            .eval_streamed_joint_openings(
+                &self.plan,
                 &self.masks,
                 point,
                 self.opening_assignment_count,

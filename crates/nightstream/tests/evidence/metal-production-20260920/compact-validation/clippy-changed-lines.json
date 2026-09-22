@@ -1,0 +1,5 @@
+{
+  "command": "cargo clippy -p nightstream -p neo-prover-metal -p neo-reductions --release --all-targets --features nightstream/metal,nightstream/cuda -- --cap-lints warn",
+  "changed_line_warnings": [],
+  "scope": "Warning inspection only; pre-existing warnings remain. This is not a -Dwarnings pass."
+}

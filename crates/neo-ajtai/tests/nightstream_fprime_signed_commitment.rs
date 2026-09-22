@@ -13,11 +13,29 @@ use neo_ajtai::{
 use neo_math::ring::{Rq, D};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn streamed_key_blocks_match_scalar_for_arbitrary_addresses(
+        seed in any::<[u8; 32]>(), row in any::<u32>(), block in any::<u64>(),
+    ) {
+        let streamed = coefficient_block(&seed, row, block);
+        for (lane, actual) in streamed.into_iter().enumerate() {
+            prop_assert_eq!(actual, coefficient(&seed, row, block, lane as u32));
+        }
+    }
+}
 
 #[test]
 fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
-    // Unique row/column pairs from nightstream-fprime-ajtai-setup-v1-parity.
-    for (row, block) in [(0, 0), (1, 32_768), (21, PRODUCTION_MESSAGE_COLUMNS - 1)] {
+    // Stored setup cases plus the maximum row/column nonce words.
+    for (row, block) in [
+        (0, 0),
+        (1, 32_768),
+        (21, PRODUCTION_MESSAGE_COLUMNS - 1),
+        (u32::MAX, u64::MAX),
+    ] {
         let streamed = coefficient_block(&PRODUCTION_SEED, row, block);
         for lane in 0..D {
             assert_eq!(

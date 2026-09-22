@@ -1,0 +1,9 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 26.00s
+     Running tests/nifs_adapter.rs (target/release/deps/nifs_adapter-e13573b91dc7ab47)
+
+running 1 test
+test metal_seeded_one_joint_oracle_matches_the_canonical_host ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.35s
+

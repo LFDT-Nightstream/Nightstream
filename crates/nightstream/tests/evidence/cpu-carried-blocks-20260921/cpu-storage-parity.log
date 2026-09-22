@@ -1,0 +1,172 @@
+
+running 11 tests
+test engine::parity::crosscheck_matches_optimized ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 792.00ns seeded 181.62µs total 182.71µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.001s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+verify_dec_public failed: Eval_K recomposition mismatch
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 2.08µs seeded 191.62µs total 193.75µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.002s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::crosscheck_rejects_a_prover_error_without_updating_the_transcript ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 583.00ns seeded 178.46µs total 179.04µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.001s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+ok
+test engine::parity::crosscheck_rejects_a_worker_panic_without_updating_the_transcript ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 750.00ns seeded 175.54µs total 176.29µs
+[pi-ccs/phase] oracle-build=0.000s
+
+thread '<unnamed>' (629769) panicked at crates/nightstream/src/engine/../../tests/engines/parity.rs:411:13:
+reference worker failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[pi-ccs/phase] rounds=0.001s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+ok
+test engine::parity::crosscheck_rejects_changed_results ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 250.00ns seeded 179.04µs total 179.29µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.001s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::crosscheck_rejects_different_rows_without_updating_the_transcript ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.000s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=2
+[real-openings] pad elapsed=0.000s
+ok
+test engine::parity::metal_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+test engine::parity::optimized_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+test engine::parity::optimized_matches_metal ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 833.00ns seeded 180.75µs total 184.62µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.002s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] outputs=0.001s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.000s witnesses=3
+[real-openings] pad elapsed=0.000s
+verify_dec_public failed: Eval_K recomposition mismatch
+[pi-ccs/phase] oracle-build=0.004s
+[pi-ccs/phase] rounds=0.009s
+[pi-ccs/phase] outputs=0.002s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::selected_polynomial_crosscheck_matches_optimized ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 19.92µs seeded 186.08µs total 206.42µs
+[pi-ccs/phase] oracle-build=0.001s
+[pi-ccs/phase] rounds=0.002s
+[real-openings] matrices elapsed=0.001s witnesses=17
+[real-openings] pad elapsed=0.001s
+[pi-ccs/phase] outputs=0.008s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.001s witnesses=3
+[real-openings] pad elapsed=0.001s
+verify_dec_public failed: Eval_K recomposition mismatch
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 44.92µs seeded 183.00µs total 228.04µs
+[pi-ccs/phase] oracle-build=0.001s
+[pi-ccs/phase] rounds=0.002s
+[real-openings] matrices elapsed=0.001s witnesses=17
+[real-openings] pad elapsed=0.001s
+[pi-ccs/phase] outputs=0.008s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.001s witnesses=3
+[real-openings] pad elapsed=0.001s
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::selected_polynomial_matches_metal ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 11.92µs seeded 183.58µs total 195.50µs
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.002s
+[real-openings] matrices elapsed=0.001s witnesses=17
+[real-openings] pad elapsed=0.001s
+[pi-ccs/phase] outputs=0.008s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.001s witnesses=3
+[real-openings] pad elapsed=0.001s
+verify_dec_public failed: Eval_K recomposition mismatch
+[pi-ccs/phase] oracle-build=0.007s
+[pi-ccs/phase] rounds=0.037s
+[pi-ccs/phase] outputs=0.014s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::zero_running_matches_metal ... [real-openings] matrices elapsed=0.000s witnesses=1
+[real-openings] pad elapsed=0.000s
+[pi-ccs/phase] oracle-build=0.000s
+[pi-ccs/phase] rounds=0.001s
+[real-openings] matrices elapsed=0.000s witnesses=17
+[real-openings] pad elapsed=0.001s
+[pi-ccs/phase] outputs=0.008s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+[real-openings] matrices elapsed=0.001s witnesses=2
+[real-openings] pad elapsed=0.001s
+verify_dec_public failed: Eval_K recomposition mismatch
+[pi-ccs/phase] oracle-build=0.002s
+[pi-ccs/phase] rounds=0.034s
+[pi-ccs/phase] outputs=0.014s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    0.00s commit_mix    0.00s inputs=17
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+
+test result: ok. 9 passed; 0 failed; 2 ignored; 0 measured; 15 filtered out; finished in 129.57s
+

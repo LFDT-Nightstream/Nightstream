@@ -1,0 +1,37 @@
+    Checking neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+    Checking neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+    Checking neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+crates/neo-ccs/src/sparse.rs:74:20: warning: using `contains()` instead of `iter().any()` is more efficient: help: try: `self.vals[start..end].contains(&Ff::ZERO)`
+warning: `neo-ccs` (lib) generated 1 warning (run `cargo clippy --fix --lib -p neo-ccs` to apply 1 suggestion)
+    Checking neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+    Checking neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+warning: `neo-ccs` (lib) generated 1 warning (1 duplicate)
+warning: `neo-ccs` (lib) generated 1 warning (1 duplicate)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+crates/neo-ajtai/src/s_module.rs:632:8: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!z_len.is_multiple_of(d)`
+crates/neo-ajtai/src/s_module.rs:708:12: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!z_len.is_multiple_of(d)`
+warning: `neo-ajtai` (lib) generated 2 warnings (run `cargo clippy --fix --lib -p neo-ajtai` to apply 2 suggestions)
+    Checking neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+warning: `neo-ajtai` (lib) generated 2 warnings (2 duplicates)
+crates/neo-reductions/src/superneo_eval/row_block.rs:29:13: warning: operator precedence might not be obvious
+crates/neo-reductions/src/api/validation.rs:90:8: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!ce.m_in.is_multiple_of(D)`
+crates/neo-reductions/src/common.rs:530:5: warning: doc list item without indentation
+crates/neo-reductions/src/common.rs:1002:8: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!m_in.is_multiple_of(D)`
+crates/neo-reductions/src/engines/utils.rs:21:26: warning: the following explicit lifetimes could be elided: 'a
+crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs:311:57: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `weights`
+crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs:315:92: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `weights`
+crates/neo-reductions/src/engines/optimized_engine/sparse.rs:319:5: warning: struct `SparseCache` has a public `len` method, but no `is_empty` method
+crates/neo-reductions/src/engines/pi_ccs_protocol.rs:38:8: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!claim.m_in.is_multiple_of(D)`
+crates/neo-reductions/src/engines/paper_exact_engine/paper_joint.rs:134:33: warning: the following explicit lifetimes could be elided: 'a
+crates/neo-reductions/src/engines/paper_exact_engine/paper_joint.rs:248:8: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!public_width.is_multiple_of(D)`
+crates/neo-reductions/src/superneo_eval/artifact.rs:323:28: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!matrix.cols.is_multiple_of(D)`
+crates/neo-reductions/src/superneo_eval/artifact.rs:418:16: warning: using `contains()` instead of `iter().any()` is more efficient: help: try: `coefficients[start..end].contains(&F::ZERO)`
+crates/neo-reductions/src/superneo_eval/matrix_cache_impl.rs:140:80: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `basis_re_forms`
+crates/neo-reductions/src/superneo_eval/matrix_cache_impl.rs:141:80: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `basis_im_forms`
+warning: `neo-reductions` (lib) generated 15 warnings (run `cargo clippy --fix --lib -p neo-reductions` to apply 13 suggestions)
+warning: `neo-reductions` (lib) generated 15 warnings (15 duplicates)
+crates/neo-prover-metal/src/session/joint.rs:835:12: warning: this boolean expression can be simplified: help: try: `input.prior_point.is_some() == input.running_witnesses.is_empty()`
+warning: `neo-prover-metal` (lib) generated 1 warning (run `cargo clippy --fix --lib -p neo-prover-metal` to apply 1 suggestion)
+warning: `neo-prover-metal` (lib) generated 1 warning (1 duplicate)
+warning: `neo-prover-metal` (lib test) generated 1 warning (1 duplicate)
+    Finished `release` profile [optimized] target(s) in 3.93s

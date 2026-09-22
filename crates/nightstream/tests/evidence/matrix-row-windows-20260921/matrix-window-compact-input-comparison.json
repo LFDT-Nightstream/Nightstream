@@ -1,0 +1,103 @@
+{
+  "outcome": "passed",
+  "cpu": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/step-2",
+  "metal": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-compact-second-metal/step-2",
+  "files": [
+    {
+      "name": "digit-0.json",
+      "bytes": 90671538,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-1.json",
+      "bytes": 90422650,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-10.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-11.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-12.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-13.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-14.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-15.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-2.json",
+      "bytes": 88108411,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-3.json",
+      "bytes": 84230535,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-4.json",
+      "bytes": 70277656,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-5.json",
+      "bytes": 20662166,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-6.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-7.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-8.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "digit-9.json",
+      "bytes": 91,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "envelope.json",
+      "bytes": 1506366,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "fresh-claim.json",
+      "bytes": 39389,
+      "comparison": "complete bytes"
+    },
+    {
+      "name": "fresh-witness.json",
+      "bytes": 96258854,
+      "comparison": "complete bytes"
+    }
+  ],
+  "total_bytes": 542178475
+}

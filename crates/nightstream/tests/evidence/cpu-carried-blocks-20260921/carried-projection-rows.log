@@ -1,0 +1,9 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 18.62s
+     Running tests/pi_ccs_rows.rs (target/release/deps/pi_ccs_rows-d4d64ed891b71c62)
+
+running 1 test
+test row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

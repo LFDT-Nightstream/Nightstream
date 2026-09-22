@@ -1,0 +1,11 @@
+{
+  "outcome": "instrument-time-cap",
+  "controller_pid": 71713,
+  "target_pid": 71724,
+  "recorder_pid": 71715,
+  "controller_start": "Mon Sep 21 17:14:08 2026",
+  "deadline_unix_seconds": 1790030648.0,
+  "cap_seconds": 1800,
+  "authority": "AGENTS.md30-minute Instruments cap, including native target and trace finalization",
+  "rounding": "Start timestamp rounded down to platform ps whole-second resolution, so the deadline is not extended"
+}

@@ -6,7 +6,7 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use super::{EqualityWeights, RealBlockStorage, SuperneoEvalCache, SuperneoZBlocks};
+use super::{EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
 use crate::PiCcsError;
 
 impl SuperneoEvalCache {
@@ -18,9 +18,18 @@ impl SuperneoEvalCache {
         point: &[K],
         witnesses: &[SuperneoZBlocks],
     ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
+        self.eval_real_v1_1_openings_reusing(point, witnesses, Vec::new())
+    }
+
+    pub(crate) fn eval_real_v1_1_openings_reusing(
+        &self,
+        point: &[K],
+        witnesses: &[SuperneoZBlocks],
+        storage: Vec<K>,
+    ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let started = std::time::Instant::now();
-        let (rows, width, _) = self
+        let (rows, width, matrix_count) = self
             .relation_shape()
             .ok_or_else(|| PiCcsError::InvalidInput("opening cache shape is inconsistent".into()))?;
         let variables = (usize::BITS - rows.max(width).saturating_sub(1).leading_zeros()) as usize;
@@ -32,9 +41,17 @@ impl SuperneoEvalCache {
         {
             return Err(PiCcsError::InvalidInput("real opening point or witness shape".into()));
         }
+        if witnesses.iter().all(SuperneoZBlocks::real_is_zero) {
+            return Ok((0..witnesses.len())
+                .map(|_| V1_1Evaluations {
+                    eval_k: vec![K::ZERO; D],
+                    eval_a: vec![vec![K::ZERO; D]; matrix_count],
+                })
+                .collect());
+        }
         let weights = EqualityWeights::new(point);
         let row_weights = (0..rows).map(|row| weights.at(row)).collect::<Vec<_>>();
-        let matrices = self.eval_ring_linear_forms_for_real_z_blocks(&row_weights, rows, witnesses);
+        let matrices = self.eval_ring_linear_forms_reusing(&row_weights, rows, witnesses, storage);
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[real-openings] matrices elapsed={:.3}s witnesses={}",
@@ -58,8 +75,8 @@ impl SuperneoEvalCache {
     }
 }
 
-fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) -> [K; D] {
-    if matches!(&witness.re, RealBlockStorage::Zero { .. }) {
+pub(super) fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) -> [K; D] {
+    if witness.real_is_zero() {
         return [K::ZERO; D];
     }
     let block = |block: usize| {

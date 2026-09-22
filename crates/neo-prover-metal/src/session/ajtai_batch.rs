@@ -3,6 +3,7 @@
 use std::mem::size_of;
 use std::time::Duration;
 
+#[cfg(feature = "legacy-adapter")]
 use neo_fold_clean::paper::relations::LaneRanges;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
@@ -88,6 +89,7 @@ impl MetalSession {
         ))
     }
 
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn ajtai_lane_commitments_from_masks(
         &self,
         ops_plan: &MetalAjtaiLowNormPlan,

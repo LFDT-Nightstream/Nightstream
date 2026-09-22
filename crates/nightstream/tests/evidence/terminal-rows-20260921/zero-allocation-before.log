@@ -1,0 +1,24 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 5.63s
+     Running tests/zero_opening_storage.rs (target/release/deps/zero_opening_storage-7c778157f61df8e6)
+
+running 1 test
+test zero_opening_workspace_does_not_grow_with_carrier_width ... FAILED
+
+failures:
+
+---- zero_opening_workspace_does_not_grow_with_carrier_width stdout ----
+
+thread 'zero_opening_workspace_does_not_grow_with_carrier_width' (290997) panicked at crates/neo-reductions/tests/zero_opening_storage.rs:68:5:
+assertion `left == right` failed: zero opening allocation depends on carrier width
+  left: 2304
+ right: 3024
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    zero_opening_workspace_does_not_grow_with_carrier_width
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p neo-reductions --test zero_opening_storage`

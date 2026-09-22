@@ -1,0 +1,26 @@
+Sort by top of stack, same collapsed (when >= 5):
+        semaphore_timedwait_trap  (in libsystem_kernel.dylib)        7193
+        p3_goldilocks::aarch64_neon::poseidon2_asm::internal_permute_state_asm_w8::hc4ce786ad03f9b31  (in assembly_circuits-56bed82bf58f8ac4)        3061
+        p3_goldilocks::aarch64_neon::poseidon2_asm::external_initial_permute_w8::h3c1a540d6f2b35a5  (in assembly_circuits-56bed82bf58f8ac4)        1821
+        p3_goldilocks::aarch64_neon::poseidon2_asm::external_terminal_permute_w8::h4a2d321b2ddd7a4f  (in assembly_circuits-56bed82bf58f8ac4)        1490
+        serde_json::value::de::_$LT$impl$u20$serde_core..de..Deserialize$u20$for$u20$serde_json..value..Value$GT$::deserialize::h9e290afb69feacdb  (in assembly_circuits-56bed82bf58f8ac4)        169
+        nightstream_fprime::identity::append_identity_node::h22ab545567ea7767  (in assembly_circuits-56bed82bf58f8ac4)        104
+        serde_json::value::ser::_$LT$impl$u20$serde_core..ser..Serialize$u20$for$u20$serde_json..value..Value$GT$::serialize::h28d37f5e7d086dd2  (in assembly_circuits-56bed82bf58f8ac4)        67
+        _dyld_start  (in dyld)        60
+        _xzm_xzone_thread_cache_fill_and_malloc  (in libsystem_malloc.dylib)        59
+        nightstream_fprime::identity::append_value_preimage::h2575ef851a2e6dac  (in assembly_circuits-56bed82bf58f8ac4)        59
+        _$LT$serde_json..de..SeqAccess$LT$R$GT$$u20$as$u20$serde_core..de..SeqAccess$GT$::next_element_seed::has_next_element::h1841d3e33231224d  (in assembly_circuits-56bed82bf58f8ac4)        56
+        serde_json::de::Deserializer$LT$R$GT$::parse_integer::h4cc98f7c6eb56b96  (in assembly_circuits-56bed82bf58f8ac4)        52
+        _$LT$u64$u20$as$u20$itoa..Unsigned$GT$::fmt::hd8baf060363e726d  (in assembly_circuits-56bed82bf58f8ac4)        34
+        _xzm_xzone_malloc  (in libsystem_malloc.dylib)        31
+        _$LT$serde_json..number..Number$u20$as$u20$serde_core..ser..Serialize$GT$::serialize::had5d030f54f724c5  (in assembly_circuits-56bed82bf58f8ac4)        27
+        _malloc_zone_malloc  (in libsystem_malloc.dylib)        26
+        alloc::raw_vec::RawVecInner$LT$A$GT$::finish_grow::haa61ec28a456aad7  (in assembly_circuits-56bed82bf58f8ac4)        25
+        _platform_memmove  (in libsystem_platform.dylib)        24
+        serde_json::de::Deserializer$LT$R$GT$::end_seq::hed08d75863020497  (in assembly_circuits-56bed82bf58f8ac4)        18
+        <deduplicated_symbol>  (in libsystem_malloc.dylib)        14
+        alloc::raw_vec::RawVec$LT$T$C$A$GT$::grow_one::hef2cd143f88b4ad5  (in assembly_circuits-56bed82bf58f8ac4)        14
+        neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash::h9ec6434f0aa9a932  (in assembly_circuits-56bed82bf58f8ac4)        14
+        DYLD-STUB$$memcpy  (in assembly_circuits-56bed82bf58f8ac4)        6
+        DYLD-STUB$$malloc  (in assembly_circuits-56bed82bf58f8ac4)        5
+        mach_msg2_trap  (in dyld)        5

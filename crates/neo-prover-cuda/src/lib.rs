@@ -8,7 +8,8 @@
 //! `cargo +nightly-2026-04-03 oxide` (custom rustc codegen backend for
 //! `#[cuda_module]` blocks). Plain `cargo` workspace builds keep it off.
 //!
-//! Public API: [`CudaNifsProver`].
+//! The kernel status is available without the driver dependency. The old NIFS
+//! adapter requires both `cuda` and `legacy-adapter`.
 
 #[cfg(feature = "perf-timers")]
 pub mod perf_ranges {
@@ -144,9 +145,12 @@ macro_rules! perf_timed {
     };
 }
 
-#[cfg(feature = "cuda")]
+/// The canonical CUDA kernel must exist before either lifecycle can select it.
+pub const CANONICAL_KERNEL_UNAVAILABLE: &str = "the canonical one-joint CUDA NIFS kernel is not implemented";
+
+#[cfg(all(feature = "cuda", feature = "legacy-adapter"))]
 #[doc(hidden)]
 pub mod adapter;
 
-#[cfg(feature = "cuda")]
+#[cfg(all(feature = "cuda", feature = "legacy-adapter"))]
 pub use adapter::CudaNifsProver;

@@ -4,6 +4,7 @@
 //! encoding and accounts for online-path CPU reads, writes, and waits.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use dispatch2::DispatchData;
@@ -20,10 +21,12 @@ use crate::{
     PoseidonDigest, PoseidonHashVariant, PoseidonState,
 };
 
+#[cfg(feature = "legacy-adapter")]
 mod ajtai_batch;
 mod joint;
 mod masks;
-pub(crate) use joint::{MetalJointMatrixPlan, MetalPaperJointOracle};
+mod production_commitment;
+pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
@@ -32,6 +35,11 @@ type Device = Retained<ProtocolObject<dyn MTLDevice>>;
 type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
 type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
+
+// Owner's 16 GB ceiling. This bounds buffer requests; CPU memory is measured
+// separately. Serialize checks across sessions sharing the same device.
+pub(crate) const BUFFER_LIMIT_BYTES: usize = 16_000_000_000;
+static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 #[derive(Default)]
 struct ActivityCounters {
@@ -65,43 +73,44 @@ pub struct MetalSession {
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
+    production_ajtai_partials: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     seeded_ajtai_matrix: Pipeline,
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
     sumcheck_reduce_partials: Pipeline,
-    joint_expand_mask_assignments_f: Pipeline,
     joint_build_application_tables: Pipeline,
-    joint_copy_seeded_satisfied_rows: Pipeline,
+    ccs_first_unsatisfied_row: Pipeline,
     joint_zero_words: Pipeline,
     joint_fold_base_tables: Pipeline,
     joint_fold_k_tables: Pipeline,
-    joint_fold_mask_assignments: Pipeline,
+    joint_accumulate_application: Pipeline,
+    joint_fold_assignments: Pipeline,
+    joint_fold_assignment_values: Pipeline,
     joint_round_partials: Pipeline,
     joint_selective_round_partials: Pipeline,
-    joint_add_identity_carried: Pipeline,
-    joint_seeded_base_partials: Pipeline,
-    joint_seeded_base_reduce: Pipeline,
-    joint_seeded_k_partials: Pipeline,
-    joint_seeded_k_reduce: Pipeline,
+    dec_build_row_weights: Pipeline,
     dec_build_ring_forms: Pipeline,
     dec_build_parallel_original_forms: Pipeline,
     dec_build_parallel_original_form_tiles: Pipeline,
     dec_reduce_parallel_original_form_tiles: Pipeline,
     dec_add_geometric_ring_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
-    dec_build_seeded_ring_forms: Pipeline,
-    dec_add_bar_seeded_ring_forms: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
-    fe_carried_mask_lin_comb: Pipeline,
-    fe_weighted_basis_dots: Pipeline,
+    joint_carried_projection: Pipeline,
     fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
+    #[cfg(feature = "legacy-adapter")]
     dec_ring_partials: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     dec_ring_sum_chunks: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_partials: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_sum_chunks: Pipeline,
+    #[cfg(feature = "legacy-adapter")]
     ajtai_lane_ring_reduce_phi81: Pipeline,
     activity: ActivityCounters,
 }
@@ -156,24 +165,23 @@ impl MetalSession {
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
+        let production_ajtai_partials = pipeline(&device, &library, "production_ajtai_partials")?;
+        #[cfg(feature = "legacy-adapter")]
         let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
-        let joint_expand_mask_assignments_f = pipeline(&device, &library, "joint_expand_mask_assignments_f")?;
         let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
-        let joint_copy_seeded_satisfied_rows = pipeline(&device, &library, "joint_copy_seeded_satisfied_rows")?;
+        let ccs_first_unsatisfied_row = pipeline(&device, &library, "ccs_first_unsatisfied_row")?;
         let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
         let joint_fold_base_tables = pipeline(&device, &library, "joint_fold_base_tables")?;
         let joint_fold_k_tables = pipeline(&device, &library, "joint_fold_k_tables")?;
-        let joint_fold_mask_assignments = pipeline(&device, &library, "joint_fold_mask_assignments")?;
+        let joint_accumulate_application = pipeline(&device, &library, "joint_accumulate_application")?;
+        let joint_fold_assignments = pipeline(&device, &library, "joint_fold_assignments")?;
+        let joint_fold_assignment_values = pipeline(&device, &library, "joint_fold_assignment_values")?;
         let joint_round_partials = pipeline(&device, &library, "joint_round_partials")?;
         let joint_selective_round_partials = pipeline(&device, &library, "joint_selective_round_partials")?;
-        let joint_add_identity_carried = pipeline(&device, &library, "joint_add_identity_carried")?;
-        let joint_seeded_base_partials = pipeline(&device, &library, "joint_seeded_base_partials")?;
-        let joint_seeded_base_reduce = pipeline(&device, &library, "joint_seeded_base_reduce")?;
-        let joint_seeded_k_partials = pipeline(&device, &library, "joint_seeded_k_partials")?;
-        let joint_seeded_k_reduce = pipeline(&device, &library, "joint_seeded_k_reduce")?;
+        let dec_build_row_weights = pipeline(&device, &library, "dec_build_row_weights")?;
         let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
         let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
         let dec_build_parallel_original_form_tiles =
@@ -182,18 +190,20 @@ impl MetalSession {
             pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
         let dec_add_geometric_ring_forms = pipeline(&device, &library, "dec_add_geometric_ring_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
-        let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
-        let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
-        let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
-        let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
+        let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
+        #[cfg(feature = "legacy-adapter")]
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
+        #[cfg(feature = "legacy-adapter")]
         let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_partials = pipeline(&device, &library, "ajtai_lane_ring_partials")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_sum_chunks = pipeline(&device, &library, "ajtai_lane_ring_sum_chunks")?;
+        #[cfg(feature = "legacy-adapter")]
         let ajtai_lane_ring_reduce_phi81 = pipeline(&device, &library, "ajtai_lane_ring_reduce_phi81")?;
         Ok(Self {
             device,
@@ -211,42 +221,43 @@ impl MetalSession {
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
+            production_ajtai_partials,
+            #[cfg(feature = "legacy-adapter")]
             seeded_ajtai_matrix,
             fold_k_table,
             tensor_point_expand_k,
             sumcheck_reduce_partials,
-            joint_expand_mask_assignments_f,
             joint_build_application_tables,
-            joint_copy_seeded_satisfied_rows,
+            ccs_first_unsatisfied_row,
             joint_zero_words,
             joint_fold_base_tables,
             joint_fold_k_tables,
-            joint_fold_mask_assignments,
+            joint_accumulate_application,
+            joint_fold_assignments,
+            joint_fold_assignment_values,
             joint_round_partials,
             joint_selective_round_partials,
-            joint_add_identity_carried,
-            joint_seeded_base_partials,
-            joint_seeded_base_reduce,
-            joint_seeded_k_partials,
-            joint_seeded_k_reduce,
+            dec_build_row_weights,
             dec_build_ring_forms,
             dec_build_parallel_original_forms,
             dec_build_parallel_original_form_tiles,
             dec_reduce_parallel_original_form_tiles,
             dec_add_geometric_ring_forms,
             dec_bar_ring_forms_in_place,
-            dec_build_seeded_ring_forms,
-            dec_add_bar_seeded_ring_forms,
             dec_sparse_ring_partials,
             dec_sparse_ring_sum_chunks,
-            fe_carried_mask_lin_comb,
-            fe_weighted_basis_dots,
+            joint_carried_projection,
             fe_weighted_row_table,
+            #[cfg(feature = "legacy-adapter")]
             dec_ring_partials,
+            #[cfg(feature = "legacy-adapter")]
             dec_ring_sum_chunks,
             dec_ring_reduce_phi81,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_partials,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_sum_chunks,
+            #[cfg(feature = "legacy-adapter")]
             ajtai_lane_ring_reduce_phi81,
             activity: ActivityCounters::default(),
         })
@@ -613,6 +624,7 @@ impl MetalSession {
 
     /// Expands the canonical chunked ChaCha matrix directly on Metal, falling
     /// back to the canonical host expansion only if rejection sampling flags it.
+    #[cfg(feature = "legacy-adapter")]
     pub(crate) fn prepare_ajtai_low_norm_seeded(
         &self,
         seed: [u8; 32],
@@ -943,6 +955,20 @@ impl MetalSession {
     }
 
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
+        let _allocation = BUFFER_ALLOCATION
+            .lock()
+            .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
+        let allocated = self.device.currentAllocatedSize();
+        if allocated
+            .checked_add(bytes)
+            .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
+        {
+            return Err(MetalError::MemoryLimit {
+                requested: bytes,
+                allocated,
+                limit: BUFFER_LIMIT_BYTES,
+            });
+        }
         // Shared storage is required for explicit CPU boundaries on Apple
         // unified memory. It does not make those boundaries free, so reads and
         // writes are still counted separately below.
@@ -1039,12 +1065,6 @@ impl MetalSession {
         Ok(())
     }
 
-    fn record_host_write(&self, bytes: usize) {
-        self.activity
-            .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
-    }
-
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
@@ -1086,6 +1106,10 @@ impl MetalSession {
         self.activity.downloaded_bytes.store(0, Ordering::Relaxed);
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/buffer_limit.rs"]
+mod buffer_limit_tests;
 
 fn dispatch(
     encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
@@ -1156,6 +1180,7 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
     Ok(())
 }
 
+#[cfg(feature = "legacy-adapter")]
 pub(super) fn command_gpu_duration(command: &ProtocolObject<dyn MTLCommandBuffer>) -> std::time::Duration {
     // Metal timestamps are defined after completion; every caller waits on the
     // command before requesting this duration.

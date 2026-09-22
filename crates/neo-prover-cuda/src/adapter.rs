@@ -10,7 +10,7 @@ use cuda_core::CudaContext;
 use neo_fold_clean::paper::nifs::{Error, NifsProof, NifsProverAdapter, NifsProverRequest};
 use neo_fold_clean::RunningInstance;
 
-const MISSING_KERNEL: &str = "the canonical one-joint CUDA NIFS kernel is not implemented";
+use crate::CANONICAL_KERNEL_UNAVAILABLE as MISSING_KERNEL;
 
 /// CUDA prover for the canonical one-joint protocol.
 ///

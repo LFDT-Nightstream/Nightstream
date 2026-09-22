@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "target_pid": 1066,
+  "native_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+  "scope": "Inclusive CPU sample weights, partitioned once per backtrace within MatrixWindow::load_next_with_payload. This is not an invocation count, wall time or GPU time.",
+  "total_sample_count": 97132,
+  "total_weight_ns": 97132000000,
+  "partition": {
+    "count_pass": {
+      "sample_count": 59258,
+      "weight_ns": 59258000000
+    },
+    "fill_source_visit": {
+      "sample_count": 37677,
+      "weight_ns": 37677000000
+    },
+    "other_cache_construction": {
+      "sample_count": 197,
+      "weight_ns": 197000000
+    }
+  },
+  "classification": {
+    "count_pass": "Backtrace contains the resolved matrix_window::count_rows function.",
+    "fill_source_visit": "Backtrace contains load_next_with_payload at its recorded +3655 call site and contains no count_rows frame. Exact frozen source has one direct source.visit_rows call with FillRows; observed FillRows descendants confirm this assignment.",
+    "other_cache_construction": "Remaining samples in load_next_with_payload; no count/fill claim is made for them."
+  },
+  "frozen_source": {
+    "archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-new-source.tar.gz",
+    "member": "crates/neo-reductions/src/superneo_eval/matrix_window.rs",
+    "sha256": "490fb45ae08a15e1ee01fd4456eb813f7b3086f1ec342472d6d9576ea8c56812",
+    "count_call": {
+      "line": 58,
+      "text": "        let count = count_rows(source, requested, workspace_bytes, payload_bytes_per_row)?;"
+    },
+    "count_source_visit": {
+      "line": 287,
+      "text": "    source.visit_rows(requested, &mut count)?;"
+    },
+    "fill_construction": {
+      "line": 100,
+      "text": "        let mut fill = FillRows {"
+    },
+    "fill_source_visit": {
+      "line": 105,
+      "text": "        source.visit_rows(rows.clone(), &mut fill)?;"
+    }
+  },
+  "typed_sink_crosscheck_sample_counts": {
+    "count_under_fill": 0,
+    "fill_under_count": 0,
+    "fill_under_fill": 8427,
+    "count_under_count": 28826
+  },
+  "fill_callsite_immediate_child_weights_ns": {
+    "_$LT$nightstream..lifecycle..evaluation..PackageRows$u20$as$u20$neo_reductions..superneo_eval..matrix_rows..MatrixRows$GT$::visit_rows::h2eb27fdb709262b1": 37526000000,
+    "nightstream_fprime::package::matrix_program::MatrixProgram::visit_rows_until::_$u7b$$u7b$closure$u7d$$u7d$::h2539fdb032510272": 46000000,
+    "nightstream_fprime::package::source_row::_$LT$impl$u20$nightstream_fprime..package..LoadedPackage$GT$::source_row::hc8df895dca96f301": 25000000,
+    "nightstream_fprime::package::matrix_program::SourceSubstitution::compile_combination::had0f73825c66dc85": 37000000,
+    "nightstream_fprime::package::matrix_program::SourceProjection::row::hd73b5d012ecea68c": 9000000,
+    "_xzm_free": 20000000,
+    "core::ptr::drop_in_place$LT$$u5b$nightstream_fprime..package..matrix_program..form..Form$u3b$$u20$13$u5d$$GT$::h746929a45a6ebbae": 11000000,
+    "nightstream_fprime::package::matrix_program::MultiplicationBlock::row::h77352bf1e2329e54": 2000000,
+    "nightstream_fprime::package::matrix_program::phi81::Block::invocation_inputs::h89a3888be75907a2": 1000000
+  },
+  "loader_frame_locations": [
+    {
+      "address": "0x100affd59",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 945",
+      "inclusive_weight_ns": 1000000
+    },
+    {
+      "address": "0x100aff9e7",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 63",
+      "inclusive_weight_ns": 59258000000
+    },
+    {
+      "address": "0x100b007ef",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 3655",
+      "inclusive_weight_ns": 37677000000
+    },
+    {
+      "address": "0x100affe73",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 1227",
+      "inclusive_weight_ns": 100000000
+    },
+    {
+      "address": "0x100affd57",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 943",
+      "inclusive_weight_ns": 86000000
+    },
+    {
+      "address": "0x100affdfb",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 1107",
+      "inclusive_weight_ns": 9000000
+    },
+    {
+      "address": "0x100b00337",
+      "atos_output": "neo_reductions::superneo_eval::matrix_window::MatrixWindow::load_next_with_payload::he4837b7aaa5919bb (in streamed-template-benchmark-binary) + 2447",
+      "inclusive_weight_ns": 1000000
+    }
+  ],
+  "limitations": [
+    "Release symbols have no source line table; the fill label uses the exact call-site PC, frozen source flow, and typed sink descendants.",
+    "Sampled backtraces do not establish the number of source visits, retries or rows rebuilt.",
+    "The 0.197 s residual cache-construction weight is kept separate."
+  ]
+}

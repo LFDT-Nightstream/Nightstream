@@ -1,0 +1,17 @@
+
+running 1 test
+staged request=Prove { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-metal", step: 2, engine: Metal, reference_proof: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/fold-2/proof.native" }
+staged circuit preparation elapsed=35.002251125s
+[pi-ccs/phase] oracle-build=9.729s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+[pi-ccs/phase] rounds=9.287s
+[pi-ccs/phase] outputs=10.891s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    2.70s commit_mix    0.00s inputs=17
+complete C/R/D engine=Metal elapsed=65.087479209s
+complete CPU/device proof equality passed: 945983 bytes
+staged phase passed elapsed=102.736478333s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 102.74s
+

@@ -68,30 +68,24 @@ fn export_template() -> ExportTemplate {
     }
 }
 
-fn export_fref(steps: &[neo_wasm::WasmtimeTraceStep]) -> u32 {
-    steps
-        .iter()
-        .find_map(|row| row.current_function_ref)
-        .expect("export function ref")
-}
-
 fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     let component_bytes = wat::parse_str(add_component_wat()).expect("component wat");
     let args = [ComponentVal::S32(7), ComponentVal::S32(35)];
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
-        .expect("component run");
 
-    let fref = export_fref(&run.steps);
+    let fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(fref, export_template());
 
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
+        &component_bytes,
         &bindings,
-        Default::default(),
+        "run",
+        &args,
+        |_| Ok(()),
     )
-    .expect("bindings trace");
+    .expect("component run");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -248,10 +242,8 @@ fn i64_param_bootstraps_both_lanes() {
     let component_bytes = wat::parse_str(identity64_component_wat()).expect("component wat");
     // x = 3·2^32 + 7.
     let args = [ComponentVal::S64((3i64 << 32) | 7)];
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
-        .expect("component run");
 
-    let fref = export_fref(&run.steps);
+    let fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
         fref,
@@ -288,13 +280,16 @@ fn i64_param_bootstraps_both_lanes() {
         },
     );
 
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
+        &component_bytes,
         &bindings,
-        Default::default(),
+        "run",
+        &args,
+        |_| Ok(()),
     )
-    .expect("bindings trace");
+    .expect("component run");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -421,14 +416,16 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
             entry_input_count: 4,
         },
     );
-    let run = common::wasmtime_capture::component_i32(&component_bytes, "run", &args, &bindings, |_| Ok(()));
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
+        &component_bytes,
         &bindings,
-        Default::default(),
+        "run",
+        &args,
+        |_| Ok(()),
     )
-    .expect("bindings trace");
+    .unwrap();
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect("bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
@@ -473,8 +470,7 @@ fn export_exit_memory_rejects_an_oob_output_pointer_during_normalization() {
                 i32.const 65536))"#,
     )
     .expect("valid wasm");
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[]).expect("wasmtime trace");
-    let fref = export_fref(&run.steps);
+    let fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(
         fref,
@@ -493,12 +489,8 @@ fn export_exit_memory_rejects_an_oob_output_pointer_during_normalization() {
         },
     );
 
-    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
-        &run.steps,
-        &run.program_tables,
-        &bindings,
-        Default::default(),
-    )
-    .expect_err("OOB output pointer must fail during normalization");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, &bindings, "run", &[]).expect("wasmtime trace");
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), Default::default())
+        .expect_err("OOB output pointer must fail during normalization");
     assert!(err.to_string().contains("out of bounds for 1 memory pages"));
 }

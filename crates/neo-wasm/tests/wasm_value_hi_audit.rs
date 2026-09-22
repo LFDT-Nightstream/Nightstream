@@ -4,6 +4,7 @@ mod common;
 
 use common::assert_satisfied;
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE_HI, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -40,7 +41,7 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -81,7 +82,7 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -133,7 +134,7 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -174,7 +175,7 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace

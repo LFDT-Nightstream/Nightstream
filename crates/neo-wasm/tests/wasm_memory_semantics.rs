@@ -1,4 +1,5 @@
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_NUM_LOCALS,
     COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX,
@@ -15,7 +16,7 @@ use p3_field::PrimeCharacteristicRing;
 fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMemoryPreload) {
     let wasm = wat::parse_str(wat_src).expect("wat");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let witnesses = trace.iter().map(build_witness_vector).collect();
     let mut preload = preload_from_program_artifacts(&artifacts);

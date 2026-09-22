@@ -90,13 +90,26 @@ authorize a new run. Historical results retain their original scope.
   Iteration-3 source preparation then passed at 01:54:33 UTC on 2026-09-22;
   it reads only Lean's own returned fresh witness, claim, children and digit
   ranges. This completes the handoff, not the next independent fold.
+- Independent iteration-3 C generation passed at 06:21:43 UTC on 2026-09-22,
+  using Lean's own successor inputs. All 28 rounds and 12 matrix batches
+  passed. Comparisons cover 560 round field words, 28 transcript transitions,
+  all 27,540 evaluation field words, 29,288 proof-input words, 15 phase fields
+  and eight outgoing-state words. The 754,531-byte Lean input differs from
+  the native input only by its optional final LF; all 510,404 phase bytes
+  match. All 21 finish rejection cases pass. The run took 14,146.21 seconds;
+  its longest Lean child took 1,220.85 seconds and its longest Python child
+  took 23.50 seconds, within their 1,500- and 300-second caps. The comparison
+  target is the newly generated native iteration-3 result. Direct complete
+  current CPU3 comparisons remain pending. Receipts and exact counts are in
+  `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_C`.
 - Required-check workflow wiring is implemented. Actual CI execution still
   needs the three missing published archives, confirmed Metal runner routing,
   and branch rules that require the final check. Local CPU-to-Lean handoff
   checks pass. Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
-  independent 3→4 generation, successor and final terminal checks remain
-  pending, so the complete independent 2→3→4 sequence is still incomplete.
+  independent 3→4 reductions, successor, final terminal checks and direct
+  current CPU3 comparisons remain pending, so the complete independent
+  2→3→4 sequence is still incomplete.
   The 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,

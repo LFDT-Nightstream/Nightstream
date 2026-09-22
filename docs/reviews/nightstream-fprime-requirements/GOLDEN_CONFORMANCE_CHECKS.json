@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and iteration-3 source preparation from Lean's own successor. Iteration-2 C is retained imported computation. Independent first-fold generation, independent 3-to-4 generation and final terminal checks, Metal execution, actual CI and protected external reproduction remain separate and pending.",
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C generation from Lean's own successor. Iteration-2 C is retained imported computation. Independent first-fold generation, independent 3-to-4 reductions, successor, final terminal checks and direct complete current CPU3 comparisons, Metal execution, actual CI and protected external reproduction remain separate and pending.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -659,6 +659,87 @@
       "scope": "Prepared iteration-3 inputs from the newly generated Lean successor. The next independent fold and final terminal checks remain pending."
     },
     "scope": "Completed 2-to-3 successor generation, canonical-row and rejection checks, current CPU comparisons, and preparation of Lean's own iteration-3 input. First-fold independent generation and the complete 2-to-3-to-4 sequence are not complete."
+  },
+  "independent_iteration_3_C": {
+    "outcome": "passed",
+    "source_iteration": 3,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
+    "source_projection_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/source-projection.json",
+    "C_origin": "New independent C computation from Lean's own iteration-2 successor; source preparation is recorded in independent_iteration_2_successor.iteration_3_source_preparation.",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-ccs.json",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-ccs.log",
+    "receipt_written_utc": "2026-09-22T06:21:43.460448Z",
+    "elapsed_seconds": 14146.211322538089,
+    "logs_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs",
+    "child_receipts": {
+      "scope": "Counts and maxima use only the stages in finish-step-3-ccs.log. Receipt and log names below are relative to logs_directory.",
+      "passed": 798,
+      "Lean_passed": 286,
+      "Python_passed": 512,
+      "Lean_cap_seconds": 1500,
+      "Python_cap_seconds": 300,
+      "cap_authority": "AGENTS.md per-command execution caps",
+      "longest_Lean_receipt": "c-matrix-batch-3.json",
+      "longest_Lean_seconds": 1220.8539896011353,
+      "longest_Python_receipt": "c-finish-rejections.json",
+      "longest_Python_seconds": 23.501834630966187
+    },
+    "rounds": {
+      "comparison_receipt": "c-round-comparison.json",
+      "passed": 28,
+      "matched_K_coefficients": 280,
+      "matched_field_words": 560,
+      "matched_transcript_transitions": 28,
+      "changed_targets_rejected": 28
+    },
+    "C_matrix_batches": {
+      "passed": 12,
+      "receipts": "c-matrix-batch-0.json through c-matrix-batch-11.json"
+    },
+    "terminal_prefix": {
+      "comparison_receipt": "c-terminal-prefix-comparison.json",
+      "norm_sources": 17,
+      "fresh_matrices": 14,
+      "compared_K_values": 31,
+      "compared_field_words": 62,
+      "canonical_field_bytes": 496,
+      "norm_and_fresh_target_mutations_rejected": true,
+      "scope": "Coefficient-zero fields only; complete evaluations are checked separately below."
+    },
+    "complete_evaluations": {
+      "comparison_receipt": "c-evaluation-comparison.json",
+      "sources": 17,
+      "Pad_K_values": 918,
+      "matrix_K_values": 12852,
+      "compared_K_values": 13770,
+      "compared_field_words": 27540,
+      "point_K_values": 28,
+      "fresh_source_nonconstant_K_values": 795,
+      "pad_and_matrix_target_mutations_rejected": true
+    },
+    "complete_C_encoding": {
+      "comparison_receipt": "c-complete-bytes.json",
+      "phase_fields": 15,
+      "proof_input_field_words": 29288,
+      "outgoing_state_words": 8,
+      "Lean_input_bytes": 754531,
+      "native_input_bytes": 754532,
+      "input_comparison": "Complete canonical bodies equal; native input adds exactly one optional final LF.",
+      "exact_phase_bytes": 510404,
+      "consistent_changed_target_and_changed_proof_word_rejected": true,
+      "scope": "Complete canonical PiCCS input, phase encoding and package proof-input words; full NIFS encoding remains separate."
+    },
+    "finish_rejections": {
+      "receipt": "c-finish-rejections.json",
+      "cases_rejected": 21,
+      "scope": "Finish-original input and output rejection."
+    },
+    "comparison_target": {
+      "native_generation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-native.json",
+      "scope": "Freshly generated native iteration-3 target in this continuation. Direct complete comparisons with cpu-current-fixed/fold-3 remain pending."
+    },
+    "scope": "Completed new independent iteration-3 C generation and comparison. Iteration-3 R/D, successor, final terminal checks and direct complete current CPU3 comparisons remain pending; neither the full independent 2-to-3-to-4 sequence nor first-fold independent generation is complete."
   },
   "preserved_failures": [
     {

@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C, R and digit generation from Lean's own successor. Iteration-3 R comparison with the continuation native target passed; the guard stopped digit comparison before launch. Iteration-2 C is retained imported computation. Independent first-fold generation, independent 3-to-4 digit comparison, remaining D work, successor, final terminal checks and direct complete current CPU3 comparisons, Metal execution, actual CI and protected external reproduction remain separate and pending.",
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C, R and digit generation from Lean's own successor. Iteration-3 R and digit comparisons with the continuation native targets passed; the prior digit guard failure remains recorded. Iteration-2 C is retained imported computation. Independent first-fold generation, remaining independent 3-to-4 D work, successor, final terminal checks and direct complete current CPU3 comparisons, Metal execution, actual CI and protected external reproduction remain separate and pending.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -739,17 +739,21 @@
       "native_generation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-native.json",
       "scope": "Freshly generated native iteration-3 target in this continuation. Direct complete comparisons with cpu-current-fixed/fold-3 remain pending."
     },
-    "scope": "Completed new independent iteration-3 C generation and comparison. Iteration-3 digit comparison, remaining D work, successor, final terminal checks and direct complete current CPU3 comparisons remain pending; neither the full independent 2-to-3-to-4 sequence nor first-fold independent generation is complete."
+    "scope": "Completed new independent iteration-3 C generation and comparison. Remaining iteration-3 D work, successor, final terminal checks and direct complete current CPU3 comparisons remain pending; neither the full independent 2-to-3-to-4 sequence nor first-fold independent generation is complete."
   },
   "independent_iteration_3_reductions": {
-    "outcome": "interrupted",
+    "outcome": "running",
     "source_iteration": 3,
     "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
-    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.json",
-    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.log",
-    "coordinator_outcome": "failed",
-    "coordinator_exit": 1,
-    "elapsed_seconds": 912.1048575739842,
+    "previous_attempt": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.log",
+      "outcome": "failed",
+      "exit": 1,
+      "elapsed_seconds": 912.1048575739842
+    },
+    "continuation_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.log",
+    "continuation_events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-events.jsonl",
     "logs_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs",
     "receipt_paths": "Child receipt and log names below are relative to logs_directory; generated range files are in its parent directory.",
     "R_generation": {
@@ -769,7 +773,7 @@
       "block_ranges": "[0,74272) and [74272,4685394)",
       "output_bytes": 705969659,
       "per_command_cap_seconds": 1500,
-      "scope": "Generated from the two new Lean parent ranges; native digit comparison has not run."
+      "scope": "Generated from the two new Lean parent ranges; the native digit comparison passed after the queue guard cleared."
     },
     "R_comparison": {
       "outcome": "passed",
@@ -782,17 +786,31 @@
       "scope": "Complete typed field comparison with this continuation native-parent/parent-witness.json. Direct current CPU3 comparison remains pending."
     },
     "digit_comparison": {
-      "outcome": "guard_rejected_before_checker_launch",
-      "receipt": "digits-comparison.json",
-      "log": "digits-comparison.log",
-      "receipt_written_utc": "2026-09-22T06:36:55.514646Z",
-      "exit": 1,
-      "elapsed_seconds": 0.0513453483581543,
+      "outcome": "passed",
+      "receipt": "digits-comparison-after-queue.json",
+      "log": "digits-comparison-after-queue.log",
+      "receipt_written_utc": "2026-09-22T06:46:59.712404Z",
+      "exit": 0,
+      "elapsed_seconds": 3.0180883407592773,
       "cap_seconds": 300,
-      "reason": "Guard found one unmanaged lake process and three unmanaged lean processes before subprocess launch.",
-      "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
+      "children_compared": 16,
+      "blocks_compared": 4685394,
+      "coefficients_compared": 4048180416,
+      "tail_mutation_rejected": true,
+      "scope": "The same original command and cap compare all typed child coefficients against this continuation native-material target. Direct current CPU3 comparison remains pending.",
+      "previous_attempt": {
+        "outcome": "guard_rejected_before_checker_launch",
+        "receipt": "digits-comparison.json",
+        "log": "digits-comparison.log",
+        "receipt_written_utc": "2026-09-22T06:36:55.514646Z",
+        "exit": 1,
+        "elapsed_seconds": 0.0513453483581543,
+        "cap_seconds": 300,
+        "reason": "Guard found one unmanaged lake process and three unmanaged lean processes before subprocess launch.",
+        "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
+      }
     },
-    "scope": "Completed independent iteration-3 R and digit generation and R comparison with the continuation native target. Digit comparison, remaining D generation, successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation, Metal execution or actual CI."
+    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. Remaining D generation is running; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation, Metal execution or actual CI."
   },
   "preserved_failures": [
     {

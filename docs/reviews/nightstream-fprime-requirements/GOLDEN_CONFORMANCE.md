@@ -107,18 +107,20 @@ authorize a new run. Historical results retain their original scope.
   253,011,276 field coefficients and rejected a changed tail. At 06:36:55 UTC
   on 2026-09-22, the guard stopped the digit comparison before the checker
   started because other Lean processes were active. Its failed receipt and
-  the four passed generation receipts remain intact. Digit comparison and
-  the remaining D work are pending; no data mismatch is recorded. Paths and
-  scope are in `GOLDEN_CONFORMANCE_CHECKS.json`, under
-  `independent_iteration_3_reductions`.
+  the four passed generation receipts remain intact. The same digit command
+  then passed at 06:46:59 UTC in 3.02 seconds under its 300-second cap. All
+  16 children, 4,685,394 blocks and 4,048,180,416 field coefficients match
+  the continuation's native target; the changed tail was rejected. The
+  remaining D work is running. Paths and scope are in
+  `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_reductions`.
 - Required-check workflow wiring is implemented. Actual CI execution still
   needs the three missing published archives, confirmed Metal runner routing,
   and branch rules that require the final check. Local CPU-to-Lean handoff
   checks pass. Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
-  independent 3→4 digit comparison, remaining D work, successor, final
-  terminal checks and direct current CPU3 comparisons remain pending, so
-  the complete independent 2→3→4 sequence is still incomplete.
+  remaining D work for 3→4, successor generation, final terminal checks and
+  direct current CPU3 comparisons are incomplete. The full independent
+  2→3→4 sequence is still incomplete.
   The 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,

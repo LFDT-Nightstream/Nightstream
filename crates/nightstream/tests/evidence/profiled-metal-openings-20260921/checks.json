@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "source_base": "469d12e2dc01a7cd236aaef86950f0708260041f",
+  "retained_changes": [
+    "Compute geometric coefficients once for both extension components",
+    "Skip sparse-product multiplication by one"
+  ],
+  "rejected_change": "Center-out commitment degree order: no lifecycle improvement; reverted",
+  "canonical_proof_bytes_compared": 945983,
+  "returned_witness_matrices_compared": 16,
+  "source_input_method": "Fresh step-2 source files are hardlinks to the unchanged saved CPU step-2 source files",
+  "cpu_reference_proof": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/fold-2/proof.native",
+  "lean_rerun": false,
+  "full_cpu_speed_ratio_established": false,
+  "same_inputs_profile_identity_and_final_state": true,
+  "benchmark_runs_serialized": true,
+  "time_cap_seconds": 300,
+  "memory_cap_bytes": 17179869184,
+  "memory_cap_authority": "Existing RSS guard for the owner-approved approximate 16 GB pass",
+  "retained_benchmark_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/unit-magnitude-benchmark-binary",
+  "final_release_build_matches_measured_binary": true,
+  "final_release_build_passed": true
+}

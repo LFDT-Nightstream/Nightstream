@@ -1,0 +1,278 @@
+{
+  "schema": 1,
+  "scope": "Matched full three-step lifecycle under Time Profiler; this is not an uninstrumented CPU/Metal speed ratio.",
+  "cpu_seconds": 1330.702711417,
+  "metal_seconds": 291.840242833,
+  "cpu_over_metal": 4.5596957379811025,
+  "both_verified": true,
+  "same_start_fields_except_engine": true,
+  "same_finish_fields_except_seconds": true,
+  "comparison_coverage": "Complete benchmark_started and benchmark_finished records. This comparison does not compare serialized intermediate proofs or per-fold commitments.",
+  "same_executable": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary",
+  "expected_native_uuid": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+  "source_snapshot": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-source.tar.gz",
+  "implementation_scope": "Saved matrix-window-borrowed build; later sealed ApplicationRecords and identity-streaming edits are outside this measurement.",
+  "start_records": {
+    "cpu": {
+      "active_extends": 2,
+      "benchmark": "poseidon2_hash_chain_v1",
+      "engine": "optimized",
+      "event": "benchmark_started",
+      "initial_state": [
+        202,
+        203,
+        204,
+        205
+      ],
+      "message": [
+        7,
+        11,
+        13,
+        17
+      ],
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 1,
+      "steps": 3
+    },
+    "metal": {
+      "active_extends": 2,
+      "benchmark": "poseidon2_hash_chain_v1",
+      "engine": "metal",
+      "event": "benchmark_started",
+      "initial_state": [
+        202,
+        203,
+        204,
+        205
+      ],
+      "message": [
+        7,
+        11,
+        13,
+        17
+      ],
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 1,
+      "steps": 3
+    }
+  },
+  "finish_records": {
+    "cpu": {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "benchmark_finished",
+      "final_state": [
+        6571778207680039711,
+        123649970047308705,
+        16791205033536618392,
+        12263481847644113771
+      ],
+      "seconds": 1330.702711417,
+      "steps": 3,
+      "verified": true
+    },
+    "metal": {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "benchmark_finished",
+      "final_state": [
+        6571778207680039711,
+        123649970047308705,
+        16791205033536618392,
+        12263481847644113771
+      ],
+      "seconds": 291.840242833,
+      "steps": 3,
+      "verified": true
+    }
+  },
+  "phases": [
+    {
+      "phase": "prepare",
+      "step": null,
+      "cpu_seconds": 34.540521416,
+      "metal_seconds": 34.555801584,
+      "cpu_over_metal": 0.9995578117913757
+    },
+    {
+      "phase": "prove",
+      "step": 1,
+      "cpu_seconds": 60.087123834,
+      "metal_seconds": 6.794190417,
+      "cpu_over_metal": 8.843897528048926
+    },
+    {
+      "phase": "extend",
+      "step": 2,
+      "cpu_seconds": 420.104987,
+      "metal_seconds": 86.644211709,
+      "cpu_over_metal": 4.848621491426904
+    },
+    {
+      "phase": "extend",
+      "step": 3,
+      "cpu_seconds": 530.468488,
+      "metal_seconds": 115.295510916,
+      "cpu_over_metal": 4.600946591810322
+    },
+    {
+      "phase": "verify",
+      "step": 3,
+      "cpu_seconds": 285.501396209,
+      "metal_seconds": 48.550385125,
+      "cpu_over_metal": 5.880517641084315
+    }
+  ],
+  "captures": {
+    "cpu": {
+      "start-date": "2026-09-21T22:51:02.213-05:00",
+      "end-date": "2026-09-21T23:13:13.687-05:00",
+      "duration": "1331.474612",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes",
+      "time-profile-table": {
+        "target-pid": "SINGLE",
+        "context-switch-sampling": "0",
+        "high-frequency-sampling": "0",
+        "schema": "time-profile",
+        "needs-kernel-callstack": "0",
+        "record-waiting-threads": "0",
+        "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+      },
+      "time-sample-table": {
+        "sample-rate-micro-seconds": "1000",
+        "target": "SINGLE",
+        "schema": "time-sample",
+        "callstack": "user",
+        "all-thread-states": "NO",
+        "documentation": "Holds a raw CPU profiling sample."
+      }
+    },
+    "metal": {
+      "start-date": "2026-09-21T22:27:38.657-05:00",
+      "end-date": "2026-09-21T22:32:31.290-05:00",
+      "duration": "292.633340",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes",
+      "time-profile-table": {
+        "target-pid": "SINGLE",
+        "context-switch-sampling": "0",
+        "high-frequency-sampling": "0",
+        "schema": "time-profile",
+        "needs-kernel-callstack": "0",
+        "record-waiting-threads": "0",
+        "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+      },
+      "time-sample-table": {
+        "sample-rate-micro-seconds": "1000",
+        "target": "SINGLE",
+        "schema": "time-sample",
+        "callstack": "user",
+        "all-thread-states": "NO",
+        "documentation": "Holds a raw CPU profiling sample."
+      }
+    }
+  },
+  "thermal_intervals": {
+    "cpu": [
+      {
+        "start_ns": 0,
+        "end_ns": 1331474611997,
+        "duration_ns": 1331474611997,
+        "state": "Nominal",
+        "induced": false
+      }
+    ],
+    "metal": [
+      {
+        "start_ns": 0,
+        "end_ns": 292633339881,
+        "duration_ns": 292633339881,
+        "state": "Nominal",
+        "induced": false
+      }
+    ]
+  },
+  "serial_runs": true,
+  "controller_elapsed_monotonic_seconds": {
+    "cpu": 1461.6175235410046,
+    "metal": 299.34463283300283
+  },
+  "controller_elapsed_wall_seconds": {
+    "cpu": 1461.6115021705627,
+    "metal": 299.34734988212585
+  },
+  "capture_cap_seconds": 1800,
+  "capture_cap_authority": "Root AGENTS.md 30-minute Instruments cap, including trace finalization.",
+  "capture_deadlines": {
+    "cpu": {
+      "outcome": "processes-ended",
+      "stopped_pids": [],
+      "controller_pid": 92078,
+      "target_pid": 92096,
+      "recorder_pid": 92084,
+      "deadline_unix_seconds": 1790050860.0,
+      "cap_seconds": 1800,
+      "authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap."
+    },
+    "metal": {
+      "outcome": "processes-ended",
+      "stopped_pids": [],
+      "controller_pid": 90080,
+      "target_pid": 90101,
+      "recorder_pid": 90086,
+      "deadline_unix_seconds": 1790049457.0,
+      "cap_seconds": 1800,
+      "authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap."
+    }
+  },
+  "memory_guard_bytes": {
+    "cpu": 17179869184,
+    "metal": 17179869184
+  },
+  "observed_kernel_peak_resident_bytes": {
+    "cpu": 16790093824,
+    "metal": 13880573952
+  },
+  "observed_lifetime_peak_physical_footprint_bytes": {
+    "cpu": 11589530032,
+    "metal": 11816705656
+  },
+  "final_kernel_peak_after_exit": {
+    "cpu": null,
+    "metal": null
+  },
+  "power_control": {
+    "cpu": "Launched with command-scoped caffeinate -is on AC; no permanent setting change.",
+    "metal": "Launched with command-scoped caffeinate -is on AC; no permanent setting change."
+  },
+  "limitations": [
+    "One instrumented pair; no matched uninstrumented CPU run was made.",
+    "The observed CPU RSS peak exceeds16,000,000,000bytes; the recorder guard was16GiB.",
+    "Final post-exit memory peaks are unavailable, so the final unsampled intervals are not proved.",
+    "Nominal thermal state does not establish equal CPU/GPU clock frequencies. Clock-frequency and GPU limiter counters were not captured.",
+    "Time Profiler weights sum CPU work across target threads; inclusive weights overlap and are not elapsed or shader time."
+  ]
+}

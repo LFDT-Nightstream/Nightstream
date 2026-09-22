@@ -5,7 +5,7 @@ use super::{
 };
 use neo_math::{D, K};
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
-use neo_reductions::{optimized_engine::optimized_prove_with_row_cache, superneo_eval::SuperneoEvalCache};
+use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("PiCCS shape: {0}")]
@@ -30,14 +30,15 @@ pub(crate) fn prove_from_parts_with_rows(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    cache: &SuperneoEvalCache,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
     fresh_claims: &[CcsClaim],
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
     reject_auxiliary(fresh_claims, &running.claims)?;
     validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
-    let (mut outputs, sumcheck, _, _) = optimized_prove_with_row_cache(
+    let (mut outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
         tr.inner_mut(),
         pp.inner(),
         s,
@@ -45,7 +46,9 @@ pub(crate) fn prove_from_parts_with_rows(
         fresh_witnesses,
         &running.claims,
         &running.witnesses,
-        cache,
+        rows,
+        workspace_bytes,
+        None,
     )
     .map_err(engine::Error::from)?;
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;

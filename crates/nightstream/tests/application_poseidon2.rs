@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, Affine, ApplicationCircuit};
+use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
@@ -56,21 +56,6 @@ fn column_map(circuit: &ApplicationCircuit, reference: &Value) -> Vec<usize> {
     columns
 }
 
-fn affine(value: &Affine, columns: &[usize]) -> Value {
-    let mut terms = BTreeMap::new();
-    for (variable, coefficient) in value.terms() {
-        *terms
-            .entry(columns[variable.index()])
-            .or_insert(Goldilocks::ZERO) += *coefficient;
-    }
-    let terms: Vec<_> = terms
-        .into_iter()
-        .filter(|(_, value)| *value != Goldilocks::ZERO)
-        .map(|(column, value)| json!([column, value.as_canonical_u64()]))
-        .collect();
-    json!([value.constant_term().as_canonical_u64(), terms])
-}
-
 fn normalized(value: &Value) -> Value {
     let mut terms = BTreeMap::new();
     for term in value[1].as_array().unwrap() {
@@ -86,16 +71,23 @@ fn normalized(value: &Value) -> Value {
 
 fn actual_rows(circuit: &ApplicationCircuit, reference: &Value) -> Vec<Value> {
     let columns = column_map(circuit, reference);
-    circuit
-        .rows()
-        .iter()
-        .enumerate()
-        .map(|(offset, row)| {
+    (0..circuit.row_count())
+        .map(|offset| {
+            let header = circuit.records().row_header(offset).unwrap();
+            let mut terms: [Vec<Value>; 3] = std::array::from_fn(|_| Vec::new());
+            assert!(circuit
+                .records()
+                .visit_terms(offset, |term| {
+                    terms[term.form.index()].push(json!([columns[term.variable], term.coefficient]));
+                    Ok(std::ops::ControlFlow::Continue(()))
+                })
+                .unwrap()
+                .is_continue());
             json!([
                 index(&reference[7]) + offset,
-                affine(row.a(), &columns),
-                affine(row.b(), &columns),
-                affine(row.c(), &columns)
+                normalized(&json!([header.constants[0], terms[0]])),
+                normalized(&json!([header.constants[1], terms[1]])),
+                normalized(&json!([header.constants[2], terms[2]]))
             ])
         })
         .collect()
@@ -137,7 +129,7 @@ fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
     let reference = reference();
     let columns = column_map(&circuit, &reference);
     let rows = reference_rows(&reference);
-    assert_eq!(rows.len(), circuit.rows().len());
+    assert_eq!(rows.len(), circuit.row_count());
     let fixtures: [(&str, &[u8]); 2] = [
         (
             "base",
@@ -204,7 +196,7 @@ fn every_poseidon2_application_row_matches_the_saved_lean_reference() {
     assert_eq!(index(&reference[0]), 1);
     assert_eq!(circuit.private_input_count(), index(&reference[1]));
     assert_eq!(circuit.generated_range().len(), index(&reference[6]));
-    assert_eq!(circuit.rows().len(), index(&reference[8]));
+    assert_eq!(circuit.row_count(), index(&reference[8]));
     for slot in 9..13 {
         assert!(reference[slot].as_array().unwrap().is_empty());
     }

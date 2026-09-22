@@ -1,0 +1,200 @@
+{
+  "runs": [
+    {
+      "run": "opening-reuse-metal-benchmark",
+      "change": "Saved baseline before encoder labels",
+      "lifecycle_seconds": 179.514135833,
+      "maximum_resident_bytes": 16784228352,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "prepare",
+          "seconds": 34.674416917,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 6.8095555,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 49.745119042,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 64.246236708,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 24.038224209,
+          "step": 3
+        }
+      ]
+    },
+    {
+      "run": "paired-geometric-metal-benchmark",
+      "change": "Shared geometric coefficient",
+      "lifecycle_seconds": 174.79985425,
+      "maximum_resident_bytes": 16273817600,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "prepare",
+          "seconds": 34.740109375,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 6.803177792,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 48.089371417,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 62.670339792,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 22.496407792,
+          "step": 3
+        }
+      ]
+    },
+    {
+      "run": "unit-magnitude-metal-benchmark",
+      "change": "Shared coefficient and skipped unit multiplication (retained)",
+      "lifecycle_seconds": 167.804142542,
+      "maximum_resident_bytes": 16858628096,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "prepare",
+          "seconds": 34.548870167,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 7.099408875,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 46.009785625,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 58.271404083,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 21.874172625,
+          "step": 3
+        }
+      ]
+    },
+    {
+      "run": "centered-commitment-metal-benchmark",
+      "change": "Added center-out commitment order (rejected and reverted)",
+      "lifecycle_seconds": 171.182994625,
+      "maximum_resident_bytes": 16781852672,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "prepare",
+          "seconds": 34.748068041,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 6.720501125,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 46.309408708,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 62.075864875,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 21.328749125,
+          "step": 3
+        }
+      ]
+    },
+    {
+      "run": "profiled-openings-control-baseline",
+      "change": "Repeated baseline with encoder labels and unchanged arithmetic",
+      "lifecycle_seconds": 193.305906417,
+      "maximum_resident_bytes": 16748118016,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "prepare",
+          "seconds": 34.692774375,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 6.809142167,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 49.962823416,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 70.179396083,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 31.661309708,
+          "step": 3
+        }
+      ]
+    }
+  ],
+  "same_inputs_profile_identity_and_final_state": true,
+  "comparison_kind": "Individual serial runs on the same M1 Max; not a statistical estimate",
+  "retained_seconds": 167.804142542,
+  "reduction_from_saved_baseline_percent": 6.5231594362539225,
+  "reduction_from_repeated_baseline_percent": 13.19243904528583,
+  "cpu_lifecycle_ratio": null
+}

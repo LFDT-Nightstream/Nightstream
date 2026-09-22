@@ -9,17 +9,17 @@ use crate::folding::{
 use neo_math::D;
 use neo_prover_metal::MetalRowProver;
 use neo_reductions::{
-    common::split_b_matrix_k_with_nonzero_flags, optimized_engine::optimized_prove_with_row_cache_and_backend,
-    superneo_eval::SuperneoEvalCache,
+    common::split_b_matrix_k_with_nonzero_flags, optimized_engine::optimized_prove_with_matrix_rows,
+    superneo_eval::MatrixRows,
 };
-use std::sync::Arc;
 
 pub(crate) fn prove(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
     params: &Params,
     structure: &Structure,
-    cache: &Arc<SuperneoEvalCache>,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
@@ -27,7 +27,7 @@ pub(crate) fn prove(
         .into_iter()
         .map(|source| (source.claim, source.witness))
         .unzip();
-    let (outputs, sumcheck, _, _) = optimized_prove_with_row_cache_and_backend(
+    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
         params.inner(),
         structure,
@@ -35,8 +35,9 @@ pub(crate) fn prove(
         &witnesses,
         &running.claims,
         &running.witnesses,
-        cache,
-        device,
+        rows,
+        workspace_bytes,
+        Some(device),
     )
     .map_err(folding::kernels::Error::from)
     .map_err(pi_ccs::Error::from)?;
@@ -59,7 +60,7 @@ pub(crate) fn prove(
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let openings = device
-        .child_openings(Arc::clone(cache), &digits, &parent.claim.r, structure.m)
+        .child_openings(rows, workspace_bytes, &digits, &parent.claim.r, structure.m)
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let (children, ok_y, ok_x, ok_c) =

@@ -14,6 +14,8 @@ mod digit;
 mod equality;
 mod geometric;
 mod matrix_cache_impl;
+mod matrix_rows;
+mod matrix_window;
 mod openings;
 mod parallel;
 mod row_block;
@@ -22,6 +24,7 @@ mod scratch;
 mod seeded;
 mod weighted;
 mod weighted_table;
+mod window_eval;
 
 pub use artifact::{
     SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
@@ -43,6 +46,8 @@ use digit::{
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
 pub use equality::EqualityWeights;
+pub use matrix_rows::{CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape};
+pub use matrix_window::MatrixWindow;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;
@@ -50,6 +55,8 @@ use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_
 pub(crate) use weighted_table::fill_combined_projection;
 #[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
+pub use window_eval::{eval_real_v1_1_openings_from_rows, first_unsatisfied_row_from_rows};
+pub(crate) use window_eval::{eval_real_v1_1_openings_from_rows_reusing, fill_weighted_rows_from_source};
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the
 /// chi-alpha weights. Device backends use the same forms to build their row

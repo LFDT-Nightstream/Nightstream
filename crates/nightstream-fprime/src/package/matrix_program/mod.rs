@@ -7,6 +7,7 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use rayon::prelude::*;
 use serde_json::Value;
+use std::ops::ControlFlow;
 
 use super::{PackageError, GOLDILOCKS_MODULUS};
 
@@ -38,6 +39,15 @@ pub(super) struct Entry {
 }
 
 pub(super) type RowForms = [Form; MEANINGFUL_PORTS];
+pub(super) type RowView<'a> = [&'a [MatrixRun]; MEANINGFUL_PORTS];
+
+fn borrowed_row(row: &RowForms) -> RowView<'_> {
+    std::array::from_fn(|port| row[port].terms())
+}
+
+fn owned_row(row: RowView<'_>) -> RowForms {
+    row.map(|runs| Form::from_terms(runs.to_vec()))
+}
 
 pub(super) fn empty_row() -> RowForms {
     std::array::from_fn(|_| Form::default())
@@ -746,26 +756,29 @@ impl Block {
         }
     }
 
-    fn visit_rows(
+    fn visit_rows_until(
         &self,
         logical_width: usize,
         start: usize,
         end: usize,
         source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
-        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
+        mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         match self {
-            Self::Poseidon(block) => return block.visit_rows(logical_width, start, end, visit),
-            Self::Phi81(block) => return block.visit_rows(logical_width, start, end, visit),
+            Self::Poseidon(block) => return block.visit_rows_until(logical_width, start, end, visit),
+            Self::Phi81(block) => return block.visit_rows_until(logical_width, start, end, visit),
             _ => {}
         }
         if start > end || end > self.row_count()? {
             return Err(PackageError::Invalid("matrix block row range"));
         }
         for ordinal in start..end {
-            visit(self.row(logical_width, ordinal, source_row)?)?;
+            let row = self.row(logical_width, ordinal, source_row)?;
+            if visit(borrowed_row(&row))?.is_break() {
+                return Ok(ControlFlow::Break(()));
+            }
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 }
 
@@ -803,6 +816,20 @@ impl MatrixProgram {
         source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
         mut visit: impl FnMut(usize, RowForms) -> Result<(), PackageError>,
     ) -> Result<(), PackageError> {
+        let _ = self.visit_rows_until(logical_width, start, end, source_row, |row, forms| {
+            visit(row, owned_row(forms)).map(ControlFlow::Continue)
+        })?;
+        Ok(())
+    }
+
+    pub(super) fn visit_rows_until(
+        &self,
+        logical_width: usize,
+        start: usize,
+        end: usize,
+        source_row: &impl Fn(usize) -> Result<SourceRow, PackageError>,
+        mut visit: impl FnMut(usize, RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         let row_count = self.row_count()?;
         if start > end || end > row_count {
             return Err(PackageError::Invalid("matrix program row range"));
@@ -820,17 +847,20 @@ impl MatrixProgram {
                 if next != expected_start {
                     return Err(PackageError::Invalid("non-contiguous matrix program visit"));
                 }
-                block.visit_rows(logical_width, local_start, local_end, source_row, |forms| {
+                let flow = block.visit_rows_until(logical_width, local_start, local_end, source_row, |forms| {
                     if next >= expected_end {
                         return Err(PackageError::Invalid("extra matrix program row"));
                     }
                     let ordinal = next;
-                    visit(ordinal, forms)?;
+                    let flow = visit(ordinal, forms)?;
                     next = next
                         .checked_add(1)
                         .ok_or(PackageError::Invalid("matrix program visit ordinal"))?;
-                    Ok(())
+                    Ok(flow)
                 })?;
+                if flow.is_break() {
+                    return Ok(flow);
+                }
                 if next != expected_end {
                     return Err(PackageError::Invalid("missing matrix program row"));
                 }
@@ -840,7 +870,7 @@ impl MatrixProgram {
         if block_start != row_count || next != end {
             return Err(PackageError::Invalid("incomplete matrix program visit"));
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 
     pub(super) fn validate_all_rows(
@@ -866,10 +896,10 @@ impl MatrixProgram {
             .try_fold(
                 || [0u64; MEANINGFUL_PORTS],
                 |mut counts, (block, start, end)| {
-                    block.visit_rows(logical_width, start, end, source_row, |forms| {
+                    let _ = block.visit_rows_until(logical_width, start, end, source_row, |forms| {
                         for (matrix, form) in forms.iter().enumerate() {
                             let mut previous = None;
-                            let entries = form.entries();
+                            let entries = form::entries(form);
                             for entry in &entries {
                                 if entry.column >= logical_width
                                     || entry.coefficient == Goldilocks::ZERO
@@ -886,7 +916,7 @@ impl MatrixProgram {
                                 )
                                 .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
                         }
-                        Ok(())
+                        Ok(ControlFlow::Continue(()))
                     })?;
                     Ok(counts)
                 },

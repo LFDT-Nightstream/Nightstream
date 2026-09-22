@@ -1,6 +1,6 @@
 //! Complete C/R/D comparisons: reference to CPU, then CPU to devices.
 
-use super::{Engine, EngineError, Prover};
+use super::{Backend, Engine, EngineError};
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer,
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
@@ -10,8 +10,9 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ccs::{poly::Term, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_reductions::{
+    engines::pi_ccs_joint::build_joint_dims,
     paper_exact_engine::PaperMatrixRows,
-    superneo_eval::{SuperneoEvalCache, SuperneoEvalCacheBuilder, SuperneoZBlocks},
+    superneo_eval::{CachedMatrixRows, MatrixWindow, SuperneoEvalCache, SuperneoEvalCacheBuilder, SuperneoZBlocks},
 };
 use p3_field::Field;
 use p3_field::PrimeCharacteristicRing;
@@ -59,6 +60,17 @@ struct Fixture {
 }
 
 impl Fixture {
+    fn workspace_bytes(&self, rows: &CachedMatrixRows<'_>) -> usize {
+        let dims = build_joint_dims(self.params.inner(), &self.structure, 1, self.running.witnesses.len()).unwrap();
+        let row_payload = self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
+        let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n, row_payload).unwrap();
+        let witnesses = (1 + self.running.witnesses.len()) * dims.assignment_width;
+        let openings = self.params.k_rho() as usize * (self.structure.t() + 1) * D;
+        // The host and device may both hold row metadata. The remaining
+        // payload comes from this fixture's witnesses, child openings, and round.
+        2 * row_window + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>()
+    }
+
     fn new(polynomial: SparsePoly<F>, matrices: Vec<Vec<Vec<(usize, F)>>>) -> Self {
         // One public ring plus one private word gives a non-aligned logical
         // width. The carried source also has a nonzero completion tail.
@@ -192,16 +204,19 @@ struct Run {
 
 fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Error>> {
     let mut transcript = Transcript::session();
-    let (running, proof) = match Prover::new(engine)? {
-        Prover::Optimized => folding::prove_owned_with_rows(
+    let matrix_rows = CachedMatrixRows::new(&fixture.cache)?;
+    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
+    let (running, proof) = match Backend::new(engine)? {
+        Backend::Optimized => folding::prove_owned_with_rows(
             &mut transcript,
             &fixture.params,
             &fixture.structure,
-            &fixture.cache,
+            &matrix_rows,
+            workspace_bytes,
             vec![fixture.fresh.clone()],
             fixture.running.clone(),
         )?,
-        Prover::PaperExact => super::paper_exact::prove(
+        Backend::PaperExact => super::paper_exact::prove(
             &mut transcript,
             &fixture.params,
             &fixture.structure,
@@ -209,7 +224,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             vec![fixture.fresh.clone()],
             fixture.running.clone(),
         )?,
-        Prover::Crosscheck => {
+        Backend::Crosscheck => {
             let rows = WorkerRows {
                 rows: &fixture.rows,
                 caller: std::thread::current().id(),
@@ -219,7 +234,8 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
                 &mut transcript,
                 &fixture.params,
                 &fixture.structure,
-                &fixture.cache,
+                &matrix_rows,
+                workspace_bytes,
                 &rows,
                 vec![fixture.fresh.clone()],
                 fixture.running.clone(),
@@ -231,14 +247,15 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             result
         }
         #[cfg(feature = "metal")]
-        Prover::Metal(device) => {
+        Backend::Metal(device) => {
             let mut device = device.lock().unwrap();
             let result = super::metal::prove(
                 &mut device,
                 &mut transcript,
                 &fixture.params,
                 &fixture.structure,
-                &fixture.cache,
+                &matrix_rows,
+                workspace_bytes,
                 vec![fixture.fresh.clone()],
                 fixture.running.clone(),
             )?;
@@ -362,13 +379,16 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
     // Deliberately give the reference different rows from the optimized cache.
     fixture.rows.matrices[0][0].clear();
     fixture.running = RunningInstance::canonical_zero(&fixture.params, &fixture.structure, D).unwrap();
+    let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
+    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
         &fixture.params,
         &fixture.structure,
-        &fixture.cache,
+        &matrix_rows,
+        workspace_bytes,
         &fixture.rows,
         vec![fixture.fresh],
         fixture.running,
@@ -382,13 +402,16 @@ fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
     // Only the reference loses its required matrix. The optimized cache is valid.
     fixture.rows.matrices.clear();
+    let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
+    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
         &fixture.params,
         &fixture.structure,
-        &fixture.cache,
+        &matrix_rows,
+        workspace_bytes,
         &fixture.rows,
         vec![fixture.fresh],
         fixture.running,
@@ -412,13 +435,16 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
         }
     }
     let fixture = Fixture::bit();
+    let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
+    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
         &fixture.params,
         &fixture.structure,
-        &fixture.cache,
+        &matrix_rows,
+        workspace_bytes,
         &PanickingRows,
         vec![fixture.fresh],
         fixture.running,

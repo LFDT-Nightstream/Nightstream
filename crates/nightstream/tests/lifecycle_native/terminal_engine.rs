@@ -1,5 +1,5 @@
 use super::*;
-use crate::engine::{Engine, Prover};
+use crate::engine::{Backend, Engine};
 use crate::folding::{CcsInstance, CcsWitness};
 use crate::lifecycle::{Stage1Envelope, VerifyError};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
@@ -14,7 +14,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (source, binding) = crate::assembly::prepare(&bytes, &application).unwrap();
     drop(bytes);
-    let mut package = PreparedLifecycle::from_package(source, binding, Prover::Optimized).unwrap();
+    let mut package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized).unwrap();
     let fixture = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
     let private: Vec<u64> = serde_json::from_value(fixture[2].clone()).unwrap();
     let initial: [F; 4] = private[30..34]
@@ -42,9 +42,9 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
         )
         .unwrap();
     eprintln!("CPU base proof built elapsed={:?}", started.elapsed());
-    package.prover = Prover::new(Engine::Metal).unwrap();
+    package.backend = Backend::new(Engine::Metal).unwrap();
     package.verify(&expected, &proof).unwrap();
-    let Prover::Metal(device) = &package.prover else {
+    let Backend::Metal(device) = &package.backend else {
         unreachable!()
     };
     let activity = device.lock().unwrap().activity();
@@ -87,7 +87,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
         other => panic!("expected a row failure after valid public and commitment checks, got {other:?}"),
     };
     let metal_row = row(package.verify(&expected, &bad));
-    package.prover = Prover::Optimized;
+    package.backend = Backend::Optimized;
     let cpu_row = row(package.verify(&expected, &bad));
     assert_eq!(metal_row, cpu_row);
     eprintln!(

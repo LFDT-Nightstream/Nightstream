@@ -1,0 +1,18 @@
+{
+  "full_cpu_lifecycle_completed": false,
+  "terminal_verification_completed": false,
+  "completed_phase_seconds": {
+    "prepare": 34.869925125,
+    "base_prove": 103.330857459,
+    "extend_2": 558.729824375,
+    "extend_3": 765.772362625
+  },
+  "observed_kernel_peak_resident_bytes": 16397549568,
+  "post_exit_peak_available": false,
+  "recording_result": "Stopped by the Instruments wall-clock watchdog during terminal verification; recorder exit -9, no benchmark_finished event",
+  "trace_result": "Incomplete bundle contains only RunIssues.storedata; TOC export fails Document Missing Template Error",
+  "runner_monotonic_elapsed_seconds": 1701.8235449170024,
+  "clock_scope_note": "Power logs confirm Maintenance Sleep during recording. Rust/Python monotonic clocks stop during sleep on this host; the watchdog used a wall-clock deadline. Keep original timings; do not subtract sleep intervals or equate different timer windows.",
+  "pending_full_cpu_benchmark_authorization": "Latest request asks the owner to select the time limit for one full Optimized CPU run under the existing RSS guard; no answer yet. No new memory exception is assumed.",
+  "separate_terminal_capture": "Completed successfully; see terminal-run-summary.json. This does not complete this full lifecycle invocation."
+}

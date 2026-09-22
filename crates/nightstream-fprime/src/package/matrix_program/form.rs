@@ -33,6 +33,60 @@ impl MatrixRun {
     fn key(&self) -> (usize, usize, u64) {
         (self.column, self.count, self.ratio.as_canonical_u64())
     }
+
+    pub(super) fn scaled(mut self, scalar: Goldilocks) -> Self {
+        self.coefficient *= scalar;
+        self
+    }
+}
+
+pub(super) fn normalize_terms(terms: &mut Vec<MatrixRun>) {
+    terms.sort_unstable_by_key(MatrixRun::key);
+    let mut written = 0;
+    for read in 0..terms.len() {
+        let term = terms[read];
+        if written != 0 && terms[written - 1].key() == term.key() {
+            terms[written - 1].coefficient += term.coefficient;
+            if terms[written - 1].coefficient == Goldilocks::ZERO {
+                written -= 1;
+            }
+        } else if term.coefficient != Goldilocks::ZERO {
+            terms[written] = term;
+            written += 1;
+        }
+    }
+    terms.truncate(written);
+}
+
+pub(super) fn entries(terms: &[MatrixRun]) -> Vec<Entry> {
+    let mut entries = Vec::new();
+    for term in terms {
+        let mut coefficient = term.coefficient;
+        for offset in 0..term.count {
+            entries.push(Entry {
+                column: term.column + offset,
+                coefficient,
+            });
+            coefficient *= term.ratio;
+        }
+    }
+    entries.sort_unstable_by_key(|entry| entry.column);
+    let mut combined: Vec<Entry> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if let Some(last) = combined.last_mut() {
+            if last.column == entry.column {
+                last.coefficient += entry.coefficient;
+                if last.coefficient == Goldilocks::ZERO {
+                    combined.pop();
+                }
+                continue;
+            }
+        }
+        if entry.coefficient != Goldilocks::ZERO {
+            combined.push(entry);
+        }
+    }
+    combined
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -98,7 +152,7 @@ impl Form {
         Self::from_terms(combined)
     }
 
-    fn from_terms(mut terms: Vec<MatrixRun>) -> Self {
+    pub(super) fn from_terms(mut terms: Vec<MatrixRun>) -> Self {
         match terms.len() {
             0 => Self::Empty,
             1 => Self::One(terms.pop().expect("one term")),
@@ -123,34 +177,7 @@ impl Form {
     }
 
     pub(in crate::package) fn entries(&self) -> Vec<Entry> {
-        let mut entries = Vec::new();
-        for term in self.terms() {
-            let mut coefficient = term.coefficient;
-            for offset in 0..term.count {
-                entries.push(Entry {
-                    column: term.column + offset,
-                    coefficient,
-                });
-                coefficient *= term.ratio;
-            }
-        }
-        entries.sort_unstable_by_key(|entry| entry.column);
-        let mut combined: Vec<Entry> = Vec::with_capacity(entries.len());
-        for entry in entries {
-            if let Some(last) = combined.last_mut() {
-                if last.column == entry.column {
-                    last.coefficient += entry.coefficient;
-                    if last.coefficient == Goldilocks::ZERO {
-                        combined.pop();
-                    }
-                    continue;
-                }
-            }
-            if entry.coefficient != Goldilocks::ZERO {
-                combined.push(entry);
-            }
-        }
-        combined
+        entries(self.terms())
     }
 
     pub(in crate::package) fn into_entries(self) -> Vec<Entry> {

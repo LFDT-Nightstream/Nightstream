@@ -1,44 +1,47 @@
 # Nightstream
 
-Rust application circuits, a generic assembler for the Lean-exported recursive
-verifier, and the native `prepare`, `prove`, `extend`, and `verify` lifecycle.
-Lean is used only by maintainers to produce and check the shared exports.
+Rust application circuits, an assembler for the exported recursive verifier,
+and separate compilation, loading, proving and verification. Production builds
+and execution do not require Lean.
 
-The package includes the selected verifier blueprint at
-`artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
-Copy this file into the application's assets and pass its bytes to
-`Circuit::prepare`. The shared manifest and formula library are included by
-the Rust build. No Lean installation or artifact generation is needed.
+Compile the application once using the packaged reference, then save it:
 
 ```rust
 use nightstream::{application::poseidon2_hash_chain_v1, Circuit};
 
 let reference = std::fs::read("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")?;
-let circuit = Circuit::prepare(&reference, poseidon2_hash_chain_v1()?)?;
+let circuit = Circuit::compile(&reference, poseidon2_hash_chain_v1()?)?;
+circuit.write("app.nsc")?;
 ```
 
-Use the packaged blueprint as local verifier configuration. `prepare` checks
-the selected reference identities before it inserts the Rust application.
-Keep the prepared `Circuit` for later proving and verification.
-Call `prove` for the first step, `extend` for each later step, and `verify`
-with the state expected by the application.
+Compilation validates the selected reference and application, and computes the
+unchanged Poseidon2 identities. Writing publishes one complete file and refuses
+to replace an existing destination. The compiled circuit can also be reused
+directly in the same process.
 
-`prepare` uses the optimized CPU engine. Select an engine explicitly with:
+Load the saved data and select execution engines:
 
 ```rust
-use nightstream::{application::poseidon2_hash_chain_v1, Circuit, Engine};
+use nightstream::{Circuit, Engine, Verifier};
 
-let circuit = Circuit::prepare_with_engine(
-    &reference,
-    poseidon2_hash_chain_v1()?,
-    Engine::Optimized,
-)?;
+let package = Circuit::load("app.nsc")?;
+let prover = package.prover(Engine::Metal)?;
+let verifier = Verifier::from_package(&package, Engine::Metal)?;
+let proof = prover.prove(initial_state, &private_inputs)?;
+verifier.verify(&expected_state, &proof)?;
 ```
 
-Engine selection applies to active PiCCS, PiRLC, and PiDEC proving. Preparation,
-the exported relation, the fixed commitment key, and terminal verification keep
-the same meaning. The engine is not part of the circuit identity. There is no
-automatic fallback when a selected engine is unavailable.
+Loading checks the format, layout, dimensions and recipe structure. It does not
+repeat whole-circuit identity hashing. `Prover::load(path, engine)` is available
+when only proving data is needed. `Verifier::compile` derives expected
+configuration from a local application. The caller selects the verifier's
+expected configuration and is responsible for its provenance; the crate does
+not impose an authentication policy. Proof data cannot replace that configured
+relation.
+
+Engine selection applies to proof arithmetic and terminal row checks. It does
+not change the circuit identity, formulas or fixed commitment key. An unavailable
+engine returns an error without a CPU fallback.
 
 | Engine | Current status |
 | --- | --- |
@@ -77,26 +80,87 @@ saved production input, down from about 55 s. Device commitments generate the
 fixed key in threadgroup tiles and match CPU results: 3.08 s versus 97.42 s for
 the full fresh witness. See [the commitment checks](VALIDATION.md#device-fixed-key-commitments).
 
-The current three-step Metal benchmark passes in 179.51 s with 16.78 GB peak
-RSS. This includes preparation, the base step, two active folds, and terminal
-verification. Both full fold proofs and returned child matrices match CPU
-references. The full CPU benchmark is still needed to establish the 5× ratio.
-See [the current lifecycle result](VALIDATION.md#cpu-opening-buffer-reuse).
+Before the matrix-row window change, matching Time Profiler runs measured the
+full three-step lifecycle at **1,256.02 s
+on Optimized and 164.74 s on Metal: 7.62×**. Both use the same saved executable,
+inputs, profile, and circuit identity, and verify the same final state. This
+includes preparation, the base step, two active folds, and terminal verification.
+The ratio is measured under profiling; a full CPU run without Instruments is
+still pending. The separate Metal run without Instruments takes 164.66 s with
+16.81 GB peak RSS. A fresh second-fold check matches every CPU proof byte and
+all returned child matrices.
+See [the matched lifecycle profiles](VALIDATION.md#matched-full-lifecycle-profiles).
+GPU traces identify commitments and opening products/forms as the main device
+costs. See [the profile](tests/evidence/metal-gpu-profile-20260921).
 
-The current CPU storage path also passes the second production PiCCS proof
+The earlier CPU storage path also passed the second production PiCCS proof
 comparison: 182.43 s and 17.10 GB RSS (15.93 GiB), below the working 16 GiB guard.
-Openings reuse the completed SumCheck buffer. Full CPU lifecycle timing is
-still open. See [the CPU storage record](VALIDATION.md#cpu-opening-buffer-reuse).
+Openings reuse the completed SumCheck buffer.
+See [the CPU storage record](VALIDATION.md#cpu-opening-buffer-reuse).
+
+A separate Optimized CPU check accepts the stored Metal terminal state and
+rejects a wrong final state. An earlier full CPU profile stopped during terminal
+verification at the 30-minute cap; the saved build above completed within that cap.
+The source review identified an accepted row shape that required a 27.51 GB
+Metal application table. The new application owner uses bounded replay when
+a resident prefix does not fit. CPU and Metal now also generate bounded matrix
+windows directly from original rows. Application rows, recipe syntax and their
+indexes now stay in sealed files; identity hashing replays their original order.
+This removes the eager application-row storage gap. Total process RSS across
+every supported circuit still needs separate evidence.
+See [the CPU profile and memory gap](VALIDATION.md#cpu-lifecycle-and-terminal-profile).
+
+Forced replay matches complete CPU proof bytes, transcript state, and openings.
+A production second fold on that earlier build matched all saved CPU proof bytes
+and all sixteen child matrices, with 16.38 GB peak RSS.
+See [bounded application tables](VALIDATION.md#bounded-metal-application-tables).
+
+The bounded matrix-window build measured **4.5597×** under matching Time
+Profiler runs: CPU 1,330.70 s, Metal 291.84 s. This is below the 5× target.
+The newer sealed-record and reusable-row-buffer build matches all 945,983 saved
+CPU proof bytes and all sixteen complete child matrices. Its production second
+fold takes 83.36 s with 13.19 GB peak RSS. Its complete Metal lifecycle takes
+**264.52 s with 12.75 GB peak RSS** without Instruments. Matching Time Profiler
+runs on that saved build give **4.7249×**: CPU 1,308.78 s and Metal 277.00 s.
+Both verify; observed RSS peaks are 15.79 GB and 12.63 GB. That saved build
+remained below the 5× target. Final post-exit RSS peaks are unavailable for the profiled runs.
+See [matrix row windows](VALIDATION.md#bounded-matrix-row-windows) and
+[sealed application records](VALIDATION.md#sealed-application-records-and-reusable-row-buffers).
+
+Incremental row-storage counting and single-input template substitution reduce
+the full Metal lifecycle to **250.28 s with 12.68 GB final peak RSS** without
+Instruments. The production second fold takes 77.44 s and matches all saved CPU
+proof bytes and complete outputs. No matched ratio was measured for that image.
+See [the incremental row-count evidence](tests/evidence/incremental-row-count-20260922).
+
+Recipe-stack reuse further reduces raw Metal to **244.83 s with 12.72 GB peak
+RSS**. Matched Time Profiler runs on the same saved image measure **5.2782×**:
+CPU 1,300.84 s and Metal 246.45 s. Both verify and remain below the accepted RSS
+guard. These results include compilation. Before the fixed-metadata node guard,
+matched prepared-package runs measured **5.9191×**, including loading, proving
+and terminal verification but excluding compilation. The final image with the
+guard measures **5.9332×**: CPU 1,262.10 s and Metal 212.72 s, with observed RSS
+peaks of 14.45 GB and 11.47 GB. Both verify. Raw Metal takes **212.47 s with
+11.37 GB final peak RSS**. See
+[recipe-stack reuse](VALIDATION.md#recipe-stack-batch-reuse) and
+[the final prepared-package comparison](VALIDATION.md#final-prepared-package-cpumetal-comparison).
+
+The CPU key loader now avoids 128-bit division for streamed coefficients.
+The production fresh commitment falls from 95.14 s to 58.38 s, with exact
+saved-commitment equality. All supported engine comparisons pass. This is one
+operation; the full lifecycle comparison above uses this change.
+See [the key reduction result](VALIDATION.md#cpu-indexed-key-reduction).
 
 Row evaluation reads signed masks directly, application storage shrinks with
 each round, and zero openings avoid matrix scratch. Decomposition releases the
 parent witness after producing its signed digits. Witness masks are written
 directly into shared Metal storage, with no full host mask vector. Opening forms
-and CPU storage still need bounded evaluation. The 5× lifecycle target and
-general 16 GB bound remain open.
+and CPU evaluation now use bounded matrix windows. This removes the earlier
+full matrix-run allocation. The general 16 GB RSS bound remains open; the
+working-storage budget does not include all allocator and driver residency.
 See [the storage measurements](VALIDATION.md#application-and-parent-storage).
 
-Select `Engine::Crosscheck` in `Circuit::prepare_with_engine` to check each
+Select `Engine::Crosscheck` in `circuit.prover` to check each
 active fold. The engines receive separate copies of the same inputs and
 transcript. PaperExact reads the original exported matrix rows. A difference
 or prover error fails the call. The caller's transcript advances only after
@@ -134,23 +198,28 @@ timeout --signal=KILL 300 cargo test -p nightstream --release --test application
 
 ## Poseidon2 benchmark
 
-`nightstream-poseidon2-bench` measures one chain through the public `Circuit`
-API. It uses the Rust Poseidon2 application and the selected `b = 2`,
-`k_rho = 16` profile. Each run reports preparation, base proving, every active
-`extend`, and terminal verification as JSON lines. Preparation includes loading
-the packaged reference and building the application. The prepared circuit is
-reused for all steps. Native Poseidon2 supplies the expected state, and a run
-finishes successfully only after terminal verification accepts it.
+`nightstream-poseidon2-bench` has separate `compile` and `run` commands.
+Compilation builds the Rust Poseidon2 application and reports `compile` and
+`save` times. Each fresh `run` loads the saved package, creates the selected
+prover and verifier, proves the base and active steps, and verifies the terminal
+state. It emits schema2 JSON with scope `prepared_package_load_prove_verify`.
+The total begins before package loading. Native Poseidon2 supplies the expected
+state, and a run succeeds only after terminal verification accepts it.
 
 The binary uses normal dependencies and has no dependency on the old crate.
 Run engines separately with the same step count, then compare their logs
 manually. The owner's Metal target is at least 5× faster over the full lifecycle,
-including preparation, proving, and terminal verification. The current memory
-target is at most 16 GB for either engine on every supported circuit; 8 GB is
+including package loading, proving, and terminal verification. One-time circuit
+compilation is excluded from that total and measured separately. The current
+memory target is at most 16 GB for either engine on every supported circuit; 8 GB is
 the future mobile target. The owner has accepted approximately 16 GB for this
-pass, using RSS, and deferred further memory tuning. The general bound and full
-lifecycle speed target have not passed. Inputs are fixed and
-included in the first record. The step count
+pass, using RSS, and deferred further memory tuning. Storage is bounded across
+supported native circuit shapes; a universal process-RSS guarantee remains
+unproven because runtime and driver residency also contribute. The final guarded
+image measures **5.9332×** under matched Time Profiler runs over loading, proving
+and terminal verification. Both engines use the same caller-selected package,
+inputs and final state. The raw CPU/Metal ratio remains unmeasured. Inputs are
+fixed and included in the first record. The step count
 includes the base step: `--steps 1` performs no active fold, while `--steps 3`
 covers the base and two active folds. PaperExact remains a small-input parity
 reference; CUDA selection fails until its kernel is available.
@@ -164,8 +233,9 @@ cargo build -p nightstream --release --bin nightstream-poseidon2-bench --feature
 On macOS, run the compiled binary under GNU `timeout` and the OS process timer:
 
 ```sh
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench --engine optimized --steps 3 > cpu.jsonl 2> cpu.time
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench --engine metal --steps 3 > metal.jsonl 2> metal.time
+timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine metal --steps 3 > metal.jsonl 2> metal.time
 ```
 
 `maximum resident set size` in the `.time` file is peak process memory in bytes
@@ -209,6 +279,7 @@ with the unchanged implementation; it is not a production dependency.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.
-The original migration checks passed. Engine speed and memory requirements
-remain open. A single-process active `extend` run and a universal Rust
-refinement proof are not claimed.
+The original migration checks passed. The final prepared-package comparison
+meets the 5× speed target and both measured RSS peaks stay below the accepted
+16 GiB guard. A universal RSS guarantee and a universal Rust refinement proof
+remain unproven.

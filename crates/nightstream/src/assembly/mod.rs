@@ -8,7 +8,7 @@ mod source;
 mod wire;
 
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, load_prepared_application_value, LoadedPerApplicationPackage, PackageError,
+    load_poseidon2_hash_chain_v1_package, load_prepared_application_records, LoadedPerApplicationPackage, PackageError,
     Stage1VerifierBinding,
 };
 use serde_json::Value;
@@ -61,7 +61,7 @@ fn prepare_application(
     let manifest = Manifest::parse(include_bytes!("../../artifacts/shared-verifier-v1.json"))?;
     let reference: wire::Envelope = serde_json::from_slice(reference_bytes)?;
     let value = assemble(reference, &manifest, application)?;
-    let package = load_prepared_application_value(value)?;
+    let package = load_prepared_application_records(value, application.records().clone())?;
     let binding = package.production_verifier_binding()?;
     Ok((package, binding))
 }

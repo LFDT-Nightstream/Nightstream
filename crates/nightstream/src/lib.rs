@@ -9,6 +9,6 @@ mod engine;
 mod folding;
 mod lifecycle;
 
-pub use circuit::{Circuit, Error};
+pub use circuit::{Circuit, Error, Prover, Verifier};
 pub use engine::{Engine, EngineError};
 pub use lifecycle::{Stage1Envelope as Proof, Stage1State as State};

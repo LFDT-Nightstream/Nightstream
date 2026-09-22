@@ -7,6 +7,7 @@ use neo_ajtai::{
 };
 use neo_ccs::Mat;
 use neo_math::{D, F};
+use objc2_foundation::NSString;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLComputePipelineState, MTLDevice};
 use p3_field::PrimeCharacteristicRing;
 
@@ -107,6 +108,7 @@ impl MetalSession {
         for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
             let command = self.command_buffer("nightstream.production_commitment")?;
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("production_ajtai_partials")));
             encoder.setComputePipelineState(pipeline);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&seed), 0, 0);
@@ -128,6 +130,7 @@ impl MetalSession {
                     (&second, &first)
                 };
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setLabel(Some(&NSString::from_str("ajtai_reduce_columns")));
                 encoder.setComputePipelineState(&self.ajtai_reduce_columns);
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(input), 0, 0);

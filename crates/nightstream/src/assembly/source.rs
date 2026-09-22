@@ -254,14 +254,8 @@ pub(super) fn replace_application(
     for expression in &mut reference.assignment.digest_expressions {
         checked_relocation(expression, &forward, &inverse, |m, value| m.expression(value))?;
     }
-    let split = source.rows.partition_point(|row| row.index < start);
-    source
-        .rows
-        .splice(split..split, application.rows.iter().cloned());
-    source.batches.extend(application.batches.iter().cloned());
-    source
-        .instructions
-        .extend(application.instructions.iter().cloned());
+    // Dynamic rows and recipes come from the sealed application records.
+    // This envelope retains only the relocated fixed source entries.
     source.relation.rows = manifest.geometry.logical_rows.eval(counts)?;
     source.relation.columns = manifest.geometry.logical_width.eval(counts)?;
     source.terminal = json!([1, [0, source.relation.rows, 16, 1]]);

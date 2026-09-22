@@ -2,7 +2,7 @@
 use super::*;
 use neo_reductions::{
     common::{split_b_matrix_k_with_nonzero_flags, validate_superneo_witness_mat},
-    superneo_eval::SuperneoZBlocks,
+    superneo_eval::{eval_real_v1_1_openings_from_rows, SuperneoZBlocks},
 };
 use std::io::{self, BufRead};
 
@@ -237,8 +237,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
     let package = prepare();
     let source = load_sources(&package, &step_dir(root, step), step);
     let started = Instant::now();
-    let cache = package.build_superneo_cache().unwrap();
-    eprintln!("C cache elapsed={:?}", started.elapsed());
+    let rows = package.matrix_rows();
+    let workspace_bytes = package.matrix_workspace_bytes().unwrap();
     let mut transcript = Transcript::session();
     let proving = Instant::now();
     let proof = match engine {
@@ -246,7 +246,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
             &mut transcript,
             &params(&package),
             &package.structure,
-            cache,
+            &rows,
+            workspace_bytes,
             std::slice::from_ref(&source.fresh.claim),
             std::slice::from_ref(&source.fresh.witness),
             &source.running,
@@ -255,19 +256,19 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
         #[cfg(feature = "metal")]
         EvaluationEngine::Metal => {
             let mut device = neo_prover_metal::MetalRowProver::new().unwrap();
-            let (outputs, sumcheck, _, _) =
-                neo_reductions::optimized_engine::optimized_prove_with_row_cache_and_backend(
-                    transcript.inner_mut(),
-                    params(&package).inner(),
-                    &package.structure,
-                    std::slice::from_ref(&source.fresh.claim),
-                    std::slice::from_ref(&source.fresh.witness),
-                    &source.running.claims,
-                    &source.running.witnesses,
-                    cache,
-                    &mut device,
-                )
-                .unwrap();
+            let (outputs, sumcheck, _, _) = neo_reductions::optimized_engine::optimized_prove_with_matrix_rows(
+                transcript.inner_mut(),
+                params(&package).inner(),
+                &package.structure,
+                std::slice::from_ref(&source.fresh.claim),
+                std::slice::from_ref(&source.fresh.witness),
+                &source.running.claims,
+                &source.running.witnesses,
+                &rows,
+                workspace_bytes,
+                Some(&mut device),
+            )
+            .unwrap();
             assert!(device.activity().dispatches > 0);
             eprintln!("C Metal activity={:?}", device.activity());
             pi_ccs::Proof { outputs, sumcheck }
@@ -438,7 +439,7 @@ pub(super) fn split(root: &Path, step: u64) {
         },
     );
 }
-// Produce CPU opening data with one cache. NIFS still authenticates every
+// Produce CPU opening data from row windows. NIFS still authenticates every
 // saved witness and commitment before these values enter an accepted proof.
 pub(super) fn openings(root: &Path, step: u64) {
     let directory = fold_dir(root, step);
@@ -466,11 +467,13 @@ pub(super) fn openings(root: &Path, step: u64) {
         .collect::<Vec<_>>();
     drop(digits);
     let started = Instant::now();
-    let values = package
-        .build_superneo_cache()
-        .unwrap()
-        .eval_real_v1_1_openings(&parent.rlc_parent.r, &blocks)
-        .unwrap();
+    let values = eval_real_v1_1_openings_from_rows(
+        &package.matrix_rows(),
+        &parent.rlc_parent.r,
+        &blocks,
+        package.matrix_workspace_bytes().unwrap(),
+    )
+    .unwrap();
     assert_eq!(values.len(), 16);
     for (child, opening) in values.into_iter().enumerate() {
         if !flags[child] {
@@ -519,21 +522,27 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
     let commitment = commit_production_signed_unit_prefix_matrix(&digit).unwrap();
     assert_eq!(commitment, split.commitments[child]);
     let opening = if active {
-        let cache = package.build_superneo_cache().unwrap();
+        let rows = package.matrix_rows();
+        let workspace_bytes = package.matrix_workspace_bytes().unwrap();
         let started = Instant::now();
         let mut openings = match engine {
             EvaluationEngine::Optimized => {
                 let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
-                cache
-                    .eval_real_v1_1_openings(&parent.rlc_parent.r, std::slice::from_ref(&blocks))
-                    .unwrap()
+                eval_real_v1_1_openings_from_rows(
+                    &rows,
+                    &parent.rlc_parent.r,
+                    std::slice::from_ref(&blocks),
+                    workspace_bytes,
+                )
+                .unwrap()
             }
             #[cfg(feature = "metal")]
             EvaluationEngine::Metal => {
                 let mut device = neo_prover_metal::MetalRowProver::new().unwrap();
                 let openings = device
                     .child_openings(
-                        std::sync::Arc::clone(cache),
+                        &rows,
+                        workspace_bytes,
                         std::slice::from_ref(&digit),
                         &parent.rlc_parent.r,
                         package.structure.m,

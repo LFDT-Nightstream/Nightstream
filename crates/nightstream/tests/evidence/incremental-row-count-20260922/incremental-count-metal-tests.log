@@ -1,0 +1,32 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 25.29s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 23 tests
+test oracle_errors::device_failure_keeps_its_backend_type ... ok
+test oracle_errors::invalid_input_does_not_become_a_device_failure ... ok
+test session::buffer_limit_tests::oversized_buffer_is_rejected_without_allocation_or_submission ... ok
+test session::joint::assignments::tests::zero_witnesses_need_no_folded_assignment_buffer ... ok
+test session::joint::opening::tests::matrix_window_retries_bound_rebuilt_rows_with_fixed_overhead ... ok
+test session::joint::carried_tests::omitted_zero_sources_keep_their_logical_gamma_indices ... ok
+test session::joint::assignments::tests::encoded_device_prefix_matches_dense_cpu_through_every_fold ... ok
+test session::joint::tests::application_row_scratch_does_not_expand_the_carrier ... ok
+test session::joint::tests::zero_carried_tables_fit_their_advertised_length ... ok
+test session::joint::tests::empty_rows_do_not_read_dummy_offsets ... ok
+test session::joint::tests::application_storage_does_not_reserve_future_rounds ... ok
+test session::joint::tests::zero_witness_suffix_does_not_allocate_device_masks ... ok
+test session::masks::tests::zero_suffix_does_not_allocate_host_mask_words ... ok
+test session::production_commitment::tests::production_commitment_checks_all_inputs_before_device_work ... ok
+test session::joint::carried_tests::carried_projection_matches_cpu_with_all_production_sources_active ... ok
+test session::joint::carried_tests::carried_projection_scratch_does_not_grow_with_carrier_width ... ok
+test session::joint::relation::tests::device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials ... ok
+test session::joint::opening::tests::geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once ... ok
+test session::joint::application_tests::terminal_replay_reports_the_global_row_in_the_final_window ... ok
+test session::joint::opening::tests::compact_openings_match_cpu_across_parallel_and_tiled_lists ... ok
+test session::production_commitment::tests::production_key_commitments_match_cpu_across_tiles_and_representations ... ok
+test session::production_commitment::tests::production_key_coefficients_use_exact_first_and_last_indexed_addresses ... ok
+test session::joint::application_tests::replay_matches_cpu_and_resident_rounds_transcript_and_complete_openings ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+

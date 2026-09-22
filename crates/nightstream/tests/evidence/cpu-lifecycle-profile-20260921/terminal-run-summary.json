@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "scope": "Stored Metal step-3 envelope verified by Optimized CPU; includes wrong-state rejection. No proof generation in this invocation.",
+  "preparation_seconds": 34.846500209,
+  "staged_phase_seconds": 448.086443375,
+  "full_cpu_lifecycle_completed": false,
+  "wrong_state_rejected": true,
+  "observed_kernel_peak_resident_bytes": 13893877760,
+  "post_exit_peak_available": false,
+  "rss_limit_note": "Kernel lifetime peak observed while live; final unsampled interval not proven. Current comparison guard is 16 GiB.",
+  "sampled_peak_resident_bytes": 13422755840,
+  "driver_monotonic_seconds": 491.70555958300247,
+  "driver_wall_seconds": 523.4432978630066,
+  "instrument_time_cap_seconds": 1800,
+  "time_authority": "Owner-approved Instruments rule in AGENTS.md",
+  "trace_saved": true,
+  "trace_private_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile.trace",
+  "sample_export_bytes": 639035217,
+  "timing_limit": "Cold terminal phase includes circuit preparation, JSON load, new cache, verification and rejection. Not warm verification or full lifecycle. Maintenance Sleep occurred during capture; no corrected timing or CPU/Metal speed ratio claimed."
+}

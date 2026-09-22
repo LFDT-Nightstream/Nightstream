@@ -1,13 +1,15 @@
 //! Invocation-major Poseidon2 rows from the Lean formula library.
 
+use std::ops::ControlFlow;
+
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::poseidon_input::Program as InputProgram;
 use super::{
-    checked_add, checked_mul, exact_array, template, usize_atom, Form, PackageError, RetainedBlock, RetainedKind,
-    RowForms,
+    checked_add, checked_mul, exact_array, owned_row, template, usize_atom, Form, PackageError, RetainedBlock,
+    RetainedKind, RowForms, RowView,
 };
 
 const ROWS_PER_INVOCATION: usize = 94;
@@ -59,28 +61,29 @@ impl Block {
         if ordinal >= self.row_count()? {
             return Err(PackageError::Invalid("Poseidon2 matrix row ordinal"));
         }
-        self.validate(logical_width)?;
-        let invocation = ordinal / ROWS_PER_INVOCATION;
-        let local_row = ordinal % ROWS_PER_INVOCATION;
-        self.invocation_rows(logical_width, invocation, local_row, local_row + 1)?
-            .pop()
-            .ok_or(PackageError::Invalid("Poseidon2 template row count"))
+        let mut result = None;
+        let _ = self.visit_rows_until(logical_width, ordinal, ordinal + 1, |row| {
+            result = Some(owned_row(row));
+            Ok(ControlFlow::Break(()))
+        })?;
+        result.ok_or(PackageError::Invalid("Poseidon2 template row count"))
     }
 
-    pub(super) fn visit_rows(
+    pub(super) fn visit_rows_until(
         &self,
         logical_width: usize,
         start: usize,
         end: usize,
-        mut visit: impl FnMut(RowForms) -> Result<(), PackageError>,
-    ) -> Result<(), PackageError> {
+        mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
+    ) -> Result<ControlFlow<()>, PackageError> {
         if start > end || end > self.row_count()? {
             return Err(PackageError::Invalid("Poseidon2 matrix row range"));
         }
         if start == end {
-            return Ok(());
+            return Ok(ControlFlow::Continue(()));
         }
         self.validate(logical_width)?;
+        let mut scratch = template::RowScratch::default();
         let first_invocation = start / ROWS_PER_INVOCATION;
         let last_invocation = (end - 1) / ROWS_PER_INVOCATION;
         for invocation in first_invocation..=last_invocation {
@@ -91,20 +94,25 @@ impl Block {
             let local_end = end
                 .saturating_sub(invocation_start)
                 .min(ROWS_PER_INVOCATION);
-            for row in self.invocation_rows(logical_width, invocation, local_start, local_end)? {
-                visit(row)?;
+            let inputs = self.invocation_inputs(logical_width, invocation)?;
+            if scratch
+                .visit_rows_until(
+                    "poseidon2-permutation-v1",
+                    0,
+                    &inputs,
+                    logical_width,
+                    local_start..local_end,
+                    &mut visit,
+                )?
+                .is_break()
+            {
+                return Ok(ControlFlow::Break(()));
             }
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 
-    fn invocation_rows(
-        &self,
-        logical_width: usize,
-        invocation: usize,
-        start: usize,
-        end: usize,
-    ) -> Result<Vec<RowForms>, PackageError> {
+    fn invocation_inputs(&self, logical_width: usize, invocation: usize) -> Result<Vec<Form>, PackageError> {
         let mut inputs = Vec::with_capacity(1 + WIDTH + SBOX_ROWS_PER_INVOCATION);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(
@@ -118,6 +126,6 @@ impl Block {
                     .form(logical_width, checked_add(slot_base, slot, "Poseidon2 retained slot")?)?,
             );
         }
-        template::rows("poseidon2-permutation-v1", 0, &inputs, logical_width, start..end)
+        Ok(inputs)
     }
 }

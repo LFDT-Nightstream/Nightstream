@@ -64,7 +64,7 @@ kernel void dec_build_row_weights(
     device const ulong *shape [[buffer(2)]],
     device ulong *chi [[buffer(3)]],
     uint row [[thread_position_in_grid]]) {
-    Kx value = dec_factored_weight(low, high, shape[7], row);
+    Kx value = dec_factored_weight(low, high, shape[7], shape[8] + (ulong)row);
     chi[2 * (ulong)row] = value.c0;
     chi[2 * (ulong)row + 1] = value.c1;
 }
@@ -107,9 +107,10 @@ kernel void dec_build_ring_forms(
     ulong block = encoded % blocks;
     if (matrix_identity[matrix] != 0) {
         ulong row = block * RING_DEGREE + local;
-        // Pad includes the completion tail; application identities stop at n.
-        ulong limit = matrix == 0 ? shape[4] : shape[2];
-        Kx value = row < limit
+        // Pad includes the completion tail; matrix identities use this row window.
+        bool valid = matrix == 0 ? row < shape[4]
+            : row >= shape[8] && row - shape[8] < shape[2];
+        Kx value = valid
             ? dec_factored_weight(chi_low, chi_high, shape[7], row) : Kx{0, 0};
         forms[index] = component == 0 ? value.c0 : value.c1;
         return;
@@ -260,15 +261,13 @@ kernel void dec_add_geometric_ring_forms(
     device const uint *active_blocks [[buffer(6)]],
     uint index [[thread_position_in_grid]]) {
     ulong local = index % RING_DEGREE;
-    ulong rest = index / RING_DEGREE;
-    ulong component = rest % 2;
-    ulong group_index = rest / 2;
+    ulong group_index = index / RING_DEGREE;
     uint2 group = groups[group_index];
     if (group.x < shape[5] || group.x >= shape[6]) {
         return;
     }
     ulong column = ((ulong)active_blocks[group.x] % shape[1]) * RING_DEGREE + local;
-    ulong value = 0;
+    Kx value = Kx{0, 0};
     for (ulong segment = group.y; segment < groups[group_index + 1].y; ++segment) {
         uint2 entry = segments[segment];
         ulong row = entry.x;
@@ -284,10 +283,13 @@ kernel void dec_add_geometric_ring_forms(
         ulong coefficient = gl_mul(
             gl_from_word(runs[3 * (ulong)entry.y + 1]),
             dec_pow(gl_from_word(runs[3 * (ulong)entry.y + 2]), column - start));
-        value = gl_add(value, gl_mul(gl_from_word(chi[2 * row + component]), coefficient));
+        // Both extension components use the same geometric coefficient.
+        value.c0 = gl_add(value.c0, gl_mul(gl_from_word(chi[2 * row]), coefficient));
+        value.c1 = gl_add(value.c1, gl_mul(gl_from_word(chi[2 * row + 1]), coefficient));
     }
-    ulong output = (((ulong)group.x - shape[5]) * 2 + component) * RING_DEGREE + local;
-    forms[output] = gl_add(gl_from_word(forms[output]), value);
+    ulong output = ((ulong)group.x - shape[5]) * 2 * RING_DEGREE + local;
+    forms[output] = gl_add(gl_from_word(forms[output]), value.c0);
+    forms[output + RING_DEGREE] = gl_add(gl_from_word(forms[output + RING_DEGREE]), value.c1);
 }
 
 kernel void dec_bar_ring_forms_in_place(
@@ -310,119 +312,4 @@ kernel void dec_bar_ring_forms_in_place(
     forms[output_base + 27 + reflected] = gl_sub(0, low_value);
     forms[output_base + low] = gl_sub(0, gl_add(reflected_value, reflected_high_value));
     forms[output_base + 27 + low] = gl_sub(0, reflected_value);
-}
-
-constant ulong DEC_SEEDED_OUTPUT_HEADER_WORDS = 9;
-
-inline ulong dec_seeded_raw_rotation(
-    device const ulong *rotation,
-    ulong shift,
-    ulong exponent) {
-    if (exponent < shift || exponent - shift >= RING_DEGREE) {
-        return 0;
-    }
-    return gl_from_word(rotation[exponent - shift]);
-}
-
-inline ulong dec_seeded_rotated_coefficient(
-    device const ulong *rotation,
-    ulong shift,
-    ulong coordinate) {
-    ulong value = dec_seeded_raw_rotation(rotation, shift, coordinate);
-    if (coordinate <= 26) {
-        value = gl_sub(value, dec_seeded_raw_rotation(rotation, shift, coordinate + 54));
-        if (coordinate <= 25) {
-            value = gl_add(value, dec_seeded_raw_rotation(rotation, shift, coordinate + 81));
-        }
-    } else {
-        value = gl_sub(value, dec_seeded_raw_rotation(rotation, shift, coordinate + 27));
-    }
-    return value;
-}
-
-kernel void dec_build_seeded_ring_forms(
-    device const ulong *output_headers [[buffer(0)]],
-    device const uint *word_starts [[buffer(1)]],
-    device const ulong *rotations [[buffer(2)]],
-    device const uint *active_segment_offsets [[buffer(3)]],
-    device const uint *segments [[buffer(4)]],
-    device const ulong *chi [[buffer(5)]],
-    device const ulong *shape [[buffer(6)]],
-    device ulong *seeded_forms [[buffer(7)]],
-    device const uint *active_blocks [[buffer(8)]],
-    device const uint *active_indices [[buffer(9)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong local = (ulong)index % RING_DEGREE;
-    ulong rest = (ulong)index / RING_DEGREE;
-    ulong component = rest % 2;
-    ulong group = rest / 2;
-    ulong active = (ulong)active_indices[group];
-    if (active < shape[5] || active >= shape[6]) {
-        return;
-    }
-    ulong column_block = (ulong)active_blocks[active] % shape[1];
-    ulong column = column_block * RING_DEGREE + local;
-    ulong row_limit = min(shape[2], shape[3]);
-    ulong value = 0;
-    ulong segment_end = (ulong)active_segment_offsets[group + 1];
-    for (ulong segment = (ulong)active_segment_offsets[group]; segment < segment_end; ++segment) {
-        ulong output = (ulong)segments[2 * segment];
-        ulong word = (ulong)segments[2 * segment + 1];
-        device const ulong *header = output_headers + output * DEC_SEEDED_OUTPUT_HEADER_WORDS;
-        ulong word_start = (ulong)word_starts[word];
-        ulong word_width = header[3];
-        if (column < word_start || column - word_start >= word_width || header[1] >= row_limit) {
-            continue;
-        }
-        ulong bit_index = (word - header[5]) * word_width + column - word_start;
-        ulong message_row = bit_index / header[2];
-        ulong message_col = bit_index % header[2];
-        if (message_row >= RING_DEGREE) {
-            continue;
-        }
-        device const ulong *rotation = rotations + header[6] + message_col * RING_DEGREE;
-        ulong coordinate_count = min(RING_DEGREE, row_limit - header[1]);
-        ulong weight = 0;
-        for (ulong coordinate = 0; coordinate < coordinate_count; ++coordinate) {
-            ulong coefficient = dec_seeded_rotated_coefficient(rotation, message_row, coordinate);
-            if (coefficient != 0) {
-                weight = gl_add(
-                    weight,
-                    gl_mul(gl_from_word(chi[2 * (header[1] + coordinate) + component]), coefficient));
-            }
-        }
-        value = gl_add(value, weight);
-    }
-    seeded_forms[index] = value;
-}
-
-kernel void dec_add_bar_seeded_ring_forms(
-    device const ulong *seeded_forms [[buffer(0)]],
-    device ulong *forms [[buffer(1)]],
-    device const uint *active_indices [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong local = (ulong)index % RING_DEGREE;
-    ulong base = (ulong)index - local;
-    ulong rest = (ulong)index / RING_DEGREE;
-    ulong component = rest % 2;
-    ulong group = rest / 2;
-    ulong active = active_indices[group];
-    if (active < shape[5] || active >= shape[6]) {
-        return;
-    }
-    ulong value;
-    if (local == 0) {
-        value = seeded_forms[base];
-    } else if (local == 27) {
-        value = gl_sub(0, seeded_forms[base + 27]);
-    } else if (local < 27) {
-        value = gl_sub(
-            0,
-            gl_add(seeded_forms[base + 27 - local], seeded_forms[base + 54 - local]));
-    } else {
-        value = gl_sub(0, seeded_forms[base + 54 - local]);
-    }
-    ulong destination = ((active - shape[5]) * 2 + component) * RING_DEGREE + local;
-    forms[destination] = gl_add(forms[destination], value);
 }

@@ -1,7 +1,5 @@
-//! Optimized SuperNeo v1.1 PiCCS evaluator.
-//!
-//! Application matrices use the production cache. Pad remains the separate
-//! `Eval_K` family; genuine matrices remain the `Eval_A` family.
+//! Canonical one-joint PiCCS transcript and proof assembly. Row sources and
+//! optional backends supply arithmetic; Pad opens separately from genuine matrices.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
@@ -18,7 +16,7 @@ use crate::engines::pi_ccs_joint::{
 use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding, V1_1OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::superneo_eval::SuperneoEvalCache;
+use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCache};
 
 use super::OptimizedStructureCache;
 
@@ -209,7 +207,8 @@ pub struct PaperJointOracleInput<'a> {
     pub challenges: Challenges,
     pub prior_point: Option<&'a [K]>,
     pub dims: JointDims,
-    pub cache: Arc<SuperneoEvalCache>,
+    pub rows: &'a dyn MatrixRows,
+    pub workspace_bytes: usize,
 }
 
 /// Factory for a protocol-neutral one-joint evaluator.
@@ -239,11 +238,9 @@ enum OracleSource<'a> {
         backend: Option<&'a mut dyn PaperJointOracleBackend>,
     },
     Rows {
-        cache: &'a SuperneoEvalCache,
-    },
-    DeviceRows {
-        cache: &'a Arc<SuperneoEvalCache>,
-        backend: &'a mut dyn PaperJointOracleBackend,
+        rows: &'a dyn MatrixRows,
+        workspace_bytes: usize,
+        backend: Option<&'a mut dyn PaperJointOracleBackend>,
     },
     Complete {
         oracle: &'a mut dyn PaperJointRoundOracle,
@@ -379,30 +376,17 @@ fn prove_with_trace_inner(
             cache.validate_structure(structure)?;
             Some(*cache)
         }
-        OracleSource::Rows { cache } => {
-            if cache.relation_shape()
-                != Some((
+        OracleSource::Rows { rows, .. } => {
+            let shape = rows.shape();
+            if (shape.rows, shape.columns, shape.matrices)
+                != (
                     structure.n,
                     crate::common::superneo_carrier_width(structure.m),
                     structure.t(),
-                ))
+                )
             {
                 return Err(PiCcsError::InvalidInput(
-                    "prover row-cache shape does not match the header".into(),
-                ));
-            }
-            None
-        }
-        OracleSource::DeviceRows { cache, .. } => {
-            if cache.relation_shape()
-                != Some((
-                    structure.n,
-                    crate::common::superneo_carrier_width(structure.m),
-                    structure.t(),
-                ))
-            {
-                return Err(PiCcsError::InvalidInput(
-                    "prover device row-cache shape does not match the header".into(),
+                    "prover matrix source shape does not match the header".into(),
                 ));
             }
             None
@@ -442,9 +426,14 @@ fn prove_with_trace_inner(
     let sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
+    let cached_rows = cache
+        .map(|cache| CachedMatrixRows::new(cache.superneo()))
+        .transpose()?;
     let mut built_oracle = None;
     let oracle: &mut dyn PaperJointRoundOracle = match source {
-        OracleSource::Cached { cache, backend } => {
+        OracleSource::Cached { backend, .. } => {
+            let rows = cached_rows.as_ref().expect("cached source adapter");
+            let workspace_bytes = resident_row_workspace(rows, fresh_witnesses.len())?;
             let input = PaperJointOracleInput {
                 structure,
                 params,
@@ -453,41 +442,31 @@ fn prove_with_trace_inner(
                 challenges: challenges.clone(),
                 prior_point,
                 dims,
-                cache: cache.superneo_arc(),
+                rows,
+                workspace_bytes,
             };
             built_oracle = Some(match backend {
                 Some(backend) => backend.create(input)?,
                 None => Box::new(OptimizedPaperJointOracle::new(
-                    input.structure,
-                    input.params,
-                    input.fresh_witnesses,
-                    input.running_witnesses,
+                    structure,
+                    params,
+                    fresh_witnesses,
+                    running_witnesses,
                     input.challenges,
-                    input.prior_point,
-                    input.dims,
-                    cache,
+                    prior_point,
+                    dims,
+                    rows,
+                    workspace_bytes,
                 )?),
             });
             built_oracle.as_mut().expect("constructed oracle").as_mut()
         }
-        OracleSource::Rows { cache } => {
-            built_oracle = Some(Box::new(OptimizedPaperJointOracle::from_rows(
-                structure,
-                params,
-                fresh_witnesses,
-                running_witnesses,
-                challenges.clone(),
-                prior_point,
-                dims,
-                cache,
-            )?));
-            built_oracle
-                .as_mut()
-                .expect("constructed row-cache oracle")
-                .as_mut()
-        }
-        OracleSource::DeviceRows { cache, backend } => {
-            built_oracle = Some(backend.create(PaperJointOracleInput {
+        OracleSource::Rows {
+            rows,
+            workspace_bytes,
+            backend,
+        } => {
+            let input = PaperJointOracleInput {
                 structure,
                 params,
                 fresh_witnesses,
@@ -495,11 +474,26 @@ fn prove_with_trace_inner(
                 challenges: challenges.clone(),
                 prior_point,
                 dims,
-                cache: Arc::clone(cache),
-            })?);
+                rows,
+                workspace_bytes,
+            };
+            built_oracle = Some(match backend {
+                Some(backend) => backend.create(input)?,
+                None => Box::new(OptimizedPaperJointOracle::new(
+                    structure,
+                    params,
+                    fresh_witnesses,
+                    running_witnesses,
+                    input.challenges,
+                    prior_point,
+                    dims,
+                    rows,
+                    workspace_bytes,
+                )?),
+            });
             built_oracle
                 .as_mut()
-                .expect("constructed device row oracle")
+                .expect("constructed row oracle")
                 .as_mut()
         }
         OracleSource::Complete {
@@ -758,7 +752,9 @@ pub fn prove_with_row_cache(
     ),
     PiCcsError,
 > {
-    prove_with_trace_inner(
+    let rows = CachedMatrixRows::new(cache)?;
+    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
+    prove_with_matrix_rows(
         transcript,
         params,
         structure,
@@ -766,8 +762,9 @@ pub fn prove_with_row_cache(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        TranscriptBinding::digest_only(),
-        OracleSource::Rows { cache },
+        &rows,
+        workspace_bytes,
+        None,
     )
 }
 
@@ -793,6 +790,60 @@ pub fn prove_with_row_cache_and_backend(
     ),
     PiCcsError,
 > {
+    let rows = CachedMatrixRows::new(cache)?;
+    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
+    prove_with_matrix_rows(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        &rows,
+        workspace_bytes,
+        Some(backend),
+    )
+}
+
+// The existing resident-cache entrypoints have no workspace argument. Derive
+// their full resident requirement instead of assigning a numeric default.
+fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<usize, PiCcsError> {
+    let shape = rows.shape();
+    let payload = fresh_count
+        .checked_mul(shape.matrices)
+        .and_then(|count| count.checked_mul(core::mem::size_of::<K>()))
+        .and_then(|bytes| bytes.checked_add(core::mem::size_of::<F>() + core::mem::size_of::<K>()))
+        .ok_or_else(|| PiCcsError::InvalidInput("resident row payload overflow".into()))?;
+    // Host construction and device upload can hold separate copies.
+    MatrixWindow::required_workspace(rows, 0..shape.rows, payload)?
+        .checked_mul(2)
+        .ok_or_else(|| PiCcsError::InvalidInput("resident row workspace overflow".into()))
+}
+
+/// Prove from original rows with explicit working storage and an optional
+/// device evaluator. The caller owns row authority and total live-memory accounting.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_matrix_rows<'a>(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    rows: &'a dyn MatrixRows,
+    workspace_bytes: usize,
+    backend: Option<&'a mut dyn PaperJointOracleBackend>,
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        super::PiCcsProvePerf,
+        ProtocolTrace,
+    ),
+    PiCcsError,
+> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -802,6 +853,10 @@ pub fn prove_with_row_cache_and_backend(
         running_claims,
         running_witnesses,
         TranscriptBinding::digest_only(),
-        OracleSource::DeviceRows { cache, backend },
+        OracleSource::Rows {
+            rows,
+            workspace_bytes,
+            backend,
+        },
     )
 }

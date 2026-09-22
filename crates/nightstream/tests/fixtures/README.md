@@ -70,4 +70,4 @@ unchanged. Its source and generation evidence are recorded in the original
 
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read
-by `Circuit::prepare`, `prove`, `extend`, or `verify`.
+by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.

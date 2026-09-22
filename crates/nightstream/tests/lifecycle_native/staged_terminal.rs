@@ -48,7 +48,7 @@ pub(super) fn accept(root: &Path, engine: EvaluationEngine) {
     let expected = expected_state(3);
     package.verify(&expected, &envelope).unwrap();
     #[cfg(feature = "metal")]
-    if let crate::engine::Prover::Metal(device) = &package.prover {
+    if let crate::engine::Backend::Metal(device) = &package.backend {
         let activity = device.lock().unwrap().activity();
         assert!(activity.dispatches > 0);
         eprintln!("terminal Metal activity={activity:?}");

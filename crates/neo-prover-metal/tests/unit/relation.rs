@@ -2,7 +2,8 @@ use super::*;
 use neo_ccs::{poly::Term, GeometricRowRun, SparsePoly};
 use neo_math::{KExtensions, K};
 use neo_reductions::superneo_eval::{
-    check_ccs_relation_zero_cached_with_blocks, SuperneoCachedRelationError, SuperneoEvalCacheBuilder,
+    check_ccs_relation_zero_cached_with_blocks, CachedMatrixRows, MatrixWindow, SuperneoCachedRelationError,
+    SuperneoEvalCacheBuilder,
 };
 use p3_field::PrimeCharacteristicRing;
 use std::sync::Arc;
@@ -65,8 +66,10 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     let cache = Arc::new(compact.finish().unwrap());
     let expanded = expanded.finish().unwrap();
     let session = MetalSession::new().unwrap();
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace = MatrixWindow::required_workspace(&source, 0..rows, 4 * size_of::<F>()).unwrap() * 2;
     let plan = session
-        .prepare_joint_matrix_plan(Arc::clone(&cache))
+        .prepare_joint_matrix_plan(&source, workspace)
         .unwrap();
     let mut witness = Mat::zero(D, columns.div_ceil(D), F::ZERO);
     for column in 0..columns {
@@ -79,16 +82,12 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
             Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
             Err(error) => panic!("unexpected CPU relation error: {error}"),
         };
-        let before = session.activity().dispatches;
+        let before = session.activity();
         let actual = session
             .first_unsatisfied_row(&plan, structure, witness)
             .unwrap();
         assert_eq!(actual, expected);
-        assert!(session.activity().dispatches > before);
-        assert!(
-            plan.opening.get().is_none(),
-            "row checking must not build an opening transpose"
-        );
+        assert!(session.activity().dispatches > before.dispatches);
         actual
     };
     assert_eq!(compare(&structure, &witness), None);
@@ -123,6 +122,9 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     let zero = Mat::virtual_constant(D, columns.div_ceil(D), F::ZERO);
     let point = vec![K::from_coeffs([F::from_u64(3), F::ONE]); rows.next_power_of_two().ilog2() as usize];
     let before = session.activity();
+    assert!(session
+        .eval_joint_dec_openings(&plan, std::slice::from_ref(&zero), &point[..point.len() - 1], columns,)
+        .is_err());
     let openings = session
         .eval_joint_dec_openings(&plan, &[zero], &point, columns)
         .unwrap()
@@ -134,5 +136,4 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
         .all(|values| values == &vec![K::ZERO; D]));
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
     assert_eq!(session.activity().dispatches, before.dispatches);
-    assert!(plan.opening.get().is_none());
 }

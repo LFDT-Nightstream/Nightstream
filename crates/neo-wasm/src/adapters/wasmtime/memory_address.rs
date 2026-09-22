@@ -29,3 +29,15 @@ pub(super) fn host_event_address(
     }
     Ok(address)
 }
+
+pub(super) fn memory_pointer(values: &[(u32, u32)], index: u8, context: &str) -> Result<u32, WasmBuildError> {
+    let &(lo, hi) = values
+        .get(usize::from(index))
+        .ok_or_else(|| WasmBuildError::Trace(format!("missing {context} {index} for memory pointer")))?;
+    if hi != 0 {
+        return Err(WasmBuildError::Trace(format!(
+            "{context} {index} is not a wasm32 pointer: high limb is {hi}"
+        )));
+    }
+    Ok(lo)
+}

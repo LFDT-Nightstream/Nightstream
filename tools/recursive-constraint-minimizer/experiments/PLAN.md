@@ -257,6 +257,33 @@ integration checks for this checkpoint. The candidate lifecycle benchmark
 remains pending. These stage timings do not establish an overall speed or
 memory improvement.
 
+## Shared child-opening preparation
+
+The separate workflow change replays the authoritative sources, computes the
+canonical split, and builds the matrix cache once for a requested child batch.
+Each saved digit still requires exact split equality, its recomputed activity
+flag, and its recomputed commitment. The public command is:
+
+```text
+generate_pi_ccs_fixture open-owned-children PKG BASE PARENT MATERIAL 0,5 FRESH_OUTPUT
+```
+
+The measured batch contains only children `[0, 5]`. Their separate producer
+times were 221.121931749 s and 169.425220528 s, or 390.547152277 s combined.
+The shared producer finished in 223.31805613 s: 167.229096147 s (42.8192%)
+less for this pair. GNU wall time was 226.75 s and peak RSS was 7,251,272 KiB
+(6.9154 GiB). No corresponding before-RSS measurement is available.
+Both complete output files match their existing references byte for byte:
+203,892 bytes for child 0 and 199,679 bytes for child 5. The three focused
+tests passed in 0.03 s after 24.57 s test compilation; the generator build
+took 34.22 s. The native run used the project's 300-second cap.
+
+[workflow-batching.json](workflow-batching.json) records exact paths, timings,
+and output checks. This observation does not establish a result for all six
+children or other batches, and it sets no default batch size. The circuit,
+proof, and published artifacts are unchanged. The quotient lifecycle
+benchmark remains pending.
+
 ## Next research contract
 
 The owner requested another 50% reduction from 184,359,564 to at most

@@ -1,0 +1,76 @@
+{
+  "scope": "One observed child-opening batch [0, 5]; not all six active children or a general performance claim.",
+  "change": "Share authoritative source replay, canonical split, and matrix cache across requested children; retain exact digit, activity, and commitment checks.",
+  "package": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+  "package_sha256": "6216d1f62250a58d073ecf0a908bd074d3834957ec5be3361620bbdeb5a97642",
+  "base_fixture": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json",
+  "parent_directory": "/tmp/nightstream-quotient-nifs-6bcdbb7c/parent",
+  "material_directory": "/tmp/nightstream-quotient-nifs-6bcdbb7c/material",
+  "children": [0, 5],
+  "command": "timeout --signal=KILL 300 target/release/generate_pi_ccs_fixture open-owned-children formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json /tmp/nightstream-quotient-nifs-6bcdbb7c/parent /tmp/nightstream-quotient-nifs-6bcdbb7c/material 0,5 /tmp/nightstream-quotient-nifs-6bcdbb7c/openings-batch-0-5",
+  "timeout_seconds": 300,
+  "timeout_authority": "AGENTS.md non-Lean test cap",
+  "before": {
+    "producer_elapsed_seconds_by_child": {"0": 221.121931749, "5": 169.425220528},
+    "producer_elapsed_sum_seconds": 390.547152277,
+    "logs": [
+      "/tmp/nightstream-quotient-nifs-6bcdbb7c/child-0.log",
+      "/tmp/nightstream-quotient-nifs-6bcdbb7c/child-5.log"
+    ],
+    "max_rss_kib": null
+  },
+  "after": {
+    "producer_elapsed_seconds": 223.31805613,
+    "gnu_wall_seconds": 226.75,
+    "max_rss_kib": 7251272,
+    "max_rss_gib": 6.915351867675781,
+    "exit_status": 0,
+    "producer_log": "/tmp/nightstream-shared-openings-0-5.log",
+    "gnu_time_log": "/tmp/nightstream-shared-openings-0-5.time",
+    "cumulative_stage_seconds": {
+      "authoritative_sources_replayed": 73.121462740,
+      "canonical_parent_split": 85.494267701,
+      "child_0_checked_and_committed": 100.314723558,
+      "child_5_checked_and_committed": 102.850430490,
+      "matrix_cache_built": 141.209248960,
+      "openings_evaluated": 223.225014871,
+      "child_0_saved": 223.317371877,
+      "child_5_saved": 223.318056130
+    }
+  },
+  "observed_producer_elapsed_reduction": {
+    "seconds": 167.229096147,
+    "percent": 42.81918205574083,
+    "comparison": "Sum of two prior single-child producer timings versus one shared producer timing; GNU wall time is reported separately."
+  },
+  "complete_file_comparisons": [
+    {
+      "child": 0,
+      "reference": "/tmp/nightstream-quotient-nifs-6bcdbb7c/openings/child-0.json",
+      "batch_output": "/tmp/nightstream-quotient-nifs-6bcdbb7c/openings-batch-0-5/child-0.json",
+      "bytes": 203892,
+      "equal_bytes": true,
+      "sha256": "24e8203a43490668b4541823ae1b6992997d4648ec78fcc7ced26746b81197f0"
+    },
+    {
+      "child": 5,
+      "reference": "/tmp/nightstream-quotient-nifs-6bcdbb7c/openings/child-5.json",
+      "batch_output": "/tmp/nightstream-quotient-nifs-6bcdbb7c/openings-batch-0-5/child-5.json",
+      "bytes": 199679,
+      "equal_bytes": true,
+      "sha256": "4efde236ad7dc83f1f598b116fd37d5ead4806f05adc34575c73e605d9fc3b00"
+    }
+  ],
+  "focused_checks": {
+    "passed": 3,
+    "failed": 0,
+    "test_elapsed_seconds": 0.03,
+    "test_compile_seconds": 24.57,
+    "generator_build_seconds": 34.22,
+    "test_log": "/tmp/nightstream-shared-openings-tests.log",
+    "build_log": "/tmp/nightstream-shared-openings-build.log"
+  },
+  "unchanged": ["circuit", "proof", "published artifacts", "existing six reference child-opening files"],
+  "limits": ["No before-RSS measurement", "No all-six-child batch measurement", "No default batch-size limit", "Quotient lifecycle benchmark remains pending"],
+  "hash_scope": "Hashes identify recorded file bytes; they do not establish protocol authority."
+}

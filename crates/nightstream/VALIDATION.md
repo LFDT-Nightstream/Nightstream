@@ -2,8 +2,10 @@
 
 Work branch: `nico/nightstream-crate`, based on
 `9787d8e77069246e3e2afc7dcfab755556fd5023`.
-The unchanged `neo-fold-clean` source is the migration reference. Its only
-dependency edge from this crate is for development comparisons.
+At the migration checkpoint, `neo-fold-clean` was the unchanged reference and
+was used only for development comparisons. It is now retained as
+`neo-fold-legacy`; `nightstream` has no dependency on it. Historical names and
+paths below describe the measured source revisions.
 
 The selected implementation goal is complete. The
 [fresh replay receipt](tests/evidence/fresh-recursive-replay.json) records all

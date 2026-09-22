@@ -3,7 +3,7 @@
 ### NS-PICCS-VARIANT — Joint row-domain protocol
 
 Nightstream MUST use the reviewed joint PiCCS polynomial on the selected
-24-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 24-variable
+28-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 28-variable
 MLE of `z_i` followed by zero padding. It MUST use the paper's one row-domain
 SumCheck and MUST NOT add a second column-domain SumCheck.
 
@@ -12,16 +12,16 @@ Decision: NSD-PICCS-001 and NSD-NORM-BINDING-001.
 ### NS-PICCS-PADDING-EQUIVALENCE — Zero-row specialization
 
 For every application matrix, the padded output MUST equal its logical output
-on rows `0..14944218` and zero afterwards. The Structure MUST satisfy
+on rows `0..6377554` and zero afterwards. The Structure MUST satisfy
 `f_app(0,...,0)=0`. For `M_0`, the constant-term projection of its ring output
-MUST equal `z` on coordinates `0..11437037` and zero afterwards. The logical
+MUST equal `z` on coordinates `0..264627485` and zero afterwards. The logical
 and padded CCS relations MUST accept the same `(x,w)` pair.
 
 Decision: NSD-DOMAIN-MAP-001 and NSD-NORM-BINDING-001.
 
 ### NS-PICCS-COINS — Exact PiCCS challenge family
 
-PiCCS MUST use one `alpha in K_ext^24`, one `gamma in K_ext`, and one
+PiCCS MUST use one `alpha in K_ext^28`, one `gamma in K_ext`, and one
 `K_ext` SumCheck challenge per round. `beta_a`, `beta_r`, `beta_m`, and all
 other PiCCS batching coins MUST be absent.
 
@@ -29,7 +29,7 @@ Decision: NSD-BATCH-COINS-001 and NSD-TRANSCRIPT-001.
 
 ### NS-PICCS-SUMCHECK — Exact round shape
 
-The joint polynomial has `D_Q=9`. The proof MUST contain exactly 24 round
+The joint polynomial has `D_Q=9`. The proof MUST contain exactly 28 round
 polynomials, each encoded as 10 extension coefficients from degree 0 through
 9. The verifier MUST run SN-SUMCHECK-ROUNDS and reject a missing, extra, or
 noncanonical coefficient.
@@ -67,14 +67,14 @@ Decision: NSD-COLUMN-001 and NSD-COLUMN-MAP-001.
 
 ### NS-PICCS-CENSUS — Selected algebraic planning count
 
-For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=24`, and `D_f=8`, the profile
+For `K_fresh=1`, `k_rho=16`, `t=14`, `d=54`, `ell=28`, and `D_f=8`, the profile
 MUST derive
 
 ```text
 D_Q = 9
-N_SC = 9*24 = 216
-D_SZ = max(24,41,12113) = 12113
-N_field = 12329
+N_SC = 9*28 = 252
+D_SZ = max(28,45,12113) = 12113
+N_field = 12365
 coordinate-fork numerator = K_fresh+k_rho+1 = 18.
 ```
 

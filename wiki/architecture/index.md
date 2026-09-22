@@ -2,6 +2,9 @@
 
 ## Core proof dependencies
 
+This graph describes the retained `neo-fold-legacy` implementation. The current
+prover is [`nightstream`](../../crates/nightstream/README.md).
+
 ```mermaid
 graph BT
     params["neo-params"]
@@ -11,7 +14,7 @@ graph BT
     ajtai["neo-ajtai"]
     reductions["neo-reductions"]
     spartan["wip-spartan"]
-    fold["neo-fold-clean"]
+    fold["neo-fold-legacy"]
 
     math --> params
     ccs --> math
@@ -27,7 +30,7 @@ graph BT
 Arrows point to dependencies. Accelerator and application crates depend on
 this core.
 
-## neo-fold-clean ownership
+## neo-fold-legacy ownership
 
 | Area | Ownership |
 |---|---|

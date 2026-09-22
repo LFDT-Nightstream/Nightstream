@@ -1,7 +1,7 @@
 # HyperNova IVC (Construction 2 and F′)
 
 HyperNova §6.3's Construction 2 compiles a folding scheme into IVC. Nightstream
-implements it in `crates/neo-fold-clean/src/paper/construction2/` over the SuperNeo
+implements it in `crates/neo-fold-legacy/src/paper/construction2/` over the SuperNeo
 NIFS, specialized to ℓ = 1 (a single step function; `pc` is the constant
 `TRIVIAL_PC`).
 

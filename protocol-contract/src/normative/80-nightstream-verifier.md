@@ -64,9 +64,9 @@ The statement and proof MUST use the v1 magic, version, variant, ordered
 section IDs, and exact field and byte counts from the profile. Their decoders
 use checked integer arithmetic and compare the complete input length before
 payload allocation. Unknown, missing, duplicate, reordered, truncated, or
-trailing content MUST reject. The statement is exactly 318,832 bytes and
-39,848 base fields. The proof is exactly 463,528 bytes, with sections of 480,
-22,680, and 34,776 base fields. One statement-proof pair MUST encode one fold.
+trailing content MUST reject. The statement is exactly 392,336 bytes and
+49,036 base fields. The proof is exactly 555,752 bytes, with sections of 560,
+25,704, and 43,200 base fields. One statement-proof pair MUST encode one fold.
 A bounded sequence MUST contain exactly `fold_count` pairs in increasing
 `fold_index` order.
 
@@ -85,7 +85,7 @@ Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.
 
 ### NS-ENC-COMMITMENT — Commitment encoding
 
-A commitment MUST encode as 18 `R_F` elements in row order under NS-ENC-RING.
+A commitment MUST encode as 22 `R_F` elements in row order under NS-ENC-RING.
 
 Decision: NSD-ENCODING-001.
 
@@ -132,7 +132,7 @@ Decision: NSD-ENCODING-001, NSD-HASH-001, and NSD-TRANSCRIPT-001.
 ### NS-TRANSCRIPT-ORDER — Fold transcript schedule
 
 The transcript order MUST be session, verifier-key digest, statement, PiCCS
-input, alpha, gamma, 24 ordered SumCheck round messages and challenges, PiCCS
+input, alpha, gamma, 28 ordered SumCheck round messages and challenges, PiCCS
 outputs, indexed PiRLC sampler attempts, derived PiRLC output, PiDEC children,
 and fold finalization. Each fold in a bounded sequence MUST start with a fresh
 zero-state duplex and use the sequence's single selected verifier key and
@@ -146,7 +146,7 @@ Decision: NSD-TRANSCRIPT-001, NSD-PICCS-001, and NSD-SAMPLER-001.
 
 An `alpha`, `gamma`, or SumCheck challenge MUST be two consecutive uniform
 base-field squeeze lanes interpreted as `(c0,c1)`. Zero is valid. Alpha MUST
-contain 24 elements and SumCheck MUST sample one element after each round
+contain 28 elements and SumCheck MUST sample one element after each round
 message.
 
 Decision: NSD-TRANSCRIPT-001 and NSD-BATCH-COINS-001.
@@ -182,7 +182,7 @@ Decision: NSD-SAMPLER-001 and NSD-SECURITY-001.
 The v1 security target MUST be at least 96 classical bits for one proof and
 one session per verifier key with at most 64 folds. The resource census MUST
 allow at most 262,144 adaptive oracle queries, including the derived maximum
-178,049 prescribed tagged squeezes per key. The release theorem MUST be an
+178,305 prescribed tagged squeezes per key. The release theorem MUST be an
 expected-polynomial-time proof of knowledge and MUST state the Ajtai setup or
 seeded-PRG assumption.
 

@@ -4,7 +4,7 @@ components and their cached identities.
 
 ```compile_fail,E0616
 use neo_ajtai::AjtaiSModule;
-use neo_fold_clean::Preprocessing;
+use neo_fold_legacy::Preprocessing;
 
 fn replace_setup(mut context: Preprocessing, setup: AjtaiSModule) {
     context.log = setup;
@@ -12,7 +12,7 @@ fn replace_setup(mut context: Preprocessing, setup: AjtaiSModule) {
 ```
 
 ```compile_fail,E0616
-use neo_fold_clean::{Params, Preprocessing};
+use neo_fold_legacy::{Params, Preprocessing};
 
 fn replace_parameters(mut context: Preprocessing, params: Params) {
     context.params = params;
@@ -20,7 +20,7 @@ fn replace_parameters(mut context: Preprocessing, params: Params) {
 ```
 
 ```compile_fail,E0616
-use neo_fold_clean::{Preprocessing, VerifierKey};
+use neo_fold_legacy::{Preprocessing, VerifierKey};
 
 fn replace_key(mut context: Preprocessing, key: VerifierKey) {
     context.vk = key;
@@ -28,7 +28,7 @@ fn replace_key(mut context: Preprocessing, key: VerifierKey) {
 ```
 
 ```compile_fail,E0616
-use neo_fold_clean::Preprocessing;
+use neo_fold_legacy::Preprocessing;
 
 fn replace_public_input_policy(mut context: Preprocessing) {
     context.public_input_len = Some(0);

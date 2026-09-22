@@ -34,7 +34,7 @@ graph TD
 HyperNova instantiates NIFS with its Constructions 1+3: one sum-check round plus an
 RLC, producing **one** linearized output instance over an elliptic-curve (Pedersen)
 commitment. Nightstream's lattice setting forces two deviations
-(see `crates/neo-fold-clean/src/paper/nifs/mod.rs`):
+(see `crates/neo-fold-legacy/src/paper/nifs/mod.rs`):
 
 1. **Π_DEC exists.** Ajtai commitments are binding only for *low-norm* openings.
    Π_RLC's challenge mixing grows witness norm to `B = b^k`, so a third reduction

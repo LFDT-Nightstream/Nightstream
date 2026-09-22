@@ -13,9 +13,9 @@
 {"availability":"packaged","id":"ART-PROTOCOL-EVENTS","kind":"protocol-events","path":"protocol-contract/protocol-events.json"}
 {"availability":"packaged","id":"ART-CIRCUIT-SCHEMA","kind":"schema","path":"protocol-contract/circuit-correspondence.schema.json"}
 {"availability":"packaged","id":"ART-SECURITY-REDUCTION","kind":"security-reduction","path":"protocol-contract/security-reduction.md"}
-{"availability":"repository-required","id":"ART-LEAN-REPOSITORY","kind":"lean-model","note":"Present in the live repository. Declaration presence does not prove proposition fidelity.","path":"formal/nightstream-lean"}
+{"availability":"unresolved","id":"ART-LEAN-REPOSITORY","kind":"lean-model","note":"The earlier Nightstream Lean project is absent. No replacement evidence for this contract has been selected or reviewed.","migrated_from_path":"formal/nightstream-lean"}
 {"availability":"repository-required","id":"ART-RUST-REPOSITORY","kind":"rust-source","note":"Present in the live repository. Declaration presence does not prove verifier refinement.","path":"crates"}
-{"availability":"repository-required","id":"ART-RUST-EVIDENCE","kind":"rust-evidence","note":"Present in the live repository, but no selected-profile conformance suite closes this contract edge.","path":"formal/nightstream-lean/assurance/evidence-ledger.jsonl"}
-{"availability":"repository-required","id":"ART-CURRENT-CIRCUIT","kind":"circuit","note":"Present in the live repository. Legacy SplitNc evidence is not correspondence for PaddedRowIdentity.","path":"crates/neo-fold-clean/src/engine/r1cs_circuit"}
-{"availability":"repository-required","id":"ART-TERMINAL-DECIDER","kind":"decider","note":"Present in the live repository. Evidence for the exact backend and selected public image remains open.","path":"crates/neo-fold-clean/src/engine/decider"}
+{"availability":"unresolved","id":"ART-RUST-EVIDENCE","kind":"rust-evidence","note":"The earlier Nightstream Lean project is absent. No replacement evidence for this contract has been selected or reviewed.","migrated_from_path":"formal/nightstream-lean/assurance/evidence-ledger.jsonl"}
+{"availability":"repository-required","id":"ART-CURRENT-CIRCUIT","kind":"circuit","note":"Present in the live repository. Legacy SplitNc evidence is not correspondence for PaddedRowIdentity.","path":"crates/neo-fold-legacy/src/engine/r1cs_circuit"}
+{"availability":"repository-required","id":"ART-TERMINAL-DECIDER","kind":"decider","note":"Present in the live repository. Evidence for the exact backend and selected public image remains open.","path":"crates/neo-fold-legacy/src/engine/decider"}
 {"availability":"unresolved","id":"ART-ONCHAIN-VERIFIER","kind":"on-chain-verifier","note":"The on-chain verifier path and deployed identity are not selected."}

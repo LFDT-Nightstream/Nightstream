@@ -1,0 +1,232 @@
+{
+  "status": "all current checks, raw Metal and matched CPU/Metal profiles passed;5x target not met",
+  "implementation": [
+    "Rows, exact recipe syntax, row offsets and recipe indexes are stored in private files.",
+    "Writer finish consumes the writer and closes write handles before read-only sharing. A failed append poisons the writer.",
+    "Native loader, witness executor and Poseidon2 identity replay share the same immutable records.",
+    "Generated physical columns map by checked arithmetic; no generated-column Vec is retained.",
+    "Caller-owned affine expressions and existing witness storage are outside the record owner."
+  ],
+  "checks": [
+    {
+      "name": "application_builder and application_poseidon2 integration tests",
+      "passed": 8,
+      "runtime_seconds": 0.42,
+      "log_note": "Tool output retained in task; no file log for this initial invocation."
+    },
+    {
+      "name": "application_records",
+      "passed": 5,
+      "runtime_seconds": 0.01
+    },
+    {
+      "name": "package::native_application",
+      "passed": 5,
+      "runtime_seconds": 0.02
+    },
+    {
+      "name": "identity",
+      "passed": 6,
+      "runtime_seconds": 38.02
+    },
+    {
+      "name": "assembly::encoding_tests",
+      "passed": 5,
+      "runtime_seconds": 37.77
+    },
+    {
+      "name": "matrix_program stored formulas and borrowed scratch",
+      "passed": 16,
+      "runtime_seconds": 0.59
+    },
+    {
+      "name": "engine::parity",
+      "passed": 9,
+      "ignored_cuda_kernel_absent": 2,
+      "runtime_seconds": 93.1
+    },
+    {
+      "name": "assembly_circuits public preparation",
+      "passed": 2,
+      "runtime_seconds": 68.99
+    }
+  ],
+  "comparison": "Complete original numeric-array preimage, ordered zero/duplicate terms, recipe syntax, fixed circuit/package/key identities; no Lean rerun.",
+  "time_cap_seconds": 300,
+  "cap_authority": "AGENTS.md non-Lean test cap",
+  "universal_rss_bound_proven": false,
+  "performance": "Matched Time Profiler ratio below5x. Separate uninstrumented Metal result264.522361916s with finalRSS12,748,128,256bytes.",
+  "initial_compile_failures": [
+    "Missing ScheduledAssignment::Application in two prefix test helper matches; corrected.",
+    "Six must-use Goldilocks validation results; corrected with explicit let _ assignments."
+  ],
+  "raw_evidence_root": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h",
+  "workspace_release_all_targets_metal_cuda": "passed",
+  "format_and_diff_check": "passed",
+  "production_second_fold": {
+    "proof_bytes_compared": 945983,
+    "returned_matrices_compared": 16,
+    "all_claims_openings_parent_transcript_identities_match": true,
+    "source_files_compared": 19,
+    "source_bytes_compared": 542178475,
+    "fold_seconds": 83.36266325,
+    "test_seconds": 120.504824708,
+    "final_native_peak_resident_bytes": 13193953280,
+    "maximum_physical_footprint_bytes": 12173302192
+  },
+  "raw_metal_lifecycle": {
+    "seconds": 264.522361916,
+    "final_native_peak_resident_bytes": 12748128256,
+    "maximum_physical_footprint_bytes": 11748743936,
+    "verified": true,
+    "events": [
+      {
+        "active_extends": 2,
+        "benchmark": "poseidon2_hash_chain_v1",
+        "engine": "metal",
+        "event": "benchmark_started",
+        "initial_state": [
+          202,
+          203,
+          204,
+          205
+        ],
+        "message": [
+          7,
+          11,
+          13,
+          17
+        ],
+        "profile": {
+          "B": 65536,
+          "b": 2,
+          "k_rho": 16
+        },
+        "schema": 1,
+        "steps": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "prepare",
+        "step": null
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prepare",
+        "seconds": 34.379970958,
+        "step": null
+      },
+      {
+        "event": "phase_started",
+        "phase": "prove",
+        "step": 1
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prove",
+        "seconds": 8.455789792000001,
+        "step": 1
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 2
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 76.746153458,
+        "step": 2
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 103.164127125,
+        "step": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "verify",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "verify",
+        "seconds": 41.776004667,
+        "step": 3
+      },
+      {
+        "circuit_identity": [
+          9705822157724451396,
+          520958727644325895,
+          9285622073986934000,
+          874020794279380938
+        ],
+        "event": "benchmark_finished",
+        "final_state": [
+          6571778207680039711,
+          123649970047308705,
+          16791205033536618392,
+          12263481847644113771
+        ],
+        "seconds": 264.522361916,
+        "steps": 3,
+        "verified": true
+      }
+    ],
+    "baseline_start_and_finish_match": true
+  },
+  "native_engine_memory_review": {
+    "no_reproducible_missing_large_owner_found": true,
+    "max_accepted_logical_rows": 245587286,
+    "max_accepted_carrier": 253011276,
+    "counted_cpu_sumcheck_payload_ceiling_bytes": 16000000000,
+    "source_app_storage_scales_with_total_row_count": false,
+    "rss_overhead": "Package/source scratch, allocator/runtime and driver overhead remain measured terms, not a formal RSS guarantee."
+  },
+  "cpu_lifecycle_profile": {
+    "seconds": 1308.784675084,
+    "prepare": 34.412942375,
+    "base": 61.767162334,
+    "extend2": 412.406166042,
+    "extend3": 520.329134709,
+    "verify": 279.86907875,
+    "observed_kernel_peak_resident_bytes": 15786639360,
+    "peak_physical_footprint_bytes": 11627507400,
+    "final_kernel_peak_after_exit": null,
+    "controller_seconds_including_trace_finalization": 1435.692682666995,
+    "verified": true
+  },
+  "matched_lifecycle_profiles": {
+    "cpu_seconds": 1308.784675084,
+    "metal_seconds": 276.998745834,
+    "cpu_over_metal": 4.7248758153884545,
+    "target_met": false,
+    "full_start_records_equal_except_engine": true,
+    "full_finish_records_equal_except_seconds": true,
+    "saved_image_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+    "both_verified": true,
+    "observed_cpu_kernel_peak_resident_bytes": 15786639360,
+    "observed_metal_kernel_peak_resident_bytes": 12633473024,
+    "final_post_exit_profile_peaks_available": false,
+    "cpu_controller_seconds": 1435.692682666995,
+    "metal_controller_seconds": 284.38131166700623,
+    "both_thermal_traces": "Nominal throughout, non-induced"
+  },
+  "metal_cpu_sample_attribution": {
+    "sample_seconds_with_backtraces": 236.328,
+    "matrix_window_inclusive_cpu_seconds": 97.132,
+    "count_cpu_seconds": 59.258,
+    "fill_cpu_seconds": 37.677,
+    "other_construction_cpu_seconds": 0.197,
+    "resolved_native_addresses": 5317,
+    "sentinel_samples": 2230,
+    "unresolved_top_samples": 995,
+    "interpretation": "Summed sampled CPU work across threads; not elapsed or GPU time. Inclusive values overlap."
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "source_equality": "all source files from timed CPU base match the saved CPU reference byte for byte",
+  "files": [
+    "digit-0.json",
+    "digit-1.json",
+    "digit-10.json",
+    "digit-11.json",
+    "digit-12.json",
+    "digit-13.json",
+    "digit-14.json",
+    "digit-15.json",
+    "digit-2.json",
+    "digit-3.json",
+    "digit-4.json",
+    "digit-5.json",
+    "digit-6.json",
+    "digit-7.json",
+    "digit-8.json",
+    "digit-9.json",
+    "envelope.json",
+    "fresh-claim.json",
+    "fresh-witness.json"
+  ],
+  "cpu_fresh_commitment_seconds": 97.416019959,
+  "metal_fresh_commitment_seconds": 3.077509875,
+  "metal_result": "equals saved CPU fresh and running commitments",
+  "metal_activity": {
+    "command_buffers": 22,
+    "dispatches": 396,
+    "allocated_bytes": 98999236,
+    "uploaded_bytes": 49192660,
+    "downloaded_bytes": 9504
+  },
+  "nonzero_blocks": 2459565,
+  "nonzero_coordinates": 81343582,
+  "generated_key_coefficients": 2921963220
+}

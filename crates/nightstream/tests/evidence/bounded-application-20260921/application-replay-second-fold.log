@@ -1,0 +1,12 @@
+
+running 1 test
+staged request=Prove { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-application-second-metal", step: 2, engine: Metal, reference_proof: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/fold-2/proof.native" }
+staged circuit preparation elapsed=34.692325334s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+complete C/R/D engine=Metal elapsed=47.994167709s
+complete CPU/device proof equality passed: 945983 bytes
+staged phase passed elapsed=85.340219584s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 85.34s
+

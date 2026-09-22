@@ -1,0 +1,16 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+   Compiling neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+    Finished `release` profile [optimized] target(s) in 1m 10s
+     Running tests/application_poseidon2.rs (target/release/deps/application_poseidon2-6f366099eea3f30e)
+
+running 4 tests
+test every_poseidon2_application_row_matches_the_saved_lean_reference ... ok
+test every_poseidon2_witness_value_matches_the_saved_lean_program ... ok
+test poseidon2_computation_matches_stored_lean_base_and_recursive_steps ... ok
+test poseidon2_constraints_reject_changed_inputs_outputs_and_intermediates ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+

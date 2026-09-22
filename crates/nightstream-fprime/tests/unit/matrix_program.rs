@@ -1,6 +1,7 @@
 use super::*;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
+use std::ops::ControlFlow;
 
 #[path = "../support/poseidon_affine_fixture.rs"]
 mod affine_fixture;
@@ -75,7 +76,7 @@ fn encoded_program() -> Value {
             [0, 54, 4_000],
             0,
             54,
-            [0, 54, 4_054],
+            [[[0, 54, [0, 54, 4_054], 0]], []],
             [0, 54, 4_108],
             [0, 54 * 33, 4_162]
         ]
@@ -211,12 +212,13 @@ fn linear_poseidon_visitor_matches_every_random_access_row() {
         .map(|row| block.row(6_000, row).expect("random-access row"))
         .collect::<Vec<_>>();
     let mut visited = Vec::new();
-    block
-        .visit_rows(6_000, 0, row_count, |row| {
-            visited.push(row);
-            Ok(())
+    let flow = block
+        .visit_rows_until(6_000, 0, row_count, |row| {
+            visited.push(owned_row(row));
+            Ok(ControlFlow::Continue(()))
         })
         .expect("linear Poseidon2 rows");
+    assert_eq!(flow, ControlFlow::Continue(()));
     assert_eq!(visited, expected);
 }
 

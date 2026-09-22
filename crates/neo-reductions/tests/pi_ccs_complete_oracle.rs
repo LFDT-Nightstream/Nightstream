@@ -16,6 +16,7 @@ use neo_reductions::{
         optimized_prove_with_complete_oracle, optimized_verify_with_trace, Challenges, OptimizedStructureCache,
         PaperJointRoundOracle,
     },
+    superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow},
     PiCcsError,
 };
 use neo_transcript::Poseidon2Transcript;
@@ -144,8 +145,17 @@ impl Case {
         (outputs, proof, trace)
     }
 
-    fn oracle<'a>(&'a self, challenges: &Challenges, point: Vec<K>, outputs: &[Output]) -> Complete<'a> {
+    fn oracle<'a>(
+        &'a self,
+        source: &'a dyn MatrixRows,
+        challenges: &Challenges,
+        point: Vec<K>,
+        outputs: &[Output],
+    ) -> Complete<'a> {
         let dims = build_joint_dims(&self.params, &self.structure, 1, 1).unwrap();
+        let payload = self.witnesses.len() * self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
+        let workspace_bytes = MatrixWindow::required_workspace(source, 0..self.structure.n, payload).unwrap()
+            + (dims.degree + 1 + self.structure.t()) * size_of::<K>();
         Complete {
             inner: OptimizedPaperJointOracle::new(
                 &self.structure,
@@ -155,7 +165,8 @@ impl Case {
                 challenges.clone(),
                 Some(&self.running[0].r),
                 dims,
-                &self.cache,
+                source,
+                workspace_bytes,
             )
             .unwrap(),
             openings: Some(
@@ -209,9 +220,10 @@ impl PaperJointRoundOracle for Complete<'_> {
 #[test]
 fn complete_oracle_matches_cached_optimized_prover() {
     let case = Case::new();
+    let source = CachedMatrixRows::new(case.cache.superneo()).unwrap();
     let (expected, expected_proof, expected_trace) = case.reference();
     let challenges = Challenges::new(expected_trace.alpha.clone(), expected_trace.gamma);
-    let mut oracle = case.oracle(&challenges, expected_trace.round_challenges.clone(), &expected);
+    let mut oracle = case.oracle(&source, &challenges, expected_trace.round_challenges.clone(), &expected);
     let (outputs, proof, _, trace) = optimized_prove_with_complete_oracle(
         &mut transcript(),
         &case.params,
@@ -241,6 +253,7 @@ fn complete_oracle_matches_cached_optimized_prover() {
 #[test]
 fn complete_oracle_rejects_changed_alpha_or_gamma_before_evaluation() {
     let case = Case::new();
+    let source = CachedMatrixRows::new(case.cache.superneo()).unwrap();
     let (outputs, _, trace) = case.reference();
     let challenges = Challenges::new(trace.alpha.clone(), trace.gamma);
     for alpha in [true, false] {
@@ -250,7 +263,7 @@ fn complete_oracle_rejects_changed_alpha_or_gamma_before_evaluation() {
         } else {
             changed.gamma += K::ONE;
         }
-        let mut oracle = case.oracle(&challenges, trace.round_challenges.clone(), &outputs);
+        let mut oracle = case.oracle(&source, &challenges, trace.round_challenges.clone(), &outputs);
         let error = optimized_prove_with_complete_oracle(
             &mut transcript(),
             &case.params,
@@ -271,10 +284,11 @@ fn complete_oracle_rejects_changed_alpha_or_gamma_before_evaluation() {
 #[test]
 fn complete_oracle_rejects_missing_or_incomplete_openings() {
     let case = Case::new();
+    let source = CachedMatrixRows::new(case.cache.superneo()).unwrap();
     let (outputs, _, trace) = case.reference();
     let challenges = Challenges::new(trace.alpha.clone(), trace.gamma);
     for missing in [true, false] {
-        let mut oracle = case.oracle(&challenges, trace.round_challenges.clone(), &outputs);
+        let mut oracle = case.oracle(&source, &challenges, trace.round_challenges.clone(), &outputs);
         if missing {
             oracle.openings = None;
         } else {

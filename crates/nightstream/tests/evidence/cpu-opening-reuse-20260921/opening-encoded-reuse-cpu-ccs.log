@@ -1,0 +1,20 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/opening-encoded-reuse-cpu", step: 2, engine: Optimized, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu") }
+staged circuit preparation elapsed=34.591416459s
+C cache elapsed=4.920135125s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 1.52s seeded 184.71µs total 1.52s
+[pi-ccs/phase] oracle-build=16.304s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+[pi-ccs/phase] rounds=19.688s
+[real-openings] matrices elapsed=83.777s witnesses=17
+[real-openings] pad elapsed=104.988s
+[pi-ccs/phase] outputs=105.010s
+C proving engine=Optimized elapsed=141.004602917s
+C CPU proof byte equality passed; source files also match
+C completed elapsed=145.937476375s
+staged phase passed elapsed=182.432278208s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 182.43s
+

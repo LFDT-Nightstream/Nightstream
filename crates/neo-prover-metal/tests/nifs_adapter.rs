@@ -1,4 +1,9 @@
-#![cfg(all(feature = "metal", target_vendor = "apple", neo_metal_shaders))]
+#![cfg(all(
+    feature = "legacy-adapter",
+    feature = "metal",
+    target_vendor = "apple",
+    neo_metal_shaders
+))]
 
 //! Metal adapter boundary tests.
 //!

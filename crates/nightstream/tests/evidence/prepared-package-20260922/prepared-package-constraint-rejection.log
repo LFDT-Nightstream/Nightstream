@@ -1,0 +1,13 @@
+
+running 1 test
+test circuit::compiled_circuit::metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_same_public_state has been running for over 60 seconds
+complete child commitments elapsed=12.708µs
+complete physical witness elapsed=639.495875ms
+complete logical packing elapsed=2.643838542s
+complete fresh commitment elapsed=3.057925666s
+changed-package Metal proof built elapsed=76.503804875s
+original-package Metal verifier rejected row=6369850 elapsed=86.087634416s
+test circuit::compiled_circuit::metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_same_public_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 86.31s
+

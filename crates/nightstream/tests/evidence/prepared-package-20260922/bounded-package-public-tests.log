@@ -1,0 +1,12 @@
+    Finished `release` profile [optimized] target(s) in 0.11s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 5 tests
+test circuit::compiled_circuit::metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_same_public_state ... ignored, Production Metal proof with changed private constraint and copied identity claims; run separately under the 300-second cap.
+test circuit::compiled_circuit::atomic_write_refuses_to_replace_an_existing_destination ... ok
+test circuit::compiled_circuit::compiled_roundtrip_preserves_identity_witness_and_selected_matrix_rows ... ok
+test circuit::compiled_circuit::loaded_execution_and_resaving_use_private_snapshots_after_external_mutation ... ok
+test circuit::compiled_circuit::compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 28 filtered out; finished in 40.42s
+

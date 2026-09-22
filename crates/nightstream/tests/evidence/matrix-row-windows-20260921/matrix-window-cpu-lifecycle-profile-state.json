@@ -1,0 +1,17 @@
+{
+  "label": "matrix-window-cpu-lifecycle-profile",
+  "engine": "optimized",
+  "controller_pid": 92078,
+  "controller_start": "Mon Sep 21 22:51:00 2026",
+  "controller_command": "timeout --signal=KILL 1800 python3 /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/profile_matrix_window_lifecycle.py optimized matrix-window-cpu-lifecycle-profile",
+  "driver_pid": 92080,
+  "deadline_unix_seconds": 1790050860.0,
+  "time_authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap.",
+  "target_command": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary --engine optimized --steps 3",
+  "trace_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile.trace",
+  "target_pid": 92096,
+  "target_start": "Mon Sep 21 22:51:02 2026",
+  "recorder_finished": true,
+  "recorder_pid": 92084,
+  "watchdog_pid": 92085
+}

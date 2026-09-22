@@ -1,0 +1,5 @@
+{
+  "time": 1790070102.478304,
+  "pid": 20510,
+  "reason": "Trace finalization stayed idle and did not complete the normal SIGINT stop request; proof target already ended. Treat capture as incomplete."
+}

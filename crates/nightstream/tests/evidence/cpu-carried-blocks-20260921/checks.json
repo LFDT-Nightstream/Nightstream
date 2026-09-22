@@ -1,0 +1,68 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "uncommitted; snapshots preserved in the private run directory",
+  "retained_changes": [
+    "Combine and project one ring block at a time",
+    "Reuse one full projection for matrix and Pad",
+    "Fold dense prefixes in their own allocations",
+    "Release completed SumCheck tables before witness openings"
+  ],
+  "replaced_change": "Constructing all combined real/imaginary planes directly was replaced by block-local projection.",
+  "allocation_and_shape_tests": {
+    "passed": 3,
+    "red_checks": [
+      "three scalar carriers instead of two",
+      "two carriers plus two real planes instead of one reused carrier",
+      "additional half-table allocation during dense folding"
+    ]
+  },
+  "supported_engine_tests": {
+    "passed": 9,
+    "cuda_ignored": 2
+  },
+  "row_prover_test": "passed",
+  "earlier_complex_cache_equivalence": {
+    "passed": 25,
+    "scope": "ran while evaluating the first storage change"
+  },
+  "legacy_parity_suite": {
+    "passed": 7,
+    "failed": 8,
+    "reason": "unchanged digest-only guard rejects fixtures with no running claim before the modified evaluator; fixtures and guard match HEAD"
+  },
+  "default_all_targets_check": "passed",
+  "clippy": "passed with --cap-lints warn; inherited warnings remain and none refer to this slice's changed code",
+  "formatting": "cargo fmt --all passed",
+  "largest_changed_source_lines": 1472,
+  "production_attempts": [
+    {
+      "label": "carried-blocks-cpu-ccs",
+      "outcome": "memory-cap",
+      "elapsed_seconds": 50.60708037499717,
+      "maximum_resident_bytes": 19280347136,
+      "maximum_physical_footprint_bytes": 15203891744
+    },
+    {
+      "label": "carried-projection-cpu-ccs",
+      "outcome": "memory-cap",
+      "elapsed_seconds": 68.74629408300098,
+      "maximum_resident_bytes": 18899304448,
+      "maximum_physical_footprint_bytes": 14771435800
+    },
+    {
+      "label": "in-place-prefix-cpu-ccs",
+      "outcome": "memory-cap",
+      "elapsed_seconds": 77.98541349999869,
+      "maximum_resident_bytes": 20684931072,
+      "maximum_physical_footprint_bytes": 16775183840
+    }
+  ],
+  "production_cpu_proof_comparison": "incomplete; each candidate process stopped at the RSS guard before saving a proof",
+  "long_cpu_benchmark": "not run; requested 45-minute and memory exception is still pending",
+  "remaining": [
+    "Opening-phase RSS still exceeds the normal guard",
+    "Complete current CPU proof comparison",
+    "Full CPU lifecycle timing and 5x comparison using one final build",
+    "General memory bound"
+  ]
+}

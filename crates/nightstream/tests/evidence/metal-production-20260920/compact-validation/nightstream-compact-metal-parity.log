@@ -1,0 +1,5 @@
+
+running 1 test
+verify_dec_public failed: Eval_K recomposition mismatch
+METAL_PROFILE begin nightstream.pi_ccs.joint.application allocated_bytes=1703936
+test engine::parity::optimized_matches_metal has been running for over 60 seconds

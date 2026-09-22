@@ -21,6 +21,14 @@ impl LoadedPackage {
         }
 
         let mut found = None;
+        if let Some(application) = self
+            .native_application
+            .as_ref()
+            .filter(|app| app.plan().row_range().contains(&row_index))
+        {
+            let row = application.assertion(row_index - application.plan().row_range().start)?;
+            merge_row(&mut found, source_assertion(&row))?;
+        }
         if let Ok(index) = self
             .assertion_rows
             .binary_search_by_key(&row_index, |row| row.row_index)

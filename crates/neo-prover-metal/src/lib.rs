@@ -2,7 +2,8 @@
 //!
 //! The protocol crates remain authoritative for transcript order, proof
 //! assembly, and verification. This crate owns Metal device state and the
-//! accelerator implementation of the `NifsProverAdapter` execution surface.
+//! row evaluator. The default `legacy-adapter` feature also exposes the old
+//! `neo-fold-clean` NIFS adapter. Other consumers can disable that feature.
 
 pub mod poseidon2;
 
@@ -13,8 +14,13 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+#[cfg(feature = "legacy-adapter")]
 mod adapter;
+#[cfg(feature = "legacy-adapter")]
 pub use adapter::MetalNifsProver;
+
+mod rows;
+pub use rows::MetalRowProver;
 
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 mod session;
@@ -114,6 +120,14 @@ pub enum MetalError {
     Pipeline(String),
     #[error("Metal buffer allocation failed for {bytes} bytes")]
     Buffer { bytes: usize },
+    #[error(
+        "Metal buffer request for {requested} bytes with {allocated} bytes allocated exceeds the {limit}-byte limit"
+    )]
+    MemoryLimit {
+        requested: usize,
+        allocated: usize,
+        limit: usize,
+    },
     #[error("Metal command buffer creation failed")]
     CommandBuffer,
     #[error("Metal compute encoder creation failed")]
@@ -122,12 +136,14 @@ pub enum MetalError {
     Execution(String),
     #[error("Metal input shape mismatch: {0}")]
     Shape(&'static str),
+    #[error("Metal fixed-key commitment input: {0}")]
+    Commitment(#[from] neo_ajtai::AjtaiError),
 }
 
-#[cfg(any(test, all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     match error {
         MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
+        MetalError::Commitment(error) => neo_reductions::PiCcsError::InvalidInput(error.to_string()),
         error => neo_reductions::PiCcsError::BackendFailure {
             backend: "metal",
             reason: error.to_string(),

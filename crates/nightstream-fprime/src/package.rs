@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::Arc};
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -19,8 +19,13 @@ pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
 use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
 mod matrix_program;
+pub use matrix_program::MatrixRun;
+pub(crate) mod native_application;
+use native_application::PreparedApplication;
 mod permutation_plan;
 mod plan;
+mod prepared;
+pub use prepared::load_compiled_application_package;
 mod source_map;
 mod v1_1;
 mod witness_plan;
@@ -38,8 +43,9 @@ mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
 pub use sealed::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedApplicationPlan,
-    LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_records,
+    load_prepared_application_value, LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry,
+    LogicalMatrixRow,
 };
 mod pi_ccs_v1_1_transcript;
 mod source_row;
@@ -263,6 +269,7 @@ enum ScheduledWitness<'a> {
     Permutation(ScheduledInvocation<'a>),
     Compact(&'a CompactRowInvocation),
     Generic(&'a WitnessInstruction),
+    Application(&'a PreparedApplication),
 }
 
 #[derive(Clone, Copy)]
@@ -271,6 +278,7 @@ enum ScheduledAssignment<'a> {
     Compact(&'a CompactRowInvocation),
     Batch(&'a WitnessBatch),
     Generic(&'a WitnessInstruction),
+    Application(&'a PreparedApplication),
 }
 
 impl ScheduledAssignment<'_> {
@@ -280,6 +288,7 @@ impl ScheduledAssignment<'_> {
             Self::Compact(invocation) => invocation.output_column,
             Self::Batch(batch) => batch.start,
             Self::Generic(instruction) => instruction.target,
+            Self::Application(application) => application.plan().private_range().start,
         }
     }
 }
@@ -290,12 +299,13 @@ impl ScheduledWitness<'_> {
             Self::Permutation(invocation) => invocation.row_start(),
             Self::Compact(invocation) => invocation.row_start,
             Self::Generic(instruction) => instruction.row_index,
+            Self::Application(application) => application.plan().row_range().start,
         }
     }
 }
 
-/// A package that passed canonical decoding, structural checks, and the
-/// verifier-owned Poseidon2 identity comparison.
+/// Decoded package execution data with structural checks. Its caller supplies
+/// circuit authority; prepared-package identity words alone do not grant it.
 #[derive(Clone, Debug)]
 pub struct LoadedPackage {
     layout: Layout,
@@ -309,6 +319,7 @@ pub struct LoadedPackage {
     witness_batches: Vec<WitnessBatch>,
     witness_instructions: Vec<WitnessInstruction>,
     assertion_rows: Vec<SparseRow>,
+    native_application: Option<Arc<PreparedApplication>>,
     relation_identifier: [u64; 4],
 }
 
@@ -383,6 +394,10 @@ impl LoadedPackage {
 
     pub fn assertion_row_count(&self) -> usize {
         self.assertion_rows.len()
+            + self
+                .native_application
+                .as_ref()
+                .map_or(0, |app| app.records().row_count())
     }
 
     pub fn permutation_invocation_count(&self) -> usize {
@@ -470,16 +485,10 @@ impl LoadedPackage {
                     let right = eval_sparse_combination(&instruction.b, &assignment);
                     assignment[instruction.target] = left * right;
                 }
+                ScheduledAssignment::Application(application) => application.execute_recipes(&mut assignment)?,
             }
         }
-        for row in &self.assertion_rows {
-            let left = eval_sparse_combination(&row.a, &assignment);
-            let right = eval_sparse_combination(&row.b, &assignment);
-            let output = eval_sparse_combination(&row.c, &assignment);
-            if left * right != output {
-                return Err(PackageError::UnsatisfiedAssertionRow { row: row.row_index });
-            }
-        }
+        self.check_assertions(&assignment)?;
 
         Ok(WitnessAssignment {
             private_values: assignment[..self.layout.private_column_count]
@@ -610,6 +619,7 @@ fn scheduled_witnesses(package: &LoadedPackage) -> Result<Vec<ScheduledWitness<'
         .len()
         .checked_add(package.compact_invocations.len())
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
+        .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
         .ok_or(PackageError::Invalid("witness schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(invocations.into_iter().map(ScheduledWitness::Permutation));
@@ -625,6 +635,13 @@ fn scheduled_witnesses(package: &LoadedPackage) -> Result<Vec<ScheduledWitness<'
             .iter()
             .map(ScheduledWitness::Generic),
     );
+    if let Some(application) = package
+        .native_application
+        .as_deref()
+        .filter(|app| app.records().row_count() != 0)
+    {
+        scheduled.push(ScheduledWitness::Application(application));
+    }
     scheduled.sort_unstable_by_key(|witness| witness.row_start());
     Ok(scheduled)
 }
@@ -636,6 +653,7 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
         .checked_add(package.compact_invocations.len())
         .and_then(|count| count.checked_add(package.witness_batches.len()))
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
+        .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
         .ok_or(PackageError::Invalid("assignment schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(
@@ -661,6 +679,13 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
             .iter()
             .map(ScheduledAssignment::Generic),
     );
+    if let Some(application) = package
+        .native_application
+        .as_deref()
+        .filter(|app| app.records().recipe_count() != 0)
+    {
+        scheduled.push(ScheduledAssignment::Application(application));
+    }
     scheduled.sort_unstable_by_key(|witness| witness.target_start());
     Ok(scheduled)
 }
@@ -742,7 +767,7 @@ fn validate_package_schema(
     relation_identifier: [u64; 4],
     expected_schema: u64,
 ) -> Result<LoadedPackage, PackageError> {
-    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::Prefix)
+    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::Prefix, None)
 }
 
 fn validate_per_application_package_schema(
@@ -750,7 +775,13 @@ fn validate_per_application_package_schema(
     relation_identifier: [u64; 4],
     expected_schema: u64,
 ) -> Result<LoadedPackage, PackageError> {
-    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::PerApplication)
+    validate_package_schema_with_layout(
+        raw,
+        relation_identifier,
+        expected_schema,
+        LayoutProfile::PerApplication,
+        None,
+    )
 }
 
 fn validate_package_schema_with_layout(
@@ -758,6 +789,7 @@ fn validate_package_schema_with_layout(
     relation_identifier: [u64; 4],
     expected_schema: u64,
     layout_profile: LayoutProfile,
+    native_application: Option<PreparedApplication>,
 ) -> Result<LoadedPackage, PackageError> {
     let RawPackage(
         schema,
@@ -782,6 +814,12 @@ fn validate_package_schema_with_layout(
     validate_poseidon(poseidon)?;
 
     let layout = validate_layout(layout, layout_profile)?;
+    let native_application = native_application
+        .map(|application| {
+            application.validate(&layout)?;
+            Ok::<_, PackageError>(Arc::new(application))
+        })
+        .transpose()?;
     let relation = relation::validate(relation, &layout, expected_schema)?;
     let terminal = validate_terminal(&terminal, expected_schema, relation.row_count())?;
     let permutation = validate_permutation(permutation)?;
@@ -848,6 +886,7 @@ fn validate_package_schema_with_layout(
         &compact_invocations,
         &witness_instructions,
         &assertion_rows,
+        native_application.as_deref(),
     )?;
     let mut witness_intervals = hash_chains
         .iter()
@@ -878,6 +917,13 @@ fn validate_package_schema_with_layout(
             .iter()
             .map(|instruction| (instruction.target, instruction.target + 1)),
     );
+    if let Some(application) = native_application
+        .as_deref()
+        .filter(|app| app.records().recipe_count() != 0)
+    {
+        let range = application.plan().private_range();
+        witness_intervals.push((range.start, range.end));
+    }
     if witness_intervals
         .iter()
         .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, &witness_segments))
@@ -906,6 +952,7 @@ fn validate_package_schema_with_layout(
         witness_batches,
         witness_instructions,
         assertion_rows,
+        native_application,
         relation_identifier,
     })
 }
@@ -1368,6 +1415,7 @@ fn validate_row_coverage(
     compact_invocations: &[CompactRowInvocation],
     instructions: &[WitnessInstruction],
     assertions: &[SparseRow],
+    native_application: Option<&PreparedApplication>,
 ) -> Result<(), PackageError> {
     let mut intervals = chains
         .iter()
@@ -1394,6 +1442,10 @@ fn validate_row_coverage(
             .iter()
             .map(|row| (row.row_index, row.row_index + 1)),
     );
+    if let Some(application) = native_application.filter(|app| app.records().row_count() != 0) {
+        let range = application.plan().row_range();
+        intervals.push((range.start, range.end));
+    }
     intervals.sort_unstable();
     let mut cursor = 0usize;
     for (start, end) in intervals {

@@ -1,0 +1,10 @@
+
+running 1 test
+staged request=Split { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu", step: 2 }
+staged circuit preparation elapsed=34.894399s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+staged phase passed elapsed=189.488667625s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 189.49s
+

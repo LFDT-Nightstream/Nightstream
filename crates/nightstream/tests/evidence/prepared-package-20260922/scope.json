@@ -1,0 +1,189 @@
+{
+  "status": "final fixed-metadata guard tests pass; matched final prepared-package profiles pass at 5.933208286808387x",
+  "load_rehashes_whole_circuit": false,
+  "crate_authentication_policy": false,
+  "verifier_configuration": "caller supplied and enforced during verification",
+  "memory_storage": "private immutable file snapshots with streamed record indices",
+  "checks": {
+    "record_codec": 10,
+    "fprime_prepared_package": 9,
+    "compiler_fixed_source_shape": 1,
+    "public_package": 4,
+    "engine_selection": 2,
+    "metal_altered_constraint_rejected": 1,
+    "engine_parity": 9,
+    "cuda_ignored": 2
+  },
+  "fixed_metadata_guard_check_seconds": {
+    "fprime_prepared_package": 99.89,
+    "compiler_fixed_source_shape": 2.89,
+    "public_package": 40.42
+  },
+  "public_batch_ignored": "previously run Metal altered-constraint rejection test",
+  "initial_test_issue": "two public tests used physical source row positions as logical matrix row indices; original-package visitor rejected them; corrected logical endpoints and reran all four public tests successfully",
+  "constraint_rejection": {
+    "seconds": 86.31,
+    "native_peak_resident_bytes": 10319380480,
+    "same_claimed_binding": true,
+    "same_public_state": true,
+    "rejected_logical_row": 6369850
+  },
+  "new_benchmark_scope": "prepared_package_load_prove_verify",
+  "one_time_compilation_in_target": false,
+  "ordinary_test_cap_seconds": 300,
+  "profile_cap_including_finalization_seconds": 1800,
+  "raw_evidence_root": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h",
+  "matched_profiles_before_fixed_metadata_guard": {
+    "cpu_seconds": 1263.701827917,
+    "metal_seconds": 213.495212792,
+    "cpu_over_metal": 5.919110838087855,
+    "both_verified": true,
+    "same_executable_and_package": true,
+    "both_thermal_nominal": true,
+    "observed_kernel_peak_resident_bytes": {
+      "cpu": 14301118464,
+      "metal": 11449663488
+    },
+    "final_profile_peak_after_exit_available": false
+  },
+  "final_image": {
+    "uuid": "7DCAD994-817D-33E5-95BB-666FA9543762",
+    "cpu_seconds": 1262.100768458,
+    "metal_seconds": 212.71809575,
+    "cpu_over_metal": 5.933208286808387,
+    "both_verified": true,
+    "both_thermal_nominal": true,
+    "same_executable_and_package": true,
+    "one_time_compilation_included": false,
+    "package_loading_included": true,
+    "terminal_verification_included": true,
+    "observed_peak_resident_bytes": {
+      "cpu": 14448033792,
+      "metal": 11474714624
+    },
+    "profile_final_peak_after_exit_available": false,
+    "raw_metal_seconds": 212.469842375,
+    "raw_metal_final_native_peak_resident_bytes": 11374968832,
+    "load_and_metal_setup_seconds": 2.152479833,
+    "compile_seconds": 34.857374625,
+    "save_seconds": 0.133257583,
+    "package_bytes": 127306104,
+    "package_entire_bytes_equal_pre_guard": true,
+    "comparison_receipt": "bounded-package-matched-time-profile-comparison.json",
+    "source_snapshot_check": "bounded-package-final-source-check.json"
+  },
+  "final_profile_retry": "First final Metal target verified, but recorder stayed idle after target exit and SIGINT. Owned recorder stopped; capture marked incomplete. A fresh normal capture completed and is the only final Metal capture in the ratio.",
+  "universal_process_rss_guarantee": "unproven; stored-data and work-buffer bounds do not fully bound allocator, runtime, driver and simultaneous residency",
+  "raw_metal_before_fixed_metadata_guard": {
+    "measurement_image": "before_fixed_metadata_guard",
+    "seconds": 212.528718625,
+    "load_and_engine_setup_seconds": 2.332506375,
+    "final_native_peak_resident_bytes": 11202560000,
+    "same_identity_as_compilation": true,
+    "verified": true,
+    "events": [
+      {
+        "active_extends": 2,
+        "benchmark": "poseidon2_hash_chain_v1",
+        "engine": "metal",
+        "event": "benchmark_started",
+        "initial_state": [
+          202,
+          203,
+          204,
+          205
+        ],
+        "message": [
+          7,
+          11,
+          13,
+          17
+        ],
+        "package": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/prepared-poseidon2.nsc",
+        "profile": {
+          "B": 65536,
+          "b": 2,
+          "k_rho": 16
+        },
+        "schema": 2,
+        "steps": 3,
+        "timing_scope": "prepared_package_load_prove_verify"
+      },
+      {
+        "event": "phase_started",
+        "phase": "load",
+        "step": null
+      },
+      {
+        "event": "phase_finished",
+        "phase": "load",
+        "seconds": 2.332506375,
+        "step": null
+      },
+      {
+        "event": "phase_started",
+        "phase": "prove",
+        "step": 1
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prove",
+        "seconds": 6.69484875,
+        "step": 1
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 2
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 69.961736792,
+        "step": 2
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 94.710985292,
+        "step": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "verify",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "verify",
+        "seconds": 38.828422417,
+        "step": 3
+      },
+      {
+        "circuit_identity": [
+          9705822157724451396,
+          520958727644325895,
+          9285622073986934000,
+          874020794279380938
+        ],
+        "event": "benchmark_finished",
+        "final_state": [
+          6571778207680039711,
+          123649970047308705,
+          16791205033536618392,
+          12263481847644113771
+        ],
+        "schema": 2,
+        "seconds": 212.528718625,
+        "steps": 3,
+        "timing_scope": "prepared_package_load_prove_verify",
+        "verified": true
+      }
+    ]
+  }
+}

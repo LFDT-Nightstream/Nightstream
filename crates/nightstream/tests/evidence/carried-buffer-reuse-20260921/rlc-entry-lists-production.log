@@ -1,0 +1,9 @@
+
+running 1 test
+staged request=Rlc { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/rlc-entry-lists", step: 1 }
+staged circuit preparation elapsed=34.89832975s
+staged phase passed elapsed=45.033442708s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 45.03s
+

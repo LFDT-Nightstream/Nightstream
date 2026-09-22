@@ -1,0 +1,41 @@
+{
+  "status": "source_derived_memory_gap_not_a_large_circuit_run",
+  "manifest": "crates/nightstream/artifacts/shared-verifier-v1.json",
+  "source_rows_formula": [
+    29218029,
+    0,
+    0,
+    1
+  ],
+  "logical_rows_formula": [
+    6369859,
+    0,
+    0,
+    1
+  ],
+  "domain": 268435456,
+  "maximum_application_rows_from_row_bounds": 239217427,
+  "resulting_logical_rows": 245587286,
+  "fresh_witness_count": 1,
+  "matrix_count": 14,
+  "application_table_bytes": 27505776032,
+  "existing_device_guard_bytes": 16000000000,
+  "existing_process_rss_guard_bytes": 17179869184,
+  "exceeds_both_guards_without_other_allocations": true,
+  "shape_authority": [
+    "assembly/manifest.rs: check_dimensions bounds source_rows and logical_rows by domain",
+    "application/builder.rs: assert_equal appends a row without a new witness variable",
+    "source_total and logical_width formulas have zero application_rows coefficient",
+    "session/joint.rs: MetalPaperJointOracle::new passes structure.n to build_joint_application_tables"
+  ],
+  "required_storage_change": "Evaluate bounded row groups and recompute or fold as needed instead of retaining every base-field table value",
+  "remaining_total_rss_owners": [
+    "Rust application row list",
+    "retained CPU matrix cache",
+    "device copy of the matrix index",
+    "other live witness and oracle storage"
+  ],
+  "no_new_supported_shape_limit_proposed": true,
+  "large_circuit_generated": false,
+  "production_code_changed": false
+}

@@ -1,0 +1,11 @@
+{
+  "image": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary",
+  "uuid": "UUID: 9F975E6F-3954-3D37-8C7D-97A6BBD37CDA (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary",
+  "profile": "release opt3/fatLTO/codegen1; strip=none",
+  "features": [
+    "metal",
+    "cuda"
+  ],
+  "source_patch": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-source.patch",
+  "new_source_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-new-source.tar.gz"
+}

@@ -12,6 +12,7 @@ members = [
   "crates/neo-prover-metal",
   "crates/neo-fold-clean",
   "crates/nightstream-fprime",
+  "crates/nightstream",
   "crates/neo-wasm",
 ]
 exclude = [

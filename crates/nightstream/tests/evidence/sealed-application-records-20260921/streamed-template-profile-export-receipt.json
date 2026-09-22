@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "expected_native_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+  "cpu_pid": 98185,
+  "metal_pid": 1066,
+  "exports": [
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile.trace",
+        "--toc",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile-toc.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile-toc.xml",
+      "bytes": 8051,
+      "mtime_ns": 1790054429414675747,
+      "log": "streamed-template-cpu-lifecycle-profile-toc-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile.trace",
+        "--xpath",
+        "/trace-toc/run[@number=\"1\"]/data/table[@schema=\"device-thermal-state-intervals\"]",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile-thermal.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-cpu-lifecycle-profile-thermal.xml",
+      "bytes": 1478,
+      "mtime_ns": 1790054495589659765,
+      "log": "streamed-template-cpu-lifecycle-profile-thermal-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile.trace",
+        "--toc",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-toc.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-toc.xml",
+      "bytes": 8044,
+      "mtime_ns": 1790054426634237594,
+      "log": "streamed-template-metal-lifecycle-profile-toc-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile.trace",
+        "--xpath",
+        "/trace-toc/run[@number=\"1\"]/data/table[@schema=\"device-thermal-state-intervals\"]",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-thermal.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-thermal.xml",
+      "bytes": 1475,
+      "mtime_ns": 1790054493006944383,
+      "log": "streamed-template-metal-lifecycle-profile-thermal-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile.trace",
+        "--xpath",
+        "/trace-toc/run[@number=\"1\"]/data/table[@schema=\"time-profile\"]",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-samples.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-samples.xml",
+      "bytes": 65318415,
+      "mtime_ns": 1790054501373630005,
+      "log": "streamed-template-metal-lifecycle-profile-samples-export.log"
+    }
+  ],
+  "post_capture_export_cap_seconds": 1800,
+  "cap_authority": "Root AGENTS.md Instruments cap. Exports are separate post-capture analysis.",
+  "cpu_samples_exported": false,
+  "metal_parser_command": [
+    "python3",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_streamed_lifecycle_profile.py",
+    "streamed-template-metal-lifecycle-profile",
+    "1066"
+  ],
+  "metal_parser_exit_code": 0,
+  "stream_method": "ElementTree.iterparse, remove each row after processing, retain descriptor dictionaries and per-backtrace counts only.",
+  "retained_sample_times": 0,
+  "summary_command": [
+    "python3",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_streamed_lifecycle_profile.py",
+    "streamed-template-metal-lifecycle-profile",
+    "1066"
+  ],
+  "summary_exit_code": 0,
+  "scripts": [
+    {
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_streamed_lifecycle_profile.py",
+      "sha256": "8c9e39fe9d6b499d94d572b37ba0889b2521d9fe9ade56ad20d4d55decb5b2db"
+    },
+    {
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_streamed_lifecycle_profile.py",
+      "sha256": "5c45dbe38495d0c3fd6498b6463dfc6b76e637d847ea3fbb19644949855d2266"
+    }
+  ],
+  "symbolication": {
+    "native_binary_ids": [
+      "80"
+    ],
+    "expected_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+    "exact_original_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+    "binary_bytes": 19042304,
+    "binary_mtime_ns": 1790051950819568770,
+    "uuid_command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary"
+    ],
+    "uuid_output": "UUID: 8B18A367-06BA-3915-8254-40C42C9C0620 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary\n",
+    "atos_runs": [
+      {
+        "binary_id": "80",
+        "command": [
+          "atos",
+          "-o",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+          "-arch",
+          "arm64",
+          "-l",
+          "0x100abc000",
+          "-f",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-addresses.txt"
+        ],
+        "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-addresses.txt",
+        "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-output.txt",
+        "address_count": 5317,
+        "seconds": 0.09852420800598338
+      }
+    ],
+    "native_address_count": 5317,
+    "native_frames_with_exported_symbols": 5317,
+    "native_frames_resolved_by_atos": 5317,
+    "unknown_top_sample_count": 995,
+    "unknown_top_weight_ns": 995000000,
+    "unannotated_top_sample_count": 0,
+    "unannotated_top_weight_ns": 0,
+    "scope": "Only the exact original binary with matching recorded UUID is used. There is no rebuilt-image or function-byte-matching fallback."
+  },
+  "raw_data_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-data.json",
+  "complete_summary_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-summary.json",
+  "sample_xml_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-samples.xml",
+  "all_analysis_processes_terminal": true,
+  "coverage": {
+    "total_xml_rows": 238558,
+    "target_sample_count": 238558,
+    "target_weight_ns": 238558000000,
+    "backtrace_sample_count": 236328,
+    "backtrace_weight_ns": 236328000000,
+    "sentinel_sample_count": 2230,
+    "sentinel_weight_ns": 2230000000,
+    "other_missing_stack_sample_count": 0,
+    "empty_backtrace_sample_count": 0,
+    "sample_time_reference_rows": 3145
+  },
+  "limits": [
+    "Whole-capture host CPU attribution only; no shader timing or CPU/GPU clock/limiter counters.",
+    "Waiting threads were excluded by the Time Profiler template.",
+    "Sentinel rows and unresolved top symbols remain explicitly unassigned.",
+    "Reference timestamps are counted but not retained, so function attribution is not split by lifecycle phase."
+  ]
+}

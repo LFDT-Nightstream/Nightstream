@@ -1,0 +1,17 @@
+{
+  "label": "bounded-cpu-time-profile",
+  "engine": "optimized",
+  "controller_pid": 80663,
+  "controller_start": "Mon Sep 21 19:29:31 2026",
+  "controller_command": "timeout --signal=KILL 1800 python3 /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/profile_bounded_lifecycle.py optimized bounded-cpu-time-profile",
+  "driver_pid": 80666,
+  "deadline_unix_seconds": 1790038771.0,
+  "time_authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap.",
+  "target_command": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary --engine optimized --steps 3",
+  "trace_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-cpu-time-profile.trace",
+  "target_pid": 80683,
+  "target_start": "Mon Sep 21 19:29:33 2026",
+  "recorder_finished": true,
+  "recorder_pid": 80670,
+  "watchdog_pid": 80671
+}

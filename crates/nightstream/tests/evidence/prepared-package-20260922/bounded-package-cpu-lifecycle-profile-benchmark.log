@@ -1,0 +1,12 @@
+{"active_extends":2,"benchmark":"poseidon2_hash_chain_v1","engine":"optimized","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"package":"/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-poseidon2.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2,"steps":3,"timing_scope":"prepared_package_load_prove_verify"}
+{"event":"phase_started","phase":"load","step":null}
+{"event":"phase_finished","phase":"load","seconds":2.13748075,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+{"event":"phase_finished","phase":"prove","seconds":59.871017833,"step":1}
+{"event":"phase_started","phase":"extend","step":2}
+{"event":"phase_finished","phase":"extend","seconds":407.351377584,"step":2}
+{"event":"phase_started","phase":"extend","step":3}
+{"event":"phase_finished","phase":"extend","seconds":514.504745125,"step":3}
+{"event":"phase_started","phase":"verify","step":3}
+{"event":"phase_finished","phase":"verify","seconds":278.235964834,"step":3}
+{"circuit_identity":[9705822157724451396,520958727644325895,9285622073986934000,874020794279380938],"event":"benchmark_finished","final_state":[6571778207680039711,123649970047308705,16791205033536618392,12263481847644113771],"schema":2,"seconds":1262.100768458,"steps":3,"timing_scope":"prepared_package_load_prove_verify","verified":true}

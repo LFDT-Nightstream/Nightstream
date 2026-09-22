@@ -14,25 +14,29 @@ use rayon::prelude::*;
 const RLC_RING_SPLIT: usize = D / 3;
 const RLC_RING_CHUNK_OUT: usize = 2 * RLC_RING_SPLIT - 1;
 
-fn add_sparse_rows<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], rows: &[Vec<(usize, Ff)>], m: usize)
+fn add_signed_unit_columns<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], positive: &[u64], negative: &[u64])
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
 {
-    let neg_one = Ff::ZERO - Ff::ONE;
+    let m = acc.cols();
     let add_row = |rr: usize, row_out: &mut [Ff]| {
-        for (kk, nonzeros) in rows.iter().enumerate() {
-            let coeff = rho_data[rr * D + kk];
-            if coeff == Ff::ZERO {
-                continue;
+        let coefficients = &rho_data[rr * D..(rr + 1) * D];
+        let mut nonzero_coefficients = 0u64;
+        for (lane, &coefficient) in coefficients.iter().enumerate() {
+            if coefficient != Ff::ZERO {
+                nonzero_coefficients |= 1u64 << lane;
             }
-            for &(column, value) in nonzeros {
-                if value == Ff::ONE {
-                    row_out[column] += coeff;
-                } else if value == neg_one {
-                    row_out[column] -= coeff;
-                } else {
-                    row_out[column] += coeff * value;
-                }
+        }
+        for (column, value) in row_out.iter_mut().enumerate() {
+            let mut mask = positive[column] & nonzero_coefficients;
+            while mask != 0 {
+                *value += coefficients[mask.trailing_zeros() as usize];
+                mask &= mask - 1;
+            }
+            mask = negative[column] & nonzero_coefficients;
+            while mask != 0 {
+                *value -= coefficients[mask.trailing_zeros() as usize];
+                mask &= mask - 1;
             }
         }
     };
@@ -93,18 +97,28 @@ where
         return;
     }
     if a.is_packed_signed_unit() {
-        let mut row_nonzeros = (0..D)
-            .map(|_| Vec::new())
-            .collect::<Vec<Vec<(usize, Ff)>>>();
-        for (row, nonzeros) in row_nonzeros.iter_mut().enumerate() {
-            for column in 0..m {
-                let value = a[(row, column)];
-                if value != Ff::ZERO {
-                    nonzeros.push((column, value));
+        let owned_masks;
+        let (positive, negative) = if let Some(masks) = a.packed_signed_unit_column_masks() {
+            masks
+        } else {
+            // Convert older row-packed inputs to masks, without entry lists.
+            let mut positive = vec![0u64; m];
+            let mut negative = vec![0u64; m];
+            for row in 0..D {
+                let bit = 1u64 << row;
+                for column in 0..m {
+                    let value = a[(row, column)];
+                    if value == Ff::ONE {
+                        positive[column] |= bit;
+                    } else if value != Ff::ZERO {
+                        negative[column] |= bit;
+                    }
                 }
             }
-        }
-        add_sparse_rows(acc, rho_data, &row_nonzeros, m);
+            owned_masks = (positive, negative);
+            (owned_masks.0.as_slice(), owned_masks.1.as_slice())
+        };
+        add_signed_unit_columns(acc, rho_data, positive, negative);
         return;
     }
     left_mul_acc_rotation_ring(acc, rho_data, a.as_slice(), m);

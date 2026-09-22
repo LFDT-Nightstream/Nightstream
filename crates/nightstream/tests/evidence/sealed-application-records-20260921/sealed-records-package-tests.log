@@ -1,0 +1,10 @@
+
+running 5 tests
+test package::native_application::tests::sealed_native_rows_preserve_raw_terms_and_map_bounded_runtime_coefficients ... ok
+test package::native_application::tests::native_row_coverage_rejects_fixed_rows_inside_the_overlay ... ok
+test package::native_application::tests::native_recipes_execute_stored_syntax_and_report_global_assertion_failure ... ok
+test package::native_application::tests::native_loader_rejects_dynamic_source_payload_before_fixed_decoding ... ok
+test package::native_application::tests::native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholders ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 46 filtered out; finished in 0.02s
+

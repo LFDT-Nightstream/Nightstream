@@ -1,0 +1,36 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 39.38s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 3 tests
+test engine::parity::optimized_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::selected_polynomial_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+test engine::parity::zero_running_matches_metal ... verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 33.62s
+
+       79.84 real        68.71 user         1.22 sys
+          4553392128  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              473137  page reclaims
+                3058  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   8  messages sent
+                   6  messages received
+                   5  signals received
+                 599  voluntary context switches
+                9452  involuntary context switches
+          1698929652  instructions retired
+           549217127  cycles elapsed
+            67142160  peak memory footprint

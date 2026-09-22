@@ -1,0 +1,18 @@
+    Checking neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+    Checking neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+    Checking wip-spartan v0.4.0 (/Users/nijaar/starstream/Nightstream/crates/wip-spartan)
+    Checking neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+    Checking neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+    Checking neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+    Checking neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Checking nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Checking nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Checking neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+crates/nightstream/src/folding/claims.rs:37:26: warning: manual implementation of `.is_multiple_of()`: help: replace with: `!m_in.is_multiple_of(D)`
+crates/nightstream/src/folding/claims.rs:63:5: warning: manual implementation of `.is_multiple_of()`: help: replace with: `m_in.is_multiple_of(D)`
+crates/nightstream/src/folding/mod.rs:30:1: warning: all variants have the same prefix: `Pi`
+crates/nightstream/src/lifecycle/mod.rs:111:1: warning: large size difference between variants: the entire enum is at least 496 bytes
+warning: `nightstream` (lib) generated 4 warnings (run `cargo clippy --fix --lib -p nightstream` to apply 2 suggestions)
+warning: `nightstream` (lib) generated 4 warnings (4 duplicates)
+warning: `nightstream` (lib test) generated 4 warnings (4 duplicates)
+    Finished `release` profile [optimized] target(s) in 9.64s

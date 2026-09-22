@@ -1,0 +1,11 @@
+{
+  "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary",
+  "uuid": "UUID: D66506D5-8D84-3D01-8EEB-E21332765BD7 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary",
+  "text_symbol_count": 2097,
+  "profile": "release, opt-level3, fat LTO, codegen-units1; CLI override profile.release.strip=none",
+  "features": [
+    "metal",
+    "cuda"
+  ],
+  "purpose": "Use this exact executable for both engines and any later profile; no post-capture rebuild is needed for function symbols."
+}

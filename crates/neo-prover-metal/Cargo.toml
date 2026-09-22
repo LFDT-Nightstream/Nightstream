@@ -13,7 +13,8 @@ name = "neo_prover_metal"
 workspace = true
 
 [features]
-default = []
+default = ["legacy-adapter"]
+legacy-adapter = ["dep:neo-fold-clean"]
 metal = [
     "dep:dispatch2",
     "dep:objc2",
@@ -25,7 +26,7 @@ metal = [
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
-neo-fold-clean = { path = "../neo-fold-clean" }
+neo-fold-clean = { path = "../neo-fold-clean", optional = true }
 neo-math = { path = "../neo-math" }
 neo-reductions = { path = "../neo-reductions" }
 p3-field = { workspace = true }

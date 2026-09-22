@@ -1,0 +1,21 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 11.80s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 1 test
+
+thread '<unnamed>' (620892) panicked at crates/neo-reductions/src/engines/optimized_engine/../../../tests/unit/carried_table_storage.rs:180:9:
+assertion `left == right` failed: folding must not allocate another whole or half table
+  left: (0, 1)
+ right: (0, 0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::dense_prefix_folding_reuses_its_storage ... FAILED
+
+failures:
+
+failures:
+    engines::optimized_engine::cpu_oracle::carried_storage_tests::dense_prefix_folding_reuses_its_storage
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p neo-reductions --lib`

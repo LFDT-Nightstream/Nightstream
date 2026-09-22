@@ -1,0 +1,440 @@
+{
+  "source": "pmset -g log; selected capture windows only; timestamps inAmerica/Chicago",
+  "windows": [
+    {
+      "capture": "full_cpu",
+      "start": "2026-09-21 17:14:08",
+      "end": "2026-09-21 17:44:08",
+      "events": [
+        {
+          "time": "2026-09-21 17:14:22",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:14:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:15:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:15:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:16:03",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:16:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:16:52",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:16:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:17:43",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:17:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:18:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:18:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:19:22",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:19:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:20:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:20:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:21:02",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:21:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:21:53",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:21:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:22:43",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:22:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:23:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:23:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:24:23",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:24:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:25:12",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:25:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:26:03",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:26:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:26:53",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:26:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:27:43",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:27:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:28:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:28:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:29:22",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:29:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:30:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:30:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:31:03",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:31:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:31:53",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:31:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:32:43",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:32:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:33:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:33:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:34:23",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:34:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:35:12",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:35:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:36:03",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:36:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:36:52",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:36:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:37:43",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:37:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:38:32",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:38:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:39:23",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:39:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:40:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:40:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:41:02",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:41:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:41:53",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:41:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:42:42",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:42:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:43:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:43:38",
+          "event": "DarkWake"
+        }
+      ],
+      "sleep_entries": 36
+    },
+    {
+      "capture": "terminal_cpu",
+      "start": "2026-09-21 17:53:30",
+      "end": "2026-09-21 18:01:27",
+      "events": [
+        {
+          "time": "2026-09-21 17:53:32",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:53:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:54:23",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:54:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:55:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:55:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:56:02",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:56:08",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:56:53",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:56:58",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:57:42",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:57:48",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:58:33",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:58:38",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 17:59:23",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 17:59:28",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 18:00:13",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 18:00:18",
+          "event": "DarkWake"
+        },
+        {
+          "time": "2026-09-21 18:01:03",
+          "event": "Sleep",
+          "reason": "'Maintenance Sleep'"
+        },
+        {
+          "time": "2026-09-21 18:01:08",
+          "event": "DarkWake"
+        }
+      ],
+      "sleep_entries": 10
+    }
+  ],
+  "python_monotonic_implementation": "mach_absolute_time()",
+  "python_clock_adjustable": false,
+  "clock_authority": "Installed Apple clock_gettime(3) documents that CLOCK_UPTIME_RAW stops during sleep and is equivalent to mach_absolute_time; installed Rust1.94.1 documents that clock for Instant onDarwin",
+  "conclusion": "Sleep occurred during both captures. Keep original timer values; measurement windows differ and exact sleep subtraction is not justified.",
+  "future_measurement": "Use caffeinate -is scoped to the measuring command while onACpower; release assertions oncommandexit. No permanent power settings changed."
+}

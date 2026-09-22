@@ -1,0 +1,14 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parallel-prepare-metal", step: 1, engine: Metal, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parallel-prepare-cpu") }
+staged circuit preparation elapsed=34.751203792s
+C cache elapsed=5.497712917s
+C Metal activity=MetalActivity { command_buffers: 100, dispatches: 282, host_waits: 100, allocated_bytes: 13571719251, uploaded_bytes: 4520077670, downloaded_bytes: 16576, current_allocated_bytes: 3247538176 }
+C proving engine=Metal elapsed=17.095376667s
+C CPU proof byte equality passed; source files also match
+C completed elapsed=22.606003292s
+staged phase passed elapsed=57.717747875s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 57.72s
+

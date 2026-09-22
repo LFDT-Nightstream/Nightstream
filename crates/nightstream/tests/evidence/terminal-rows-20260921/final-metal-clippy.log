@@ -1,0 +1,18 @@
+    Checking neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+    Checking neo-prover-cuda v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-cuda)
+    Checking neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+    Checking wip-spartan v0.4.0 (/Users/nijaar/starstream/Nightstream/crates/wip-spartan)
+    Checking neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+crates/neo-ccs/src/sparse.rs:74:20: error: using `contains()` instead of `iter().any()` is more efficient: help: try: `self.vals[start..end].contains(&Ff::ZERO)`
+crates/wip-spartan/src/r1cs/sparse.rs:82:8: error: using `contains()` instead of `iter().any()` is more efficient: help: try: `data.contains(&F::ZERO)`
+error: could not compile `neo-ccs` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `neo-ccs` (lib) due to 1 previous error
+error: could not compile `neo-ccs` (lib) due to 1 previous error
+crates/wip-spartan/src/provider/goldi.rs:63:34: error: the borrowed expression implements the required traits: help: change this to: `[GOLDILOCKS_MODULUS - 2]`
+crates/wip-spartan/src/provider/goldi.rs:309:1: error: module has the same name as its containing module
+crates/wip-spartan/src/provider/poseidon2.rs:51:7: error: it looks like you're manually copying between slices: help: try replacing the loop by: `self.st[..RATE].copy_from_slice(&inputs[src_idx..(RATE + src_idx)]);`
+crates/wip-spartan/src/spartan.rs:831:7: error: returning the result of a `let` binding from a block
+crates/wip-spartan/src/spartan.rs:818:11: error: returning the result of a `let` binding from a block
+error: could not compile `wip-spartan` (lib) due to 6 previous errors
+error: could not compile `wip-spartan` (lib) due to 6 previous errors

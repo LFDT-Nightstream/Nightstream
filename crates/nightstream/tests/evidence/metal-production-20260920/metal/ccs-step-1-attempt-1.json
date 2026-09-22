@@ -1,0 +1,11 @@
+{
+  "phase": "ccs",
+  "step": 1,
+  "engine": "metal",
+  "outcome": "timed-out",
+  "cap_seconds": 300,
+  "exit": 137,
+  "elapsed_seconds": null,
+  "maximum_resident_bytes": null,
+  "note": "Outer GNU timeout killed the phase driver and test. No proof was produced; the driver could not write its receipt. Preparation: 67.918577208 s; cache construction: 39.258242625 s."
+}

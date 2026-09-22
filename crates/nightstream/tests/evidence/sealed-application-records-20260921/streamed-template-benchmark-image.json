@@ -1,0 +1,13 @@
+{
+  "image": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+  "uuid": "UUID: 8B18A367-06BA-3915-8254-40C42C9C0620 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+  "profile": "release, opt-level3, fat LTO, codegen-units1; CLI override profile.release.strip=none",
+  "features": [
+    "metal",
+    "cuda"
+  ],
+  "source_patch": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-source.patch",
+  "new_source_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-new-source.tar.gz",
+  "source_commit": "469d12e2dc01a7cd236aaef86950f0708260041f",
+  "purpose": "Same saved executable for both engines and profiling."
+}

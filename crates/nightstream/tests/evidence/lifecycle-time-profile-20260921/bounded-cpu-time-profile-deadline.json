@@ -1,0 +1,10 @@
+{
+  "outcome": "processes-ended",
+  "stopped_pids": [],
+  "controller_pid": 80663,
+  "target_pid": 80683,
+  "recorder_pid": 80670,
+  "deadline_unix_seconds": 1790038771.0,
+  "cap_seconds": 1800,
+  "authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap."
+}

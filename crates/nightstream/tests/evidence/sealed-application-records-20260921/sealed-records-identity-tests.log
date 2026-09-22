@@ -1,0 +1,11 @@
+
+running 6 tests
+test identity::tests::streamed_identity_rejects_non_natural_atoms_and_non_array_nodes ... ok
+test identity::tests::streamed_identity_matches_the_original_numeric_array_preimage ... ok
+test identity::tests::streamed_component_hash_matches_slice_hash_at_rate_boundaries ... ok
+test identity::tests::native_records_without_recipes_do_not_insert_a_batch ... ok
+test identity::tests::native_records_preserve_duplicate_zero_terms_and_recipe_tree_order ... ok
+test identity::tests::native_records_preserve_complete_frozen_envelope_preimage_and_binding ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 45 filtered out; finished in 38.02s
+

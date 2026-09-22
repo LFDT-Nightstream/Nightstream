@@ -1,0 +1,129 @@
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.46
+   Compiling autocfg v1.5.1
+   Compiling libc v0.2.186
+   Compiling serde_core v1.0.228
+   Compiling serde v1.0.228
+   Compiling getrandom v0.4.3
+   Compiling paste v1.0.15
+   Compiling cfg-if v1.0.4
+   Compiling crossbeam-utils v0.8.22
+   Compiling either v1.16.0
+   Compiling crossbeam-epoch v0.9.20
+   Compiling rand_core v0.10.1
+   Compiling once_cell v1.21.4
+   Compiling crossbeam-deque v0.8.7
+   Compiling num-traits v0.2.19
+   Compiling chacha20 v0.10.1
+   Compiling pin-project-lite v0.2.17
+   Compiling rayon-core v1.13.0
+   Compiling tracing-core v0.1.36
+   Compiling syn v2.0.118
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling zerocopy v0.8.54
+   Compiling getrandom v0.3.4
+   Compiling rand v0.10.2
+   Compiling thiserror v2.0.18
+   Compiling strength_reduce v0.2.4
+   Compiling itertools v0.14.0
+   Compiling num-integer v0.1.46
+   Compiling itertools v0.15.0
+   Compiling p3-maybe-rayon v0.5.3
+   Compiling transpose v0.2.3
+   Compiling num-bigint v0.5.1
+   Compiling spin v0.10.1
+   Compiling num-bigint v0.4.8
+   Compiling rayon v1.12.0
+   Compiling spin v0.12.2
+   Compiling subtle v2.6.1
+   Compiling serde_derive v1.0.228
+   Compiling tracing-attributes v0.1.31
+   Compiling thiserror-impl v2.0.18
+   Compiling rand_core v0.9.5
+   Compiling num-bigint v0.3.3
+   Compiling radium v0.7.0
+   Compiling syn v1.0.109
+   Compiling tracing v0.1.44
+   Compiling objc2 v0.6.4
+   Compiling p3-maybe-rayon v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling tap v1.0.1
+   Compiling libm v0.2.16
+   Compiling objc2-encode v4.1.0
+   Compiling addchain v0.2.1
+   Compiling wyz v0.5.1
+   Compiling zmij v1.0.23
+   Compiling funty v2.0.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling allocator-api2 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling p3-util v0.5.3
+   Compiling p3-util v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-field v0.5.3
+   Compiling rand_chacha v0.10.0
+   Compiling p3-field v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+   Compiling rand v0.9.5
+   Compiling bitvec v1.1.1
+   Compiling bincode v1.3.3
+   Compiling bitflags v2.13.0
+   Compiling thiserror v1.0.69
+   Compiling equivalent v1.0.2
+   Compiling foldhash v0.2.0
+   Compiling p3-symmetric v0.5.3
+   Compiling p3-matrix v0.5.3
+   Compiling ff_derive v0.13.1
+   Compiling rand_core v0.6.4
+   Compiling byteorder v1.5.0
+   Compiling p3-matrix v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-symmetric v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling serde_json v1.0.150
+   Compiling p3-poseidon1 v0.5.3
+   Compiling hashbrown v0.17.1
+   Compiling p3-dft v0.5.3
+   Compiling p3-challenger v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling block2 v0.6.2
+   Compiling p3-dft v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-multilinear-util v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-mds v0.5.3
+   Compiling p3-air v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling ff v0.13.1
+   Compiling thiserror-impl v1.0.69
+   Compiling arrayref v0.3.9
+   Compiling arrayvec v0.7.8
+   Compiling memchr v2.8.3
+   Compiling p3-poseidon2 v0.5.3
+   Compiling constant_time_eq v0.4.2
+   Compiling p3-mds v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-monty-31 v0.5.3
+   Compiling p3-zk-codes v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling itoa v1.0.18
+   Compiling p3-commit v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling blake2s_simd v1.0.4
+   Compiling p3-security v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-poseidon2 v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-poseidon1 v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling dispatch2 v0.3.1
+   Compiling p3-sumcheck v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-merkle-tree v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling objc2-foundation v0.3.2
+   Compiling p3-challenger v0.5.3
+   Compiling neo-prover-cuda v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-cuda)
+   Compiling p3-goldilocks v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling bellpepper-core v0.4.0
+   Compiling p3-goldilocks v0.5.3
+   Compiling neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+   Compiling objc2-metal v0.3.2
+   Compiling neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+   Compiling p3-whir v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling wip-spartan v0.4.0 (/Users/nijaar/starstream/Nightstream/crates/wip-spartan)
+   Compiling neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+   Compiling neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 1m 57s
+  Executable unittests src/lib.rs (target/release/deps/nightstream-fa6de60183f6354c)

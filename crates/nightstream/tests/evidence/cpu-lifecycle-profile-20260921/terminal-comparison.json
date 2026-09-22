@@ -1,0 +1,126 @@
+{
+  "scope": "Stored Metal step-3 envelope verified by Optimized CPU; includes wrong-state rejection. No proof generation in this invocation.",
+  "cpu_record": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-profile-run/terminal-accepted.json",
+  "metal_record": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-metal/terminal-accepted.json",
+  "comparison": "Full parsed JSON field equality, excluding only engine; full input-file byte equality. No digest-only acceptance.",
+  "same_field_set": true,
+  "field_equality": {
+    "current": true,
+    "fresh_claim": true,
+    "iteration": true,
+    "package_identity": true,
+    "running_claims": true,
+    "schema": true,
+    "scope": true,
+    "z0": true
+  },
+  "engines": [
+    "Optimized",
+    "Metal"
+  ],
+  "iteration": 3,
+  "current": [
+    6571778207680039711,
+    123649970047308705,
+    16791205033536618392,
+    12263481847644113771
+  ],
+  "running_claim_count": 16,
+  "inputs": [
+    {
+      "name": "digit-0.json",
+      "bytes": 102021062,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-1.json",
+      "bytes": 101644886,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-10.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-11.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-12.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-13.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-14.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-15.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-2.json",
+      "bytes": 99898099,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-3.json",
+      "bytes": 96154908,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-4.json",
+      "bytes": 91874096,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-5.json",
+      "bytes": 68396626,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-6.json",
+      "bytes": 19882979,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-7.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-8.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "digit-9.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "envelope.json",
+      "bytes": 1568661,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "fresh-claim.json",
+      "bytes": 39449,
+      "exact_bytes_equal": true
+    },
+    {
+      "name": "fresh-witness.json",
+      "bytes": 107246513,
+      "exact_bytes_equal": true
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "application_payload_bounded": true,
+  "test_workspaces": [
+    {
+      "rows": [
+        7,
+        13
+      ],
+      "matrices": 14,
+      "bytes": 672,
+      "derivation": "two base rows plus two extension rows: 2*14*(8+16)"
+    },
+    {
+      "rows": [
+        17
+      ],
+      "matrices": 14,
+      "bytes": 1792,
+      "derivation": "eight source base rows, four base-row units for the next fold, and four for the two extension output rows: (8+4+4)*14*8"
+    }
+  ],
+  "proof_comparison": "Complete canonical PiCCS bytes, every round coefficient/challenge, transcript state/cursor, all output Eval_K/Eval_A values; CPU vs resident Metal vs forced replay.",
+  "terminal_comparison": "CPU, resident and bounded Metal accept the original witness and report global row6 for the changed witness in the final window.",
+  "production_complete_proof_bytes": 945983,
+  "production_output_matrices_compared": 16,
+  "universal_process_rss_bound": false,
+  "remaining_storage": [
+    "host application rows",
+    "CPU matrix cache",
+    "device matrix indexes",
+    "other live oracle/witness storage",
+    "generic seeded partials outside current Nightstream row plans"
+  ],
+  "new_production_limit": false,
+  "production_budget_authority": "Existing 16,000,000,000-byte device allocation ceiling, minus live allocations and derived scratch requirements. Internal unit-test payload limits are not production limits.",
+  "no_new_features_or_envs": true,
+  "no_lean_run": true
+}

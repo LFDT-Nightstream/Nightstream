@@ -1,0 +1,5 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/carried-blocks-cpu", step: 2, engine: Optimized, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu") }
+staged circuit preparation elapsed=34.801251667s
+C cache elapsed=4.911466209s

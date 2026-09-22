@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "date": "2026-09-20",
+  "status": "incomplete: production Metal proof did not finish within the test cap",
+  "branch": "nico/nightstream-crate",
+  "parent_revision": "a76160b7d0da2d57ad9c203df77e042289965912",
+  "source_state": "Uncommitted engine changes and Metal buffer fixes. Temporary phase diagnostics were present during the capped Metal runs and removed afterwards.",
+  "host": {
+    "system": "Apple M1 Max",
+    "cpus": 10,
+    "memory_bytes": 68719476736,
+    "rustc": "1.94.1 (e408947bf 2026-03-25)",
+    "metal_compiler": "32023.921"
+  },
+  "profile": {
+    "field": "Goldilocks",
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "fresh_claims": 1,
+    "carried_claims": 16,
+    "constraint_rows": 6377559,
+    "application_matrices": 14,
+    "carrier_width": 253011276,
+    "padded_domain": 268435456
+  },
+  "run_directory": "/tmp/nightstream-metal-production-20260920",
+  "source_lineage": "New base from the Rust Poseidon2 application. CPU and Metal step-1 files are hard links to that same base output. No recorded reference proof was used as a producer input. CPU baseline predates the Metal-only fixes.",
+  "base": {
+    "request": {
+      "phase": "base",
+      "directory": "/private/tmp/nightstream-metal-production-20260920/metal"
+    },
+    "cap_seconds": 300,
+    "elapsed_seconds": 175.2262115420308,
+    "maximum_resident_bytes": 6761037824,
+    "exit": 0,
+    "outcome": "passed"
+  },
+  "cpu_pi_ccs": {
+    "request": {
+      "phase": "ccs",
+      "directory": "/private/tmp/nightstream-metal-production-20260920/cpu",
+      "engine": "optimized",
+      "step": 1
+    },
+    "cap_seconds": 300,
+    "elapsed_seconds": 202.89173258305527,
+    "maximum_resident_bytes": 34178367488,
+    "exit": 0,
+    "outcome": "passed",
+    "preparation_seconds": 67.893649292,
+    "cache_seconds": 38.536050334,
+    "proving_seconds": 95.822416542
+  },
+  "metal_pi_ccs_attempts": [
+    {
+      "phase": "ccs",
+      "step": 1,
+      "engine": "metal",
+      "outcome": "timed-out",
+      "cap_seconds": 300,
+      "exit": 137,
+      "elapsed_seconds": null,
+      "maximum_resident_bytes": null,
+      "note": "Outer GNU timeout killed the phase driver and test. No proof was produced; the driver could not write its receipt. Preparation: 67.918577208 s; cache construction: 39.258242625 s."
+    },
+    {
+      "phase": "ccs",
+      "step": 1,
+      "engine": "metal",
+      "outcome": "timed-out",
+      "cap_seconds": 300,
+      "elapsed_seconds": 300.01,
+      "maximum_resident_bytes": null,
+      "note": "After zero-carry length fix. Reached GPU application-table construction; no SumCheck round started. Outer timeout killed driver before receipt. Time parent did not collect the test RSS."
+    },
+    {
+      "phase": "ccs",
+      "step": 1,
+      "engine": "metal",
+      "outcome": "timed-out",
+      "cap_seconds": 300,
+      "elapsed_seconds": 300.01,
+      "maximum_resident_bytes": null,
+      "note": "After both buffer fixes. Application-table construction finished; SumCheck round zero started but did not complete before the outer timeout killed the driver and test.",
+      "preparation_seconds": 67.611653583,
+      "cache_seconds": 38.977565042,
+      "matrix_plan_seconds": 97.077299333,
+      "application_tables_seconds": 65.711824959
+    }
+  ],
+  "timeout_record_scope": "Outer timeout killed each driver before it could write its receipt. Failure records were recovered from command results and logs. Peak RSS printed by the time wrapper on timeout did not cover the test process, so it is not reported.",
+  "fixes": [
+    {
+      "case": "zero carried witnesses",
+      "change": "Initialize the single zero value and use its actual allocated length in later kernels.",
+      "regression": "session::joint::tests::zero_carried_tables_fit_their_advertised_length",
+      "result": "passed"
+    },
+    {
+      "case": "empty row offsets",
+      "change": "Return offset zero for width zero without reading the dummy buffer.",
+      "regression": "session::joint::tests::empty_rows_do_not_read_dummy_offsets",
+      "result": "passed with deliberately poisoned dummy offsets"
+    }
+  ],
+  "small_parity": {
+    "result": "three passed",
+    "tests": [
+      "engine::parity::optimized_matches_metal",
+      "engine::parity::selected_polynomial_matches_metal",
+      "engine::parity::zero_running_matches_metal"
+    ],
+    "elapsed_seconds": 145.8,
+    "isolated_zero_running_seconds": 1.14,
+    "scope": "Complete small-input C/R/D proof bytes, claims, witnesses and transcript equality; verifier accepts the proof and rejects changed child data.",
+    "earlier_concurrent_run": "Stopped while two command buffers were waiting. A later concurrent run passed within the cap but had long waits.",
+    "isolated_zero_running_source": "After the zero-carry fix, before the empty-row-offset fix; not a same-build performance comparison."
+  },
+  "regression_fixture_setup": "The first zero-carry buffer test rejected its toy security target. It then used the bound calculated from the fixture shape and passed; b=2 and k_rho=16 were preserved.",
+  "public_metal_lifecycle": {
+    "test": "poseidon_metal_recursive_lifecycle",
+    "status": "compiled, not executed",
+    "scope": "Public prepare/prove, two active extend calls, terminal acceptance and wrong-state rejection"
+  },
+  "unverified": [
+    "Full production CPU/Metal parity",
+    "Metal PiDEC openings on the production profile",
+    "Successive production Metal folds and terminal acceptance/rejection",
+    "Uninterrupted public active extend",
+    "Complete lifecycle Metal timing and peak memory",
+    "CUDA execution and parity"
+  ],
+  "review_rounds": 3,
+  "round_policy": "Root AGENTS.md MSW fuse; no further production retry in this slice.",
+  "observed_phase_check": "PiCCS verifier replay and complete transcript state/cursor equality. No digest-only acceptance.",
+  "required_metal_acceptance": "Exact CPU/Metal proof bytes on the same source, including output openings; verifier replay alone does not establish device arithmetic parity.",
+  "archived_logs": "metal-production-20260920",
+  "performance_requirement": {
+    "source": "Owner instruction, 2026-09-20",
+    "minimum_speedup": 5,
+    "scope": "Full lifecycle including preparation, proving and terminal verification",
+    "status": "not met"
+  }
+}

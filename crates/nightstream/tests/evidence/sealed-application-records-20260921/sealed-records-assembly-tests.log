@@ -1,0 +1,15 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 1m 41s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 5 tests
+test assembly::encoding_tests::rust_addition_plan_uses_declared_ports_and_causal_recipes ... ok
+test assembly::encoding_tests::rust_poseidon_plan_preserves_every_raw_row_recipe_and_identity_byte ... ok
+test assembly::encoding_tests::manifest_rejects_missing_children_changed_roles_profile_and_dimensions ... ok
+test assembly::encoding_tests::independent_poseidon_assembly_equals_the_complete_reference_value ... ok
+test assembly::encoding_tests::preparation_rejects_a_changed_reference_even_when_assembly_repairs_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 37.77s
+

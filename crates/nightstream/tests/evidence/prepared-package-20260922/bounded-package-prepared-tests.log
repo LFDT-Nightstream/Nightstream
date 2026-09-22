@@ -1,0 +1,21 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 38.34s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 9 tests
+test package::prepared::value::tests::duplicate_zero_template_terms_consume_the_real_reference_headroom ... ok
+test package::prepared::tests::prepared_source_byte_bound_is_checked_before_copy_or_body_decode ... ok
+test package::prepared::value::tests::numeric_array_decode_accepts_exact_nodes_and_rejects_one_short ... ok
+test package::prepared::value::tests::fixed_values_reject_non_natural_types_and_trailing_json ... ok
+test package::prepared::value::tests::unused_compact_templates_consume_the_real_reference_headroom ... ok
+test package::prepared::tests::prepared_loading_keeps_cached_identity_components_non_authoritative has been running for over 60 seconds
+test package::prepared::tests::prepared_loading_rejects_bad_framing_fields_and_cached_word_count has been running for over 60 seconds
+test package::prepared::tests::prepared_loading_retains_profile_layout_and_matrix_validation has been running for over 60 seconds
+test package::prepared::tests::prepared_round_trip_preserves_frozen_binding_and_exact_record_stream has been running for over 60 seconds
+test package::prepared::tests::prepared_loading_keeps_cached_identity_components_non_authoritative ... ok
+test package::prepared::tests::prepared_round_trip_preserves_frozen_binding_and_exact_record_stream ... ok
+test package::prepared::tests::prepared_loading_rejects_bad_framing_fields_and_cached_word_count ... ok
+test package::prepared::tests::prepared_loading_retains_profile_layout_and_matrix_validation ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out; finished in 99.89s
+

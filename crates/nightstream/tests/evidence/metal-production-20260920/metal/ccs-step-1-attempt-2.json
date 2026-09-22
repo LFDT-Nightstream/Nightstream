@@ -1,0 +1,10 @@
+{
+  "phase": "ccs",
+  "step": 1,
+  "engine": "metal",
+  "outcome": "timed-out",
+  "cap_seconds": 300,
+  "elapsed_seconds": 300.01,
+  "maximum_resident_bytes": null,
+  "note": "After zero-carry length fix. Reached GPU application-table construction; no SumCheck round started. Outer timeout killed driver before receipt. Time parent did not collect the test RSS."
+}

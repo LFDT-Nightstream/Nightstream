@@ -2,10 +2,12 @@
 
 Status: active. This record belongs to `nico/golden-conformance`.
 
-The goal is reproducible, required conformance checks for the existing
+The goal is reproducible local conformance checks for the existing
 Nightstream Goldilocks profile (`b = 2`, `k_rho = 16`, `B = 65536`). The
 engineering target is at least 9/10 confidence for the selected first-fold
 and recursive cases. This rating is not a cryptographic security bound.
+At the owner's request, CI enforcement is out of scope and is not an
+acceptance criterion or a pending blocker.
 
 ## Acceptance
 
@@ -20,8 +22,8 @@ and recursive cases. This rating is not a cryptographic security bound.
 - Run current engine code. CPU is the common reference. Other engines need
   CPU comparisons on the same inputs and output scope, without separate Lean
   generation for each engine.
-- Enforce the staged checks for an explicit source/build/input dependency
-  set. Missing artifacts, absent tests and selected job failures must fail.
+- Run the staged checks locally with recorded source, build and input
+  identities. Missing selected artifacts or failed phases must fail the run.
 - Independently generate the exact first-fold expectation and complete the
   registered recursive loop. Each producer uses its own successor as its
   next input. Rust expected outputs never produce Lean expected values.
@@ -45,7 +47,6 @@ authorize a new run. Historical results retain their original scope.
   by a fold-output-only comparison.
 - Fresh current CPU export for the Lean checker: implemented; both focused
   Rust checks pass, including every recomputed C trace field.
-- Required-check dependency selection: implemented; focused tests pass.
 - The existing independent recursive replay stopped at an optional final-LF
   difference in its PiCCS input. The checker now follows the Lean parser's
   exact optional-LF contract; the stopped comparison and its changed-target
@@ -111,12 +112,12 @@ authorize a new run. Historical results retain their original scope.
   then passed at 06:46:59 UTC in 3.02 seconds under its 300-second cap. All
   16 children, 4,685,394 blocks and 4,048,180,416 field coefficients match
   the continuation's native target; the changed tail was rejected. The
-  remaining D work is running. Paths and scope are in
+  D continuation then completed commitment batches 0–3 and pad batches 0–2.
+  At 06:50:30 UTC, the guard stopped `d-pad-3` before launch because other
+  Lean processes were active. The continuation exited with status 1; the
+  remaining D work is incomplete. Paths and scope are in
   `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_reductions`.
-- Required-check workflow wiring is implemented. Actual CI execution still
-  needs the three missing published archives, confirmed Metal runner routing,
-  and branch rules that require the final check. Local CPU-to-Lean handoff
-  checks pass. Current Metal execution remains pending.
+- Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
   remaining D work for 3→4, successor generation, final terminal checks and
   direct current CPU3 comparisons are incomplete. The full independent

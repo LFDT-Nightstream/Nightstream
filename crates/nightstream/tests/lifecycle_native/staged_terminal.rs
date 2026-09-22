@@ -129,15 +129,22 @@ pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
     assert!(matches!(step, 3 | 4), "selected terminal states are iterations 3 and 4");
     let package = prepare_with_engine(engine);
     let changed = load_envelope(&package, &root.join(format!("changed-step-{step}")), step);
-    assert!(matches!(
-        package.verify(&expected_state(step), &changed),
-        Err(VerifyError::Running {
-            index: 0,
-            reason: "Eval_K differs from the complete witness opening"
-        })
-    ));
+    let error = package
+        .verify(&expected_state(step), &changed)
+        .expect_err("a rehashed false opening must be rejected");
+    // Row evaluation checks the fresh relation before the running openings.
+    // Changing its public digest without its private assignment breaks that relation.
+    assert!(
+        matches!(
+            error,
+            VerifyError::FreshRelation(
+                neo_reductions::superneo_eval::SuperneoCachedRelationError::UnsatisfiedRow { .. }
+            )
+        ),
+        "unexpected rejection: {error:?}"
+    );
     save(
         &root.join(format!("terminal-{step}-rejected.json")),
-        &json!({"schema":1,"package_identity":package.package_identity(),"iteration":step,"case":"rehashed and recommitted false running Eval_K","rejected":true}),
+        &json!({"schema":1,"package_identity":package.package_identity(),"iteration":step,"case":"rehashed and recommitted false running Eval_K","rejected":true,"rejection":format!("{error:?}")}),
     );
 }

@@ -115,6 +115,17 @@ authorize a new run. Historical results retain their original scope.
   Lean processes were active. The continuation exited with status 1; the
   remaining D work is incomplete. Paths and scope are in
   `GOLDEN_CONFORMANCE_CHECKS.json`, under `independent_iteration_3_reductions`.
+- The queued continuation passed `d-pad-3-after-queue`. In total,
+  commitment batches 0–15 and pad batches 0–14 passed within their
+  1,500-second caps. At 07:19:31 UTC on 2026-09-22, the guard stopped
+  `d-pad-15` before launch because another `lake` process was active. The
+  queued driver exited with status 1. This was the third build-queue conflict,
+  despite waiting before each child command; no mathematical mismatch was
+  recorded. All previous failure receipts remain intact. Execution is stopped
+  and needs an exclusive or coordinated build queue before continuation.
+  No fourth retry was launched, under the formal project's three-round
+  stop-and-report rule. The JSON record identifies the queued driver, its
+  custody hash, completed batches and failed receipt.
 - Independent first-fold generation is implemented but has not run. The
   remaining D work for 3→4, successor generation, final terminal checks and
   direct current CPU3 comparisons are incomplete. The full independent

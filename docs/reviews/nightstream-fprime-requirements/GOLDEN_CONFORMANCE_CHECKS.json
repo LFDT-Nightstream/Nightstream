@@ -810,24 +810,58 @@
         "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
       }
     },
-    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation stopped at the guard before d-pad-3 launched; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation.",
+    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation stopped at the guard before d-pad-15 launched after the third shared build-queue conflict; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation.",
     "continuation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.json",
     "D_generation": {
       "outcome": "interrupted",
-      "passed_commitment_batches": 4,
-      "passed_commitment_receipts": "d-commitment-0.json through d-commitment-3.json",
-      "passed_pad_batches": 3,
-      "passed_pad_receipts": "d-pad-0.json through d-pad-2.json",
+      "passed_commitment_batches": 16,
+      "passed_commitment_receipts": "d-commitment-0.json through d-commitment-15.json",
+      "passed_pad_batches": 15,
+      "passed_pad_receipts": "d-pad-0.json through d-pad-14.json, using d-pad-3-after-queue.json for batch 3",
       "per_command_cap_seconds": 1500,
-      "stopped_stage": "d-pad-3",
-      "stopped_receipt": "d-pad-3.json",
-      "stopped_log": "d-pad-3.log",
+      "pad_3_retry": {
+        "receipt": "d-pad-3-after-queue.json",
+        "outcome": "passed",
+        "elapsed_seconds": 43.399091482162476
+      },
+      "stopped_stage": "d-pad-15",
+      "stopped_receipt": "d-pad-15.json",
+      "stopped_log": "d-pad-15.log",
       "guard_outcome": "rejected_before_producer_launch",
-      "guard_reason": "Unmanaged Lean processes were active.",
-      "guard_elapsed_seconds": 0.10614919662475586,
+      "guard_reason": "An unmanaged lake process was active: PID 2593122.",
+      "guard_elapsed_seconds": 0.048145294189453125,
       "continuation_exit": 1,
-      "continuation_failed_utc": "2026-09-22T06:50:30.684049Z",
-      "scope": "The seven listed Lean stages passed. The guard stopped the next stage before launch; remaining D generation is incomplete."
+      "continuation_failed_utc": "2026-09-22T07:19:31.669662Z",
+      "queued_attempt": {
+        "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued_resume.py",
+        "driver_sha256": "c4d4c2f3dbbbe4f814c1c9012e99f538dc7c63c803c537142dd12bb8d5dfd7dc",
+        "digest_scope": "External script custody only; not comparison authority.",
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-step-3-reductions.json",
+        "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-step-3-reductions.log",
+        "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-events.jsonl",
+        "failed_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-failed-20260922T071931.680119Z.json",
+        "elapsed_seconds": 967.488341890974,
+        "scope": "The external driver waited on observed build processes before each new guarded child; the third shared-host guard rejection still occurred."
+      },
+      "continuation_requirement": "An exclusive or coordinated build queue is needed. No fourth retry was launched under formal/nightstream-fprime/AGENTS.md: three rounds without closure, stop and report.",
+      "scope": "The 31 listed Lean stages passed. The guard stopped pad batch 15 before producer launch. Remaining D proof generation is incomplete; no mathematical mismatch is recorded.",
+      "previous_attempt": {
+        "outcome": "interrupted",
+        "passed_commitment_batches": 4,
+        "passed_commitment_receipts": "d-commitment-0.json through d-commitment-3.json",
+        "passed_pad_batches": 3,
+        "passed_pad_receipts": "d-pad-0.json through d-pad-2.json",
+        "per_command_cap_seconds": 1500,
+        "stopped_stage": "d-pad-3",
+        "stopped_receipt": "d-pad-3.json",
+        "stopped_log": "d-pad-3.log",
+        "guard_outcome": "rejected_before_producer_launch",
+        "guard_reason": "Unmanaged Lean processes were active.",
+        "guard_elapsed_seconds": 0.10614919662475586,
+        "continuation_exit": 1,
+        "continuation_failed_utc": "2026-09-22T06:50:30.684049Z",
+        "scope": "The seven listed Lean stages passed. The guard stopped the next stage before launch; remaining D generation is incomplete."
+      }
     }
   },
   "preserved_failures": [

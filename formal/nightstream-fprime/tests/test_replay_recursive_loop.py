@@ -19,7 +19,7 @@ class RunnerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.runner = loop.Replay.__new__(loop.Replay)
         self.runner.no_timeout = False
         self.enterContext(patch.dict(loop.os.environ, {"LEAN_SYSROOT": ""}))

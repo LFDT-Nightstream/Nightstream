@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons. Independent first-fold generation, remaining recursive replay, Metal execution, actual CI and protected external reproduction are separate.",
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, and completed independent iteration-2 R/D reductions linked to the current CPU parent. C is retained imported computation. Independent first-fold generation, the complete independent 2-to-3-to-4 successor and feedback sequence, Metal execution, actual CI and protected external reproduction remain separate and pending.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -497,6 +497,68 @@
         "evidence": "development diagnostic only"
       }
     }
+  },
+  "independent_iteration_2_reductions": {
+    "outcome": "passed",
+    "source_iteration": 2,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3",
+    "coordinator_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/continuation-reductions.log",
+    "C_origin": "Retained independent C computation imported through retained-c-transition.json; no new C generation is claimed.",
+    "D_matrix_batches": {
+      "passed": 39,
+      "indices": "0 through 38",
+      "receipts": "independent-continuation/step-2-to-3/logs/d-matrix-batch-N.json under run_directory",
+      "per_command_cap_seconds": 1500
+    },
+    "D_finish": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish.json",
+      "cap_seconds": 1500,
+      "elapsed_seconds": 6.526663064956665,
+      "children_bytes": 446185,
+      "complete_C_R_D_result_bytes": 4722709
+    },
+    "NIFS_comparison": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/nifs-comparison.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/nifs-comparison.log",
+      "cap_seconds": 300,
+      "elapsed_seconds": 19.995953798294067,
+      "canonical_proof_bytes_compared": 945983,
+      "native_PiDEC_result_fields": 17,
+      "native_PiDEC_mutations_rejected": 55,
+      "scope": "New independent R/D results combined with retained independent C match the retained native result and every proof byte. retained-c-transition.json records the exact current CPU proof connection."
+    },
+    "D_finish_rejections": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish-rejections.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish-rejections.log",
+      "cap_seconds": 300,
+      "elapsed_seconds": 41.38497996330261,
+      "cases_rejected": 30
+    },
+    "current_CPU_parent": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-parent.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-parent.log",
+      "receipt_written_utc": "2026-09-22T01:33:25.966345Z",
+      "cap_seconds": 300,
+      "elapsed_seconds": 20.691837165039033,
+      "coefficients_compared": 253011276,
+      "tail_mutation_rejected": true,
+      "scope": "Every current CPU parent coefficient matches the new Lean parent ranges as a canonical Goldilocks field value. Shape, storage validity and full range coverage are checked; raw JSON byte equality is not claimed."
+    },
+    "current_CPU_children": {
+      "outcome": "passed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/retained-c-transition.json",
+      "independent_comparison_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/digits-comparison.json",
+      "child_files": 16,
+      "bytes_compared": 579873475,
+      "scope": "Exact current CPU child file bytes equal the retained targets checked against new independent Lean digit ranges."
+    },
+    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. This does not complete independent first-fold generation or the full independent 2-to-3-to-4 successor and feedback sequence."
   },
   "preserved_failures": [
     {

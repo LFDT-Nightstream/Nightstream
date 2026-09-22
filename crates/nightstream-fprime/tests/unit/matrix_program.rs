@@ -77,7 +77,7 @@ fn encoded_program() -> Value {
             54,
             [[[0, 54, [0, 54, 4_054], 0]], []],
             [0, 54, 4_108],
-            [0, 54 * 33, 4_162]
+            [0, 54, 4_162]
         ]
     ]);
     json!([ordinary, pin, multiplication, poseidon, phi81])
@@ -152,7 +152,7 @@ fn projection_program(projection: Value) -> MatrixProgram {
 fn every_lean_matrix_opcode_decodes_exact_rows() {
     let program = MatrixProgram::decode(&encoded_program()).expect("matrix program");
     program.validate(1).expect("source schedule");
-    assert_eq!(program.row_count().expect("row count"), 1_933);
+    assert_eq!(program.row_count().expect("row count"), 205);
 
     assert_eq!(entries(&program, 0, 1), vec![(5_999, 1)]);
     assert_eq!(entries(&program, 0, 2), vec![(0, 3), (5_999, 2)]);
@@ -187,14 +187,15 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
         vec![(4_000, 1), (5_999, GOLDILOCKS_MODULUS - 2)]
     );
     assert_eq!(entries(&program, phi_row, 2), vec![(4_054, 1)]);
-    assert_eq!(entries(&program, phi_row, 4), vec![(4_162, 1)]);
+    assert_eq!(entries(&program, phi_row, 4), vec![(4_108, 1), (4_162, 1)]);
     assert_eq!(entries(&program, phi_row, 7), vec![(5_999, 1)]);
 
-    let phi_final = entries(&program, phi_row + 33, 4);
-    assert_eq!(phi_final.len(), 34);
-    assert_eq!(phi_final[0], (4_108, 1));
-    assert_eq!(phi_final[1], (4_162, GOLDILOCKS_MODULUS - 1));
-    assert_eq!(phi_final[33], (4_162 + 32, GOLDILOCKS_MODULUS - 1));
+    let phi_at_one = entries(&program, phi_row + 1, 4);
+    assert_eq!(phi_at_one.len(), 108);
+    assert_eq!(phi_at_one[0], (4_108, 1));
+    assert_eq!(phi_at_one[53], (4_108 + 53, 1));
+    assert_eq!(phi_at_one[54], (4_162, 3));
+    assert_eq!(phi_at_one[107], (4_162 + 53, 3));
 
     assert_eq!(MEANINGFUL_PORTS, 13);
 }

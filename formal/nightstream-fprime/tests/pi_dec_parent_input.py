@@ -225,8 +225,8 @@ def check_batches(binary, ccs, directory):
         ("past_range", 0, 0, 6_377_559, "invalid selected matrix row range"),
         ("poseidon_start", 0, 1, 94, "Poseidon range must contain complete 94-row invocations"),
         ("poseidon_end", 0, 0, 1, "Poseidon range must contain complete 94-row invocations"),
-        ("phi81_start", 10, 1, 34, "Phi81 range must contain complete 34-row invocations"),
-        ("phi81_end", 10, 0, 1, "Phi81 range must contain complete 34-row invocations"),
+        ("phi81_start", 10, 1, 108, "Phi81 range must contain complete 108-row invocations"),
+        ("phi81_end", 10, 0, 1, "Phi81 range must contain complete 108-row invocations"),
     ]:
         cases.append((f"batch_later_{name}", request + [second, block, lo, hi] + parents, error))
     for name, arguments, error in cases:

@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
 The transport keeps the existing 30 retained block plans and adds only the
-recipes that cannot be recovered from their source runs: Phi81 group totals,
+recipes that cannot be recovered from their source runs: Phi81 quotient coefficients,
 First54 accepted-symbol products and the four
 verifier-owned output-digest words.
 
@@ -49,18 +49,13 @@ def Phi81FamilyShape.format : Format Phi81FamilyShape where
     cases shape
     rfl
 
-/-- Compact executable recipe for all 52,326 by 33 Phi81 group values.
-The scalar fields protocol-bind the fixed three-convolution Phi81 reduction;
-the block fields name its retained inputs and outputs. -/
+/-- Exact quotient recipe for the 52,326 retained Phi81 coefficients.
+The final coefficient of each ring quotient is zero. -/
 structure Phi81GroupRecipe where
   ringDegree : Nat
   middleDegree : Nat
   foldOffset : Nat
-  twiceCutoff : Nat
-  rawConvolutionCount : Nat
-  rawTermCount : Nat
-  groupWidth : Nat
-  groupCount : Nat
+  quotientCount : Nat
   familyShapes : List Phi81FamilyShape
   challengeBlock : BlockKind
   challengeSlotBase : Nat
@@ -75,11 +70,7 @@ def Phi81GroupRecipe.format : Format Phi81GroupRecipe where
     .atom recipe.ringDegree,
     .atom recipe.middleDegree,
     .atom recipe.foldOffset,
-    .atom recipe.twiceCutoff,
-    .atom recipe.rawConvolutionCount,
-    .atom recipe.rawTermCount,
-    .atom recipe.groupWidth,
-    .atom recipe.groupCount,
+    .atom recipe.quotientCount,
     (Codec.list Phi81FamilyShape.format).encode recipe.familyShapes,
     BlockKind.format.encode recipe.challengeBlock,
     .atom recipe.challengeSlotBase,
@@ -89,28 +80,17 @@ def Phi81GroupRecipe.format : Format Phi81GroupRecipe where
     BlockKind.format.encode recipe.groupOutputBlock]
   decode
     | .array [.atom ringDegree, .atom middleDegree, .atom foldOffset,
-        .atom twiceCutoff, .atom rawConvolutionCount, .atom rawTermCount,
-        .atom groupWidth, .atom groupCount, familyShapes, challengeBlock,
+        .atom quotientCount, familyShapes, challengeBlock,
         .atom challengeSlotBase, .atom challengeSourceStride,
         .atom challengeShift, valueSources, groupOutputBlock] => do
       pure {
-        ringDegree,
-        middleDegree,
-        foldOffset,
-        twiceCutoff,
-        rawConvolutionCount,
-        rawTermCount,
-        groupWidth,
-        groupCount,
-        familyShapes :=
-          ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
+        ringDegree, middleDegree, foldOffset, quotientCount,
+        familyShapes := ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
         challengeBlock := ← BlockKind.format.decode challengeBlock,
-        challengeSlotBase,
-        challengeSourceStride,
-        challengeShift,
+        challengeSlotBase, challengeSourceStride, challengeShift,
         valueSources := ← AffineRuns.format.decode valueSources,
         groupOutputBlock := ← BlockKind.format.decode groupOutputBlock }
-    | _ => .error "invalid Phi81 assignment group recipe"
+    | _ => .error "invalid Phi81 assignment quotient recipe"
   decode_encode := by
     intro recipe
     cases recipe
@@ -159,11 +139,7 @@ def phi81GroupRecipe (program : Program) : Phi81GroupRecipe where
   ringDegree := 54
   middleDegree := 27
   foldOffset := 81
-  twiceCutoff := 106
-  rawConvolutionCount := 3
-  rawTermCount := 162
-  groupWidth := 5
-  groupCount := 33
+  quotientCount := 54
   familyShapes := phi81FamilyShapes
   challengeBlock := .first54Value
   challengeSlotBase := 3402
@@ -228,7 +204,7 @@ def outputDigestExpressions (program : Program) : List Expr :=
   simp [outputDigestExpressions]
 
 /-- Schema of the assignment-transport child in the sealed package. -/
-def schema : Nat := 2
+def schema : Nat := 3
 
 /-- Complete package-carried transport plan. -/
 structure Plan where
@@ -249,7 +225,7 @@ def Plan.format : Format Plan where
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
   decode
-    | .array [.atom 2, blocks, phi81, first54,
+    | .array [.atom 3, blocks, phi81, first54,
         outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,

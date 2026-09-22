@@ -55,7 +55,7 @@ def canonicalRawValues (program : Program) (base : BaseValues program) :
 theorem canonicalRawValues_groupValue_eq_honestGroupValue
     (program : Program) (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Fin 33) :
+    (group : Fin 1) :
     (canonicalRawValues program base).groupValue invocation group =
       PiRLCProductPlan.honestGroupValue
         (PiRLCProductMatrixProgram.inputs

@@ -40,7 +40,7 @@ def completeLogicalWidth
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 208156124 := by
+    completeLogicalWidth program = 139504412 := by
   have retained := retainedCoordinateCount_eq program
   simp only [retainedCoordinateCount] at retained
   unfold completeLogicalWidth freshStart piDecStart

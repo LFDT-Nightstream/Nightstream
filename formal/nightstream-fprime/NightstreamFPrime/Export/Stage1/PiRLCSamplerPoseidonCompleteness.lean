@@ -98,7 +98,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (geometry : PiCCSPoseidonPlan.Geometry application logicalWidth)
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
   (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
@@ -206,7 +206,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (geometry : PiCCSPoseidonPlan.Geometry application logicalWidth)
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
   (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))

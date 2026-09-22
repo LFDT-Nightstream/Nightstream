@@ -23,18 +23,23 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
         .and_then(|fields| fields.get_mut(4))
         .and_then(Value::as_array_mut)
         .ok_or_else(|| "missing assignment transport".to_string())?;
-    if transport.len() != 6 || transport[0].as_u64() != Some(2) {
+    if transport.len() != 6 || transport[0].as_u64() != Some(3) {
         return Err("unexpected assignment transport for mutation".into());
     }
     match family {
         RecipeFamily::Phi81 => {
-            shift_block_sources(transport, 7)?;
+            let recipe = exact_array(&transport[2], 11, "Phi81 quotient recipe")?;
+            let challenge_block = word(&recipe[5], "Phi81 challenge block")?;
+            let final_challenge_start = word(&recipe[6], "Phi81 final challenge slot")?;
+            // Quotients use the final sampler state. The first round can be
+            // all zero, so changing its source run need not change a witness.
+            shift_block_sources(transport, challenge_block, final_challenge_start)?;
         }
         RecipeFamily::First54 => {
-            shift_block_sources(transport, 4)?;
+            shift_block_sources(transport, 4, 0)?;
         }
         RecipeFamily::OutputDigest => {
-            shift_block_sources(transport, 23)?;
+            shift_block_sources(transport, 23, 0)?;
             let sources = block_sources(transport, 23)?;
             if sources.len() != 4 {
                 return Err("output-digest block does not have four sources".into());
@@ -52,7 +57,7 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
     Ok(bytes)
 }
 
-fn shift_block_sources(transport: &mut [Value], opcode: usize) -> Result<()> {
+fn shift_block_sources(transport: &mut [Value], opcode: usize, slot: usize) -> Result<()> {
     let blocks = transport[1]
         .as_array_mut()
         .ok_or_else(|| "missing assignment blocks".to_string())?;
@@ -66,18 +71,22 @@ fn shift_block_sources(transport: &mut [Value], opcode: usize) -> Result<()> {
     let runs = block[4]
         .as_array_mut()
         .ok_or_else(|| format!("missing assignment block {opcode} runs"))?;
-    let first_run = runs
-        .first_mut()
-        .and_then(Value::as_array_mut)
-        .ok_or_else(|| format!("empty assignment block {opcode} runs"))?;
-    if first_run.len() != 3 {
-        return Err("invalid assignment source run".into());
+    let mut end = 0usize;
+    for run in runs {
+        let fields = run
+            .as_array_mut()
+            .filter(|fields| fields.len() == 3)
+            .ok_or_else(|| "invalid assignment source run".to_string())?;
+        end = end
+            .checked_add(word(&fields[2], "assignment source-run count")?)
+            .ok_or_else(|| "assignment source-run coverage overflow".to_string())?;
+        if slot < end {
+            let first = word(&fields[0], "assignment source-run first")?;
+            fields[0] = Value::from(if first == 0 { 1 } else { first - 1 });
+            return Ok(());
+        }
     }
-    let first = first_run[0]
-        .as_u64()
-        .ok_or_else(|| "invalid assignment source-run first".to_string())?;
-    first_run[0] = Value::from(if first == 0 { 1 } else { first - 1 });
-    Ok(())
+    Err(format!("assignment block {opcode} has no source for slot {slot}"))
 }
 
 fn block_sources(transport: &[Value], opcode: usize) -> Result<Vec<usize>> {

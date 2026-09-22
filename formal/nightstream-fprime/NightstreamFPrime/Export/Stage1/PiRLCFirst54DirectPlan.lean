@@ -277,7 +277,7 @@ theorem retainedSymbolColumn_val_lt_baseSourceWidth
 
 def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) :
     Fin (sourceWidth program) → F :=
   FieldSuffixBlock.sourceAssignment (prefixSourceWidth program)
@@ -287,7 +287,7 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
 @[simp] theorem sourceAssignment_prefix
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Fin (prefixSourceWidth program)) :
     sourceAssignment program base groupValue products
@@ -298,7 +298,7 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
 @[simp] theorem sourceAssignment_product
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (candidate : Fin PiRLCFirst54DirectSchedule.candidateCount) :
     sourceAssignment program base groupValue products

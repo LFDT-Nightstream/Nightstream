@@ -87,7 +87,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth)
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+  (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
   (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (retained : PiRLCRetainedPreservation.Encodes
     (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue products)

@@ -105,7 +105,7 @@ theorem transcriptSpecs_to_common
       NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra.Assignment
         F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (specs : PiCCSInvocations.TranscriptSpecs relationLogicalWidth
       relationPublicFits

@@ -26,7 +26,7 @@ def genericRowCount : Nat :=
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily.sourceCount_eq,
     PiRLCCombinationInvocations.laneRowCosts_sum]
 
-@[simp] theorem removedRowCount_eq : genericRowCount - rowCount = 6122142 := by
+@[simp] theorem removedRowCount_eq : genericRowCount - rowCount = 7796574 := by
   rw [genericRowCount_eq, rowCount_eq]
 
 end NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge

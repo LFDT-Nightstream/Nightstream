@@ -804,7 +804,7 @@ theorem resolvedEnv_logical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue
@@ -846,7 +846,7 @@ theorem resolvedEnv_fresh
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue
@@ -916,7 +916,7 @@ theorem resolvedEnv_selector
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base

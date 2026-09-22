@@ -562,7 +562,10 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.input_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.inputState?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.group_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.groupOutput?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.quotientState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.outputState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.priorState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.ringDescriptor?_wireRingDescriptor
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.output_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_lane_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_privateCount

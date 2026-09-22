@@ -439,6 +439,7 @@ impl Manifest {
         let layout = &reference.source.layout;
         if reference.schema != 6
             || reference.source.schema != 8
+            || reference.assignment.schema != 3
             || layout.rows != g.source_rows.eval(counts)?
             || layout.private != g.source_private.eval(counts)?
             || layout.constant != g.source_constant.eval(counts)?

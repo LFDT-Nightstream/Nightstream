@@ -23,9 +23,9 @@ open PiRLCRetainedGeometry
 open PiRLCRetainedInputs
 open PiRLCRetainedPreservation
 
-def rowCount : Nat := 1779084 + 119697
+def rowCount : Nat := 104652 + 119697
 
-@[simp] theorem rowCount_eq : rowCount = 1898781 := by
+@[simp] theorem rowCount_eq : rowCount = 224349 := by
   rfl
 
 theorem childRowCount_le {program : Lifecycle.Stage1.Application.Program}
@@ -51,7 +51,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (values : Values logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan values geometry).rowCount = 1898781 := by
+    (plan values geometry).rowCount = 224349 := by
   simp [plan]
 
 /-- The combined plan vanishes exactly when both canonical child plans
@@ -84,7 +84,7 @@ theorem rowsZero_implies_semantics
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (valuePreserves : ∀ invocation,
@@ -172,7 +172,7 @@ theorem rowsZero_implies_relationHolds
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (interface : Sampler.Interface) (coordinate : Nat)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue

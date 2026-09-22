@@ -92,7 +92,7 @@ private theorem preservesCombination
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue
@@ -116,7 +116,7 @@ theorem inputs_preserve
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue
@@ -156,7 +156,7 @@ theorem rowsZero_iff_rowsHold
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue
@@ -176,7 +176,7 @@ theorem rowsZero_implies_spec
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue

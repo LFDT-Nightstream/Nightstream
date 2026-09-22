@@ -45,6 +45,12 @@ def families : List ProductFamily :=
     MatrixProgram.Phi81Product.Family.privateCount,
     CombinationStep.privateCount, ringDegree]
 
+@[simp] theorem families_ringCount :
+    MatrixProgram.Phi81Product.ringCount families = 969 := by
+  norm_num [families, MatrixProgram.Phi81Product.ringCount,
+    MatrixProgram.Phi81Product.Family.ringCount,
+    commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
+
 /-- Final First54 value slot for source zero. -/
 def challengeSlotStart : Nat := 63 * 54
 
@@ -89,9 +95,8 @@ def block {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem block_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (block geometry).rowCount = 1779084 := by
-  norm_num [block, MatrixProgram.Phi81Product.Block.rowCount,
-    MatrixProgram.Phi81Product.Block.invocationCount]
+    (block geometry).rowCount = 104652 := by
+  norm_num [block, MatrixProgram.Phi81Product.Block.rowCount]
 
 def matrixProgram {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -102,7 +107,7 @@ def matrixProgram {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 1779084 := by
+    (matrixProgram geometry).rowCount = 104652 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.phi81Product (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

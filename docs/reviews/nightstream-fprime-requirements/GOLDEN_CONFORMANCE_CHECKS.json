@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C, R and digit generation from Lean's own successor. Iteration-3 R and digit comparisons with the continuation native targets passed; the prior digit guard failure remains recorded. Iteration-2 C is retained imported computation. Independent first-fold generation, remaining independent 3-to-4 D work, successor, final terminal checks and direct complete current CPU3 comparisons, Metal execution and protected external reproduction remain separate and pending.",
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and new independent iteration-3 C, R and digit generation from Lean's own successor. Iteration-3 R and digit comparisons with the continuation native targets passed; the prior digit guard failure remains recorded. Iteration-2 C is retained imported computation. Independent first-fold generation, remaining independent 3-to-4 D work, successor, final terminal checks, direct complete current CPU3 comparisons and protected external reproduction remain separate and pending.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -810,7 +810,7 @@
         "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
       }
     },
-    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation stopped at the guard before d-pad-3 launched; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation or Metal execution.",
+    "scope": "Completed independent iteration-3 R and digit generation and both comparisons with the continuation native targets. D generation stopped at the guard before d-pad-3 launched; successor, final terminal and direct current CPU3 comparisons remain pending. This does not complete first-fold independent generation.",
     "continuation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.json",
     "D_generation": {
       "outcome": "interrupted",
@@ -1012,7 +1012,9 @@
   },
   "owner_scope": {
     "CI_enforcement": "out_of_scope",
-    "reason": "Owner excluded CI enforcement because of its execution cost; actual CI and required workflows are not acceptance criteria or pending blockers.",
-    "retained_requirements": "Local/manual reproducible current-engine checks, source/input custody, completion of the independent replay and current Metal comparison."
+    "reason": "Owner excluded CI enforcement because of its execution cost and separately excluded Metal validation. Actual CI, required workflows and other-engine execution are not acceptance criteria or pending blockers.",
+    "retained_requirements": "Local/manual reproducible current CPU–Lean checks, source/input custody, archive restoration, completion of the independent replay, and C/R/D acceptance and rejection checks.",
+    "Metal_validation": "out_of_scope",
+    "confidence_target": "At least 9/10 conformance confidence for the selected CPU–Lean first-fold and recursive cases; not a cryptographic security bound."
   }
 }

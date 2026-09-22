@@ -1,0 +1,10 @@
+{
+  "outcome": "time-cap",
+  "exit_code": 137,
+  "cap_seconds": 300,
+  "authority": "AGENTS.md ordinary non-Lean test cap",
+  "completed": false,
+  "maximum_resident_bytes": null,
+  "memory_note": "Outer timeout killed the in-memory observer before it wrote its record. No memory acceptance is claimed.",
+  "leftover_processes": "No matching native test, controller or xctrace process after cap."
+}

@@ -7,6 +7,9 @@ pub enum PiCcsError {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
+    #[error("matrix workspace needs {required} bytes, but only {available} bytes are available")]
+    MatrixWorkspace { required: usize, available: usize },
+
     #[error("Sumcheck error: {0}")]
     SumcheckError(String),
 

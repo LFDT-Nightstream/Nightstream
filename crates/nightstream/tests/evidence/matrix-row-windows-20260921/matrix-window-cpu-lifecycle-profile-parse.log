@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "source": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-samples.xml",
+  "source_bytes": 1704334689,
+  "source_mtime_ns": 1790051148872168043,
+  "target_pid": 92096,
+  "expected_native_uuid": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+  "native_binary_ids": [
+    "81"
+  ],
+  "scope": "Summed Time Profiler sample weights across target threads; not wall time.",
+  "total_xml_rows": 6925984,
+  "target_sample_count": 6925984,
+  "target_weight_ns": 6925984000000,
+  "backtrace_sample_count": 6925530,
+  "backtrace_weight_ns": 6925530000000,
+  "sentinel_sample_count": 454,
+  "sentinel_weight_ns": 454000000,
+  "other_missing_stack_sample_count": 0,
+  "other_missing_stack_weight_ns": 0,
+  "empty_backtrace_sample_count": 0,
+  "empty_backtrace_weight_ns": 0,
+  "first_inline_sample_time_ns": 679950875,
+  "last_inline_sample_time_ns": 1331473950250,
+  "sample_time_reference_rows": 89710,
+  "weight_ns_distribution": {
+    "1000000": 6925984
+  },
+  "all_processes": [
+    {
+      "pid": 92096,
+      "sample_count": 6925984,
+      "weight_ns": 6925984000000
+    }
+  ],
+  "processes": {
+    "4": {
+      "pid": 92096,
+      "label": "matrix-window-borrowed-benchmark-binary (92096)"
+    }
+  },
+  "retained_descriptor_counts": {
+    "processes": 1,
+    "weights": 1,
+    "binaries": 11,
+    "frames": 13863,
+    "backtraces": 381082,
+    "sample_times": 0
+  },
+  "parse_seconds": 91.02825312501227
+}
+Saved /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-data.json

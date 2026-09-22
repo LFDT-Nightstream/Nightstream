@@ -1,0 +1,7 @@
+{
+  "reason": "Terminal verification had not completed near the 30-minute Instruments deadline; stop native work and request trace finalization within the remaining cap.",
+  "target_pid": 71724,
+  "recorder_pid": 71715,
+  "time_unix": 1790030661.392205,
+  "full_lifecycle_completed": false
+}

@@ -1,0 +1,71 @@
+   Compiling cfg-if v1.0.4
+   Compiling libc v0.2.186
+   Compiling serde_core v1.0.228
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.10.1
+   Compiling once_cell v1.21.4
+   Compiling either v1.16.0
+   Compiling strength_reduce v0.2.4
+   Compiling pin-project-lite v0.2.17
+   Compiling p3-maybe-rayon v0.5.3
+   Compiling scopeguard v1.2.0
+   Compiling chacha20 v0.10.1
+   Compiling tracing-core v0.1.36
+   Compiling itertools v0.14.0
+   Compiling zerocopy v0.8.54
+   Compiling crossbeam-utils v0.8.22
+   Compiling lock_api v0.4.14
+   Compiling getrandom v0.4.3
+   Compiling getrandom v0.3.4
+   Compiling num-integer v0.1.46
+   Compiling spin v0.10.1
+   Compiling rand_core v0.9.5
+   Compiling rand v0.10.2
+   Compiling tracing v0.1.44
+   Compiling crossbeam-epoch v0.9.20
+   Compiling thiserror v2.0.18
+   Compiling num-bigint v0.4.8
+   Compiling transpose v0.2.3
+   Compiling subtle v2.6.1
+   Compiling crossbeam-deque v0.8.7
+   Compiling p3-util v0.5.3
+   Compiling objc2-encode v4.1.0
+   Compiling bitflags v2.13.0
+   Compiling zmij v1.0.23
+   Compiling itoa v1.0.18
+   Compiling rayon-core v1.13.0
+   Compiling serde v1.0.228
+   Compiling memchr v2.8.3
+   Compiling neo-prover-cuda v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-cuda)
+   Compiling objc2 v0.6.4
+   Compiling p3-field v0.5.3
+   Compiling neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+   Compiling bincode v1.3.3
+   Compiling serde_json v1.0.150
+   Compiling rayon v1.12.0
+   Compiling p3-matrix v0.5.3
+   Compiling p3-symmetric v0.5.3
+   Compiling ppv-lite86 v0.2.21
+   Compiling block2 v0.6.2
+   Compiling objc2-foundation v0.3.2
+   Compiling p3-poseidon1 v0.5.3
+   Compiling p3-dft v0.5.3
+   Compiling rand_chacha v0.9.0
+   Compiling rand_chacha v0.10.0
+   Compiling dispatch2 v0.3.1
+   Compiling p3-mds v0.5.3
+   Compiling p3-poseidon2 v0.5.3
+   Compiling rand v0.9.5
+   Compiling p3-monty-31 v0.5.3
+   Compiling objc2-metal v0.3.2
+   Compiling p3-challenger v0.5.3
+   Compiling p3-goldilocks v0.5.3
+   Compiling neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+   Compiling neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+   Compiling neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 50.82s

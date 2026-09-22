@@ -1,6 +1,6 @@
 //! Selected native proof construction from the prepared relation.
 use super::PreparedLifecycle;
-use crate::engine::{paper_exact, Prover};
+use crate::engine::{paper_exact, Backend};
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, Params, RunningInstance};
 use neo_math::D;
 use nightstream_fprime::{
@@ -33,9 +33,11 @@ impl PreparedLifecycle {
             self.structure.max_degree(),
         )?;
         let mut transcript = Transcript::session();
-        Ok(match &self.prover {
+        let rows = self.matrix_rows();
+        let workspace_bytes = self.matrix_workspace_bytes()?;
+        Ok(match &self.backend {
             #[cfg(feature = "metal")]
-            Prover::Metal(device) => {
+            Backend::Metal(device) => {
                 let mut device = device.lock().map_err(|_| crate::EngineError::Failure {
                     engine: crate::Engine::Metal,
                     reason: "device session lock was poisoned".into(),
@@ -45,20 +47,22 @@ impl PreparedLifecycle {
                     &mut transcript,
                     &params,
                     &self.structure,
-                    self.build_superneo_cache()?,
+                    &rows,
+                    workspace_bytes,
                     fresh,
                     running,
                 )?
             }
-            Prover::Optimized => nifs::prove_owned_with_rows(
+            Backend::Optimized => nifs::prove_owned_with_rows(
                 &mut transcript,
                 &params,
                 &self.structure,
-                self.build_superneo_cache()?,
+                &rows,
+                workspace_bytes,
                 fresh,
                 running,
             )?,
-            Prover::PaperExact => paper_exact::prove(
+            Backend::PaperExact => paper_exact::prove(
                 &mut transcript,
                 &params,
                 &self.structure,
@@ -66,11 +70,12 @@ impl PreparedLifecycle {
                 fresh,
                 running,
             )?,
-            Prover::Crosscheck => crate::engine::crosscheck::prove(
+            Backend::Crosscheck => crate::engine::crosscheck::prove(
                 &mut transcript,
                 &params,
                 &self.structure,
-                self.build_superneo_cache()?,
+                &rows,
+                workspace_bytes,
                 &paper_exact::PackageRows(&self.package),
                 fresh,
                 running,

@@ -303,11 +303,23 @@ impl SuperneoMatrixCache {
         debug_assert_eq!(chi_re.len(), chi_im.len(), "chi coefficient length mismatch");
         debug_assert!(scratch.active_blocks.is_empty(), "ring-form scratch must start empty");
         let row_cap = min(min(self.rows, n_eff), chi_re.len());
-        scratch.ensure_block_count(self.cols.div_ceil(D));
+        self.accumulate_original_ring_form_with(row_cap, scratch, |row| K::from_coeffs([chi_re[row], chi_im[row]]));
 
+        scratch.bar_active();
+
+        self.accumulate_seeded_ring_form_split_chi(chi_re, chi_im, n_eff, scratch);
+    }
+
+    pub(super) fn accumulate_original_ring_form_with(
+        &self,
+        row_cap: usize,
+        scratch: &mut RingEvalScratch,
+        weight: impl Fn(usize) -> K,
+    ) {
+        debug_assert!(row_cap <= self.rows);
+        scratch.ensure_block_count(self.cols.div_ceil(D));
         for row in 0..row_cap {
-            let w_re = chi_re[row];
-            let w_im = chi_im[row];
+            let [w_re, w_im] = weight(row).as_coeffs();
             if w_re == F::ZERO && w_im == F::ZERO {
                 continue;
             }
@@ -328,10 +340,6 @@ impl SuperneoMatrixCache {
             }
             self.accumulate_geometric_ring_form_row(row, w_re, w_im, scratch);
         }
-
-        scratch.bar_active();
-
-        self.accumulate_seeded_ring_form_split_chi(chi_re, chi_im, n_eff, scratch);
     }
 
     pub(super) fn accumulate_seeded_ring_form_split_chi(

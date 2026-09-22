@@ -116,7 +116,7 @@ impl PreparedLifecycle {
         // sharing exact indexed key coefficients across the child witnesses.
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let commitments = self.prover.commit(&child_witnesses)?;
+        let commitments = self.backend.commit(&child_witnesses)?;
         #[cfg(test)]
         eprintln!("complete child commitments elapsed={:?}", started.elapsed());
         for (index, (claim, commitment)) in inputs
@@ -184,7 +184,10 @@ impl PreparedLifecycle {
         eprintln!("complete logical packing elapsed={:?}", started.elapsed());
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let commitment = self.prover.commit(std::slice::from_ref(&packed))?.remove(0);
+        let commitment = self
+            .backend
+            .commit(std::slice::from_ref(&packed))?
+            .remove(0);
         #[cfg(test)]
         eprintln!("complete fresh commitment elapsed={:?}", started.elapsed());
         let fresh = CcsInstance {

@@ -75,7 +75,7 @@ impl SuperneoEvalCache {
     }
 }
 
-fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) -> [K; D] {
+pub(super) fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) -> [K; D] {
     if witness.real_is_zero() {
         return [K::ZERO; D];
     }

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "python3",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_bounded_cpu_profile.py",
+    "bounded-cpu-time-profile",
+    "80683"
+  ],
+  "outcome": "passed",
+  "exit": 0,
+  "elapsed_seconds": 6.316444209005567,
+  "cap_seconds": 300,
+  "authority": "An agent-selected 300-second inspection cap was used; it was not user-required for this parse/aggregation slice.",
+  "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-cpu-time-profile-summary.json",
+  "attribution": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-cpu-time-profile-attribution.json",
+  "analysis_script_used": {
+    "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_bounded_cpu_profile.py",
+    "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-aggregator-used.py",
+    "bytes": 11479,
+    "sha256": "9545b99f174912de1fcf2dcffd6bce9ad71ccbebd2909f5f3fdec52ff3ffdde9",
+    "mtime_ns": 1790039222704926308
+  }
+}

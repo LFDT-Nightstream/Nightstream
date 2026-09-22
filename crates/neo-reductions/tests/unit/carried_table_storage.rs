@@ -1,5 +1,5 @@
 use super::*;
-use crate::superneo_eval::{weighted_identity_projection, SuperneoEvalCacheBuilder};
+use crate::superneo_eval::{weighted_identity_projection, CachedMatrixRows, MatrixWindow, SuperneoEvalCacheBuilder};
 use neo_math::KExtensions;
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -57,6 +57,8 @@ fn carried_table_has_no_flat_combined_witness() {
             .unwrap();
     }
     let cache = builder.finish().unwrap();
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace_bytes = MatrixWindow::required_workspace(&source, 0..rows, 0).unwrap();
     let packed = Mat::compact_signed_unit_from_column_masks(D, 2, &[1, 2], &[4, 8]).unwrap();
     let mut dense = Mat::zero(D, 2, F::ZERO);
     dense[(D - 1, 1)] = -F::ONE;
@@ -109,7 +111,7 @@ fn carried_table_has_no_flat_combined_witness() {
         ALLOCATIONS.set(0);
         REAL_ALLOCATIONS.set(0);
         CARRIER_BYTES.set(width * size_of::<K>());
-        let actual = carried_table(&cache, &running, gamma, dims, rows);
+        let actual = carried_table(&source, &running, gamma, dims, rows, workspace_bytes).unwrap();
         CARRIER_BYTES.set(0);
         assert_eq!(
             actual, expected,
@@ -138,6 +140,8 @@ fn carried_rows_beyond_the_witness_carrier_are_retained() {
         builder.push_row(0, row, [(0, F::ONE)]).unwrap();
     }
     let cache = builder.finish().unwrap();
+    let matrix_rows = CachedMatrixRows::new(&cache).unwrap();
+    let workspace_bytes = MatrixWindow::required_workspace(&matrix_rows, 0..rows, 0).unwrap();
     let witness = Mat::<F>::compact_signed_unit_from_column_masks(D, 1, &[1], &[0]).unwrap();
     let source = SuperneoZBlocks::from_witness_mat(&witness, 1).unwrap();
     let gamma = K::from_coeffs([F::from_u64(5), F::from_u64(7)]);
@@ -155,7 +159,10 @@ fn carried_rows_beyond_the_witness_carrier_are_retained() {
         matrix_count: 1,
         degree: 4,
     };
-    assert_eq!(carried_table(&cache, &[source], gamma, dims, rows), expected);
+    assert_eq!(
+        carried_table(&matrix_rows, &[source], gamma, dims, rows, workspace_bytes).unwrap(),
+        expected
+    );
 }
 
 #[test]

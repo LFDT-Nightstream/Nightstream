@@ -1,14 +1,44 @@
 # Nightstream crate goal
 
 Status: the original CPU migration is complete on `nico/nightstream-crate`.
-The engine extension below is in progress; the Metal performance requirement
-has not passed. Structured
-exports, the independent golden circuit, the generic Rust assembler, and the
-new crate's fresh two-fold and terminal checks passed. See
+The prepared-package API and measured 5× CPU/Metal target pass. The final build,
+including the compiler-derived fixed-metadata bound, measures **5.9332×** under
+matched load/prove/verify Time Profiler runs: CPU 1,262.10 s and Metal 212.72 s.
+Both verify; observed RSS peaks are 14.45 GB and 11.47 GB. Raw Metal completes in
+**212.47 s with 11.37 GB final peak RSS**, including 2.15 s for package loading
+and engine setup. Compilation is separate at 34.86 s, with 0.13 s for saving.
+All nine prepared-package checks, the compiler-bound check, and four public
+save/load checks pass. Stored data and work buffers are bounded; a universal
+process-RSS guarantee for every circuit remains unproven because allocator,
+runtime, driver, and simultaneous residency also contribute.
+
+Structured exports, the independent golden circuit, the generic Rust assembler,
+and the new crate's fresh two-fold and terminal checks passed. See
 [the validation record](crates/nightstream/VALIDATION.md) and
 [the execution receipt](crates/nightstream/tests/evidence/fresh-recursive-replay.json).
-This is staged execution evidence. The proof and implementation limits in
-this document still apply; no earlier assurance goal is marked complete.
+The proof and implementation limits in this document still apply; no earlier
+assurance goal is marked complete.
+
+## Prepared-package lifecycle (owner update, 2026-09-22)
+
+The 5× CPU/Metal target now covers loading a prepared package, proving the base
+step and recursive extensions, and terminal verification. It excludes one-time
+compilation. Measure compilation and package loading separately. Earlier
+compile-plus-prove measurements remain historical evidence for their stated
+scope; they are not prepared-package measurements.
+
+Compile the intended application once, validate its circuit, compute the same
+protocol bindings, and save reusable execution data. Both CPU and Metal load
+the same package; engine selection follows compilation. Loading checks the
+format and execution dimensions without repeating whole-circuit identity
+hashing. Preserve the existing circuit identities, formulas and proof protocol.
+
+A verifier uses the configuration selected by its caller, either from local
+compilation or a loaded package. Nightstream checks the supplied configuration
+when verifying a proof; it does not enforce package provenance, deployment
+authentication, certificates, or a whole-circuit rehash on normal loads. Selecting
+the intended configuration and any authentication of its source are integration
+responsibilities. Proof data cannot silently replace the supplied configuration.
 
 ## Owner-approved engine extension
 
@@ -28,9 +58,9 @@ The owner requested these additions after the original migration plan:
 - Add an independent Poseidon2 lifecycle benchmark in this crate. Use saved
   Lean artifacts; do not add a benchmark dependency on the old crate or start
   Nebula work. Compare engine runs manually on the same inputs and host.
-- Require at least **5× CPU speed** from Metal over the **full lifecycle**,
-  including preparation, proving, and terminal verification. This requirement
-  comes from the owner's 2026-09-20 instruction. The benchmark covers one base
+- Require at least **5× CPU speed** from Metal over package loading, proving,
+  and terminal verification. The owner excluded one-time compilation on
+  2026-09-22 and explicitly retained loading in the target. The benchmark covers one base
   step and two active folds. Matching proof bytes and outputs is required
   before accepting a performance result. Phase timings are diagnostic data,
   not substitutes for the complete lifecycle measurement.
@@ -160,10 +190,74 @@ coefficient planes. The second production PiCCS proof now matches every saved
 CPU proof byte and output opening: **182.43 s**, **17,103,896,576 bytes RSS**
 (17.10 GB; 15.93 GiB), below the working 16 GiB guard. Allocation regressions
 and all nine supported engine comparisons pass. This is one phase; the full
-CPU lifecycle and the bound for all supported circuits remain open. The
-current-build Metal benchmark also passes: **179.51 s**, **16.78 GB peak RSS**,
-with terminal verification. Its exact executable is saved for the pending full
-CPU run; the 5× comparison must use that same build and workload.
+CPU lifecycle and the bound for all supported circuits remain open. That
+revision's Metal benchmark also passed: **179.51 s**, **16.78 GB peak RSS**,
+with terminal verification. Its exact executable is retained as a baseline;
+the 5× comparison must use the same build and workload for both engines.
+
+GPU profiling now identifies commitment sequences (60.78 s) and opening
+products/forms as the main device work in a 119.98 s active GPU timeline.
+Explicit encoder labels and Shader Timeline data identify the kernels; no
+algorithm change or new speedup is claimed from these labels. Instruments has
+the owner's 30-minute cap. See the profiling record in `crates/nightstream/VALIDATION.md`.
+
+The subsequent opening-kernel changes share geometric coefficients between
+extension components and skip multiplication by one. The retained three-step
+Metal run verifies in **167.80 s** with **16.86 GB peak RSS**. A fresh second-fold
+check matches every CPU proof byte and all sixteen returned matrices. A slower
+commitment thread-order candidate was removed. The full CPU lifecycle timing,
+5× ratio, and general memory bound remain open. See the profile-driven opening
+record in `crates/nightstream/VALIDATION.md`.
+
+The Optimized CPU terminal check now accepts the stored Metal step-3 envelope
+and rejects a wrong state. The complete CPU profile stopped during terminal
+verification at the 30-minute Instruments cap. The full CPU time and 5× ratio
+remain open. A source review also found that an accepted row shape would
+request a 27.51 GB Metal application table; rejecting that request does not
+meet the bounded-storage requirement. See the CPU lifecycle and terminal
+profile in `crates/nightstream/VALIDATION.md`.
+
+The CPU key loader now replaces repeated division with exact Goldilocks
+reduction. The production fresh commitment takes **58.38 s**, down from
+**95.14 s**, and matches the saved commitment. Stored setup, CPU/device, and
+parallel cross-check tests pass. This operation-level result does not close
+the full lifecycle timing or universal storage requirements. See the CPU
+indexed-key reduction record in `crates/nightstream/VALIDATION.md`.
+
+Metal application tables now use bounded row replay when resident prefixes
+do not fit. Exact CPU/Metal proof, transcript, and opening comparisons pass
+under forced small workspaces. A production second fold also matches all
+945,983 CPU proof bytes and sixteen returned matrices, at 16.38 GB peak RSS.
+Other caches, matrix indexes, and witness storage still need bounds; the
+universal RSS and 5× lifecycle requirements remain open. See the bounded
+application-table record in `crates/nightstream/VALIDATION.md`.
+
+That build's complete Metal lifecycle passes in **164.66 s** with **16.81 GB
+peak RSS**, including preparation, base proving, two folds, and terminal
+verification. Inputs, profile, circuit identity, and final state match the
+prior benchmark. Its exact executable is retained with function symbols for
+the pending full CPU comparison and profiling. This remains one measured
+circuit; it does not establish the universal RSS bound or the 5× ratio.
+
+Before the matrix-row window change, matching Time Profiler runs on the same saved executable completed in
+**1,256.02 s on Optimized and 164.74 s on Metal**, or **7.62×**. Both verify
+the same final state and circuit identity. Preparation is included and takes
+34.53 s on each engine. Both captures and trace finalization finish within the
+owner-approved 30-minute Instruments cap. The ratio is measured under profiling;
+the requested CPU run without Instruments still awaits approval for that
+specific longer invocation. See
+[the matched profiles](crates/nightstream/VALIDATION.md#matched-full-lifecycle-profiles).
+
+The general RSS requirement remains open. CPU and Metal now generate bounded
+matrix windows without a full-cache prerequisite. Production comparison matches
+all 945,983 CPU proof bytes and sixteen complete child matrices: 98.16 s for
+the second fold, with 13.79 GB peak RSS. Eager application and assembly rows
+remain a preparation-memory gap. Their inline row storage alone can exceed
+28.70 GB at the accepted application row bound, before terms and recipes.
+The full Metal lifecycle also passes without Instruments in 290.80 s with
+13.85 GB peak RSS. A matching current CPU measurement is pending.
+No large circuit was generated. See
+[the matrix-window evidence](crates/nightstream/tests/evidence/matrix-row-windows-20260921).
 
 ## Lemmas
 
@@ -477,10 +571,11 @@ Prepare application-specific circuit data once and reuse it across steps.
 Use compact representations and native kernels in the expensive computations.
 Avoid expanding repeated structures merely to serialize or copy them again.
 
-Measure preparation time, proving time, verification time and peak memory on
-the same inputs and host as the baseline. Include loading and conversion
-costs. Resolve measured regressions before claiming the replacement is faster.
-This goal sets no unmeasured runtime or source-line target.
+Measure one-time compilation and saving separately. For the 5× comparison,
+measure package loading, proving, terminal verification and peak memory on the
+same inputs and host as the baseline. Include loading and conversion costs;
+exclude compilation from that runtime total. Resolve measured regressions
+before claiming the replacement is faster.
 
 Use focused Rust tests and export validation during development. Rust
 optimizations must preserve the exported constraints; changing the Lean

@@ -3,12 +3,13 @@ use super::{
     ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance, DecMixer, Error, NifsProof,
     Params, RlcMixer, RunningInstance, Structure,
 };
-use neo_reductions::superneo_eval::SuperneoEvalCache;
+use neo_reductions::superneo_eval::MatrixRows;
 pub(crate) fn prove_owned_with_rows(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    cache: &SuperneoEvalCache,
+    rows: &dyn MatrixRows,
+    workspace_bytes: usize,
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), Error> {
@@ -16,7 +17,7 @@ pub(crate) fn prove_owned_with_rows(
         .into_iter()
         .map(|source| (source.claim, source.witness))
         .unzip();
-    let c = pi_ccs::prove_from_parts_with_rows(tr, pp, s, cache, &claims, &witnesses, &running)?;
+    let c = pi_ccs::prove_from_parts_with_rows(tr, pp, s, rows, workspace_bytes, &claims, &witnesses, &running)?;
     let all: Vec<_> = witnesses
         .iter()
         .map(|w| &w.Z)
@@ -26,7 +27,7 @@ pub(crate) fn prove_owned_with_rows(
     drop(all);
     drop(witnesses);
     drop(running);
-    let (children, d) = pi_dec::prove_with_production_key(pp, s, cache, &parent.claim, parent.witness)?;
+    let (children, d) = pi_dec::prove_with_production_key(pp, s, rows, workspace_bytes, &parent.claim, parent.witness)?;
     Ok((
         RunningInstance::new(children.claims, children.witnesses, Some(parent.claim)),
         NifsProof {

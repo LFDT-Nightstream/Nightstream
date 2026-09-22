@@ -122,6 +122,18 @@ impl SuperneoEvalCache {
         n_eff: usize,
         n_pad: usize,
     ) -> Vec<K> {
+        let mut out = vec![K::ZERO; n_pad];
+        self.fill_weighted_rows_from_projection(identity_projection, mat_coeffs, &mut out[..n_eff]);
+        out
+    }
+
+    pub(crate) fn fill_weighted_rows_from_projection(
+        &self,
+        identity_projection: &[K],
+        mat_coeffs: &[K],
+        out: &mut [K],
+    ) {
+        let n_eff = out.len();
         #[cfg(feature = "perf-timers")]
         let total_start = std::time::Instant::now();
         assert_eq!(
@@ -129,7 +141,6 @@ impl SuperneoEvalCache {
             mat_coeffs.len(),
             "eval_weighted_row_table: matrix coefficient count mismatch"
         );
-        let mut out = vec![K::ZERO; n_pad];
         let identity_coeff = self
             .mats
             .iter()
@@ -176,7 +187,6 @@ impl SuperneoEvalCache {
             total_start.elapsed() - explicit_elapsed,
             total_start.elapsed(),
         );
-        out
     }
 
     fn add_seeded_weighted_rows(&self, out: &mut [K], mat_coeffs: &[K], identity_projection: &[K]) {

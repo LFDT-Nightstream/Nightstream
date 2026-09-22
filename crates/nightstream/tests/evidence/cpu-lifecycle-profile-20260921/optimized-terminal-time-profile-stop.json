@@ -1,0 +1,6 @@
+{
+  "reason": "Native test waited on piped stdin before circuit preparation; use direct file input via exec for the next capture",
+  "target_pid": 73923,
+  "recorder_pid": 73910,
+  "verification_completed": false
+}

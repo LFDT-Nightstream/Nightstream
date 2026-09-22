@@ -26,7 +26,7 @@ mod ajtai_batch;
 mod joint;
 mod masks;
 mod production_commitment;
-pub(crate) use joint::{MetalJointMatrixPlan, MetalPaperJointOracle};
+pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
@@ -38,7 +38,7 @@ type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
 // Owner's 16 GB ceiling. This bounds buffer requests; CPU memory is measured
 // separately. Serialize checks across sessions sharing the same device.
-const BUFFER_LIMIT_BYTES: usize = 16_000_000_000;
+pub(crate) const BUFFER_LIMIT_BYTES: usize = 16_000_000_000;
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 #[derive(Default)]
@@ -81,18 +81,14 @@ pub struct MetalSession {
     sumcheck_reduce_partials: Pipeline,
     joint_build_application_tables: Pipeline,
     ccs_first_unsatisfied_row: Pipeline,
-    joint_copy_seeded_satisfied_rows: Pipeline,
     joint_zero_words: Pipeline,
     joint_fold_base_tables: Pipeline,
     joint_fold_k_tables: Pipeline,
+    joint_accumulate_application: Pipeline,
     joint_fold_assignments: Pipeline,
     joint_fold_assignment_values: Pipeline,
     joint_round_partials: Pipeline,
     joint_selective_round_partials: Pipeline,
-    joint_seeded_base_partials: Pipeline,
-    joint_seeded_base_reduce: Pipeline,
-    joint_seeded_k_partials: Pipeline,
-    joint_seeded_k_reduce: Pipeline,
     dec_build_row_weights: Pipeline,
     dec_build_ring_forms: Pipeline,
     dec_build_parallel_original_forms: Pipeline,
@@ -100,8 +96,6 @@ pub struct MetalSession {
     dec_reduce_parallel_original_form_tiles: Pipeline,
     dec_add_geometric_ring_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
-    dec_build_seeded_ring_forms: Pipeline,
-    dec_add_bar_seeded_ring_forms: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
@@ -179,18 +173,14 @@ impl MetalSession {
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
         let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
         let ccs_first_unsatisfied_row = pipeline(&device, &library, "ccs_first_unsatisfied_row")?;
-        let joint_copy_seeded_satisfied_rows = pipeline(&device, &library, "joint_copy_seeded_satisfied_rows")?;
         let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
         let joint_fold_base_tables = pipeline(&device, &library, "joint_fold_base_tables")?;
         let joint_fold_k_tables = pipeline(&device, &library, "joint_fold_k_tables")?;
+        let joint_accumulate_application = pipeline(&device, &library, "joint_accumulate_application")?;
         let joint_fold_assignments = pipeline(&device, &library, "joint_fold_assignments")?;
         let joint_fold_assignment_values = pipeline(&device, &library, "joint_fold_assignment_values")?;
         let joint_round_partials = pipeline(&device, &library, "joint_round_partials")?;
         let joint_selective_round_partials = pipeline(&device, &library, "joint_selective_round_partials")?;
-        let joint_seeded_base_partials = pipeline(&device, &library, "joint_seeded_base_partials")?;
-        let joint_seeded_base_reduce = pipeline(&device, &library, "joint_seeded_base_reduce")?;
-        let joint_seeded_k_partials = pipeline(&device, &library, "joint_seeded_k_partials")?;
-        let joint_seeded_k_reduce = pipeline(&device, &library, "joint_seeded_k_reduce")?;
         let dec_build_row_weights = pipeline(&device, &library, "dec_build_row_weights")?;
         let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
         let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
@@ -200,8 +190,6 @@ impl MetalSession {
             pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
         let dec_add_geometric_ring_forms = pipeline(&device, &library, "dec_add_geometric_ring_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
-        let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
-        let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
@@ -241,18 +229,14 @@ impl MetalSession {
             sumcheck_reduce_partials,
             joint_build_application_tables,
             ccs_first_unsatisfied_row,
-            joint_copy_seeded_satisfied_rows,
             joint_zero_words,
             joint_fold_base_tables,
             joint_fold_k_tables,
+            joint_accumulate_application,
             joint_fold_assignments,
             joint_fold_assignment_values,
             joint_round_partials,
             joint_selective_round_partials,
-            joint_seeded_base_partials,
-            joint_seeded_base_reduce,
-            joint_seeded_k_partials,
-            joint_seeded_k_reduce,
             dec_build_row_weights,
             dec_build_ring_forms,
             dec_build_parallel_original_forms,
@@ -260,8 +244,6 @@ impl MetalSession {
             dec_reduce_parallel_original_form_tiles,
             dec_add_geometric_ring_forms,
             dec_bar_ring_forms_in_place,
-            dec_build_seeded_ring_forms,
-            dec_add_bar_seeded_ring_forms,
             dec_sparse_ring_partials,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,

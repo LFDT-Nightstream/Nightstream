@@ -8,7 +8,7 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 
 use neo_ccs::Mat;
 use neo_math::{balanced::to_balanced_i128, ring::D};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -103,13 +103,16 @@ pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     let mut bytes = [0_u8; D * 64];
     rng.fill_bytes(&mut bytes);
     core::array::from_fn(|lane| {
-        bytes[lane * 64..lane * 64 + 32]
-            .chunks_exact(4)
-            .rev()
-            .fold(0_u128, |value, word| {
-                let word = u32::from_le_bytes(word.try_into().expect("four-byte coefficient word"));
-                (value * WORD_RADIX + u128::from(word)) % GOLDILOCKS_MODULUS
-            }) as u64
+        let words: [i64; 8] = core::array::from_fn(|word| {
+            let start = lane * 64 + word * 4;
+            i64::from(u32::from_le_bytes(bytes[start..start + 4].try_into().unwrap()))
+        });
+        // For x = 2^32, x^2 = x - 1 and x^6 = 1 modulo Goldilocks.
+        // Each signed sum has magnitude at most 3 * (2^32 - 1), so i64
+        // arithmetic is exact. The scalar coefficient keeps the division reference.
+        let a = words[0] - words[2] - words[3] + words[5] + words[6];
+        let b = words[1] + words[2] - words[4] - words[5] + words[7];
+        (Goldilocks::from_i64(a) + Goldilocks::from_i64(b) * Goldilocks::from_u64(1_u64 << 32)).as_canonical_u64()
     })
 }
 

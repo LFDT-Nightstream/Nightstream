@@ -1,0 +1,5 @@
+
+running 1 test
+staged request=Prove { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-second-metal", step: 2, engine: Metal, reference_proof: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/fold-2/proof.native" }
+staged circuit preparation elapsed=34.619334042s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds

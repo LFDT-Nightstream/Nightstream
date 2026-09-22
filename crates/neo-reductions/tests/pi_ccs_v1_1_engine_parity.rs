@@ -21,6 +21,7 @@ use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
+use neo_reductions::superneo_eval::{CachedMatrixRows, MatrixWindow};
 use neo_reductions::{split_b_matrix_k, verify_and_export_pi_ccs_receipt, PiCcsError, PiCcsProof};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -299,6 +300,11 @@ fn every_joint_round_polynomial_and_fold_matches() {
             .collect();
         let challenges = Challenges::new(alpha, K::from(F::from_u64(13)));
         let cache = OptimizedStructureCache::build(&structure).expect("cache");
+        let source = CachedMatrixRows::new(cache.superneo()).expect("matrix rows");
+        let payload = fresh.len() * structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
+        let workspace_bytes = MatrixWindow::required_workspace(&source, 0..structure.n, payload)
+            .expect("fixture row workspace")
+            + (dims.degree + 1 + structure.t()) * size_of::<K>();
         let mut paper = PaperJointOracle::new(
             &structure,
             &params,
@@ -317,7 +323,8 @@ fn every_joint_round_polynomial_and_fold_matches() {
             challenges,
             Some(&prior),
             dims,
-            &cache,
+            &source,
+            workspace_bytes,
         )
         .expect("optimized oracle");
         let points: Vec<K> = (0..=dims.degree)

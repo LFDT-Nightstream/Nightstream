@@ -1,0 +1,16 @@
+{
+  "image": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-package-benchmark-binary",
+  "uuid": "UUID: 7DCAD994-817D-33E5-95BB-666FA9543762 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-package-benchmark-binary",
+  "profile": "release opt3/fatLTO/codegen1; strip=none",
+  "features": [
+    "metal",
+    "cuda"
+  ],
+  "source_commit": "469d12e2dc01a7cd236aaef86950f0708260041f",
+  "source_patch": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-package-source.patch",
+  "new_source_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-package-new-source.tar.gz",
+  "benchmark_schema": 2,
+  "scope": "prepared_package_load_prove_verify",
+  "fixed_source_node_bound": 32045229,
+  "fixed_source_byte_bound": 672949809
+}

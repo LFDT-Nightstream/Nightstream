@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "source": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-samples.xml",
+  "source_bytes": 65318415,
+  "source_mtime_ns": 1790054501373630005,
+  "target_pid": 1066,
+  "expected_native_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+  "native_binary_ids": [
+    "80"
+  ],
+  "scope": "Summed Time Profiler sample weights across target threads; not wall time.",
+  "total_xml_rows": 238558,
+  "target_sample_count": 238558,
+  "target_weight_ns": 238558000000,
+  "backtrace_sample_count": 236328,
+  "backtrace_weight_ns": 236328000000,
+  "sentinel_sample_count": 2230,
+  "sentinel_weight_ns": 2230000000,
+  "other_missing_stack_sample_count": 0,
+  "other_missing_stack_weight_ns": 0,
+  "empty_backtrace_sample_count": 0,
+  "empty_backtrace_weight_ns": 0,
+  "first_inline_sample_time_ns": 686064875,
+  "last_inline_sample_time_ns": 277786066375,
+  "sample_time_reference_rows": 3145,
+  "weight_ns_distribution": {
+    "1000000": 238558
+  },
+  "all_processes": [
+    {
+      "pid": 1066,
+      "sample_count": 238558,
+      "weight_ns": 238558000000
+    }
+  ],
+  "processes": {
+    "4": {
+      "pid": 1066,
+      "label": "streamed-template-benchmark-binary (1066)"
+    }
+  },
+  "retained_descriptor_counts": {
+    "processes": 1,
+    "weights": 1,
+    "binaries": 23,
+    "frames": 6148,
+    "backtraces": 49041,
+    "sample_times": 0
+  },
+  "parse_seconds": 2.864889459000551
+}
+Saved /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-data.json

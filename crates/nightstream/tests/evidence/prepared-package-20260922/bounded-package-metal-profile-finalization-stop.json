@@ -1,0 +1,6 @@
+{
+  "action": "SIGINT to owned xctrace recorder after target exit",
+  "pid": 20510,
+  "time": 1790069973.628907,
+  "reason": "Recorder remained idle in run loop after Target app exited; request the documented Ctrl-C stop/save action. No proof process was live."
+}

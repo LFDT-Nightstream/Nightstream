@@ -26,8 +26,10 @@ use neo_reductions::optimized_engine::{PaperJointOracleBackend, PaperJointOracle
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-use crate::session::{MetalJointMatrixPlan, MetalPaperJointOracle};
+use crate::session::MetalPaperJointOracle;
 use crate::{MetalAjtaiLowNormPlan, MetalError, MetalSession};
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use neo_reductions::superneo_eval::CachedMatrixRows;
 
 /// Stateful Metal implementation of the canonical NIFS prover adapter.
 ///
@@ -37,8 +39,6 @@ pub struct MetalNifsProver {
     session: MetalSession,
     fresh_commitment_plan: Option<FreshCommitmentPlan>,
     fresh_lane_commitment_plan: Option<FreshLaneCommitmentPlan>,
-    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    joint_matrix_plan: Option<MetalJointMatrixPlan>,
 }
 
 struct FreshCommitmentPlan {
@@ -79,8 +79,6 @@ impl MetalNifsProver {
             session: MetalSession::new()?,
             fresh_commitment_plan: None,
             fresh_lane_commitment_plan: None,
-            #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-            joint_matrix_plan: None,
         })
     }
 
@@ -95,10 +93,8 @@ impl MetalNifsProver {
 
     /// Prepare verifier-owned Metal state before the online fold loop.
     ///
-    /// The static matrix views and seeded commitment plans remain resident
-    /// and are reused by every subsequent proof for the same preprocessing
-    /// context. Skipping this call preserves correctness and prepares them
-    /// lazily during the first fold.
+    /// Commitment plans remain resident and are reused by later folds. Matrix
+    /// rows are validated here and loaded into temporary windows during proving.
     pub fn prepare_static(
         &mut self,
         log: &neo_ajtai::AjtaiSModule,
@@ -112,25 +108,10 @@ impl MetalNifsProver {
             self.ensure_lane_ajtai_plan(lanes, cols)?;
         }
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-        self.ensure_joint_matrix_plan(cache.superneo_arc())
-            .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?;
+        let _ = CachedMatrixRows::new(cache.superneo())
+            .map_err(|error| backend_failure("validate one-joint rows", MetalError::Execution(error.to_string())))?;
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         let _ = cache;
-        Ok(())
-    }
-
-    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    fn ensure_joint_matrix_plan(
-        &mut self,
-        superneo: Arc<neo_reductions::superneo_eval::SuperneoEvalCache>,
-    ) -> Result<(), MetalError> {
-        if self
-            .joint_matrix_plan
-            .as_ref()
-            .is_none_or(|plan| !plan.matches(superneo.as_ref()))
-        {
-            self.joint_matrix_plan = Some(self.session.prepare_joint_matrix_plan(superneo)?);
-        }
         Ok(())
     }
 
@@ -423,12 +404,10 @@ impl PaperJointOracleBackend for MetalNifsProver {
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, neo_reductions::PiCcsError> {
-        self.ensure_joint_matrix_plan(Arc::clone(&input.cache))
-            .map_err(crate::oracle_error)?;
         let plan = self
-            .joint_matrix_plan
-            .as_ref()
-            .expect("one-joint matrix plan installed above");
+            .session
+            .prepare_joint_matrix_plan(input.rows, input.workspace_bytes)
+            .map_err(crate::oracle_error)?;
         Ok(Box::new(MetalPaperJointOracle::new(&self.session, plan, input)?))
     }
 
@@ -439,14 +418,15 @@ impl PaperJointOracleBackend for MetalNifsProver {
         point: &[K],
         assignment_width: usize,
     ) -> Result<Option<Vec<neo_ccs::V1_1Evaluations<K>>>, neo_reductions::PiCcsError> {
-        self.ensure_joint_matrix_plan(cache.superneo_arc())
-            .map_err(crate::oracle_error)?;
+        let rows = CachedMatrixRows::new(cache.superneo())?;
+        let workspace =
+            crate::session::BUFFER_LIMIT_BYTES.saturating_sub(self.session.activity().current_allocated_bytes as usize);
         let plan = self
-            .joint_matrix_plan
-            .as_ref()
-            .expect("one-joint matrix plan installed above");
+            .session
+            .prepare_joint_matrix_plan(&rows, workspace)
+            .map_err(crate::oracle_error)?;
         self.session
-            .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
+            .eval_joint_dec_openings(&plan, witnesses, point, assignment_width)
             .map_err(crate::oracle_error)
     }
 }
@@ -460,14 +440,15 @@ impl FinalWitnessOpeningBackend for MetalNifsProver {
         point: &[K],
         assignment_width: usize,
     ) -> Result<Option<Vec<V1_1WitnessOpenings>>, String> {
-        self.ensure_joint_matrix_plan(cache.superneo_arc())
-            .map_err(|error| error.to_string())?;
+        let rows = CachedMatrixRows::new(cache.superneo()).map_err(|error| error.to_string())?;
+        let workspace =
+            crate::session::BUFFER_LIMIT_BYTES.saturating_sub(self.session.activity().current_allocated_bytes as usize);
         let plan = self
-            .joint_matrix_plan
-            .as_ref()
-            .expect("one-joint matrix plan installed above");
+            .session
+            .prepare_joint_matrix_plan(&rows, workspace)
+            .map_err(|error| error.to_string())?;
         self.session
-            .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
+            .eval_joint_dec_openings(&plan, witnesses, point, assignment_width)
             .map_err(|error| format!("Metal final witness openings: {error}"))?
             .map(|openings| {
                 openings

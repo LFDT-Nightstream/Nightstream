@@ -243,6 +243,18 @@ fn assignment_side(
             range_side(batch.start, batch.end() - batch.start, boundary.private_end)?,
             None,
         ),
+        ScheduledAssignment::Application(application) => (
+            range_side(
+                application.plan().private_range().start,
+                application.plan().private_range().len(),
+                boundary.private_end,
+            )?,
+            Some(range_side(
+                application.plan().row_range().start,
+                application.plan().row_range().len(),
+                boundary.row_end,
+            )?),
+        ),
         ScheduledAssignment::Generic(instruction) => (
             range_side(instruction.target, 1, boundary.private_end)?,
             Some(range_side(instruction.row_index, 1, boundary.row_end)?),
@@ -383,6 +395,10 @@ fn execute_prefix(
                     }
                     ScheduledAssignment::Batch(batch) => {
                         execute_witness_batch(batch, &mut assignment);
+                        counts.witness_batches += 1;
+                    }
+                    ScheduledAssignment::Application(application) => {
+                        application.execute_recipes(&mut assignment)?;
                         counts.witness_batches += 1;
                     }
                     ScheduledAssignment::Generic(instruction) => {

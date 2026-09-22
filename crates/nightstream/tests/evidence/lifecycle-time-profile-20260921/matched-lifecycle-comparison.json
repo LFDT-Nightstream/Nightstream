@@ -1,0 +1,63 @@
+{
+  "scope": "Full three-step lifecycle under matching Time Profiler instrumentation; not an uninstrumented CPU measurement.",
+  "cpu_seconds": 1256.020431625,
+  "metal_seconds": 164.737161375,
+  "cpu_over_metal": 7.624390399479165,
+  "both_verified": true,
+  "same_executable": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary",
+  "uuid": "D66506D5-8D84-3D01-8EEB-E21332765BD7",
+  "same_start_fields_except_engine": true,
+  "same_finish_fields_except_seconds": true,
+  "template": "Time Profiler",
+  "phases": [
+    {
+      "phase": "prepare",
+      "step": null,
+      "cpu_seconds": 34.524239208,
+      "metal_seconds": 34.526846625,
+      "cpu_over_metal": 0.999924481461388
+    },
+    {
+      "phase": "prove",
+      "step": 1,
+      "cpu_seconds": 59.835702167,
+      "metal_seconds": 6.804702334,
+      "cpu_over_metal": 8.793287234333269
+    },
+    {
+      "phase": "extend",
+      "step": 2,
+      "cpu_seconds": 396.958310208,
+      "metal_seconds": 45.611830292,
+      "cpu_over_metal": 8.70296823580052
+    },
+    {
+      "phase": "extend",
+      "step": 3,
+      "cpu_seconds": 496.363860083,
+      "metal_seconds": 57.861076,
+      "cpu_over_metal": 8.57854527425311
+    },
+    {
+      "phase": "verify",
+      "step": 3,
+      "cpu_seconds": 268.338163042,
+      "metal_seconds": 19.93258775,
+      "cpu_over_metal": 13.462284295826066
+    }
+  ],
+  "observed_kernel_peak_resident_bytes": {
+    "cpu": 16133701632,
+    "metal": 16628383744
+  },
+  "rss_limit": "Kernel lifetime peak observed while live; post-exit values unavailable, so the final unsampled intervals are not proved.",
+  "controller_elapsed_wall_seconds": {
+    "cpu": 1388.2439179420471,
+    "metal": 171.1992781162262
+  },
+  "trace_finalization_included_in_1800s_cap": true,
+  "serial_runs": true,
+  "sleep_control": "Command-scoped caffeinate -is on AC power.",
+  "ordinary_cpu_run": "Pending specific approval; not launched.",
+  "universal_rss_bound": false
+}

@@ -8,13 +8,14 @@ use crate::folding::{
     CcsInstance, NifsProof, Params, RunningInstance, Structure,
 };
 use neo_math::F;
-use neo_reductions::{paper_exact_engine::PaperMatrixRows, superneo_eval::SuperneoEvalCache};
+use neo_reductions::{paper_exact_engine::PaperMatrixRows, superneo_eval::MatrixRows};
 
 pub(crate) fn prove(
     transcript: &mut Transcript,
     params: &Params,
     structure: &Structure,
-    cache: &SuperneoEvalCache,
+    optimized_rows: &dyn MatrixRows,
+    workspace_bytes: usize,
     rows: &dyn PaperMatrixRows<F>,
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
@@ -34,8 +35,15 @@ pub(crate) fn prove(
                 reference_running,
             )
         });
-        let optimized =
-            folding::prove_owned_with_rows(&mut optimized_transcript, params, structure, cache, fresh, running);
+        let optimized = folding::prove_owned_with_rows(
+            &mut optimized_transcript,
+            params,
+            structure,
+            optimized_rows,
+            workspace_bytes,
+            fresh,
+            running,
+        );
         // Always join the reference, including when the CPU prover rejects.
         let reference = reference.join().map_err(|_| EngineError::Failure {
             engine: Engine::PaperExact,

@@ -1,0 +1,16 @@
+{
+  "optimized": {
+    "functions": 3576,
+    "self_totals_match_backtrace_denominator": true,
+    "inclusive_weight_bounded_per_function": true,
+    "sample_partition_exact": true,
+    "unknown_totals_match": true
+  },
+  "metal": {
+    "functions": 704,
+    "self_totals_match_backtrace_denominator": true,
+    "inclusive_weight_bounded_per_function": true,
+    "sample_partition_exact": true,
+    "unknown_totals_match": true
+  }
+}

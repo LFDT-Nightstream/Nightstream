@@ -61,14 +61,6 @@ impl Affine {
         &self.terms
     }
 
-    pub(super) fn evaluate(&self, values: &[Goldilocks]) -> Goldilocks {
-        self.terms
-            .iter()
-            .fold(self.constant, |sum, (variable, coefficient)| {
-                sum + *coefficient * values[variable.0]
-            })
-    }
-
     pub(super) fn as_variable(&self) -> Option<Variable> {
         match self.terms.as_slice() {
             [(variable, coefficient)] if self.constant == Goldilocks::ZERO && *coefficient == Goldilocks::ONE => {
@@ -141,26 +133,8 @@ impl Mul<Goldilocks> for Affine {
     }
 }
 
-/// One application constraint, `A(values) * B(values) = C(values)`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct R1csRow {
+struct R1csRow {
     pub(super) a: Affine,
     pub(super) b: Affine,
     pub(super) c: Affine,
-}
-
-impl R1csRow {
-    pub fn a(&self) -> &Affine {
-        &self.a
-    }
-    pub fn b(&self) -> &Affine {
-        &self.b
-    }
-    pub fn c(&self) -> &Affine {
-        &self.c
-    }
-
-    pub(super) fn holds(&self, values: &[Goldilocks]) -> bool {
-        self.a.evaluate(values) * self.b.evaluate(values) == self.c.evaluate(values)
-    }
 }

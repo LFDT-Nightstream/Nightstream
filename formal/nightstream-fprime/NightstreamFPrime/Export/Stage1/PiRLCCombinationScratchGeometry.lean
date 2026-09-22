@@ -268,6 +268,21 @@ theorem outputSource_before (descriptor : Descriptor) :
       NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.logicalPrivateCount_eq]
     omega
 
+/-- The required output is a private column before the discarded interval. -/
+theorem output_before_scratch (descriptor : Descriptor) :
+    inputColumn descriptor 109 < scratchStart := by
+  have startLocal : Spartan.piCcsPhaseOffset ≤ descriptor.family.logicalStart := by
+    cases descriptor.family <;> decide
+  have outputLocal : Spartan.piCcsPhaseOffset ≤ descriptor.outputColumn := by
+    unfold PiRLCProductSchedule.Descriptor.outputColumn
+    omega
+  have outputEq : inputColumn descriptor 109 =
+      Spartan.sourceToSpartan descriptor.outputColumn := by
+    simpa [sourceColumn] using inputColumn_eq descriptor 109 (by decide)
+  rw [outputEq]
+  exact Spartan.sourceToSpartan_lt_of_piCcsLocal _ _ outputLocal
+    (outputSource_before descriptor)
+
 private theorem scratchEnd_le_private : scratchEnd ≤ Spartan.privateColumnCount := by
   have bound := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   change 29022496 ≤ Spartan.SourceColumnCount at bound

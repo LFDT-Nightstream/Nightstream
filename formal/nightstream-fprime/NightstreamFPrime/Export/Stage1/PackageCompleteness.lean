@@ -574,7 +574,7 @@ theorem pilotAssertionRows_of_piRlcAgreesOutside
       agrees]
   exact beforeHolds
 
-private theorem pilotHashInvocationInput_varsBelow
+theorem pilotHashInvocationInput_varsBelow
     (chain : HashChain) (invocation : Nat) (lane : Fin 8) (bound : Nat)
     (invocationBound : invocation ≤ chain.absorbCount)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)

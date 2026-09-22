@@ -1,8 +1,10 @@
 # Committed witness reduction
 
-Status: the Lean reduction target is proved. Static checks, the full library
-build (4,018 jobs), and the full axiom/test build (4,177 jobs) passed.
-The reduced geometry and carrier inequality passed the axiom audit.
+Status: the 27.1339% Lean carrier reduction remains proved, and the complete
+canonical direct producer proof now passes. The latest full library build
+passed 4,020 jobs in 130 seconds; the full axiom/test build passed 4,207 jobs
+in 100 seconds, including 71 new public theorem audits. The reduced geometry
+and carrier inequality also passed their earlier axiom audit.
 A candidate package and its binding were emitted and checked independently.
 The candidate has not been selected: production identity pins and saved
 recursive fixtures remain unchanged. The owner requested a checkpoint here,
@@ -194,10 +196,11 @@ checkpoint as a selected production release.
 
 The owner requested another 50% reduction from 184,359,564 to at most
 92,179,782 committed coordinates. This is a research target, not an established
-result. First provide a direct CCS witness construction for the optimized
-ring products, prove its required witness mappings, and remove the related
-R1CS work only after resolving its remaining dependencies. A complete compiler
-rewrite is outside this task.
+result. The first requirement was a direct CCS witness construction for the
+optimized ring products with proved witness mappings before removing the
+related R1CS work. The complete selected Lean producer now meets that proof
+requirement. Integration into the Rust producer remains pending. A complete
+compiler rewrite is outside this task.
 
 Use the actual remaining witness budget, starting with the largest costs and
 Poseidon blocks. Search current papers, arXiv, blogs, webpages, and GitHub.
@@ -222,12 +225,11 @@ interval. The custody proof covers all retained allocation blocks and proves
 equal complete CCS assignments and public digests at the phase boundary.
 No caller premise supplies scratch equality or successful full execution.
 
-This is not yet a replacement for the complete production witness builder.
-The existing stored plan proves final row satisfaction, but has no public
-canonical event-provenance contract. Witness recipe and hint read support,
-including PiDEC sign and canonical-u64 batches, is not implied by constraint
-support. Those proofs and the existing array dispatcher bridge remain open.
-No unconnected execution model or stronger assumptions were added.
+The later producer proof below extends this phase result to the actual sorted
+canonical event loop. It derives event provenance and actual recipe/hint read
+support, including PiDEC sign hints and sampler canonical-u64 batches, and
+uses the existing array dispatcher. Constraint support alone was not used as
+a substitute for witness-read support. No stronger caller assumption was added.
 
 The cvc5 research rejects two restricted candidates: 40 independent ternary
 coordinates per arbitrary field value, and elimination of an adjacent scalar
@@ -236,29 +238,35 @@ Ten Lean research theorems establish the count bounds, exact counterexample,
 and coefficient/root argument without solver trust. These are local bounds;
 they do not prove a global lower bound for Poseidon circuits.
 
-Static checks passed. The full Lean library passed with 4,019 jobs in 38 s.
-The full axiom/test build passed with 4,182 jobs in 7 s after registering the
-new research module in the explicit test roots. All 38 new production
-theorems and ten research theorems passed their axiom audits.
+At this earlier research checkpoint, static checks passed. The full Lean
+library passed with 4,019 jobs in 38 s. The full axiom/test build passed with
+4,182 jobs in 7 s after registering the new research module in the explicit
+test roots. All 38 new production theorems and ten research theorems passed
+their axiom audits.
 
 The achieved committed-coordinate reduction remains 27.1339%; no further
 coordinate reduction or proving-cost improvement is established.
 `remaining-witness-budget.md` records the actual costs and online sources.
 Package and fixture regeneration, Rust integration, and further benchmarks
-remain paused while the full producer proof is incomplete.
+remain paused under the owner's research instruction.
 
-## Producer-support continuation
+## Complete canonical producer proof
 
-The next checked batch supplies the missing read-support interfaces without
-changing the relation, package data, or production witness behavior:
+The checked producer path skips PiRLC product scratch construction in Lean
+without changing the relation or package data:
 
 - `StoredPhysicalPlan.EventSources` covers all eleven canonical source
   families. `Plan.rowEvents_induction` applies their properties to the
   unsorted event array. Its erased proof field is derived by `ofSources`.
+  `ArraySortMembership` and `Plan.events_induction` now extend this property
+  to the actual `Array.qsort` execution array.
 - `PiRLCCombinationWitnessReadSupport` proves actual arithmetic-recipe and
   hint-source support for all canonical sampler/PiDEC/running witness
   batches, their application shift, and the selected Poseidon application.
   The generic application record receives no stronger assumption.
+  The PiCCS, pilot, ordinary-instruction, hash/permutation, and First54 support
+  owners close the remaining canonical event families, including every
+  compact A/B/C check and output recipe.
 - `StoredExecutionSupport` proves equal retained values and matching compact
   success/rejection for the existing array interpreters under exact read
   support and equal storage sizes. It covers writes, recipes, hints, ordinary
@@ -270,28 +278,41 @@ changing the relation, package data, or production witness behavior:
   outside local scratch after its initial output write. These theorems need
   only the existing successful execution premise.
 
-The complete producer connection is still open. Sorted execution membership
-needs the existing `Array.qsort` membership proof; its signature inspection
-reached the three-round stop rule. The needed visibility form is a Lean
-`module` with `import all Init.Data.Array.QSort.Basic`, followed by a public
-proof interface. No replacement sort or unproved membership field was added.
+[CanonicalDirectPhysicalExecution.execute](../../../formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CanonicalDirectPhysicalExecution.lean)
+starts from the caller-seeded array and executes the complete sorted plan.
+It does not require a completed full physical witness. `execute_agree`
+proves identical error results or successful arrays of equal size that agree
+outside product scratch. All support facts come from the canonical schedule;
+the theorem has no caller-supplied support or scratch-equality premise.
+`successful_assignment_eq` then proves equality of the complete retained CCS
+assignment and public digest for the selected Poseidon application.
 
-The dispatcher congruence attempt also reached the three-round stop rule.
-Its remaining error is a dependent Option-match comparison in the compact
-case, not an established semantic counterexample. The attempted extraction
-was removed and `StoredPhysicalReplayMain.lean` restored. The unaccepted
-draft is `/tmp/nightstream-stored-physical-execution-draft.lean`; it is not
-proof authority or checked source. A fresh proof must also connect canonical
-support for the remaining event families and compose full/direct execution.
-Production still computes the original scratch values.
+The full physical executor remains the reference path. The stored replay
+entry point uses the extracted full dispatcher and loop; selecting the direct
+constructor in the Rust producer remains pending. This proof closes the
+whole Lean producer connection, not Rust integration or a runtime benchmark.
 
-Focused checks passed for array support (55 s including dependencies),
+The earlier sorted-membership and dispatcher attempts stopped under the
+three-round rule. The fresh continuation resolved both: it proves membership
+for the existing sort and uses the actual dispatcher. Those earlier failures
+are historical and are not current proof gaps.
+
+Earlier focused checks passed for array support (55 s including dependencies),
 event sources (385 s including the leaf dependency rebuild; edited module
 3.7 s), witness read support (5 s), compact invariants (3 s), and invocation
-origin (3 s). Static checks passed. The full library passed all 4,020 jobs
+origin (3 s). That support batch passed static checks and all 4,020 library jobs
 in 203 s, and the full axiom/test gate passed all 4,189 jobs in 6 s after
 adding the direct plan import to the audit file. All forty new or newly
 public theorem audits passed. Logs are `/tmp/nightstream-producer-support-`
 with suffixes `static.log`, `build.log`, and `axioms.log`.
-The 385 s focused build and 203 s library build include dependency rebuilds,
-not prover benchmarks. The original replay entry point is unchanged.
+The final complete-producer gates passed **4,020 library jobs in 130 s** and
+**4,207 axiom/test jobs in 100 s**, with **71 new public theorem audits**.
+These are Lean build/check times, not prover benchmarks.
+
+The [quotient-value basis experiment](phi81_quotient_basis.md) verifies exact
+forward/inverse field maps and predicts 111,598,761 fewer matrix nonzeros.
+It saves no coordinates or rows. It is not Lean-proved, implemented, or
+selected. The checkpoint remains 184,359,564 committed coordinates,
+4,703,127 logical rows, and 3,001,571,645 matrix nonzeros. The additional 50%
+coordinate target remains unproved; the local Poseidon bounds do not establish
+global impossibility.

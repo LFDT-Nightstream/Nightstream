@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalArray
+import NightstreamFPrime.Export.Stage1.ArraySortMembership
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalPackageRows
 import NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext
 import NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds
@@ -13,8 +14,8 @@ import NightstreamFPrime.Export.RowSemantics
 /-!
 Canonical physical preparation with event-source provenance and final-state
 row coverage. Events are built once in canonical source order. Execution sorts
-a copy; final checks and source induction use the unsorted array.
-Witness execution and caller parsing remain separate obligations.
+a copy; final checks use the unsorted array. Source induction covers both
+arrays. Witness execution and caller parsing remain separate obligations.
 -/
 
 set_option autoImplicit false
@@ -146,6 +147,7 @@ structure Plan where
   templates_eq : templates.toList = Data.compactRowTemplates ()
   rowEvents : Array Event
   events : Array Event
+  events_mem : ∀ event ∈ events, event ∈ rowEvents
   assertions : Array SparseRow
   source_induction : ∀ predicate : Event → Prop,
     EventSources templates templates_eq predicate →
@@ -161,6 +163,13 @@ theorem Plan.rowEvents_induction (plan : Plan) (predicate : Event → Prop)
     (sources : EventSources plan.templates plan.templates_eq predicate) :
     ∀ event ∈ plan.rowEvents, predicate event :=
   plan.source_induction predicate sources
+
+/-- Every sorted execution event comes from a canonical source family. -/
+theorem Plan.events_induction (plan : Plan) (predicate : Event → Prop)
+    (sources : EventSources plan.templates plan.templates_eq predicate) :
+    ∀ event ∈ plan.events, predicate event := by
+  intro event member
+  exact plan.rowEvents_induction predicate sources event (plan.events_mem event member)
 
 private structure Assembly where
   rowEvents : Array Event
@@ -414,6 +423,8 @@ def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
     templates_eq := canonical
     rowEvents := assembled.rowEvents
     events := assembled.rowEvents.qsort (fun left right => decide (left.target < right.target))
+    events_mem := fun _event member => ArraySortMembership.mem_qsort assembled.rowEvents
+      (fun left right => decide (left.target < right.target)) member
     assertions := assembled.assertions
     source_induction := assemble_source_induction sources templates canonical
     sound := assemble_sound sources templates canonical }

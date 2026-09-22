@@ -114,17 +114,15 @@ theorem shifted_scratch_contained (context : PerApplicationCachedShift.Context)
   rw [shifted_localStart]
   exact PiRLCCombinationScratchGeometry.scratch_contained descriptor
 
-private theorem shiftedInput_outside (context : PerApplicationCachedShift.Context)
-    (ranges : List CompactInputRange) (input : Nat)
-    (outside : compactInputColumn ranges input < PiRLCCombinationScratchGeometry.scratchStart ∨
-      PiRLCCombinationScratchGeometry.scratchEnd ≤ compactInputColumn ranges input) :
-    compactInputColumn (ranges.map (PerApplicationCachedShift.shiftCompactInputRange context))
-        input < PiRLCCombinationScratchGeometry.scratchStart ∨
-      PiRLCCombinationScratchGeometry.scratchEnd ≤
-        compactInputColumn
+private theorem shiftedInput_eq_or_ge (context : PerApplicationCachedShift.Context)
+    (ranges : List CompactInputRange) (input : Nat) :
+    compactInputColumn (ranges.map (PerApplicationCachedShift.shiftCompactInputRange context)) input =
+        compactInputColumn ranges input ∨
+      Data.physicalLayout.constantColumn ≤ compactInputColumn ranges input ∧
+        Data.physicalLayout.constantColumn ≤ compactInputColumn
           (ranges.map (PerApplicationCachedShift.shiftCompactInputRange context)) input := by
   induction ranges with
-  | nil => exact outside
+  | nil => exact Or.inl rfl
   | cons range rest inductionHypothesis =>
       by_cases selected : range.inputStart ≤ input ∧ input < range.inputStart + range.inputCount
       · have baseEq : compactInputColumn (range :: rest) input =
@@ -134,14 +132,11 @@ private theorem shiftedInput_outside (context : PerApplicationCachedShift.Contex
             ((range :: rest).map (PerApplicationCachedShift.shiftCompactInputRange context)) input =
               context.column range.columnStart + (input - range.inputStart) * range.columnStride := by
           simp [compactInputColumn, PerApplicationCachedShift.shiftCompactInputRange, selected]
-        rw [baseEq] at outside
-        rw [shiftedEq]
+        rw [baseEq, shiftedEq]
         by_cases before : range.columnStart < Data.physicalLayout.constantColumn
-        · simpa only [PerApplicationCachedShift.Context.column, if_pos before] using outside
+        · exact Or.inl (by rw [PerApplicationCachedShift.Context.column, if_pos before])
         · right
-          rw [PerApplicationCachedShift.Context.column, if_neg before,
-            PiRLCCombinationScratchGeometry.scratchEnd_eq]
-          change ¬ range.columnStart < 29336446 at before
+          rw [PerApplicationCachedShift.Context.column, if_neg before]
           omega
       · have baseEq : compactInputColumn (range :: rest) input =
             compactInputColumn rest input := by
@@ -151,8 +146,21 @@ private theorem shiftedInput_outside (context : PerApplicationCachedShift.Contex
               compactInputColumn
                 (rest.map (PerApplicationCachedShift.shiftCompactInputRange context)) input := by
           simp [compactInputColumn, PerApplicationCachedShift.shiftCompactInputRange, selected]
-        rw [shiftedEq]
-        exact inductionHypothesis (baseEq ▸ outside)
+        rw [baseEq, shiftedEq]
+        exact inductionHypothesis
+
+private theorem shiftedInput_outside (context : PerApplicationCachedShift.Context)
+    (ranges : List CompactInputRange) (input : Nat)
+    (outside : compactInputColumn ranges input < PiRLCCombinationScratchGeometry.scratchStart ∨
+      PiRLCCombinationScratchGeometry.scratchEnd ≤ compactInputColumn ranges input) :
+    compactInputColumn (ranges.map (PerApplicationCachedShift.shiftCompactInputRange context))
+        input < PiRLCCombinationScratchGeometry.scratchStart ∨
+      PiRLCCombinationScratchGeometry.scratchEnd ≤
+        compactInputColumn
+          (ranges.map (PerApplicationCachedShift.shiftCompactInputRange context)) input := by
+  rcases shiftedInput_eq_or_ge context ranges input with unchanged | after
+  · simpa only [unchanged] using outside
+  · exact Or.inr (Nat.le_trans (by decide) after.2)
 
 /-- The selected shift cannot move a required input into discarded scratch. -/
 theorem shifted_inputs_outside_scratch (context : PerApplicationCachedShift.Context)
@@ -167,5 +175,41 @@ theorem shifted_inputs_outside_scratch (context : PerApplicationCachedShift.Cont
           descriptor.compactInvocation).inputRanges input := by
   exact shiftedInput_outside context descriptor.compactInvocation.inputRanges input
     (PiRLCCombinationScratchGeometry.inputs_outside_scratch descriptor input bounded)
+
+/-- Shifting public input ranges cannot alias an earlier input with this private output. -/
+theorem shifted_output_distinct (context : PerApplicationCachedShift.Context)
+    (descriptor : PiRLCProductSchedule.Descriptor) (input : Nat)
+    (bounded : input < PiRLCCombinationTemplates.outputInput) :
+    compactInputColumn
+        (PerApplicationCachedShift.shiftCompactRowInvocation context
+          descriptor.compactInvocation).inputRanges input ≠
+      compactInputColumn
+        (PerApplicationCachedShift.shiftCompactRowInvocation context
+          descriptor.compactInvocation).inputRanges PiRLCCombinationTemplates.outputInput := by
+  have outputBefore : PiRLCCombinationScratchGeometry.inputColumn descriptor 109 <
+      Data.physicalLayout.constantColumn :=
+    Nat.lt_of_lt_of_le (PiRLCCombinationScratchGeometry.output_before_scratch descriptor)
+      (by decide)
+  have outputSame : compactInputColumn
+      (PerApplicationCachedShift.shiftCompactRowInvocation context
+        descriptor.compactInvocation).inputRanges PiRLCCombinationTemplates.outputInput =
+      PiRLCCombinationScratchGeometry.inputColumn descriptor 109 := by
+    rcases shiftedInput_eq_or_ge context descriptor.compactInvocation.inputRanges 109 with
+      unchanged | after
+    · exact unchanged
+    · exact False.elim (Nat.not_le_of_lt outputBefore after.1)
+  rw [outputSame]
+  change compactInputColumn
+      (descriptor.compactInvocation.inputRanges.map
+        (PerApplicationCachedShift.shiftCompactInputRange context)) input ≠
+    PiRLCCombinationScratchGeometry.inputColumn descriptor 109
+  rcases shiftedInput_eq_or_ge context descriptor.compactInvocation.inputRanges input with
+    unchanged | after
+  · rw [unchanged]
+    exact PiRLCCombinationScratchGeometry.output_distinct descriptor input bounded
+  · intro equal
+    have later := after.2
+    rw [equal] at later
+    exact Nat.not_le_of_lt outputBefore later
 
 end NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocationOrigin

@@ -145,6 +145,10 @@ private theorem piDecSource_allowed (column : Nat)
       have before : PiRLCStarts.outputFreshStart ≤ PiDECStarts.phaseFreshStart := by decide
       exact Nat.le_trans before fresh.1
 
+theorem piDecSource_outside (column : Nat)
+    (supported : PiDECSourceSupport.Source column) :
+    Outside (Spartan.sourceToSpartan column) := piDecSource_allowed column supported
+
 /-- Every actual PiDEC witness batch reads only a parent output. -/
 theorem piDecBatches_readsSatisfy (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :

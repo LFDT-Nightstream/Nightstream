@@ -79,12 +79,24 @@ authorize a new run. Historical results retain their original scope.
   field equality; the JSON representations differ. All 16 current child
   witness files match the retained comparison targets in 579,873,475 bytes.
   The parent receipt was written on 2026-09-22 at 01:33:25 UTC.
+- The independent 2→3 successor and current CPU comparisons pass. They cover
+  all proof bytes, 177,326 private and 278 public caller words, all seven
+  caller result fields, 234,755,400 physical-witness bytes, the complete fresh
+  witness and claim, and all 16 children. Only a final LF differs in the
+  fresh witness and claim JSON. The new carrier passed the canonical row
+  check for 6,377,559 active rows, eight row rejection cases and 26 physical,
+  assignment and commitment rejection cases. Its 1,188 commitment and 270
+  public coefficients match. These comparisons completed at 01:53:58 UTC.
+  Iteration-3 source preparation then passed at 01:54:33 UTC on 2026-09-22;
+  it reads only Lean's own returned fresh witness, claim, children and digit
+  ranges. This completes the handoff, not the next independent fold.
 - Required-check workflow wiring is implemented. Actual CI execution still
   needs the three missing published archives, confirmed Metal runner routing,
   and branch rules that require the final check. Local CPU-to-Lean handoff
   checks pass. Current Metal execution remains pending.
 - Independent first-fold generation is implemented but has not run. The
-  complete independent 2→3→4 successor and feedback sequence remains pending.
+  independent 3→4 generation, successor and final terminal checks remain
+  pending, so the complete independent 2→3→4 sequence is still incomplete.
   The 9/10 target is not yet complete.
 
 Large generated inputs and outputs stay outside Git. Completed commands,

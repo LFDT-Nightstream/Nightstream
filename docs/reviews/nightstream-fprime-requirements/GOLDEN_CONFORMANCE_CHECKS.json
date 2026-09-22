@@ -84,7 +84,7 @@
   },
   "canonical_proof_bytes_compared": 945983,
   "native_pidec_mutations_rejected": 55,
-  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, and completed independent iteration-2 R/D reductions linked to the current CPU parent. C is retained imported computation. Independent first-fold generation, the complete independent 2-to-3-to-4 successor and feedback sequence, Metal execution, actual CI and protected external reproduction remain separate and pending.",
+  "scope": "Local archive restoration and semantic verification, completed current CPU staged feedback execution, full fresh Lean checks on all three folds, exact archive and CPU/Lean handoff comparisons, independent iteration-2 R/D and successor generation compared with current CPU, and iteration-3 source preparation from Lean's own successor. Iteration-2 C is retained imported computation. Independent first-fold generation, independent 3-to-4 generation and final terminal checks, Metal execution, actual CI and protected external reproduction remain separate and pending.",
   "current_native_run": {
     "outcome": "passed",
     "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
@@ -559,6 +559,106 @@
       "scope": "Exact current CPU child file bytes equal the retained targets checked against new independent Lean digit ranges."
     },
     "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. This does not complete independent first-fold generation or the full independent 2-to-3-to-4 successor and feedback sequence."
+  },
+  "independent_iteration_2_successor": {
+    "outcome": "passed",
+    "from_iteration": 2,
+    "to_iteration": 3,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-successor.json",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-successor.log",
+    "elapsed_seconds": 1211.0865474939346,
+    "canonical_rows": {
+      "outcome": "passed",
+      "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/canonical-rows.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/canonical-rows.json",
+      "cap_seconds": 1500,
+      "elapsed_seconds": 507.1356806755066,
+      "active_rows": 6377559,
+      "canonical_blocks": 23,
+      "matrix_count": 14,
+      "padding_rows": 262057897,
+      "carrier_coefficients": 253011276,
+      "public_coefficients": 270,
+      "zero_tail_coefficients": 45,
+      "scope": "Executed active canonical-row checks on the newly generated carrier; padding coverage uses the existing proof."
+    },
+    "canonical_row_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/canonical-row-rejections.log",
+      "cases_rejected": 8,
+      "cap_seconds": 300
+    },
+    "physical_assignment_commitment_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/physical-rejections.log",
+      "cases_rejected": 26,
+      "cap_seconds": 300
+    },
+    "fresh_claim": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/fresh-claim-comparison.log",
+      "commitment_coefficients": 1188,
+      "public_coefficients": 270,
+      "complete_claim_bytes": 39448,
+      "changed_target_rejected": true
+    },
+    "current_CPU_NIFS_comparison": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-nifs.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-nifs.log",
+      "cap_seconds": 300,
+      "canonical_proof_bytes_compared": 945983,
+      "native_PiDEC_mutations_rejected": 55,
+      "scope": "Complete independent C/R/D fields and raw Lean-field proof encoding compared with the current CPU snapshot previously checked by Lean; iteration-2 C remains retained computation."
+    },
+    "current_CPU_output_comparisons": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-outputs.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-outputs.log",
+      "receipt_written_utc": "2026-09-22T01:53:58.362050Z",
+      "cap_seconds": 300,
+      "caller_bytes": 1446131,
+      "caller_private_words": 177326,
+      "caller_public_words": 278,
+      "caller_result_fields": 7,
+      "caller_connection": "Complete independent caller equals the fresh Lean caller already bound to every current CPU caller word and result field.",
+      "physical_bytes": 234755400,
+      "physical_comparison": "exact complete bytes",
+      "fresh_witness_bytes": 107246512,
+      "current_fresh_witness_bytes": 107246513,
+      "fresh_claim_bytes": 39448,
+      "current_fresh_claim_bytes": 39449,
+      "fresh_JSON_comparison": "Complete bodies equal; current witness and claim each add exactly one final LF.",
+      "child_files": 16,
+      "child_bytes": 579873475,
+      "child_connection": "Current CPU files equal retained native-material targets checked against independently generated Lean digit ranges."
+    },
+    "own_successor_handoff": {
+      "outcome": "passed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/handoff.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/handoff.json",
+      "next_iteration": 3,
+      "Lean_inputs": [
+        "fresh-witness.json",
+        "fresh-claim.json",
+        "children.json",
+        "digits-0.jsonl",
+        "digits-1.jsonl"
+      ],
+      "scope": "Lean and native successor requests match; the next Lean source projection consumes only the returned Lean values."
+    },
+    "iteration_3_source_preparation": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-prepare.json",
+      "projection_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/source-projection.json",
+      "receipt_written_utc": "2026-09-22T01:54:33.624030Z",
+      "mode": "feedback",
+      "public_bytes": 470997,
+      "source_bytes": 731303596,
+      "scope": "Prepared iteration-3 inputs from the newly generated Lean successor. The next independent fold and final terminal checks remain pending."
+    },
+    "scope": "Completed 2-to-3 successor generation, canonical-row and rejection checks, current CPU comparisons, and preparation of Lean's own iteration-3 input. First-fold independent generation and the complete 2-to-3-to-4 sequence are not complete."
   },
   "preserved_failures": [
     {

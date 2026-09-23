@@ -713,7 +713,11 @@ running witnesses. Terminal checks made 959 device dispatches and accepted the
 expected state; a changed expected state was rejected. A separate CPU phase
 changed the first claimed `Eval_K`, recomputed the state hash, changed the
 fresh public witness, and recomputed its commitment. Metal rejected this input
-with `Eval_K differs from the complete witness opening`, as required.
+with `Eval_K differs from the complete witness opening` in that recorded run.
+The current row evaluator checks the fresh relation first, so this mutation
+now fails there. Production opening-check coverage uses the `opening-k` and
+`opening-a` tests with balanced child changes and rebuilt fresh witnesses;
+see [the manual checks](../../scripts/GOLDEN_CONFORMANCE.md).
 
 [Logs, requests, and comparison records](tests/evidence/nonzero-fold-20260921)
 retain these results and the failed CPU memory attempt. Each invocation kept
@@ -1437,7 +1441,8 @@ For source iterations 1 and 2, run `sources`, `ccs`, `rlc`, and `split`, each
 with `--step ITERATION`. Run `child --step ITERATION --child INDEX` for the true
 entries of `fold-ITERATION/split.json`'s `nonzero` array. Then run `nifs` and
 `successor` for that iteration. Finally run `terminal`, `mutation`, and `reject`
-without a step argument. Use the same binary and run directory throughout.
+with `--step 3`. The current driver requires the terminal iteration explicitly.
+Use the same binary and run directory throughout.
 The NIFS phase re-splits the actual parent and requires every active child's
 opening, so changing saved activity flags cannot remove a check. Sources and
 matrix caches are checked from their authoritative inputs; checkpoint digests

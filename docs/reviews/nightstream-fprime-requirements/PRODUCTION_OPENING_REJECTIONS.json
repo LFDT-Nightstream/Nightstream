@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "outcome": "passed",
+  "recorded_utc": "2026-09-23T08:40:45.348542+00:00",
+  "test_source_commit": "992f76b537c3d126f196e32c263ac7dfc138cfd2",
+  "run_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv",
+  "source_CPU": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current-completed/cpu",
+  "scope": "Production terminal Eval_K and Eval_A rejection after valid NIFS recomposition and a rebuilt fresh witness at state 3. Existing fold outputs are inputs; no additional fold or independent Lean generation.",
+  "normal_production_tests": [
+    {
+      "test": "opening-k",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/cpu/logs/opening-k.json",
+      "result": {
+        "case": "opening-k",
+        "changed_children": [
+          0,
+          1
+        ],
+        "earlier_terminal_checks_passed": true,
+        "engine": "Optimized",
+        "fresh_witness_rebuilt": true,
+        "iteration": 3,
+        "package_identity": [
+          9705822157724451396,
+          520958727644325895,
+          9285622073986934000,
+          874020794279380938
+        ],
+        "rejected": true,
+        "rejection": "Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" }",
+        "schema": 1,
+        "verifier": "nightstream::PreparedLifecycle::verify",
+        "weighted_recomposition_preserved": true
+      },
+      "elapsed_seconds": 207.17144108098,
+      "maximum_resident_bytes": 11083390976,
+      "cap_seconds": 300,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "test": "opening-a",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/cpu/logs/opening-a.json",
+      "result": {
+        "case": "opening-a",
+        "changed_children": [
+          0,
+          1
+        ],
+        "earlier_terminal_checks_passed": true,
+        "engine": "Optimized",
+        "fresh_witness_rebuilt": true,
+        "iteration": 3,
+        "package_identity": [
+          9705822157724451396,
+          520958727644325895,
+          9285622073986934000,
+          874020794279380938
+        ],
+        "rejected": true,
+        "rejection": "Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" }",
+        "schema": 1,
+        "verifier": "nightstream::PreparedLifecycle::verify",
+        "weighted_recomposition_preserved": true
+      },
+      "elapsed_seconds": 209.71414625598118,
+      "maximum_resident_bytes": 11084595200,
+      "cap_seconds": 300,
+      "memory_cap_bytes": 17179869184
+    }
+  ],
+  "omission_experiments": [
+    {
+      "check_removed": "Eval_K",
+      "test_detected_omission": true,
+      "test_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/without-k/cpu/logs/opening-k.json",
+      "patch": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/without-k/removed-check.patch",
+      "binary": {
+        "path": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target/release/deps/nightstream-b6f58dae8345601b",
+        "bytes": 22231608,
+        "sha256": "6fdfed83c7a63bd4be1725d1f792167d4769c52f2185ec8de3e1dd52aa0f683a"
+      },
+      "observation": "The deliberately weakened verifier returned Ok(()); expect_err failed.",
+      "elapsed_seconds": 209.82760165305808,
+      "maximum_resident_bytes": 11084296192,
+      "expected_test_exit": 101,
+      "actual_test_exit": 101,
+      "removed_code": "--- production/verify.rs\n+++ without-k/verify.rs\n@@ -223,12 +223,6 @@\n                 index,\n                 reason: \"missing complete witness opening\",\n             })?;\n-            if !evaluation_matches(&claim.eval_k, &actual.eval_k) {\n-                return Err(VerifyError::Running {\n-                    index,\n-                    reason: \"Eval_K differs from the complete witness opening\",\n-                });\n-            }\n             if actual.eval_a.len() != self.structure.t()\n                 || claim\n                     .eval_a\n"
+    },
+    {
+      "check_removed": "Eval_A",
+      "test_detected_omission": true,
+      "test_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/without-a/cpu/logs/opening-a.json",
+      "patch": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-production-openings-udfzrspv/without-a/removed-check.patch",
+      "binary": {
+        "path": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target/release/deps/nightstream-b6f58dae8345601b",
+        "bytes": 22231528,
+        "sha256": "31a6bbb2ead0126034ba2268f5a06373675a9548e91a305af5c2a8ca8cdada53"
+      },
+      "observation": "The deliberately weakened verifier returned Ok(()); expect_err failed.",
+      "elapsed_seconds": 206.46634846017696,
+      "maximum_resident_bytes": 11084050432,
+      "expected_test_exit": 101,
+      "actual_test_exit": 101,
+      "removed_code": "--- production/verify.rs\n+++ without-a/verify.rs\n@@ -229,18 +229,6 @@\n                     reason: \"Eval_K differs from the complete witness opening\",\n                 });\n             }\n-            if actual.eval_a.len() != self.structure.t()\n-                || claim\n-                    .eval_a\n-                    .iter()\n-                    .zip(&actual.eval_a)\n-                    .any(|(recorded, expected)| !evaluation_matches(recorded, expected))\n-            {\n-                return Err(VerifyError::Running {\n-                    index,\n-                    reason: \"Eval_A differs from the complete witness openings\",\n-                });\n-            }\n         }\n         Ok(())\n     }\n"
+    }
+  ],
+  "restoration": {
+    "source_matches_original": true,
+    "release_binary_rebuilt": true,
+    "binary_matches_tested_production_bytes": true,
+    "binary": {
+      "path": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target/release/deps/nightstream-b6f58dae8345601b",
+      "bytes": 22231944,
+      "sha256": "9719fa3a73b0128a7a04b8e52798316d104f9fde101f371ff7829fba4914db45"
+    },
+    "digest_scope": "Executable file custody only, not protocol authority."
+  },
+  "production_source_diff_from_prior_PR": "empty",
+  "coordinator_regressions": {
+    "command": "timeout --signal=KILL 300s python3 -B crates/nightstream/tests/test_run_golden_conformance.py",
+    "passed": 6
+  },
+  "execution": "The manual CPU coordinator requires both new tests. CI enforcement and Metal validation remain out of scope."
+}

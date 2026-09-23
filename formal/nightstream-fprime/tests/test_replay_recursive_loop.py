@@ -19,7 +19,7 @@ class RunnerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.runner = loop.Replay.__new__(loop.Replay)
         self.runner.no_timeout = False
         self.enterContext(patch.dict(loop.os.environ, {"LEAN_SYSROOT": ""}))
@@ -241,6 +241,61 @@ class RunnerTests(unittest.TestCase):
             loop.main()
         self.assertEqual(events, [(2, "build")] + [(iteration, phase) for iteration in (2, 3)
             for phase in ("prepare", "native", "ccs", "reductions", "successor")] + [(3, "terminal")])
+
+    def test_first_fold_uses_the_existing_producers_at_iteration_one(self):
+        events = []
+        class RecordedReplay:
+            def __init__(self, root, iteration, no_timeout=False):
+                self.iteration = iteration
+            def __getattr__(self, name):
+                return lambda: events.append((self.iteration, name))
+        with patch.object(loop, "Replay", RecordedReplay), \
+                patch("sys.argv", [str(CANDIDATE), str(self.root), "1", "first-fold"]):
+            loop.main()
+        self.assertEqual(events, [(1, phase) for phase in
+                                 ("build", "prepare", "native", "ccs", "reductions", "successor")])
+
+    def test_complete_modes_reject_the_wrong_start(self):
+        for iteration, mode in ((1, "all"), (2, "first-fold"), (3, "first-fold")):
+            with self.subTest(iteration=iteration, mode=mode), \
+                    patch.object(loop, "Replay") as replay, \
+                    patch("sys.argv", [str(CANDIDATE), str(self.root), str(iteration), mode]), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    loop.main()
+                replay.assert_not_called()
+
+    def test_first_fold_bootstrap_requires_matching_original_state(self):
+        source = self.root / "original-sources"
+        source.mkdir()
+        envelope = {"iteration": 1, "z0": [1, 2, 3, 4], "current": [5, 6, 7, 8]}
+        request = [1, envelope["z0"], envelope["current"], [7, 11, 13, 17]]
+        (source / "envelope.json").write_text(json.dumps(envelope))
+        (source / "next-message-input.json").write_text(json.dumps(request))
+        with patch.object(loop, "pin_sources"), patch.object(loop, "check_saved_outputs"):
+            replay = loop.Replay(self.root, 1)
+            with patch.object(replay, "python") as run:
+                replay.prepare()
+            self.assertEqual(run.call_args.args[2:4], ("original", source))
+            self.assertEqual(replay.request, source / "next-message-input.json")
+            for key, value in (("iteration", 2), ("current", [9, 10, 11, 12])):
+                changed = {**envelope, key: value}
+                (source / "envelope.json").write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "must match the selected iteration"):
+                    loop.Replay(self.root, 1)
+
+    def test_third_iteration_still_projects_only_lean_successor_values(self):
+        self.runner.iteration = 3
+        self.runner.projection = self.root / "step-3-to-4/sources"
+        self.runner.public = self.runner.projection / "public.json"
+        self.runner.sources = self.runner.projection / "sources.jsonl"
+        previous = self.root / "step-2-to-3"
+        with patch.object(self.runner, "python") as run:
+            self.runner.prepare()
+        self.assertEqual(run.call_args.args[2:], (
+            "feedback", previous / "fresh-witness.json", previous / "fresh-claim.json",
+            previous / "children.json", self.runner.projection,
+            previous / "digits-0.jsonl", previous / "digits-1.jsonl"))
 
     def test_successor_compares_complete_physical_bytes(self):
         self.runner.native_sources = self.root / "native-sources"

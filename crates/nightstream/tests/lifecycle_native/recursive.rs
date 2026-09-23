@@ -166,13 +166,19 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         "rehashed running-opening rejection started elapsed={:?}",
         started.elapsed()
     );
-    assert!(matches!(
-        package.verify(&expected_state, &changed),
-        Err(VerifyError::Running {
-            index: 0,
-            reason: "Eval_K differs from the complete witness opening"
-        })
-    ));
+    let error = package
+        .verify(&expected_state, &changed)
+        .expect_err("a rehashed false opening must be rejected");
+    // The combined row evaluator checks the fresh relation first.
+    assert!(
+        matches!(
+            error,
+            VerifyError::FreshRelation(
+                neo_reductions::superneo_eval::SuperneoCachedRelationError::UnsatisfiedRow { .. }
+            )
+        ),
+        "unexpected rejection: {error:?}"
+    );
     eprintln!("complete recursive gate elapsed={:?}", started.elapsed());
 }
 

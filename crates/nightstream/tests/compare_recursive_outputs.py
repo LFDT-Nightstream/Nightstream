@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -131,7 +132,11 @@ def compare_later(run, reference, nifs, envelope):
 
     proof = run / "fold-2" / "proof.native"
     expected_proof = directory / "proof.bin"
-    equal(proof.read_bytes(), expected_proof.read_bytes(), "every later proof byte")
+    cpu_proof = proof.read_bytes()
+    equal(cpu_proof, expected_proof.read_bytes(), "every later proof byte")
+    proof_record = file_record(proof, expected_proof, "every canonical proof byte", "exact bytes")
+    # File custody only. The complete comparison above establishes equality.
+    proof_record["matched_sha256"] = hashlib.sha256(cpu_proof).hexdigest()
     caller_path = reference / "nonzero-successor" / "nightstream-native-nonzero-step-1.json"
     caller = load(caller_path)
     equal(caller[0], 1, "later caller schema")
@@ -139,7 +144,7 @@ def compare_later(run, reference, nifs, envelope):
     fresh = load(run / "step-3" / "fresh-claim.json")
     equal([word["value"] for word in fresh["x"]], caller[4][2], "Lean fresh public input")
     return {
-        "proof": file_record(proof, expected_proof, "every canonical proof byte", "exact bytes"),
+        "proof": proof_record,
         "native_result": {"path": str(native_path), "bytes": native_path.stat().st_size},
         "lean_result": {"path": str(lean_path), "bytes": lean_path.stat().st_size},
         "native_lean_fields": list(mappings) + ["D outgoing state"],
@@ -157,9 +162,10 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--fold", type=int, choices=(1, 2), required=True)
     parser.add_argument("--reference", type=Path, required=True)
+    parser.add_argument("--receipt", type=Path, help="new comparison receipt; never replace a previous result")
     args = parser.parse_args()
     run, reference = args.directory.resolve(), args.reference.resolve()
-    receipt_path = run / f"comparison-fold-{args.fold}.json"
+    receipt_path = args.receipt.resolve() if args.receipt else run / f"comparison-fold-{args.fold}.json"
     if receipt_path.exists():
         parser.error(f"comparison receipt already exists: {receipt_path}")
     material = reference / ("material" if args.fold == 1 else "output/material")
@@ -192,7 +198,8 @@ def main():
         "comparison_source_changes": subprocess.check_output(
             ["git", "status", "--porcelain"], cwd=ROOT, text=True).splitlines(),
         "command": [sys.executable, str(Path(__file__).resolve()), "--directory", str(run),
-                    "--fold", str(args.fold), "--reference", str(reference)],
+                    "--fold", str(args.fold), "--reference", str(reference)] +
+                   (["--receipt", str(receipt_path)] if args.receipt else []),
         "producer_sources": producer_sources, "files": files, "later_fold": later,
         "scope": "Complete child and fresh assignments, fresh claim and semantic envelope equality. "
                  "Fold 2 also checks proof bytes, transcript and applicable Lean result fields. "

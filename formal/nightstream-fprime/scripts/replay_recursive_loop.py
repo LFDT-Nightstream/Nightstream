@@ -122,9 +122,13 @@ class Replay:
         self.rounds = self.directory / "rounds"
         self.rounds.mkdir(exist_ok=True)
         self.package = self.root / "original-package.json"
-        self.native_sources = (self.root / "original-sources" if iteration == 2 else
+        self.native_sources = (self.root / "original-sources" if iteration in (1, 2) else
                                self.root / "step-2-to-3/native-successor")
-        self.request = ((self.root / "original-sources") if iteration == 2 else (self.root / "step-2-to-3")) / "next-message-input.json"
+        self.request = ((self.root / "original-sources") if iteration in (1, 2) else (self.root / "step-2-to-3")) / "next-message-input.json"
+        envelope, request = read(self.native_sources / "envelope.json"), read(self.request)
+        if (type(envelope["iteration"]) is not int or envelope["iteration"] != iteration
+                or len(request) != 4 or request[:3] != [iteration, envelope["z0"], envelope["current"]]):
+            raise ValueError("original source and state request must match the selected iteration")
 
     def out(self, name):
         return self.directory / name
@@ -191,7 +195,7 @@ class Replay:
                      outputs=[FORMAL / ".lake/build/bin" / executable])
 
     def prepare(self):
-        if self.iteration == 2:
+        if self.iteration in (1, 2):
             self.python("source-projection", "scripts/project_replay_sources.py",
                         "original", self.native_sources, self.projection,
                         outputs=[self.public, self.sources])
@@ -550,10 +554,16 @@ def main():
     parser.add_argument("--no-timeout", action="store_true",
                         help="disable command deadlines when explicitly authorized by the owner")
     parser.add_argument("root", type=Path)
-    parser.add_argument("iteration", type=int, choices=(2, 3))
-    parser.add_argument("checkpoint", choices=("build", "prepare", "native", "ccs", "reductions", "successor", "terminal", "all"))
+    parser.add_argument("iteration", type=int, choices=(1, 2, 3))
+    parser.add_argument("checkpoint", choices=("build", "prepare", "native", "ccs", "reductions", "successor", "terminal", "first-fold", "all"))
     args = parser.parse_args()
-    if args.checkpoint == "all":
+    if args.checkpoint == "first-fold":
+        if args.iteration != 1:
+            parser.error("first-fold starts at iteration 1")
+        replay = Replay(args.root, 1, no_timeout=args.no_timeout)
+        for checkpoint in ("build", "prepare", "native", "ccs", "reductions", "successor"):
+            getattr(replay, checkpoint)()
+    elif args.checkpoint == "all":
         if args.iteration != 2:
             parser.error("the selected complete loop starts at iteration 2")
         for iteration in (2, 3):

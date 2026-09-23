@@ -241,4 +241,7 @@ def circuit (interface : Interface) : FormalCircuit where
   soundness := soundness interface
   completeness := fun env offset inputs _ => complete interface env offset inputs
 
+theorem circuit_ops (interface : Interface) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset = operations interface offset := rfl
+
 end NightstreamFPrime.Lifecycle.PiRLC.Wide.Batch

@@ -1,0 +1,438 @@
+import NightstreamFPrime.Circuit.Sequence
+import NightstreamFPrime.Lifecycle.Stage1.Wide.Interface
+
+/-!
+Owns the candidate Stage 1 child order with the wide PiRLC sampler.
+
+This file proves exact offsets, aggregate footprints, coverage, and soundness
+for arbitrary satisfying assignments. It also owns the candidate Stage 1 logical
+`FormalCircuit`. The physical layout supplies its proof-only root completion;
+that proof does not change the circuit operations or semantic predicate.
+
+HyperNova's terminal checks are outside `F'`. They are therefore not an
+operation in this circuit. `Stage1.Terminal` owns that outer verifier boundary.
+-/
+
+namespace NightstreamFPrime.Lifecycle.Stage1.Wide
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
+def priorChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  Pilot.priorCircuit interface.pilot
+
+def outputHashChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  Pilot.outputCircuit interface.pilot
+
+noncomputable def piCcsChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) : FormalCircuit :=
+  PiCCS.v1_1.Formal.circuit relation ajtai interface.piCcs template
+
+noncomputable def piRlcChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  PiRLC.Wide.Formal.circuit relation ajtai interface.piRlc
+
+noncomputable def piDecChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  PiDEC.v1_1.Formal.circuit relation ajtai interface.piDec
+
+def runningChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  RunningTransition.circuit interface.running
+
+def applicationChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  program.circuit interface.application
+
+def nextPreimageChild
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program) :
+    FormalCircuit :=
+  NextPreimage.circuit interface.nextPreimage
+
+def priorOffset (offset : Nat) : Nat := offset
+
+def outputHashOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program)
+    (offset : Nat) : Nat :=
+  priorOffset offset + (priorChild relation program interface).privateCount
+    (priorOffset offset)
+
+noncomputable def piCcsOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (program : Application.Program) (interface : Interface relation program)
+    (offset : Nat) : Nat :=
+  outputHashOffset relation program interface offset +
+    (outputHashChild relation program interface).privateCount
+      (outputHashOffset relation program interface offset)
+
+noncomputable def piRlcOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  piCcsOffset relation program interface offset +
+    (piCcsChild relation ajtai program interface template).privateCount
+      (piCcsOffset relation program interface offset)
+
+noncomputable def piDecOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  piRlcOffset relation ajtai program interface template offset +
+    (piRlcChild relation ajtai program interface).privateCount
+      (piRlcOffset relation ajtai program interface template offset)
+
+noncomputable def runningOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  piDecOffset relation ajtai program interface template offset +
+    (piDecChild relation ajtai program interface).privateCount
+      (piDecOffset relation ajtai program interface template offset)
+
+noncomputable def applicationOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  runningOffset relation ajtai program interface template offset +
+    (runningChild relation program interface).privateCount
+      (runningOffset relation ajtai program interface template offset)
+
+noncomputable def finalOffset
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  applicationOffset relation ajtai program interface template offset +
+    (applicationChild relation program interface).privateCount
+      (applicationOffset relation ajtai program interface template offset)
+
+def childOp (name : String) (child : FormalCircuit) (offset : Nat) : Op :=
+  Sequence.childOp name child offset
+
+@[simp] theorem childOp_privateCount (name : String) (child : FormalCircuit)
+    (offset : Nat) :
+    (childOp name child offset).localLength = child.privateCount offset := by
+  rfl
+
+@[simp] theorem childOp_rowCount (name : String) (child : FormalCircuit)
+    (offset : Nat) :
+    (childOp name child offset).rowCount = child.rowCount offset := by
+  rfl
+
+noncomputable def opsAt
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : List Op :=
+  [childOp "stage1.prior_state_hash" (priorChild relation program interface)
+      (priorOffset offset),
+    childOp "stage1.output_hash" (outputHashChild relation program interface)
+      (outputHashOffset relation program interface offset),
+    childOp "stage1.piccs.v1_1"
+      (piCcsChild relation ajtai program interface template)
+      (piCcsOffset relation program interface offset),
+    childOp "stage1.pirlc.wide"
+      (piRlcChild relation ajtai program interface)
+      (piRlcOffset relation ajtai program interface template offset),
+    childOp "stage1.pidec.v1_1"
+      (piDecChild relation ajtai program interface)
+      (piDecOffset relation ajtai program interface template offset),
+    childOp "stage1.running_transition"
+      (runningChild relation program interface)
+      (runningOffset relation ajtai program interface template offset),
+    childOp "stage1.application" (applicationChild relation program interface)
+      (applicationOffset relation ajtai program interface template offset),
+    childOp "stage1.next_preimage" (nextPreimageChild relation program interface)
+      (finalOffset relation ajtai program interface template offset)]
+
+noncomputable def main
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) : Circuit Unit :=
+  fun offset =>
+    ((), finalOffset relation ajtai program interface template offset,
+      opsAt relation ajtai program interface template offset)
+
+@[simp] theorem main_ops
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
+    Circuit.ops (main relation ajtai program interface template) offset =
+      opsAt relation ajtai program interface template offset := by
+  rfl
+
+noncomputable def logicalPrivateCount
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  (priorChild relation program interface).privateCount (priorOffset offset) +
+  (outputHashChild relation program interface).privateCount
+    (outputHashOffset relation program interface offset) +
+  (piCcsChild relation ajtai program interface template).privateCount
+    (piCcsOffset relation program interface offset) +
+  (piRlcChild relation ajtai program interface).privateCount
+    (piRlcOffset relation ajtai program interface template offset) +
+  (piDecChild relation ajtai program interface).privateCount
+    (piDecOffset relation ajtai program interface template offset) +
+  (runningChild relation program interface).privateCount
+    (runningOffset relation ajtai program interface template offset) +
+  (applicationChild relation program interface).privateCount
+    (applicationOffset relation ajtai program interface template offset) +
+  (nextPreimageChild relation program interface).privateCount
+    (finalOffset relation ajtai program interface template offset)
+
+noncomputable def logicalRowCount
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) : Nat :=
+  (priorChild relation program interface).rowCount (priorOffset offset) +
+  (outputHashChild relation program interface).rowCount
+    (outputHashOffset relation program interface offset) +
+  (piCcsChild relation ajtai program interface template).rowCount
+    (piCcsOffset relation program interface offset) +
+  (piRlcChild relation ajtai program interface).rowCount
+    (piRlcOffset relation ajtai program interface template offset) +
+  (piDecChild relation ajtai program interface).rowCount
+    (piDecOffset relation ajtai program interface template offset) +
+  (runningChild relation program interface).rowCount
+    (runningOffset relation ajtai program interface template offset) +
+  (applicationChild relation program interface).rowCount
+    (applicationOffset relation ajtai program interface template offset) +
+  (nextPreimageChild relation program interface).rowCount
+    (finalOffset relation ajtai program interface template offset)
+
+theorem localLength_eq
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
+    localLength (Circuit.ops
+      (main relation ajtai program interface template) offset) =
+      logicalPrivateCount relation ajtai program interface template offset := by
+  rw [main_ops]
+  simp only [opsAt, localLength, List.map_cons, List.map_nil, List.sum_cons,
+    List.sum_nil, childOp_privateCount, Nat.add_zero, logicalPrivateCount]
+  omega
+
+theorem flatConstraints_length_eq
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
+    (flatConstraints (Circuit.ops
+      (main relation ajtai program interface template) offset)).length =
+      logicalRowCount relation ajtai program interface template offset := by
+  rw [flatConstraints_length_eq_rowCount]
+  rw [main_ops]
+  simp only [opsAt, rowCount, List.map_cons, List.map_nil, List.sum_cons,
+    List.sum_nil, childOp_rowCount, Nat.add_zero, logicalRowCount]
+  omega
+
+structure Assumptions
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) (env : Env) : Prop where
+  prior : (priorChild relation program interface).assumptions
+    (priorOffset offset) env
+  outputHash : (outputHashChild relation program interface).assumptions
+    (outputHashOffset relation program interface offset) env
+  piCcs : (piCcsChild relation ajtai program interface template).assumptions
+    (piCcsOffset relation program interface offset) env
+  piRlc : (piRlcChild relation ajtai program interface).assumptions
+    (piRlcOffset relation ajtai program interface template offset) env
+  piDec : (piDecChild relation ajtai program interface).assumptions
+    (piDecOffset relation ajtai program interface template offset) env
+  running : (runningChild relation program interface).assumptions
+    (runningOffset relation ajtai program interface template offset) env
+  application : (applicationChild relation program interface).assumptions
+    (applicationOffset relation ajtai program interface template offset) env
+  nextPreimage : (nextPreimageChild relation program interface).assumptions
+    (finalOffset relation ajtai program interface template offset) env
+
+structure SpecHolds
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) (env : Env) : Prop where
+  prior : (priorChild relation program interface).spec (priorOffset offset) env
+  outputHash : (outputHashChild relation program interface).spec
+    (outputHashOffset relation program interface offset) env
+  piCcs : (piCcsChild relation ajtai program interface template).spec
+    (piCcsOffset relation program interface offset) env
+  piRlc : (piRlcChild relation ajtai program interface).spec
+    (piRlcOffset relation ajtai program interface template offset) env
+  piDec : (piDecChild relation ajtai program interface).spec
+    (piDecOffset relation ajtai program interface template offset) env
+  running : (runningChild relation program interface).spec
+    (runningOffset relation ajtai program interface template offset) env
+  application : (applicationChild relation program interface).spec
+    (applicationOffset relation ajtai program interface template offset) env
+  nextPreimage : (nextPreimageChild relation program interface).spec
+    (finalOffset relation ajtai program interface template offset) env
+
+private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
+    (childOffset : Nat) (env : Env) (operations : List Op)
+    (rows : holds env operations)
+    (member : childOp name child childOffset ∈ operations)
+    (assumptions : child.assumptions childOffset env) :
+    child.spec childOffset env := by
+  exact (rows _ member) assumptions
+
+/-- Arbitrary satisfying assignments imply every opaque Stage 1 child spec.
+No child operation list is unfolded. -/
+theorem soundness
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (offset : Nat) (env : Env)
+    (assumptions : Assumptions relation ajtai program interface template
+      offset env)
+    (rows : holds env (Circuit.ops
+      (main relation ajtai program interface template) offset)) :
+    SpecHolds relation ajtai program interface template offset env := by
+  rw [main_ops] at rows
+  refine {
+    prior := childSpec_of_rows "stage1.prior_state_hash" _ _ env _ rows
+      (by simp [opsAt]) assumptions.prior
+    outputHash := childSpec_of_rows "stage1.output_hash" _ _ env _ rows
+      (by simp [opsAt]) assumptions.outputHash
+    piCcs := childSpec_of_rows "stage1.piccs.v1_1" _ _ env _ rows
+      (by simp [opsAt]) assumptions.piCcs
+    piRlc := childSpec_of_rows "stage1.pirlc.wide" _ _ env _ rows
+      (by simp [opsAt]) assumptions.piRlc
+    piDec := childSpec_of_rows "stage1.pidec.v1_1" _ _ env _ rows
+      (by simp [opsAt]) assumptions.piDec
+    running := childSpec_of_rows "stage1.running_transition" _ _ env _ rows
+      (by simp [opsAt]) assumptions.running
+    application := childSpec_of_rows "stage1.application" _ _ env _ rows
+      (by simp [opsAt]) assumptions.application
+    nextPreimage := childSpec_of_rows "stage1.next_preimage" _ _ env _ rows
+      (by simp [opsAt]) assumptions.nextPreimage }
+
+/-- The parent has exactly eight opaque children, once each, in protocol
+order. This is the mechanical coverage statement used by later layout proofs. -/
+theorem opsAt_coverage
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) :
+    (opsAt relation ajtai program interface template offset).length = 8 := by
+  rfl
+
+/-- Proof-only evidence that the exact eight-child parent can be completed at
+one verifier-owned root. Layout constructs this record from the canonical
+wire placement. It does not select or change the circuit. -/
+structure RootCompleteness
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat) : Prop where
+  complete : ∀ env,
+    Assumptions relation ajtai program interface template root env →
+    SpecHolds relation ajtai program interface template root env →
+    ∃ completed : Sequence.Prefix env root,
+      completed.operations = Circuit.ops
+        (main relation ajtai program interface template) root ∧
+      root + localLength completed.operations =
+        finalOffset relation ajtai program interface template root
+
+/-- The candidate logical Stage 1 circuit. The root and completion proof are
+fixed by the verifier-owned Lean layout before package emission. -/
+noncomputable def circuit
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat)
+    (completion : RootCompleteness relation ajtai program interface template
+      root) : FormalCircuit where
+  main := main relation ajtai program interface template
+  assumptions := fun offset env =>
+    offset = root ∧
+      Assumptions relation ajtai program interface template offset env
+  spec := SpecHolds relation ajtai program interface template
+  privateCount := logicalPrivateCount relation ajtai program interface template
+  rowCount := logicalRowCount relation ajtai program interface template
+  privateCount_eq := localLength_eq relation ajtai program interface template
+  rowCount_eq := flatConstraints_length_eq relation ajtai program interface
+    template
+  soundness := by
+    intro env offset assumptions rows
+    exact soundness relation ajtai program interface template offset env
+      assumptions.2 rows
+  completeness := by
+    intro env offset assumptions specification
+    rcases assumptions with ⟨offsetEq, childAssumptions⟩
+    subst offset
+    rcases completion.complete env childAssumptions specification with
+      ⟨completed, operationsEq, _endEq⟩
+    refine ⟨completed.current, ?_, ?_⟩
+    · rw [← operationsEq]
+      exact completed.agrees
+    · rw [← operationsEq]
+      exact completed.rows
+
+/-- The exported circuit contains each of the eight Stage 1 children exactly
+once in protocol order. -/
+theorem circuit_coverage
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (program : Application.Program) (interface : Interface relation program)
+    (template : Proof (ProductionKey.degreeBound relation))
+    (root : Nat)
+    (completion : RootCompleteness relation ajtai program interface template
+      root) :
+    (Circuit.ops
+      (circuit relation ajtai program interface template root completion).main
+      root).length = 8 := by
+  exact opsAt_coverage relation ajtai program interface template root
+
+end NightstreamFPrime.Lifecycle.Stage1.Wide

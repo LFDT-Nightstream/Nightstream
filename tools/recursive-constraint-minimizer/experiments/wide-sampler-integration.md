@@ -14,8 +14,9 @@ There is no rejection, retry, or shortfall.
 - The exact helper program, including integer bounds before field operations,
   limb regrouping, division by five, and the biased CRT check quotient.
 - Soundness and constructive completeness of the executable scalar gadget and
-  its 17-scalar lifecycle. The output expressions feed the existing ring
-  combination families directly.
+  its 17-scalar lifecycle and the complete candidate PiRLC phase.
+  Temporary digit words preserve the existing R1CS ring-recipe shape;
+  compact CCS ring rows consume the checked digit bits directly.
 - The compact sampler matrix plan: 34 Poseidon permutations and 17 range
   gadgets. Accepted rows imply the exact transcript schedule and scalar map.
 - A constructive assignment for that plan, preservation of caller columns,
@@ -24,6 +25,13 @@ There is no rejection, retry, or shortfall.
   two. They allocate no separate field witness.
 - Temporary helper replacement and reconstruction preserve all checked rows.
   The compact assignment omits those helpers.
+- The candidate Stage 1 physical prefix through PiDEC and the running
+  transition has exact source endpoints. The PiCCS-to-PiRLC and PiRLC-to-PiDEC
+  input interfaces use the actual canonical source columns.
+- The sampler and all 969 quotient products compose into a 119,153-row
+  candidate plan. Its soundness theorem uses the exact sampled challenges.
+  Its completeness theorem takes the caller's output and quotient encodings;
+  the full package's retained assignment still needs that connection.
 
 The proof entrypoints are in
 `NightstreamFPrime/Layout/PiRlcWideSampler/{Completeness,StateSemantics,Norm,Challenges}.lean`.
@@ -38,7 +46,8 @@ These are sampler costs, not selected F′ totals.
 |---|---:|---:|
 | Logical CCS rows | 681 | 14,501 |
 | Retained coordinates | 937 | 135,813 |
-| Temporary helpers | 1,404 | 23,868 |
+| Temporary hint helpers | 1,404 | 23,868 |
+| Temporary digit words for R1CS recipes | — | 918 |
 | Normalized matrix nonzeros | 8,364 with the Poseidon endpoint input | 1,794,350 |
 
 Rows and retained-coordinate counts are proved in Lean. Matrix nonzeros are
@@ -54,8 +63,12 @@ and 353 result bits.
 
 The matrix count uses the previous Poseidon endpoint as input, including its
 actual external linear layer. It includes coefficient merging and cancellation.
-It does not include changes to the ring-product matrices that consume the new
-challenge forms. The earlier standalone range count of 7,216 used four separate
+The sampler total excludes the ring-product matrices. A separate measurement
+of their left-operand port gives 229,698,543 baseline entries and 16,904,205
+candidate entries across 969 products: 212,794,338 fewer entries. These values
+come from normalized Lean-emitted forms at all 108 evaluation points. The
+other product ports and the complete selected package are not part of that
+measurement. The earlier standalone range count of 7,216 used four separate
 field inputs; that is a different input geometry.
 
 ## Security scope
@@ -90,11 +103,22 @@ an explicit, separate premise in `under_block_oracle_assumption`.
 ## Validation at this checkpoint
 
 The full production library, all Lean tests, and both focused experiment
-executables built successfully (7,540 build jobs). All 303 sampler theorem
-and circuit audits passed with only the three allowed axioms. Static boundary
-checks and `git diff --check` passed. The final executable cost measurement
-matches the table above. No Rust code or generated production artifact has
-changed.
+executables built successfully (7,769 build jobs). All 507 sampler theorem
+and circuit audits passed with only the three allowed axioms. The final
+executable cost measurement matches the table above. No Rust code or generated
+production artifact has changed.
+
+The source sampler allocates 55,403 private DSL values and has 32,623 DSL
+rows, including the 918 temporary digit bindings. Structural lowering gives
+58,939 R1CS rows and 26,316 R1CS scratch values. The original sampler uses
+1,008,848 R1CS rows. These physical figures describe the reference witness
+construction; the compact sampler remains 14,501 CCS rows and 135,813
+committed coordinates.
+
+The candidate physical prefix through the running transition has 27,716,409
+rows and 27,859,538 source columns. These are source-layout counts, not the
+committed width. The application and final public layout are not selected
+from this candidate yet.
 
 ## Reproduce the focused checks
 

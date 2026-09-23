@@ -44,6 +44,9 @@ def measure(data):
                               for form, constant in zip(state, constants, strict=True)])
         assert next_slot == (invocation + 1) * 86
     assert rows == data["rows"]
+    product_counts = data["product_left_nonzeros_by_node"]
+    old_product_left = sum(pair[0] for pair in product_counts) * data["product_rings"]
+    new_product_left = sum(pair[1] for pair in product_counts) * data["product_rings"]
     return {
         "scope": "candidate sampler only; previous Poseidon endpoint as input",
         "selected_in_production": False,
@@ -54,6 +57,18 @@ def measure(data):
         "range_matrix_nonzeros": sum(range_counts),
         "poseidon_matrix_nonzeros": sum(counts) - sum(range_counts),
         "temporary_helpers": 17 * 1404,
+        "temporary_digit_words": data["temporary_digit_words"],
+        "source_dsl_private_values": data["dsl_private"],
+        "source_dsl_rows": data["dsl_rows"],
+        "source_r1cs_rows": data["r1cs_rows"],
+        "source_r1cs_fresh_values": data["r1cs_fresh"],
+        "product_left_matrix": {
+            "scope": "all 969 ring products; left-operand port only",
+            "baseline_normalized_nonzeros": old_product_left,
+            "candidate_normalized_nonzeros": new_product_left,
+            "removed_normalized_nonzeros": old_product_left - new_product_left,
+            "coordinate_layout": "baseline 41 coordinates per digit; candidate three checked bits",
+        },
     }
 
 

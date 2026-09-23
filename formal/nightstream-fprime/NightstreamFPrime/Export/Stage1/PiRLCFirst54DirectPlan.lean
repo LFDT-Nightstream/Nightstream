@@ -34,7 +34,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCFirst54DirectSchedule.candidateCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 29336446 := by
+    basePackage.layout.constantColumn = 28784740 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem rejectColumn_lt_basePackage

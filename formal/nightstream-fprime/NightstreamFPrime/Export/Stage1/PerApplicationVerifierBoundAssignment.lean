@@ -80,7 +80,7 @@ private theorem expectedContextTargetBound (lane : Fin 4) :
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have bound := lane.isLt
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      29336725 :=
+      28785019 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   norm_num [Spartan.expectedContextPublicStart] at bound ⊢
@@ -96,7 +96,7 @@ private theorem shiftedExpectedContext
   have lower : ¬ Spartan.expectedContextPublicStart + lane.val <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart] at laneBound ⊢
@@ -104,7 +104,7 @@ private theorem shiftedExpectedContext
   have startLower : ¬ Spartan.expectedContextPublicStart <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]

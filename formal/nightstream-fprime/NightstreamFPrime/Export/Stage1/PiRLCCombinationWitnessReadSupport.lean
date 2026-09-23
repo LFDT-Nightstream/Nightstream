@@ -41,9 +41,9 @@ private theorem mapped_outside (column : Nat)
   rw [if_neg (by change ¬ column < 14722512; omega),
     if_neg (by change ¬ column < 14722516; omega),
     if_neg (by change ¬ column < 14751804; omega)]
-  change column < 21124348 ∨ 28973248 ≤ column at outside
-  change 14751526 + (column - 14751804) < 21124070 ∨
-    28972970 ≤ 14751526 + (column - 14751804)
+  change column < 20572642 ∨ 28421542 ≤ column at outside
+  change 14751526 + (column - 14751804) < 20572364 ∨
+    28421264 ≤ 14751526 + (column - 14751804)
   omega
 
 private theorem remapExpr_supported (expression : Expr)
@@ -74,10 +74,10 @@ private theorem shifted_outside (application : Stage1.Application.Program) (colu
   split_ifs with before
   · exact outside
   · right
-    have constant : PerApplicationPackage.basePackage.layout.constantColumn = 29336446 :=
+    have constant : PerApplicationPackage.basePackage.layout.constantColumn = 28784740 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at before
-    change 28972970 ≤ _
+    change 28421264 ≤ _
     omega
 
 private theorem shiftExpr_supported (application : Stage1.Application.Program)
@@ -117,7 +117,7 @@ private theorem piDecSource_allowed (column : Nat)
         | have bounded := publicInput.2
         | have bounded := evalK.2
         | have bounded := evalA.2
-        change column < 21124348
+        change column < 20572642
         norm_num [PiDECSourceSupport.parentCommitmentStart_eq,
           PiDECSourceSupport.parentPublicInputStart_eq,
           PiDECSourceSupport.parentEvalKStart_eq,
@@ -136,7 +136,7 @@ private theorem piDecSource_allowed (column : Nat)
         omega
     · right
       have lower := proof.1
-      change 28973248 ≤ column at lower
+      change 28421542 ≤ column at lower
       exact lower
     · right
       have before : PiRLCStarts.outputFreshStart ≤ PiDECStarts.phaseLogicalStart := by decide
@@ -179,7 +179,7 @@ private theorem samplerLocal_allowed (source round : Nat) (lane : Fin 4)
   · left
     have laneLt := lane.isLt
     change index < 100 at indexLt
-    change _ < 21124348
+    change _ < 20572642
     norm_num [PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
       PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset,
@@ -305,19 +305,19 @@ theorem selectedApplicationBatches_readsSatisfy :
         left
         have bound := index.isLt
         change index.val < 4 at bound
-        change 35 + index.val < 21124070
+        change 35 + index.val < 20572364
         omega
     · rcases List.mem_ofFn.mp message with ⟨index, rfl⟩
       change Outside (ApplicationInputs.witnessColumn index)
       right
-      change 28972970 ≤ 29336446 + index.val
+      change 28421264 ≤ 28784740 + index.val
       omega
   have compiled := Gadgets.Poseidon2.Formal.witnesses_main_readsSatisfy
     (Stage1.Poseidon2HashChainV1.hashInterface interface) offset Outside
     inputSupport (by
       intro index _
       right
-      change 28972970 ≤ 29336446 + 4 + index
+      change 28421264 ≤ 28784740 + 4 + index
       omega)
   intro batch member
   rw [PerApplicationPackage.directApplicationPlan_eq_applicationPlan] at member

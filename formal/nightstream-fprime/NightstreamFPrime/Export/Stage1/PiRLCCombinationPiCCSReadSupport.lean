@@ -19,7 +19,7 @@ open PiRLCCombinationReadSupport
 
 theorem source_before (column : Nat) (source : PiCCSOrdinarySourceSupport.Source column) :
     column < PiRLCStarts.commitmentFreshStart := by
-  change column < 21124348
+  change column < 20572642
   rcases source with ((external | transcript | ordinary) | fresh)
   · rcases external with prior | publicInput | output | context | proof
     · have bound := prior.2
@@ -46,10 +46,10 @@ theorem source_before (column : Nat) (source : PiCCSOrdinarySourceSupport.Source
     omega
   · have bound := ordinary.2
     rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq] at bound
-    change column < 15176860 + 79846 at bound
+    change column < 15176860 + 52734 at bound
     omega
   · have bound := fresh.2
-    change column < 20064823 at bound
+    change column < 19513117 at bound
     omega
 
 theorem source_outside (column : Nat) (source : PiCCSOrdinarySourceSupport.Source column) :

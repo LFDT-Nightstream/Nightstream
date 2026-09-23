@@ -54,8 +54,8 @@ theorem retainedPrefix_baseEnv
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue products)) column =
       PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base) column := by
-  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
+  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 28785019 := by
+    change PerApplicationPackage.basePackage.layout.totalColumnCount = 28785019
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
     rw [packageTotal]

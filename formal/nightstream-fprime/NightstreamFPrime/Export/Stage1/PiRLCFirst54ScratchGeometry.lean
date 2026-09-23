@@ -16,7 +16,7 @@ open PiRLCCombinationScratchGeometry (scratchStart)
 
 private theorem source_local (column : Nat) (lower : PiRLCStarts.phaseLogicalStart ≤ column) :
     Spartan.piCcsPhaseOffset ≤ column := by
-  change 20064823 ≤ column at lower
+  change 19513117 ≤ column at lower
   change 14751804 ≤ column
   omega
 
@@ -130,8 +130,8 @@ private theorem cached_column_eq (context : PerApplicationCachedShift.Context)
     (column : Nat) (before : column < scratchStart) : context.column column = column := by
   unfold PerApplicationCachedShift.Context.column
   apply if_pos
-  change column < 29336446
-  change column < 21124070 at before
+  change column < 28784740
+  change column < 20572364 at before
   omega
 
 private theorem shifted_ranges_before (context : PerApplicationCachedShift.Context)
@@ -150,7 +150,7 @@ private theorem input_before (ranges : List CompactInputRange)
   cases found : ranges.find? (fun range =>
       range.inputStart ≤ input ∧ input < range.inputStart + range.inputCount) with
   | none =>
-      change 0 < 21124070
+      change 0 < 20572364
       decide
   | some range =>
       have member := List.mem_of_find?_eq_some found
@@ -182,9 +182,9 @@ private theorem mapped_end_le (column count : Nat)
   have decompose : column = Spartan.piCcsPhaseOffset + (column - Spartan.piCcsPhaseOffset) := by omega
   unfold finalColumn
   rw [decompose, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (Nat.le_refl _)]
-  change 14751526 + (column - 14751804) + count ≤ 21124070
+  change 14751526 + (column - 14751804) + count ≤ 20572364
   change 14751804 ≤ column at localBound
-  change column + count ≤ 21124348 at upper
+  change column + count ≤ 20572642 at upper
   omega
 
 private theorem position_local_end (source round : Nat) (slot : Fin First54Step.slotCount)

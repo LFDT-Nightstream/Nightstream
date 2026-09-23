@@ -721,7 +721,8 @@ theorem finalIdentity
     eval_ABelow := evalABelow
     ccsBelow := ccsBelow
     normBelow := normBelow
-    terminalBelow := terminalBelow }
+    terminalBelow := by
+      simpa only [Formal.finalIdentityInterface] using terminalBelow }
   · intro coordinate
     change (Formal.roundPoint frozen finalAt coordinate).VarsBelow finalAt ∧
       (Formal.challengeAlpha frozen finalAt coordinate).VarsBelow finalAt

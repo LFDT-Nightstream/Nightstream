@@ -103,8 +103,8 @@ private theorem sourceRanges_valid (source minimum limit : Nat)
     minimumLe, endLe, suffixValid]
   all_goals omega
 
-theorem rowSchedule_valid : rowSchedule.valid 27584200 = true := by
-  change validIndexRanges 27584200 0 ranges = true
+theorem rowSchedule_valid : rowSchedule.valid 27032494 = true := by
+  change validIndexRanges 27032494 0 ranges = true
   rw [ranges]
   rw [show List.range PiRLCSamplerOrdinaryRows.sourceCount =
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] by
@@ -120,7 +120,7 @@ theorem rowSchedule_valid : rowSchedule.valid 27584200 = true := by
 theorem rowSchedule_valid_between :
     validIndexRanges PiRLCStarts.outputRowStart PiRLCStarts.phaseRowStart
       ranges = true := by
-  have boundary : PiRLCStarts.outputRowStart = 28847041 :=
+  have boundary : PiRLCStarts.outputRowStart = 28295335 :=
     PiRLCStarts.finalBoundaries_eq.1
   rw [boundary]
   rw [ranges]

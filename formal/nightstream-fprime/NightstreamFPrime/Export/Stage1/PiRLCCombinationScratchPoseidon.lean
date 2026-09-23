@@ -19,23 +19,23 @@ open NightstreamFPrime.Lifecycle
 theorem priorWitnessEnd_le
     (invocation : Fin PoseidonRetainedBlock.priorInvocationCount) :
     PoseidonRetainedBlock.priorWitnessStart invocation +
-      PoseidonScheduleTrace.localColumnCount ≤ 21124070 := by
+      PoseidonScheduleTrace.localColumnCount ≤ 20572364 := by
   have bound : invocation.val < 12350 := invocation.isLt
-  change 128074 + invocation.val * 592 + 592 ≤ 21124070
+  change 128074 + invocation.val * 592 + 592 ≤ 20572364
   omega
 
 theorem outputWitnessEnd_le
     (invocation : Fin PoseidonRetainedBlock.outputInvocationCount) :
     PoseidonRetainedBlock.outputWitnessStart invocation +
-      PoseidonScheduleTrace.localColumnCount ≤ 21124070 := by
+      PoseidonScheduleTrace.localColumnCount ≤ 20572364 := by
   have bound : invocation.val < 12350 := invocation.isLt
-  change 7439538 + invocation.val * 592 + 592 ≤ 21124070
+  change 7439538 + invocation.val * 592 + 592 ≤ 20572364
   omega
 
 private theorem piCcs_witnessEnd_le (invocation : PermutationInvocation)
     (member : invocation ∈
       PiCCSInvocations.invocations Data.logicalWidth Data.publicFits) :
-    invocation.witnessStart + 592 ≤ 21124070 := by
+    invocation.witnessStart + 592 ≤ 20572364 := by
   let relation : ProductionKey.LogicalRelation
       Data.logicalWidth Data.publicFits :=
     { matrices := fun _ _ _ => 0
@@ -69,38 +69,38 @@ private theorem sampler_entry_start (source : Nat)
 private theorem sampler_witnessEnd_le (invocation : PermutationInvocation)
     (member : invocation ∈ PiRLCSamplerInvocations.invocations
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)) :
-    invocation.witnessStart + 592 ≤ 21124070 := by
+    invocation.witnessStart + 592 ≤ 20572364 := by
   unfold PiRLCSamplerInvocations.invocations at member
   rcases List.mem_flatMap.mp member with ⟨source, sourceMember, sourceMember'⟩
   have sourceBound : source < 17 := List.mem_range.mp sourceMember
   unfold PiRLCSamplerInvocations.sourceInvocations at sourceMember'
   rcases List.mem_append.mp sourceMember' with entry | window
   · rw [sampler_entry_start source invocation entry]
-    change Spartan.sourceToSpartan (20064823 + source * 15504) + 592 ≤ 21124070
+    change Spartan.sourceToSpartan (19513117 + source * 15504) + 592 ≤ 20572364
     rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
-    change 20064545 + source * 15504 + 592 ≤ 21124070
+    change 19512839 + source * 15504 + 592 ≤ 20572364
     omega
   · unfold PiRLCSamplerInvocations.windowInvocations at window
     rcases List.mem_map.mp window with ⟨round, roundMember, rfl⟩
     have roundBound : round < 8 := List.mem_range.mp roundMember
     change Spartan.sourceToSpartan
-      (20064823 + source * 15504 + 592 + round * 992 + 400) + 592 ≤ 21124070
-    have address : 20064823 + source * 15504 + 592 + round * 992 + 400 =
-        20064823 + (source * 15504 + 592 + round * 992 + 400) := by omega
+      (19513117 + source * 15504 + 592 + round * 992 + 400) + 592 ≤ 20572364
+    have address : 19513117 + source * 15504 + 592 + round * 992 + 400 =
+        19513117 + (source * 15504 + 592 + round * 992 + 400) := by omega
     rw [address, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ (by decide)]
-    change 20064545 + (source * 15504 + 592 + round * 992 + 400) + 592 ≤ 21124070
+    change 19512839 + (source * 15504 + 592 + round * 992 + 400) + 592 ≤ 20572364
     omega
 
 theorem laterWitnessEnd_le
     (invocation : Fin PoseidonRetainedBlock.laterInvocationCount) :
     PoseidonRetainedBlock.laterWitnessStart invocation +
-      PoseidonScheduleTrace.localColumnCount ≤ 21124070 := by
+      PoseidonScheduleTrace.localColumnCount ≤ 20572364 := by
   let index : Fin PoseidonRetainedBlock.basePackage.permutationInvocations.length :=
     ⟨invocation.val, by
       simpa only [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
         using invocation.isLt⟩
   let selected := PoseidonRetainedBlock.basePackage.permutationInvocations.get index
-  change selected.witnessStart + 592 ≤ 21124070
+  change selected.witnessStart + 592 ≤ 20572364
   have member := List.get_mem PoseidonRetainedBlock.basePackage.permutationInvocations index
   change selected ∈ PoseidonRetainedBlock.basePackage.permutationInvocations at member
   rw [PoseidonRetainedBlock.basePackage_permutationInvocations_eq,

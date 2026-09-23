@@ -928,7 +928,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 19332940 := by
+theorem invocationCeiling_eq : invocationCeiling = 19305828 := by
   norm_num [invocationCeiling,
     NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
     NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,

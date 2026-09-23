@@ -1,8 +1,31 @@
 # Nightstream F′ Stage 1 constraint tree
 
-This file is the concise audit map for the current Lean-authored
-`Poseidon2HashChainV1` package and its reusable prefix. It defines no relation
-and gives no digest authority. The audit path is:
+The current Lean research checkpoint selects the compact SumCheck and shared
+γ-power circuits. It has **3,595,629 logical CCS rows** and **149,597,982
+committed coordinates**. The published artifacts still select `c9aa75b04`.
+Matrix nonzeros have not been recounted for the new layout. Full Lean,
+axiom, and static gates pass; artifact regeneration and Rust checks remain open.
+
+| Phase | Logical CCS rows | Committed coordinates before global alignment |
+|---|---:|---:|
+| Pilot state hashes and framing | 2,125,538 | 91,185,722 |
+| PiCCS | 929,147 | 38,957,667 |
+| PiRLC | 458,388 | 16,377,698 |
+| Running transition | 49,359 | 2,019,210 |
+| PiDEC | 25,488 | 741,690 |
+| Application | 7,700 | 315,700 |
+| Public binding / prefix | 9 | 270 |
+| Global alignment | 0 | 25 |
+| **Total** | **3,595,629** | **149,597,982** |
+
+The group split is arithmetic from the unchanged phase counts and the new
+PiCCS ledger; the total is checked by the selected package theorems. The
+262-row application candidate is proved but is not selected in this table.
+See [batch evidence](../../tools/recursive-constraint-minimizer/experiments/piccs-lowering-batch.md)
+for the exact scope. The sections below retain older conformance snapshots
+and their recorded identities. They do not validate the changed Lean layout.
+
+The audit path is:
 
 ```text
 paper formula

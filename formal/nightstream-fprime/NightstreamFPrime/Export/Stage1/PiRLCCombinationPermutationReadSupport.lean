@@ -55,22 +55,22 @@ theorem hashes_supported (chain : HashChain)
       (PilotData.circuitPackage ())
       (PerApplicationCachedShift.shiftHashChain shift chain) ordinal) := by
   have inputBound : (PerApplicationCachedShift.shiftHashChain shift chain).inputStart +
-      (PerApplicationCachedShift.shiftHashChain shift chain).inputLength ≤ 21124070 := by
+      (PerApplicationCachedShift.shiftHashChain shift chain).inputLength ≤ 20572364 := by
     rcases List.mem_cons.mp member with rfl | member
-    · change 0 + 49393 ≤ 21124070
+    · change 0 + 49393 ≤ 20572364
       decide
     · rcases List.mem_cons.mp member with rfl | member
-      · change 49393 + 49393 ≤ 21124070
+      · change 49393 + 49393 ≤ 20572364
         decide
       · simp at member
   have witnessBound : (PerApplicationCachedShift.shiftHashChain shift chain).witnessStart +
       ((PerApplicationCachedShift.shiftHashChain shift chain).absorbCount + 1) * 592 ≤
-        21124070 := by
+        20572364 := by
     rcases List.mem_cons.mp member with rfl | member
-    · change 128074 + 12350 * 592 ≤ 21124070
+    · change 128074 + 12350 * 592 ≤ 20572364
       decide
     · rcases List.mem_cons.mp member with rfl | member
-      · change 7439538 + 12350 * 592 ≤ 21124070
+      · change 7439538 + 12350 * 592 ≤ 20572364
         decide
       · simp at member
   intro lane laneBound
@@ -89,7 +89,7 @@ theorem hashes_supported (chain : HashChain)
   left
   exact PackageCompleteness.pilotHashInvocationInput_varsBelow
     (PerApplicationCachedShift.shiftHashChain shift chain) ordinal ⟨lane, laneBound⟩
-    21124070 (by omega) inputBound witnessBound term termMember
+    20572364 (by omega) inputBound witnessBound term termMember
 
 private theorem piCcs_supported (invocation : PermutationInvocation)
     (member : invocation ∈ PiCCSInvocations.invocations Data.logicalWidth Data.publicFits) :
@@ -102,10 +102,10 @@ private theorem piCcs_supported (invocation : PermutationInvocation)
   intro lane laneBound term termMember
   rcases inputs ⟨lane, laneBound⟩ term termMember with earlier | suffix
   · left
-    change term.1 < 21124070
+    change term.1 < 20572364
     omega
   · right
-    change 28972970 ≤ term.1
+    change 28421264 ≤ term.1
     rw [Spartan.privateColumnCount_eq] at suffix
     omega
 
@@ -145,7 +145,7 @@ private theorem entryState_below (source : Nat) (sourceBound : source < 17)
   rw [← equal] at bounded
   rw [← PiRLCSamplerInvocations.fastEntryState_eq_entryState]
   apply Expr.VarsBelow.mono _ bounded
-  change 20064823 + source * 15504 ≤ 21124348
+  change 19513117 + source * 15504 ≤ 20572642
   omega
 
 private theorem windowState_below (source round : Nat)
@@ -159,11 +159,11 @@ private theorem windowState_below (source round : Nat)
   cases round with
   | zero =>
       rw [PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
-      change 20064823 + source * 15504 + 584 + lane.val < 21124348
+      change 19513117 + source * 15504 + 584 + lane.val < 20572642
       omega
   | succ previous =>
-      change 20064823 + source * 15504 + 592 + previous * 992 + 400 + 584 + lane.val <
-        21124348
+      change 19513117 + source * 15504 + 592 + previous * 992 + 400 + 584 + lane.val <
+        20572642
       omega
 
 private theorem sampler_supported (invocation : PermutationInvocation)

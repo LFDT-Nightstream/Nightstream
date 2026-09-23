@@ -148,7 +148,7 @@ def phi81GroupRecipe (program : Program) : Phi81GroupRecipe where
   valueSources := phi81ValueSources program
   groupOutputBlock := .productGroup
 
-/-- Compact executable recipe for the 1,088 shared First54 products. -/
+/-- Compact executable recipe for the 1,88 shared First54 products. -/
 structure First54ProductRecipe where
   candidateCount : Nat
   rejectBlock : BlockKind

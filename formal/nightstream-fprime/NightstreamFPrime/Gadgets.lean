@@ -7,6 +7,7 @@ import NightstreamFPrime.Gadgets.Poseidon2.Support
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
+import NightstreamFPrime.Gadgets.SumCheck.CompactChain
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Gadgets.Polynomial.Power

@@ -1025,7 +1025,7 @@ theorem sumcheckFreshCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.sumcheckConstraints logicalWidth publicFits) =
-        424601 := by
+        1764 := by
   unfold PiCCSArithmetic.sumcheckConstraints
   rw [PiCCSArithmetic.sumcheckLogicalStart_matches logicalWidth publicFits]
   exact
@@ -1116,7 +1116,7 @@ theorem finalIdentityFreshCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.finalIdentityConstraints logicalWidth publicFits) =
-        102743 := by
+        986 := by
   unfold PiCCSArithmetic.finalIdentityConstraints
     PiCCSArithmetic.mainConstraints
   rw [PiCCSArithmetic.finalIdentityLogicalStart_matches logicalWidth publicFits,
@@ -1147,7 +1147,7 @@ theorem packetConstraints_totalFreshCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (packetConstraints logicalWidth publicFits) =
-      731605 := by
+      207011 := by
   unfold packetConstraints
   rw [R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
@@ -1163,7 +1163,7 @@ theorem emittedConstraints_totalFreshCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (emittedConstraints logicalWidth publicFits) =
-      731605 := by
+      207011 := by
   rw [emittedConstraints, R1CS.totalFreshCount_append,
     statementBindingFreshCount_eq relation,
     packetConstraints_totalFreshCount relation]
@@ -1331,7 +1331,7 @@ theorem complete_arithmeticRows
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
       (emittedConstraints logicalWidth publicFits)) :
     ∃ completed,
-      AgreesOutside env completed PiCCSInvocations.invocationCeiling 731605 ∧
+      AgreesOutside env completed PiCCSInvocations.invocationCeiling 207011 ∧
         R1CS.RowsHold completed
           ((PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
             Rows.CompiledRow.toR1CS) := by
@@ -1343,7 +1343,7 @@ theorem complete_arithmeticRows
   have totalFresh := emittedConstraints_totalFreshCount relation
   have sourceAgreesFixed : AgreesOutside
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) source
-      PiCCSArithmetic.initialClaimFreshStart 731605 := by
+      PiCCSArithmetic.initialClaimFreshStart 207011 := by
     rw [totalFresh] at sourceAgrees
     exact sourceAgrees
   have mappedStart :
@@ -1365,25 +1365,25 @@ theorem complete_arithmeticRows
     norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
   have targetEndPrivate :
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-          PiCCSArithmetic.initialClaimFreshStart + 731605 ≤
+          PiCCSArithmetic.initialClaimFreshStart + 207011 ≤
         NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [mappedStart, PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
     norm_num
   let completed :=
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
-      PiCCSArithmetic.initialClaimFreshStart 731605
+      PiCCSArithmetic.initialClaimFreshStart 207011
   refine ⟨completed, ?_, ?_⟩
   · rw [← mappedStart]
     exact
       NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
-        env source PiCCSArithmetic.initialClaimFreshStart 731605
+        env source PiCCSArithmetic.initialClaimFreshStart 207011
   · rw [arithmeticRows_toR1CS_eq relation]
     exact
       NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
         (R1CS.lowerConstraints (emittedConstraints logicalWidth publicFits)
           PiCCSArithmetic.initialClaimFreshStart).rows env source
-        PiCCSArithmetic.initialClaimFreshStart 731605 startLocal
+        PiCCSArithmetic.initialClaimFreshStart 207011 startLocal
         targetEndPrivate sourceAgreesFixed sourceRows
 
 end NightstreamFPrime.Export.Stage1.PiCCSCompleteness

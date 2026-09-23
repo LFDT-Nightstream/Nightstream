@@ -249,7 +249,7 @@ theorem semanticEnv_eq_baseEnv
   have privateBound : selectorColumn source inner <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     have sourceLt := source.isLt

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.SumCheck.FixedChain
+import NightstreamFPrime.Gadgets.SumCheck.CompactChain
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
@@ -51,9 +51,14 @@ def coreInterface {degree : Nat} (interface : Interface degree)
   round := interface.round offset
 
 /-- The final `p_i(r_i)` value exported to the terminal-identity leaf. -/
-def output {degree : Nat} (interface : Interface degree)
+def semanticOutput {degree : Nat} (interface : Interface degree)
     (offset : Nat) : KExpr :=
   FixedChain.Owned.output (coreInterface interface offset)
+
+/-- Materialized final claim shared with the terminal-identity child. -/
+def output {degree : Nat} (interface : Interface degree)
+    (offset : Nat) : KExpr :=
+  CompactChain.output (coreInterface interface offset) offset
 
 /-- The exact dimension-checked challenge vector supplied by the transcript
 leaf through the shared round interface. -/
@@ -72,27 +77,37 @@ abbrev SpecHolds {degree : Nat} (interface : Interface degree)
     (offset : Nat) (env : Env) : Prop :=
   FixedChain.Owned.SpecHolds (coreInterface interface offset) env
 
+/-- The semantic chain and the exact new output-wire correspondence. -/
+def Postcondition {degree : Nat} (interface : Interface degree)
+    (offset : Nat) (env : Env) : Prop :=
+  SpecHolds interface offset env ∧
+    (output interface offset).eval env = (semanticOutput interface offset).eval env
+
 /-- The sole logical circuit for the fixed production chain. -/
 def circuit {degree : Nat} (interface : Interface degree) : FormalCircuit where
   main := fun offset =>
-    (FixedChain.Owned.circuit (coreInterface interface offset)).main offset
+    (CompactChain.circuit (coreInterface interface offset)).main offset
   assumptions := Assumptions interface
-  spec := SpecHolds interface
+  spec := Postcondition interface
   soundness := by
     intro env offset assumptions rows
-    exact (FixedChain.Owned.circuit
+    exact (CompactChain.circuit
       (coreInterface interface offset)).soundness env offset assumptions rows
   completeness := by
     intro env offset assumptions specification
-    exact (FixedChain.Owned.circuit
+    exact (CompactChain.circuit
       (coreInterface interface offset)).completeness env offset assumptions
         specification
+
+theorem circuit_ops {degree : Nat} (interface : Interface degree) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset =
+      Circuit.ops (CompactChain.circuit (coreInterface interface offset)).main offset := by rfl
 
 theorem soundness {degree : Nat} (interface : Interface degree)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (rows : holds env (Circuit.ops (circuit interface).main offset)) :
-    SpecHolds interface offset env :=
+    Postcondition interface offset env :=
   (circuit interface).soundness env offset assumptions rows
 
 theorem completeness {degree : Nat} (interface : Interface degree)
@@ -102,8 +117,11 @@ theorem completeness {degree : Nat} (interface : Interface degree)
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (circuit interface).main offset)) ∧
-      holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
-  (circuit interface).completeness env offset assumptions specification
+      holdsFlat completed (Circuit.ops (circuit interface).main offset) := by
+  change ∃ completed, AgreesOutside env completed offset
+    (localLength (Circuit.ops (CompactChain.main (coreInterface interface offset)) offset)) ∧ _
+  rw [CompactChain.localLength_eq]
+  exact CompactChain.build (coreInterface interface offset) env offset assumptions specification
 
 theorem specHolds_of_agree_below {degree : Nat}
     (interface : Interface degree) (offset : Nat)
@@ -116,56 +134,78 @@ theorem specHolds_of_agree_below {degree : Nat}
       (fun index below => (agrees index below).symm)).mp
       specification
 
+def privateCount (degree : Nat) : Nat := 2 * degree * productionShape.cubeVariables
+
 theorem localLength_eq {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 0 := by
-  change localLength
-    (Circuit.ops (FixedChain.Owned.main
-      (coreInterface interface offset)) offset) = 0
-  exact FixedChain.Owned.localLength_eq
-    (coreInterface interface offset) offset
+    localLength (Circuit.ops (circuit interface).main offset) = privateCount degree := by
+  change localLength (Circuit.ops (CompactChain.main (coreInterface interface offset)) offset) = _
+  rw [CompactChain.localLength_eq]
+  simp [CompactChain.program, CompactChain.compile_recipes_length,
+    FixedChain.Owned.Interface.rounds, privateCount]
 
 theorem operations_length {degree : Nat} (interface : Interface degree)
-    (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 56 := by
-  change (Circuit.ops
-    (FixedChain.Owned.main
-      (coreInterface interface offset)) offset).length = 56
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-    FixedChain.Owned.operations_length (coreInterface interface offset) offset
+    (offset : Nat) : (Circuit.ops (circuit interface).main offset).length = 57 := by
+  change (CompactChain.opsAt (coreInterface interface offset) offset).length = _
+  simp [CompactChain.opsAt, CompactChain.program, CompactChain.compile_checks_length,
+    FixedChain.Owned.Interface.rounds, productionShape, Phi81MatrixSource.phi81Shape,
+    cubeVariables]
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      56 := by
-  change (flatConstraints (Circuit.ops
-    (FixedChain.Owned.main
-      (coreInterface interface offset)) offset)).length = 56
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
-    FixedChain.Owned.flatConstraints_length
-      (coreInterface interface offset) offset
+      privateCount degree + 56 := by
+  change (flatConstraints (CompactChain.opsAt (coreInterface interface offset) offset)).length = _
+  rw [CompactChain.flatConstraints_opsAt]
+  simp [CompactChain.program, CompactChain.compile_recipes_length,
+    CompactChain.compile_checks_length, FixedChain.Owned.Interface.rounds,
+    privateCount, productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+
+private theorem compiledScope {degree : Nat} (interface : Interface degree)
+    (offset : Nat) (assumptions : Assumptions interface offset (fun _ => 0)) :
+    RecipesCausal offset (CompactChain.program (coreInterface interface offset) offset).recipes ∧
+      (output interface offset).VarsBelow (offset + privateCount degree) ∧
+      ∀ expression ∈ (CompactChain.program (coreInterface interface offset) offset).checks,
+        expression.VarsBelow (offset + privateCount degree) := by
+  have scope := CompactChain.compile_scope offset (coreInterface interface offset).initial
+    (coreInterface interface offset).rounds assumptions.1 (by
+      intro round member
+      rw [FixedChain.Owned.Interface.rounds, List.mem_ofFn'] at member
+      obtain ⟨index, rfl⟩ := member
+      exact assumptions.2 index)
+  simpa only [CompactChain.compile_recipes_length, FixedChain.Owned.Interface.rounds,
+    List.length_ofFn, privateCount] using scope
 
 theorem flatConstraints_varsBelow {degree : Nat}
     (interface : Interface degree) (offset : Nat)
     (assumptions : Assumptions interface offset (fun _ => 0)) :
-    ∀ expression ∈ flatConstraints
-      (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow offset := by
-  change ∀ expression ∈ flatConstraints (Circuit.ops
-    (FixedChain.Owned.main (coreInterface interface offset)) offset),
-      expression.VarsBelow offset
-  exact FixedChain.Owned.flatConstraints_varsBelow
-    (coreInterface interface offset) offset assumptions
+    ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      expression.VarsBelow (offset + privateCount degree) := by
+  have scope := compiledScope interface offset assumptions
+  change ∀ expression ∈ flatConstraints
+    (CompactChain.opsAt (coreInterface interface offset) offset), _
+  rw [CompactChain.flatConstraints_opsAt]
+  intro expression member
+  rcases List.mem_append.mp member with recipeMember | checkMember
+  · have bound := recipeConstraints_varsBelow_of_causal offset _ scope.1 expression recipeMember
+    simpa [CompactChain.program, CompactChain.compile_recipes_length,
+      FixedChain.Owned.Interface.rounds, privateCount] using bound
+  · exact scope.2.2 expression checkMember
 
 theorem output_varsBelow {degree : Nat} (interface : Interface degree)
     (offset : Nat) (assumptions : Assumptions interface offset (fun _ => 0)) :
-    (output interface offset).VarsBelow offset := by
-  unfold output FixedChain.Owned.output
+    (output interface offset).VarsBelow (offset + privateCount degree) :=
+  (compiledScope interface offset assumptions).2.1
+
+theorem semanticOutput_varsBelow {degree : Nat} (interface : Interface degree)
+    (offset : Nat) (assumptions : Assumptions interface offset (fun _ => 0)) :
+    (semanticOutput interface offset).VarsBelow offset := by
+  unfold semanticOutput FixedChain.Owned.output
   apply FixedChain.Owned.outputFrom_varsBelow
   · exact assumptions.1
   · intro round member
     rw [FixedChain.Owned.Interface.rounds, List.mem_ofFn'] at member
-    rcases member with ⟨roundIndex, rfl⟩
+    obtain ⟨roundIndex, rfl⟩ := member
     exact assumptions.2 roundIndex
 
 /-- Concrete parent coverage: the shared initial, round, challenge, and
@@ -207,7 +247,7 @@ theorem spec_implies_keyChain
           running fresh proof).coins.roundPoint
         ((ProductionKey.key relation ajtai).piCcsCertificate
           running fresh proof).output)
-    (specification : SpecHolds interface offset env) :
+    (postcondition : Postcondition interface offset env) :
     SumCheck.Finite.FixedPhase.Chain extensionOps.toOps
       ((ChallengeDerivation.productionContext
         relation ajtai running fresh).input.initial extensionOps
@@ -268,7 +308,8 @@ theorem spec_implies_keyChain
             running fresh proof).coins.roundPoint
           ((ProductionKey.key relation ajtai).piCcsCertificate
             running fresh proof).output := by
-    simpa [output] using terminalEq
+    exact postcondition.2.symm.trans terminalEq
+  have specification := postcondition.1
   unfold SpecHolds FixedChain.Owned.SpecHolds at specification
   rw [initialCoreEq, roundsListEq, challengeListEq, terminalCoreEq] at specification
   exact specification
@@ -322,7 +363,7 @@ theorem keyChain_implies_spec_and_terminal
         ((ProductionKey.key relation ajtai).piCcsCertificate
           running fresh proof).output)) :
     SpecHolds interface offset env ∧
-      (output interface offset).eval env =
+      (semanticOutput interface offset).eval env =
         ProtocolPolynomial.terminalFromMessage extensionOps
           (ChallengeDerivation.productionContext
             relation ajtai running fresh).input

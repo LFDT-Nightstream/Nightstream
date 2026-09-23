@@ -8,7 +8,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import tests.AxiomAudit
 
 /-!
-Research bounds for the checkpoint layout and two specific encoding choices.
+Research bounds for the selected Lean layout and two specific encoding choices.
 These do not give a lower bound for all Poseidon circuits or correlated
 multi-field encodings. No production layout or security parameter changes.
 -/
@@ -36,7 +36,7 @@ theorem poseidon_alone_exceeds_target :
 
 theorem other_logical_coordinates :
     PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application -
-      PoseidonRetainedBlock.retainedCoordinateCount = 57774521 := by
+      PoseidonRetainedBlock.retainedCoordinateCount = 35154575 := by
   rw [Poseidon2HashChainV1Package.logicalWidth,
     PoseidonRetainedBlock.retainedCoordinateCount_eq]
 
@@ -44,7 +44,7 @@ theorem other_logical_coordinates :
 theorem poseidon_budget_if_other_blocks_fixed (candidate : Nat)
     (fits : PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application -
         PoseidonRetainedBlock.retainedCoordinateCount + candidate ≤ 92179782) :
-    candidate ≤ 34405261 := by
+    candidate ≤ 57025207 := by
   rw [other_logical_coordinates] at fits
   omega
 

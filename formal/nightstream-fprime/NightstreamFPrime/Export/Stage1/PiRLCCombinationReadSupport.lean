@@ -20,20 +20,20 @@ theorem shifted_outside (application : Stage1.Application.Program) (column : Nat
   · exact outside
   · right
     have constant := Package.circuitPackage_layout_values.2.2.1
-    change PerApplicationPackage.basePackage.layout.constantColumn = 29336446 at constant
+    change PerApplicationPackage.basePackage.layout.constantColumn = 28784740 at constant
     rw [constant] at before
-    change 28972970 ≤ _
+    change 28421264 ≤ _
     omega
 
 theorem mapped_outside (column : Nat) (bounded : column < Spartan.SourceColumnCount)
     (outside : column < PiRLCStarts.commitmentFreshStart ∨
       PiRLCStarts.outputFreshStart ≤ column) : Outside (Spartan.sourceToSpartan column) := by
   by_contra failure
-  have lower : 21124070 ≤ Spartan.sourceToSpartan column := by
-    change ¬ (_ < 21124070 ∨ 28972970 ≤ _) at failure
+  have lower : 20572364 ≤ Spartan.sourceToSpartan column := by
+    change ¬ (_ < 20572364 ∨ 28421264 ≤ _) at failure
     omega
-  have upper : Spartan.sourceToSpartan column < 28972970 := by
-    change ¬ (_ < 21124070 ∨ 28972970 ≤ _) at failure
+  have upper : Spartan.sourceToSpartan column < 28421264 := by
+    change ¬ (_ < 20572364 ∨ 28421264 ≤ _) at failure
     omega
   have inverse := Spartan.spartanToSource_sourceToSpartan column bounded
   unfold Spartan.spartanToSource at inverse
@@ -43,7 +43,7 @@ theorem mapped_outside (column : Nat) (bounded : column < Spartan.SourceColumnCo
     if_pos (by rw [Spartan.privateColumnCount_eq]; omega)] at inverse
   have coordinate := Option.some.inj inverse
   change 14751804 + (Spartan.sourceToSpartan column - 14751526) = column at coordinate
-  change column < 21124348 ∨ 28973248 ≤ column at outside
+  change column < 20572642 ∨ 28421542 ≤ column at outside
   omega
 
 theorem mapped_before (column : Nat) (before : column < PiRLCStarts.commitmentFreshStart) :
@@ -107,15 +107,15 @@ theorem liftPilotColumn_outside (column : Nat) : Outside (Spartan.liftPilotColum
   split_ifs with input privateColumn
   · left
     change column < 98786 at input
-    change column < 21124070
+    change column < 20572364
     omega
   · left
     change column < 14722238 at privateColumn
-    change column + 29288 < 21124070
+    change column + 29288 < 20572364
     omega
   · right
     rw [Spartan.privateColumnCount_eq]
-    change 28972970 ≤ 29336446 + _
+    change 28421264 ≤ 28784740 + _
     omega
 
 theorem liftPilotExpr_supported (expression : Expr) :

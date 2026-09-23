@@ -119,7 +119,7 @@ private theorem sumcheckEvidence_of_accepted
     SumcheckChain.SpecHolds
         (sumcheckInterface (atOffset interface offset))
           (sumcheckOffset interface offset) before.current ∧
-      (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
+      (SumcheckChain.semanticOutput (sumcheckInterface (atOffset interface offset))
         (sumcheckOffset interface offset)).eval before.current =
         ProtocolPolynomial.terminalFromMessage extensionOps
           (ChallengeDerivation.productionContext relation ajtai
@@ -283,9 +283,15 @@ private theorem appendSumcheckChain
     have below := SumcheckChain.flatConstraints_varsBelow
       (sumcheckInterface shared) childStart zeroAssumptions expression member
     simpa [sumcheckCircuit, SumcheckChain.localLength_eq] using below
-  rcases appendAt before "piccs.v1_1.sumcheck_chain"
-      (sumcheckCircuit shared) childStart startEq childScope childAssumptions
-      childSpec with
+  rcases SumcheckChain.completeness (sumcheckInterface shared) before.current
+      childStart childAssumptions childSpec with ⟨completed, childAgrees, childRows⟩
+  have agrees : AgreesOutside before.current completed childStart
+      (localLength (Circuit.ops (sumcheckCircuit shared).main childStart)) := by
+    simpa [sumcheckCircuit, FormalCircuit.withConstantFootprint_main] using childAgrees
+  have rows : holdsFlat completed (Circuit.ops (sumcheckCircuit shared).main childStart) := by
+    simpa [sumcheckCircuit, FormalCircuit.withConstantFootprint_main] using childRows
+  rcases appendBuiltAt before "piccs.v1_1.sumcheck_chain"
+      (sumcheckCircuit shared) childStart startEq childScope completed agrees rows with
     ⟨after, operationsEq, nextEq, preserves, _childHolds⟩
   refine ⟨after, ?_, ?_, preserves⟩
   · simpa [shared, childStart] using operationsEq
@@ -717,9 +723,9 @@ theorem evidence_preserved
     unfold ccsOffset evalAOffset evalKOffset sumcheckOffset nextOffset
       childLength
     omega
-  have sumcheckLeCcs : sumcheckOffset interface offset ≤
+  have evalKLeCcs : evalKOffset interface offset ≤
       ccsOffset interface offset := by
-    unfold ccsOffset evalAOffset evalKOffset nextOffset childLength
+    unfold ccsOffset evalAOffset nextOffset childLength
     omega
   have evalALeCcs : evalAOffset interface offset ≤
       ccsOffset interface offset := by
@@ -813,7 +819,10 @@ theorem evidence_preserved
     have belowCcs : (SumcheckChain.output (sumcheckInterface shared)
         (sumcheckOffset interface offset)).VarsBelow
           (ccsOffset interface offset) :=
-      KExpr.varsBelow_mono _ below sumcheckLeCcs
+      KExpr.varsBelow_mono _ below (by
+        simpa only [evalKOffset, nextOffset, childLength, sumcheckCircuit,
+          FormalCircuit.withConstantFootprint_main, SumcheckChain.localLength_eq]
+          using evalKLeCcs)
     exact (SumcheckChain.output (sumcheckInterface shared)
       (sumcheckOffset interface offset)).eval_eq_of_agree_below
         (ccsOffset interface offset) after.current before.current belowCcs
@@ -933,24 +942,33 @@ theorem completeEvaluationPrefix
     p8.current assumptions.external externalAgreement
   have proofEq := evalProof_eq_of_agree_below relation interface offset
     p5.current p8.current template assumptions.external externalAgreement
-  have sumcheckOutputBelow := SumcheckChain.output_varsBelow
+  have sumcheckOutputBelow := SumcheckChain.semanticOutput_varsBelow
     (sumcheckInterface (atOffset interface offset))
       (sumcheckOffset interface offset)
       ((assumptionsAt assumptions (fun _ => 0)).sumcheck)
   have sumcheckOutputEq :
-      (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
+      (SumcheckChain.semanticOutput (sumcheckInterface (atOffset interface offset))
         (sumcheckOffset interface offset)).eval p8.current =
-      (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
+      (SumcheckChain.semanticOutput (sumcheckInterface (atOffset interface offset))
         (sumcheckOffset interface offset)).eval p5.current := by
-    exact (SumcheckChain.output (sumcheckInterface
+    exact (SumcheckChain.semanticOutput (sumcheckInterface
       (atOffset interface offset)) (sumcheckOffset interface offset)
       ).eval_eq_of_agree_below (sumcheckOffset interface offset) p8.current
         p5.current sumcheckOutputBelow (fun index below =>
           p5to8.values index (by rw [n5]; exact below))
   have terminalP8 := sumcheckEvidenceP5.2
   rw [runningEq, freshEq, proofEq] at terminalP8
-  have terminalP8' := sumcheckOutputEq.trans terminalP8
+  have semanticTerminalP8 := sumcheckOutputEq.trans terminalP8
   have p8Holds := holdsFlat_implies_holds p8.current p8.operations p8.rows
+  have sumcheckPostP8 : SumcheckChain.Postcondition
+      (sumcheckInterface (atOffset interface offset))
+      (sumcheckOffset interface offset) p8.current := by
+    have callHolds := p8Holds
+      (childOp "piccs.v1_1.sumcheck_chain"
+        (sumcheckCircuit (atOffset interface offset))
+        (sumcheckOffset interface offset)) (by rw [o8, o7, o6]; simp)
+    exact callHolds (assumptionsAt assumptions p8.current).sumcheck
+  have terminalP8' := sumcheckPostP8.2.trans semanticTerminalP8
   have evalKSpecP8 : EvalKTerminal.SpecHolds
       (evalKInterface (atOffset interface offset))
         (evalKOffset interface offset) p8.current := by

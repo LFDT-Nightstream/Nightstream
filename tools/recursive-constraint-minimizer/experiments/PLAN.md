@@ -2,6 +2,12 @@
 
 ## Active goal
 
+Owner update, 2026-09-23: implement the compact SumCheck chain, shared gamma
+powers, and compact application Poseidon2 with its constant prefix evaluated
+once. The focused proof batch is recorded in [piccs-lowering-batch.md](piccs-lowering-batch.md).
+Keep the selected-package totals separate from the new component counts until
+the production wiring, witness transport, and complete matrix plan pass.
+
 Owner update, 2026-09-22: **substantially decrease the number of constraints,
 and run the experiments as fast as possible.** Experiment speed is a
 requirement of this work. A proving-time comparison is not the current goal.

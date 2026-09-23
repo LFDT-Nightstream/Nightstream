@@ -185,16 +185,16 @@ theorem proofInputStart_eq : Data.proofInputStart = 98786 := by
 theorem witnessStart_eq : Data.witnessStart = 128074 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 28844896 := by
+theorem witnessLength_eq : Data.witnessLength = 28293190 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 29218024 ∧
-      layout.privateColumnCount = 29336446 ∧
-      layout.constantColumn = 29336446 ∧
+    layout.rowCount = 28666318 ∧
+      layout.privateColumnCount = 28784740 ∧
+      layout.constantColumn = 28784740 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 29336725 := by
+      layout.totalColumnCount = 28785019 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -211,11 +211,11 @@ theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 1403533 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 851827 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 1403533 := by
+    _ = 851827 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -230,7 +230,7 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 1404863 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 853157 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
@@ -239,7 +239,7 @@ theorem circuitPackage_ordinary_rows
     _ = 1330 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 1330 + 1403533 := by
+    _ = 1330 + 851827 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -249,7 +249,7 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 1404863 := by norm_num
+    _ = 853157 := by norm_num
 
 /-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
 intervals. Sampler invocations have a separate package completion owner. -/

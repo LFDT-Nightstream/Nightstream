@@ -1,5 +1,5 @@
 import NightstreamFPrime.Gadgets.Multilinear.PointEqualitySupport
-import NightstreamFPrime.Gadgets.Polynomial.PowerSupport
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.GammaPowers
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity
 
 /-!
@@ -32,7 +32,7 @@ private theorem equalities_supported (left right : KExpr)
   · exact ⟨leftSupport.1, ⟨trivial, rightSupport.1⟩⟩
   · exact ⟨leftSupport.2, ⟨trivial, rightSupport.2⟩⟩
 
-/-- Exact support propagation through all three owned children and the final
+/-- Exact support propagation through both owned children and the final
 two extension-component equality rows. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
@@ -65,76 +65,34 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     norm_num [productionShape, Phi81MatrixSource.phi81Shape,
       cubeVariables] at upper
     simpa [privateCount] using (Nat.lt_trans upper (by omega :
-      offset + 110 < offset + 27758))
-  have matrixLocal : ∀ index,
-      matrixOffset interface offset ≤ index →
-      index < matrixOffset interface offset + localLength
-        (Circuit.ops (matrixPowerCircuitAt interface offset).main
-          (matrixOffset interface offset)) →
-      allowed index := by
+      offset + 110 < offset + 142))
+  have gammaLocal : ∀ index, gammaOffset interface offset ≤ index →
+      index < gammaOffset interface offset + 32 → allowed index := by
     intro index lower upper
     apply localSupport index
-    · exact Nat.le_trans (by unfold matrixOffset; omega) lower
-    · unfold matrixPowerCircuitAt at upper
-      rw [Power.localLength_eq] at upper
-      unfold matrixOffset pointLength pointCircuitAt at upper
-      rw [PointEquality.Owned.localLength_eq_of_positive
-        (pointInterfaceAt interface offset) offset
-          productionCubeVariables_positive] at upper
-      rw [matrixExponent_eq] at upper
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-        cubeVariables] at upper
-      simpa [privateCount] using (Nat.lt_trans upper (by omega :
-        offset + 110 + 1728 < offset + 27758))
-  have constraintLocal : ∀ index,
-      constraintOffset interface offset ≤ index →
-      index < constraintOffset interface offset + localLength
-        (Circuit.ops (constraintPowerCircuitAt interface offset).main
-          (constraintOffset interface offset)) →
-      allowed index := by
-    intro index lower upper
-    apply localSupport index
-    · exact Nat.le_trans (by
-        unfold constraintOffset matrixOffset
-        omega) lower
-    · unfold constraintPowerCircuitAt at upper
-      rw [Power.localLength_eq] at upper
-      unfold constraintOffset matrixOffset matrixLength matrixPowerCircuitAt
-        pointLength pointCircuitAt at upper
-      rw [Power.localLength_eq] at upper
-      rw [PointEquality.Owned.localLength_eq_of_positive
-        (pointInterfaceAt interface offset) offset
-          productionCubeVariables_positive] at upper
-      rw [matrixExponent_eq, constraintExponent_eq] at upper
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-        cubeVariables] at upper
-      simpa [privateCount] using upper
+    · unfold gammaOffset at lower
+      omega
+    · unfold gammaOffset at upper
+      rw [pointLength_eq] at upper
+      simpa [privateCount, Nat.add_assoc] using upper
   have pointRows := PointEquality.Owned.flatConstraints_varsSatisfy
     (pointInterfaceAt interface offset) offset allowed
     (by intro coordinate; simpa [pointInterfaceAt] using
       roundPointSupport coordinate)
     (by intro coordinate; simpa [pointInterfaceAt] using alphaSupport coordinate)
     pointLocal
-  have matrixRows := Power.flatConstraints_varsSatisfy matrixExponent
-    (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
-    allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
-  have constraintRows := Power.flatConstraints_varsSatisfy constraintExponent
-    (constraintPowerInterfaceAt interface offset)
-    (constraintOffset interface offset) allowed
-    (by simpa [constraintPowerInterfaceAt] using gammaSupport) constraintLocal
+  have gammaRows := GammaPowers.flatConstraints_varsSatisfy
+    (interface.gamma offset) (gammaOffset interface offset) allowed gammaSupport gammaLocal
   have pointOutputSupport := PointEquality.Owned.output_varsSatisfy
     (pointInterfaceAt interface offset) offset allowed
     (by intro coordinate; simpa [pointInterfaceAt] using
       roundPointSupport coordinate)
     (by intro coordinate; simpa [pointInterfaceAt] using alphaSupport coordinate)
     pointLocal
-  have matrixOutputSupport := Power.output_varsSatisfy matrixExponent
-    (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
-    allowed (by simpa [matrixPowerInterfaceAt] using gammaSupport) matrixLocal
-  have constraintOutputSupport := Power.output_varsSatisfy constraintExponent
-    (constraintPowerInterfaceAt interface offset)
-    (constraintOffset interface offset) allowed
-    (by simpa [constraintPowerInterfaceAt] using gammaSupport) constraintLocal
+  have matrixOutputSupport := GammaPowers.wire_varsSatisfy
+    (interface.gamma offset) (gammaOffset interface offset) 11 allowed gammaSupport (by decide) gammaLocal
+  have constraintOutputSupport := GammaPowers.wire_varsSatisfy
+    (interface.gamma offset) (gammaOffset interface offset) 16 allowed gammaSupport (by decide) gammaLocal
   have terminalExprSupport :
       Horner.KSupported (terminalExpr interface offset) allowed := by
     unfold terminalExpr gammaMatrixOutput gammaConstraintOutput
@@ -151,13 +109,9 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   rw [flatConstraints_opsAt]
   intro expression member
   rcases List.mem_append.mp member with coreMember | terminalMember
-  · rcases List.mem_append.mp coreMember with firstTwoMember |
-        constraintMember
-    · rcases List.mem_append.mp firstTwoMember with pointMember |
-          matrixMember
-      · exact pointRows expression pointMember
-      · exact matrixRows expression matrixMember
-    · exact constraintRows expression constraintMember
+  · rcases List.mem_append.mp coreMember with pointMember | gammaMember
+    · exact pointRows expression pointMember
+    · exact gammaRows expression gammaMember
   · exact equalities_supported (interface.terminal offset)
       (terminalExpr interface offset) allowed terminalSupport
       terminalExprSupport expression (by

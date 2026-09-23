@@ -63,7 +63,7 @@ row for every ordinary family. -/
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 811669, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 259963, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some

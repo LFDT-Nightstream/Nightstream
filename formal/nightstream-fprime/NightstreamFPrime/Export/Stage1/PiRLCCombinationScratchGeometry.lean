@@ -25,8 +25,8 @@ def scratchStart : Nat := Spartan.sourceToSpartan PiRLCStarts.commitmentFreshSta
 
 def scratchEnd : Nat := Spartan.sourceToSpartan PiRLCStarts.outputFreshStart
 
-@[simp] theorem scratchStart_eq : scratchStart = 21124070 := by rfl
-@[simp] theorem scratchEnd_eq : scratchEnd = 28972970 := by rfl
+@[simp] theorem scratchStart_eq : scratchStart = 20572364 := by rfl
+@[simp] theorem scratchEnd_eq : scratchEnd = 28421264 := by rfl
 
 def inputColumn (descriptor : Descriptor) : Nat → Nat :=
   CompactRows.inputColumnOfRanges descriptor.compactInvocation.inputRanges
@@ -106,10 +106,10 @@ private def familyFreshStart : Family → Nat
 private theorem familyFreshStart_mapped (family : Family) :
     Spartan.sourceToSpartan (familyFreshStart family) =
       match family with
-      | .commitment => 21124070
-      | .publicInput => 24153470
-      | .evalK => 24841970
-      | .evalA => 25117370 := by
+      | .commitment => 20572364
+      | .publicInput => 23601764
+      | .evalK => 24290264
+      | .evalA => 24565664 := by
   cases family <;> rfl
 
 private theorem localStart_eq (descriptor : Descriptor) :
@@ -285,7 +285,7 @@ theorem output_before_scratch (descriptor : Descriptor) :
 
 private theorem scratchEnd_le_private : scratchEnd ≤ Spartan.privateColumnCount := by
   have bound := Spartan.sourceColumnCount_ge_piDecPhaseOffset
-  change 29022496 ≤ Spartan.SourceColumnCount at bound
+  change 28470790 ≤ Spartan.SourceColumnCount at bound
   rw [scratchEnd_eq]
   norm_num [Spartan.privateColumnCount, Spartan.appendedPrivateColumnCount,
     Spartan.pilotPrivateColumnCount, Spartan.pilotSourceColumnCount,
@@ -324,7 +324,7 @@ theorem output_distinct (descriptor : Descriptor) (input : Nat)
   have outputBound : descriptor.outputColumn < Spartan.SourceColumnCount := by
     have earlier := outputSource_before descriptor
     have endpoint := Spartan.sourceColumnCount_ge_piDecPhaseOffset
-    change 29022496 ≤ Spartan.SourceColumnCount at endpoint
+    change 28470790 ≤ Spartan.SourceColumnCount at endpoint
     rw [PiRLCStarts.commitmentFreshStart_eq] at earlier
     omega
   rw [inputColumn_eq descriptor input (by omega), inputColumn_eq descriptor 109 (by decide)]

@@ -96,7 +96,7 @@ theorem shifted_localStart (context : PerApplicationCachedShift.Context)
   change context.column descriptor.compactInvocation.localStart = _
   unfold PerApplicationCachedShift.Context.column
   apply if_pos
-  change descriptor.compactInvocation.localStart < 29336446
+  change descriptor.compactInvocation.localStart < 28784740
   have upper := (PiRLCCombinationScratchGeometry.scratch_contained descriptor).2
   rw [PiRLCCombinationScratchGeometry.scratchEnd_eq] at upper
   omega

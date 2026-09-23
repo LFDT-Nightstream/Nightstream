@@ -203,7 +203,7 @@ private theorem applicationInputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.inputColumn_value]
     norm_num [ApplicationInputs.currentWordStart,
@@ -244,7 +244,7 @@ private theorem applicationOutputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢

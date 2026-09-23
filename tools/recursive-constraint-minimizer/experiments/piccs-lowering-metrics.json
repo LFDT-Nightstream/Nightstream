@@ -1,0 +1,55 @@
+{
+  "baseline_commit": "c9aa75b04a8a55f1f357ed414c72825fda2bbb6b",
+  "scope": "Selected Lean layout; published artifacts and Rust remain at the baseline checkpoint.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "hash": "Poseidon2",
+    "cube_variables": 28
+  },
+  "baseline": {
+    "logical_coordinates": 172217903,
+    "committed_coordinates": 172217934,
+    "logical_rows": 4147335,
+    "matrix_nonzeros": 2968490185
+  },
+  "selected_lean": {
+    "logical_coordinates": 149597957,
+    "alignment_coordinates": 25,
+    "committed_coordinates": 149597982,
+    "logical_rows": 3595629,
+    "physical_rows": 28674023,
+    "physical_columns": 28792719,
+    "matrix_nonzeros": null
+  },
+  "reduction": {
+    "logical_coordinates": 22619946,
+    "committed_coordinates": 22619952,
+    "logical_rows": 551706
+  },
+  "piccs_ordinary": {
+    "logical_rows": 259963,
+    "owned_fields": 52734,
+    "r1cs_scratch_fields": 207011
+  },
+  "application_candidate": {
+    "selected": false,
+    "logical_rows": 262,
+    "sbox_fields": 258,
+    "private_coordinates_formula": 10742,
+    "proofs": "Soundness, constructive field values, and encoding correctness pass; retained-layout integration remains open."
+  },
+  "checks": {
+    "production_and_axioms": "scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests: passed, 4235 jobs",
+    "static": "scripts/validate.sh static: passed",
+    "cvc5": "Five recorded gadget controls passed; no solver result substitutes for Lean."
+  },
+  "remaining": [
+    "Application retained layout and package selection",
+    "Normalized matrix nonzero count",
+    "Artifact and fixture regeneration after the batch is stable",
+    "Rust integration and conformance"
+  ],
+  "benchmarks": "Paused by owner instruction; no overall performance gain claimed."
+}

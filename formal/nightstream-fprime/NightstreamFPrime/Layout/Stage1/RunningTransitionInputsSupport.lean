@@ -67,7 +67,7 @@ theorem logicalConstraints_varsSatisfy
 /-- Every logical input precedes the removed lowering scratch. -/
 theorem logical_lt_columnCount (column : Nat)
     (source : Logical column) : column < RunningTransitionLayout.logicalColumnCount := by
-  change column < 29040587
+  change column < 28488881
   rcases source with (state | output | point | piDec) | inverse
   · have upper := state.2
     change column < 28 + 11 at upper
@@ -85,7 +85,7 @@ theorem logical_lt_columnCount (column : Nat)
         RunningTransitionInputs.roundSampleC1Offset]
       omega
   · have upper := (RunningTransitionSourceSupport.piDecField_inRange piDec).2
-    change column < 28973248 + 49248 at upper
+    change column < 28421542 + 49248 at upper
     omega
   · subst column
     decide

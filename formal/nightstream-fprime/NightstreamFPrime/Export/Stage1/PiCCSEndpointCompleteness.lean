@@ -62,7 +62,7 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
       change 14751804 ≤ 14751804 + index.val * 592
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 14751804 ≤ 15256706 + (index.val - 718) * 592
+      change 14751804 ≤ 15229594 + (index.val - 718) * 592
       omega
   have endpointEq : sourceStart + 584 + lane.val = endpointColumn family lane := by
     fin_cases family <;>

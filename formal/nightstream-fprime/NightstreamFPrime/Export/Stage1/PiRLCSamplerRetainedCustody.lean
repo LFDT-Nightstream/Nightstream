@@ -899,7 +899,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 29336446 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 28784740 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]
@@ -955,7 +955,7 @@ theorem resolvedEnv_selector
         PiRLCProductPlan.basePackage.layout.constantColumn := by
     have sourceLt := source.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [PiRLCSamplerOrdinaryDirectSource.selectorSource,

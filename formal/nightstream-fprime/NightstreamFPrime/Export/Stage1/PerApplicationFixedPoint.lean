@@ -46,11 +46,11 @@ bounds owned by one concrete application. -/
 def fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      239217427)
+      239769133)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      239098731)
+      239650437)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 2354468) :
+      ApplicationRetainedBlocks.localCount application ≤ 2906174) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
@@ -112,7 +112,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      4139626 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package

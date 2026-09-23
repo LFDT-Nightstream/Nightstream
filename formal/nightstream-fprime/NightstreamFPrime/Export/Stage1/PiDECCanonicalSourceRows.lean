@@ -56,7 +56,7 @@ theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
       dsimp only
       by_cases bounded : ordinal < PiCCSOrdinaryMatrixProgram.rowSchedule.count
       · rw [if_pos bounded]
-        have bound : ordinal < 811669 := by
+        have bound : ordinal < 259963 := by
           simpa only [PiCCSOrdinaryMatrixProgram.rowSchedule_count] using bounded
         have selected := findOrdinal_value PiCCSOrdinaryMatrixProgram.rowSchedule
           source ordinal found

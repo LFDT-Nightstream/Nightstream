@@ -21,7 +21,7 @@ open NightstreamFPrime.Lifecycle
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 @[simp] private theorem basePackage_constantColumn_eq :
-    PerApplicationPackage.basePackage.layout.constantColumn = 29336446 := by
+    PerApplicationPackage.basePackage.layout.constantColumn = 28784740 := by
   rw [PerApplicationPackage.basePackage, Data.circuitPackage_layout]
   rfl
 
@@ -30,7 +30,7 @@ def finalConstant (program : Program) : Nat :=
     PerApplicationPackage.addedPrivateColumnCount program
 
 def directFinalConstant (program : Program) : Nat :=
-  29336446 + PerApplicationPackage.directAddedPrivateColumnCount program
+  28784740 + PerApplicationPackage.directAddedPrivateColumnCount program
 
 theorem directFinalConstant_eq_finalConstant (program : Program) :
     directFinalConstant program = finalConstant program := by
@@ -46,7 +46,7 @@ theorem directFinalConstant_eq_finalConstant (program : Program) :
 def basePrivateRangeReference (_delay : Unit := ()) : SourceProjectionRange :=
   ⟨0, 0, PerApplicationPackage.basePackage.layout.constantColumn⟩
 
-def basePrivateRange : SourceProjectionRange := ⟨0, 0, 29336446⟩
+def basePrivateRange : SourceProjectionRange := ⟨0, 0, 28784740⟩
 
 theorem basePrivateRange_eq_reference :
     basePrivateRange = basePrivateRangeReference () := by
@@ -59,7 +59,7 @@ def baseSuffixRange (program : Program) : SourceProjectionRange :=
       PerApplicationPackage.basePackage.layout.constantColumn⟩
 
 def directBaseSuffixRange (program : Program) : SourceProjectionRange :=
-  ⟨directFinalConstant program, 29336446, 279⟩
+  ⟨directFinalConstant program, 28784740, 279⟩
 
 theorem directBaseSuffixRange_eq_baseSuffixRange (program : Program) :
     directBaseSuffixRange program = baseSuffixRange program := by

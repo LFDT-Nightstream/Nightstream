@@ -22,7 +22,7 @@ open PiRLCCombinationReadSupport
 private theorem samplerSource_before (column : Nat)
     (source : PiRLCSamplerOrdinaryDirectSource.Source column) :
     column < PiRLCStarts.commitmentFreshStart := by
-  change column < 21124348
+  change column < 20572642
   cases source with
   | poseidon source round lane sourceLt roundLt =>
       have laneLt := lane.isLt
@@ -77,12 +77,12 @@ private theorem runningSource_outside (column : Nat)
   · left
     have upper := state.2
     change column < 28 + 11 at upper
-    change column < 21124348
+    change column < 20572642
     omega
   · left
     have upper := output.2
     change column < 49663 + 49393 at upper
-    change column < 21124348
+    change column < 20572642
     omega
   · left
     rcases roundPoint with ⟨coordinate, c0 | c1⟩
@@ -109,26 +109,26 @@ private theorem applicationSource_outside (application : Stage1.Application.Prog
     have bound := index.isLt
     change index.val < 4 at bound
     left
-    change 35 + index.val < 21124070
+    change 35 + index.val < 20572364
     omega
   · rcases witness with ⟨index, rfl⟩
     right
     unfold ApplicationInputs.witnessColumn ApplicationInputs.witnessStart
     rw [Spartan.privateColumnCount_eq]
-    change 28972970 ≤ 29336446 + index.val
+    change 28421264 ≤ 28784740 + index.val
     omega
   · rcases output with ⟨index, rfl⟩
     rw [ApplicationInputs.outputColumn_value]
     have bound := index.isLt
     change index.val < 4 at bound
     left
-    change 49428 + index.val < 21124070
+    change 49428 + index.val < 20572364
     omega
   · right
     have lower := localRange.1
     unfold ApplicationInputs.localStart ApplicationInputs.witnessStart at lower
     rw [Spartan.privateColumnCount_eq] at lower
-    change 28972970 ≤ column
+    change 28421264 ≤ column
     omega
 
 theorem arithmeticRows_supported

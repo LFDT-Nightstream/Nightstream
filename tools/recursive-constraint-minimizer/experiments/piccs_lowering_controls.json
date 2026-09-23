@@ -1,0 +1,33 @@
+{
+  "field_modulus": 18446744069414584321,
+  "extension": "F[u]/(u^2 - 7)",
+  "degree": 9,
+  "checks": {
+    "boolean_sum_equivalence": "unsat",
+    "materialized_horner_equivalence": "unsat",
+    "missing_horner_link_counterexample": "sat",
+    "gamma_zero_input_rejects_false_output": "unsat",
+    "missing_gamma_link_counterexample": "sat"
+  },
+  "gamma_exponents": [
+    1,
+    2,
+    3,
+    6,
+    12,
+    24,
+    27,
+    54,
+    108,
+    216,
+    432,
+    864,
+    1728,
+    2592,
+    5184,
+    10368,
+    12960
+  ],
+  "counterexample": "all inputs zero; unlinked final product (1,0); true output (0,0)",
+  "scope": "Local algebra and a replayed omission attack, not production integration."
+}

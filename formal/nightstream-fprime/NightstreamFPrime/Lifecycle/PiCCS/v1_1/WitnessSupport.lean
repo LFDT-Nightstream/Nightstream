@@ -19,7 +19,16 @@ theorem InitialClaim.witnessesFromConstraints (interface : InitialClaim.Interfac
 theorem SumcheckChain.witnessesFromConstraints {degree : Nat}
     (interface : SumcheckChain.Interface degree) (offset : Nat) :
     WitnessesFromConstraints (Circuit.ops (SumcheckChain.circuit interface).main offset) :=
-  FixedChain.Owned.witnessesFromConstraints _ _
+by
+  rw [SumcheckChain.circuit_ops]
+  change WitnessesFromConstraints
+    ([Op.witness (WitnessBatch.arithmetic offset
+      (CompactChain.program (SumcheckChain.coreInterface interface offset) offset).recipes)] ++
+      (CompactChain.program (SumcheckChain.coreInterface interface offset) offset).checks.map Op.assertZero)
+  exact WitnessesFromConstraints.append _ _
+    (WitnessesFromConstraints.arithmetic _ _)
+    (WitnessesFromConstraints.assertions _)
+
 
 theorem EvalKTerminal.witnessesFromConstraints (interface : EvalKTerminal.Interface)
     (offset : Nat) :
@@ -36,21 +45,21 @@ theorem NormTerminal.witnessesFromConstraints (interface : NormTerminal.Interfac
     WitnessesFromConstraints (Circuit.ops (NormTerminal.circuit interface).main offset) :=
   Horner.Owned.witnessesFromConstraints _ _
 
+theorem GammaPowers.witnessesFromConstraints (gamma : Quadratic.KExpr) (offset : Nat) :
+    WitnessesFromConstraints (Circuit.ops (GammaPowers.circuit gamma).main offset) :=
+  WitnessesFromConstraints.arithmetic _ _
+
 theorem FinalIdentity.witnessesFromConstraints (interface : FinalIdentity.Interface)
     (offset : Nat) :
     WitnessesFromConstraints (Circuit.ops (FinalIdentity.circuit interface).main offset) := by
   change WitnessesFromConstraints
     (([FinalIdentity.pointOp interface offset] ++
-      ([FinalIdentity.matrixPowerOp interface offset] ++
-        [FinalIdentity.constraintPowerOp interface offset])) ++
+      [FinalIdentity.gammaOp interface offset]) ++
       (FinalIdentity.terminalAssertions interface offset).map Op.assertZero)
   apply WitnessesFromConstraints.append
-  · apply WitnessesFromConstraints.append
-    · exact WitnessesFromConstraints.call _ _ _
-        (PointEquality.Owned.witnessesFromConstraints _ _)
-    · apply WitnessesFromConstraints.append
-      · exact WitnessesFromConstraints.call _ _ _ (Power.witnessesFromConstraints _ _ _)
-      · exact WitnessesFromConstraints.call _ _ _ (Power.witnessesFromConstraints _ _ _)
+  · exact WitnessesFromConstraints.append _ _
+      (WitnessesFromConstraints.call _ _ _ (PointEquality.Owned.witnessesFromConstraints _ _))
+      (WitnessesFromConstraints.call _ _ _ (GammaPowers.witnessesFromConstraints _ _))
   · exact WitnessesFromConstraints.assertions _
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1

@@ -25,13 +25,13 @@ def sourceWidth (program : ApplicationProgram) : Nat :=
 private theorem inverse_bounded :
     RunningTransitionInputs.phaseOffset < Spartan.SourceColumnCount := by
   rw [Spartan.sourceColumnCount_eq]
-  change 29040586 < 29336724
+  change 28488880 < 28785018
   decide
 
 private theorem flag_bounded :
     RunningTransitionReducedRows.flagIndex < Spartan.SourceColumnCount := by
   rw [Spartan.sourceColumnCount_eq]
-  change 29040587 < 29336724
+  change 28488881 < 28785018
   decide
 
 def inverseSource (program : ApplicationProgram) : Fin (sourceWidth program) :=
@@ -82,21 +82,21 @@ private theorem packageSourceColumn_val (program : ApplicationProgram) (column :
 shift preserves them because both precede the application insertion boundary;
 the nested source embeddings preserve their values as well. -/
 theorem source_addresses (program : ApplicationProgram) :
-    (inverseSource program).val = 29040308 ∧ (flagSource program).val = 29040309 := by
+    (inverseSource program).val = 28488602 ∧ (flagSource program).val = 28488603 := by
   have constant := Package.circuitPackage_layout_values.2.2.1
-  change PerApplicationPackage.basePackage.layout.constantColumn = 29336446 at constant
+  change PerApplicationPackage.basePackage.layout.constantColumn = 28784740 at constant
   constructor
   · rw [inverseSource, packageSourceColumn_val]
-    have phase : RunningTransitionInputs.phaseOffset = 29040586 := by
+    have phase : RunningTransitionInputs.phaseOffset = 28488880 := by
       have next := RunningTransitionLayout.logicalColumnCount_eq
-      change RunningTransitionInputs.phaseOffset + 1 = 29040587 at next
+      change RunningTransitionInputs.phaseOffset + 1 = 28488881 at next
       omega
-    have mapped : Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset = 29040308 := by
+    have mapped : Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset = 28488602 := by
       rw [phase]
       rfl
     rw [mapped, PerApplicationPackage.shiftColumn_private program _ (by rw [constant]; decide)]
   · rw [flagSource, packageSourceColumn_val]
-    have mapped : Spartan.sourceToSpartan RunningTransitionReducedRows.flagIndex = 29040309 := by
+    have mapped : Spartan.sourceToSpartan RunningTransitionReducedRows.flagIndex = 28488603 := by
       rw [RunningTransitionReducedRows.flagIndex, RunningTransitionLayout.logicalColumnCount_eq]
       rfl
     rw [mapped, PerApplicationPackage.shiftColumn_private program _ (by rw [constant]; decide)]

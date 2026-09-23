@@ -28,16 +28,16 @@ def scratchStart : Nat := Spartan.sourceToSpartan PiRLCStarts.commitmentFreshSta
 
 def scratchEnd : Nat := Spartan.sourceToSpartan PiRLCStarts.outputFreshStart
 
-@[simp] theorem scratchStart_eq : scratchStart = 21124070 := by rfl
+@[simp] theorem scratchStart_eq : scratchStart = 20572364 := by rfl
 
-@[simp] theorem scratchEnd_eq : scratchEnd = 28972970 := by rfl
+@[simp] theorem scratchEnd_eq : scratchEnd = 28421264 := by rfl
 
 @[simp] theorem scratchCount_eq : scratchEnd - scratchStart = 7848900 := by rfl
 
 def Outside (column : Nat) : Prop := column < scratchStart ∨ scratchEnd ≤ column
 
 private theorem baseConstant_eq :
-    PerApplicationPackage.basePackage.layout.constantColumn = 29336446 :=
+    PerApplicationPackage.basePackage.layout.constantColumn = 28784740 :=
   Package.circuitPackage_layout_values.2.2.1
 
 private theorem shifted_outside (application : Program) (column : Nat)
@@ -59,10 +59,10 @@ private theorem mapped_outside (column : Nat)
       PiRLCStarts.outputFreshStart ≤ column) :
     Outside (Spartan.sourceToSpartan column) := by
   by_contra failure
-  have lower : 21124070 ≤ Spartan.sourceToSpartan column := by
+  have lower : 20572364 ≤ Spartan.sourceToSpartan column := by
     simp only [Outside, scratchStart_eq, scratchEnd_eq] at failure
     omega
-  have upper : Spartan.sourceToSpartan column < 28972970 := by
+  have upper : Spartan.sourceToSpartan column < 28421264 := by
     simp only [Outside, scratchStart_eq, scratchEnd_eq] at failure
     omega
   have inverse := Spartan.spartanToSource_sourceToSpartan column bounded
@@ -73,13 +73,13 @@ private theorem mapped_outside (column : Nat)
     if_pos (by rw [Spartan.privateColumnCount_eq]; omega)] at inverse
   have coordinate := Option.some.inj inverse
   change 14751804 + (Spartan.sourceToSpartan column - 14751526) = column at coordinate
-  change column < 21124348 ∨ 28973248 ≤ column at outside
+  change column < 20572642 ∨ 28421542 ≤ column at outside
   omega
 
 private theorem baseWidth_after (application : Program) :
     scratchEnd ≤ PiRLCProductPlan.baseSourceWidth application := by
   have bound := PiRLCProductPlan.basePackage_fits application
-  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 29336446 :=
+  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 28784740 :=
     Package.circuitPackage_layout_values.2.2.1
   rw [constant] at bound
   rw [scratchEnd_eq]
@@ -99,7 +99,7 @@ private theorem samplerLogical_before
   change round.val < 8 at roundBound
   change lane.val < 4 at laneBound
   change position.val < 100 at positionBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCSamplerOrdinaryRetainedBlocks.logicalSource,
     PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
     PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
@@ -121,7 +121,7 @@ private theorem samplerFresh_before
   change round.val < 8 at roundBound
   change lane.val < 4 at laneBound
   change position.val < 303 at positionBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCSamplerOrdinaryRetainedBlocks.freshSource,
     PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
     PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
@@ -136,7 +136,7 @@ private theorem first54Reject_before
   have roundBound := round.isLt
   change source.val < 17 at sourceBound
   change round.val < 64 at roundBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCFirst54DirectSchedule.Candidate.rejectColumn,
     PiRLCFirst54Invocations.rejectSourceColumn,
     PiRLCFirst54Invocations.decoderLogicalStart,
@@ -159,7 +159,7 @@ private theorem first54Symbol_before
   have roundBound := round.isLt
   change source.val < 17 at sourceBound
   change round.val < 64 at roundBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCFirst54DirectSchedule.Candidate.symbolColumn,
     PiRLCFirst54Invocations.remainderSourceColumn,
     PiRLCFirst54Invocations.decoderLogicalStart,
@@ -184,7 +184,7 @@ private theorem first54Position_before
   change source.val < 17 at sourceBound
   change round.val < 64 at roundBound
   change slot.val < 55 at slotBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCFirst54DirectSchedule.Position.positionColumn,
     PiRLCFirst54Invocations.positionSourceStart,
     Gadgets.Sampling.First54.positionOffset,
@@ -206,7 +206,7 @@ private theorem first54Value_before
   change source.val < 17 at sourceBound
   change round.val < 64 at roundBound
   change slot.val < 54 at slotBound
-  change _ < 21124348
+  change _ < 20572642
   norm_num [PiRLCFirst54DirectSchedule.Value.valueColumn,
     PiRLCFirst54Invocations.valueSourceStart,
     Gadgets.Sampling.First54.valueOffset,
@@ -236,11 +236,11 @@ private theorem shiftedSource_after (application : Program) (column : Nat)
       (Spartan.sourceToSpartan column)) := by
   apply shifted_outside
   right
-  change 28973248 ≤ column at after
+  change 28421542 ≤ column at after
   rw [Spartan.sourceToSpartan, if_neg (by change ¬ column < 14722512; omega),
     if_neg (by change ¬ column < 14722516; omega),
     if_neg (by change ¬ column < 14751804; omega)]
-  change 28972970 ≤ 14751526 + (column - 14751804)
+  change 28421264 ≤ 14751526 + (column - 14751804)
   omega
 
 private theorem proofLogical_before
@@ -248,10 +248,10 @@ private theorem proofLogical_before
     PiCCSOrdinaryRetainedBlocks.proofLogicalSource slot <
       PiRLCStarts.commitmentFreshStart := by
   have bound := slot.isLt
-  change slot.val < 114878 at bound
+  change slot.val < 87766 at bound
   unfold PiCCSOrdinaryRetainedBlocks.proofLogicalSource
   split
-  · change 14722516 + slot.val < 21124348
+  · change 14722516 + slot.val < 20572642
     omega
   · split
     · rename_i selected
@@ -263,11 +263,11 @@ private theorem proofLogical_before
       have laneBound := decoded.2.isLt
       change decoded.1.val < 718 at invocationBound
       change decoded.2.val < 8 at laneBound
-      change 14751804 + decoded.1.val * 592 + 584 + decoded.2.val < 21124348
+      change 14751804 + decoded.1.val * 592 + 584 + decoded.2.val < 20572642
       omega
     · change PiCCSStarts.initialClaimLogicalStart +
-          (slot.val - (29288 + 5744)) < 21124348
-      have start : PiCCSStarts.initialClaimLogicalStart + 114878 ≤ 21124348 := by decide
+          (slot.val - (29288 + 5744)) < 20572642
+      have start : PiCCSStarts.initialClaimLogicalStart + 87766 ≤ 20572642 := by decide
       omega
 
 private theorem poseidonBlock_outside (sourceWidth invocationCount : Nat)
@@ -275,7 +275,7 @@ private theorem poseidonBlock_outside (sourceWidth invocationCount : Nat)
     (witnessBound : ∀ invocation,
       witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤ sourceWidth)
     (before : ∀ invocation,
-      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤ 21124070)
+      witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤ 20572364)
     (slot : Fin (invocationCount * PoseidonRetainedSlots.rows.length)) :
     Outside ((Layout.ProductionRelation.PoseidonRetainedBlock.block sourceWidth
       invocationCount witnessStart witnessBound).source slot).val := by
@@ -285,7 +285,7 @@ private theorem poseidonBlock_outside (sourceWidth invocationCount : Nat)
   have localBound := (PoseidonRetainedSlots.localOutput indices.2).isLt
   left
   change witnessStart indices.1 +
-    (PoseidonRetainedSlots.localOutput indices.2).val < 21124070
+    (PoseidonRetainedSlots.localOutput indices.2).val < 20572364
   omega
 
 /-- Every retained block source avoids the discarded physical scratch. The
@@ -333,17 +333,17 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       left
       have bound := slot.isLt
       change slot.val < 49393 at bound
-      change 0 + slot.val < 21124070
+      change 0 + slot.val < 20572364
       omega
   | outputPoseidonInput =>
       left
       have bound := slot.isLt
       change slot.val < 49393 at bound
-      change 49393 + slot.val < 21124070
+      change 49393 + slot.val < 20572364
       omega
   | runningPiDec =>
       apply shiftedSource_after
-      change 28973248 ≤ 28973248 + slot.val
+      change 28421542 ≤ 28421542 + slot.val
       omega
   | runningInverse =>
       simp only [BlockKind.template, RunningTransitionReducedRetainedBlocks.inverseBlock]
@@ -359,7 +359,7 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       apply shiftedSource_before
       have bound := slot.isLt
       change slot.val < 270 at bound
-      change 49393 + slot.val < 21124348
+      change 49393 + slot.val < 20572642
       omega
   | piCcsPriorLast =>
       apply shifted_outside
@@ -367,10 +367,10 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       have bound := slot.isLt
       change slot.val < 592 at bound
       change PoseidonRetainedBlock.priorWitnessStart
-        PiCCSOrdinaryRetainedBlocks.priorLastInvocation + slot.val < 21124070
+        PiCCSOrdinaryRetainedBlocks.priorLastInvocation + slot.val < 20572364
       have endBound := PiRLCCombinationScratchPoseidon.priorWitnessEnd_le
         PiCCSOrdinaryRetainedBlocks.priorLastInvocation
-      change _ + 592 ≤ 21124070 at endBound
+      change _ + 592 ≤ 20572364 at endBound
       omega
   | piCcsOutputLast =>
       apply shifted_outside
@@ -378,16 +378,16 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       have bound := slot.isLt
       change slot.val < 592 at bound
       change PoseidonRetainedBlock.outputWitnessStart
-        PiCCSOrdinaryRetainedBlocks.outputLastInvocation + slot.val < 21124070
+        PiCCSOrdinaryRetainedBlocks.outputLastInvocation + slot.val < 20572364
       have endBound := PiRLCCombinationScratchPoseidon.outputWitnessEnd_le
         PiCCSOrdinaryRetainedBlocks.outputLastInvocation
-      change _ + 592 ≤ 21124070 at endBound
+      change _ + 592 ≤ 20572364 at endBound
       omega
   | piCcsExpectedContext =>
       apply shiftedSource_before
       have bound := slot.isLt
       change slot.val < 4 at bound
-      change 14722512 + slot.val < 21124348
+      change 14722512 + slot.val < 20572642
       omega
   | piCcsProofLogical =>
       exact shiftedSource_before application _ (proofLogical_before slot)
@@ -395,13 +395,13 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       apply shiftedSource_before
       have bound := slot.isLt
       change slot.val < 8 at bound
-      change 19333210 + slot.val < 21124348
+      change 19306098 + slot.val < 20572642
       omega
   | piCcsFresh =>
       apply shiftedSource_before
       have bound := slot.isLt
-      change slot.val < 731605 at bound
-      change 19333218 + slot.val < 21124348
+      change slot.val < 207011 at bound
+      change 19306106 + slot.val < 20572642
       omega
   | pilotCanonicalLocal =>
       dsimp only [BlockKind.template, PilotOrdinaryRetainedBlocks.canonicalLocalBlock,
@@ -419,7 +419,7 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       change slot.val < 264 at bound
       unfold PriorStateHash.hashEnd
       rw [PilotProduction.priorHashLogicalLength_eq, PilotProduction.witnessOffset_eq]
-      change _ < 21124348
+      change _ < 20572642
       omega
   | pilotCanonicalFresh =>
       apply shiftedSource_before
@@ -431,7 +431,7 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       apply shiftedSource_before
       have bound := slot.isLt
       change slot.val < 4 at bound
-      change 99056 + slot.val < 21124348
+      change 99056 + slot.val < 20572642
       omega
   | piDecLogical =>
       apply shiftedSource_after
@@ -455,11 +455,11 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
           (PiRLCSamplerOrdinaryRetainedBlocks.freshDescriptor slot).2)
   | applicationWitness =>
       right
-      change 28972970 ≤ 29336446 + slot.val
+      change 28421264 ≤ 28784740 + slot.val
       omega
   | applicationLocal =>
       right
-      change 28972970 ≤ 29336446 + application.witnessWordCount + slot.val
+      change 28421264 ≤ 28784740 + application.witnessWordCount + slot.val
       omega
 
 private theorem blockCoordinate_congr {sourceWidth : Nat}
@@ -751,12 +751,12 @@ theorem baseInputSegment_outside (segment : Export.Package.Segment)
       · left
         have bound := index.isLt
         change index.val < 108 at bound
-        change 100534 + source.val * 1620 + index.val < 21124070
+        change 100534 + source.val * 1620 + index.val < 20572364
         omega
       · left
         have bound := index.isLt
         change index.val < 1512 at bound
-        change 100534 + source.val * 1620 + 108 + index.val < 21124070
+        change 100534 + source.val * 1620 + 108 + index.val < 20572364
         omega
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at after
     rcases after with rfl | rfl | rfl | rfl | rfl | rfl | rfl
@@ -803,7 +803,7 @@ theorem applicationSegment_outside (application : Program)
     rw [scratchEnd_eq, baseConstant_eq]
     omega
   · right
-    change 28972970 ≤ 29336446 + application.witnessWordCount + index.val
+    change 28421264 ≤ 28784740 + application.witnessWordCount + index.val
     omega
 
 private theorem copiedBase_congr (application : Program) (left right : Env)

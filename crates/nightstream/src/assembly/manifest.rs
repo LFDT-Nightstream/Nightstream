@@ -188,6 +188,15 @@ struct Terminal {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(super) struct SelectedReference {
+    pub logical_rows: usize,
+    pub logical_width: usize,
+    pub application_matrix: Vec<Value>,
+    pub application_local: super::wire::AssignmentBlock,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct Manifest {
     format: String,
     version: usize,
@@ -196,6 +205,7 @@ pub(super) struct Manifest {
     dependencies: Vec<String>,
     parameters: Vec<String>,
     reference: [usize; 3],
+    pub selected_reference: SelectedReference,
     pub geometry: Geometry,
     pub ports: Vec<Port>,
     recursive_public: RecursivePublic,
@@ -218,7 +228,7 @@ impl Manifest {
     pub fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
         let manifest: Self = serde_json::from_slice(bytes)?;
         if manifest.format != "nightstream.shared-verifier"
-            || manifest.version != 1
+            || manifest.version != 2
             || manifest.id != "shared-recursive-verifier-v1"
             || manifest.profile != PROFILE
             || manifest.parameters != ["witness_words", "local_words", "application_rows"]
@@ -434,6 +444,52 @@ impl Manifest {
     }
 
     pub fn check_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
+        let selected = &self.selected_reference;
+        let child = self.application_child();
+        let end = child
+            .block_start
+            .checked_add(selected.application_matrix.len())
+            .ok_or(AssemblyError::Overflow)?;
+        let block_count = self
+            .children
+            .iter()
+            .map(|child| child.block_count)
+            .sum::<usize>()
+            .checked_sub(child.block_count)
+            .ok_or(AssemblyError::Overflow)?
+            .checked_add(selected.application_matrix.len())
+            .ok_or(AssemblyError::Overflow)?;
+        self.check_reference_geometry(reference, selected.logical_rows, selected.logical_width, block_count)?;
+        if reference.matrix.get(child.block_start..end) != Some(selected.application_matrix.as_slice())
+            || reference
+                .assignment
+                .blocks
+                .get(selected.application_local.opcode)
+                != Some(&selected.application_local)
+        {
+            return Err(AssemblyError::Invalid(
+                "selected application suffix differs from manifest",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn check_ordinary_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
+        self.check_reference_geometry(
+            reference,
+            self.geometry.logical_rows.eval(self.reference())?,
+            self.geometry.logical_width.eval(self.reference())?,
+            self.children.iter().map(|child| child.block_count).sum(),
+        )
+    }
+
+    fn check_reference_geometry(
+        &self,
+        reference: &Envelope,
+        logical_rows: usize,
+        logical_width: usize,
+        block_count: usize,
+    ) -> Result<(), AssemblyError> {
         let counts = self.reference();
         let g = &self.geometry;
         let layout = &reference.source.layout;
@@ -445,15 +501,10 @@ impl Manifest {
             || layout.constant != g.source_constant.eval(counts)?
             || layout.public != g.source_public
             || layout.total != g.source_total.eval(counts)?
-            || reference.source.relation.rows != g.logical_rows.eval(counts)?
-            || reference.source.relation.columns != g.logical_width.eval(counts)?
+            || reference.source.relation.rows != logical_rows
+            || reference.source.relation.columns != logical_width
             || reference.logical_public != g.logical_public
-            || self
-                .children
-                .iter()
-                .map(|child| child.block_count)
-                .sum::<usize>()
-                != reference.matrix.len()
+            || block_count != reference.matrix.len()
         {
             return Err(AssemblyError::Invalid("manifest does not describe selected reference"));
         }

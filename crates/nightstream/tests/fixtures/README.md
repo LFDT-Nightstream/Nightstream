@@ -1,22 +1,23 @@
-The two `poseidon2-application-*.json` files retain their original bytes from
-Lean source `9787d8e77069246e3e2afc7dcfab755556fd5023`. Both were compared with
-the installed quotient package and parity projections and are still exact.
+The application reference is extracted from the selected Lean package at
+`41aa5ef63`. The execution vector retains its original bytes from Lean source
+`9787d8e77069246e3e2afc7dcfab755556fd5023` and still matches the current parity.
 The Rust application builder does not read these files. Ordinary Rust tests
 need no Lean installation.
 
-The linked base/NIFS/recursive outputs below now refer to the quotient layout
-from `8b7c07d8` and Lean proof checkpoint `6bcdbb7c`. Their native staged
+The linked base/NIFS/recursive outputs below refer to the compact selected
+layout at `41aa5ef63`. Their native staged
 C → R → D result, full proof comparison, and independent Lean base and
-recursive caller outputs have passed and are published. Rust integration is
-still uncommitted; final Nightstream tests and the candidate lifecycle
-benchmark remain pending. The state/message-only `nonzero-running.json`
+recursive caller outputs have passed and are published. Final Nightstream
+consumer checks pass. Proving benchmarks remain paused.
+The state/message-only `nonzero-running.json`
 request is unchanged.
 
 `poseidon2-application-reference.json` is the exact application plan at index
 3 of `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
 It contains the four input state columns, four private message columns, four
 output state columns, all 7,700 application rows, and all 7,696 arithmetic
-witness recipes. These dimensions belong to the selected application.
+witness recipes. These are physical source dimensions; the selected logical
+application uses 262 rows and 10,742 private coordinates.
 
 `poseidon2-application-execution.json` contains `[prior_state, message, output]`
 from `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json`.

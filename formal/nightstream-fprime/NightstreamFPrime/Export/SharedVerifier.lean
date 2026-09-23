@@ -18,7 +18,9 @@ open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-private abbrev referenceApplication := Poseidon2HashChainV1Package.application
+private abbrev selectedApplication := Poseidon2HashChainV1Package.application
+private def referenceApplication : Lifecycle.Stage1.Application.Program :=
+  { selectedApplication with compactHashChain := none }
 private abbrev Kind := PerApplicationProductionPlan.BlockKind
 
 /-- Coefficients of `constant + witness*w + local*l + rows*r` in that order. -/
@@ -162,6 +164,18 @@ private def relocation (path : List Nat) (value : Lean.Json) : Lean.Json :=
 private def valueJson : Codec.Value → Lean.Json
   | .atom value => jsonNat value
   | .array values => Lean.Json.arr (values.map valueJson).toArray
+
+/-- The selected hash-chain suffix is checked separately from the ordinary
+connector used to insert other applications. Both come from the same compiler. -/
+private def selectedReference (_ : Unit) : Lean.Json := Lean.Json.mkObj [
+  ("logical_rows", jsonNat
+    (PerApplicationCanonicalPackage.directStructuralRowCount selectedApplication)),
+  ("logical_width", jsonNat
+    (PerApplicationCanonicalPackage.directLogicalWidth selectedApplication)),
+  ("application_matrix", valueJson (Program.format.encode
+    (PerApplicationMatrixProgram.applicationProgram selectedApplication))),
+  ("application_local", valueJson (PerApplicationAssignmentBlocks.BlockPlan.format.encode
+    (PerApplicationAssignmentBlocks.BlockPlan.ofKind selectedApplication .applicationLocal)))]
 
 /-- The generic application source connector contains no application rows.
 These paths follow the existing Program/Ordinary/SourceRange codecs. -/
@@ -320,11 +334,12 @@ def value (_ : Unit) : Except String Lean.Json := do
     productionGlobalParams.bigB, ringDegree, Lifecycle.cubeVariables,
     Spec.ProductionRelation.matrixCount, Spec.ProductionRelation.meaningfulPortCount]
   pure (Lean.Json.mkObj [
-    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 1),
+    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 2),
     ("id", .str "shared-recursive-verifier-v1"), ("profile", Lean.toJson profile),
     ("dependencies", strings ["poseidon2-permutation-v1", "poseidon2-external-v1", "phi81-product-v1"]),
     ("parameters", strings ["witness_words", "local_words", "application_rows"]),
     ("reference", Lean.toJson (referenceCounts ())),
+    ("selected_reference", selectedReference ()),
     ("geometry", geometry ()), ("ports", ports ()), ("recursive_public", recursivePublic),
     ("children", Lean.toJson metadata.1),
     ("matrix_relocations", Lean.toJson metadata.2),

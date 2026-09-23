@@ -12,6 +12,9 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.MatrixProgram
 
+private def ordinaryReference : NightstreamFPrime.Lifecycle.Stage1.Application.Program :=
+  { Poseidon2HashChainV1Package.application with compactHashChain := none }
+
 private def require (condition : Bool) (message : String) : Except String Unit :=
   if condition then .ok () else .error message
 
@@ -112,7 +115,7 @@ private def checkApplication (manifest : Lean.Json)
   let mut expectedRowStart := 0
   for (kind, metadata) in PerApplicationProductionPlan.canonicalKinds.zip children do
     let reference := PerApplicationMatrixProgram.blockProgram
-      Poseidon2HashChainV1Package.application kind
+      ordinaryReference kind
     let expected := PerApplicationMatrixProgram.blockProgram application kind
     let blockStart ← natural metadata "block_start"
     let blockCount ← natural metadata "block_count"
@@ -150,7 +153,22 @@ private def checkApplication (manifest : Lean.Json)
 def check : IO Unit := do
   let result : Except String Unit := do
     let manifest ← Export.SharedVerifier.value ()
-    checkApplication manifest Poseidon2HashChainV1Package.application
+    let selected ← manifest.getObjVal? "selected_reference"
+    let application := Poseidon2HashChainV1Package.application
+    require ((← natural selected "logical_rows") ==
+      PerApplicationCanonicalPackage.directStructuralRowCount application)
+      "selected reference row count differs"
+    require ((← natural selected "logical_width") ==
+      PerApplicationCanonicalPackage.directLogicalWidth application)
+      "selected reference width differs"
+    require (equalValue (← codecValue (← selected.getObjVal? "application_matrix"))
+      (Program.format.encode (PerApplicationMatrixProgram.applicationProgram application)))
+      "selected reference matrix differs"
+    require (equalValue (← codecValue (← selected.getObjVal? "application_local"))
+      (PerApplicationAssignmentBlocks.BlockPlan.format.encode
+        (PerApplicationAssignmentBlocks.BlockPlan.ofKind application .applicationLocal)))
+      "selected reference assignment differs"
+    checkApplication manifest ordinaryReference
     checkApplication manifest (PerApplicationEmitterFixture.program ())
   match result with
   | .error error => throw (IO.userError error)

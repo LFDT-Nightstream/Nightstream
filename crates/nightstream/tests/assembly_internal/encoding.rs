@@ -66,8 +66,8 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     let application = poseidon2_hash_chain_v1().unwrap();
     let candidate = assemble(reference, &manifest, &application).unwrap();
     assert!(
-        candidate == expected,
-        "the assembled circuit is still the pinned circuit"
+        candidate[3] == expected[3],
+        "the rebuilt physical application repairs the changed row"
     );
     drop(candidate);
     drop(expected);

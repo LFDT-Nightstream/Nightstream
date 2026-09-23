@@ -12,11 +12,12 @@ Nightstream Goldilocks profile `b=2`, `k_rho=16`, `B=65536`.
 | Normalized matrix nonzero entries | 2,968,490,185 | 2,857,409,270 | 111,080,915 (3.74%) |
 
 The candidate package, binding, setup, component parities, and base fixture
-are installed locally, with matching Rust dimensions and identity pins.
+are installed with matching Rust dimensions and identity pins.
 The complete independent 14-matrix comparison, physical matrix comparison,
 and matrix mutation rejections pass. Complete assignment, derived-recipe rejection, base-step, and sparse
-commitment checks pass. Actual NIFS and recursive fixture integration
-remain open. Rust proving benchmarks remain paused. The extra 50% target of 92,179,782 coordinates is not achieved.
+commitment checks pass. The actual NIFS proof and independent Lean C/R/D
+comparison pass. Recursive assignment, mutation, and final consumer checks
+also pass. Rust proving benchmarks remain paused. The extra 50% target of 92,179,782 coordinates is not achieved.
 
 ## Selected changes
 
@@ -43,7 +44,7 @@ retained assignment block from that proof. Other application programs keep
 the proved ordinary path. Input and output forms reuse the actual pilot
 preimage coordinates.
 
-The direct application witness computes and shares the three variable
+The direct Lean application witness computes and shares the three variable
 permutation states. It places only their required S-box values in the
 selected committed assignment. The unused ten-permutation source interval
 is zero and is not computed. The full selected-assignment completion proof
@@ -54,7 +55,9 @@ public input, output digest, and norm guarantees remain proved.
 
 The physical source ABI has 28,674,023 R1CS rows and 28,792,719 columns.
 Those physical counts describe the retained source interface, not the
-selected CCS row count. Rust witness execution still needs integration.
+selected CCS row count. Rust loads the smaller CCS relation, but its physical
+application witness path still computes the thirteen source permutations.
+This remaining source work is not counted as a runtime improvement.
 
 ## Wide sampler merge
 
@@ -113,6 +116,24 @@ row of all 14 matrices. Physical A/B/C nonzeros are 93,238,030, 38,665,934,
 and 28,343,420. Matrix block-order, in-range column, and nonzero coefficient
 mutations are rejected under the selected identity. All logical assignment and recipe checks pass. The initial run exposed one
 stale 31-coordinate padding expectation; the exact expectation is now 45,
-and the complete rerun passes. Actual NIFS, recursive fixtures, and final
-consumer checks remain open and are recorded in the metrics file. No overall proving
+and the complete rerun passes. Actual NIFS and recursive fixtures have been
+regenerated. The published actual proof matches the full independent Lean
+result; all 43 NIFS and 55 PiDEC mutation controls reject. All recursive
+assignment and final consumer checks pass and are recorded in the metrics file. No overall proving
 performance gain is claimed.
+
+The shared-verifier manifest now distinguishes the selected compact application
+suffix from the ordinary connector for other applications. Its selected matrix
+and assignment metadata come from Lean. Rust preserves the selected suffix on
+exact equality of the complete physical application plan and still checks the
+original blueprint against the independent production pins. The separate
+application assembly test also passes. The unselected generic Stage 1 decoder
+fixture is unchanged historical test data; it is not part of this regeneration.
+
+The final Lean production and test build passes (4,262 jobs), as does the
+static boundary gate. Nineteen focused Rust tests pass across published NIFS,
+assembly, lifecycle handoff and rejection, application parity, and Ajtai setup.
+The independent recursive check covers every physical row, every logical
+coordinate, all 3,588,191 logical rows, and all 45 alignment zeros. Its child
+commitment, Eval_K, and Eval_A mutations are rejected by the canonical rows.
+Proving benchmarks remain paused.

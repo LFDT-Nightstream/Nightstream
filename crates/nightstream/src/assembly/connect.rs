@@ -156,6 +156,32 @@ fn assignment_blocks(manifest: &Manifest, counts: Counts) -> Result<Vec<Assignme
         .collect()
 }
 
+/// Restore the Lean-emitted ordinary connector before inserting a different
+/// application. The caller has checked the complete selected suffix first.
+pub(super) fn ordinary_reference(reference: &mut Envelope, manifest: &Manifest) -> Result<(), AssemblyError> {
+    let child = manifest.application_child();
+    let end = child
+        .block_start
+        .checked_add(manifest.selected_reference.application_matrix.len())
+        .ok_or(AssemblyError::Overflow)?;
+    let replacement: Vec<Value> = serde_json::from_value(manifest.application_matrix_template.clone())?;
+    reference.matrix.splice(child.block_start..end, replacement);
+    let opcode = manifest.selected_reference.application_local.opcode;
+    let ordinary = assignment_blocks(manifest, manifest.reference())?;
+    *reference
+        .assignment
+        .blocks
+        .get_mut(opcode)
+        .ok_or(AssemblyError::Invalid("selected application assignment block"))? = ordinary
+        .get(opcode)
+        .ok_or(AssemblyError::Invalid("ordinary application assignment block"))?
+        .clone();
+    reference.source.relation.rows = manifest.geometry.logical_rows.eval(manifest.reference())?;
+    reference.source.relation.columns = manifest.geometry.logical_width.eval(manifest.reference())?;
+    reference.source.terminal = json!([1, [0, reference.source.relation.rows, 16, 1]]);
+    manifest.check_ordinary_reference(reference)
+}
+
 pub(super) fn assignment(reference: &mut Envelope, manifest: &Manifest, counts: Counts) -> Result<(), AssemblyError> {
     if assignment_blocks(manifest, manifest.reference())? != reference.assignment.blocks {
         return Err(AssemblyError::Invalid("assignment templates differ from reference"));

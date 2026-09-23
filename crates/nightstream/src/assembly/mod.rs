@@ -75,6 +75,12 @@ fn assemble(
     let counts = Counts::of(application);
     manifest.check_dimensions(counts)?;
     let actual = application::plan(application, manifest)?;
+    // Exact rows, recipes, ports and counts identify the already proved
+    // specialization. The independent reference check in prepare still applies.
+    if actual == reference.application {
+        return Ok(serde_json::to_value(reference)?);
+    }
+    connect::ordinary_reference(&mut reference, manifest)?;
     connect::matrix(&mut reference, manifest, counts)?;
     connect::assignment(&mut reference, manifest, counts)?;
     source::replace_application(&mut reference, actual, manifest, counts)?;

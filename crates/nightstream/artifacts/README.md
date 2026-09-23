@@ -25,25 +25,33 @@ They are not producer inputs or prerequisites for a consumer's proof run.
 Those tests use only package-local paths. Their source records are in
 `tests/fixtures/README.md`.
 
-The selected blueprint uses the proved quotient layout at `8b7c07d8`.
-Current-source emission after the direct witness proof at `6bcdbb7c` produced
-identical package bytes. The manifest source is
+The selected blueprint at `41aa5ef63` uses the shared running flag,
+shared PiCCS expressions and powers, and compact application layout.
+It has 3,588,191 logical rows and 149,293,044 committed coordinates.
+The manifest source is
 `formal/nightstream-fprime/NightstreamFPrime/Export/SharedVerifier.lean`.
 Its definitions and contract names are recorded in the JSON. The maintainer
 toolchain is `leanprover/lean4:v4.30.0`, as set by the formal project's
 `lean-toolchain` file. All artifacts use the selected Nightstream Goldilocks
 profile with `b = 2`, `k_rho = 16`, and `B = 2^16`.
 
-The reference application has four witness words, 7,696 local words, and 7,700
-rows. Application state has four input words and four output words. The manifest
+The physical reference application has four witness words, 7,696 local words,
+and 7,700 rows. Its selected CCS layout keeps 258 S-box fields and four message
+fields, with 262 logical rows. Manifest version 2 separates this selected
+suffix from the ordinary connector used for other applications. Rust retains
+the specialization only on exact equality of the complete physical application
+plan, while independently checking the reference package and key.
+Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current Rust `Circuit` supports at most 7,701 witness and local words
-together. This bound follows from the
+For an ordinary application, the current Rust `Circuit` supports at most 263
+witness and local words together. This bound follows from the
 [selected key's](../../neo-ajtai/src/nightstream_fprime_setup.rs)
-184,359,564-coordinate carrier and the exported width
-`184043819 + 41 * (witness_words + local_words)`. Assembly-only dimension checks
+149,293,044-coordinate carrier and the exported width
+`149282257 + 41 * (witness_words + local_words)`. The selected hash-chain
+application uses its proved compact suffix instead of this ordinary allocation.
+Assembly-only dimension checks
 also require the source rows, source columns, and padded retained carrier to fit
 the declared domain.
 

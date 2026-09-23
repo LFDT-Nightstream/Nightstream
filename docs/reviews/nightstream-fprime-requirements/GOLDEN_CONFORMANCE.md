@@ -29,6 +29,7 @@ or discharge the external Fiat–Shamir assumption.
 - Connect all 17 first-successor source witnesses and public values to the
   second fold's consumed inputs. Also compare package, context, state,
   message, carried parent, all 17 digest frames and C/R/D transcript links.
+- Reach production `Eval_K` and `Eval_A` rejection with a valid fresh relation.
 - Check terminal acceptance at state 3 and rejection of `ce-evaluation`,
   `ce-matrix-evaluation` and `fresh-private` mutations.
 - Keep reproducible repository commands and source/input records. Missing
@@ -49,6 +50,25 @@ The selected entrypoints stop at state 3. The separate registered
 not an acceptance criterion for this goal. Local archive restoration does
 not claim protected external acceptance or publication of new release assets.
 
+## Production terminal opening coverage
+
+[PRODUCTION_OPENING_REJECTIONS.json](PRODUCTION_OPENING_REJECTIONS.json)
+records two additional production rejection tests on the saved two-fold
+outputs. Each preserves the weighted PiDEC recomposition, rebuilds the fresh
+witness and commitment, and passes all earlier terminal checks.
+
+- `opening-k` reaches `Eval_K` rejection at child 0: passed in 207.17 seconds.
+- `opening-a` reaches `Eval_A` rejection at child 0: passed in 209.71 seconds.
+- Removing each comparison in a temporary verifier build makes its test fail
+  because that weakened verifier returns `Ok(())`. Both experiments passed.
+- The original production source was restored. The rebuilt release binary
+  matches the tested production binary byte for byte.
+
+All four test invocations stayed within the 300-second and 16 GiB guards.
+The manual CPU coordinator now requires these two tests in addition to the
+18 stages recorded below. The existing fold and Lean results were retained;
+this addition changes tests and coordination, not production verification.
+
 ## Current validation
 
 - 72 focused Python tests pass, including checks with a symlinked temporary
@@ -57,7 +77,7 @@ not claim protected external acceptance or publication of new release assets.
   RSS was 12,444,114,944 bytes (11.59 GiB), below the 16 GiB guard.
 - The first terminal rejection test exposed an old error-order expectation.
   The combined row evaluator checks the fresh relation before running
-  openings. Both test assertions now require that specific relation error.
+  openings. Both rehash-test assertions now require that specific relation error.
   The repeated rejection passed; the failed receipt remains in the archive.
   The other 17 passed stages were retained with complete byte comparisons.
   Production Rust, Lean and build inputs did not change during this repair.

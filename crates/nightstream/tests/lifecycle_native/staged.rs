@@ -196,10 +196,7 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
     serde_json::from_reader(BufReader::new(File::open(path).expect("checkpoint input"))).expect("typed checkpoint data")
 }
 fn fold_dir(root: &Path, step: u64) -> PathBuf {
-    assert!(
-        matches!(step, 1 | 2 | 3),
-        "selected first fold and iteration-2-to-4 feedback loop"
-    );
+    assert!(matches!(step, 1 | 2), "selected folds are 1-to-2 and 2-to-3");
     root.join(format!("fold-{step}"))
 }
 fn step_dir(root: &Path, step: u64) -> PathBuf {
@@ -251,8 +248,7 @@ fn expected_state(step: u64) -> Stage1State {
         }
         2 => second,
         3 => output(second, message()),
-        4 => output(output(second, message()), message()),
-        _ => panic!("expected base, first fold and iteration-2-to-4 feedback outputs"),
+        _ => panic!("expected a state in the selected 1-to-2-to-3 chain"),
     };
     Stage1State::new(step, initial, current)
 }

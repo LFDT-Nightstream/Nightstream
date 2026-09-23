@@ -256,6 +256,29 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     if arguments
         .first()
+        .is_some_and(|mode| mode == "encode-lean-nifs")
+    {
+        assert_eq!(
+            arguments.len(),
+            3,
+            "usage: generate_pi_ccs_fixture encode-lean-nifs <Lean-result.json> <new-proof-file>"
+        );
+        let reference =
+            serde_json::from_slice(&fs::read(&arguments[1]).expect("Lean result fields")).expect("Lean result JSON");
+        let bytes = owned_nifs::encode_lean_nifs(&reference);
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&arguments[2])
+            .expect("new proof file; existing outputs are not replaced");
+        output
+            .write_all(&bytes)
+            .expect("complete Lean-field proof encoding");
+        println!("encoded_lean_nifs_bytes={} provenance=not_checked", bytes.len());
+        return;
+    }
+    if arguments
+        .first()
         .is_some_and(|mode| mode == "compare-pidec-pad")
     {
         assert_eq!(

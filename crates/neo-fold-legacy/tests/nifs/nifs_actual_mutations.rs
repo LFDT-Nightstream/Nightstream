@@ -64,9 +64,9 @@ fn claim(output: &mut Vec<u8>, value: &Value, digest: &Value) {
     output.push(0); // No auxiliary lane commitments in this selected profile.
 }
 
-/// Encode the independent Lean result in the documented native wire format.
+/// Encode raw Lean result fields in the documented native wire format.
 /// This uses raw numeric fields and does not call the native proof encoder.
-pub(super) fn check_wire(actual: &[u8], reference: &Value) {
+pub(super) fn encode_wire(reference: &Value) -> Vec<u8> {
     let mut expected = b"NS-NIFS-PROOF".to_vec();
     word(&mut expected, 1);
     let mut ccs = Vec::new();
@@ -107,6 +107,11 @@ pub(super) fn check_wire(actual: &[u8], reference: &Value) {
     for child in reference[9][13].as_array().unwrap() {
         claim(&mut expected, child, &digest);
     }
+    expected
+}
+
+pub(super) fn check_wire(actual: &[u8], reference: &Value) {
+    let expected = encode_wire(reference);
     assert!(
         actual == expected,
         "every native NIFS proof byte equals the independent Lean-field encoding"

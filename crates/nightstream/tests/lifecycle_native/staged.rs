@@ -29,6 +29,8 @@ use std::{
 
 #[path = "staged_fold.rs"]
 mod fold;
+#[path = "staged_opening_tests.rs"]
+mod opening_tests;
 #[path = "staged_terminal.rs"]
 mod terminal;
 
@@ -99,14 +101,17 @@ enum Request {
     },
     Terminal {
         directory: PathBuf,
+        step: u64,
         #[serde(default)]
         engine: EvaluationEngine,
     },
     Mutation {
         directory: PathBuf,
+        step: u64,
     },
     Reject {
         directory: PathBuf,
+        step: u64,
         #[serde(default)]
         engine: EvaluationEngine,
     },
@@ -152,9 +157,17 @@ fn run_phase() {
             step,
             engine,
         } => terminal::successor(&directory, step, engine),
-        Request::Terminal { directory, engine } => terminal::accept(&directory, engine),
-        Request::Mutation { directory } => terminal::mutation(&directory),
-        Request::Reject { directory, engine } => terminal::reject(&directory, engine),
+        Request::Terminal {
+            directory,
+            step,
+            engine,
+        } => terminal::accept(&directory, step, engine),
+        Request::Mutation { directory, step } => terminal::mutation(&directory, step),
+        Request::Reject {
+            directory,
+            step,
+            engine,
+        } => terminal::reject(&directory, step, engine),
     }
     eprintln!("staged phase passed elapsed={:?}", started.elapsed());
 }
@@ -183,7 +196,7 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
     serde_json::from_reader(BufReader::new(File::open(path).expect("checkpoint input"))).expect("typed checkpoint data")
 }
 fn fold_dir(root: &Path, step: u64) -> PathBuf {
-    assert!(matches!(step, 1 | 2), "this test covers the two requested fresh folds");
+    assert!(matches!(step, 1 | 2), "selected folds are 1-to-2 and 2-to-3");
     root.join(format!("fold-{step}"))
 }
 fn step_dir(root: &Path, step: u64) -> PathBuf {
@@ -235,7 +248,7 @@ fn expected_state(step: u64) -> Stage1State {
         }
         2 => second,
         3 => output(second, message()),
-        _ => panic!("expected base and two recursive outputs"),
+        _ => panic!("expected a state in the selected 1-to-2-to-3 chain"),
     };
     Stage1State::new(step, initial, current)
 }

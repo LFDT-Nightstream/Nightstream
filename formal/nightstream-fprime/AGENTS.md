@@ -74,9 +74,9 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   `Quot.sound`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build
   [target]`, `axioms`, `file <path>`, `all`), each under the 1,500 s cap.
-  One Lean or Rust build process at a time.
+  One Lean or Rust build process at a time per worktree.
 - Before each command or edit: one active acceptance criterion and its
-  closing evidence. Three rounds without closure: stop and report.
+  closing evidence. Five rounds without closure: stop and report.
 
 ## Development speed
 

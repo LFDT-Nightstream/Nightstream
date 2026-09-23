@@ -1,87 +1,38 @@
-import NightstreamFPrime.Circuit.VariableSupport
-import NightstreamFPrime.Lifecycle.Types
+import NightstreamFPrime.Lifecycle.Stage1.ApplicationInterface
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Circuit
 
-/-!
-Owns the Lean interface for one verifier-selected Stage 1 application.
-
-Each production application supplies one closed `Program`. Its circuit proves
-the exact transition implemented by `step`. The final Stage 1 assembler fixes
-that program before package construction; neither the prover nor the runtime
-package loader supplies it.
-
-This module does not select a production application, assign physical columns,
-compute an application identity, or modify the canonical package.
--/
+/-! Verifier-selected application programs and their proved circuit specialization. -/
 
 namespace NightstreamFPrime.Lifecycle.Stage1.Application
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec
 
-/-- Stage 1 carries exactly four application-state words in each state hash. -/
-def stateWordCount : Nat := 4
+/-- A checked compiler specialization for the existing hash-chain circuit.
+The proof fields are erased; `Option` records whether this exact case applies. -/
+structure HashChainCircuit (witnessWordCount : Nat)
+    (implementation : Interface witnessWordCount → FormalCircuit) : Type where
+  wordCount : witnessWordCount = Poseidon2HashChainV1.messageWordCount
+  circuit_eq : ∀ interface, implementation interface =
+    Poseidon2HashChainV1.circuit (cast (congrArg Interface wordCount) interface)
 
-abbrev StateIndex := Fin stateWordCount
+namespace HashChainCircuit
 
-/-- External wires of one concrete application circuit. The witness width is
-fixed by the Lean-authored program. -/
-structure Interface (witnessWordCount : Nat) where
-  input : Nat → StateIndex → Expr
-  witness : Nat → Fin witnessWordCount → Expr
-  output : Nat → StateIndex → Expr
+def interface {witnessWordCount : Nat}
+    {implementation : Interface witnessWordCount → FormalCircuit}
+    (certificate : HashChainCircuit witnessWordCount implementation)
+    (input : Interface witnessWordCount) : Interface Poseidon2HashChainV1.messageWordCount :=
+  cast (congrArg Interface certificate.wordCount) input
 
-/-- Exact caller-owned application wires. A concrete layout proves that all
-of them precede the application's local allocation. -/
-structure InputsBelow {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) : Prop where
-  input : ∀ index, (interface.input offset index).VarsBelow offset
-  witness : ∀ index, (interface.witness offset index).VarsBelow offset
-  output : ∀ index, (interface.output offset index).VarsBelow offset
+theorem localLength {witnessWordCount : Nat}
+    {implementation : Interface witnessWordCount → FormalCircuit}
+    (certificate : HashChainCircuit witnessWordCount implementation)
+    (input : Interface witnessWordCount) (offset : Nat) :
+    NightstreamFPrime.Circuit.localLength (Circuit.ops (implementation input).main offset) = 7696 := by
+  rw [certificate.circuit_eq]
+  exact Poseidon2HashChainV1.circuit_localLength _ _
 
-/-- Exact caller-selected support for all external application expressions. -/
-structure InputsSupported {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat)
-    (allowed : Nat → Prop) : Prop where
-  input : ∀ index, (interface.input offset index).VarsSatisfy allowed
-  witness : ∀ index, (interface.witness offset index).VarsSatisfy allowed
-  output : ∀ index, (interface.output offset index).VarsSatisfy allowed
-
-def inputState {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    AppState :=
-  List.ofFn fun index => (interface.input offset index).eval env
-
-def witnessValue {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    AppWitness :=
-  List.ofFn fun index => (interface.witness offset index).eval env
-
-def outputState {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    AppState :=
-  List.ofFn fun index => (interface.output offset index).eval env
-
-@[simp] theorem inputState_length {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    (inputState interface offset env).length = stateWordCount := by
-  simp [inputState]
-
-@[simp] theorem witnessValue_length {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    (witnessValue interface offset env).length = witnessWordCount := by
-  simp [witnessValue]
-
-@[simp] theorem outputState_length {witnessWordCount : Nat}
-    (interface : Interface witnessWordCount) (offset : Nat) (env : Env) :
-    (outputState interface offset env).length = stateWordCount := by
-  simp [outputState]
-
-/-- Exact semantic obligation of one application circuit. -/
-def Holds (step : AppState → AppWitness → AppState)
-    {witnessWordCount : Nat} (interface : Interface witnessWordCount)
-    (offset : Nat) (env : Env) : Prop :=
-  outputState interface offset env =
-    step (inputState interface offset env) (witnessValue interface offset env)
+end HashChainCircuit
 
 /-- A Lean-authored application is one proved circuit for one exact step
 function. The proof field is erased during execution. -/
@@ -103,8 +54,38 @@ structure Program where
         allowed index) →
       ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
         expression.VarsSatisfy allowed
+  compactHashChain : Option (HashChainCircuit witnessWordCount circuit) := none
 
 namespace Program
+
+/-- Specialization carries the exact existing step relation through the
+circuit equality; no package label or digest supplies this identification. -/
+theorem hashChain_spec_iff (program : Program)
+    (certificate : HashChainCircuit program.witnessWordCount program.circuit)
+    (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env) :
+    Holds program.step interface offset env ↔
+      Holds Poseidon2HashChainV1.step (certificate.interface interface) offset env := by
+  rw [← program.spec_iff, certificate.circuit_eq]
+  exact Poseidon2HashChainV1.spec_iff _ _ _
+
+/-- The checked circuit has the same four-word transition relation as the
+hash chain, for arbitrary input, message, and output values. -/
+theorem hashChain_relation_iff (program : Program)
+    (certificate : HashChainCircuit program.witnessWordCount program.circuit)
+    (prior message next : Fin 4 → F) :
+    List.ofFn next = program.step (List.ofFn prior) (List.ofFn message) ↔
+      List.ofFn next = Poseidon2HashChainV1.step (List.ofFn prior) (List.ofFn message) := by
+  rcases program with ⟨count, step, implementation, spec, assumptions, support, selected⟩
+  rcases certificate with ⟨countEq, circuitEq⟩
+  cases countEq
+  let interface : Interface Poseidon2HashChainV1.messageWordCount := {
+    input := fun _ lane => .const (prior lane)
+    witness := fun _ lane => .const (message lane)
+    output := fun _ lane => .const (next lane) }
+  have same := Program.hashChain_spec_iff
+    ⟨_, step, implementation, spec, assumptions, support, selected⟩
+    ⟨rfl, circuitEq⟩ interface 0 (fun _ => 0)
+  exact same
 
 /-- A layout-owned wire-range proof supplies every application-circuit
 assumption. -/

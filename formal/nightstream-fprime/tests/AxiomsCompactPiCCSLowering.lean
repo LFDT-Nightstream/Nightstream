@@ -4,6 +4,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Prefix
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.GammaPowers
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.WitnessSupport
 import NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompactWitness
+import NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness
 import tests.AxiomAudit
 
 /-! Kernel and cost gates for the compact PiCCS lowering batch. -/
@@ -75,3 +76,17 @@ end NightstreamFPrime.Tests.CompactPiCCSLowering
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.output_eq_permute
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.equations
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.family_member
+
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.HashChainCircuit.localLength
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.hashChain_spec_iff
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.hashChain_relation_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.sourceWidth_bound
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.witnessStart_bound
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.block_slotCount
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.block_coordinateCount
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedGeometry.completeLogicalWidth_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedGeometry.plan_rowCount
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.input_form_eq_pilot
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.output_form_eq_pilot
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.rowsZero_implies_step
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.complete_of_encoding

@@ -78,3 +78,39 @@ paused. No matrix-entry reduction or overall performance gain is claimed.
 
 Research sources: [CLAP common-expression elimination and witness correspondence](https://arxiv.org/html/2405.12115v2#S6.SS3),
 [cvc5 finite-field theory](https://cvc5.github.io/docs/latest/theories/finite_field.html).
+
+## Application compiler connection in progress
+
+Checkpoint `929d53686` is pushed on `nico/constraint-reduction-research`.
+The following work is newer than that checkpoint and is not selected yet.
+
+`Application.Program.compactHashChain` carries an erased proof that identifies
+the exact existing hash-chain circuit. The option selects an implementation
+case; a digest or a string cannot provide this proof. Separating application
+interfaces from the existing hash-chain circuit avoids a dependency cycle.
+The original circuit, step function, and exported names are preserved.
+
+`ApplicationPoseidonRetainedBlock` selects the 86 S-box fields from each of
+the three variable/finalization permutations. The fixed ten-block prefix is
+not retained. Its 258 slots occupy 10,578 coordinates. Together with the four
+message fields, `ApplicationPoseidonRetainedGeometry` proves a prospective
+whole-layout logical width of 149,292,999. Its instantiated application plan
+has 262 rows. These modules and their focused axiom audit pass.
+
+`ApplicationPoseidonSoundness` connects this placed plan to the selected
+program's exact four-word step relation. Its input and output forms are
+equal to the actual pilot preimage forms for arbitrary assignments. The
+soundness theorem needs no honest-encoding premise. The completion theorem
+uses the previously constructed S-box values for every valid selected step.
+The focused module build passes. The production library and all axiom tests
+also pass together (4,240 jobs); the static boundary gate passes. This remains
+an unselected compiler specialization, so the selected counts above do not
+change.
+
+The selected compiler still uses the ordinary `ApplicationDirectPlan` path.
+Next connect the checked case to the application row plan, matrix program,
+assignment blocks, and arbitrary-assignment soundness/completeness path.
+Keep the generic ordinary path for programs without this exact circuit proof.
+Reuse the existing Poseidon and pin matrix opcodes and the existing indexed
+assignment source runs. Do not regenerate packages or fixtures before this
+connection and the matrix counts are stable.

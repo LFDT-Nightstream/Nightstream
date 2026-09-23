@@ -15,6 +15,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateTerminalProgram
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateTerminalLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateTerminalSemantics
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateExtraction
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.Hybrid
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal

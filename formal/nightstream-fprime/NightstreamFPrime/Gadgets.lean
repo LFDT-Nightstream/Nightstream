@@ -23,5 +23,6 @@ import NightstreamFPrime.Gadgets.Sampling.First54Step
 import NightstreamFPrime.Gadgets.Sampling.First54ValueStep
 import NightstreamFPrime.Gadgets.Sampling.First54
 import NightstreamFPrime.Gadgets.Sampling.First54.Semantics
+import NightstreamFPrime.Gadgets.Sampling.WideReduction.Completeness
 
 /-! Gadgets layer root. Lists the modules of this layer explicitly. -/

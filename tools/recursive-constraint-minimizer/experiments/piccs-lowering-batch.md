@@ -137,3 +137,38 @@ The independent recursive check covers every physical row, every logical
 coordinate, all 3,588,191 logical rows, and all 45 alignment zeros. Its child
 commitment, Eval_K, and Eval_A mutations are rejected by the canonical rows.
 Proving benchmarks remain paused.
+
+## Ignored-test repair after review
+
+Review of `f77181b7e` found stale physical matrix pins and an old application
+row/coordinate range in ignored tests. The physical pin is now
+`[93238030, 38665934, 28343420]` in both assignment and matrix conformance.
+The application rejection test locates its retained suffix and Poseidon/pin
+row interval from the package. It first accepts the changed application's
+honest local witness, then rejects that witness when attached to the old state.
+
+`external_pi_rlc_value_wiring_rejects_detached_values` was renamed to
+`pi_rlc_value_wiring_rejects_detached_values`. It reads the saved recursive
+fixture and checks its production binding, with no stdin or driver required.
+It uses the current 31-block assignment schema and the actual running-child
+block. The existing parallel evaluator checks the full valid control; mutation
+checks start at the affected suffix. All valid rows must pass before clearing the nonzero PiRLC products
+or PiDEC child values and checking rejection.
+
+Run each check separately from the repository root under the project cap:
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test per_application_assignment package_generates_the_complete_nonzero_hash_chain_assignment -- --ignored --exact --nocapture
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test per_application_matrix_conformance final_matrices_equal_the_separate_lean_expansion -- --ignored --exact --nocapture
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test base_step_assignment base_step_rows_reject_a_detached_application_output -- --ignored --exact --nocapture
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test base_step_assignment pi_rlc_value_wiring_rejects_detached_values -- --ignored --exact --nocapture
+```
+
+These changes repair test execution and expectations. They do not change
+the Lean relation, package bytes, or any constraint count.
+
+All four commands pass. The assignment test reaches all eleven rejection
+controls after the nonzero pin. The detached application rejects at row
+3,588,178; cleared PiRLC products reject at row 3,288,724; cleared PiDEC child
+values reject at row 3,513,156. The separate physical matrix comparison also
+matches every Lean entry and the corrected nonzero totals.

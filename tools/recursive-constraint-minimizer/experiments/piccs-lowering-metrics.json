@@ -86,7 +86,11 @@
     "recursive_assignment": "Passed: prior/output binding, all 28674023 physical rows, every logical coordinate, all 3588191 logical rows, and 45 alignment zeros.",
     "recursive_mutations": "Commitment, Eval_K and Eval_A child-assignment mutations rejected by independent canonical rows.",
     "shared_manifest": "Lean manifest comparison passed for selected compact and ordinary application paths; both Rust assembly integration tests and all five internal equality/rejection tests passed.",
-    "rust_consumers": "19 focused tests passed: published NIFS (1), application assembly (2), complete assembly/rejection controls (5), lifecycle handoff/key-prefix/rejections (6), application rows/witness/step vectors (4), and Ajtai setup parity (1)."
+    "rust_consumers": "19 focused tests passed: published NIFS (1), application assembly (2), complete assembly/rejection controls (5), lifecycle handoff/key-prefix/rejections (6), application rows/witness/step vectors (4), and Ajtai setup parity (1).",
+    "ignored_assignment_regression": "Current physical nonzero pin passes; the generated-value, four message-word, and six output-state mutation checks all execute and reject.",
+    "ignored_detached_application": "Application coordinates and logical rows are derived from the package; honest replacement application rows pass, and detached output rejects at row 3588178.",
+    "ignored_pirlc_wiring": "Self-contained saved recursive fixture; all 3588191 control rows pass through the existing parallel evaluator. Cleared product values reject at row 3288724; cleared running-child values reject at row 3513156.",
+    "ignored_physical_matrix_regression": "final_matrices_equal_the_separate_lean_expansion passes with exact physical A/B/C nonzeros [93238030, 38665934, 28343420]. All four repaired ignored tests pass under separate 300-second caps."
   },
   "remaining": [],
   "benchmarks": "Paused by owner instruction; no overall performance gain claimed.",

@@ -258,7 +258,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .r1cs_matrices()
         .expect("intermediate physical R1CS A/B/C matrices");
     let r1cs_matrix_nonzeros = conformance_support::compare_sealed_matrices(&bytes, &matrices);
-    assert_eq!(r1cs_matrix_nonzeros, [93_701_820, 39_358_148, 28_868_018]);
+    assert_eq!(r1cs_matrix_nonzeros, [93_238_030, 38_665_934, 28_343_420]);
     drop(matrices);
     eprintln!("intermediate_r1cs_matrix_nonzeros={r1cs_matrix_nonzeros:?}");
 
@@ -280,6 +280,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
             .execute_witness(&changed_private, &changed_public)
             .is_err());
     }
+    eprintln!("nonzero_assignment_rejections=passed generated=1 message=4 output_state=6");
 }
 
 #[test]

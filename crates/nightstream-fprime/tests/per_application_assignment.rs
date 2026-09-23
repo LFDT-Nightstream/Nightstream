@@ -26,7 +26,7 @@ pub use logical_reference::mutation::RecipeFamily;
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PRIVATE_INPUT_COUNT: usize = 177_326;
 const PUBLIC_INPUT_COUNT: usize = 278;
-const TOTAL_COLUMN_COUNT: usize = 29_344_425;
+const TOTAL_COLUMN_COUNT: usize = 28_792_719;
 const FIRST_GENERATED_COLUMN: usize = 128_074;
 const STATE_PREIMAGE_WORDS: usize = 49_393;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
@@ -243,7 +243,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         assignment.public_values(),
     )
     .expect("independent canonical assignment evaluation");
-    assert_eq!(evaluated_rows, 29_225_729);
+    assert_eq!(evaluated_rows, 28_674_023);
     assert_eq!(evaluated_rows, package.physical_row_count());
     let mut changed_assignment = assignment.private_values().to_vec();
     changed_assignment[FIRST_GENERATED_COLUMN] = (changed_assignment[FIRST_GENERATED_COLUMN] + 1) % GOLDILOCKS_MODULUS;
@@ -439,7 +439,7 @@ fn check_logical_assignment(
     let production_logical_assignment = package
         .execute_ccs_assignment(&private_inputs, &public_inputs)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 172_217_903);
+    assert_eq!(production_logical_assignment.len(), 149_292_999);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -466,7 +466,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 172_217_903);
+    assert_eq!(logical_assignment.len(), 149_292_999);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -502,9 +502,9 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 4_147_335);
+    assert_eq!(result.active_rows, 3_588_191);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 31);
+    assert_eq!(result.carrier_padding_columns, 45);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()

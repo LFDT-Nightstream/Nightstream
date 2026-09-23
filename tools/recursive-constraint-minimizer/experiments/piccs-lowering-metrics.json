@@ -1,6 +1,6 @@
 {
   "baseline_commit": "c9aa75b04a8a55f1f357ed414c72825fda2bbb6b",
-  "scope": "Selected Lean layout; published artifacts and Rust remain at the baseline checkpoint.",
+  "scope": "Selected Lean layout and locally installed package; Rust fixture integration is in progress.",
   "profile": {
     "b": 2,
     "k_rho": 16,
@@ -21,12 +21,34 @@
     "logical_rows": 3588191,
     "physical_rows": 28674023,
     "physical_columns": 28792719,
-    "matrix_nonzeros": null
+    "matrix_nonzeros": 2857409270,
+    "matrix_nonzeros_by_port": [
+      229698543,
+      3483539,
+      272967007,
+      35832394,
+      813066947,
+      1502256188,
+      0,
+      104652,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "physical_matrix_nonzeros_by_port": [
+      93238030,
+      38665934,
+      28343420
+    ]
   },
   "reduction": {
     "logical_coordinates": 22924904,
     "committed_coordinates": 22924890,
-    "logical_rows": 559144
+    "logical_rows": 559144,
+    "matrix_nonzeros": 111080915
   },
   "piccs_ordinary": {
     "logical_rows": 259963,
@@ -40,18 +62,29 @@
     "message_fields": 4,
     "private_coordinates": 10742,
     "additional_committed_coordinate_reduction": 304938,
-    "proofs": "Selected row plan, matrix correspondence, arbitrary-assignment soundness, direct three-permutation witness, and selected-assignment completeness pass focused Lean checks."
+    "proofs": "Selected row plan, matrix correspondence, arbitrary-assignment soundness, direct three-permutation witness, and selected-assignment completeness pass focused Lean checks.",
+    "matrix_nonzeros": 147259,
+    "baseline_matrix_nonzeros": 1754410,
+    "matrix_nonzero_reduction": 1607151
   },
   "checks": {
-    "production_and_axioms": "scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests: passed, 4261 jobs",
+    "production_and_axioms": "scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests: passed, 4262 jobs",
     "static": "scripts/validate.sh static: passed",
     "cvc5": "Five recorded gadget controls passed; no solver result substitutes for Lean.",
-    "application_completion": "Direct three-permutation construction and full selected-assignment completion pass; all five constructor theorem axiom audits pass."
+    "application_completion": "Direct three-permutation construction and full selected-assignment completion pass; all five constructor theorem axiom audits pass.",
+    "application_matrix_cost": "Exact Lean matrix operands; independent normalized sparse counter; 262 rows, 147259 entries.",
+    "logical_matrices": "All 14 matrices equal independent sealed-package interpretation; candidate_logical_conformance=passed.",
+    "matrix_mutations": "Changed block order, in-range column, and nonzero coefficient: all rejected under the selected identity.",
+    "physical_matrices": "Independent comparison passed; A/B/C nonzeros [93238030, 38665934, 28343420].",
+    "complete_assignment": "Passed: every logical coordinate, all 3588191 rows, all 45 alignment zeros, and 305 mutation controls; direct CCS and full source witnesses agree.",
+    "derived_recipe_rejections": "Phi81, First54, and output-digest recipe mutations all reject after valid controls.",
+    "base_fixture": "Fresh caller inputs pass full physical and logical assignment checks.",
+    "sparse_commitment": "All 1188 selected-key commitment coefficients match Lean, including a nonzero final carrier coordinate."
   },
   "remaining": [
-    "Normalized matrix nonzero count",
-    "Artifact and fixture regeneration after the batch is stable",
-    "Rust integration and conformance"
+    "Actual NIFS and recursive fixture regeneration for the new bound package",
+    "Published-fixture and consumer conformance",
+    "Affected generic Stage 1 package regeneration and conformance"
   ],
   "benchmarks": "Paused by owner instruction; no overall performance gain claimed.",
   "wide_sampler": {
@@ -60,5 +93,30 @@
     "selected": false,
     "counted_coordinate_reduction": 0,
     "reason": "Component proofs are merged. The deterministic sampler map, executable witness hint, selected retained layout, transcript lifecycle, and package identity are not integrated."
+  },
+  "candidate_package": {
+    "source_checkpoint": "49c54577c595b5cff0867ee9b5de1a7aa2fa0029",
+    "structural": [
+      10450558883330280427,
+      4372877323243167089,
+      17627407427612007025,
+      18192136968784746237
+    ],
+    "package": [
+      10236859257084328720,
+      2333344895175328281,
+      11662339516011578647,
+      12470290288965558271
+    ],
+    "verifier_key": [
+      4346185384512578771,
+      8345379008614788180,
+      6673817677899302970,
+      3453068408352147297
+    ],
+    "package_sha256": "f648cb69b41f47616105c13b6666b3954ece21f85e21c52dae24cea16b494f42",
+    "package_bytes": 95161747,
+    "status": "Package, binding, setup, component parities, and base fixture installed; matrix, witness, base, and primitive conformance passed. Actual NIFS and recursive fixtures remain at c9aa75b04.",
+    "evidence_directory": "/tmp/nightstream-selected-batch-iUMnNY"
   }
 }

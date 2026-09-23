@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 29_225_729);
-    assert_eq!(package.total_column_count(), 29_344_425);
+    assert_eq!(package.physical_row_count(), 28_674_023);
+    assert_eq!(package.total_column_count(), 28_792_719);
     assert_eq!(package.private_input_count(), 177_326);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 4_147_335);
+    assert_eq!(relation.row_count(), 3_588_191);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 172_217_903);
+    assert_eq!(relation.column_count(), 149_292_999);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),

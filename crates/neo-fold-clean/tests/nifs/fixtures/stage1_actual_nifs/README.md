@@ -1,5 +1,10 @@
 # Selected actual NIFS fixture
 
+The fixture bytes below still describe checkpoint `c9aa75b04`. The selected
+package now has 149,293,044 committed coordinates and a different binding.
+Regeneration and independent Lean comparison of this actual NIFS fixture
+are in progress; these old bytes do not validate the new package.
+
 These outputs use the Lean-proved shared running-transition flag and the
 86-row Poseidon retained template. The complete staged C → R → D run is in
 `/tmp/nightstream-running-flag-sGbJD2/nifs`. The 27.13% quotient checkpoint remains in Git at

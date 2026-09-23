@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixProgram
-import NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram
+import NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixExecution
 
 /-! Select the executable matrix program with the same checked application certificate. -/
 

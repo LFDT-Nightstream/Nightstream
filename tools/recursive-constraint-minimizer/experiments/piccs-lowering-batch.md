@@ -9,11 +9,14 @@ Nightstream Goldilocks profile `b=2`, `k_rho=16`, `B=65536`.
 |---|---:|---:|---:|
 | Logical CCS rows | 4,147,335 | 3,588,191 | 559,144 |
 | Committed coordinates | 172,217,934 | 149,293,044 | 22,924,890 (13.31%) |
-| Normalized matrix nonzero entries | 2,968,490,185 | Not yet counted | Not claimed |
+| Normalized matrix nonzero entries | 2,968,490,185 | 2,857,409,270 | 111,080,915 (3.74%) |
 
-Packages, fixtures, and Rust still use the published checkpoint. These are
-Lean layout counts, not Rust benchmark results. Rust proving benchmarks
-remain paused. The extra 50% target of 92,179,782 coordinates is not achieved.
+The candidate package, binding, setup, component parities, and base fixture
+are installed locally, with matching Rust dimensions and identity pins.
+The complete independent 14-matrix comparison, physical matrix comparison,
+and matrix mutation rejections pass. Complete assignment, derived-recipe rejection, base-step, and sparse
+commitment checks pass. Actual NIFS and recursive fixture integration
+remain open. Rust proving benchmarks remain paused. The extra 50% target of 92,179,782 coordinates is not achieved.
 
 ## Selected changes
 
@@ -49,7 +52,7 @@ that all old application R1CS rows held; that unused construction is removed.
 The specified application step, full selected relation, witness values,
 public input, output digest, and norm guarantees remain proved.
 
-The physical source ABI still has 28,674,023 R1CS rows and 28,792,719 columns.
+The physical source ABI has 28,674,023 R1CS rows and 28,792,719 columns.
 Those physical counts describe the retained source interface, not the
 selected CCS row count. Rust witness execution still needs integration.
 
@@ -83,9 +86,33 @@ proofs. Research sources include
 [CLAP on expression sharing and witness correspondence](https://arxiv.org/html/2405.12115v2#S6.SS3)
 and [cvc5 finite-field theory](https://cvc5.github.io/docs/latest/theories/finite_field.html).
 
-Normalized matrix counts remain open. The earlier application counter
-forced a large physical-layout computation and was stopped without a
-result. A replacement must read only the changed blocks. No matrix-entry
-saving or overall performance gain is claimed. After those counts and the
-batch are stable, regenerate packages and fixtures and complete Rust
-integration and conformance.
+The application matrix count is now 147,259 entries, down from 1,754,410
+in the published package. The counter combines equal columns and removes
+zero coefficients after every affine step over the exact Goldilocks field.
+It reads the selected matrix operands and Poseidon2 constants from Lean.
+It checks every old application row against the published application row
+interval. See [application-matrix-cost.json](application-matrix-cost.json).
+
+`ApplicationPoseidonMatrixExecution` proves that the executable metadata is
+exactly the existing matrix program and registers that equality with the
+Lean compiler. The full library and axiom build passes (4,262 jobs), and
+static checks pass. The unsuccessful direct row counter expanded raw sparse
+expression lists through partial rounds; those runs produced no usable count.
+The replacement exports only the small exact operands and normalizes during
+arithmetic.
+
+Reproduce the application count by building `emitApplicationMatrixCost`
+through `scripts/validate.sh`, running it through the `lean-executable` phase
+with an output path, then running `application_matrix_cost.py` with that path,
+the baseline package path, and a result path. The JSON records both input
+hashes for provenance; they do not replace protocol verification.
+
+The Lean batch is stable. The emitted candidate has 2,857,409,270 normalized
+logical matrix entries. The independent Rust interpretation matches every
+row of all 14 matrices. Physical A/B/C nonzeros are 93,238,030, 38,665,934,
+and 28,343,420. Matrix block-order, in-range column, and nonzero coefficient
+mutations are rejected under the selected identity. All logical assignment and recipe checks pass. The initial run exposed one
+stale 31-coordinate padding expectation; the exact expectation is now 45,
+and the complete rerun passes. Actual NIFS, recursive fixtures, and final
+consumer checks remain open and are recorded in the metrics file. No overall proving
+performance gain is claimed.

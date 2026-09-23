@@ -32,6 +32,11 @@ root = "NightstreamFPrime.Export.EmitSharedFormulas"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "emitApplicationMatrixCost"
+root = "tests.MeasureCompactApplication"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitSharedVerifier"
 root = "NightstreamFPrime.Export.EmitSharedVerifier"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

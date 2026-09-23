@@ -5,6 +5,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.GammaPowers
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.WitnessSupport
 import NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompactWitness
 import NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness
+import NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixRows
 import tests.AxiomAudit
 
 /-! Kernel and cost gates for the compact PiCCS lowering batch. -/
@@ -90,3 +91,9 @@ end NightstreamFPrime.Tests.CompactPiCCSLowering
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.output_form_eq_pilot
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.rowsZero_implies_step
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.complete_of_encoding
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.matrixProgram_rowCount
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.bindingBlock_row?
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.inputProgram_form?
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.inputProgram_state?
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.poseidonBlock_row?
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.matrixProgram_row?

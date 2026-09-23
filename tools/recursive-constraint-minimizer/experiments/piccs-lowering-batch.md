@@ -114,3 +114,21 @@ Keep the generic ordinary path for programs without this exact circuit proof.
 Reuse the existing Poseidon and pin matrix opcodes and the existing indexed
 assignment source runs. Do not regenerate packages or fixtures before this
 connection and the matrix counts are stable.
+
+`ApplicationPoseidonMatrixProgram` now encodes this layout with the existing
+Poseidon and pin opcodes. Four input rules read the proved constant prefix,
+the prior state, the message, and the previous permutation's retained output.
+`ApplicationPoseidonMatrixRows.matrixProgram_row?` proves exact equality with
+every sparse form of the 262-row semantic plan for every valid geometry.
+The executable matrix program needs no physical R1CS row reader for this
+block. The focused build and six added axiom audits pass.
+
+The application matrix-entry count remains open. The first measurement
+forced a large physical-layout computation before producing a count. Reading
+application source rows with the proved numeric row start did not remove all
+of that work. Both measurement processes were stopped, and their absence
+was checked before the next gate. No nonzero count or performance result is
+claimed. The unfinished measurement is outside the repository at
+`/tmp/nightstream-MeasureCompactApplication.lean`; it must use bounded,
+application-only data access before another run. The direct matrix program
+and its proofs are complete; selecting them in the compiler remains next.

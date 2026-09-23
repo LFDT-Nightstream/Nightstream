@@ -31,51 +31,6 @@ def decodedEnv
   SourceCompiler.sourceEnv fun column =>
     ((RunningTransitionDirectPlan.sourceMap geometry).form column).eval assignment
 
-theorem decodedEnv_preserves
-    (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
-    (assignment : Assignment F logicalWidth) :
-    (RunningTransitionDirectPlan.sourceMap geometry).Preserves assignment
-      (decodedEnv geometry assignment) := by
-  intro column
-  exact (SourceCompiler.sourceEnv_at
-    (fun column => ((RunningTransitionDirectPlan.sourceMap geometry).form column).eval
-      assignment) column).symm
-
-/-- Every accepted ordinary transition row holds in the environment decoded
-from that same assignment. The source map supplies all preservation facts. -/
-theorem rowsZero_implies_physical
-    (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
-    (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
-    (rows : (RunningTransitionDirectPlan.plan relation geometry).RowsZero assignment) :
-    RunningTransitionLayout.PhysicalHolds relationLogicalWidth relationPublicFits
-      (Spartan.pullback (decodedEnv geometry assignment)) := by
-  apply (RunningTransitionDirectSource.program_holds_iff_physical relation
-    (decodedEnv geometry assignment)).mp
-  apply (OrdinarySourcePlan.Program.rowsZero_iff
-    (RunningTransitionDirectSource.program relation)
-    (RunningTransitionDirectPlan.inputs relation geometry) assignment
-    (decodedEnv geometry assignment) one ?_).mp rows
-  intro index
-  refine ⟨?_, ?_, ?_⟩ <;> intro term member <;>
-    exact decodedEnv_preserves geometry assignment _
-
-/-- The existing opaque physical contract applies to every accepted logical
-assignment; no `Encodes`, `RawValues`, or generated witness is assumed. -/
-theorem rowsZero_implies_specHolds
-    (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
-    (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
-    (rows : (RunningTransitionDirectPlan.plan relation geometry).RowsZero assignment) :
-    Lifecycle.Stage1.RunningTransition.SpecHolds
-      (RunningTransitionInputs.interface relationLogicalWidth relationPublicFits)
-      RunningTransitionInputs.phaseOffset
-      (Spartan.pullback (decodedEnv geometry assignment)) :=
-  RunningTransitionLayout.physical_implies_specHolds relation _
-    (rowsZero_implies_physical relation geometry assignment one rows)
-
 theorem decodedEnv_location
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -98,6 +53,71 @@ theorem decodedEnv_location
     (fun column => ((RunningTransitionDirectPlan.sourceMap geometry).form column).eval
       assignment) column.val = _
   rw [SourceCompiler.sourceEnv_at, same]
+
+private theorem reduced_decode_agrees
+    (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) (column : Nat)
+    (supported : RunningTransitionSourceSupport.Logical column) :
+    RunningTransitionReducedMatrixSemantics.decodedEnv geometry assignment column =
+      (Spartan.pullback (decodedEnv geometry assignment)) column := by
+  have physicalSupport : RunningTransitionSourceSupport.Source column := by
+    rcases supported with external | rfl
+    · exact Or.inl external
+    · refine Or.inr ⟨Nat.le_refl _, ?_⟩
+      have bound := (RunningTransitionDirectPlan.Location.fresh
+        ⟨0, by rw [RunningTransitionRetainedBlocks.freshCount_eq]; decide⟩).sourceColumn_lt
+      change RunningTransitionInputs.phaseOffset + 0 < Spartan.SourceColumnCount at bound
+      simpa only [Nat.add_zero, Spartan.sourceColumnCount_eq_physicalEnd,
+        RunningTransitionSourceSupport.physicalEnd] using bound
+  have complete := RunningTransitionDirectPlan.classifySource_complete physicalSupport
+  cases found : RunningTransitionDirectPlan.classifySource column with
+  | none => simp only [found, Option.isSome_none, Bool.false_eq_true] at complete
+  | some location =>
+      have same := RunningTransitionReducedMatrixSemantics.sourceForm_location geometry
+        location.location (by
+          rw [location.owns]
+          exact Nat.ne_of_lt (RunningTransitionSourceSupport.logical_lt_columnCount column supported))
+      have old := decodedEnv_location geometry assignment location.location
+        (by rw [location.owns]; exact physicalSupport)
+      calc
+        RunningTransitionReducedMatrixSemantics.decodedEnv geometry assignment column =
+            (location.location.form geometry).eval assignment := by
+              change (RunningTransitionReducedMatrixSemantics.sourceForm geometry column).eval assignment = _
+              exact (congrArg (fun source =>
+                (RunningTransitionReducedMatrixSemantics.sourceForm geometry source).eval assignment)
+                location.owns).symm.trans
+                  (congrArg (fun form : SparseForm logicalWidth => form.eval assignment) same)
+        _ = (Spartan.pullback (decodedEnv geometry assignment)) column := by
+          simpa only [location.owns] using old.symm
+
+/-- Accepted reduced rows imply the unchanged specification on the canonical
+decoded inputs. Removed scratch cells supply no premise. -/
+theorem rowsZero_implies_specHolds
+    (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
+    (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (one : assignment (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
+    (rows : (RunningTransitionReducedPlan.plan geometry).RowsZero assignment) :
+    Lifecycle.Stage1.RunningTransition.SpecHolds
+      (RunningTransitionInputs.interface relationLogicalWidth relationPublicFits)
+      RunningTransitionInputs.phaseOffset
+      (Spartan.pullback (decodedEnv geometry assignment)) := by
+  have accepted := (RunningTransitionReducedPlan.rowsZero_iff_accepts relation geometry
+    (fun _ => none) assignment).mp rows
+  have reduced := (RunningTransitionReducedMatrixComplete.accepts_iff_rows relation geometry
+    (RunningTransitionRetainedGeometry.oneColumn geometry) (fun _ => none) assignment one).mp accepted
+  have logical := ((RunningTransitionReducedRows.rows_iff_logical relation _).mp reduced).2
+  apply Lifecycle.Stage1.RunningTransition.soundness _ _ _
+    (RunningTransitionInputs.assumptions _ _ relation _)
+  apply holdsFlat_implies_holds
+  intro expression member
+  have same := Expr.eval_eq_of_agree_satisfy expression RunningTransitionSourceSupport.Logical
+    (RunningTransitionReducedMatrixSemantics.decodedEnv geometry assignment)
+    (Spartan.pullback (decodedEnv geometry assignment))
+    (RunningTransitionSourceSupport.logicalConstraints_varsSatisfy _ _ expression member)
+    (reduced_decode_agrees geometry assignment)
+  rw [← same]
+  exact logical expression member
 
 /-- The transition's state input is read from its declared owned form. -/
 theorem stateWord_eq_form

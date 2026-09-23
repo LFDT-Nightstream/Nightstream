@@ -8,10 +8,10 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 4_703_127;
+pub const ACTIVE_ROWS: usize = 4_147_335;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 184_359_519;
-pub const CARRIER_WIDTH: usize = 184_359_564;
+pub const LOGICAL_WIDTH: usize = 172_217_903;
+pub const CARRIER_WIDTH: usize = 172_217_934;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {

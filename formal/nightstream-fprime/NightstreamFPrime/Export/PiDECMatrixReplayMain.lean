@@ -104,8 +104,8 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
         throw (IO.userError "range exceeds matrix row domain")
       match selected with
       | .poseidon _ =>
-          unless request.firstRow % 94 = 0 && request.lastRow % 94 = 0 do
-            throw (IO.userError "Poseidon range must contain complete 94-row invocations")
+          unless request.firstRow % 86 = 0 && request.lastRow % 86 = 0 do
+            throw (IO.userError "Poseidon range must contain complete 86-row invocations")
       | .phi81Product _ =>
           unless request.firstRow % 108 = 0 && request.lastRow % 108 = 0 do
             throw (IO.userError "Phi81 range must contain complete 108-row invocations")
@@ -142,22 +142,22 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
           Fin productionGlobalParams.k →
           Vector MaterializedRingK matrixCount) ← match selectedEq : selected with
         | .poseidon block => do
-            unless firstRow % 94 = 0 && lastRow % 94 = 0 do
-              throw (IO.userError "Poseidon range must contain complete 94-row invocations")
-            let invocations := lastRow / 94 - firstRow / 94
-            have blockBound : lastRow ≤ block.invocationCount * 94 := by
+            unless firstRow % 86 = 0 && lastRow % 86 = 0 do
+              throw (IO.userError "Poseidon range must contain complete 86-row invocations")
+            let invocations := lastRow / 86 - firstRow / 86
+            have blockBound : lastRow ≤ block.invocationCount * 86 := by
               simpa only [selectedEq, MatrixProgram.Block.rowCount,
                 MatrixProgram.Poseidon.Block.rowCount] using bounds.2
             let interfaces ← Vector.ofFnM fun (index : Fin invocations) => do
-              have invBound : firstRow / 94 + index.val < block.invocationCount := by
+              have invBound : firstRow / 86 + index.val < block.invocationCount := by
                 dsimp only [invocations] at index
                 omega
               let some interface := PiDECPoseidonNumericBlock.loadInvocation?
-                  block logicalWidth ⟨firstRow / 94 + index.val, invBound⟩
+                  block logicalWidth ⟨firstRow / 86 + index.val, invBound⟩
                 | throw (IO.userError "selected invocation interface rejected")
               pure interface
             pure (invocations, fun lo hi child =>
-              PiDECMatrixInvocationRange.sum (first + 94 * lo) phase.point (readChild child)
+              PiDECMatrixInvocationRange.sum (first + 86 * lo) phase.point (readChild child)
                 (interfaces.extract lo hi))
         | .phi81Product block => do
             if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then

@@ -1,4 +1,53 @@
-# Committed witness reduction
+# Constraint reduction
+
+## Active goal
+
+Owner update, 2026-09-22: **substantially decrease the number of constraints,
+and run the experiments as fast as possible.** Experiment speed is a
+requirement of this work. A proving-time comparison is not the current goal.
+
+On 2026-09-23, the owner explicitly authorized committing and pushing this
+tested change, overriding the historical no-commit instruction for this task.
+
+Preserve the proved 27.13% checkpoint. Investigate the additional 50%
+committed-coordinate target: **184,359,564 to at most 92,179,782**. This is a
+research target, not an assumed feasible result. Track committed coordinates,
+logical rows, and matrix nonzero entries separately. Moving cost between
+these measures does not establish an overall improvement.
+
+Keep the specification, soundness, constructive completeness, witness maps,
+security assumptions, Goldilocks, Poseidon2, and the exact production profile
+`b = 2`, `k_rho = 16`, `B = 65536` unchanged.
+
+For each experiment batch:
+
+- Choose the fastest sound way to resolve its specific open claim. Reuse
+  prior results when the relevant source and assumptions are unchanged.
+- Use exact cost calculations and small cvc5 queries to reject bad candidates
+  before large proof or integration work. Check counterexamples independently.
+- Check emitter input roles, changed block indices, and alignment counts
+  before full fixture runs. Derive the verifier-context digest from its Lean
+  descriptor; it is distinct from the verification-key digest.
+- Run the affected Lean targets and axiom audits. Batch dependent edits before
+  full library and audit checks; repeat broad checks only after a stable batch
+  or when a concrete failure requires them. `validate.sh axioms` builds
+  `tests.Axioms`, which imports the production `NightstreamFPrime` root; one
+  successful run covers that library and the audit targets. Do not precede it
+  with a duplicate full-library build on the same source.
+- Keep incremental build products and reuse common preparation. Use the
+  existing parallel build while keeping one Lean or Rust build process.
+- Search papers, primary documentation, blogs, and source repositories for
+  applicable ideas. Use focused dependency queries instead of broad graph
+  exports. New tools must address an actual open constraint or proof problem.
+- Remove demonstrated repeated work from the experiment loop. Do not start
+  a separate timing-comparison task in place of constraint reduction.
+
+Continue authorized Lean work after a successful batch. Paused benchmarks
+are not a blocker for that work. Keep package and fixture regeneration and
+Rust benchmarks paused until the chosen layout and proofs are stable. Then
+complete the required production integration and its checks.
+
+## Preserved checkpoint and current candidate
 
 Status: the 27.1339% Lean carrier reduction and complete canonical direct
 producer proof are saved in signed checkpoint `6bcdbb7c`. The latest full
@@ -13,12 +62,76 @@ rejection, commitment, pilot, binding, and identity checks passed. Actual NIFS
 regeneration and the complete independent comparison passed; native and Lean
 base/recursive fixtures are published. Final Nightstream tests passed.
 All correctness and integration checks for this quotient checkpoint are
-complete. The candidate lifecycle benchmark remains pending, and no runtime
-improvement is claimed.
+complete. The owner stopped timing comparisons and directed further work to
+constraint reduction. The candidate lifecycle benchmark was not started and
+is not a blocker for this research. No runtime improvement is claimed.
+
+The selected Lean layout now includes the shared running-transition flag and
+Poseidon output-pin removal. It proves **172,217,934 committed coordinates**,
+**172,217,903 logical coordinates**, and **4,147,335 logical rows**. The full
+retained-assignment transport, arbitrary-assignment soundness, constructive
+witness construction, strict norm bound, and exact matrix-program comparison
+passed the combined production-library and axiom target (4,224 jobs). Static
+checks passed. The fixed profile and semantic specification are unchanged.
+
+The transition uses 42 local coordinates and 49,359 rows. Its assignment
+schedule contains 31 blocks. Block opcodes follow that canonical order;
+the shared flag is opcode 14, and the output-digest block is opcode 24.
+The compact transition no longer requires the old R1CS row accessor.
+
+After this stable Lean batch, affected packages and parity fixtures were
+regenerated from Lean. Selected Rust conformance passed. The new package has
+SHA-256 `fc3d8a8e798fde5ebabd388c64d5caa3d29116cfac1bb38a7142e888cdd66c6a`;
+this identifies bytes and is not proof authority. Staging records and the
+replaced checkpoint artifacts are in `/tmp/nightstream-running-flag-sGbJD2`.
+The signed quotient checkpoint remains in Git. Prover benchmarks remain paused.
+
+The measured matrix count is **2,968,490,185**. The independent Rust
+comparison checked all 4,147,335 logical rows in all fourteen matrices and
+matched the Lean plan exactly. All three measures are below the quotient
+checkpoint. Matrix nonzeros remain above the original baseline; no overall
+performance improvement is claimed. The additional 50% coordinate target is
+not established. The
+Poseidon S-box block alone still contains 114,443,382 coordinates, and the
+tested encoding classes do not provide the required reduction. This is not
+a proof of global impossibility. See [the remaining budget](remaining-witness-budget.md)
+and [the shared-flag proof record](running-transition-next-candidate.md).
+
+## Selected shared-flag integration evidence
+
+The selected Rust path passed the complete independent logical-matrix and
+physical-matrix comparisons, every retained-coordinate comparison, all
+logical rows, 305 assignment mutation controls, the three derived-recipe
+rejections, and the matrix order/column/coefficient rejection controls.
+Direct CCS and full witness construction agree. Changed packages retain the
+full validation path. Setup, sparse commitment, pilot, binding, and loader
+checks passed.
+
+The new actual C → R → D fixture passed the normal verifier. Its six active
+child openings use three checked batches. Independent Lean outputs match
+all phase values, children, transcript, and the 945,983-byte proof. All 43
+NIFS and 55 PiDEC mutation cases reject. The four native/Lean NIFS and
+recursive artifacts are published. The
+[fixture record](../../../crates/neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs/README.md)
+contains their hashes and exact scope.
+
+Nightstream's complete package assembly, saved proof/transcript, recursive
+successor assignment, detached-input rejection, and key-prefix authority
+checks passed. The key-prefix test first used the old width; the five other
+active lifecycle tests passed, and the corrected key-prefix test then passed
+its focused rerun. The three existing full lifecycle tests stayed ignored;
+no lifecycle benchmark or new nonzero-prior NIFS execution is claimed.
+
+Initial integration failures exposed a wrong fixture context argument and
+stale padding/output-block/key-prefix test constants. These were corrected;
+the affected checks passed. Their failed logs remain in the staging record.
+No Lean specification, profile, security assumption, or rejection requirement
+was weakened. Formatting and the final diff check passed. The external
+review files were absent at the required 00:20 UTC check on 2026-09-23.
 
 ## Contract
 
-The owner requested a reduction of at least 25% from the selected
+The initial, achieved target was a reduction of at least 25% from the selected
 253,011,276-coordinate committed carrier. Whole Phi81 blocks have 54
 coordinates, so the largest aligned carrier that meets this request is
 189,758,430 coordinates.
@@ -199,7 +312,7 @@ The saved NIFS and recursive caller fixtures are published, and the final
 Nightstream correctness and integration checks passed. The before/after
 runtime comparison remains pending.
 
-## Current integration checks
+## Quotient checkpoint integration checks
 
 The current emitter passed in 58 seconds. It produced exactly the same
 128,098,903-byte package as the `8b7c07d8` candidate, with SHA-256

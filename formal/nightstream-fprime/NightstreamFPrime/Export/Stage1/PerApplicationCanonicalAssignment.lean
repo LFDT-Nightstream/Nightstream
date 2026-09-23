@@ -112,7 +112,9 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.piDecBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.freshBlock application)
+  , Canonical.ofBlock (RunningTransitionReducedRetainedBlocks.inverseBlock application)
+      raw.retainedSource
+  , Canonical.ofBlock (RunningTransitionReducedRetainedBlocks.flagBlock application)
       raw.retainedSource
   , Canonical.ofBlock
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock application)
@@ -158,7 +160,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 30 := by
+    (raw : RawValues application) : raw.schedule.length = 31 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -196,7 +198,9 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiCCSOrdinaryRetainedGeometry.priorLastStart
     PiCCSOrdinaryRetainedGeometry.freshPublicInputStart
     PiCCSOrdinaryRetainedGeometry.prefixLogicalWidth
-    RunningTransitionRetainedGeometry.completeLogicalWidth
+    RunningTransitionReducedRetainedBlocks.nextStart
+    RunningTransitionReducedRetainedBlocks.flagStart
+    RunningTransitionReducedRetainedBlocks.inverseStart
     RunningTransitionRetainedGeometry.freshStart
     RunningTransitionRetainedGeometry.piDecStart
     PiRLCPoseidonGeometry.pilotLogicalWidth
@@ -211,6 +215,7 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiRLCRetainedGeometry.laterPoseidonStart
     PiRLCRetainedGeometry.outputPoseidonStart
     PiRLCRetainedGeometry.priorPoseidonStart
+  have reduced := RunningTransitionReducedRetainedBlocks.local_geometry application
   omega
 
 namespace RawValues

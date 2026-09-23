@@ -181,7 +181,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     (retainedStart program) (retainedFits geometry)
     (oneColumn geometry) (inputState geometry)
 
-theorem familyRowCount_le : invocationCount * 94 ≤
+theorem familyRowCount_le : invocationCount * 86 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -195,7 +195,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 14382 := by
+    (plan geometry).rowCount = 13158 := by
   rw [plan, PoseidonSboxFamilyPlan.plan_rowCount, invocationCount_eq]
 
 theorem rowsZero_iff

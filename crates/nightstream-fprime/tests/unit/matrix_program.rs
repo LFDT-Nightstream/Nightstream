@@ -152,7 +152,7 @@ fn projection_program(projection: Value) -> MatrixProgram {
 fn every_lean_matrix_opcode_decodes_exact_rows() {
     let program = MatrixProgram::decode(&encoded_program()).expect("matrix program");
     program.validate(1).expect("source schedule");
-    assert_eq!(program.row_count().expect("row count"), 205);
+    assert_eq!(program.row_count().expect("row count"), 197);
 
     assert_eq!(entries(&program, 0, 1), vec![(5_999, 1)]);
     assert_eq!(entries(&program, 0, 2), vec![(0, 3), (5_999, 2)]);
@@ -179,9 +179,9 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     assert_eq!(entries(&program, poseidon_row + 32, 4)[0].0, 100 + 32 * 41);
     assert_eq!(entries(&program, poseidon_row + 54, 4)[0].0, 100 + 54 * 41);
 
-    assert!(entries(&program, poseidon_row + 86, 4).is_empty());
+    assert_eq!(entries(&program, poseidon_row + 85, 4)[0].0, 100 + 85 * 41);
 
-    let phi_row = poseidon_row + 94;
+    let phi_row = poseidon_row + 86;
     assert_eq!(
         entries(&program, phi_row, 0),
         vec![(4_000, 1), (5_999, GOLDILOCKS_MODULUS - 2)]

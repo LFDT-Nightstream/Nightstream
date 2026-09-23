@@ -58,13 +58,14 @@ fn shared_poseidon_templates_match_every_reference_row() {
         assert_eq!(output.terms()[0].column_count(), 41);
         assert_eq!(output.entries().len(), 41);
         let mut partial = Vec::new();
+        let terminal_round_start = 4 * 8 + 22;
         actual
-            .visit_rows(logical_width, 86, count - 1, |row| {
+            .visit_rows(logical_width, terminal_round_start, count - 1, |row| {
                 partial.push(row);
                 Ok(())
             })
             .unwrap();
-        assert_eq!(partial, visited[86..count - 1]);
+        assert_eq!(partial, visited[terminal_round_start..count - 1]);
         assert!(actual.row(logical_width, count).is_err());
         assert!(actual
             .visit_rows(logical_width, count, count - 1, |_| Ok(()))

@@ -65,8 +65,8 @@ impl Relation {
             return Err("unexpected sealed relation envelope".into());
         }
         let fields = exact_array(&raw, 6, "CCS relation")?;
-        if word(&fields[0], "CCS row count")? != 4_703_127
-            || word(&fields[1], "CCS column count")? != 184_359_519
+        if word(&fields[0], "CCS row count")? != 4_147_335
+            || word(&fields[1], "CCS column count")? != 172_217_903
             || word(&fields[2], "CCS cube variables")? != 28
             || array(&fields[3], "CCS matrix sources")?
                 .iter()

@@ -64,4 +64,31 @@ theorem logicalConstraints_varsSatisfy
     (interface logicalWidth publicFits) phaseOffset Logical
       (inputsSupported logicalWidth publicFits)
 
+/-- Every logical input precedes the removed lowering scratch. -/
+theorem logical_lt_columnCount (column : Nat)
+    (source : Logical column) : column < RunningTransitionLayout.logicalColumnCount := by
+  change column < 29040587
+  rcases source with (state | output | point | piDec) | inverse
+  · have upper := state.2
+    change column < 28 + 11 at upper
+    omega
+  · have upper := output.2
+    change column < 49663 + 49393 at upper
+    omega
+  · rcases point with ⟨coordinate, c0 | c1⟩
+    all_goals subst column
+    all_goals
+      have bound := coordinate.isLt
+      change coordinate.val < 28 at bound
+      rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+      norm_num [RunningTransitionInputs.roundStride, RunningTransitionInputs.roundSampleC0Offset,
+        RunningTransitionInputs.roundSampleC1Offset]
+      omega
+  · have upper := (RunningTransitionSourceSupport.piDecField_inRange piDec).2
+    change column < 28973248 + 49248 at upper
+    omega
+  · subst column
+    decide
+
+
 end NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport

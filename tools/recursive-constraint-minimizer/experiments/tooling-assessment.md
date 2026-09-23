@@ -218,3 +218,17 @@ for the accepted transformation. The
 [Lean kernel](https://lean-lang.org/doc/reference/latest/Elaboration-and-Compilation/)
 checks proof terms. Dependency visualization does not replace that check
 or establish Rust conformance and runtime improvement.
+
+## Finite-field proof reconstruction follow-up, 2026-09-22
+
+[FF_CVC5_Lean](https://github.com/NethermindEth/FF_CVC5_Lean) reconstructs
+cvc5 finite-field proofs in Lean. Its repository was archived on September 9,
+2026; its README reports that `grind` was faster on its current examples.
+This does not establish a faster path for the present obligations. No new
+proof dependency is needed for the already checked shared-flag equations.
+
+The [cvc5 finite-field documentation](https://cvc5.github.io/docs/latest/theories/finite_field.html)
+describes both the Gröbner-basis and split solvers. The present saved searches
+use the Gröbner-basis solver and independent counterexample checks. Solver
+results remain candidate evidence; the selected change has separate Lean
+soundness, constructive completeness, and witness-map proofs.

@@ -6,6 +6,20 @@ Research checkpoint: `8b7c07d8`, checked on 2026-09-22. The new owner target is
 Keep Goldilocks, Poseidon2, degree strictly below nine, `b = 2`, `k_rho = 16`,
 `B = 65536`, the existing relation, and the existing security assumptions.
 
+The selected Lean shared-flag layout and Poseidon pin removal now give:
+
+| Measure | Quotient checkpoint | Selected layout |
+|---|---:|---:|
+| Committed coordinates | 184,359,564 | 172,217,934 |
+| Logical rows | 4,703,127 | 4,147,335 |
+| Matrix nonzeros | 3,001,571,645 | 2,968,490,185 |
+
+The complete Lean soundness, constructive witness maps, norm bound, and
+matrix proofs passed. Independent Rust comparison checked every logical
+matrix row and confirmed the nonzero count. Selected Rust fixture and consumer checks
+passed. [Current count evidence](running-transition-metrics.json)
+is separate from the preserved checkpoint below.
+
 ## Exact costs and the main tradeoff
 
 The quotient change saves **27.1339% of committed coordinates**, but increases
@@ -29,7 +43,7 @@ execution cost are separate measures, as required by the CCS cost model in
 [HyperNova](https://eprint.iacr.org/2023/573). Dense quotient evaluation forms
 make this distinction material here.
 
-The remaining coordinates have the following exact partition. Counts use
+The quotient checkpoint has the following exact coordinate partition. Counts use
 retained allocation owners; shared source views are counted once.
 
 | Allocation | Coordinates | Source formula |
@@ -75,6 +89,16 @@ coordinates gives 22,263,600: an 80.5462% reduction of that block. Padding must
 be recomputed for any new layout. Even deleting both pilot S-box blocks
 entirely would leave 97,267,364 coordinates, still above the target. These
 are budget tests, not valid deletion proposals.
+
+The selected [shared-flag layout](running-transition-next-candidate.md) closes
+the full retained-assignment transport. It removes 12,141,616 logical
+coordinates from the transition allocation, leaving 2,019,210 there and
+57,774,521 in all non-S-box allocations. The selected carrier has 31 padding
+coordinates. Its gap to the research target is **80,038,152 coordinates**.
+If that whole gap came from the unchanged S-box block, about **69.9369%**
+of that block would have to be removed. Padding must be recomputed for a new
+layout. Poseidon output-pin removal saves rows, with no S-box-coordinate
+saving. The original checkpoint remains preserved in Git.
 
 ## What the local experiments establish
 
@@ -192,8 +216,9 @@ successful arrays that agree outside scratch. `successful_assignment_eq`
 proves equality of the complete retained CCS assignment and public digest
 for the selected Poseidon application. The proof includes actual recipe and
 hint reads, permutation inputs, ordinary instructions, and First54 compact
-recipes and A/B/C checks. The full physical executor remains the reference;
-Rust producer integration is still pending.
+recipes and A/B/C checks. The full physical executor remains the reference.
+The canonical package and Rust direct producer are integrated in checkpoint
+`f42a6d53d`; the selected assignment and lifecycle checks passed.
 
 Checkpoint validation passed: full Lean library, 4,018 jobs in 79 s; full
 axiom/test build, 4,177 jobs in 26 s. New focused checks include research
@@ -207,9 +232,10 @@ in 130 s** and the full axiom/test gate with **4,207 jobs in 100 s**, including
 **71 new public theorem audits**. These are build/check times, not prover
 benchmarks. Candidate checks measured 42.43 s
 for all logical matrices, 26.67 s for physical matrices, 75.81 s for identity
-rejections, and 70.88 s for the complete base assignment. The combined
-assignment regression reached its 300 s cap; the output-digest recipe case
-remains open. Detailed completed coverage is in [PLAN.md](PLAN.md).
+rejections, and 70.88 s for the complete base assignment. The earlier combined
+assignment regression reached its 300 s cap. The split output-digest recipe
+check subsequently passed, closing that rejection case. Detailed completed
+coverage is in [PLAN.md](PLAN.md).
 
 The exact old-layout CPU baseline used the same reference application and
 Nightstream `k_rho = 16` profile on the AMD host:
@@ -223,9 +249,10 @@ Nightstream `k_rho = 16` profile on the AMD host:
 and final state. Its 1,200 s cap had specific owner approval. The earlier
 300 s attempt timed out during verification and remains a failed attempt;
 it completed an active fold in 224.995 s. No candidate lifecycle benchmark
-has run. Production selection, saved recursive fixtures, the remaining Rust
-gate, and a matched before/after comparison remain pending. Further package,
-fixture, and Rust benchmark runs are paused for this research phase.
+has run. Production selection, saved recursive fixtures, and the final Rust
+checks are complete. The owner stopped timing comparisons and directed work
+to constraint reduction. The next Lean batch is now stable; its required artifact and fixture
+integration passed. Timing comparisons remain paused.
 
 A viable half-coordinate candidate remains unknown. Any proposed replacement
 must prove the unchanged relation, constructive completeness, efficient

@@ -345,11 +345,16 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       apply shiftedSource_after
       change 28973248 ≤ 28973248 + slot.val
       omega
-  | runningFresh =>
-      apply shiftedSource_after
-      have lower : PiRLCStarts.outputFreshStart ≤ RunningTransitionInputs.phaseOffset := by decide
-      change PiRLCStarts.outputFreshStart ≤ RunningTransitionInputs.phaseOffset + slot.val
-      omega
+  | runningInverse =>
+      simp only [BlockKind.template, RunningTransitionReducedRetainedBlocks.inverseBlock]
+      change Outside (RunningTransitionReducedRetainedBlocks.inverseSource application).val
+      rw [(RunningTransitionReducedRetainedBlocks.source_addresses application).1]
+      exact Or.inr (by rw [scratchEnd_eq]; decide)
+  | runningFlag =>
+      simp only [BlockKind.template, RunningTransitionReducedRetainedBlocks.flagBlock]
+      change Outside (RunningTransitionReducedRetainedBlocks.flagSource application).val
+      rw [(RunningTransitionReducedRetainedBlocks.source_addresses application).2]
+      exact Or.inr (by rw [scratchEnd_eq]; decide)
   | piCcsFreshPublicInput =>
       apply shiftedSource_before
       have bound := slot.isLt

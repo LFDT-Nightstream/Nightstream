@@ -11,7 +11,7 @@ use crate::WitnessAssignment;
 use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
 
 const TRANSPORT_SCHEMA: usize = 3;
-pub(super) const BLOCK_COUNT: usize = 30;
+pub(super) const BLOCK_COUNT: usize = 31;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
@@ -24,7 +24,7 @@ const FIRST54_REJECT_BLOCK: usize = 4;
 const FIRST54_SYMBOL_BLOCK: usize = 5;
 const FIRST54_VALUE_BLOCK: usize = 7;
 const FIRST54_PRODUCT_BLOCK: usize = 8;
-const OUTPUT_DIGEST_BLOCK: usize = 23;
+const OUTPUT_DIGEST_BLOCK: usize = 24;
 
 /// Lean-authored block order for the final logical assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -319,7 +319,7 @@ impl BlockPlan {
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            28..=29 => SourceDomain::Physical,
+            29..=30 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {

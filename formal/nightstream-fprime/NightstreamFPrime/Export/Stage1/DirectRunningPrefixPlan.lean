@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan
 
 /-!
 Owns the one ordered direct 14-matrix plan through the running-instance
@@ -42,7 +43,7 @@ def transitionPlan
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  RunningTransitionDirectPlan.plan relation geometry
+  RunningTransitionReducedPlan.plan geometry
 
 theorem rowCount_le
     {program : Lifecycle.Stage1.Application.Program}
@@ -56,7 +57,7 @@ theorem rowCount_le
     (prefixPlan payloadForms values geometry).rowCount + (transitionPlan relation geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [prefixPlan, DirectPrefixPlan.plan_rowCount, transitionPlan,
-    RunningTransitionDirectPlan.plan_rowCount]
+    RunningTransitionReducedPlan.plan_rowCount]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
 def plan
@@ -81,7 +82,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 3636010 := by
+    (plan relation payloadForms values geometry).rowCount = 3080218 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -112,7 +113,7 @@ structure Encodes
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   prior : DirectPrefixPlan.Encodes payloadForms values (prefixGeometry geometry) assignment
     base groupValue products
-  transition : RunningTransitionRetainedGeometry.Encodes geometry assignment
+  transition : RunningTransitionReducedEncoding.Encodes geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
       program base groupValue products)
 
@@ -130,8 +131,10 @@ structure Semantics
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   prior : DirectPrefixPlan.Semantics payloadForms (prefixGeometry geometry) assignment base
     groupValue products
-  transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
-    logicalWidth publicFits
+  transition : Lifecycle.Stage1.RunningTransition.SpecHolds
+    (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+      logicalWidth publicFits)
+    NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback
       (RunningTransitionDirectPlan.transitionEnv program base))
 
@@ -176,8 +179,10 @@ theorem rowsZero_implies_semantics
   · exact DirectPrefixPlan.rowsZero_implies_semantics
       payloadForms values (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.prior children.1
-  · exact (RunningTransitionDirectPlan.rowsZero_iff_physical
-      relation geometry assignment base groupValue products one
-      encodes.transition).mp children.2
+  · apply RunningTransitionReducedEncoding.accepts_implies_spec geometry assignment
+      base groupValue products encodes.transition relation
+      (RunningTransitionRetainedGeometry.oneColumn geometry) (fun _ => none) one
+    exact (RunningTransitionReducedPlan.rowsZero_iff_accepts relation geometry
+      (fun _ => none) assignment).mp children.2
 
 end NightstreamFPrime.Export.Stage1.DirectRunningPrefixPlan

@@ -50,7 +50,7 @@ def fitsTwoPow28OfApplicationBounds
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
       239098731)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 2058331) :
+      ApplicationRetainedBlocks.localCount application ≤ 2354468) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
@@ -112,7 +112,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      4695418 + (PerApplicationPackage.applicationPlan application).rowCount +
+      4139626 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package

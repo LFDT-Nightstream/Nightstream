@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
 /-!
 Evaluate the existing Poseidon invocation rows as stored field values. The
@@ -89,19 +90,6 @@ private theorem rowsWithState_rows {columns : Nat} (read : Fin columns → F)
       dsimp only
       rw [inductionHypothesis, rowsFrom]
 
-private theorem rowsWithState_state {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
-    (state : PoseidonSboxPlan.State columns) (steps : List Permutation.Step) :
-    (rowsWithState read interface next (stateValues read state) steps).2 =
-      stateValues read (PoseidonSboxPlan.compile interface next state steps).state := by
-  induction steps generalizing next state with
-  | nil => rfl
-  | cons step rest inductionHypothesis =>
-      rw [rowsWithState, stepValues_value]
-      dsimp only
-      rw [stateStep_eq, nextIndex_value, inductionHypothesis]
-      rfl
-
 private def referenceRowValues {columns : Nat} (read : Fin columns → F) :
     PoseidonSboxPlan.Row columns → PortValues
   | .sbox forms => rowValues read forms
@@ -120,77 +108,39 @@ private theorem referenceRowValues_get {columns : Nat} (read : Fin columns → F
           PinRow.Forms.meaningfulForm, meaningfulPort?, RowSemantics.pin,
           RowSemantics.multiplication, RowSemantics.general, PortValues.get]
 
-private def pinValues {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) : List PortValues :=
-  let output := stateValues read (PoseidonSboxPlan.directOutput interface)
-  List.ofFn fun lane : Fin 8 => RowSemantics.pin (read interface.oneColumn)
-    ((interface.output lane).evalSparse read - output.get lane)
-
-private theorem pinValues_value {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) :
-    pinValues read interface =
-      (PoseidonSboxPlan.outputRows interface).map
-        (fun row => referenceRowValues read (.pin row)) := by
-  unfold pinValues PoseidonSboxPlan.outputRows
-  rw [List.map_ofFn]
-  apply congrArg List.ofFn
-  funext lane
-  simp only [Function.comp_apply, referenceRowValues, SparseForm.evalSparse_eq_eval,
-    PoseidonSboxPlan.selector, SparseForm.singleton_eval, one_mul,
-    PoseidonSboxPlan.outputDifference, SparseForm.add_eval, SparseForm.scale_eval,
-    PoseidonSboxPlan.trace_state_eq_directOutput, stateValues_value,
-    SparseLayer.evalState, sub_eq_add_neg, neg_one_mul]
-
-/-- Compute all 94 existing port-value records. The final eight pins reuse
-the stored final state, so every retained S-box output is evaluated once. -/
+/-- Compute exactly the retained nonlinear rows; no final pin is emitted. -/
 @[specialize] def values {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : List PortValues :=
-  let produced := rowsWithState read interface 0
-    (stateValues read interface.input) Permutation.schedule
-  let selector := read interface.oneColumn
-  produced.1 ++ List.ofFn fun lane : Fin 8 =>
-    RowSemantics.pin selector
-      ((interface.output lane).evalSparse read - produced.2.get lane)
+  (rowsWithState read interface 0
+    (stateValues read interface.input) Permutation.schedule).1
 
 private theorem values_eq_rows {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    values read interface = (PoseidonSboxPlan.rows interface).map
+    values read interface = (PoseidonRetainedRows.rows interface).map
       (referenceRowValues read) := by
-  have finalState :
-      (rowsWithState read interface 0 (stateValues read interface.input)
-        Permutation.schedule).2 =
-      stateValues read (PoseidonSboxPlan.directOutput interface) := by
-    rw [rowsWithState_state]
-    simpa only [PoseidonSboxPlan.trace] using
-      congrArg (stateValues read) (PoseidonSboxPlan.trace_state_eq_directOutput interface)
-  unfold values
-  dsimp only
-  rw [rowsWithState_rows, finalState]
-  change rowsFrom read interface 0 (stateValues read interface.input)
-    Permutation.schedule ++ pinValues read interface = _
-  rw [rowsFrom_value, pinValues_value]
-  simp only [PoseidonSboxPlan.rows, PoseidonSboxPlan.trace, List.map_append,
+  rw [values, rowsWithState_rows, rowsFrom_value]
+  simp only [PoseidonRetainedRows.rows, PoseidonSboxPlan.trace,
     List.map_map, Function.comp_def, referenceRowValues]
 
 /-- The numeric result has exactly the row count of the canonical template. -/
 theorem values_length {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    (values read interface).length = 94 := by
-  rw [values_eq_rows, List.length_map, PoseidonSboxPlan.rows_length]
+    (values read interface).length = 86 := by
+  rw [values_eq_rows, List.length_map, PoseidonRetainedRows.rows_length]
 
 /-- Store the complete invocation result for constant-time indexed reads. -/
 @[inline] def stored {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 94 :=
+    (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 86 :=
   ⟨(values read interface).toArray, by simp only [List.size_toArray, values_length]⟩
 
 /-- Every computed port equals the original row's sparse evaluation. This
 includes the empty ports and requires no valid-row or selector assumption. -/
 theorem stored_value {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 94)
+    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 86)
     (port : Fin matrixCount) :
     ((stored read interface).get row).get port =
-      (((PoseidonSboxPlan.rows interface).get
-        ⟨row.val, by rw [PoseidonSboxPlan.rows_length]; exact row.isLt⟩).portForm port).evalSparse read := by
+      (((PoseidonRetainedRows.rows interface).get
+        ⟨row.val, by rw [PoseidonRetainedRows.rows_length]; exact row.isLt⟩).portForm port).evalSparse read := by
   change ((values read interface).toArray[row.val]).get port = _
   rw [List.getElem_toArray]
   simp only [values_eq_rows, List.getElem_map]

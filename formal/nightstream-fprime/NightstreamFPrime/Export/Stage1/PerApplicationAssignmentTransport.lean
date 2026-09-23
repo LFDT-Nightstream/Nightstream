@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
-The transport keeps the existing 30 retained block plans and adds only the
+The transport keeps the 31 retained block plans and adds only the
 recipes that cannot be recovered from their source runs: Phi81 quotient coefficients,
 First54 accepted-symbol products and the four
 verifier-owned output-digest words.
@@ -254,7 +254,7 @@ def canonical (program : Program) : Plan where
   outputDigestExpressions := outputDigestExpressions program
 
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 30 := by
+    (canonical program).blocks.length = 31 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

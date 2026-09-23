@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Validation defaults to the project cap; an owner-authorized zero disables it.
 #   validate.sh static            boundary checks only (no Lean)
-#   validate.sh build [target]    lake build (default: the two libraries)
+#   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh identity          recompute canonical binding and compare pins
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
@@ -97,7 +97,11 @@ case "$phase" in
     shift
     capped "$@"
     ;;
-  build)  capped lake build "${2:-NightstreamFPrime}" ;;
+  build)
+    shift
+    if (( $# == 0 )); then set -- NightstreamFPrime; fi
+    capped lake build "$@"
+    ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
   pi-ccs-first-round)
     if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi

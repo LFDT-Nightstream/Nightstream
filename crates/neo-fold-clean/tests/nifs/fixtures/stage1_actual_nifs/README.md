@@ -1,49 +1,45 @@
 # Selected actual NIFS fixture
 
-These are the published outputs of the staged quotient-package base
-C → R → D run in `/tmp/nightstream-quotient-nifs-6bcdbb7c`. The quotient
-layout was introduced at `8b7c07d8`; the complete Lean producer proof is saved
-at signed checkpoint `6bcdbb7c`. The Rust integration changes are still
-uncommitted at this update.
+These outputs use the Lean-proved shared running-transition flag and the
+86-row Poseidon retained template. The complete staged C → R → D run is in
+`/tmp/nightstream-running-flag-sGbJD2/nifs`. The 27.13% quotient checkpoint remains in Git at
+`6bcdbb7c` (proof) and `f42a6d53d` (integration). The shared-flag checkpoint
+includes the selected Lean layout, Rust consumer, and these checked fixtures.
 
-C and R use actual source witnesses. The R parent commitment and all canonical
-split witnesses were recomputed. Children 0 through 5 are active; their
-openings were computed separately. The remaining ten children use the checked
-zero-opening branch. The normal NIFS verifier accepts, and all 43 recorded
-NIFS mutations are rejected.
+C and R use actual source witnesses. The parent commitment and all canonical
+split witnesses were recomputed. Active children are `[0, 1, 2, 3, 4, 5]`. Child
+openings share preparation within checked batches; inactive children use the
+checked zero-opening branch. The normal NIFS verifier accepts and all
+43 NIFS mutation cases reject.
 
-`actual_result.json` holds the complete observed phase values. `proof.bin`
-holds the 945,983-byte native encoding. The independent Lean expectation is
+`actual_result.json` holds complete observed phase values. `proof.bin` holds
+the 945,983-byte native encoding. The independent Lean expectation is
 `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-nifs-result-v1.json`.
-The comparison checks the current pinned package, complete phase outputs,
-wire encoding, final children and transcript, and the 55 D rejection cases.
-The independent Lean recursive caller fixture is
+The comparison checks the pinned package, complete phase values, proof bytes,
+children, transcript, and 55 PiDEC rejection cases. The independent
+recursive caller fixture is
 `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json`.
-Both Lean files and the native result/proof are published. This establishes
-the fixture's conformance, not universal Rust semantics or a new nonzero-running
-NIFS execution. Final Nightstream tests and the candidate lifecycle benchmark
-remain pending. No overall speed or memory improvement is claimed.
+Both Lean files are generated from the source inputs and child claims;
+the native result is not used as their expected output.
 
-| Stage | Result | Seconds |
-| --- | --- | ---: |
-| PiCCS proving and verification | Passed | 195.254 |
-| PiRLC parent | Passed | 76.306 |
-| Parent replay, commitment and canonical split | Passed | 166.380 |
-| Child 0 opening | Passed | 221.122 |
-| Child 1 opening | Passed | 222.475 |
-| Child 2 opening | Passed | 221.158 |
-| Child 3 opening | Passed | 203.917 |
-| Child 4 opening | Passed | 208.760 |
-| Child 5 opening | Passed | 169.425 |
-| NIFS assembly, verification and 43 mutations | Passed | 213.997 |
-| Independent Lean base C/R/D result | Passed | 10.797 |
-| Independent Lean recursive caller fixture | Passed | 11.906 |
+This is fixture conformance. It does not establish universal Rust semantics
+or a new execution with nonzero prior running claims. Final published-fixture
+and Nightstream consumer checks are recorded in the constraint experiment
+plan. Every native invocation uses the project 300-second cap; Lean uses
+the 1,500-second cap. Prover benchmarks remain paused.
 
-`compare.log` records `complete_nifs_wire=passed bytes=945983`, 55
-`pi_dec_mutation` rejections, `saved_actual_pi_dec=passed`, and
-`actual_selected_nifs_Lean_comparison=passed`. Each native command used the
-300-second cap; Lean commands used the 1,500-second cap. These are stage
-execution times, not a matched lifecycle benchmark.
+The Nightstream Goldilocks profile remains `b = 2`, `k_rho = 16`, `B = 65536`,
+with Poseidon2 protocol binding. The package identity is `[1105382808279536156, 17493643376564198179, 11015230893293348642, 7958894448054009516]`.
+
+| Measure | Quotient checkpoint | Selected layout |
+|---|---:|---:|
+| Committed coordinates | 184,359,564 | 172,217,934 |
+| Logical rows | 4,703,127 | 4,147,335 |
+| Matrix nonzeros | 3,001,571,645 | 2,968,490,185 |
+
+Committed coordinates are 31.9327% below the original 253,011,276 baseline.
+Matrix nonzeros remain above the original 2,335,822,475 baseline. These
+counts do not establish an overall performance improvement.
 
 From the repository root:
 
@@ -53,29 +49,18 @@ timeout --signal=KILL 300 cargo test -p neo-fold-clean --release \
   -- --exact --nocapture
 ```
 
-The following hashes were computed from the published files. They identify
-fixture bytes; they are not protocol authority.
+These SHA-256 values identify published bytes; they are not protocol authority.
 
 | Artifact | SHA-256 |
-| --- | --- |
-| Current package | `6216d1f62250a58d073ecf0a908bd074d3834957ec5be3361620bbdeb5a97642` |
-| Base caller fixture | `27da134177d8ad9ca26501e25646a90195e159b5f37fb0985592bb8e004a5cbe` |
-| `actual_result.json` | `9d7af1fd1b7723bcfc379c2b64ae966df8818b13d396028a9b7c25a6d3eebf1b` |
-| `proof.bin` | `3979f992efaa9aaf5bba3e208912530d12f14285e092e07d4b8d6a15cab17dc8` |
-| Independent Lean base NIFS result | `493ccaa50df287504b322fe06a5ec6927e2a315c9375d616b9e31ea43d18d59f` |
-| Independent Lean recursive caller fixture | `35fc2442a6e68caf835a91af117c42176d82fbc7d50109451c811eb75167bb96` |
-
-The package identity is `[11780343655336100175, 3739837894403928952,
-5393028243801154131, 3026325569224679930]`. The Nightstream Goldilocks profile
-remains `b = 2`, `k_rho = 16`, `B = 65536`, with Poseidon2 protocol binding.
-The package has 184,359,564 committed coordinates, 4,703,127 logical rows,
-and 3,001,571,645 matrix nonzeros. Coordinates decrease by 27.1339%; matrix
-nonzeros increase by 28.5017% from the original baseline. Recompute through
-the staged commands when affected production logic changes. Do not replace
-the independent Lean expectation with Rust output.
+|---|---|
+| Selected package | `fc3d8a8e798fde5ebabd388c64d5caa3d29116cfac1bb38a7142e888cdd66c6a` |
+| Base caller fixture | `f2babc267f704a552048dcb395acb8d385e7c6ebe693ad306d4965e75295e152` |
+| actual_result.json | `17ebc93d1fd5e9d70a30547f23ed14582e62a00e8edcbdd60051af978d576b23` |
+| proof.bin | `486ea01ecbedad5583b3cd74aa5333c593d6553801da40472ef996f5fc86ab1e` |
+| nightstream-fprime-stage1-base-nifs-result-v1.json | `0bd3f9b463275359e4de1580ea27a02a87d20ee0da211a8fa21e7e69a5b7985a` |
+| nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json | `c1511bd60ed2722a1957edec3931e121d6bdba7576fd87e13fbe14e205eefc54` |
 
 The archive `docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.zip`
-and its `.md` record remain historical evidence for the 2026-09-12 run based
-on `1607d34fe12593b39cad6f5c5c1f8b1ce853f8ab`. They contain the old package,
-fixture hashes, source snapshots and logs. They do not contain or certify the
-new quotient fixture bytes listed above.
+and its `.md` record remain historical evidence for the 2026-09-12 source.
+They do not contain or certify the present fixture bytes. Regenerate affected
+fixtures from Lean; do not replace independent expectations with Rust output.

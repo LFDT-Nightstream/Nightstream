@@ -1,0 +1,76 @@
+{
+  "scope": "Local equations only; no selected layout, sparse-matrix, or production integration claim.",
+  "solver": "cvc5 1.3.4 [git f3b21c4 on branch HEAD]",
+  "field_modulus": 18446744069414584321,
+  "unchanged_parameters": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536
+  },
+  "candidate": "Replace lowering scratch by one Boolean recursive flag; retain the inverse field.",
+  "witness_projection": "Drop g; preserve all original logical inputs, outputs and inverse.",
+  "constructive_extension": "Set g=t*inv; the original binding forces g in {0,1}.",
+  "conditional_geometry": {
+    "removed_field_slots": 296137,
+    "added_unit_coordinates": 1,
+    "logical_coordinate_saving": 12141616,
+    "logical_coordinates": 172217903,
+    "committed_coordinates": 172217934,
+    "committed_coordinate_saving": 12141630,
+    "old_transition_rows": 345495,
+    "new_transition_rows": 49359,
+    "logical_rows": 4406991,
+    "matrix_nonzeros": "See running-transition-next-candidate.md for analytical counts; no generated candidate count."
+  },
+  "required_lean_obligations": [
+    "Equivalence to the actual selected running-transition constraints.",
+    "Low-norm flag encoding and constructive old/new witness maps.",
+    "Scratch support and reconstruction for the complete selected assignment.",
+    "Unchanged fixed-polynomial ports and exact matrix forms."
+  ],
+  "runs": {
+    "projection_preserves_original": {
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const t F)\n(declare-const inv F)\n(declare-const g F)\n(declare-const d F)\n(declare-const r F)\n(declare-const o F)\n(declare-const initial F)\n(declare-const current F)\n(assert (= g (ff.mul t inv)))\n(assert (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g))) (as ff0 F)))\n(assert (= (ff.mul g (ff.add r (ff.mul (as ff18446744069414584320 F) d))) (ff.add o (ff.mul (as ff18446744069414584320 F) d))))\n(assert (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g)) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))\n(assert (not (and (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv)))) (as ff0 F)) (= (ff.add (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) d) (ff.mul (ff.mul t inv) r)) o) (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))))\n(check-sat)\n",
+      "counterexample": null
+    },
+    "constructive_flag_extension": {
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const t F)\n(declare-const inv F)\n(declare-const g F)\n(declare-const d F)\n(declare-const r F)\n(declare-const o F)\n(declare-const initial F)\n(declare-const current F)\n(assert (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv)))) (as ff0 F)))\n(assert (= (ff.add (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) d) (ff.mul (ff.mul t inv) r)) o))\n(assert (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))\n(assert (= g (ff.mul t inv)))\n(assert (not (and (= g (ff.mul t inv)) (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g))) (as ff0 F)) (= (ff.mul g (ff.add r (ff.mul (as ff18446744069414584320 F) d))) (ff.add o (ff.mul (as ff18446744069414584320 F) d))) (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g)) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))))\n(check-sat)\n",
+      "counterexample": null
+    },
+    "flag_is_boolean": {
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const t F)\n(declare-const inv F)\n(declare-const g F)\n(declare-const d F)\n(declare-const r F)\n(declare-const o F)\n(declare-const initial F)\n(declare-const current F)\n(assert (= g (ff.mul t inv)))\n(assert (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g))) (as ff0 F)))\n(assert (not (= g (as ff0 F))))\n(assert (not (= g (as ff1 F))))\n(check-sat)\n",
+      "counterexample": null
+    },
+    "missing_flag_link": {
+      "status": "sat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const t F)\n(declare-const inv F)\n(declare-const g F)\n(declare-const d F)\n(declare-const r F)\n(declare-const o F)\n(declare-const initial F)\n(declare-const current F)\n(assert (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g))) (as ff0 F)))\n(assert (= (ff.mul g (ff.add r (ff.mul (as ff18446744069414584320 F) d))) (ff.add o (ff.mul (as ff18446744069414584320 F) d))))\n(assert (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g)) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))\n(assert (not (and (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv)))) (as ff0 F)) (= (ff.add (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) d) (ff.mul (ff.mul t inv) r)) o) (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))))\n(assert (= t (as ff0 F)))\n(assert (= inv (as ff0 F)))\n(assert (= g (as ff1 F)))\n(assert (= d (as ff0 F)))\n(assert (= r (as ff1 F)))\n(assert (= o (as ff1 F)))\n(assert (= initial (as ff0 F)))\n(assert (= current (as ff1 F)))\n(check-sat)\n",
+      "counterexample": {
+        "t": 0,
+        "inv": 0,
+        "g": 1,
+        "d": 0,
+        "r": 1,
+        "o": 1,
+        "initial": 0,
+        "current": 1
+      }
+    },
+    "missing_iteration_binding": {
+      "status": "sat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const t F)\n(declare-const inv F)\n(declare-const g F)\n(declare-const d F)\n(declare-const r F)\n(declare-const o F)\n(declare-const initial F)\n(declare-const current F)\n(assert (= g (ff.mul t inv)))\n(assert (= (ff.mul g (ff.add r (ff.mul (as ff18446744069414584320 F) d))) (ff.add o (ff.mul (as ff18446744069414584320 F) d))))\n(assert (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) g)) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))\n(assert (not (and (= (ff.mul t (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv)))) (as ff0 F)) (= (ff.add (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) d) (ff.mul (ff.mul t inv) r)) o) (= (ff.mul (ff.add (as ff1 F) (ff.mul (as ff18446744069414584320 F) (ff.mul t inv))) (ff.add initial (ff.mul (as ff18446744069414584320 F) current))) (as ff0 F)))))\n(assert (= t (as ff1 F)))\n(assert (= inv (as ff0 F)))\n(assert (= g (as ff0 F)))\n(assert (= d (as ff0 F)))\n(assert (= r (as ff1 F)))\n(assert (= o (as ff0 F)))\n(assert (= initial (as ff0 F)))\n(assert (= current (as ff0 F)))\n(check-sat)\n",
+      "counterexample": {
+        "t": 1,
+        "inv": 0,
+        "g": 0,
+        "d": 0,
+        "r": 1,
+        "o": 0,
+        "initial": 0,
+        "current": 0
+      }
+    }
+  }
+}

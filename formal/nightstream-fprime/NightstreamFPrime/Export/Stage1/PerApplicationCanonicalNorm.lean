@@ -4,11 +4,10 @@ import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignmentNorm
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerBits
 
 /-!
-Owns the norm of the complete canonical assignment from actual PiRLC rows.
-Only rejection flags and First54 positions are retained as bits. Their values
-come from the checked sampler interface and the existing package source map.
-Every other retained block uses the existing total field encoding. No Boolean
-source value or agreement between different environments is assumed here.
+Owns the norm of the complete canonical assignment from actual PiRLC and
+running-transition rows. The sampler flags, First54 positions, and shared
+transition flag are bits. The rows establish their validity; all other
+retained blocks use the total field encoding.
 -/
 
 set_option autoImplicit false
@@ -78,7 +77,9 @@ private theorem schedule_valid {application : Program}
     (raw : RawValues application) (interface : Sampler.Interface)
     (bits : ∀ source : Fin PiRLCFirst54DirectSchedule.sourceCount,
       Sampler.RetainedBits (PiRLCFirst54DirectBridge.samplerStart source)
-        (PiRLCFirst54DirectPlan.baseEnv application raw.base)) :
+        (PiRLCFirst54DirectPlan.baseEnv application raw.base))
+    (flag : LowNormSlot.Valid .bit (raw.retainedSource
+      (RunningTransitionReducedRetainedBlocks.flagSource application))) :
     ∀ entry ∈ raw.schedule, ∀ slot, LowNormSlot.Valid entry.block.kind
       (entry.source (entry.block.source slot)) := by
   rw [← PerApplicationAssignmentPlan.expand_eq_schedule raw]
@@ -91,6 +92,11 @@ private theorem schedule_valid {application : Program}
   case first54Position =>
     exact retainedPosition_valid raw
       (PiRLCFirst54DirectSchedule.position slot) (bits _)
+  case runningFlag =>
+    simpa only [PerApplicationAssignmentPlan.BlockKind.expand,
+      PerApplicationAssignmentPlan.BlockKind.template, Canonical.ofBlock,
+      CanonicalBlockAssignment.ofBlock, RunningTransitionReducedRetainedBlocks.flagBlock]
+      using flag
   all_goals trivial
 
 variable {application : Program}
@@ -103,14 +109,16 @@ variable {application : Program}
   (rows : holdsFlat (PiRLCFirst54DirectPlan.baseEnv application raw.base)
     (Formal.opsAt (PerApplicationFixedPoint.relation application fits)
       PiRLCInputs.interface PiRLCInputs.phaseOffset))
+  (running : RunningTransitionLayout.PhysicalHolds
+    (PerApplicationFixedPoint.logicalWidth application)
+    (PerApplicationFixedPoint.publicFits application)
+    (RunningTransitionReducedRetainedSemantics.sourceEnv application raw.base))
 
-include assumptions rows
+include assumptions rows running
 
-/-- Actual canonical PiRLC rows and their phase input assumptions imply the
-strict norm bound on every logical coordinate. The sampler rows establish
-both retained bit families; the public hash and all field blocks use their
-existing total low-norm encodings. No bit-validity premise is supplied. -/
-theorem assignment_norm_of_piRlcRows
+/-- Actual phase rows imply the strict norm bound on every logical coordinate.
+The sampler and transition rows establish all retained bit families. -/
+theorem assignment_norm_of_phaseRows
     (column : Fin (PerApplicationFixedPoint.logicalWidth application)) :
     centeredMagnitude (raw.assignment column) < 2 := by
   have samplerBits := Formal.retainedSamplerBits_of_rows
@@ -134,19 +142,22 @@ theorem assignment_norm_of_piRlcRows
           (publicFits := PerApplicationFixedPoint.publicFits application))
         PiRLCInputs.phaseOffset))
       (Formal.samplerOffset PiRLCInputs.phaseOffset) 0) bits
+      ((RunningTransitionReducedRetainedSemantics.blocks_valid application
+        (PerApplicationFixedPoint.relation application fits) raw.base raw.groupValue
+        raw.products running).2 ⟨0, by change 0 < 1; decide⟩)
 
 /-- The actual selected canonical assignment is pointwise bounded on the
-complete Phi81 carrier. Its logical part is bounded by the PiRLC row theorem,
+complete Phi81 carrier. Its logical part is bounded by the phase-row theorem,
 and the existing carrier extension fills every remaining coordinate with zero.
 This is an encoding guarantee; the full semantic-step constructor must still
-supply the canonical PiRLC rows and their input assumptions. -/
-theorem completeAssignment_norm_of_piRlcRows
+supply the canonical phase rows and their input assumptions. -/
+theorem completeAssignment_norm_of_phaseRows
     (column : Fin (Phi81CarrierLayout.carrierWidth
       (PerApplicationFixedPoint.logicalWidth application))) :
     centeredMagnitude (raw.completeAssignment column) < 2 := by
   unfold RawValues.completeAssignment
   split
-  · exact assignment_norm_of_piRlcRows fits raw assumptions rows _
+  · exact assignment_norm_of_phaseRows fits raw assumptions rows running _
   · simp
 
 end NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment

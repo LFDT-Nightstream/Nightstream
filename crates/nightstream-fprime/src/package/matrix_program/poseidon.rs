@@ -10,8 +10,7 @@ use super::{
     RowForms,
 };
 
-const ROWS_PER_INVOCATION: usize = 94;
-const SBOX_ROWS_PER_INVOCATION: usize = 86;
+const ROWS_PER_INVOCATION: usize = 86;
 const WIDTH: usize = 8;
 
 #[derive(Clone, Debug)]
@@ -46,7 +45,7 @@ impl Block {
         }
         let expected_slots = checked_mul(
             self.invocation_count,
-            SBOX_ROWS_PER_INVOCATION,
+            ROWS_PER_INVOCATION,
             "Poseidon2 retained slot count",
         )?;
         if self.retained.slot_count() != expected_slots || !self.retained.fits(logical_width)? {
@@ -105,14 +104,14 @@ impl Block {
         start: usize,
         end: usize,
     ) -> Result<Vec<RowForms>, PackageError> {
-        let mut inputs = Vec::with_capacity(1 + WIDTH + SBOX_ROWS_PER_INVOCATION);
+        let mut inputs = Vec::with_capacity(1 + WIDTH + ROWS_PER_INVOCATION);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(
             self.input
                 .state(logical_width, self.one_column, invocation)?,
         );
-        let slot_base = checked_mul(invocation, SBOX_ROWS_PER_INVOCATION, "Poseidon2 retained slot")?;
-        for slot in 0..SBOX_ROWS_PER_INVOCATION {
+        let slot_base = checked_mul(invocation, ROWS_PER_INVOCATION, "Poseidon2 retained slot")?;
+        for slot in 0..ROWS_PER_INVOCATION {
             inputs.push(
                 self.retained
                     .form(logical_width, checked_add(slot_base, slot, "Poseidon2 retained slot")?)?,

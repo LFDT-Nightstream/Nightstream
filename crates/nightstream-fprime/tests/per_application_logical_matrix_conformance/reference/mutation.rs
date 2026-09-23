@@ -35,8 +35,8 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
             shift_block_sources(transport, 4, 0)?;
         }
         RecipeFamily::OutputDigest => {
-            shift_block_sources(transport, 23, 0)?;
-            let sources = block_sources(transport, 23)?;
+            shift_block_sources(transport, 24, 0)?;
+            let sources = block_sources(transport, 24)?;
             if sources.len() != 4 {
                 return Err("output-digest block does not have four sources".into());
             }

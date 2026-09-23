@@ -12,12 +12,12 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
 const TRANSPORT_SCHEMA: usize = 3;
-pub(super) const BLOCK_COUNT: usize = 30;
+pub(super) const BLOCK_COUNT: usize = 31;
 const PHYSICAL_COLUMNS: usize = 29_344_425;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 184_359_519;
-const CARRIER_WIDTH: usize = 184_359_564;
+const LOGICAL_WIDTH: usize = 172_217_903;
+const CARRIER_WIDTH: usize = 172_217_934;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
@@ -172,7 +172,7 @@ impl BlockPlan {
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            28..=29 => SourceDomain::Physical,
+            29..=30 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -364,7 +364,7 @@ impl Transport {
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
         let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "output-digest block opcode")? != 23 {
+        if word(&fields[4], "output-digest block opcode")? != 24 {
             return Err("unexpected derived assignment block selector".into());
         }
         let output_digest_expressions =
@@ -952,7 +952,7 @@ fn validate_derived_block_sources(
             return Err("first54 product source map does not select the derived value".into());
         }
     }
-    let digest = transport.block(23)?;
+    let digest = transport.block(24)?;
     if digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }

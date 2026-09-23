@@ -1,0 +1,66 @@
+{
+  "scope": "Research only. Exact eight saved final-pin templates; solver is not Lean authority. No production change.",
+  "formula_library_sha256": "2a6ce4612296dd344599cc8b5cc29914d8a9886d1ee1c6562311f035bbfb4046",
+  "cvc5_version": "cvc5 1.3.4 [git f3b21c4 on branch HEAD]",
+  "queries": [
+    {
+      "lane": 0,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff2 F) x87) (ff.mul (as ff3 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff2 F) x87) (ff.mul (as ff3 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff2 F) x91) (ff.mul (as ff3 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff18446744069414584319 F) x87) (ff.mul (as ff18446744069414584318 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584319 F) x87) (ff.mul (as ff18446744069414584318 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584319 F) x91) (ff.mul (as ff18446744069414584318 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584320 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 1,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff1 F) x87) (ff.mul (as ff2 F) x88) (ff.mul (as ff3 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff1 F) x87) (ff.mul (as ff2 F) x88) (ff.mul (as ff3 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff1 F) x91) (ff.mul (as ff2 F) x92) (ff.mul (as ff3 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584319 F) x88) (ff.mul (as ff18446744069414584318 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584319 F) x88) (ff.mul (as ff18446744069414584318 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584319 F) x92) (ff.mul (as ff18446744069414584318 F) x93) (ff.mul (as ff18446744069414584320 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 2,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff1 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff2 F) x89) (ff.mul (as ff3 F) x90) (ff.mul (as ff1 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff2 F) x89) (ff.mul (as ff3 F) x90) (ff.mul (as ff1 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff2 F) x93) (ff.mul (as ff3 F) x94) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584319 F) x89) (ff.mul (as ff18446744069414584318 F) x90) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584319 F) x89) (ff.mul (as ff18446744069414584318 F) x90) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584319 F) x93) (ff.mul (as ff18446744069414584318 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 3,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff3 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff2 F) x90) (ff.mul (as ff3 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff2 F) x90) (ff.mul (as ff3 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff2 F) x94) (ff.mul (as ff18446744069414584318 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584319 F) x90) (ff.mul (as ff18446744069414584318 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584319 F) x90) (ff.mul (as ff18446744069414584318 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584319 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 4,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff2 F) x91) (ff.mul (as ff3 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff2 F) x87) (ff.mul (as ff3 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff2 F) x91) (ff.mul (as ff3 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff18446744069414584319 F) x91) (ff.mul (as ff18446744069414584318 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584320 F) x94) (ff.mul (as ff18446744069414584319 F) x87) (ff.mul (as ff18446744069414584318 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584319 F) x91) (ff.mul (as ff18446744069414584318 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584320 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 5,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff1 F) x91) (ff.mul (as ff2 F) x92) (ff.mul (as ff3 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff1 F) x87) (ff.mul (as ff2 F) x88) (ff.mul (as ff3 F) x89) (ff.mul (as ff1 F) x90) (ff.mul (as ff1 F) x91) (ff.mul (as ff2 F) x92) (ff.mul (as ff3 F) x93) (ff.mul (as ff1 F) x94) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584319 F) x92) (ff.mul (as ff18446744069414584318 F) x93) (ff.mul (as ff18446744069414584320 F) x94) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584319 F) x88) (ff.mul (as ff18446744069414584318 F) x89) (ff.mul (as ff18446744069414584320 F) x90) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584319 F) x92) (ff.mul (as ff18446744069414584318 F) x93) (ff.mul (as ff18446744069414584320 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 6,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff1 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff2 F) x93) (ff.mul (as ff3 F) x94) (ff.mul (as ff1 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff2 F) x89) (ff.mul (as ff3 F) x90) (ff.mul (as ff1 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff2 F) x93) (ff.mul (as ff3 F) x94) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584319 F) x93) (ff.mul (as ff18446744069414584318 F) x94) (ff.mul (as ff18446744069414584320 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584319 F) x89) (ff.mul (as ff18446744069414584318 F) x90) (ff.mul (as ff18446744069414584320 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584319 F) x93) (ff.mul (as ff18446744069414584318 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    },
+    {
+      "lane": 7,
+      "status": "unsat",
+      "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const x87 F)\n(declare-const x88 F)\n(declare-const x89 F)\n(declare-const x90 F)\n(declare-const x91 F)\n(declare-const x92 F)\n(declare-const x93 F)\n(declare-const x94 F)\n(assert (not (= (ff.add (ff.mul (as ff3 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff2 F) x94) (ff.mul (as ff3 F) x87) (ff.mul (as ff1 F) x88) (ff.mul (as ff1 F) x89) (ff.mul (as ff2 F) x90) (ff.mul (as ff3 F) x91) (ff.mul (as ff1 F) x92) (ff.mul (as ff1 F) x93) (ff.mul (as ff2 F) x94) (ff.mul (as ff18446744069414584318 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584319 F) x94) (ff.mul (as ff18446744069414584318 F) x87) (ff.mul (as ff18446744069414584320 F) x88) (ff.mul (as ff18446744069414584320 F) x89) (ff.mul (as ff18446744069414584319 F) x90) (ff.mul (as ff18446744069414584318 F) x91) (ff.mul (as ff18446744069414584320 F) x92) (ff.mul (as ff18446744069414584320 F) x93) (ff.mul (as ff18446744069414584319 F) x94)) (as ff0 F))))\n(check-sat)\n",
+      "normalized_nnz": 1
+    }
+  ],
+  "independent_output_control": {
+    "status": "sat",
+    "actual": 0,
+    "expected": 1,
+    "smt2": "(set-logic QF_FF)\n(define-sort F () (_ FiniteField 18446744069414584321))\n(declare-const actual F)\n(declare-const expected F)\n(assert (= actual (as ff0 F)))\n(assert (= expected (as ff1 F)))\n(assert (not (= actual expected)))\n(check-sat)\n",
+    "meaning": "A caller-owned output cannot be unpinned unless the same-output form equality is proved."
+  },
+  "selected_invocations": 32457,
+  "removed_rows": 259656,
+  "removed_normalized_nnz": 259656,
+  "removed_coordinates": 0
+}

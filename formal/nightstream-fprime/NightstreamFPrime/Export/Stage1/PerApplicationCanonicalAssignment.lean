@@ -154,7 +154,7 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.witnessBlock application)
       raw.applicationSource
-  , Canonical.ofBlock (ApplicationRetainedBlocks.localBlock application)
+  , Canonical.ofBlock (ApplicationSelectedBlocks.localBlock application)
       raw.applicationSource ]
 
 end RawValues
@@ -176,7 +176,8 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
   unfold PerApplicationFixedPoint.logicalWidth
     ApplicationRetainedGeometry.completeLogicalWidth
     ApplicationRetainedGeometry.localStart
-    ApplicationRetainedGeometry.witnessStart
+    ApplicationOrdinaryGeometry.localStart
+    ApplicationOrdinaryGeometry.witnessStart
     PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth
     PiRLCSamplerOrdinaryRetainedGeometry.freshStart
     PiRLCSamplerOrdinaryRetainedGeometry.logicalStart

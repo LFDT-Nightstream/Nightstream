@@ -459,7 +459,11 @@ theorem retainedSource_outside (application : Program) (kind : BlockKind)
       omega
   | applicationLocal =>
       right
-      change 28421264 ≤ 28784740 + application.witnessWordCount + slot.val
+      have bound := ApplicationSelectedBlocks.source_after_localStart application slot
+      change scratchEnd ≤ ((ApplicationSelectedBlocks.localBlock application).source slot).val
+      unfold Layout.Stage1.ApplicationInputs.localStart Layout.Stage1.ApplicationInputs.witnessStart at bound
+      rw [Layout.Stage1.Spartan.privateColumnCount_eq] at bound
+      change 28421264 ≤ _
       omega
 
 private theorem blockCoordinate_congr {sourceWidth : Nat}

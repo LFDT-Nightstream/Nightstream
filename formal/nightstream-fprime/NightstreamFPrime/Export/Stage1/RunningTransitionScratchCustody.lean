@@ -656,7 +656,11 @@ theorem retainedNonTransitionSource_outside (application : Stage1.Application.Pr
       omega
   | applicationLocal =>
       right
-      change 28784740 ≤ 28784740 + application.witnessWordCount + slot.val
+      have bound := ApplicationSelectedBlocks.source_after_localStart application slot
+      change scratchEnd ≤ ((ApplicationSelectedBlocks.localBlock application).source slot).val
+      unfold Layout.Stage1.ApplicationInputs.localStart Layout.Stage1.ApplicationInputs.witnessStart at bound
+      rw [Layout.Stage1.Spartan.privateColumnCount_eq] at bound
+      change 28784740 ≤ _
       omega
 
 /-- Unchanged retained values need no assumed support for their source functions. -/

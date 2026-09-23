@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
+import NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
@@ -109,7 +109,8 @@ theorem rowCount_le
     nextPreimagePlan, NextPreimageDirectPlan.plan_rowCount,
     publicOutputPlan, RecursivePublicOutputPlan.plan_rowCount]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables] at packageRows ⊢
-  omega
+  cases selected : application.compactHashChain <;>
+    simp only [ApplicationDirectPlan.rowCount, selected] <;> omega
 
 private theorem prefixApplicationRowCount_le
     {application : Lifecycle.Stage1.Application.Program}
@@ -182,7 +183,7 @@ def plan
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     (plan relation fits geometry).rowCount =
-      3587920 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + ApplicationDirectPlan.rowCount application +
         9 := by
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
@@ -351,11 +352,8 @@ theorem rowsZero_implies_semantics
   · exact DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
       (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.runningPrefix children.1.1.1
-  · have rows := (ApplicationDirectPlan.rowsZero_iff_rowsHold fits geometry
-      assignment (applicationSource application base)
-      encodes.applicationEncoding one).mp children.1.1.2
-    exact ApplicationDirectSource.rowsHold_implies_applicationHolds application
-      (ApplicationDirectPlan.sourceEnv (applicationSource application base)) rows
+  · exact ApplicationAssignmentSoundness.rowsZero_implies_encodedHolds fits geometry
+      assignment (applicationSource application base) encodes.applicationEncoding one children.1.1.2
   · exact NextPreimageDirectPlan.rowsZero_implies_spec
       (piCcsOrdinaryGeometry geometry) assignment base groupValue products
       encodes.runningPrefix.prior.pilotOrdinary.prior one children.1.2

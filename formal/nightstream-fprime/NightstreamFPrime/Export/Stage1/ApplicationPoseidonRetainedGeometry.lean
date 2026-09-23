@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock
-import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryGeometry
 import NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompact
 
 /-! Place the checked application's message and S-box values after the unchanged prefix. -/
@@ -11,10 +11,10 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 open ApplicationPoseidonRetainedBlock
 
-abbrev inputStart := ApplicationRetainedGeometry.inputStart
-abbrev outputStart := ApplicationRetainedGeometry.outputStart
-abbrev witnessStart := ApplicationRetainedGeometry.witnessStart
-abbrev localStart := ApplicationRetainedGeometry.localStart
+abbrev inputStart := ApplicationOrdinaryGeometry.inputStart
+abbrev outputStart := ApplicationOrdinaryGeometry.outputStart
+abbrev witnessStart := ApplicationOrdinaryGeometry.witnessStart
+abbrev localStart := ApplicationOrdinaryGeometry.localStart
 
 def completeLogicalWidth (application : Stage1.Application.Program)
     (certificate : Certificate application) : Nat :=
@@ -24,8 +24,8 @@ theorem completeLogicalWidth_eq (application : Stage1.Application.Program)
     (certificate : Certificate application) :
     completeLogicalWidth application certificate = 149292999 := by
   rw [completeLogicalWidth, block_coordinateCount]
-  unfold localStart ApplicationRetainedGeometry.localStart
-    ApplicationRetainedGeometry.witnessStart
+  unfold localStart ApplicationOrdinaryGeometry.localStart
+    ApplicationOrdinaryGeometry.witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   change 149282257 + application.witnessWordCount * 41 + 10578 = _
   rw [certificate.wordCount]
@@ -87,7 +87,7 @@ def witnessFits {application : Stage1.Application.Program}
     (geometry : Geometry application certificate columns) :
     witnessStart application + (ApplicationRetainedBlocks.witnessBlock application).coordinateCount ≤ columns := by
   apply Nat.le_trans _ geometry.completeFits
-  unfold completeLogicalWidth localStart ApplicationRetainedGeometry.localStart witnessStart
+  unfold completeLogicalWidth localStart ApplicationOrdinaryGeometry.localStart witnessStart
   omega
 
 def localFits {application : Stage1.Application.Program}

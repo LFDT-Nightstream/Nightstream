@@ -36,7 +36,7 @@ theorem poseidon_alone_exceeds_target :
 
 theorem other_logical_coordinates :
     PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application -
-      PoseidonRetainedBlock.retainedCoordinateCount = 35154575 := by
+      PoseidonRetainedBlock.retainedCoordinateCount = 34849617 := by
   rw [Poseidon2HashChainV1Package.logicalWidth,
     PoseidonRetainedBlock.retainedCoordinateCount_eq]
 
@@ -44,7 +44,7 @@ theorem other_logical_coordinates :
 theorem poseidon_budget_if_other_blocks_fixed (candidate : Nat)
     (fits : PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application -
         PoseidonRetainedBlock.retainedCoordinateCount + candidate ≤ 92179782) :
-    candidate ≤ 57025207 := by
+    candidate ≤ 57330165 := by
   rw [other_logical_coordinates] at fits
   omega
 

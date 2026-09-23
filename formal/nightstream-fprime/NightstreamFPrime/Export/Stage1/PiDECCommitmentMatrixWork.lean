@@ -31,7 +31,7 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
 attribute [local irreducible] PiDECOrdinarySourceWork.commitmentRow
   PiDECOrdinaryDirectSource.commitmentProgramRow PiDECInputCheck.relation
 
-private theorem selectedWidth : 149597957 = PiDECInputCheck.logicalWidth :=
+private theorem selectedWidth : 149292999 = PiDECInputCheck.logicalWidth :=
   Poseidon2HashChainV1Package.logicalWidth.symm
 
 private abbrev selectedGeometry : PiDECRetainedGeometry.Geometry
@@ -498,7 +498,7 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
 cost four; the equality transport changes only the erased type index. -/
 def commitmentForms (index : Fin 1188) :
     Result (OrdinaryRow.Forms PiDECInputCheck.logicalWidth) :=
-  let result := run 149597957 (by decide) index
+  let result := run 149292999 (by decide) index
   ⟨selectedWidth ▸ result.value, result.work + 4⟩
 
 private theorem cast_run_value {application : Lifecycle.Stage1.Application.Program}
@@ -513,7 +513,7 @@ theorem commitmentForms_value (index : Fin 1188) :
     (commitmentForms index).value =
       PiDECMatrixProgram.commitmentDirectForms PiDECInputCheck.relation
         (PerApplicationMatrixProgram.piDecGeometry Poseidon2HashChainV1Package.application) index :=
-  @cast_run_value Poseidon2HashChainV1Package.application 149597957 PiDECInputCheck.logicalWidth
+  @cast_run_value Poseidon2HashChainV1Package.application 149292999 PiDECInputCheck.logicalWidth
     selectedWidth (by decide) selectedGeometry index
 
 private theorem cast_lengths {columns output : Nat} (equal : columns = output)
@@ -530,13 +530,13 @@ theorem commitmentForms_lengths (index : Fin 1188) :
       (commitmentForms index).value.a.entries.length = 657 ∧
       (commitmentForms index).value.b.entries.length = 1 ∧
       (commitmentForms index).value.c.entries.length = 42 :=
-  @cast_lengths 149597957 PiDECInputCheck.logicalWidth selectedWidth
-    (run 149597957 (by decide) index).value
-    (@run_lengths Poseidon2HashChainV1Package.application 149597957 (by decide)
+  @cast_lengths 149292999 PiDECInputCheck.logicalWidth selectedWidth
+    (run 149292999 (by decide) index).value
+    (@run_lengths Poseidon2HashChainV1Package.application 149292999 (by decide)
       (selectedWidth.symm ▸ selectedGeometry) index)
 
 theorem commitmentForms_work_le (index : Fin 1188) :
     (commitmentForms index).work ≤ commitmentFormsWork :=
-  run_work_le 149597957 (by decide) index
+  run_work_le 149292999 (by decide) index
 
 end NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork

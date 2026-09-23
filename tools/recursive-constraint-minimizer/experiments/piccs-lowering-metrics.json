@@ -15,18 +15,18 @@
     "matrix_nonzeros": 2968490185
   },
   "selected_lean": {
-    "logical_coordinates": 149597957,
-    "alignment_coordinates": 25,
-    "committed_coordinates": 149597982,
-    "logical_rows": 3595629,
+    "logical_coordinates": 149292999,
+    "alignment_coordinates": 45,
+    "committed_coordinates": 149293044,
+    "logical_rows": 3588191,
     "physical_rows": 28674023,
     "physical_columns": 28792719,
     "matrix_nonzeros": null
   },
   "reduction": {
-    "logical_coordinates": 22619946,
-    "committed_coordinates": 22619952,
-    "logical_rows": 551706
+    "logical_coordinates": 22924904,
+    "committed_coordinates": 22924890,
+    "logical_rows": 559144
   },
   "piccs_ordinary": {
     "logical_rows": 259963,
@@ -34,22 +34,31 @@
     "r1cs_scratch_fields": 207011
   },
   "application_candidate": {
-    "selected": false,
+    "selected": true,
     "logical_rows": 262,
     "sbox_fields": 258,
-    "private_coordinates_formula": 10742,
-    "proofs": "Soundness, constructive field values, and encoding correctness pass; retained-layout integration remains open."
+    "message_fields": 4,
+    "private_coordinates": 10742,
+    "additional_committed_coordinate_reduction": 304938,
+    "proofs": "Selected row plan, matrix correspondence, arbitrary-assignment soundness, direct three-permutation witness, and selected-assignment completeness pass focused Lean checks."
   },
   "checks": {
-    "production_and_axioms": "scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests: passed, 4235 jobs",
+    "production_and_axioms": "scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests: passed, 4261 jobs",
     "static": "scripts/validate.sh static: passed",
-    "cvc5": "Five recorded gadget controls passed; no solver result substitutes for Lean."
+    "cvc5": "Five recorded gadget controls passed; no solver result substitutes for Lean.",
+    "application_completion": "Direct three-permutation construction and full selected-assignment completion pass; all five constructor theorem axiom audits pass."
   },
   "remaining": [
-    "Application retained layout and package selection",
     "Normalized matrix nonzero count",
     "Artifact and fixture regeneration after the batch is stable",
     "Rust integration and conformance"
   ],
-  "benchmarks": "Paused by owner instruction; no overall performance gain claimed."
+  "benchmarks": "Paused by owner instruction; no overall performance gain claimed.",
+  "wide_sampler": {
+    "source_commit": "919cd12b481a7c3d9335be8df94ac08718857e70",
+    "merge_commit": "b2c5a8cfd",
+    "selected": false,
+    "counted_coordinate_reduction": 0,
+    "reason": "Component proofs are merged. The deterministic sampler map, executable witness hint, selected retained layout, transcript lifecycle, and package identity are not integrated."
+  }
 }

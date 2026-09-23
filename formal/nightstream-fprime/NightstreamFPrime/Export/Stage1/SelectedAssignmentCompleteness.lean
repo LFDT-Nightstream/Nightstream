@@ -124,7 +124,7 @@ theorem complete
         (ApplicationInputs.localStart application) (SourceCompiler.sourceEnv raw.base) = input.witness ∧
       raw.outputDigest = output.x := by
   obtain ⟨digestFixed, target, suffix, _constant, physical, nextRows,
-      _nifsOutput, _sources, _priorWords, _nextWords, _applicationSourceRows,
+      _nifsOutput, _sources, _priorWords, _nextWords,
       actualWitness, outputDigest, publicInput, applicationRows⟩ :=
     ApplicationWitnessCompleteness.complete
       (PerApplicationFixedPoint.relation application fits) ajtai context input output result

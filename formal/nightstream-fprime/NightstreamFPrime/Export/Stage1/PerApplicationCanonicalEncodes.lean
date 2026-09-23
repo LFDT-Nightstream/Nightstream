@@ -816,7 +816,7 @@ private def position29 {application : Program} (raw : RawValues application) :
 private def position30 {application : Program} (raw : RawValues application) :
     Position raw (ApplicationRetainedGeometry.localStart application)
       (ApplicationRetainedBlocks.sourceWidth application)
-      (ApplicationRetainedBlocks.localBlock application)
+      (ApplicationSelectedBlocks.localBlock application)
       raw.applicationSource where
   cursor := (position29 raw).next
   after := tail raw 31

@@ -1,17 +1,17 @@
-import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixProgram
 
 /-!
 Proves exact source custody for the compact per-application matrix program.
 Each application source resolves through one Lean-authored retained range.
 -/
 
-namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
+namespace NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 open ApplicationRetainedBlocks
-open ApplicationRetainedGeometry
+open ApplicationOrdinaryGeometry
 
 private theorem outputEnd_le_witnessStart :
     49432 ≤ ApplicationInputs.witnessStart := by
@@ -28,10 +28,10 @@ theorem inputRange_form?
     (index : Lifecycle.Stage1.Application.StateIndex) :
     (inputRange application).form? logicalWidth
         (ApplicationInputs.inputColumn index) =
-      some ((ApplicationDirectPlan.Location.input index).form geometry) := by
+      some ((ApplicationOrdinaryPlan.Location.input index).form geometry) := by
   rw [ApplicationInputs.inputColumn_value,
-    ApplicationDirectPlan.Location.input_form_eq_pilot]
-  simpa [inputRange, ApplicationDirectPlan.Location.preimageWord] using
+    ApplicationOrdinaryPlan.Location.input_form_eq_pilot]
+  simpa [inputRange, ApplicationOrdinaryPlan.Location.preimageWord] using
     (SourceRange.form?_ofSemantic
       (PiRLCPoseidonGeometry.priorInputBlock application)
       (PiRLCPoseidonGeometry.priorInputStart application)
@@ -49,9 +49,9 @@ theorem witnessRange_form?
     (index : Fin application.witnessWordCount) :
     (witnessRange application).form? logicalWidth
         (ApplicationInputs.witnessColumn index) =
-      some ((ApplicationDirectPlan.Location.witness index).form geometry) := by
+      some ((ApplicationOrdinaryPlan.Location.witness index).form geometry) := by
   simpa [witnessRange, ApplicationInputs.witnessColumn,
-    ApplicationDirectPlan.Location.form] using
+    ApplicationOrdinaryPlan.Location.form] using
       (SourceRange.form?_ofSemantic (witnessBlock application)
         (witnessStart application) ApplicationInputs.witnessStart
         application.witnessWordCount 0 (witnessFits geometry) (by simp) index)
@@ -62,10 +62,10 @@ theorem outputRange_form?
     (index : Lifecycle.Stage1.Application.StateIndex) :
     (outputRange application).form? logicalWidth
         (ApplicationInputs.outputColumn index) =
-      some ((ApplicationDirectPlan.Location.output index).form geometry) := by
+      some ((ApplicationOrdinaryPlan.Location.output index).form geometry) := by
   rw [ApplicationInputs.outputColumn_value,
-    ApplicationDirectPlan.Location.output_form_eq_pilot]
-  simpa [outputRange, ApplicationDirectPlan.Location.preimageWord] using
+    ApplicationOrdinaryPlan.Location.output_form_eq_pilot]
+  simpa [outputRange, ApplicationOrdinaryPlan.Location.preimageWord] using
     (SourceRange.form?_ofSemantic
       (PiRLCPoseidonGeometry.outputInputBlock application)
       (PiRLCPoseidonGeometry.outputInputStart application)
@@ -83,9 +83,9 @@ theorem localRange_form?
     (index : Fin (localCount application)) :
     (localRange application).form? logicalWidth
         (ApplicationInputs.localStart application + index.val) =
-      some ((ApplicationDirectPlan.Location.localValues index).form
+      some ((ApplicationOrdinaryPlan.Location.localValues index).form
         geometry) := by
-  simpa [localRange, ApplicationDirectPlan.Location.form] using
+  simpa [localRange, ApplicationOrdinaryPlan.Location.form] using
     (SourceRange.form?_ofSemantic (localBlock application)
       (localStart application) (ApplicationInputs.localStart application)
       (localCount application) 0 (localFits geometry) (by simp) index)
@@ -95,7 +95,7 @@ and rejects all overlapping interpretations. -/
 theorem substitution_location_form?
     {application : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry application logicalWidth)
-    (location : ApplicationDirectPlan.Location application) :
+    (location : ApplicationOrdinaryPlan.Location application) :
     (substitution application).form? logicalWidth location.sourceColumn =
       some (location.form geometry) := by
   have witnessAfterOutput := outputEnd_le_witnessStart
@@ -104,13 +104,13 @@ theorem substitution_location_form?
       have indexBound := index.isLt
       change index.val < 4 at indexBound
       have selected := inputRange_form? geometry index
-      simp only [ApplicationDirectPlan.Location.sourceColumn]
+      simp only [ApplicationOrdinaryPlan.Location.sourceColumn]
       rw [ApplicationInputs.inputColumn_value]
       change (substitution application).form? logicalWidth (35 + index.val) =
-        some ((ApplicationDirectPlan.Location.input index).form geometry)
+        some ((ApplicationOrdinaryPlan.Location.input index).form geometry)
       rw [ApplicationInputs.inputColumn_value] at selected
       change (inputRange application).form? logicalWidth (35 + index.val) =
-        some ((ApplicationDirectPlan.Location.input index).form geometry) at selected
+        some ((ApplicationOrdinaryPlan.Location.input index).form geometry) at selected
       have outputNone := SourceRange.form?_eq_none_of_before
         (outputRange application) logicalWidth (35 + index.val) (by
           change 35 + index.val < 49428
@@ -129,11 +129,11 @@ theorem substitution_location_form?
   | witness index =>
       have indexBound := index.isLt
       have selected := witnessRange_form? geometry index
-      simp only [ApplicationDirectPlan.Location.sourceColumn,
+      simp only [ApplicationOrdinaryPlan.Location.sourceColumn,
         ApplicationInputs.witnessColumn]
       change (witnessRange application).form? logicalWidth
         (ApplicationInputs.witnessStart + index.val) =
-          some ((ApplicationDirectPlan.Location.witness index).form geometry)
+          some ((ApplicationOrdinaryPlan.Location.witness index).form geometry)
         at selected
       have inputNone := SourceRange.form?_eq_none_of_after
         (inputRange application) logicalWidth
@@ -159,7 +159,7 @@ theorem substitution_location_form?
       have indexBound := index.isLt
       change index.val < 4 at indexBound
       have selected := outputRange_form? geometry index
-      simp only [ApplicationDirectPlan.Location.sourceColumn]
+      simp only [ApplicationOrdinaryPlan.Location.sourceColumn]
       rw [ApplicationInputs.outputColumn_value]
       rw [ApplicationInputs.outputColumn_value] at selected
       have inputNone := SourceRange.form?_eq_none_of_after
@@ -180,7 +180,7 @@ theorem substitution_location_form?
   | localValues index =>
       have indexBound := index.isLt
       have selected := localRange_form? geometry index
-      simp only [ApplicationDirectPlan.Location.sourceColumn]
+      simp only [ApplicationOrdinaryPlan.Location.sourceColumn]
       have inputNone := SourceRange.form?_eq_none_of_after
         (inputRange application) logicalWidth
           (ApplicationInputs.localStart application + index.val) (by
@@ -214,18 +214,18 @@ theorem substitution_agrees_on_target
     (column : Fin (ApplicationRetainedBlocks.sourceWidth application))
     (support : ApplicationDirectSource.SourceAllowed application column.val) :
     (substitution application).form? logicalWidth column.val =
-      some ((ApplicationDirectPlan.sourceMap geometry).form column) := by
-  have complete := ApplicationDirectPlan.classifySource_complete application
+      some ((ApplicationOrdinaryPlan.sourceMap geometry).form column) := by
+  have complete := ApplicationOrdinaryPlan.classifySource_complete application
     support
-  cases found : ApplicationDirectPlan.classifySource application column.val with
+  cases found : ApplicationOrdinaryPlan.classifySource application column.val with
   | none => simp [found] at complete
   | some located =>
       change (substitution application).form? logicalWidth column.val =
-        some (match ApplicationDirectPlan.classifySource application column.val with
+        some (match ApplicationOrdinaryPlan.classifySource application column.val with
           | none => .empty
           | some value => value.location.form geometry)
       rw [found]
       simpa only [located.owns] using
         (substitution_location_form? geometry located.location)
 
-end NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
+end NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixProgram

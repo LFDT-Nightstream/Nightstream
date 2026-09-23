@@ -241,7 +241,7 @@ def BlockKind.template (application : ProgramApplication) :
       ⟨_, ApplicationRetainedBlocks.witnessBlock application,
         fun raw => raw.applicationSource⟩
   | .applicationLocal =>
-      ⟨_, ApplicationRetainedBlocks.localBlock application,
+      ⟨_, ApplicationSelectedBlocks.localBlock application,
         fun raw => raw.applicationSource⟩
 
 /-- Interpret one compact opcode through its Lean-owned block template. -/

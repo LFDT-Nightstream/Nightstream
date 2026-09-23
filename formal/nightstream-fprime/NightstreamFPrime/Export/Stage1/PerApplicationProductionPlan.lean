@@ -150,7 +150,7 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .piRlc => 224349
   | .piDec => 25488
   | .runningTransition => 49359
-  | .application => (PerApplicationPackage.applicationPlan application).rowCount
+  | .application => ApplicationDirectPlan.rowCount application
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
 

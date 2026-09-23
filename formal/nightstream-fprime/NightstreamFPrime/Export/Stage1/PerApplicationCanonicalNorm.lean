@@ -97,6 +97,11 @@ private theorem schedule_valid {application : Program}
       PerApplicationAssignmentPlan.BlockKind.template, Canonical.ofBlock,
       CanonicalBlockAssignment.ofBlock, RunningTransitionReducedRetainedBlocks.flagBlock]
       using flag
+  case applicationLocal =>
+    simp only [PerApplicationAssignmentPlan.BlockKind.expand,
+      PerApplicationAssignmentPlan.BlockKind.template, Canonical.ofBlock,
+      CanonicalBlockAssignment.ofBlock, ApplicationSelectedBlocks.localBlock_kind]
+    trivial
   all_goals trivial
 
 variable {application : Program}

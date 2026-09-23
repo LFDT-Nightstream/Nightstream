@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedGeometry
-import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryPlan
 import NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompactWitness
 
 /-! Connect the compact application's rows to its selected step and pilot preimages. -/
@@ -22,7 +22,7 @@ theorem input_form_eq_pilot (geometry : Geometry application certificate columns
       (PiRLCPoseidonGeometry.priorInputBlock application).form
         (PiRLCPoseidonGeometry.priorInputStart application)
         (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry))
-        (ApplicationDirectPlan.Location.preimageWord lane) := by
+        (ApplicationOrdinaryPlan.Location.preimageWord lane) := by
   apply LowNormBlock.Block.form_eq_of_coordinates
   · rfl
   · change PiRLCPoseidonGeometry.priorInputStart application + 35 * 41 + lane.val * 41 =
@@ -35,7 +35,7 @@ theorem output_form_eq_pilot (geometry : Geometry application certificate column
       (PiRLCPoseidonGeometry.outputInputBlock application).form
         (PiRLCPoseidonGeometry.outputInputStart application)
         (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry))
-        (ApplicationDirectPlan.Location.preimageWord lane) := by
+        (ApplicationOrdinaryPlan.Location.preimageWord lane) := by
   apply LowNormBlock.Block.form_eq_of_coordinates
   · rfl
   · change PiRLCPoseidonGeometry.outputInputStart application + 35 * 41 + lane.val * 41 =

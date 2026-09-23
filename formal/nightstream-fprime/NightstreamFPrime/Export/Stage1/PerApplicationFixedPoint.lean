@@ -57,7 +57,8 @@ def fitsTwoPow28OfApplicationBounds
   carrier := by
     apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
       application).2
-    exact carrierWords.trans (by decide)
+    exact (Nat.add_le_add_left (ApplicationSelectedBlocks.localCount_le_ordinary application)
+      application.witnessWordCount).trans carrierWords
 
 def geometry (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedGeometry.Geometry application
@@ -112,7 +113,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      3587920 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + ApplicationDirectPlan.rowCount application +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package

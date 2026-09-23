@@ -103,7 +103,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
-import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSubstitution
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixSubstitution
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge

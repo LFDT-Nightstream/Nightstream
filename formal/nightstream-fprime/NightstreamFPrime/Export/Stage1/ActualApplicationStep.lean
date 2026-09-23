@@ -22,7 +22,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
 def witness (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) : AppWitness :=
   List.ofFn fun index : Fin application.witnessWordCount =>
-    ((ApplicationDirectPlan.Location.witness index).form geometry).eval assignment
+    (ApplicationDirectPlan.witnessForm geometry index).eval assignment
 
 private theorem input_eq_forms
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)

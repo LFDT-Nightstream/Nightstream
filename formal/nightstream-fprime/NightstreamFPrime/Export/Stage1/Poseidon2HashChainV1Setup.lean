@@ -31,7 +31,7 @@ def messageColumns : Nat :=
     Phi81CarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
-      149597982 := by
+      149293044 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
   norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
     ringDegree]
@@ -46,7 +46,7 @@ theorem carrierWidth_reduced_by_at_least_one_quarter :
   rw [carrierWidth_eq]
   norm_num
 
-@[simp] theorem messageColumns_eq : messageColumns = 2770333 := by
+@[simp] theorem messageColumns_eq : messageColumns = 2764686 := by
   unfold messageColumns
   rw [carrierWidth_eq]
   norm_num [Phi81ColumnLayout.blockCount, ringDegree]

@@ -115,16 +115,23 @@ theorem sourceWidth :
   unfold ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
   rw [constraints_freshCount, operations_localLength]
 
-@[simp] theorem retainedLocalCount :
+@[simp] theorem ordinaryLocalCount :
     ApplicationRetainedBlocks.localCount application = 7696 := by
   unfold ApplicationRetainedBlocks.localCount
     ApplicationRetainedBlocks.sourceWidth
   rw [sourceWidth]
   omega
 
+@[simp] theorem retainedLocalCount :
+    ApplicationSelectedBlocks.localCount application = 258 := by
+  rfl
+
+@[simp] theorem selectedApplicationRowCount :
+    ApplicationDirectPlan.rowCount application = 262 := by rfl
+
 @[simp] theorem retainedApplicationWordCount :
     application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application = 7700 := by
+      ApplicationSelectedBlocks.localCount application = 262 := by
   rw [retainedLocalCount]
   simp [application, Lifecycle.Stage1.Poseidon2HashChainV1.program,
     Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount]
@@ -135,19 +142,22 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds application
     (by rw [applicationPlan_rowCount]; norm_num)
     (by rw [addedPrivateColumnCount]; norm_num)
-    (by rw [retainedApplicationWordCount]; norm_num)
+    (by
+      rw [ordinaryLocalCount]
+      change 4 + 7696 ≤ 2906174
+      decide)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 149597957 := by
+    PerApplicationFixedPoint.logicalWidth application = 149292999 := by
   unfold PerApplicationFixedPoint.logicalWidth
   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      3595629 := by
+      3588191 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
-    applicationPlan_rowCount]
+    selectedApplicationRowCount]
 
 @[simp] theorem physicalPackageRowCount :
     (PerApplicationPackage.package application).layout.rowCount = 28674023 := by

@@ -44,7 +44,15 @@ sha2 = "0.10"
 spartan2 = { workspace = true }
 thiserror = { workspace = true }
 wasmparser = "0.240"
-wasmtime = { version = "49", features = ["debug", "cranelift"] }
+wasmtime = { version = "49", default-features = false, features = [
+    "anyhow",
+    "async",
+    "component-model",
+    "cranelift",
+    "debug",
+    "gc",
+    "runtime",
+] }
 
 [dev-dependencies]
 object = "0.37"

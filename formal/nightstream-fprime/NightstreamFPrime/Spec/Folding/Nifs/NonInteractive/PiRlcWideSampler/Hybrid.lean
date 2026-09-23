@@ -16,7 +16,7 @@ own four independent uniform field values.
 Per-call bound: `distance < 2^-132` from `Law`.
 Cumulative bound: for `n` challenge coordinates, every acceptance test with
 values in `[0, 1]` changes by at most `n * distance`. One PiRLC fold has
-`n = K + k`; over `T` folds the loss is at most `T * n * distance`, with `T`
+`n = K + k`; over `L` folds the loss is at most `L * n * distance`, with `L`
 kept as a parameter.
 
 The existing extractor keeps uniform challenges; its loss `n / |C|` stays a

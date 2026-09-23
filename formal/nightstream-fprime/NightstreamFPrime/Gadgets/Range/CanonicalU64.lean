@@ -1146,6 +1146,16 @@ private theorem completeEnv_holdsFlat
       · exact recomposition
       · exact canonicality
 
+/-- The concrete hint-and-recipe execution is the honest completion. -/
+theorem completeEnv_correct (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env) :
+    AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount ∧
+      holdsFlat (completeEnv interface env offset) (operations interface offset) ∧
+      SpecHolds interface offset (completeEnv interface env offset) :=
+  ⟨completeEnv_agreesOutside interface env offset,
+    completeEnv_holdsFlat interface env offset assumptions,
+    completeEnv_spec interface env offset assumptions⟩
+
 theorem complete
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :

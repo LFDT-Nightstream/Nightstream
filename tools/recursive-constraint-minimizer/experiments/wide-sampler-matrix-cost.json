@@ -1,0 +1,26 @@
+{
+  "scope": "candidate sampler only; previous Poseidon endpoint as input",
+  "selected_in_production": false,
+  "logical_rows": 14501,
+  "committed_coordinates": 135813,
+  "normalized_matrix_nonzeros": 1794350,
+  "normalized_matrix_nonzeros_by_port": [
+    0,
+    14501,
+    100079,
+    27676,
+    122740,
+    1529354,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "range_matrix_nonzeros": 142188,
+  "poseidon_matrix_nonzeros": 1652162,
+  "temporary_helpers": 23868
+}

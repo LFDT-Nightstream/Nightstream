@@ -267,30 +267,40 @@ private theorem completeChildren (interface : Interface) (offset : Nat) (env : E
 
 /-! ### Completeness -/
 
-/-- V4: from any environment whose inputs lie below the offset, an honest
-completion changes only the gadget's variables and satisfies every row. -/
-theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset)
-    (allocates : (hints offset).length = newBitCount) :
-    ∃ completed,
-      AgreesOutside env completed offset (localLength (operations interface hints offset)) ∧
-      holdsFlat completed (operations interface hints offset) := by
-  obtain ⟨done, doneOps, doneLength⟩ := completeChildren interface offset env assumptions
-  let base := done.current
-  have childRows : holds base (childOps interface offset) := by
-    rw [← doneOps]
-    exact holdsFlat_implies_holds _ _ done.rows
-  have children : ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index)
-      (childOffset offset index) base := by
-    intro index
-    have callHolds := childRows (childOpAt interface offset index) (by
-      simp only [childOps, List.mem_map, List.mem_finRange, true_and]
-      exact ⟨index, rfl⟩)
-    change CanonicalU64.Assumptions (childInterface interface offset index)
-        (childOffset offset index) base →
-      CanonicalU64.SpecHolds (childInterface interface offset index) (childOffset offset index) base
-      at callHolds
-    exact callHolds (Expr.VarsBelow.mono _ (assumptions index) (by simp [childOffset]))
+/-- Integer check quotients after the quotient and digit bits have been assigned. -/
+def checkQuotients (base : Env) (offset draw : Nat) : Nat → Nat := fun index =>
+  if below : index < checkCount then
+    let check : Fin checkCount := ⟨index, below⟩
+    let left := linearValue base (reduceTerms (modulus check) (drawTerms offset)) +
+      modulus check * checkBias
+    let right := linearValue (completedEnv base offset draw (fun _ => 0))
+      (reduceTerms (modulus check) (resultTerms offset))
+    (left - right) / modulus check
+  else 0
+
+/-- The deterministic honest assignment of the 353 checked result bits. -/
+def completeNew (interface : Interface) (base : Env) (offset : Nat) : Env :=
+  let draw := (drawIndex (drawOf interface base offset)).val
+  completedEnv base offset draw (checkQuotients base offset draw)
+
+theorem completeNew_agreesOutside (interface : Interface) (base : Env) (offset : Nat) :
+    AgreesOutside base (completeNew interface base offset) (quotientStart offset) newBitCount := by
+  intro index outside
+  unfold completeNew completedEnv
+  rw [if_neg (by omega)]
+
+/-- Once the canonical children are complete, the explicit result assignment
+satisfies the unchanged gadget rows. -/
+theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hint) (base : Env)
+    (offset : Nat)
+    (children : ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index)
+      (childOffset offset index) base)
+    (childRows : holdsFlat base (childOps interface offset))
+    (childScope : ∀ expression ∈ flatConstraints (childOps interface offset),
+      expression.VarsBelow (quotientStart offset)) :
+    holdsFlat (completeNew interface base offset) (operations interface hints offset) ∧
+      ∀ check : Fin checkCount,
+        checkQuotients base offset (drawIndex (drawOf interface base offset)).val check.val < 549 := by
   let draw := (drawIndex (drawOf interface base offset)).val
   have drawBound : draw < drawCount := (drawIndex (drawOf interface base offset)).isLt
   have drawValue : linearValue base (drawTerms offset) = draw := drawTerms_value children
@@ -299,10 +309,7 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
     linearValue base (reduceTerms (modulus index) (drawTerms offset)) + modulus index * checkBias
   let right : Fin checkCount → Nat := fun index =>
     linearValue zeroEnv (reduceTerms (modulus index) (resultTerms offset))
-  let quotients : Nat → Nat := fun index =>
-    if below : index < checkCount then
-      (left ⟨index, below⟩ - right ⟨index, below⟩) / modulus ⟨index, below⟩
-    else 0
+  let quotients := checkQuotients base offset draw
   let completed := completedEnv base offset draw quotients
   -- Result atoms do not depend on the check quotients.
   have resultAtoms : ∀ term ∈ resultTerms offset, term.2.eval completed = term.2.eval zeroEnv := by
@@ -351,7 +358,7 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
   -- Each check row closes with its quotient.
   have checkClosed : ∀ index : Fin checkCount,
       left index = right index + modulus index * quotients index.val ∧
-        quotients index.val < 2 ^ checkBitCount := by
+        quotients index.val < 549 := by
     intro index
     let m := modulus index
     have positive := modulus_pos index
@@ -394,7 +401,7 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
     have divides : m ∣ left index - right index :=
       (Nat.modEq_iff_dvd' ordered).mp (rightModEq.trans leftModEq.symm)
     have quotientEq : quotients index.val = (left index - right index) / m := by
-      simp only [quotients, dif_pos index.isLt, Fin.eta]
+      simp only [quotients, checkQuotients, dif_pos index.isLt, Fin.eta]
       rfl
     refine ⟨?_, ?_⟩
     · rw [quotientEq, Nat.mul_div_cancel' divides]
@@ -407,35 +414,18 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
           _ < m * 549 := by
             have : 1 ≤ m := positive
             omega
-      simp only [checkBitCount]
-      omega
-  refine ⟨completed, ?_, ?_⟩
-  · -- Only the gadget's variables change.
-    rw [localLength_eq_privateCount interface hints offset allocates]
-    intro index outside
-    have notNew : ¬ (quotientStart offset ≤ index ∧ index < quotientStart offset + newBitCount) := by
-      simp only [quotientStart, privateCount, childWidth, CanonicalU64.auxiliaryCount,
-        fieldCount] at *
-      omega
-    change (if quotientStart offset ≤ index ∧ index < quotientStart offset + newBitCount then _
-      else base index) = env index
-    rw [if_neg notNew]
-    exact done.agrees index (by rw [doneLength]; simp only [childWidth,
-      CanonicalU64.auxiliaryCount, fieldCount, privateCount] at *; omega)
-  · -- Every flat row holds.
+      exact this
+  refine ⟨?_, ?_⟩
+  · change holdsFlat completed (operations interface hints offset)
     intro expression member
     simp only [operations, flatConstraints, List.flatMap_append, List.mem_append] at member
     rcases member with (childMember | witnessMember) | rowMember
     · have childHolds : ConstraintsHold completed (flatConstraints (childOps interface offset)) := by
         apply constraintsHold_of_agree_below base completed _ (quotientStart offset)
-        · intro expression member
-          rw [← doneOps] at member
-          have := done.scope expression member
-          rwa [doneLength] at this
+        · exact childScope
         · intro index below
           exact completedEnv_below index below
-        · rw [← doneOps]
-          exact done.rows
+        · exact childRows
       exact childHolds expression childMember
     · simp [Op.flatConstraints, recipeConstraints, WitnessBatch.hinted] at witnessMember
     · obtain ⟨operation, operationMember, expressionMember⟩ := List.mem_flatMap.mp rowMember
@@ -517,9 +507,57 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
             intro bit member
             rw [checkBit_eval index bit (Finset.mem_range.mp member) index.isLt]
             ring
-          rw [Finset.sum_congr rfl bits, ← Finset.mul_sum, binary_sum _ _ bound]
+          rw [Finset.sum_congr rfl bits, ← Finset.mul_sum, binary_sum _ _ (lt_trans bound (by decide : 549 < 2 ^ checkBitCount))]
         rw [checkValue]
         exact congrArg fieldOfNat closed
+  · exact fun check => (checkClosed check).2
+
+theorem completeNew_holds (interface : Interface) (hints : Nat → List Hint) (base : Env)
+    (offset : Nat)
+    (children : ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index)
+      (childOffset offset index) base)
+    (childRows : holdsFlat base (childOps interface offset))
+    (childScope : ∀ expression ∈ flatConstraints (childOps interface offset),
+      expression.VarsBelow (quotientStart offset)) :
+    holdsFlat (completeNew interface base offset) (operations interface hints offset) := by
+  exact (completeNew_certificate interface hints base offset children childRows childScope).1
+
+/-- V4: from any environment whose inputs lie below the offset, an honest
+completion changes only the gadget's variables and satisfies every row. -/
+theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : Env)
+    (offset : Nat) (assumptions : Assumptions interface offset)
+    (allocates : (hints offset).length = newBitCount) :
+    ∃ completed,
+      AgreesOutside env completed offset (localLength (operations interface hints offset)) ∧
+      holdsFlat completed (operations interface hints offset) := by
+  obtain ⟨done, doneOps, doneLength⟩ := completeChildren interface offset env assumptions
+  let base := done.current
+  have childRows : holds base (childOps interface offset) := by
+    rw [← doneOps]
+    exact holdsFlat_implies_holds _ _ done.rows
+  have children : ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index)
+      (childOffset offset index) base := by
+    intro index
+    have callHolds := childRows (childOpAt interface offset index) (by
+      simp only [childOps, List.mem_map, List.mem_finRange, true_and]
+      exact ⟨index, rfl⟩)
+    change CanonicalU64.Assumptions (childInterface interface offset index)
+        (childOffset offset index) base →
+      CanonicalU64.SpecHolds (childInterface interface offset index) (childOffset offset index) base
+      at callHolds
+    exact callHolds (Expr.VarsBelow.mono _ (assumptions index) (by simp [childOffset]))
+  let completed := completeNew interface base offset
+  refine ⟨completed, ?_, completeNew_holds interface hints base offset children ?_ ?_⟩
+  · rw [localLength_eq_privateCount interface hints offset allocates]
+    have childAgreement := done.agrees
+    rw [doneLength] at childAgreement
+    exact childAgreement.append (completeNew_agreesOutside interface base offset)
+  · rw [← doneOps]
+    exact done.rows
+  · intro expression member
+    rw [← doneOps] at member
+    have scope := done.scope expression member
+    rwa [doneLength] at scope
 
 /-! ### The proved circuit -/
 

@@ -95,6 +95,49 @@ private theorem digitValue_le (rows : holds env (operations interface hints offs
 
 end Rows
 
+/-- All retained values except each canonical child's two auxiliary fields
+are Boolean under the authoritative rows. -/
+theorem retained_bit_le_one (interface : Interface) (hints : Nat → List Hint)
+    (env : Env) (offset column : Nat) (assumptions : Assumptions interface offset)
+    (rows : holds env (operations interface hints offset)) (bound : column < privateCount)
+    (bitColumn : column < childWidth * fieldCount → column % childWidth < CanonicalU64.bitCount) :
+    (env (offset + column)).val ≤ 1 := by
+  change column < 617 at bound
+  by_cases inChild : column < childWidth * fieldCount
+  · have bitBound := bitColumn inChild
+    have indexBound : column / childWidth < fieldCount := by
+      change column < 264 at inChild
+      change column / 66 < 4
+      omega
+    have value := (child_spec assumptions rows ⟨column / childWidth, indexBound⟩).bit_lt_two
+      (column % childWidth) bitBound
+    change (env (offset + childWidth * (column / childWidth) + column % childWidth)).val < 2 at value
+    rw [Nat.add_assoc, Nat.div_add_mod] at value
+    omega
+  · change ¬column < 264 at inChild
+    by_cases inQuotient : column < 395
+    · have value := quotientBit_le_one rows (column - 264) (by change _ < 131; omega)
+      change (env (quotientStart offset + (column - 264))).val ≤ 1 at value
+      have coordinate : quotientStart offset + (column - 264) = offset + column := by
+        change offset + 264 + (column - 264) = _
+        omega
+      rwa [coordinate] at value
+    · by_cases inDigit : column < 557
+      · have digitBound : (column - 395) / 3 < digitCount := by change _ < 54; omega
+        have value := digitBit_le_one rows ((column - 395) / 3) ((column - 395) % 3)
+          digitBound (by exact Nat.mod_lt _ (by decide))
+        change (env (offset + 395 + 3 * ((column - 395) / 3) + (column - 395) % 3)).val ≤ 1 at value
+        have coordinate : offset + 395 + 3 * ((column - 395) / 3) + (column - 395) % 3 =
+            offset + column := by omega
+        rwa [coordinate] at value
+      · have checkBound : (column - 557) / 10 < checkCount := by change _ < 6; omega
+        have value := checkBit_le_one rows ⟨(column - 557) / 10, checkBound⟩ ((column - 557) % 10)
+          (by exact Nat.mod_lt _ (by decide))
+        change (env (offset + 557 + 10 * ((column - 557) / 10) + (column - 557) % 10)).val ≤ 1 at value
+        have coordinate : offset + 557 + 10 * ((column - 557) / 10) + (column - 557) % 10 =
+            offset + column := by omega
+        rwa [coordinate] at value
+
 /-! ### Check rows -/
 
 section Checks

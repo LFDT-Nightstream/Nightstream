@@ -22,6 +22,19 @@ It compares complete proof bytes, caller values and physical witnesses.
 The Lean verifier receives CPU C proof messages; this is verifier conformance,
 not independent proof generation.
 
+The CPU coordinator also runs two production terminal rejection tests. Each
+changes two child evaluations while preserving their weighted PiDEC sum,
+then rebuilds the complete fresh witness and commitment. `opening-k` must
+reach the production `Eval_K` comparison; `opening-a` must reach `Eval_A`.
+An earlier rejection, including `FreshRelation`, fails these tests. The older
+single-child rehash mutation is a separate fresh-relation rejection case.
+To run just these tests on an existing CPU output directory:
+
+```sh
+timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-k
+timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-a
+```
+
 ## Independent Lean results
 
 To generate both selected folds and run their complete comparisons:

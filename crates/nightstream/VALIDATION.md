@@ -713,7 +713,11 @@ running witnesses. Terminal checks made 959 device dispatches and accepted the
 expected state; a changed expected state was rejected. A separate CPU phase
 changed the first claimed `Eval_K`, recomputed the state hash, changed the
 fresh public witness, and recomputed its commitment. Metal rejected this input
-with `Eval_K differs from the complete witness opening`, as required.
+with `Eval_K differs from the complete witness opening` in that recorded run.
+The current row evaluator checks the fresh relation first, so this mutation
+now fails there. Production opening-check coverage uses the `opening-k` and
+`opening-a` tests with balanced child changes and rebuilt fresh witnesses;
+see [the manual checks](../../scripts/GOLDEN_CONFORMANCE.md).
 
 [Logs, requests, and comparison records](tests/evidence/nonzero-fold-20260921)
 retain these results and the failed CPU memory attempt. Each invocation kept

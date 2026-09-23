@@ -81,11 +81,12 @@ class GoldenConformanceTests(unittest.TestCase):
         expected = ["base"]
         for step in (1, 2):
             expected += ["sources", "ccs", "rlc", "split", "openings", "nifs", "successor"]
-        expected += ["terminal", "mutation", "reject"]
+        expected += ["terminal", "mutation", "reject", "opening-k", "opening-a"]
         self.assertEqual([call["--phase"] for call in phases], expected)
         self.assertEqual([call["--step"] for call in phases if call["--phase"] == "openings"],
                          ["1", "2"])
-        self.assertEqual([call["--step"] for call in phases[-3:]], ["3", "3", "3"])
+        self.assertEqual([call["--step"] for call in phases if call["--phase"] in
+                          ("terminal", "mutation", "reject")], ["3", "3", "3"])
         self.assertEqual([dict(zip(call[6::2], call[7::2]))["--fold"] for call in self.calls[-2:]], ["1", "2"])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "passed")
 
@@ -113,6 +114,13 @@ class GoldenConformanceTests(unittest.TestCase):
             self.invoke()
         self.assertEqual(self.calls, [])
         self.assertEqual(runner.read(self.directory / "conformance.json"), {"outcome": "passed"})
+
+    def test_opening_rejection_failure_prevents_conformance_acceptance(self):
+        self.failed_phase = "opening-k"
+        self.assertEqual(self.invoke(), 1)
+        self.assertEqual(self.phase_calls()[-1]["--phase"], "opening-k")
+        self.assertFalse((self.directory / "comparison-fold-2.json").exists())
+        self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
 
 
 if __name__ == "__main__":

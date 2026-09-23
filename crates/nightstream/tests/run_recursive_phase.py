@@ -18,6 +18,10 @@ from lean_graph.guard import build_lock  # noqa: E402
 from lean_graph.policy import CAPS  # noqa: E402
 
 TEST = "lifecycle::tests::staged::run_phase"
+OPENING_TESTS = {
+    "opening-k": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+    "opening-a": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
+}
 # NIGHTSTREAM_CRATE_GOAL.md, current owner-approved RSS guard.
 RSS_CAP_BYTES = 16 * 1024**3
 # Same cadence as tests/evidence/nonzero-fold-20260921/run_rss_test.py.
@@ -188,7 +192,7 @@ def main() -> int:
     record_path = logs / f"{name}.json"
     if record_path.exists():
         parser.error(f"phase record already exists: {record_path}")
-    command = [str(args.binary.resolve()), TEST, "--ignored", "--exact", "--nocapture"]
+    command = [str(args.binary.resolve()), OPENING_TESTS.get(args.phase, TEST), "--ignored", "--exact", "--nocapture"]
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     changes = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).splitlines()
     record = {"schema": 1, "source_commit": commit, "source_changes": changes,

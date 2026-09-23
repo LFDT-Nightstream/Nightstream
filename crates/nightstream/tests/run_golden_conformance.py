@@ -119,6 +119,8 @@ def main():
         phase(binary, directory, "terminal", record["commands"], step=3, engine="optimized")
         phase(binary, directory, "mutation", record["commands"], step=3)
         phase(binary, directory, "reject", record["commands"], step=3, engine="optimized")
+        phase(binary, directory, "opening-k", record["commands"])
+        phase(binary, directory, "opening-a", record["commands"])
         for fold, name in ((1, "reference-first"), (2, "reference-later")):
             compare_fold(directory, fold, references / name, record["commands"])
         record["outcome"] = "passed"

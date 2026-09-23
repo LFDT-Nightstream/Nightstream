@@ -61,6 +61,9 @@ not claim protected external acceptance or publication of new release assets.
   The repeated rejection passed; the failed receipt remains in the archive.
   The other 17 passed stages were retained with complete byte comparisons.
   Production Rust, Lean and build inputs did not change during this repair.
+  That mutation covers `FreshRelation`. The state-3 `ce-evaluation` and
+  `ce-matrix-evaluation` cases below use the legacy verifier; they do not
+  establish production running-opening rejection coverage.
 - Both fresh Lean checks pass: all proof bytes, 177,326 private caller words,
   278 public caller words, all seven result fields and 234,755,400 physical
   bytes per fold. Each records 34 Lean public-check rejections, ten decoder

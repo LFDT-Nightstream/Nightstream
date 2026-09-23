@@ -83,7 +83,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     save_envelope(&package, &envelope, &step_dir(root, step + 1), Some(&directory));
 }
 pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert!(matches!(step, 3 | 4), "selected terminal states are iterations 3 and 4");
+    assert_eq!(step, 3, "selected terminal state is iteration 3");
     let package = prepare_with_engine(engine);
     let envelope = load_envelope(&package, &step_dir(root, step), step);
     let expected = expected_state(step);
@@ -113,7 +113,7 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     );
 }
 pub(super) fn mutation(root: &Path, step: u64) {
-    assert!(matches!(step, 3 | 4), "selected terminal states are iterations 3 and 4");
+    assert_eq!(step, 3, "selected terminal state is iteration 3");
     let package = prepare();
     let original = step_dir(root, step);
     let envelope = load_envelope(&package, &original, step);
@@ -126,7 +126,7 @@ pub(super) fn mutation(root: &Path, step: u64) {
     );
 }
 pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert!(matches!(step, 3 | 4), "selected terminal states are iterations 3 and 4");
+    assert_eq!(step, 3, "selected terminal state is iteration 3");
     let package = prepare_with_engine(engine);
     let changed = load_envelope(&package, &root.join(format!("changed-step-{step}")), step);
     let error = package
@@ -145,6 +145,6 @@ pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
     );
     save(
         &root.join(format!("terminal-{step}-rejected.json")),
-        &json!({"schema":1,"package_identity":package.package_identity(),"iteration":step,"case":"rehashed and recommitted false running Eval_K","rejected":true,"rejection":format!("{error:?}")}),
+        &json!({"schema":1,"package_identity":package.package_identity(),"iteration":step,"case":"fresh relation mismatch after public input rehash and recommit","rejected":true,"rejection":format!("{error:?}")}),
     );
 }

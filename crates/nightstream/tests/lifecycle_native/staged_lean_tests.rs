@@ -1,5 +1,5 @@
-use super::super::super::super::{claim, commitment, fields as input_fields, frame, proof as fixture_proof};
 use super::*;
+use crate::lifecycle::tests::{claim, commitment, fields as input_fields, frame, proof as fixture_proof};
 
 fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stage1_actual_nifs/actual_result.json");

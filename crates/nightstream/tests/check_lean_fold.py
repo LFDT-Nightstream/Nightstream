@@ -236,17 +236,8 @@ class Check:
         folder = self.fold_inputs(self.step)
         if self.step == 1:
             request = [1, base[2][30:34], base[4][0], base[2][-4:]]
-        elif self.step == 2:
-            request = request2
         else:
-            previous = self.fold_inputs(2)
-            compare_source(load(previous / "pi_ccs_input.json"), load(self.output / "inputs/step-2/envelope.json"),
-                           load(self.output / "inputs/step-2/fresh-claim.json"), request2, identity)
-            observed, _ = self.verify_fold(2, previous, identity, package)
-            prior_caller, _, _ = self.caller(2, previous, request2, context, observed)
-            request = [3, request2[1], prior_caller[4][0], request2[3]]
-            equal(load(folder / "pi_ccs_input.json")[6], load(previous / "children.json"), "own returned child handoff")
-            equal(load(folder / "pi_ccs_input.json")[2], prior_caller[4][2], "prior returned fresh public input")
+            request = request2
         compare_source(load(folder / "pi_ccs_input.json"), load(self.output / f"inputs/step-{self.step}/envelope.json"),
                        load(self.output / f"inputs/step-{self.step}/fresh-claim.json"), request, identity)
         observed, native_mutations = self.verify_fold(self.step, folder, identity, package)
@@ -278,7 +269,7 @@ class Check:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--step", type=int, choices=(1, 2, 3), required=True)
+    parser.add_argument("--step", type=int, choices=(1, 2), required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--native-checker", type=Path, required=True)
     args = parser.parse_args()

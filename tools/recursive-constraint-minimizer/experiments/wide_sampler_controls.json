@@ -1,0 +1,48 @@
+{
+  "reviewed_commit": "919cd12b4",
+  "moduli": [
+    1125899906842623,
+    1125899906842621,
+    1125899906842619,
+    1125899906842615,
+    1125899906842613,
+    1125899906842609
+  ],
+  "exact_bias": {
+    "numerator": 598682532854985852946976838901634135514503941797845648952509809149370298364,
+    "denominator": 6427752171049650399144961452374692986873065652216878340253695999999046325683649261151231257827021181583404541015625
+  },
+  "bias_log2": -132.97964692208498,
+  "seventeen_draws_bound_log2": -128.89218408083465,
+  "checks": {
+    "digit_range_rejects_5_to_7": "unsat",
+    "missing_digit_range_accepts_5": "sat",
+    "bounded_check_row_cannot_wrap": "unsat",
+    "missing_check_range_allows_wrap": "sat",
+    "crt_range_forces_equality": "unsat",
+    "missing_sixth_check_accepts_false_scalar": "sat",
+    "sixth_check_rejects_same_false_scalar": "unsat"
+  },
+  "omitted_sixth_row_witness": {
+    "X": 0,
+    "Q": 32592575621350937887648160479897954317,
+    "R": 2308771441596627148341933123330084990,
+    "K": [
+      255,
+      249,
+      245,
+      255,
+      249,
+      254
+    ],
+    "check_residuals": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1125899906802289
+    ]
+  },
+  "scope": "Local range checks and replayed omission attacks; not a production or transcript proof."
+}

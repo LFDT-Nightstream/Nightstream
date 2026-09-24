@@ -275,21 +275,54 @@ norm and public-coordinate transport obligations from the physical source.
 
 `Lifecycle.Stage1.Wide.Relation.StepHoldsFor` instantiates the existing HyperNova
 transition with the candidate wide-sampler key. Its prior and next state-hash
-preimages are proved equal to the baseline preimages. This definition provides
-the target for semantic-step construction and whole-plan soundness; it is not
-yet a proof of either result.
+preimages equal the baseline preimages for the same state data and `vk` argument.
+This does not equate the old and new production digests: package selection must
+bind the new verifier identity.
 
-The accepted physical source still needs construction from that semantic step.
-Whole-plan soundness for the new key, emitted-matrix correspondence, the full
-normalized nonzero count, and the selected security and Rust connections remain
-open. No selected circuit count changes in this batch.
+## Complete witness from a semantic step
+
+`Layout.Stage1.Wide.StepPhysicalCompleteness.complete` now constructs the
+physical source from a candidate semantic step and accepted wide-key NIFS
+advice. It completes the pilot, PiCCS, wide PiRLC, PiDEC, and running transition
+in order. Each stage preserves all earlier source values and physical rows.
+The PiDEC input loader reads the new PiRLC parent and the exact proof messages.
+Its sixteen-child result equals the new verifier's result.
+
+`Export.Stage1.Wide.SelectedAssignmentCompleteness.complete` uses that source
+to construct the complete compact CCS assignment for `Poseidon2HashChainV1`.
+One theorem proves all
+3,248,956 rows, the strict magnitude bound below two on all carrier coordinates,
+the exact public digest, and the unchanged four-word application advice. There
+are no physical-row, sampler-success, or witness-transport premises. As in the
+baseline theorem, the inputs include well-formed state encodings, the fresh
+public-input binding, accepted NIFS advice, its recursive output equality, and
+the application's witness width. No stronger security assumption is introduced.
+
+The physical source is a proof construction. It does not require the production
+Rust witness generator to compute discarded R1CS ring scratch. The compact
+PiRLC witness still constructs its own products and quotient coefficients
+directly. Rust transport remains to be connected to this construction.
+
+Whole-plan soundness for arbitrary accepted candidate assignments,
+emitted-matrix correspondence, the full normalized nonzero count, and the
+selected security and Rust connections remain open. The candidate remains at
+137,341,872 committed coordinates. This proof batch changes no circuit count.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 845 sampler and integration audits, plus four retained-support regression
+all 905 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
-boundary checks pass. These checks do not select the candidate.
+boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
+build passed with 4,396 jobs. The commands were:
+
+```sh
+timeout --signal=KILL 1500 scripts/validate.sh static
+timeout --signal=KILL 1500 scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests
+timeout --signal=KILL 1500 scripts/validate.sh axioms
+```
+
+These checks do not select the candidate.
 
 The carrier proof uses an abstract assignment while splitting the optional
 logical-column lookup. Splitting the concrete witness expression caused its
@@ -354,14 +387,10 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Complete the candidate witness construction from a semantic HyperNova step.
-  All compact phase rows now accept one assignment built from the accepted wide
-  physical prefix. Its carrier norm and exact public-digest transport are proved.
-  Construct the physical source from the candidate semantic relation and connect
-  its state fields and advice to that step. Prove whole-plan soundness with the
-  new key. Then prove that the emitted matrix program denotes the same plan and
-  measure all normalized matrix entries. Acceptance from an existing physical
-  witness does not by itself close these obligations.
+- Prove whole-plan soundness for arbitrary accepted assignments with the new
+  key. Complete witness construction from a semantic step is now proved; it is
+  the other direction. Then prove that the emitted matrix program denotes the
+  same plan and measure all normalized matrix entries.
 - Apply the security model to the selected production transcript and record the
   applicable Fiat–Shamir assumption and query accounting. The adaptive block
   budget `q` in `q * distance` must not be identified with a fold count or the

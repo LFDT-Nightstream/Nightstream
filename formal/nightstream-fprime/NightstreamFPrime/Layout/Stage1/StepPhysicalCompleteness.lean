@@ -20,7 +20,7 @@ open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
-private theorem lower_prefix {initial : Env} {offset : Nat}
+theorem lower_prefix {initial : Env} {offset : Nat}
     (builtPrefix : Sequence.Prefix initial offset) (plan : R1CS.LoweringPlan)
     (constraints : plan.constraints = flatConstraints builtPrefix.operations)
     (firstFresh : plan.firstFresh = offset + localLength builtPrefix.operations) :
@@ -39,24 +39,24 @@ private theorem lower_prefix {initial : Env} {offset : Nat}
   rw [R1CS.LoweringPlan.next_eq]
   exact R1CS.lowerConstraints_rows_varsBelow plan.constraints plan.firstFresh scope
 
-private theorem pilot_end_before_c :
+theorem pilot_end_before_c :
     Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ≤ PiCCSInputs.phaseOffset := by
   rw [← PiCCSInputs.expectedContextStart_matches_pilot]
   unfold PiCCSInputs.phaseOffset PiCCSInputs.proofInputStart
   omega
 
-private theorem pilot_start_le_end :
+theorem pilot_start_le_end :
     PilotProduction.witnessOffset ≤ Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset := by
   rw [Pilot.logicalColumnCount_eq_add, Pilot.outputOffset_eq_add]
   omega
 
-private theorem pilot_logical_le_physical :
+theorem pilot_logical_le_physical :
     Pilot.logicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ≤
       Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset := by
   rw [Pilot.physicalColumnCount_eq]
   exact Nat.le_add_right _ _
 
-private theorem external_outside_pilot_physical (index : Nat)
+theorem external_outside_pilot_physical (index : Nat)
     (external : PiCCSOrdinarySourceSupport.External index) :
     index < PilotProduction.witnessOffset ∨
       Pilot.physicalColumnCount PilotProduction.interface PilotProduction.witnessOffset ≤ index := by
@@ -84,7 +84,7 @@ private theorem external_outside_pilot_physical (index : Nat)
     omega
 
 
-private theorem external_before_c (index : Nat)
+theorem external_before_c (index : Nat)
     (external : PiCCSOrdinarySourceSupport.External index) : index < PiCCSInputs.phaseOffset := by
   have early : PilotProduction.witnessOffset ≤ PiCCSInputs.phaseOffset :=
     pilot_start_le_end.trans (pilot_logical_le_physical.trans pilot_end_before_c)
@@ -114,7 +114,7 @@ private theorem external_before_c (index : Nat)
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-private theorem c_end_before_r (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+theorem c_end_before_r (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (NightstreamFPrime.Layout.PiCCS.v1_1.plan relation
       (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset).next ≤ PiRLCInputs.phaseOffset := by
   have bound := Nat.le_max_right
@@ -144,7 +144,7 @@ private theorem d_end_before_running (relation : ProductionKey.LogicalRelation l
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation] at bound
   exact bound
 
-private theorem firstFresh_le_next (plan : R1CS.LoweringPlan) : plan.firstFresh ≤ plan.next := by
+theorem firstFresh_le_next (plan : R1CS.LoweringPlan) : plan.firstFresh ≤ plan.next := by
   rw [R1CS.LoweringPlan.next_eq]
   exact Nat.le_add_right _ _
 
@@ -318,14 +318,14 @@ private theorem running_before_source_end : RunningTransitionInputs.phaseOffset 
   unfold RunningTransitionLayout.physicalEnd RunningTransitionLayout.logicalColumnCount
   omega
 
-private theorem prior_word_below (index : Fin PilotProduction.stateHashWords) :
+theorem prior_word_below (index : Fin PilotProduction.stateHashWords) :
     PilotProduction.priorPreimageStart + index.val < PilotProduction.witnessOffset := by
   have bound := index.isLt
   unfold PilotProduction.witnessOffset PilotProduction.externalColumnCount PilotProduction.outputDigestStart
     PilotProduction.outputPreimageStart PilotProduction.priorPublicInputStart
   omega
 
-private theorem next_word_below (index : Fin PilotProduction.stateHashWords) :
+theorem next_word_below (index : Fin PilotProduction.stateHashWords) :
     PilotProduction.outputPreimageStart + index.val < PilotProduction.witnessOffset := by
   have bound := index.isLt
   unfold PilotProduction.witnessOffset PilotProduction.externalColumnCount PilotProduction.outputDigestStart

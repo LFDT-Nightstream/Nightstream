@@ -30,7 +30,7 @@ private theorem interface_eq : relationInterface relation =
     AccumulatorInputs.piCcsInterface logicalWidth publicFits := by
   rfl
 
-private theorem cViews_eq_of_fields
+theorem cViews_eq_of_fields
     (key : ProductionKey.KeyType relation)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -61,7 +61,7 @@ private theorem input_readback
     Formal.CompletenessSupport.evalFresh_eq_of_agree_below _ _ _ _ below agrees,
     Formal.CompletenessSupport.evalProof_eq_of_agree_below relation _ _ _ _ template below agrees⟩
 
-private theorem initialState_eq_of_phase
+theorem initialState_eq_of_phase
     (env : Env) (template : Proof (ProductionKey.degreeBound relation))
     (phase : Formal.PhaseHolds relation ajtai (relationInterface relation)
       PiCCSInputs.phaseOffset env template) :
@@ -82,7 +82,7 @@ private theorem initialState_eq_of_phase
       rfl
     _ = _ := phase.outgoingState
 
-private theorem accumulator_phase
+theorem accumulator_phase
     (env : Env) (template : Proof (ProductionKey.degreeBound relation))
     (phase : Formal.PhaseHolds relation ajtai (relationInterface relation)
       PiCCSInputs.phaseOffset env template) :
@@ -115,7 +115,7 @@ variable
   (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
   (template : Proof 9)
 
-private theorem protocol_readback
+theorem protocol_readback
     (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       PiCCSProtocolCompleteness.environment prior priorPublic output digest

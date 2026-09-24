@@ -1,51 +1,19 @@
-import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
-import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
-import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
-import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
-import NightstreamFPrime.Lifecycle.Relation
-import NightstreamFPrime.Lifecycle.VerifierContext
+import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
+import NightstreamFPrime.Layout.Stage1.Wide.RunningTransitionSemantics
+import NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
 
-/-!
-Owns the running-transition and next-preimage specifications read from an
-actual selected semantic step. Exact bounded source words identify the prior
-and next typed states. The base branch uses the default running vector; only
-the positive branch consumes the actual NIFS output equality.
--/
+/-! Read the state-transition and next-preimage specifications from the
+candidate HyperNova step, using its exact wide-key PiDEC output. -/
 
-namespace NightstreamFPrime.Layout.Stage1.StepSourceSpecs
+namespace NightstreamFPrime.Layout.Stage1.Wide.StepSourceSpecs
 
-open NightstreamFPrime.Spec
-open NightstreamFPrime.Circuit
-open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiCCS.v1_1
-open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
+open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.PaperAlgebra NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open Spec.Folding.PiCCS.PaperJoint Spec.HyperNova.Construction2.Paper
+open Stage1.StepSourceSpecs (initial_word current_word)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
-
-theorem initial_word
-    (state : Nat → F)
-    (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (decoded : StateDecoder.preimage logicalWidth publicFits state = value)
-    (index : Lifecycle.Stage1.RunningTransition.StateIndex) :
-    state (RunningTransitionInputs.initialStateWordStart + index.val) = value.z0.getD index.val 0 := by
-  have initial : StateDecoder.initialState state = value.z0 := congrArg (fun preimage => preimage.z0) decoded
-  exact (StateDecoder.slice_getD state RunningTransitionInputs.initialStateWordStart
-    Lifecycle.Stage1.Application.stateWordCount index.val index.isLt).symm.trans
-      (congrArg (fun words => words.getD index.val 0) initial)
-
-theorem current_word
-    (state : Nat → F)
-    (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (decoded : StateDecoder.preimage logicalWidth publicFits state = value)
-    (index : Lifecycle.Stage1.RunningTransition.StateIndex) :
-    state (RunningTransitionInputs.currentStateWordStart + index.val) = value.current.getD index.val 0 := by
-  have current : StateDecoder.currentState state = value.current := congrArg (fun preimage => preimage.current) decoded
-  exact (StateDecoder.slice_getD state RunningTransitionInputs.currentStateWordStart
-    Lifecycle.Stage1.Application.stateWordCount index.val index.isLt).symm.trans
-      (congrArg (fun words => words.getD index.val 0) current)
 
 /-- Exact bounded source words and the selected step establish both existing
 specifications. WellFormed keeps the prior and successor natural counters
@@ -62,25 +30,25 @@ theorem specs_of_step
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (env : Env)
-    (step : StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
-    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
+    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input))
+    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output))
     (priorWords : ∀ index : Fin PilotProduction.stateHashWords,
       env (PilotProduction.priorPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits)
-          (priorHashPreimage (setup relation ajtai context.toList) input)).getD index.val 0)
+          (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input)).getD index.val 0)
     (nextWords : ∀ index : Fin PilotProduction.stateHashWords,
       env (PilotProduction.outputPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits)
-          (nextHashPreimage (setup relation ajtai context.toList) input output)).getD index.val 0)
+          (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output)).getD index.val 0)
     (recursiveOutput : 0 < input.iteration →
       RunningTransitionInputs.piDecRunningOutput relation env = output.runningNext functionIndex) :
     Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
       RunningTransitionInputs.phaseOffset env ∧
     Lifecycle.Stage1.NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
       RunningTransitionInputs.phaseOffset env := by
-  let prior := priorHashPreimage (setup relation ajtai context.toList) input
-  let next := nextHashPreimage (setup relation ajtai context.toList) input output
+  let prior := priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input
+  let next := nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output
   have priorDecoded := StateEncodingReadback.preimage_eq_of_words prior priorWellFormed
     (fun word => env (PilotProduction.priorPreimageStart + word)) priorWords
   have nextDecoded := StateEncodingReadback.preimage_eq_of_words next nextWellFormed
@@ -156,4 +124,4 @@ theorem specs_of_step
         NextPreimageInputs.priorInitialStateSource, Expr.eval_var, Nat.add_assoc] using
         nextInitial.trans priorInitial.symm
 
-end NightstreamFPrime.Layout.Stage1.StepSourceSpecs
+end NightstreamFPrime.Layout.Stage1.Wide.StepSourceSpecs

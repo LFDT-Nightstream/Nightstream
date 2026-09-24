@@ -37,6 +37,55 @@ noncomputable def key (relation : ProductionKey.LogicalRelation logicalWidth pub
     piRlcResponse := piRlcResponse
     piRlcResponseValid := piRlcResponse_valid }
 
+private theorem ccs_with_response (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (before : ProductionKey.KeyType relation)
+    (response : Transcript.State → Option (Fin before.arity.total → RingF))
+    (valid : ∀ state values, response state = some values → ∀ index, before.piRlcAlgebra.challengeValid (values index))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation)) :
+    let after := { before with piRlcResponse := response, piRlcResponseValid := valid }
+    after.piCcsExecution running fresh proof = before.piCcsExecution running fresh proof ∧
+      after.piCcsOutputs running fresh proof = before.piCcsOutputs running fresh proof ∧
+      Nifs.PaperNonInteractive.piCcsCheck after running fresh proof =
+        Nifs.PaperNonInteractive.piCcsCheck before running fresh proof := by
+  intro after
+  constructor
+  · unfold Nifs.PaperNonInteractive.Key.piCcsExecution
+    rfl
+  constructor
+  · unfold Nifs.PaperNonInteractive.Key.piCcsOutputs
+    rfl
+  · unfold Nifs.PaperNonInteractive.piCcsCheck
+    rfl
+
+theorem piCcsOutputs_unchanged (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation)) :
+    (key relation ajtai).piCcsOutputs running fresh proof =
+      (ProductionKey.key relation ajtai).piCcsOutputs running fresh proof := by
+  exact (ccs_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid running fresh proof).2.1
+
+theorem piCcsExecution_unchanged (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation)) :
+    (key relation ajtai).piCcsExecution running fresh proof =
+      (ProductionKey.key relation ajtai).piCcsExecution running fresh proof :=
+  (ccs_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid running fresh proof).1
+
+theorem piCcsCheck_unchanged (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation)) :
+    Nifs.PaperNonInteractive.piCcsCheck (key relation ajtai) running fresh proof =
+      Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai) running fresh proof :=
+  (ccs_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid running fresh proof).2.2
+
 theorem key_response (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) (state : Transcript.State) :
     (key relation ajtai).piRlcResponse state = some (response state) := rfl

@@ -202,18 +202,36 @@ extension-field cells. The cvc5 controls in `wide_source_controls.py` give a
 counterexample to one global shift, and find no counterexample to the two
 shifts, source disjointness, or the running-transition boundary.
 
-The remaining whole-package obligation is to construct these common source
-values from the new phase execution and prove acceptance after the direct
-PiRLC outputs replace the reference product values. The projection theorem
-alone does not close that obligation. Emitted-matrix correspondence, the full
-normalized nonzero count, and the selected security and Rust connections also
-remain open.
+`SourceAssignment` now constructs the common values from the wide physical
+source and the application values. It uses a source-address view and the proved
+field encoders. It does not execute the old sampler. Removed sampler and
+ring-scratch intervals have no source image. Lean proves the source bounds,
+all seven PiDEC field reads, and acceptance of the direct PiRLC rows.
+
+`ConstraintRenaming` proves exact ordered-row equality for the existing
+optimized R1CS compiler under column renaming, including direct recipe rows
+and scratch allocation. `PiDECLeafRenaming` composes this through the scalar
+split and radix leaves. `PiDECSourceRenaming` connects all four families to the
+actual old and new PiDEC interfaces. These proofs are structural; they do not
+scan the 25,488 physical rows.
+
+`PiDECSourceWitness.rowsHold` proves that an accepted wide physical PiDEC
+witness accepts the reference source view under the existing PiDEC input
+assumptions. `PiDECWitnessInputs` also proves that the final compact witness
+preserves PiDEC proof, split, and scratch values, and that its parent forms read
+the direct ordered fold. The remaining PiDEC obligation is to equate that fold
+with the physical parent outputs using the common prefix and transcript.
+
+Whole-package acceptance still requires the corresponding source-execution
+connections for the prefix and remaining phases. Emitted-matrix correspondence,
+the full normalized nonzero count, and the selected security and Rust
+connections also remain open. No selected circuit count changes in this batch.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 736 sampler and integration audits, plus four retained-support regression audits. Every audited declaration uses only the three allowed
-axioms. Static boundary checks pass. These checks do not select the candidate.
+all 776 sampler and integration audits, plus four retained-support regression
+audits. Every audited declaration uses only the three allowed axioms. Static boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary
 inputs and three 17-scalar transcript traces. The saved fixture is byte-for-byte
@@ -265,8 +283,9 @@ All 681 rows and all 54 digits are checked for every case.
 
 - Close whole-package witness preservation and compatible witness construction
   for the assembled Stage 1 candidate. Matrix read support and the PiDEC
-  retained-parent connection are proved; physical source ownership still needs
-  transport.
+  retained-parent connection and physical PiDEC source transport are proved.
+  Connect the direct parent outputs to the physical witness, then close the
+  prefix and remaining phase transport.
   Prove the emitted matrix program denotes that same plan, then measure all
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.

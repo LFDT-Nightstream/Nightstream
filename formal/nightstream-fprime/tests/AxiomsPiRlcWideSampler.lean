@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.Wide.FixedPoint
 import NightstreamFPrime.Export.Stage1.Wide.PiDECOutput
 import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
 import NightstreamFPrime.Export.Stage1.Wide.HashChainCounts
@@ -720,3 +721,7 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.terminal_lane
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.parent_reference_form
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.parent_form
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPoint.plan_same_shape
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPoint.carrierFits
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPoint.plan_fixedPoint
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPoint.relation_matrices

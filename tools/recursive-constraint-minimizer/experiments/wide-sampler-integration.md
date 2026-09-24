@@ -144,11 +144,14 @@ The candidate NIFS key in `Lifecycle/PiRLC/Wide/Key.lean` uses the exact new
 response map. Lean connects that response to accepted candidate phase values
 and proves that the profile and challenge-set cardinality remain unchanged.
 This closes a deterministic verifier connection, not the production FS model.
+`Wide/FixedPoint.lean` derives the recursive relation at the candidate width
+from its own matrices and proves that reassembly against that relation gives
+the same Stage 1 plan. The old zero-matrix seed supplies no semantic authority.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 618 sampler audits. Every audited declaration uses only the three allowed
+all 622 sampler audits. Every audited declaration uses only the three allowed
 axioms. Static boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary

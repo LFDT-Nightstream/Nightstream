@@ -17,7 +17,9 @@ pub use form::MatrixRun;
 mod phi81;
 mod poseidon;
 mod poseidon_input;
+mod projection;
 mod template;
+use projection::ColumnProjection;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/matrix_program.rs"]
@@ -54,10 +56,6 @@ fn decode_entries(value: &Value) -> Result<Vec<Entry>, PackageError> {
         });
     }
     Ok(decoded)
-}
-
-pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
-    Ok(Form::from_entries(decode_entries(value)?))
 }
 
 fn checked_wire_form(entries: &[Entry], logical_width: usize) -> Result<Form, PackageError> {
@@ -294,6 +292,16 @@ impl SourceSubstitution {
             ranges: decode_list(&fields[0], SourceRange::decode)?,
             grids: decode_list(&fields[1], SourceGrid::decode)?,
         })
+    }
+
+    fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        for range in &mut self.ranges {
+            projection.retained(&mut range.retained)?;
+        }
+        for grid in &mut self.grids {
+            projection.retained(&mut grid.retained)?;
+        }
+        Ok(())
     }
 
     fn form(&self, logical_width: usize, source: usize) -> Result<Form, PackageError> {
@@ -596,7 +604,7 @@ impl OrdinaryBlock {
 #[derive(Clone, Debug)]
 struct PinBlock {
     one_column: usize,
-    values: Vec<Form>,
+    values: Vec<Vec<Entry>>,
 }
 
 impl PinBlock {
@@ -604,7 +612,7 @@ impl PinBlock {
         let fields = exact_array(value, 2, "pin matrix block")?;
         Ok(Self {
             one_column: usize_atom(&fields[0], "pin one column")?,
-            values: decode_list(&fields[1], decode_form)?,
+            values: decode_list(&fields[1], decode_entries)?,
         })
     }
 
@@ -615,9 +623,8 @@ impl PinBlock {
         let value = self
             .values
             .get(ordinal)
-            .ok_or(PackageError::Invalid("pin row ordinal"))?
-            .clone();
-        validate_form(&value, logical_width)?;
+            .ok_or(PackageError::Invalid("pin row ordinal"))?;
+        let value = checked_wire_form(value, logical_width)?;
         let mut row = empty_row();
         row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
         row[4] = value;
@@ -739,6 +746,17 @@ enum Block {
 impl Block {
     fn decode(value: &Value) -> Result<Self, PackageError> {
         let fields = array(value, "production matrix block")?;
+        if let [tag, source_width, projection, inner] = fields {
+            if tag.as_u64() == Some(5) {
+                let mut block = Self::decode(inner)?;
+                ColumnProjection::new(
+                    usize_atom(source_width, "mapped matrix source width")?,
+                    SourceProjection::decode(projection)?,
+                )
+                .apply(&mut block)?;
+                return Ok(block);
+            }
+        }
         if let [tag, block, rows] = fields {
             if tag.as_u64() == Some(6) {
                 return Ok(Self::OrdinaryTemplate(OrdinaryTemplate {

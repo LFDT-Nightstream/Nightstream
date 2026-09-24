@@ -477,7 +477,7 @@ follows the semantics-preserving compilation approach in
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 992 sampler, integration, security and codec audits, plus four retained-support regression
+all 999 sampler, integration, security and codec audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
 build covers witness construction, full-step soundness, matrix
@@ -562,34 +562,97 @@ The controls execute the exact hint program on 11 boundary inputs, including
 `0`, `N-1`, `N`, `N+1`, `p-1`, `p`, `p+1`, and the upper end of the draw domain.
 All 681 rows and all 54 digits are checked for every case.
 
-## Rust matrix reader
+## Rust matrix reader and witness parity
 
-The reader now accepts the candidate's embedded ordinary-row templates
-(block tag 6), sparse Poseidon input forms (input tag 6), and seven-field
-Phi81 blocks with directly centered challenge forms. Embedded rows use their
-own affine table and checked source projection, not the package R1CS callback.
-Sparse input columns are checked before zero coefficients or cancelling
-terms are removed. Thus temporary or out-of-range reads cannot be hidden by
-normalization on these paths.
+The reader accepts all block types used by the emitted candidate: checked
+coordinate maps, embedded ordinary-row templates, sparse Poseidon inputs,
+and seven-field Phi81 blocks with directly centered challenges.
+
+Checked maps are applied to operands once during decoding. Source-row indices
+remain in their original space. The reader checks every stored sparse entry
+before normalization, including zero coefficients and cancelling terms.
+Retained operands must stay contiguous under the map. The check splits each
+operand at every projection boundary, so an interior gap or overlap cannot
+pass merely because the first and last columns are valid. All 104 retained
+operands in the actual candidate meet this condition. The complete emitted
+program loads with 41 blocks, 3,248,956 rows and 137,341,846 logical coordinates.
+No per-entry map is added to the matrix traversal.
 
 The saved Lean Phi81 template takes an uncentered digit and subtracts two.
-For the new already-centered form, the reader adds two only at that template
-input. The two offsets cancel; there is no new witness value or matrix row.
-The conformance test compares every port at all 108 points for two sources
-against the existing retained-digit form and checks malformed inputs.
-
-All 18 focused matrix-program tests pass, including the new template and
-sparse-input rejection controls and the existing independent Poseidon/Phi81
-formula controls:
+For an already-centered wire form, the reader adds two only at that template
+input. The offsets cancel; there is no new witness value or matrix row.
+Tests compare every port at all 108 points for two sources against the retained
+digit form. Mapping tests compare all ports with the original interpreter,
+including nested maps, and reject missing, overlapping and non-contiguous
+ranges. All 21 focused matrix tests pass.
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib matrix_program
+tools/recursive-constraint-minimizer/experiments/check_wide_matrix_reader.sh /tmp/nightstream-wide-matrix-operands.json
 ```
 
-`cargo fmt --all` passes. This is partial reader integration: the candidate's
-checked post-row coordinate projection (block tag 5), native rho selection,
-witness transport, and production package switch are still open. No package
-or fixture was regenerated, and no Rust proving benchmark was run.
+The second command has the project-required 300-second timeout internally.
+It tests the actual compact operands emitted by `emitWideMatrixCost`; it does
+not replace complete matrix-entry conformance after production selection.
+
+The unchanged Rust witness interpreter also matches the complete scalar hint
+program on all 11 Lean boundary cases: all 2,021 private values and all 937
+retained coordinates. The 1,404 helpers have no retained slot. This is a regular
+unit test backed by the committed Lean-generated fixture
+`crates/nightstream-fprime/tests/fixtures/pi-rlc-wide-witness-v1.json`, not a test
+that requires unrecorded stdin. The interpreter and its hint kinds are unchanged.
+
+This check first failed because the raw witness expressions produced JSON at
+depth 303; the installed serde_json parser has a depth limit of 128.
+`Export/WitnessEncoding.lean` now balances sum trees and proves preservation of
+expression values, variable support, hint results, batch sizes, and complete
+sequential batch execution. The emitted depth is 27. The boundary outputs and
+retained map are unchanged. No compiler limit, Rust feature, dependency, or
+constraint changed. This follows the explicit witness/constraint separation
+in [CLAP](https://arxiv.org/abs/2405.12115); Lean supplies the local proofs.
+
+Regenerate the parity fixture from `formal/nightstream-fprime`:
+
+```sh
+timeout --signal=KILL 1500 scripts/validate.sh build emitWideWitnessParity
+timeout --signal=KILL 1500 scripts/validate.sh lean-executable .lake/build/bin/emitWideWitnessParity ../../crates/nightstream-fprime/tests/fixtures/pi-rlc-wide-witness-v1.json
+```
+
+Run its regular native test from the repository root:
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib lean_wide_hints_match_native_execution
+```
+
+All 44 regular `nightstream-fprime` library tests pass; five tests are ignored
+by default. The ignored actual-candidate operand check above also passes with
+its recorded driver. `cargo fmt --all` passes. Native rho selection, whole-package witness transport,
+and the production package switch are still open. The selected packages and
+fixtures were not regenerated, and no Rust proving benchmark was run.
+
+## Remaining coordinate budget for the research target
+
+The actual candidate matrix operands contain 32,341 Poseidon2 permutations.
+Their retained S-box blocks are disjoint after the checked coordinate map:
+2,781,326 fields at 41 coordinates each, or 114,034,366 coordinates. This count
+includes the three application permutations and the 34 wide-sampler
+permutations. It is obtained from the complete `emitWideMatrixCost` program,
+not from the older funnel's category estimates.
+
+| Budget | Coordinates |
+|---|---:|
+| Complete candidate, including alignment | 137,341,872 |
+| Current Poseidon2 S-box encoding | 114,034,366 |
+| All remaining coordinates, including alignment | 23,307,506 |
+| Research target | 92,179,782 |
+| Reduction still needed | 45,162,090 |
+
+Even removing every other coordinate would leave the current S-box allocation
+21,854,584 above the target. Thus at least 19.16% of that allocation must go,
+and the necessary reduction is larger when the remaining work is retained.
+This is a budget obstruction for the current encoding, not an impossibility
+proof for other sound Poseidon2 encodings. The additional 50% target is not
+achieved, and no proving-time or peak-memory result is claimed.
 
 ## Still required for the production switch
 

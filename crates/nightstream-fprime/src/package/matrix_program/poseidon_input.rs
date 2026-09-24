@@ -3,6 +3,7 @@
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use super::ColumnProjection;
 use super::{
     array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, field_atom,
     usize_atom, Entry, Form, PackageError, RetainedBlock, SourceCombination, SourceSubstitution,
@@ -132,6 +133,22 @@ impl Term {
                 lane_count: usize_atom(&fields[2], "Poseidon2 sparse lane count")?,
             }),
             _ => Err(PackageError::Invalid("Poseidon2 input term")),
+        }
+    }
+
+    fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        match self {
+            Self::Retained { block, .. } | Self::External { block, .. } | Self::TaggedRetained { block, .. } => {
+                projection.retained(block)
+            }
+            Self::Sparse { values, .. } => {
+                for form in values {
+                    projection.entries(form)?;
+                }
+                Ok(())
+            }
+            Self::TaggedAffine { substitution, .. } => substitution.map_columns(projection),
+            Self::Constant(_) | Self::OptionalConstant { .. } => Ok(()),
         }
     }
 
@@ -280,6 +297,13 @@ impl Program {
         Ok(Self {
             rules: decode_list(value, Rule::decode)?,
         })
+    }
+
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        for rule in &mut self.rules {
+            rule.term.map_columns(projection)?;
+        }
+        Ok(())
     }
 
     fn form(

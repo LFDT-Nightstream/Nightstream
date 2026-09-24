@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.WitnessEncoding
 import NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity
 import NightstreamFPrime.Export.Stage1.Wide.ContextBinding
 import NightstreamFPrime.Layout.MatrixProgram.RetainedMap
@@ -1192,3 +1193,12 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.concrete_bias_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.any_test_le
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.ContextBinding.step_or_collision
+
+-- Balanced witness serialization preserves all values and variable reads.
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.expression_eval
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.expression_support
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.hint_eval
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.hint_support
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.batch_shape
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.batch_execute
+#audit_axioms NightstreamFPrime.Export.WitnessEncoding.batches_execute

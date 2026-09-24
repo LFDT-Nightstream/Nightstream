@@ -5,6 +5,7 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::poseidon_input::Program as InputProgram;
+use super::ColumnProjection;
 use super::{
     checked_add, checked_mul, exact_array, template, usize_atom, Form, PackageError, RetainedBlock, RetainedKind,
     RowForms,
@@ -30,6 +31,12 @@ impl Block {
             retained: RetainedBlock::decode(&fields[2])?,
             input: InputProgram::decode(&fields[3])?,
         })
+    }
+
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        self.one_column = projection.column(self.one_column)?;
+        projection.retained(&mut self.retained)?;
+        self.input.map_columns(projection)
     }
 
     pub(super) fn row_count(&self) -> Result<usize, PackageError> {

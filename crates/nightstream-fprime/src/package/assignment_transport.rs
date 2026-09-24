@@ -1063,3 +1063,7 @@ fn word(value: &Value, location: &'static str) -> Result<usize, PackageError> {
 #[cfg(test)]
 #[path = "../../tests/unit/phi81_quotient_assignment.rs"]
 mod quotient_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/wide_witness_parity.rs"]
+mod wide_witness_tests;

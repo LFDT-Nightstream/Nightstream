@@ -234,3 +234,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "emitWideMatrixCost"
 root = "tests.WideMatrixCost"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWideWitnessParity"
+root = "tests.WideWitnessParity"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

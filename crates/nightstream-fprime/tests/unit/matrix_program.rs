@@ -440,3 +440,103 @@ fn direct_phi81_challenges_preserve_centering_and_source_order() {
     noncanonical[0][1][2][0][0][1] = json!(GOLDILOCKS_MODULUS);
     assert!(MatrixProgram::decode(&noncanonical).is_err());
 }
+
+fn map_program(program: &Value, width: usize, projection: &Value) -> Value {
+    Value::Array(
+        program
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|block| json!([5, width, projection, block]))
+            .collect(),
+    )
+}
+
+#[test]
+fn mapped_blocks_preserve_all_ports_and_external_source_indices() {
+    let original = encoded_program();
+    let mapped = map_program(&original, 6_000, &json!([1, [[0, 10, 6_000]]]));
+    let nested = map_program(&mapped, 6_010, &json!([1, [[10, 3, 6_000]]]));
+    let before = MatrixProgram::decode(&original).unwrap();
+    let after = MatrixProgram::decode(&mapped).unwrap();
+    let nested = MatrixProgram::decode(&nested).unwrap();
+    after.validate(1).unwrap();
+    nested.validate(1).unwrap();
+    let count = before.row_count().unwrap();
+    assert_eq!(after.row_count().unwrap(), count);
+    for row in 0..count {
+        let source = before.row(6_000, row, &source_row).unwrap();
+        for (program, width, shift) in [(&after, 6_010, 10), (&nested, 6_003, 3)] {
+            let actual = program.row(width, row, &source_row).unwrap();
+            for port in 0..MEANINGFUL_PORTS {
+                let expected = source[port]
+                    .entries()
+                    .into_iter()
+                    .map(|entry| Entry {
+                        column: entry.column + shift,
+                        ..entry
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    actual[port].entries(),
+                    expected,
+                    "row {row}, port {port}, shift {shift}"
+                );
+            }
+        }
+    }
+    assert!(
+        after.row(6_009, 0, &source_row).is_err(),
+        "target width excludes the moved one column"
+    );
+    let invalid_source = map_program(&original, 5_999, &json!([0]));
+    assert!(MatrixProgram::decode(&invalid_source).is_err());
+}
+
+#[test]
+fn mapped_retained_blocks_reject_interior_gaps_overlaps_and_noncontiguous_images() {
+    let original = json!([[2, [1, 3_999, [2, 86, 100], []]]]);
+    // The first and last coordinate of the retained operand are live in all
+    // three cases. An endpoint-only test would miss the invalid interior.
+    for ranges in [
+        json!([[0, 0, 200], [201, 201, 3_799]]),
+        json!([[0, 0, 4_000], [200, 200, 1]]),
+        json!([[0, 0, 200], [200, 201, 3_800]]),
+    ] {
+        assert!(MatrixProgram::decode(&map_program(&original, 4_000, &json!([1, ranges]))).is_err());
+    }
+    let adjacent = json!([1, [[0, 10, 200], [200, 210, 3_800]]]);
+    assert!(MatrixProgram::decode(&map_program(&original, 4_000, &adjacent)).is_ok());
+}
+
+#[test]
+fn mapped_pins_reject_removed_reads_before_cancellation() {
+    let projection = json!([1, [[0, 0, 5], [6, 6, 2]]]);
+    for entries in [json!([[5, 0]]), json!([[5, 1], [5, GOLDILOCKS_MODULUS - 1]])] {
+        let program = json!([[1, [0, [entries]]]]);
+        assert!(MatrixProgram::decode(&map_program(&program, 8, &projection)).is_err());
+    }
+}
+
+#[test]
+#[ignore = "Run tools/recursive-constraint-minimizer/experiments/check_wide_matrix_reader.sh with Lean-emitted operands"]
+fn wide_candidate_matrix_operands_decode() {
+    use std::io::Read;
+    let mut input = String::new();
+    std::io::stdin().read_to_string(&mut input).unwrap();
+    let operands: Value = serde_json::from_str(&input).expect("Lean-emitted matrix operands");
+    let width = operands[3].as_u64().unwrap() as usize;
+    let rows = operands[4].as_u64().unwrap() as usize;
+    let mut program = MatrixProgram::decode(&operands[1]).expect("complete candidate matrix program");
+    assert_eq!(program.row_count().unwrap(), rows);
+    let target = ColumnProjection::new(width, SourceProjection::Identity);
+    for block in &mut program.blocks {
+        target
+            .apply(block)
+            .expect("candidate operand fits its committed width");
+    }
+    println!(
+        "wide matrix operands: {} blocks, {rows} rows, {width} logical coordinates",
+        program.blocks.len()
+    );
+}

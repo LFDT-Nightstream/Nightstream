@@ -4,6 +4,7 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use super::ColumnProjection;
 use super::{
     array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, template, usize_atom,
     Entry, Form, PackageError, RetainedBlock, RowForms, SourceSubstitution,
@@ -142,6 +143,21 @@ impl Block {
             output: RetainedBlock::decode(output)?,
             quotient: RetainedBlock::decode(quotient)?,
         })
+    }
+
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        self.one_column = projection.column(self.one_column)?;
+        match &mut self.challenge {
+            Challenge::Retained { block, .. } => projection.retained(block)?,
+            Challenge::Direct(forms) => {
+                for form in forms {
+                    projection.entries(form)?;
+                }
+            }
+        }
+        self.input.map_columns(projection)?;
+        projection.retained(&mut self.output)?;
+        projection.retained(&mut self.quotient)
     }
 
     fn ring_count(&self) -> Result<usize, PackageError> {

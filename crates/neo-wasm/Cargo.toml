@@ -53,6 +53,7 @@ wasmtime = { version = "49", default-features = false, features = [
     "cranelift",
     "debug",
     "gc",
+    "gc-null",
     "runtime",
 ] }
 

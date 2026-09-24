@@ -5,8 +5,8 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::{
-    checked_add, checked_mul, decode_list, exact_array, template, usize_atom, Form, PackageError, RetainedBlock,
-    RowForms, SourceSubstitution,
+    array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, template, usize_atom,
+    Entry, Form, PackageError, RetainedBlock, RowForms, SourceSubstitution,
 };
 
 const RING_DEGREE: usize = 54;
@@ -91,11 +91,19 @@ impl Descriptor {
 }
 
 #[derive(Clone, Debug)]
+enum Challenge {
+    Retained {
+        block: RetainedBlock,
+        slot_start: usize,
+    },
+    Direct(Vec<Vec<Entry>>),
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct Block {
     families: Vec<Family>,
     one_column: usize,
-    challenge: RetainedBlock,
-    challenge_slot_start: usize,
+    challenge: Challenge,
     challenge_source_stride: usize,
     input: SourceSubstitution,
     output: RetainedBlock,
@@ -104,16 +112,35 @@ pub(super) struct Block {
 
 impl Block {
     pub(super) fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 8, "Phi81 product block")?;
+        let fields = array(value, "Phi81 product block")?;
+        let (challenge, stride, input, output, quotient) = match fields {
+            [_, _, block, start, stride, input, output, quotient] => (
+                Challenge::Retained {
+                    block: RetainedBlock::decode(block)?,
+                    slot_start: usize_atom(start, "Phi81 challenge slot start")?,
+                },
+                stride,
+                input,
+                output,
+                quotient,
+            ),
+            [_, _, forms, stride, input, output, quotient] => (
+                Challenge::Direct(decode_list(forms, decode_entries)?),
+                stride,
+                input,
+                output,
+                quotient,
+            ),
+            _ => return Err(PackageError::Invalid("Phi81 product block")),
+        };
         Ok(Self {
             families: decode_list(&fields[0], Family::decode)?,
             one_column: usize_atom(&fields[1], "Phi81 one column")?,
-            challenge: RetainedBlock::decode(&fields[2])?,
-            challenge_slot_start: usize_atom(&fields[3], "Phi81 challenge slot start")?,
-            challenge_source_stride: usize_atom(&fields[4], "Phi81 challenge source stride")?,
-            input: SourceSubstitution::decode(&fields[5])?,
-            output: RetainedBlock::decode(&fields[6])?,
-            quotient: RetainedBlock::decode(&fields[7])?,
+            challenge,
+            challenge_source_stride: usize_atom(stride, "Phi81 challenge source stride")?,
+            input: SourceSubstitution::decode(input)?,
+            output: RetainedBlock::decode(output)?,
+            quotient: RetainedBlock::decode(quotient)?,
         })
     }
 
@@ -218,14 +245,23 @@ impl Block {
         logical_width: usize,
         descriptor: Descriptor,
     ) -> Result<[Form; RING_DEGREE], PackageError> {
-        let source_base = checked_add(
-            self.challenge_slot_start,
-            checked_mul(descriptor.source, self.challenge_source_stride, "Phi81 challenge slot")?,
-            "Phi81 challenge slot",
-        )?;
+        let source_base = checked_mul(descriptor.source, self.challenge_source_stride, "Phi81 challenge slot")?;
         fixed_ring_state(|lane| {
-            self.challenge
-                .form(logical_width, checked_add(source_base, lane, "Phi81 challenge slot")?)
+            let index = checked_add(source_base, lane, "Phi81 challenge slot")?;
+            match &self.challenge {
+                Challenge::Retained { block, slot_start } => {
+                    block.form(logical_width, checked_add(*slot_start, index, "Phi81 challenge slot")?)
+                }
+                Challenge::Direct(forms) => {
+                    let entries = forms
+                        .get(index)
+                        .ok_or(PackageError::Invalid("Phi81 direct challenge table"))?;
+                    let centered = checked_wire_form(entries, logical_width)?;
+                    // The saved Lean template takes an uncentered digit and subtracts two.
+                    // The new wire form is already centered; cancel that template offset.
+                    Ok(centered.append(Form::singleton(self.one_column, Goldilocks::from_u64(2))))
+                }
+            }
         })
     }
 

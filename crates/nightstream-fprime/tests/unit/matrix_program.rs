@@ -297,3 +297,146 @@ fn overlapping_source_projection_ranges_fail_closed() {
         Err(PackageError::Invalid("missing or overlapping matrix source projection"))
     ));
 }
+
+#[test]
+fn embedded_ordinary_rows_use_their_own_table_and_checked_projection() {
+    let block = json!([[0, [[0, 1]]], 9, [[[10, 2, [0, 2, 2], 0]], []], [1, [[0, 10, 2]]]]);
+    let rows = json!([[2, [[0, 3], [0, GOLDILOCKS_MODULUS - 1]]], [0, [[1, 5]]], [7, [[0, 1]]]]);
+    let wire = json!([[6, block, rows]]);
+    let program = MatrixProgram::decode(&wire).expect("embedded ordinary program");
+    program.validate(0).expect("no external source rows needed");
+    assert_eq!(program.row_count().unwrap(), 1);
+    let row = program
+        .row(10, 0, &|_| panic!("embedded row read the external source"))
+        .expect("embedded row");
+    for (port, expected) in [
+        (1, vec![(9, 1)]),
+        (2, vec![(2, 2), (9, 2)]),
+        (3, vec![(3, 5)]),
+        (4, vec![(2, 1), (9, 7)]),
+    ] {
+        assert_eq!(
+            row[port]
+                .entries()
+                .iter()
+                .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    let mut removed = wire.clone();
+    removed[0][2][0][1]
+        .as_array_mut()
+        .unwrap()
+        .push(json!([2, 0]));
+    assert!(
+        MatrixProgram::decode(&removed)
+            .unwrap()
+            .row(10, 0, &source_row)
+            .is_err(),
+        "a zero term must not hide an unmapped helper read"
+    );
+    let mut missing = wire.clone();
+    missing[0][2].as_array_mut().unwrap().pop();
+    let missing = MatrixProgram::decode(&missing).unwrap();
+    assert!(
+        missing.validate(usize::MAX).is_err(),
+        "external row count cannot repair a short template"
+    );
+    assert!(missing.row(10, 0, &source_row).is_err());
+    let mut noncanonical = wire;
+    noncanonical[0][2][0][0] = json!(GOLDILOCKS_MODULUS);
+    assert!(MatrixProgram::decode(&noncanonical).is_err());
+}
+
+#[test]
+fn sparse_poseidon_inputs_check_stored_columns_before_normalizing() {
+    let wire = json!([[
+        [0, 2, 0, 2],
+        [
+            6,
+            [[[1, 2], [1, GOLDILOCKS_MODULUS - 2]], [[2, 3]], [[3, 4]], [[4, 5]]],
+            2
+        ]
+    ]]);
+    let program = poseidon_input::Program::decode(&wire).expect("sparse Poseidon input");
+    let first = program.state(8, 0, 0).unwrap();
+    let second = program.state(8, 0, 1).unwrap();
+    assert!(first[0].entries().is_empty());
+    for (form, column, coefficient) in [(&first[1], 2, 3), (&second[0], 3, 4), (&second[1], 4, 5)] {
+        assert_eq!(
+            form.entries(),
+            vec![Entry {
+                column,
+                coefficient: Goldilocks::from_u64(coefficient)
+            }]
+        );
+    }
+    assert!(first[2..].iter().all(|form| form.entries().is_empty()));
+
+    let mut outside = wire.clone();
+    outside[0][1][1][0]
+        .as_array_mut()
+        .unwrap()
+        .push(json!([8, 0]));
+    assert!(
+        poseidon_input::Program::decode(&outside)
+            .unwrap()
+            .state(8, 0, 0)
+            .is_err(),
+        "an out-of-range zero coefficient must fail before normalization"
+    );
+    let mut short = wire.clone();
+    short[0][1][1].as_array_mut().unwrap().pop();
+    assert!(poseidon_input::Program::decode(&short)
+        .unwrap()
+        .state(8, 0, 1)
+        .is_err());
+    let mut noncanonical = wire;
+    noncanonical[0][1][1][0][0][1] = json!(GOLDILOCKS_MODULUS);
+    assert!(poseidon_input::Program::decode(&noncanonical).is_err());
+}
+
+#[test]
+fn direct_phi81_challenges_preserve_centering_and_source_order() {
+    let one = 5_999;
+    let families = json!([[2, 1, 1]]);
+    let input = json!([[[0, 108, [0, 108, 4_216], 0]], []]);
+    let output = json!([0, 108, 4_450]);
+    let quotient = json!([0, 108, 4_600]);
+    let retained = json!([[3, [families, one, [0, 108, 4_000], 0, 54, input, output, quotient]]]);
+    let forms = (0..108)
+        .map(|index| json!([[4_000 + index, 1], [one, GOLDILOCKS_MODULUS - 2]]))
+        .collect::<Vec<_>>();
+    let direct = json!([[3, [families, one, forms, 54, input, output, quotient]]]);
+    let before = MatrixProgram::decode(&retained).unwrap();
+    let after = MatrixProgram::decode(&direct).unwrap();
+    assert_eq!(before.row_count().unwrap(), 216);
+    assert_eq!(after.row_count().unwrap(), 216);
+    for row in 0..216 {
+        let before = before.row(6_000, row, &source_row).unwrap();
+        let after = after.row(6_000, row, &source_row).unwrap();
+        for port in 0..MEANINGFUL_PORTS {
+            assert_eq!(before[port].entries(), after[port].entries(), "row {row}, port {port}");
+        }
+    }
+    let mut outside = direct.clone();
+    outside[0][1][2][0]
+        .as_array_mut()
+        .unwrap()
+        .push(json!([6_000, 0]));
+    assert!(MatrixProgram::decode(&outside)
+        .unwrap()
+        .row(6_000, 0, &source_row)
+        .is_err());
+    let mut short = direct.clone();
+    short[0][1][2].as_array_mut().unwrap().pop();
+    assert!(MatrixProgram::decode(&short)
+        .unwrap()
+        .row(6_000, 108, &source_row)
+        .is_err());
+    let mut noncanonical = direct;
+    noncanonical[0][1][2][0][0][1] = json!(GOLDILOCKS_MODULUS);
+    assert!(MatrixProgram::decode(&noncanonical).is_err());
+}

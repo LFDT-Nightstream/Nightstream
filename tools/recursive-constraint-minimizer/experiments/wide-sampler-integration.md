@@ -562,6 +562,35 @@ The controls execute the exact hint program on 11 boundary inputs, including
 `0`, `N-1`, `N`, `N+1`, `p-1`, `p`, `p+1`, and the upper end of the draw domain.
 All 681 rows and all 54 digits are checked for every case.
 
+## Rust matrix reader
+
+The reader now accepts the candidate's embedded ordinary-row templates
+(block tag 6), sparse Poseidon input forms (input tag 6), and seven-field
+Phi81 blocks with directly centered challenge forms. Embedded rows use their
+own affine table and checked source projection, not the package R1CS callback.
+Sparse input columns are checked before zero coefficients or cancelling
+terms are removed. Thus temporary or out-of-range reads cannot be hidden by
+normalization on these paths.
+
+The saved Lean Phi81 template takes an uncentered digit and subtracts two.
+For the new already-centered form, the reader adds two only at that template
+input. The two offsets cancel; there is no new witness value or matrix row.
+The conformance test compares every port at all 108 points for two sources
+against the existing retained-digit form and checks malformed inputs.
+
+All 18 focused matrix-program tests pass, including the new template and
+sparse-input rejection controls and the existing independent Poseidon/Phi81
+formula controls:
+
+```sh
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib matrix_program
+```
+
+`cargo fmt --all` passes. This is partial reader integration: the candidate's
+checked post-row coordinate projection (block tag 5), native rho selection,
+witness transport, and production package switch are still open. No package
+or fixture was regenerated, and no Rust proving benchmark was run.
+
 ## Still required for the production switch
 
 - Connect the verifier-selected package to `ContextBinding.step_or_collision`.

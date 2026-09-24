@@ -43,7 +43,7 @@ pub(super) fn empty_row() -> RowForms {
     std::array::from_fn(|_| Form::default())
 }
 
-pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
+fn decode_entries(value: &Value) -> Result<Vec<Entry>, PackageError> {
     let entries = array(value, "matrix sparse form")?;
     let mut decoded = Vec::with_capacity(entries.len());
     for entry in entries {
@@ -53,7 +53,19 @@ pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
             coefficient: field_atom(&fields[1], "matrix sparse coefficient")?,
         });
     }
-    Ok(Form::from_entries(decoded))
+    Ok(decoded)
+}
+
+pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
+    Ok(Form::from_entries(decode_entries(value)?))
+}
+
+fn checked_wire_form(entries: &[Entry], logical_width: usize) -> Result<Form, PackageError> {
+    // Check the stored entries before normalization can remove zero terms.
+    if entries.iter().any(|entry| entry.column >= logical_width) {
+        return Err(PackageError::Invalid("matrix sparse column"));
+    }
+    Ok(Form::from_entries(entries.to_vec()))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -693,8 +705,31 @@ impl MultiplicationBlock {
 }
 
 #[derive(Clone, Debug)]
+struct OrdinaryTemplate {
+    block: OrdinaryBlock,
+    combinations: Vec<SourceCombination>,
+}
+
+impl OrdinaryTemplate {
+    fn source_row(&self, index: usize) -> Result<SourceRow, PackageError> {
+        let first = checked_mul(index, 3, "ordinary template row index")?;
+        let end = checked_add(first, 3, "ordinary template row end")?;
+        let ports = self
+            .combinations
+            .get(first..end)
+            .ok_or(PackageError::Invalid("ordinary template row"))?;
+        Ok(SourceRow {
+            a: ports[0].clone(),
+            b: ports[1].clone(),
+            c: ports[2].clone(),
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
 enum Block {
     Ordinary(OrdinaryBlock),
+    OrdinaryTemplate(OrdinaryTemplate),
     Multiplication(MultiplicationBlock),
     Phi81(phi81::Block),
     Pin(PinBlock),
@@ -703,6 +738,15 @@ enum Block {
 
 impl Block {
     fn decode(value: &Value) -> Result<Self, PackageError> {
+        let fields = array(value, "production matrix block")?;
+        if let [tag, block, rows] = fields {
+            if tag.as_u64() == Some(6) {
+                return Ok(Self::OrdinaryTemplate(OrdinaryTemplate {
+                    block: OrdinaryBlock::decode(block)?,
+                    combinations: decode_list(rows, SourceCombination::decode)?,
+                }));
+            }
+        }
         let fields = exact_array(value, 2, "production matrix block")?;
         match usize_atom(&fields[0], "production matrix block tag")? {
             0 => Ok(Self::Ordinary(OrdinaryBlock::decode(&fields[1])?)),
@@ -717,6 +761,7 @@ impl Block {
     fn row_count(&self) -> Result<usize, PackageError> {
         match self {
             Self::Ordinary(block) => block.row_count(),
+            Self::OrdinaryTemplate(template) => template.block.row_count(),
             Self::Multiplication(block) => block.shape.row_count(),
             Self::Phi81(block) => block.row_count(),
             Self::Pin(block) => Ok(block.values.len()),
@@ -725,10 +770,11 @@ impl Block {
     }
 
     fn validate(&self, source_limit: usize) -> Result<(), PackageError> {
-        if let Self::Ordinary(block) = self {
-            block.validate(source_limit)?;
+        match self {
+            Self::Ordinary(block) => block.validate(source_limit),
+            Self::OrdinaryTemplate(template) => template.block.validate(template.combinations.len() / 3),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn row(
@@ -739,6 +785,9 @@ impl Block {
     ) -> Result<RowForms, PackageError> {
         match self {
             Self::Ordinary(block) => block.row(logical_width, ordinal, source_row),
+            Self::OrdinaryTemplate(template) => template
+                .block
+                .row(logical_width, ordinal, &|index| template.source_row(index)),
             Self::Multiplication(block) => block.row(logical_width, ordinal),
             Self::Phi81(block) => block.row(logical_width, ordinal),
             Self::Pin(block) => block.row(logical_width, ordinal),

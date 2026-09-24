@@ -43,6 +43,33 @@ theorem assignment_before {columns : Nat} (interface : Interface columns) (base 
   rw [assignment, Witness.assignment_outside _ _ _ _ (Or.inl before)]
   exact fieldBase_before interface base column before
 
+/-- Completing this phase leaves both earlier and later allocations unchanged. -/
+theorem assignment_outside {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
+    (column : Fin columns)
+    (outside : column.val < interface.start ∨
+      interface.start + PiRLCGeometry.coordinateCount ≤ column.val) :
+    assignment interface base column = base column := by
+  rcases outside with before | after
+  · exact assignment_before interface base column before
+  · rw [assignment, Witness.assignment_outside (sampler interface) (fieldBase interface base)
+      (initial interface base) column (Or.inr (by
+        change interface.start + 135813 ≤ column.val
+        rw [PiRLCGeometry.coordinateCount_eq] at after
+        omega))]
+    apply FieldAssignment.outside
+    right
+    simpa only [PiRLCGeometry.coordinateCount, BatchPlan.coordinateCount_eq, fieldStart,
+      LowNormBlock.Block.coordinateCount, Nat.add_assoc] using after
+
+theorem disjoint_form {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
+    (form : SparseForm columns)
+    (outside : ∀ entry ∈ form.entries, entry.column.val < interface.start ∨
+      interface.start + PiRLCGeometry.coordinateCount ≤ entry.column.val) :
+    form.eval (assignment interface base) = form.eval base := by
+  apply FieldAssignment.form_eval_eq
+  intro entry member
+  exact assignment_outside interface base entry.column (outside entry member)
+
 theorem fieldBase_initial {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
     (before : InputsBefore interface) :
     SparseLayer.evalState (fieldBase interface base) interface.initialState = initial interface base := by
@@ -171,5 +198,15 @@ theorem owned_norm {columns : Nat} (interface : Interface columns) (base : Assig
     · exact Nat.le_of_not_gt sample
     · simpa only [PiRLCGeometry.coordinateCount, BatchPlan.coordinateCount_eq,
         fieldStart, LowNormBlock.Block.coordinateCount, Nat.add_assoc] using owned.2
+
+theorem preserves_norm {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
+    (bounded : ∀ column, centeredMagnitude (base column) < 2) :
+    ∀ column, centeredMagnitude (assignment interface base column) < 2 := by
+  intro column
+  by_cases owned : interface.start ≤ column.val ∧
+      column.val < interface.start + PiRLCGeometry.coordinateCount
+  · exact owned_norm interface base column owned
+  · rw [assignment_outside interface base column (by omega)]
+    exact bounded column
 
 end NightstreamFPrime.Export.Stage1.Wide.PiRLCWitness

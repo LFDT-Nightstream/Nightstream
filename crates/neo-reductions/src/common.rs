@@ -21,6 +21,9 @@ use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
+mod pi_rlc_wide;
+pub use pi_rlc_wide::decode_pi_rlc_wide_coefficients;
+
 // ---------------------------------------------------------------------------
 // Balanced Base-b Digit Splitting
 // ---------------------------------------------------------------------------

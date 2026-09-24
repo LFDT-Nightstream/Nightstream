@@ -224,3 +224,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "measureWideSamplerCost"
 root = "tests.WideSamplerCost"
+
+[[lean_exe]]
+name = "emitWideSamplerParity"
+root = "tests.WideSamplerParity"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

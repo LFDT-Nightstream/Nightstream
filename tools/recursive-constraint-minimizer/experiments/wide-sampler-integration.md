@@ -30,8 +30,9 @@ There is no rejection, retry, or shortfall.
   input interfaces use the actual canonical source columns.
 - The sampler and all 969 quotient products compose into a 119,153-row
   candidate plan. Its soundness theorem uses the exact sampled challenges.
-  Its completeness theorem takes the caller's output and quotient encodings;
-  the full package's retained assignment still needs that connection.
+  Its direct witness constructor computes the outputs and quotient coefficients
+  from the checked challenges and the actual Stage 1 right-operand forms.
+  It allocates no R1CS ring-multiplication scratch.
 
 The proof entrypoints are in
 `NightstreamFPrime/Layout/PiRlcWideSampler/{Completeness,StateSemantics,Norm,Challenges}.lean`.
@@ -100,13 +101,68 @@ bound. Any application of an established cryptographic reduction must state
 its model and applicability conditions. The concrete-to-ideal error remains
 an explicit, separate premise in `under_block_oracle_assumption`.
 
+## Stage 1 candidate connection
+
+`Wide/Stage1Plan.lean` assembles the existing pilot, PiCCS, PiDEC, running,
+application, and final binding plans with the wide PiRLC plan. A partial
+coordinate map removes the old sampler and First-54 intervals. Common retained
+coordinates keep their internal order. The complete PiRLC allocation follows
+them, so its direct witness cannot overwrite its inputs.
+
+Lean proves that the retained map is bounded and injective on its domain.
+`ProductCoordinates.lean` also proves the required permutation from the old
+lane/cell order to the new ring/lane order. In particular, a plain shift would
+not preserve the two extension-field cells in Eval_K and Eval_A.
+`InputSupport.lean` proves that the actual initial transcript forms and every
+right operand read common coordinates. `Stage1Witness.lean` supplies the direct
+PiRLC completion on these forms, preserves common values, and identifies the
+final ordered combinations. This does not yet construct a complete accepting
+Stage 1 assignment.
+
+`HashChainCounts.lean` proves these counts of the **assembled, unselected
+candidate**, using the current application:
+
+| Measure | Selected baseline | Candidate plan |
+|---|---:|---:|
+| Logical CCS rows | 3,588,191 | 3,248,956 |
+| Logical coordinates | 149,292,999 | 137,341,846 |
+| Alignment coordinates | 45 | 26 |
+| Committed coordinates | 149,293,044 | 137,341,872 |
+| Normalized matrix nonzeros | 2,857,409,270 | Not measured for the complete plan |
+
+The candidate dimensions are derived from the assembled row plan and retained
+intervals. They are not counts from a regenerated production artifact, and are
+not an achieved production or overall performance reduction. Whole-package
+source preservation and matrix-program correspondence remain open.
+
+The old sampler's ordinary retained blocks contain 2,230,400 + 6,758,112 =
+8,988,512 coordinates. The external funnel's 8,998,512 entry is 10,000 too high;
+the selected package's total has not changed.
+
+The candidate NIFS key in `Lifecycle/PiRLC/Wide/Key.lean` uses the exact new
+response map. Lean connects that response to accepted candidate phase values
+and proves that the profile and challenge-set cardinality remain unchanged.
+This closes a deterministic verifier connection, not the production FS model.
+
 ## Validation at this checkpoint
 
-The full production library, all Lean tests, and both focused experiment
-executables built successfully (7,769 build jobs). All 507 sampler theorem
-and circuit audits passed with only the three allowed axioms. The final
-executable cost measurement matches the table above. No Rust code or generated
-production artifact has changed.
+The full production library and test gate passed (5,178 build jobs), including
+all 611 sampler audits. Every audited declaration uses only the three allowed
+axioms. Static boundary checks pass. These checks do not select the candidate.
+
+The standalone Rust decoder passes both parity tests: 11 modular boundary
+inputs and three 17-scalar transcript traces. The saved fixture is byte-for-byte
+equal to a fresh Lean emission. Production Rust rho derivation still calls the
+old sampler. There is no new hint kind, generic hint-interpreter change, crate
+dependency, or selected production artifact.
+
+The four cvc5 coordinate controls in `wide_layout_controls.py` return the
+expected SAT/UNSAT results. The negative control detects a plain lane/cell
+shift; the positive controls check collisions, bounds, and inverse recovery.
+These solver controls do not replace the universal Lean coordinate proofs.
+The experiment uses the semantics-preserving compilation discipline described
+in [CLAP](https://arxiv.org/abs/2405.12115), with the applicable
+[cvc5 arithmetic theories](https://cvc5.github.io/tutorials/beginners/theories.html).
 
 The source sampler allocates 55,403 private DSL values and has 32,623 DSL
 rows, including the 918 temporary digit bindings. Structural lowering gives
@@ -142,14 +198,17 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Assemble the new sampler into the complete Stage 1 layout, replace the old
-  sampler/selector source ownership, and close whole-package preservation and
-  witness construction. Measure the changed ring-product matrices and the full
-  F′ counts; do not infer them by subtracting component estimates.
+- Close whole-package source support, preservation, and compatible witness
+  construction for the assembled Stage 1 candidate. In particular, connect the
+  permuted final product fields to PiDEC and the physical source ownership.
+  Prove the emitted matrix program denotes that same plan, then measure all
+  normalized matrix entries. The dimension theorems alone do not close these
+  obligations.
 - Apply the security model to the selected production transcript and record the
   applicable Fiat–Shamir assumption and query accounting.
-- Update native Rust rho derivation and assignment transport, emit the parity
-  fixture, then select and regenerate the package, identities, and fixtures.
+- Switch native Rust rho derivation and assignment transport to the checked
+  decoder after the full layout and security gates pass, then select and
+  regenerate the package, identities, and fixtures.
 - Run the required conformance checks and remove the old sampler dependencies.
 
 The selected baseline remains 3,588,191 rows, 149,293,044 committed coordinates,

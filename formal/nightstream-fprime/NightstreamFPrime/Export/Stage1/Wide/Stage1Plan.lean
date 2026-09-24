@@ -1,8 +1,8 @@
-import NightstreamFPrime.Export.Stage1.Wide.RetainedLayout
+import NightstreamFPrime.Export.Stage1.Wide.PhaseSupport
 
 /-! Assemble the candidate Stage 1 rows with the wide PiRLC allocation.
-Unchanged phase plans use the proved coordinate renaming. Source coverage and
-whole-package witness preservation remain separate obligations. -/
+Every reused sparse port carries a retained-coordinate support proof.
+Whole-package witness transport remains a separate obligation. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
 
@@ -22,21 +22,40 @@ def poseidonGeometry (program : Program) :=
 def piCcsGeometry (program : Program) :=
   DirectPiDECPrefixPlan.piCcsOrdinaryGeometry (piDecGeometry program)
 
-def rename (program : Program) (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program)) :
+/-- Every reused sparse port must carry a complete read-support certificate. -/
+def rename (program : Program) (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program))
+    (supported : ReadSupport.Plans program plan) :
     ProductionRelation.Plan (RetainedLayout.logicalWidth program) :=
-  plan.mapColumns (RetainedLayout.column program)
+  plan.mapColumnsChecked (RetainedLayout.column program) supported
+
+theorem rename_rowCount (program : Program)
+    (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program))
+    (supported : ReadSupport.Plans program plan) :
+    (rename program plan supported).rowCount = plan.rowCount :=
+  Plan.mapColumnsChecked_rowCount _ _ _
+
+theorem rename_congr (program : Program)
+    {left right : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program)}
+    (same : left = right) (leftSupported rightSupported) :
+    rename program left leftSupported = rename program right rightSupported := by
+  cases same
+  rfl
 
 def initialState (program : Program) : PoseidonSboxPlan.State (RetainedLayout.logicalWidth program) :=
-  fun lane => (PiRLCSamplerPoseidonPlan.piCcsFinalOutput (poseidonGeometry program) lane).mapColumns
-    (RetainedLayout.column program)
+  fun lane => RetainedLayout.renameForm program
+    (PiRLCSamplerPoseidonPlan.piCcsFinalOutput (poseidonGeometry program) lane)
+    (ReadSupport.common_form program _ (InputSupport.piCcsOutput program (poseidonGeometry program) _ lane))
 
 def value (program : Program) (ring : PiRLCGeometry.RingIndex) :
     Phi81ProductPlan.State (RetainedLayout.logicalWidth program) :=
-  fun lane => (PiRLCValueWiring.form (piCcsGeometry program)
-    (PiRLCProductRingSchedule.laneInvocation ring lane)).mapColumns (RetainedLayout.column program)
+  fun lane => RetainedLayout.renameForm program (PiRLCValueWiring.form (piCcsGeometry program)
+    (PiRLCProductRingSchedule.laneInvocation ring lane))
+    (ReadSupport.common_form program _ (InputSupport.location program (piCcsGeometry program)
+      (PiRLCValueWiring.located (PiRLCProductRingSchedule.laneInvocation ring lane)).location))
 
 def piRlcInterface (program : Program) : PiRLCGeometry.Interface (RetainedLayout.logicalWidth program) where
   oneColumn := RetainedLayout.column program (ApplicationRetainedGeometry.oneColumn (referenceGeometry program))
+    (ReadSupport.one program _ rfl)
   initialState := initialState program
   value := value program
   start := RetainedLayout.commonCount program
@@ -47,21 +66,24 @@ variable {relationWidth : Nat}
 
 def prefixPlan (program : Program) (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :=
   rename program (DirectPiDECPrefixPlan.piCcsCompletePlan relation (piDecGeometry program))
+    (ReadSupport.prefixPlan program relation (piDecGeometry program))
 
 def piRlc (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled) :=
   PiRLCGeometry.plan compiled (piRlcInterface program)
 
 def piDec (program : Program) (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :=
   rename program (DirectPiDECPrefixPlan.piDecPlan relation (piDecGeometry program))
+    (ReadSupport.piDec program relation (piDecGeometry program))
 
 def running (program : Program) :=
   rename program (RunningTransitionReducedPlan.plan
     (DirectPiDECPrefixPlan.runningGeometry (piDecGeometry program)))
+    (ReadSupport.running program _)
 
 @[simp] theorem prefix_rows (program : Program)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :
     (prefixPlan program relation).rowCount = 3054685 := by
-  rw [prefixPlan, rename, Plan.mapColumns_rowCount, DirectPiDECPrefixPlan.piCcsCompletePlan_rowCount]
+  rw [prefixPlan, rename_rowCount, DirectPiDECPrefixPlan.piCcsCompletePlan_rowCount]
 
 @[simp] theorem piRlc_rows (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled) :
     (piRlc program compiled).rowCount = 119153 := PiRLCGeometry.rowCount_eq _ _
@@ -69,11 +91,11 @@ def running (program : Program) :=
 @[simp] theorem piDec_rows (program : Program)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :
     (piDec program relation).rowCount = 25488 := by
-  rw [piDec, rename, Plan.mapColumns_rowCount, DirectPiDECPrefixPlan.piDecPlan, PiDECDirectPlan.plan_rowCount]
+  rw [piDec, rename_rowCount, DirectPiDECPrefixPlan.piDecPlan, PiDECDirectPlan.plan_rowCount]
   rfl
 
 @[simp] theorem running_rows (program : Program) : (running program).rowCount = 49359 := by
-  rw [running, rename, Plan.mapColumns_rowCount, RunningTransitionReducedPlan.plan_rowCount]
+  rw [running, rename_rowCount, RunningTransitionReducedPlan.plan_rowCount]
 
 def throughPiRlc (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :=
@@ -107,12 +129,15 @@ def beforeApplication (program : Program) (compiled : PiRlcWideSampler.RangePlan
 
 def application (program : Program) (fits : PerApplicationPackage.FitsTwoPow28 program) :=
   rename program (ApplicationDirectPlan.plan fits (referenceGeometry program))
+    (ReadSupport.application program fits (referenceGeometry program))
 
 def nextPreimage (program : Program) :=
   rename program (DirectApplicationPrefixPlan.nextPreimagePlan (referenceGeometry program))
+    (ReadSupport.nextPreimage program _)
 
 def publicOutput (program : Program) :=
   rename program (DirectApplicationPrefixPlan.publicOutputPlan (referenceGeometry program))
+    (ReadSupport.public_output program (referenceGeometry program))
 
 theorem totalFits (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits)
@@ -125,8 +150,8 @@ theorem totalFits (program : Program) (compiled : PiRlcWideSampler.RangePlan.Com
     DirectApplicationPrefixPlan.applicationPlan, ApplicationDirectPlan.plan_rowCount,
     DirectApplicationPrefixPlan.nextPreimagePlan, NextPreimageDirectPlan.plan_rowCount,
     DirectApplicationPrefixPlan.publicOutputPlan, RecursivePublicOutputPlan.plan_rowCount] at baseline
-  simp only [beforeApplication_rows, application, nextPreimage, publicOutput, rename,
-    Plan.mapColumns_rowCount, ApplicationDirectPlan.plan_rowCount,
+  simp only [beforeApplication_rows, application, nextPreimage, publicOutput,
+    rename_rowCount, ApplicationDirectPlan.plan_rowCount,
     DirectApplicationPrefixPlan.nextPreimagePlan, NextPreimageDirectPlan.plan_rowCount,
     DirectApplicationPrefixPlan.publicOutputPlan, RecursivePublicOutputPlan.plan_rowCount]
   omega
@@ -154,8 +179,8 @@ theorem plan_rows (program : Program) (compiled : PiRlcWideSampler.RangePlan.Com
     (fits : PerApplicationPackage.FitsTwoPow28 program) :
     (plan program compiled relation fits).rowCount = 3248694 + ApplicationDirectPlan.rowCount program := by
   simp only [plan, throughNextPreimage, throughApplication, Plan.append_rowCount, beforeApplication_rows,
-    application, nextPreimage, publicOutput, rename, DirectApplicationPrefixPlan.nextPreimagePlan,
-    DirectApplicationPrefixPlan.publicOutputPlan, Plan.mapColumns_rowCount,
+    application, nextPreimage, publicOutput, DirectApplicationPrefixPlan.nextPreimagePlan,
+    DirectApplicationPrefixPlan.publicOutputPlan, rename_rowCount,
     ApplicationDirectPlan.plan_rowCount, NextPreimageDirectPlan.plan_rowCount,
     RecursivePublicOutputPlan.plan_rowCount]
   omega

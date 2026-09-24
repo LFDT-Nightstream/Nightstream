@@ -40,9 +40,9 @@ theorem plan_same_shape (program : Program) (compiled : PiRlcWideSampler.RangePl
   have complete : DirectPiDECPrefixPlan.piCcsCompletePlan left geometry =
       DirectPiDECPrefixPlan.piCcsCompletePlan right geometry := append_congr binding rfl _ _
   have prefixEq : Stage1Plan.prefixPlan program left = Stage1Plan.prefixPlan program right :=
-    congrArg (Stage1Plan.rename program) complete
+    Stage1Plan.rename_congr program complete _ _
   have piDecEq : Stage1Plan.piDec program left = Stage1Plan.piDec program right :=
-    congrArg (Stage1Plan.rename program) (PiDECDirectPlan.plan_eq_of_same_shape left right geometry)
+    Stage1Plan.rename_congr program (PiDECDirectPlan.plan_eq_of_same_shape left right geometry) _ _
   have throughPiRlc : Stage1Plan.throughPiRlc program compiled left =
       Stage1Plan.throughPiRlc program compiled right := append_congr prefixEq rfl _ _
   have throughPiDec : Stage1Plan.throughPiDec program compiled left =

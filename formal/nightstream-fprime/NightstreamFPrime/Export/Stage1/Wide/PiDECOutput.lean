@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Witness
+import NightstreamFPrime.Export.Stage1.Wide.CheckedForm
 
 /-! The PiDEC parent views read the newly retained PiRLC outputs, including
 the extension-cell permutation. No copied parent fields are allocated. -/
@@ -8,25 +9,6 @@ namespace NightstreamFPrime.Export.Stage1.Wide.PiDECOutput
 open NightstreamFPrime.Spec NightstreamFPrime.Layout
 open ProductionRelation
 open Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-
-private theorem recompose_map {source target : Nat} (column : Fin source → Fin target)
-    (forms : List (SparseForm source)) :
-    (RetainedSlot.recomposeForms forms).mapColumns column =
-      RetainedSlot.recomposeForms (forms.map (SparseForm.mapColumns column)) := by
-  induction forms with
-  | nil => rfl
-  | cons head tail ih =>
-    change (SparseForm.add head (SparseForm.scale _ (RetainedSlot.recomposeForms tail))).mapColumns column = _
-    have addMap (left right : SparseForm source) :
-        (SparseForm.add left right).mapColumns column =
-          SparseForm.add (left.mapColumns column) (right.mapColumns column) := by
-      simp [SparseForm.mapColumns, SparseForm.add, List.map_append]
-    have scaleMap (coefficient : F) (form : SparseForm source) :
-        (SparseForm.scale coefficient form).mapColumns column =
-          SparseForm.scale coefficient (form.mapColumns column) := by
-      simp [SparseForm.mapColumns, SparseForm.scale, List.map_map]
-    rw [addMap, scaleMap, ih]
-    rfl
 
 theorem referenceOutputStart (program : RetainedLayout.Program) :
     PiRLCRetainedGeometry.productOutputStart program = 119147994 := by
@@ -45,6 +27,29 @@ def referenceOutput (program : RetainedLayout.Program) (ring : PiRLCGeometry.Rin
       (PiCCSPoseidonPlan.prefixGeometry (Stage1Plan.poseidonGeometry program)))
     (PiRLCProductRingSchedule.laneInvocation ring lane)
 
+theorem referenceOutput_live (program : RetainedLayout.Program) (ring : PiRLCGeometry.RingIndex)
+    (lane : Fin ringDegree) : ReadSupport.Form program (referenceOutput program ring lane) := by
+  exact ReadSupport.product_block program _ _ _ _ (Nat.le_refl _) (Nat.le_refl _)
+
+theorem output_column_live (program : RetainedLayout.Program) (ring : PiRLCGeometry.RingIndex)
+    (lane : Fin ringDegree) (digit : Fin 41) :
+    RetainedLayout.Live program
+      ((PiRLCRetainedGeometry.productOutputBlock program).column
+        (PiRLCRetainedGeometry.productOutputStart program)
+        (PiRLCRetainedGeometry.productOutputFits
+          (PiCCSPoseidonPlan.prefixGeometry (Stage1Plan.poseidonGeometry program)))
+        (PiRLCProductRingSchedule.laneInvocation ring lane) digit).val := by
+  have slotBound := (PiRLCProductRingSchedule.laneInvocation ring lane).isLt
+  change (PiRLCProductRingSchedule.laneInvocation ring lane).val < 52326 at slotBound
+  have digitBound := digit.isLt
+  apply Or.inr ∘ Or.inr ∘ Or.inr ∘ Or.inl
+  change 119147994 ≤ PiRLCRetainedGeometry.productOutputStart program +
+      ((PiRLCProductRingSchedule.laneInvocation ring lane).val * 41 + digit.val) ∧
+    PiRLCRetainedGeometry.productOutputStart program +
+      ((PiRLCProductRingSchedule.laneInvocation ring lane).val * 41 + digit.val) < 121293360
+  rw [referenceOutputStart]
+  constructor <;> omega
+
 theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.RingIndex)
     (lane : Fin ringDegree) (digit : Fin 41) :
     RetainedLayout.column program
@@ -52,7 +57,8 @@ theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.R
         (PiRLCRetainedGeometry.productOutputStart program)
         (PiRLCRetainedGeometry.productOutputFits
           (PiCCSPoseidonPlan.prefixGeometry (Stage1Plan.poseidonGeometry program)))
-        (PiRLCProductRingSchedule.laneInvocation ring lane) digit) =
+        (PiRLCProductRingSchedule.laneInvocation ring lane) digit)
+      (output_column_live program ring lane digit) =
       PiRLCGeometry.fieldBlock.column (PiRLCGeometry.fieldStart (Stage1Plan.piRlcInterface program))
         (PiRLCGeometry.fieldFits (Stage1Plan.piRlcInterface program))
         (PiRLCGeometry.outputSlot ring lane) digit := by
@@ -93,7 +99,7 @@ theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.R
     exact mapped
   calc
     _ = RetainedLayout.outputStart program + (ProductCoordinates.coordinate coordinate).val :=
-      RetainedLayout.column_of_some program _ _ lookup
+      RetainedLayout.column_of_some program _ _ _ lookup
     _ = _ := by
       dsimp only [coordinate, oldSlot]
       rw [ProductCoordinates.coordinate_lane]
@@ -105,22 +111,23 @@ theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.R
 
 theorem output_form (program : RetainedLayout.Program) (ring : PiRLCGeometry.RingIndex)
     (lane : Fin ringDegree) :
-    (referenceOutput program ring lane).mapColumns (RetainedLayout.column program) =
+    RetainedLayout.renameForm program (referenceOutput program ring lane) (referenceOutput_live program ring lane) =
       PiRLCGeometry.output (Stage1Plan.piRlcInterface program) ring lane := by
   unfold referenceOutput PiRLCGeometry.output LowNormBlock.Block.form
-  rw [recompose_map, List.map_ofFn]
+  refine (FormSupport.rename_recompose_ofFn program _ (fun digit =>
+    FormSupport.singleton _ 1 (output_column_live program ring lane digit)) _).trans ?_
   apply congrArg RetainedSlot.recomposeForms
   apply congrArg List.ofFn
   funext digit
-  change SparseForm.singleton _ 1 = SparseForm.singleton _ 1
+  rw [FormSupport.rename_singleton program _ _ (output_column_live program ring lane digit)]
   exact congrArg (fun column => SparseForm.singleton column (1 : F)) (output_column program ring lane digit)
 
 theorem reference_output_value (program : RetainedLayout.Program)
     (base : Assignment F (RetainedLayout.logicalWidth program))
     (family : PiRLCOutput.Family) (block : Fin family.blockCount) (cell : Fin family.cellCount)
     (lane : Fin ringDegree) :
-    ((referenceOutput program (PiRLCOutput.terminal family block cell) lane).mapColumns
-      (RetainedLayout.column program)).eval (Stage1Witness.assignment program base) =
+    (RetainedLayout.renameForm program (referenceOutput program (PiRLCOutput.terminal family block cell) lane)
+      (referenceOutput_live program (PiRLCOutput.terminal family block cell) lane)).eval (Stage1Witness.assignment program base) =
       PiRLCOutput.ordered (PiRLCWitness.initial (Stage1Plan.piRlcInterface program) base)
         (PiRLCWitness.inputValues (Stage1Plan.piRlcInterface program) base) family block cell lane := by
   rw [output_form]
@@ -189,10 +196,11 @@ theorem parent_reference_form (program : RetainedLayout.Program) (family : PiRLC
 
 theorem parent_form (program : RetainedLayout.Program) (family : PiRLCOutput.Family)
     (block : Fin family.blockCount) (cell : Fin family.cellCount) (lane : Fin ringDegree) :
-    ((parentView family block cell lane).form (Stage1Plan.piDecGeometry program)).mapColumns
-      (RetainedLayout.column program) =
+    RetainedLayout.renameForm program ((parentView family block cell lane).form (Stage1Plan.piDecGeometry program))
+      (ReadSupport.piDec_location program (Stage1Plan.piDecGeometry program) _) =
       PiRLCGeometry.output (Stage1Plan.piRlcInterface program)
         (PiRLCOutput.terminal family block cell) lane := by
-  rw [parent_reference_form, output_form]
+  exact (RetainedLayout.renameForm_congr program (parent_reference_form program family block cell lane) _ _).trans
+    (output_form program (PiRLCOutput.terminal family block cell) lane)
 
 end NightstreamFPrime.Export.Stage1.Wide.PiDECOutput

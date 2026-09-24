@@ -356,4 +356,40 @@ theorem Program.form?_of_results {logicalWidth : Nat}
   exact applyRules?_of_results oneColumn coordinate program.rules results
     .empty loaded
 
+/-- Any property closed under sparse addition is preserved by successful
+interpretation when it holds for each selected rule. -/
+theorem Program.form?_property {logicalWidth : Nat}
+    (program : Program) (oneColumn : Nat) (coordinate : Coordinate)
+    (predicate : SparseForm logicalWidth → Prop)
+    (empty : predicate .empty)
+    (add : ∀ a b, predicate a → predicate b → predicate (SparseForm.add a b))
+    (rules : ∀ rule ∈ program.rules, ∀ form,
+      rule.form? logicalWidth oneColumn coordinate = some (some form) → predicate form)
+    (form : SparseForm logicalWidth)
+    (loaded : program.form? logicalWidth oneColumn coordinate = some form) :
+    predicate form := by
+  have loop (remaining : List Rule) (accumulated : SparseForm logicalWidth)
+      (supported : predicate accumulated)
+      (rules : ∀ rule ∈ remaining, ∀ form,
+        rule.form? logicalWidth oneColumn coordinate = some (some form) → predicate form)
+      (loaded : applyRules? oneColumn coordinate remaining accumulated = some form) :
+      predicate form := by
+    induction remaining generalizing accumulated with
+    | nil =>
+      have same : accumulated = form := Option.some.inj loaded
+      exact same ▸ supported
+    | cons rule rest ih =>
+      simp only [applyRules?] at loaded
+      cases selected : rule.form? logicalWidth oneColumn coordinate with
+      | none => simp [selected] at loaded
+      | some value =>
+        simp only [selected] at loaded
+        apply ih (addSelected accumulated value) _ _ loaded
+        · cases value with
+          | none => exact supported
+          | some value => exact add _ _ supported (rules rule (by simp) value selected)
+        · intro next member value equal
+          exact rules next (List.mem_cons_of_mem _ member) value equal
+  exact loop program.rules .empty empty rules loaded
+
 end NightstreamFPrime.Layout.MatrixProgram.AffineGrid

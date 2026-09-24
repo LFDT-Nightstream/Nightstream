@@ -148,10 +148,37 @@ This closes a deterministic verifier connection, not the production FS model.
 from its own matrices and proves that reassembly against that relation gives
 the same Stage 1 plan. The old zero-matrix seed supplies no semantic authority.
 
+## Checked coordinate remapping
+
+The retained-coordinate map now requires a proof that each source coordinate
+has an image. Removed coordinates cannot be passed to `RetainedLayout.column`.
+`renameForm` maps every stored entry with that proof; it neither substitutes a
+constant nor drops an entry. The map is injective, and the stored entry count
+is preserved.
+
+`Stage1Plan.rename` requires support for every row and sparse port. The six
+reused phases supply structural Lean proofs: the complete PiCCS prefix, PiDEC,
+the running transition, the application, next-preimage binding, and public-output
+binding. The PiCCS prefix proof includes both pilot hashes, PiCCS hashing and
+arithmetic, framing, and digest pins. The application proof covers both supported
+application layouts. The proofs follow sparse constructors and retained blocks;
+they do not enumerate the row or coordinate domains.
+
+The direct PiRLC witness and PiDEC output-form proofs use this checked map.
+PiDEC still reads the same four product families in the proved lane/cell order.
+The fixed-point proof and dimension theorems remain valid. No new reduction is
+claimed from this correctness repair.
+
+`tests/WideRetainedSupport.lean` rejects all three removed coordinate intervals,
+including a stored entry with coefficient zero. It also checks that a column
+cannot be mapped without a support proof, and that public column zero retains
+its own identity. Physical source-environment transport is still open; this
+support result concerns the CCS matrices, not the old PiDEC witness builder.
+
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 622 sampler audits. Every audited declaration uses only the three allowed
+all 704 sampler and integration audits, plus four retained-support regression audits. Every audited declaration uses only the three allowed
 axioms. Static boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary
@@ -202,9 +229,10 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Close whole-package source support, preservation, and compatible witness
-  construction for the assembled Stage 1 candidate. The PiDEC retained-parent
-  connection is proved; the physical source ownership still needs transport.
+- Close whole-package witness preservation and compatible witness construction
+  for the assembled Stage 1 candidate. Matrix read support and the PiDEC
+  retained-parent connection are proved; physical source ownership still needs
+  transport.
   Prove the emitted matrix program denotes that same plan, then measure all
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.

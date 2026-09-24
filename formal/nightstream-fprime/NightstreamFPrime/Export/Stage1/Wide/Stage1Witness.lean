@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.Wide.InputSupport
+import NightstreamFPrime.Export.Stage1.Wide.Stage1InputSupport
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCOutput
 
 /-! Execute the compact PiRLC witness on the actual Stage 1 input forms.
@@ -26,8 +26,8 @@ theorem complete (program : RetainedLayout.Program) (compiled : PiRlcWideSampler
 theorem common_unchanged (program : RetainedLayout.Program)
     (base : Assignment F (RetainedLayout.logicalWidth program))
     (column : Fin (PerApplicationFixedPoint.logicalWidth program)) (common : FormSupport.Common program column) :
-    assignment program base (RetainedLayout.column program column) =
-      base (RetainedLayout.column program column) :=
+    assignment program base (RetainedLayout.column program column (FormSupport.common_live program column common)) =
+      base (RetainedLayout.column program column (FormSupport.common_live program column common)) :=
   PiRLCWitness.assignment_before (Stage1Plan.piRlcInterface program) base _
     (FormSupport.common_before program column common)
 
@@ -35,8 +35,8 @@ theorem common_form_unchanged (program : RetainedLayout.Program)
     (base : Assignment F (RetainedLayout.logicalWidth program))
     (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
     (supported : FormSupport.Supported (FormSupport.Common program) form) :
-    (form.mapColumns (RetainedLayout.column program)).eval (assignment program base) =
-      (form.mapColumns (RetainedLayout.column program)).eval base := by
+    (RetainedLayout.renameForm program form (FormSupport.common_supported program form supported)).eval (assignment program base) =
+      (RetainedLayout.renameForm program form (FormSupport.common_supported program form supported)).eval base := by
   apply PiRLCWitness.disjoint_form
   intro entry member
   exact Or.inl (FormSupport.renamed_before program form supported entry member)

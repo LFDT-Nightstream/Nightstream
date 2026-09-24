@@ -83,6 +83,20 @@ def column? (program : Program) (source : Nat) : Option Nat :=
       (ProductCoordinates.coordinate ⟨source - 114443652, by omega⟩).val)
   else none
 
+/-- Exact domain of the coordinate map. This predicate concerns stored
+entries, including entries whose coefficient might later cancel. -/
+def Live (program : Program) (source : Nat) : Prop :=
+  source < hashEnd program ∨
+  (sharedStart program ≤ source ∧ source < sharedEnd program) ∨
+  (applicationStart program ≤ source ∧ source < applicationStart program + applicationCount program) ∨
+  (119147994 ≤ source ∧ source < 121293360) ∨
+  (114443652 ≤ source ∧ source < 116589018)
+
+theorem live_iff_mapped (program : Program) (source : Nat) :
+    Live program source ↔ (column? program source).isSome = true := by
+  unfold Live column?
+  split_ifs <;> simp_all
+
 theorem column?_lt (program : Program) (source target : Nat)
     (mapped : column? program source = some target) : target < logicalWidth program := by
   obtain ⟨hash, start, stop, app⟩ := boundaries program
@@ -109,26 +123,52 @@ theorem column?_injective (program : Program) {left right target : Nat}
     dsimp only at values
     omega
 
-/-- Total form-renaming function. A caller must prove that its entries have a
-successful `column?` result; the fallback is not a retained allocation. -/
-def column (program : Program) (source : Fin (PerApplicationFixedPoint.logicalWidth program)) :
-    Fin (logicalWidth program) :=
-  match mapped : column? program source.val with
-  | some target => ⟨target, column?_lt program source.val target mapped⟩
-  | none => ⟨0, by rw [logicalWidth_eq]; omega⟩
+/-- A removed source coordinate has no value of this type. -/
+def column (program : Program) (source : Fin (PerApplicationFixedPoint.logicalWidth program))
+    (live : Live program source.val) : Fin (logicalWidth program) :=
+  let mapped := (live_iff_mapped program source.val).mp live
+  ⟨(column? program source.val).get mapped,
+    column?_lt program source.val _ (Option.some_get mapped).symm⟩
+
+theorem column_mapped (program : Program)
+    (source : Fin (PerApplicationFixedPoint.logicalWidth program)) (live : Live program source.val) :
+    column? program source.val = some (column program source live).val :=
+  (Option.some_get ((live_iff_mapped program source.val).mp live)).symm
+
+theorem column_injective (program : Program)
+    (left right : Fin (PerApplicationFixedPoint.logicalWidth program)) (leftLive rightLive)
+    (equal : column program left leftLive = column program right rightLive) : left = right := by
+  apply Fin.ext
+  apply column?_injective program (column_mapped program left leftLive)
+  rw [congrArg Fin.val equal]
+  exact column_mapped program right rightLive
 
 theorem column_of_some (program : Program)
-    (source : Fin (PerApplicationFixedPoint.logicalWidth program)) (target : Nat)
-    (mapped : column? program source.val = some target) :
-    (column program source).val = target := by
-  unfold column
-  split
-  · rename_i result resultEq
-    rw [mapped] at resultEq
-    exact (Option.some.inj resultEq).symm
-  · rename_i resultEq
-    rw [mapped] at resultEq
-    contradiction
+    (source : Fin (PerApplicationFixedPoint.logicalWidth program)) (live : Live program source.val)
+    (target : Nat) (mapped : column? program source.val = some target) :
+    (column program source live).val = target := by
+  have selected := Option.some_get ((live_iff_mapped program source.val).mp live)
+  exact Option.some.inj (selected.trans mapped)
+
+/-- Rename each stored entry using its own support proof. There is no default
+column, filtering, or deletion of unsupported entries. -/
+def renameForm (program : Program)
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (supported : ∀ entry ∈ form.entries, Live program entry.column.val) :
+    SparseForm (logicalWidth program) :=
+  form.mapColumnsChecked (column program) supported
+
+theorem renameForm_length (program : Program)
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program)) (supported) :
+    (renameForm program form supported).entries.length = form.entries.length := by
+  exact List.length_pmap
+
+theorem renameForm_congr (program : Program)
+    {left right : SparseForm (PerApplicationFixedPoint.logicalWidth program)}
+    (same : left = right) (leftSupported rightSupported) :
+    renameForm program left leftSupported = renameForm program right rightSupported := by
+  cases same
+  rfl
 
 theorem publicColumn (program : Program) (source : Nat) (bounded : source < 270) :
     column? program source = some source := by

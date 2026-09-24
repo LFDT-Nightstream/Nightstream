@@ -26,6 +26,12 @@ theorem mapColumns_length {source target : Nat} (column : Fin source → Fin tar
     (form : SparseForm source) : (mapColumns column form).entries.length = form.entries.length := by
   simp [mapColumns]
 
+/-- Rename stored entries only when each source has a mapping certificate. -/
+def mapColumnsChecked {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (form : SparseForm source)
+    (supported : ∀ entry ∈ form.entries, predicate entry.column) : SparseForm target :=
+  ⟨form.entries.pmap (fun entry live => ⟨column entry.column live, entry.coefficient⟩) supported⟩
+
 end SparseForm
 
 namespace Plan
@@ -55,6 +61,21 @@ theorem mapColumns_rowsZero_iff {source target : Nat} (column : Fin source → F
   unfold RowsZero
   simp only [rowImage_toVertex, mapColumns_port_eval]
   rfl
+
+/-- A certificate for every stored port is required before a partial map can
+be applied to a complete row plan. -/
+def mapColumnsChecked {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
+    (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column) :
+    ProductionRelation.Plan target where
+  rowCount := plan.rowCount
+  rowCount_le := plan.rowCount_le
+  forms := fun row port => (plan.forms row port).mapColumnsChecked column (supported row port)
+
+@[simp] theorem mapColumnsChecked_rowCount {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
+    (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column) :
+    (mapColumnsChecked column plan supported).rowCount = plan.rowCount := rfl
 
 end Plan
 

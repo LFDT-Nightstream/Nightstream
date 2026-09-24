@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
+import NightstreamFPrime.Export.Stage1.Wide.RetainedLayout
 
 /-! Source support for the retained-coordinate move. These structural lemmas
 inspect sparse constructors, not the full row or coordinate domains. -/
@@ -88,15 +88,28 @@ def Common (program : RetainedLayout.Program) (column : Fin (PerApplicationFixed
   column.val < RetainedLayout.hashEnd program ∨
     RetainedLayout.sharedStart program ≤ column.val ∧ column.val < RetainedLayout.sharedEnd program
 
+theorem common_live (program : RetainedLayout.Program)
+    (column : Fin (PerApplicationFixedPoint.logicalWidth program)) (common : Common program column) :
+    RetainedLayout.Live program column.val := by
+  rcases common with hash | shared
+  · exact Or.inl hash
+  · exact Or.inr (Or.inl shared)
+
+theorem common_supported (program : RetainedLayout.Program)
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (supported : Supported (Common program) form) :
+    ∀ entry ∈ form.entries, RetainedLayout.Live program entry.column.val :=
+  fun entry member => common_live program entry.column (supported entry member)
+
 theorem common_before (program : RetainedLayout.Program)
     (column : Fin (PerApplicationFixedPoint.logicalWidth program)) (common : Common program column) :
-    (RetainedLayout.column program column).val < RetainedLayout.commonCount program := by
+    (RetainedLayout.column program column (common_live program column common)).val < RetainedLayout.commonCount program := by
   obtain ⟨hash, start, stop, _⟩ := RetainedLayout.boundaries program
   rw [RetainedLayout.commonCount_eq]
   rcases common with before | ⟨after, before⟩
   · have mapped : RetainedLayout.column? program column.val = some column.val := by
       simp only [RetainedLayout.column?, if_pos before]
-    rw [RetainedLayout.column_of_some _ _ _ mapped]
+    rw [RetainedLayout.column_of_some _ _ _ _ mapped]
     rw [hash] at before
     omega
   · have afterHash : ¬column.val < RetainedLayout.hashEnd program := by
@@ -105,7 +118,7 @@ theorem common_before (program : RetainedLayout.Program)
     have mapped : RetainedLayout.column? program column.val =
         some (RetainedLayout.hashEnd program + (column.val - RetainedLayout.sharedStart program)) := by
       simp only [RetainedLayout.column?, if_neg afterHash, if_pos (And.intro after before)]
-    rw [RetainedLayout.column_of_some _ _ _ mapped, hash, start]
+    rw [RetainedLayout.column_of_some _ _ _ _ mapped, hash, start]
     rw [stop] at before
     omega
 
@@ -113,11 +126,9 @@ theorem renamed_before (program : RetainedLayout.Program)
     (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
     (supported : Supported (Common program) form) :
     Supported (fun column => column.val < RetainedLayout.commonCount program)
-      (form.mapColumns (RetainedLayout.column program)) := by
+      (RetainedLayout.renameForm program form (common_supported program form supported)) := by
   intro entry member
-  change entry ∈ form.entries.map (fun source =>
-    ⟨RetainedLayout.column program source.column, source.coefficient⟩) at member
-  obtain ⟨source, sourceMember, same⟩ := List.mem_map.mp member
+  obtain ⟨source, sourceMember, same⟩ := List.mem_pmap.mp member
   subst entry
   exact common_before program source.column (supported source sourceMember)
 

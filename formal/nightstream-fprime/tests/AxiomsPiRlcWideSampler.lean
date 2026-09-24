@@ -1,3 +1,5 @@
+import NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity
+import NightstreamFPrime.Export.Stage1.Wide.ContextBinding
 import NightstreamFPrime.Layout.MatrixProgram.RetainedMap
 import NightstreamFPrime.Export.Stage1.Wide.ProductInputMap
 import NightstreamFPrime.Export.Stage1.Wide.ProductMatrixProgram
@@ -1175,3 +1177,18 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.piRlc_exact
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.exact
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.fixedPoint_exact
+
+-- Wide-key security, exact transcript histories, and verifier-context binding.
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.replay_append
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.stateAt_replay
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_answer
+#audit_axioms NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_sample
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideFiatShamir.realSuccess_implies_exact_children
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideFiatShamir.returned_source_bound_with_adaptive_msis
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.no_sampler_abort
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.response_history
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.statement_unchanged
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.adaptive_bias_bound
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.concrete_bias_bound
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity.any_test_le
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ContextBinding.step_or_collision

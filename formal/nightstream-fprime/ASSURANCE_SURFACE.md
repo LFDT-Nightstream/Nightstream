@@ -81,3 +81,44 @@ The constructor consumes `Export.Stage1.DirectApplicationPrefixPlan.rowsZero_iff
 - Finite sampler density and abort results concern the explicit independent-field comparison. They do not assign that law to Poseidon2. `Lifecycle.Nifs.VerifierErrorBudget.any_test_or_sampler_abort_le` ([source:62](NightstreamFPrime/Lifecycle/Nifs/VerifierErrorBudget.lean#L62)) unions the two specified events over caller-supplied `n` in one trace law. Actual per-call bounds, which can follow from bounds conditional on the preceding history, remain required; independence is not required. This bound excludes FS/hash/MSIS and extraction loss. It is not a complete security bound.
 - Verifier-owned identity and setup checks remain necessary at the runtime trust boundary. The retained optimized Lean/Rust examples establish only their recorded inputs and rejection cases. This note adds no arbitrary-input Rust proof, backend claim, PaperExact authorization, or efficient probabilistic full-history extraction result.
 - The selected native cache now derives its rows through `Poseidon2HashChainV1Package.build_superneo_cache`. Exact reservations control memory; every actual row still passes order, coefficient and coverage checks. The actual base witness and logical transport matched all 14 × 54 retained Lean matrix outputs in 197.77 seconds of test time, with 26.90 GiB peak RSS. This is one full-profile matrix comparison. The normal selected PiCCS prover now passes from the actual base witness and fixed-key commitment: all round messages, transcript states and complete outputs match retained assertions, and the normal optimized verifier accepts (231.52 seconds, 26.86 GiB peak RSS). The complete selected-base C → R → D path now passes through capped actual-witness stages: computed D openings, normal NIFS acceptance, all 43 NIFS mutations, and strict comparison with an independently computed Lean C/R/D result, including all 55 D mutations. The retained regression checks that result and its 945,983-byte proof encoding against the current pinned package. The unused-allocation mutation repair is recorded separately in `NIFS_UNUSED_ALLOCATIONS.md`. See [native evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md) for exact sources, inputs and logs. Full-profile later running inputs, universal Rust semantics, the production proof backend and performance remain separate.
+
+### Wide-sampler candidate (not selected)
+
+The owner approved the map and transcript change on 2026-09-24. The candidate
+keeps Poseidon2 and the Nightstream Goldilocks profile `b=2`, `k_rho=16`,
+`B=65536`. The selected production statements above still describe the old
+sampler until the package switch.
+
+- `Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_answer`
+  proves that normalized block histories replay the exact additive Poseidon2
+  domain entry, four rate lanes and digest advance. `Lifecycle.Nifs.WideSamplerSecurity.response_history`
+  connects those values to the wide verification key.
+- `WideSamplerSecurity.no_sampler_abort` proves totality for every initial
+  state. `any_test_le` unions only PiCCS test errors in the supplied trace law.
+  It includes no old sampler-shortfall event.
+- `Lifecycle.Nifs.WideFiatShamir.returned_source_bound_with_adaptive_msis`
+  consumes the same parametric classical transfer boundary for the wide key.
+  The real event requires that key's actual acceptance and witnesses for its
+  exact sixteen returned children. The source bound keeps `g Q p_real`,
+  `deltaFS Q`, interactive extraction loss, PiCCS test loss and the actual
+  same-key MSIS event separate.
+- `WideSamplerSecurity.adaptive_bias_bound` applies `q*δ` to the actual-verifier
+  test of the cached block-oracle trace, including raw lanes and repeated
+  queries. `concrete_bias_bound` compares the actual verifier's success mass
+  with its balanced raw-block experiment under an explicit approximation
+  bound `modelError`. Here `δ < 2^-132`; `q` counts every block call, while
+  `Q` in the FS boundary counts permutation calls including replays. Neither
+  count is inferred from the other. Balanced raw replies are not asserted to
+  be a Fiat–Shamir extractor, and a general `g` is not assumed to preserve
+  additive error. The fresh-batch result alone allows `17*L*δ`; its extraction
+  term `17*L/|C|` remains separate.
+- `Export.Stage1.Wide.ContextBinding.step_or_collision` binds arbitrary
+  accepted candidate rows and their actual public projection to the context
+  in a verifier-checked state hash, or exhibits the existing state-hash
+  collision event. No honest assignment or context-equality premise is used.
+
+The complete matrix program is proved exact and all three candidate costs
+are recorded in [the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
+The package, native sampler, transport, identities and conformance still
+require production selection. No numerical security level or performance
+claim follows from these candidate theorems.

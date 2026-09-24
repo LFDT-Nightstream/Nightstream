@@ -66,3 +66,44 @@ Under the stated per-call laws, the selected PiCCS test and sampler-abort
 events have a union bound over arbitrary `n`. This excludes FS/hash/MSIS
 attacks and the square-root extraction loss. Neither this bound nor the
 independent-field sampler law establishes a complete deployed security bound.
+
+## Wide-sampler candidate
+
+The owner approved the whole-vector map and one-block transcript schedule on
+2026-09-24. `Lifecycle.Nifs.WideFiatShamir` applies the same parametric boundary
+to `PiRLC.Wide.Key.key`. Its success event uses that verifier and openings for
+its exact sixteen returned children; it is not old-key acceptance. Its
+`returned_source_bound_with_adaptive_msis` consumes the existing interactive
+extractor without changing the profile or commitment assumptions. Production
+selection remains separate.
+
+`TranscriptHistory.queryAt_answer` and `WideSamplerSecurity.response_history`
+prove the deterministic connection from the exact additive transcript to
+normalized block-query histories. A raw reply is one joint four-field block.
+`OracleModel` preserves replies to repeated histories and counts every call.
+The candidate has no sampler-abort event, so its trace union bound contains
+only the PiCCS test event.
+
+There are two distinct conditional statements:
+
+1. The FS boundary supplies `g Q p_real - deltaFS Q <= p_interactive`, followed
+   by the existing extraction, test and same-key MSIS losses.
+2. Under the explicitly supplied concrete-to-block-oracle approximation,
+   `WideSamplerSecurity.concrete_bias_bound` proves
+   `|p_real - p_balanced| <= modelError + q*δ`, where `δ < 2^-132`.
+
+Here `p_balanced` uses a uniform scalar and a consistent raw preimage for each
+fresh block; it keeps the entire cache and raw replies visible. It is not
+identified with the interactive extractor. The statistical comparison does
+not construct the external FS adversary translation. In particular, no
+monotonicity or Lipschitz property is assumed for `g`, and `q*δ` cannot be
+moved across `g` by this proof. Any model that combines the two inequalities
+must justify that step under its actual success function.
+
+`q` is the full adaptive block-call count, including repeats and adversarial
+calls. `Q` is the existing total permutation-query count, including replay.
+The local sampler has 17 reads and 34 permutations per fold, but this does
+not give the adversary's query budget or prove a global relation between
+`q` and `Q`. No concrete count or security level is selected. For independent
+fresh batches only, V6 gives a separate `17*L*δ` term and `17*L/|C|` extraction
+loss; these counts must not be substituted for adaptive query accounting.

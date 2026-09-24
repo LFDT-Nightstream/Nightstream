@@ -101,6 +101,41 @@ bound. Any application of an established cryptographic reduction must state
 its model and applicability conditions. The concrete-to-ideal error remains
 an explicit, separate premise in `under_block_oracle_assumption`.
 
+`TranscriptHistory.lean` proves that replaying those normalized histories
+with additive Poseidon2 gives exactly `Transcript.drawAt`. The wide key's
+`response_history` theorem connects this result to the actual verifier.
+`WideSamplerSecurity.no_sampler_abort` holds for every concrete initial state.
+`any_test_le` unions only the PiCCS test events; it has no old shortfall term.
+
+`Lifecycle/Nifs/WideFiatShamir.lean` applies the existing owner-approved
+parametric transfer boundary to the wide verifier. Its real event requires
+acceptance and openings for the verifier's exact sixteen returned children.
+The proved source bound retains `g Q p_real - deltaFS Q - weakLoss - testError
+- 17 * adaptiveMsisSuccess`. It reuses the existing interactive extractor and
+does not supply a numerical Fiat–Shamir model.
+
+`WideSamplerSecurity.adaptive_bias_bound` uses that same verifier event as a
+test of a complete adaptive block-oracle trace. `concrete_bias_bound` gives
+`|p_real - p_balanced| <= modelError + q*δ` under an explicit concrete-to-ideal
+approximation premise. The balanced raw-block experiment is not identified
+with the interactive extractor. A general `g` need not preserve additive
+errors: these results do **not** replace `g Q p_real` by `g Q p_balanced - q*δ`.
+An external game transfer must establish any further composition it uses.
+
+`q` counts all block calls, including adversarial calls and repeats. `Q` counts
+permutation calls in the Fiat–Shamir experiment, including preprocessing and
+replays. No equality or query inflation between them is assumed. For independent
+fresh batches only, the separate V6 bound uses `17*L*δ` and `17*L/|C|`.
+Numerically, `log2(δ) = -132.979646922085`, `log2(17*δ) = -128.892184080835`,
+and `log2(|C|) = 125.384117123918`, from the exact formula above. These are
+component quantities, not a deployed security level.
+
+The owner approved the changed map and schedule on 2026-09-24. Poseidon2,
+the challenge set, and the Nightstream Goldilocks profile remain unchanged.
+The [duplex-sponge paper](https://eprint.iacr.org/2025/536) motivates keeping
+its precise model separate from an ideal block experiment; this work does
+not claim to instantiate its knowledge-soundness theorem.
+
 ## Stage 1 candidate connection
 
 `Wide/Stage1Plan.lean` assembles the existing pilot, PiCCS, PiDEC, running,
@@ -119,7 +154,8 @@ right operand read common coordinates. `Stage1Witness.lean` supplies the direct
 PiRLC completion on these forms, preserves common values, and identifies the
 final ordered combinations. `PiDECOutput.lean` proves that all four PiDEC
 parent views read those same retained outputs, including both extension-field
-cells in the reference order. This does not yet construct a complete accepting Stage 1 assignment.
+cells in the reference order. `SelectedAssignmentCompleteness.complete` now
+constructs the complete accepting candidate assignment.
 
 `HashChainCounts.lean` proves these counts of the **assembled, unselected
 candidate**, using the current application:
@@ -135,8 +171,8 @@ candidate**, using the current application:
 The candidate dimensions are derived from the assembled row plan and retained
 intervals. They are not counts from a regenerated production artifact, and are
 not an achieved production or overall performance reduction. Whole-package
-witness construction and step soundness are proved. Matrix-program
-correspondence remains open.
+witness construction, step soundness, and whole-program matrix
+correspondence are proved. The exact-arithmetic matrix count is recorded below.
 
 The old sampler's ordinary retained blocks contain 2,230,400 + 6,758,112 =
 8,988,512 coordinates. The external funnel's 8,998,512 entry is 10,000 too high;
@@ -145,7 +181,8 @@ the selected package's total has not changed.
 The candidate NIFS key in `Lifecycle/PiRLC/Wide/Key.lean` uses the exact new
 response map. Lean connects that response to accepted candidate phase values
 and proves that the profile and challenge-set cardinality remain unchanged.
-This closes a deterministic verifier connection, not the production FS model.
+The candidate security consumers now use this key; production selection is
+still separate.
 `Wide/FixedPoint.lean` derives the recursive relation at the candidate width
 from its own matrices and proves that reassembly against that relation gives
 the same Stage 1 plan. The old zero-matrix seed supplies no semantic authority.
@@ -440,11 +477,11 @@ follows the semantics-preserving compilation approach in
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 979 sampler, integration and codec audits, plus four retained-support regression
+all 992 sampler, integration, security and codec audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
-build passed with 4,416 jobs and covers both witness construction and full-step
-soundness. The commands were:
+build covers witness construction, full-step soundness, matrix
+correspondence, and the candidate security consumers. The commands were:
 
 ```sh
 timeout --signal=KILL 1500 scripts/validate.sh static
@@ -527,16 +564,18 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Complete the verifier-owned context binding. The actual public-input
-  projection now supplies constant one and binds the decoded output digest.
+- Connect the verifier-selected package to `ContextBinding.step_or_collision`.
+  This theorem now binds an arbitrary accepted assignment to the context in
+  the verifier's checked state preimage, or produces the existing named
+  Poseidon2 state-hash collision. It assumes no honest witness or context equality.
 - Connect the proved candidate matrix program to production package emission.
   Whole-program matrix correspondence, full nonzero counts, whole-step
   soundness and complete witness construction are established.
-- Apply the security model to the selected production transcript and record the
-  applicable Fiat–Shamir assumption and query accounting. The adaptive block
-  budget `q` in `q * distance` must not be identified with a fold count or the
-  extractor index count without a proved experiment connection. No fixed
-  comparison with the extraction loss is claimed here.
+- Use the wide-key security consumers when selecting the production package.
+  Their exact transcript link, adaptive query accounting, and explicit
+  Fiat–Shamir boundary are proved and recorded above. Numerical cryptographic
+  advantages and any external adversary translation remain external, as for
+  the selected baseline.
 - Switch native Rust rho derivation and assignment transport to the checked
   decoder after the full layout and security gates pass, then select and
   regenerate the package, identities, and fixtures. The owner confirmed approval

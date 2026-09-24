@@ -66,7 +66,7 @@ variable {relationWidth : Nat}
 
 def prefixPlan (program : Program) (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :=
   rename program (DirectPiDECPrefixPlan.piCcsCompletePlan relation (piDecGeometry program))
-    (ReadSupport.prefixPlan program relation (piDecGeometry program))
+    (ReadSupport.common_plan program _ (ReadSupport.prefixPlan program relation (piDecGeometry program)))
 
 def piRlc (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled) :=
   PiRLCGeometry.plan compiled (piRlcInterface program)
@@ -133,11 +133,11 @@ def application (program : Program) (fits : PerApplicationPackage.FitsTwoPow28 p
 
 def nextPreimage (program : Program) :=
   rename program (DirectApplicationPrefixPlan.nextPreimagePlan (referenceGeometry program))
-    (ReadSupport.nextPreimage program _)
+    (ReadSupport.common_plan program _ (ReadSupport.nextPreimage program _))
 
 def publicOutput (program : Program) :=
   rename program (DirectApplicationPrefixPlan.publicOutputPlan (referenceGeometry program))
-    (ReadSupport.public_output program (referenceGeometry program))
+    (ReadSupport.common_plan program _ (ReadSupport.public_output program (referenceGeometry program)))
 
 theorem totalFits (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits)

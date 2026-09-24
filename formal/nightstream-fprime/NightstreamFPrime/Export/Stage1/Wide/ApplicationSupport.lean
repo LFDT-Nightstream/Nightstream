@@ -19,13 +19,13 @@ theorem application_input (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))
     (lane : Lifecycle.Stage1.Application.StateIndex) : Form program (ApplicationDirectPlan.inputForm geometry lane) := by
   rw [ApplicationDirectPlan.inputForm_eq_pilot]
-  exact prior_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _
+  exact common_form program _ (prior_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
 
 theorem application_output (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))
     (lane : Lifecycle.Stage1.Application.StateIndex) : Form program (ApplicationDirectPlan.outputForm geometry lane) := by
   rw [ApplicationDirectPlan.outputForm_eq_pilot]
-  exact output_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _
+  exact common_form program _ (output_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
 
 theorem application_location (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))

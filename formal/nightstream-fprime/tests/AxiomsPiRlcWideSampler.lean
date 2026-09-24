@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCSourceInputs
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCSourceOutput
 import NightstreamFPrime.Export.Stage1.PiDECFormSemantics
@@ -920,3 +921,17 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout.outputValue_of_base
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.seed_form
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.SourceAssignment.assignment_one
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReadSupport.common_plan
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReadSupport.one_common
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReadSupport.shared_block_common
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.common_form
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.common_rowsZero_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness.endpointValue_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness.rowsZero_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPoseidonCompleteness.rowsZero_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCompletedAssignment.rowsZero_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.PilotCompletedAssignment.rowsZero_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.PilotPoseidonCompleteness.rowsZero_of_hashRows
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment.physical_prefix
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment.reference_rowsZero
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment.rowsZero

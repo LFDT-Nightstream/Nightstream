@@ -169,4 +169,41 @@ theorem assignment_norm (program : Program)
     ∀ target, centeredMagnitude (assignment program before target) < 2 :=
   PiRLCWitness.preserves_norm _ _ (seed_norm program before bounded)
 
+/-- A completed direct PiRLC witness preserves every common source form. -/
+theorem common_form (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (common : ReadSupport.CommonForm program form) (supported : ReadSupport.Form program form) :
+    (RetainedLayout.renameForm program form supported).eval (assignment program before) = form.eval before := by
+  rw [assignment_eq_project]
+  exact (Stage1Witness.common_form_unchanged program (project program before) form common).trans
+    (project_form program before form supported)
+
+private theorem mapped_rowsZero_iff {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
+    (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column)
+    (before : Assignment F source) (after : Assignment F target)
+    (forms : ∀ row port, ((plan.forms row port).mapColumnsChecked column (supported row port)).eval after =
+      (plan.forms row port).eval before) :
+    (plan.mapColumnsChecked column supported).RowsZero after ↔ plan.RowsZero before := by
+  have ports (row : Fin plan.rowCount) (port : Fin Spec.ProductionRelation.matrixCount) :
+      ((plan.mapColumnsChecked column supported).portForm row port).eval after =
+        (plan.portForm row port).eval before := by
+    unfold ProductionRelation.Plan.portForm
+    cases meaningfulPort? port with
+    | none => simp only [SparseForm.empty_eval]
+    | some meaningful => exact forms row meaningful
+  unfold Plan.RowsZero
+  simp only [Plan.rowImage_toVertex, ports]
+  rfl
+
+/-- Acceptance is preserved for a complete plan that reads only common values. -/
+theorem common_rowsZero_iff (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program))
+    (common : ReadSupport.CommonPlans program plan) (supported : ReadSupport.Plans program plan) :
+    (Stage1Plan.rename program plan supported).RowsZero (assignment program before) ↔ plan.RowsZero before :=
+  mapped_rowsZero_iff (RetainedLayout.column program) plan supported before (assignment program before)
+    (fun row port => common_form program before _ (common row port) (supported row port))
+
 end NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection

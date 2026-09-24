@@ -438,7 +438,7 @@ private theorem output_input
 pilot row on the exact canonical source copy. All retained S-box equations,
 input absorption values, and previous-output links are derived from those
 rows and the existing source projection. No hash-output equality is assumed. -/
-private theorem rowsZero_of_hashRows
+theorem rowsZero_of_hashRows
     (priorRows : HashChainHolds (Data.circuitPackage ()) Data.priorChain target)
     (outputRows : HashChainHolds (Data.circuitPackage ()) Data.outputChain target) :
     (PilotPoseidonPlan.plan pilotGeometry).RowsZero raw.assignment := by

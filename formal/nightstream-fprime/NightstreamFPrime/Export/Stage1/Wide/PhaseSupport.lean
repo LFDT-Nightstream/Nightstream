@@ -16,7 +16,7 @@ theorem prefixPlan (program : Program)
     {width : Nat} {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth width}
     (relation : Lifecycle.ProductionKey.LogicalRelation width publicFits)
     (geometry : PiDECRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program)) :
-    Plans program (DirectPiDECPrefixPlan.piCcsCompletePlan relation geometry) := by
+    CommonPlans program (DirectPiDECPrefixPlan.piCcsCompletePlan relation geometry) := by
   apply append
   · apply append
     · apply append

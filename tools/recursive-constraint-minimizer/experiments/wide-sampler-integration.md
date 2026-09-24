@@ -236,15 +236,23 @@ physical C, wide R, and D phases under their existing input assumptions. The
 proof uses every PiDEC source location and the exact ordinary-row compiler;
 it does not add a row-validity callback or an old sampler-success premise.
 
-Whole-package acceptance still requires the corresponding source-execution
-connections for the prefix and remaining phases. Emitted-matrix correspondence,
-the full normalized nonzero count, and the selected security and Rust
-connections also remain open. No selected circuit count changes in this batch.
+`Wide.PrefixCompletedAssignment.rowsZero` now proves acceptance of all
+3,054,685 pilot and PiCCS prefix rows on the same `SourceAssignment.assignment`.
+The source view preserves the accepted physical prefix. Each of the six compact
+components reads only common retained values, and the direct PiRLC constructor
+preserves those values. The existing pilot and PiCCS completeness proofs now
+accept any packet with the copied base. No old sampler execution, old PiRLC row,
+or sampler-success premise is used.
+
+Whole-package acceptance still requires the remaining phase connections and
+the semantic-step witness construction. Emitted-matrix correspondence, the full
+normalized nonzero count, and the selected security and Rust connections also
+remain open. No selected circuit count changes in this batch.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 788 sampler and integration audits, plus four retained-support regression
+all 802 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. These checks do not select the candidate.
 
@@ -301,8 +309,9 @@ All 681 rows and all 54 digits are checked for every case.
 - Close whole-package witness preservation and compatible witness construction
   for the assembled Stage 1 candidate. Matrix read support and the PiDEC
   retained-parent connection, physical PiDEC source transport, and compact
-  PiDEC acceptance are proved. Close the prefix and remaining phase transport,
-  then compose the semantic-step witness, norm, public output and advice results.
+  PiDEC acceptance are proved. The pilot/PiCCS prefix also accepts the same
+  assignment. Close the remaining phase transport, then compose the semantic-step
+  witness, norm, public output and advice results.
   Prove the emitted matrix program denotes that same plan, then measure all
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.

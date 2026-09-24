@@ -6,25 +6,34 @@ import NightstreamFPrime.Spec.SumCheck.HypercubeTruth
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 
 /-!
-Canonical SumCheck truth path for the explicit paper-level joint polynomial.
+Residual-table SumCheck truth path for paper-level joint `Pi_CCS` (audit
+path only).
 
 Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
 Phase: joint-polynomial evaluation, Boolean initial sum, and SumCheck terminal.
 Constraint family: semantic truth-path owner; this file emits no constraints.
 
-Owns: the full-point equality polynomial, arbitrary-point `F`, `NC`, `Eval`,
-and `Q`, a total coordinate-list polynomial with fail-closed arity, its exact
-specialization to the existing Boolean `Q`, and the canonical finite SumCheck
-expected-round path from that one polynomial.
+Owns: the full-point equality polynomial; the residual-table form of `Q`,
+which evaluates the multilinear extension of each stored `F` and `NC`
+residual table; a total coordinate-list polynomial with fail-closed arity;
+its exact agreement with the Boolean `Q` on every cube vertex; and the finite
+SumCheck expected-round path from that one polynomial.
 
-Does not own: a degree proof for the derived round polynomials, root counting,
+Off the Boolean cube this polynomial is not the paper `Q`. The paper applies
+`f` and the norm product after the multilinear images (`f(M~_1 z, ...)`);
+this file takes the multilinear extension of the stored result table. The
+protocol verifier uses `ProtocolPolynomial.qAtPoint`. This path feeds only
+the residual-table audit checker `FiatShamir.checkResidualTableAudit`.
+
+Does not own: the paper off-cube `Q` (`ProtocolPolynomial`), a degree proof
+for the derived round polynomials, root counting,
 challenge sampling, Fiat--Shamir, concrete table
 construction, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: both the semantic initial sum and terminal evaluation are
-derived from the same explicit `Q`. No prover message, caller-supplied expected
+Authority boundary: both the semantic initial sum and the audit terminal are
+derived from the same residual-table polynomial. No prover message, caller-supplied expected
 round function, terminal oracle, Rust evaluator, or old circuit enters this
 construction. A coordinate list of the wrong arity evaluates to zero, while a
 valid verifier execution must separately enforce the exact round count.
@@ -32,10 +41,10 @@ valid verifier execution must separately enforce the exact round count.
 | Protocol | Phase | Mathematical object | Exact result |
 |---|---|---|---|
 | `Pi_CCS` | point evaluation | `pointEquality` | `prod_i ((1-x_i)(1-r_i)+x_i r_i)` |
-| `Pi_CCS` | point evaluation | `qAtPoint` | arbitrary-field-point `Q(x,A,C)` |
+| `Pi_CCS` audit | point evaluation | `qAtPoint` | residual-table `Q(x,A,C)`; equals the paper `Q` only on the cube |
 | `Pi_CCS` | Boolean restriction | `qAtPoint_toCubePoint_eq_qAt` | arbitrary-point `Q` agrees with the explicit Boolean definition |
 | `Pi_CCS` | initial sum | `sumCompletions_jointPolynomial_eq_summedQ` | canonical completion sum equals `sum_x Q` |
-| `Pi_CCS` | terminal | `jointPolynomial challenges` | same `Q` at the full challenge vector |
+| `Pi_CCS` audit | terminal | `jointPolynomial challenges` | same residual-table polynomial at the full challenge vector |
 | `Pi_CCS` | truth path | `canonicalGhosts_honest` | expected rounds are derived, finite, and terminal-bound |
 -/
 
@@ -298,7 +307,8 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
               equalityFactor_one ops laws]
             rw [tailEquality]
 
-/-- Arbitrary-point `F(x,C)`. -/
+/-- Multilinear extension of the stored CCS residual tables. It equals the
+paper `F` only on the Boolean cube. -/
 def ccsAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -310,7 +320,8 @@ def ccsAtPoint
     SignedJointIdentity.gammaTerm ops gamma source.val
       ((data.ccs source).evaluate ops point)
 
-/-- Arbitrary-point unshifted `NC(x,C)`. -/
+/-- Multilinear extension of the stored norm residual tables. It equals the
+paper unshifted `NC` only on the Boolean cube. -/
 def normAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -361,7 +372,9 @@ def constraintAtPoint
       (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
         (normAtPoint ops data gamma point)))
 
-/-- Literal joint polynomial at an arbitrary field point. -/
+/-- Residual-table joint polynomial at an arbitrary field point. It agrees
+with the paper `Q` on the Boolean cube only; the paper off-cube `Q` is
+`ProtocolPolynomial.qAtPoint`. -/
 def qAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -483,9 +496,8 @@ theorem constraintAtPoint_toCubePoint_eq_constraintAt
     ccsAtPoint_toCubePoint_eq_ccsAt ops laws,
     normAtPoint_toCubePoint_eq_normAt ops laws]
 
-/-- The arbitrary-point joint polynomial is not an MLE of a sampled truth
-table: it is the literal product expression, and it agrees with the prior
-Boolean definition exactly on every cube vertex. -/
+/-- The residual-table joint polynomial agrees with the Boolean definition
+on every cube vertex. -/
 theorem qAtPoint_toCubePoint_eq_qAt
     {Field : Type uField}
     {shape : Shape}
@@ -517,7 +529,8 @@ def jointPolynomial
   else
     ops.zero
 
-/-- Verifier-computed terminal from the same explicit joint polynomial. -/
+/-- Audit terminal from the same residual-table polynomial. The protocol
+verifier terminal is owned by `ProtocolPolynomial`. -/
 def verifierTerminal
     {Field : Type uField}
     {shape : Shape}
@@ -622,8 +635,9 @@ theorem sumCompletions_jointPolynomial_eq_summedQ
   exact jointPolynomial_fieldCoordinates_eq_qAt
     ops laws data alpha gamma vertex
 
-/-- Canonical semantic ghost object. The initial sum is the independently
-named paper sum; expected rounds are derived from the same total `Q`. -/
+/-- Semantic ghost object for the audit path. The initial sum is the
+independently named paper sum; expected rounds are derived from the same
+residual-table polynomial. -/
 def canonicalGhosts
     {Field : Type uField}
     {shape : Shape}
@@ -636,9 +650,10 @@ def canonicalGhosts
   expected := SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
     (jointPolynomial ops data alpha gamma) challenges
 
-/-- Exact truth path for the joint paper polynomial. The only shape premises
-are explicit: one challenge per cube variable and one message per challenge.
-The degree of each derived expected round remains a separate theorem. -/
+/-- Exact truth path for the residual-table polynomial. The only shape
+premises are explicit: one challenge per cube variable and one message per
+challenge. No degree theorem exists for these expected rounds; the protocol
+path uses `ProtocolPolynomialDegree.expectedRoundsRepresentable`. -/
 theorem canonicalGhosts_honest
     {Field : Type uField}
     {shape : Shape}

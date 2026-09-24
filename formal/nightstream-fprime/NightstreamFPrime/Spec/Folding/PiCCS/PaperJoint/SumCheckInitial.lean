@@ -16,8 +16,8 @@ Boolean-hypercube sum of `Q`.
 
 Owns: the verifier initial value, the semantic initial value, their placement
 in the finite verifier-to-symbolic bridge, exact equivalence with the signed
-coefficient polynomial vanishing, the canonical expected-round list derived
-from the explicit joint polynomial, and deterministic false-acceptance
+coefficient polynomial vanishing, the expected-round list derived from the
+residual-table joint polynomial (audit path), and deterministic false-acceptance
 dichotomies exposing coefficient/table truth, a signed mixing root, or a
 specific SumCheck round collision for logical and executable verification.
 
@@ -40,7 +40,7 @@ proof. Exact challenge-vector length remains an explicit verifier obligation.
 | `Pi_CCS` | SumCheck initial claim | verifier | `claimedInitial = T_abs(alpha,gamma)` |
 | `Pi_CCS` | SumCheck truth path | semantics | `trueInitial = sum_x Q(x,alpha,gamma)` |
 | `Pi_CCS` | expected rounds | canonical joint polynomial | each round fixes the prior challenges and sums the remaining Boolean suffix |
-| `Pi_CCS` | terminal | verifier | the same explicit `Q` evaluated at the full challenge vector |
+| `Pi_CCS` audit | terminal | audit checker | residual-table `Q` (`SumCheckTruthPath`) at the full challenge vector |
 | `Pi_CCS` | initial equality | derived signed polynomial | `Claim.True iff signedPolynomial(gamma)=0` |
 | `Pi_CCS` | coefficient truth | independent residual tables | sampled zero means table truth or a signed mixing root |
 | `Pi_CCS` | false acceptance | finite verifier + canonical truth path | table truth, a signed mixing root, or a named SumCheck round collision |
@@ -86,8 +86,8 @@ def semanticGhosts
   trueInitial := semanticInitial ops data alpha gamma
   expected := expected
 
-/-- Canonical expected-round list derived from the same explicit joint
-polynomial that owns the verifier terminal. This is semantic proof data, not a
+/-- Expected-round list derived from the residual-table joint polynomial
+(`SumCheckTruthPath`) that owns the audit terminal. This is semantic proof data, not a
 certificate field. -/
 def canonicalExpected
     {Field : Type uField}
@@ -100,7 +100,8 @@ def canonicalExpected
   SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
     (SumCheckTruthPath.jointPolynomial ops data alpha gamma) challenges
 
-/-- Typed one-joint SumCheck checker. The challenge vector carries its exact
+/-- Typed one-joint SumCheck checker with the residual-table audit terminal;
+it is not the protocol verifier. The challenge vector carries its exact
 paper arity, so round-count authority is part of the input type rather than a
 caller proposition or prover field. The certificate still contains only raw
 finite coefficient messages. -/

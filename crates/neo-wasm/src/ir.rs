@@ -86,9 +86,8 @@ pub struct LinearMemoryAccess {
 }
 
 /// Carried state of an aux-row countdown mode: `active` while `remaining`
-/// counts down to zero, one aux row per tick. Used by both call-argument
-/// modes — param-init (guest) and host-arg (host) — which differ only in
-/// what each popped value feeds.
+/// counts down to zero, one aux row per tick. Used for local zeroing and
+/// call parameter initialization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmCountdownState {
     pub active: bool,
@@ -208,6 +207,7 @@ pub struct WasmBoundaryState {
     pub halted: bool,
     pub trapped: bool,
     pub param_init: WasmCountdownState,
+    pub local_zero: WasmCountdownState,
     pub tail_call_pending: bool,
     pub host_callee_fref: u32,
     pub comm_chain: [u64; 4],
@@ -267,6 +267,7 @@ pub struct WasmStepState {
     /// verifier can assert "this execution trapped".
     pub trapped: bool,
     pub param_init: WasmCountdownState,
+    pub local_zero: WasmCountdownState,
     /// A tail call has initialized its replacement frame but still needs to
     /// discard the replaced frame's residual operand stack.
     pub tail_call_pending: bool,
@@ -303,6 +304,7 @@ impl WasmStepState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
     CallParamInit,
+    LocalZero,
     /// Drops residual operands from the replaced frame after tail-call
     /// parameters have been copied into the callee's locals.
     TailEnter,
@@ -332,6 +334,10 @@ pub enum WasmRowKind {
 impl WasmRowKind {
     pub fn is_program(self) -> bool {
         matches!(self, Self::Program)
+    }
+
+    pub fn is_local_zero(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::LocalZero))
     }
 
     pub fn is_call_param_init(self) -> bool {
@@ -629,6 +635,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     halted: row.state_before.halted,
                     trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
+                    local_zero: row.state_before.local_zero,
                     tail_call_pending: row.state_before.tail_call_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
                     comm_chain: row.state_before.comm_chain,
@@ -647,6 +654,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     halted: row.state_after.halted,
                     trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
+                    local_zero: row.state_after.local_zero,
                     tail_call_pending: row.state_after.tail_call_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
                     comm_chain: row.state_after.comm_chain,

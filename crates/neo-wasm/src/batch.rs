@@ -262,6 +262,10 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         !param_init.active,
         "padding inside a param-init aux sequence is unsupported"
     );
+    debug_assert!(
+        !prev.state_after.local_zero.active,
+        "padding inside local zeroing is unsupported"
+    );
     debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
     let host_callee_fref = prev.state_after.host_callee_fref;
     let comm_chain = prev.state_after.comm_chain;
@@ -286,6 +290,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            local_zero: prev.state_after.local_zero,
             tail_call_pending,
             host_callee_fref,
             comm_chain,
@@ -304,6 +309,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            local_zero: prev.state_after.local_zero,
             tail_call_pending,
             host_callee_fref,
             comm_chain,

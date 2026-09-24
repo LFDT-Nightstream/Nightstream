@@ -180,16 +180,6 @@ fn partial_pair_gadget() -> Poseidon2PartialPair12<11> {
     }
 }
 
-/// Gate terms that are 1 exactly on `HostEventPerm` rows: `perm_pending`
-/// (position 0) plus "round counter is nonzero" (positions 1..18).
-pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
-    [
-        (COL_PERM_PENDING_BEFORE, F::ONE),
-        (COL_ONE, F::ONE),
-        (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
-    ]
-}
-
 pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_interface_constraints(b);
     push_host_event_gather_constraints(b);
@@ -201,7 +191,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_full_round_constraints(b);
     push_partial_pair_constraints(b);
     push_chain_update_constraints(b);
-    push_perm_row_shape_constraints(b);
 }
 
 /// Shared host-event row shape and carried-state transitions.
@@ -1097,15 +1086,6 @@ fn push_chain_update_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 [],
             );
         }
-    });
-}
-
-/// Perm rows are aux rows with no stack traffic (pc/param-init handling
-/// lives with the other aux-row shape rows in `ccs/call.rs`).
-fn push_perm_row_shape_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.with_tag(host_event("host event perm row shape"), |b| {
-        b.push_row(perm_row_gate_terms(), [(COL_STACK_READS, F::ONE)], []);
-        b.push_row(perm_row_gate_terms(), [(COL_STACK_WRITES, F::ONE)], []);
     });
 }
 

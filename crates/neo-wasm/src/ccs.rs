@@ -14,7 +14,7 @@ mod memory_pages;
 mod stack_io;
 mod trap;
 
-pub(crate) use call::PARAM_INIT_REMAINING_AFTER_ZERO_TEST;
+pub(crate) use call::{LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, PARAM_INIT_REMAINING_AFTER_ZERO_TEST};
 pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
 pub(crate) use trap::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
@@ -31,15 +31,16 @@ use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder, WasmTaggedR1csBuilder};
 use crate::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV,
-    COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GLOBAL_VALUE_HI,
-    COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE,
-    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
-    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
-    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
-    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GATHER_ACTIVE,
+    COL_GLOBAL_VALUE_HI, COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB,
+    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SEL_SELECT, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO,
+    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
+    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_WIDE_VALUES_ENABLED,
 };
 use neo_application::{ApplicationRelation, ConditionalSelect, ZeroTest};
 use neo_math::F;
@@ -131,7 +132,8 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 }
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
-    let mut terms = vec![(COL_STACK_READS, F::ONE)];
+    // Every fixed-arity aux row reads zero slots except parameter initialization.
+    let mut terms = vec![(COL_STACK_READS, F::ONE), (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE)];
     for op in WasmOpcode::supported().into_iter().filter(|op| {
         !matches!(
             op,
@@ -168,13 +170,16 @@ fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     terms
 }
 
-fn fixed_stack_arity_gate_terms() -> [(usize, F); 5] {
+fn fixed_stack_arity_gate_terms() -> [(usize, F); 6] {
     [
-        (COL_IS_PROGRAM_ROW, F::ONE),
+        // Calls have signature-dependent arity; gather rows have slot-dependent
+        // arity. All other program and aux rows have fixed arity.
+        (COL_ONE, F::ONE),
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
+        (COL_GATHER_ACTIVE, -F::ONE),
     ]
 }
 

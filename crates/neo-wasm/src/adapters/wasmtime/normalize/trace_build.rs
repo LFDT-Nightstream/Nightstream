@@ -2,16 +2,18 @@
 //! rows.
 //!
 //! Owns the cross-row work: the running trace state machine (sp, fbp, call
-//! stack and param-init trackers), consistency checks between
+//! stack and local-init trackers), consistency checks between
 //! adjacent rows, and the synthesis of aux rows that do not exist in
-//! wasmtime's step stream — guest `CallParamInit` and host-event gather
+//! wasmtime's step stream — guest `LocalZero`/`CallParamInit` and host-event gather
 //! rows. Per-row decoding lives in the parent
 //! `normalize` module; this module reads it only through `NormalizedStep`.
 
+mod local_zero;
 mod tail_call;
 mod turn;
 mod values;
 
+use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
 use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
@@ -59,7 +61,7 @@ pub(super) fn build_trace(
     };
     let tracks_linear_memory = linear_memory.is_some();
     let mut linear_memory = linear_memory.unwrap_or_default();
-    let mut out = Vec::with_capacity(supported.len());
+    let mut out: Vec<WasmVmStep> = Vec::with_capacity(supported.len());
     // Runtime call stack: (return_pc, caller_fbp, caller_stack_base) per live
     // guest frame. Grows on Call, shrinks on non-final Return.
     let mut call_stack: Vec<(u64, u64, u64)> = Vec::new();
@@ -72,6 +74,7 @@ pub(super) fn build_trace(
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
     let mut param_init_state = WasmCountdownState::ZERO;
+    let mut local_zero_state = WasmCountdownState::ZERO;
     let mut tail_call_pending = false;
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
@@ -380,10 +383,30 @@ pub(super) fn build_trace(
 
         let program_cycle = out.len() as u64;
         let param_init_before = param_init_state;
+        let mut zero_after = WasmCountdownState::ZERO;
+        if guest_callee_fbp.is_some() {
+            let local_count = next
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!("guest call at cycle {} has no callee entry row", current.cycle))
+                })?
+                .num_locals;
+            let zero_count = local_count
+                .checked_sub(callee_initial_params.len() as u32)
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "guest call at cycle {} has more parameters than locals",
+                        current.cycle
+                    ))
+                })?;
+            zero_after = WasmCountdownState {
+                active: zero_count != 0,
+                remaining: zero_count,
+            };
+        }
         let mut param_init_after = WasmCountdownState::ZERO;
         if guest_callee_fbp.is_some() {
             param_init_after = WasmCountdownState {
-                active: !callee_initial_params.is_empty(),
+                active: !zero_after.active && !callee_initial_params.is_empty(),
                 remaining: u32::try_from(callee_initial_params.len()).map_err(|_| {
                     WasmBuildError::Trace(format!(
                         "call parameter count does not fit u32 at cycle {}",
@@ -421,6 +444,14 @@ pub(super) fn build_trace(
                     current_function_num_locals: current.num_locals,
                     halted: turn_done,
                 };
+                if local_zero_state.active {
+                    let state = out
+                        .last()
+                        .expect("re-entry boundary precedes zero rows")
+                        .state_after;
+                    let after = emit_local_zero_rows(&mut out, &ctx, state);
+                    local_zero_state = after.local_zero;
+                }
                 for plan in &setup.entry_plans {
                     emit_block_plan(
                         &mut out,
@@ -592,6 +623,7 @@ pub(super) fn build_trace(
             }
         }
 
+        let zero_before = local_zero_state;
         out.push(WasmVmStep {
             // Sequential index within the normalized trace. Structural-only opcodes
             // (loop, block, inner End) are filtered before this loop, so this is
@@ -614,6 +646,7 @@ pub(super) fn build_trace(
                 halted: turn_done,
                 trapped: false,
                 param_init: param_init_before,
+                local_zero: zero_before,
                 tail_call_pending: tail_call_pending_before,
                 host_callee_fref: host_callee_fref_before,
                 comm_chain: comm_chain_before_row,
@@ -636,6 +669,7 @@ pub(super) fn build_trace(
                 halted: turn_done || halted,
                 trapped,
                 param_init: param_init_after,
+                local_zero: zero_after,
                 tail_call_pending: tail_call_pending_after,
                 host_callee_fref,
                 // The chain only moves on permutation rows.
@@ -711,6 +745,31 @@ pub(super) fn build_trace(
         });
         turn_done = turn_done || halted;
         param_init_state = param_init_after;
+        local_zero_state = zero_after;
+        if local_zero_state.active {
+            let callee = next.expect("guest callee entry checked above");
+            let state = out
+                .last()
+                .expect("guest call precedes zero rows")
+                .state_after;
+            let ctx = HostEventRowContext {
+                pc: state.pc,
+                sp: state.sp,
+                stack_frame_base: state.stack_frame_base,
+                output: state.output,
+                call_stack_depth: state.call_stack_depth,
+                memory_pages: state.memory_pages,
+                max_memory_pages: state.max_memory_pages,
+                locals_fbp: state.locals_fbp,
+                host_callee_fref: state.host_callee_fref,
+                current_function_ref: callee.current_function_ref.unwrap_or(0),
+                current_function_num_locals: callee.num_locals,
+                halted: state.halted,
+            };
+            let after = emit_local_zero_rows(&mut out, &ctx, state);
+            local_zero_state = after.local_zero;
+            param_init_state = after.param_init;
+        }
         tail_call_pending = tail_call_pending_after;
         if is_call_row && !callee_initial_params.is_empty() {
             let param_count = callee_initial_params.len();
@@ -797,6 +856,7 @@ pub(super) fn build_trace(
                         halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_before,
+                        local_zero: local_zero_state,
                         tail_call_pending,
                         host_callee_fref,
                         comm_chain,
@@ -819,6 +879,7 @@ pub(super) fn build_trace(
                         halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_after,
+                        local_zero: local_zero_state,
                         tail_call_pending,
                         host_callee_fref,
                         comm_chain,
@@ -907,6 +968,7 @@ pub(super) fn build_trace(
                 halted: turn_done,
                 trapped: false,
                 param_init: WasmCountdownState::ZERO,
+                local_zero: local_zero_state,
                 tail_call_pending: true,
                 host_callee_fref,
                 comm_chain,
@@ -998,6 +1060,12 @@ pub(super) fn build_trace(
         if halted && next.is_some() {
             let next_row = next.expect("checked");
             let setup = setup_turn(bindings, next_row, program, true, &mut linear_memory)?;
+            let zero_count = next_row
+                .num_locals
+                .checked_sub(u32::from(setup.param_count))
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!("export fref {} has more parameters than locals", setup.fref))
+                })?;
             let entry_count = setup.entry_plans.len() as u32;
             let boundary_state = |pc: u64,
                                   sp: u64,
@@ -1005,7 +1073,8 @@ pub(super) fn build_trace(
                                   output: WasmOutputState,
                                   host_fref: u32,
                                   host_event_state: crate::ir::WasmHostEventState,
-                                  done: bool| {
+                                  done: bool,
+                                  local_zero: WasmCountdownState| {
                 WasmStepState {
                     pc,
                     sp,
@@ -1018,6 +1087,7 @@ pub(super) fn build_trace(
                     halted: done,
                     trapped: false,
                     param_init: WasmCountdownState::ZERO,
+                    local_zero,
                     tail_call_pending: false,
                     host_callee_fref: host_fref,
                     comm_chain,
@@ -1037,6 +1107,7 @@ pub(super) fn build_trace(
                 host_callee_fref,
                 host_event_state,
                 true,
+                WasmCountdownState::ZERO,
             );
             host_callee_fref = setup.fref;
             host_event_state = crate::ir::WasmHostEventState {
@@ -1054,6 +1125,10 @@ pub(super) fn build_trace(
                 host_callee_fref,
                 host_event_state,
                 false,
+                WasmCountdownState {
+                    active: zero_count != 0,
+                    remaining: zero_count,
+                },
             );
             let helper_ctx = HostEventRowContext {
                 pc: pc_after,
@@ -1070,6 +1145,9 @@ pub(super) fn build_trace(
                 halted: true,
             };
             out.push(WasmVmStep {
+                call_param_count: Some(setup.param_count),
+                call_result_count: Some(setup.result_count),
+                target_function_is_guest: true,
                 // Export entry-count cell carries the presence bias.
                 host_event_initial_schedule_count: Some(entry_count + 1),
                 host_event_exit_schedule_count: Some(setup.template.exit.len() as u32),
@@ -1081,6 +1159,7 @@ pub(super) fn build_trace(
             output_value_hi = 0;
             stack_base = 0;
             export_boundary = Some(setup);
+            local_zero_state = state_after.local_zero;
             entry_emitted = false;
         }
     }

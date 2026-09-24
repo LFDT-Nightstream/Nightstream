@@ -1,3 +1,8 @@
+import NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator
+import NightstreamFPrime.Export.Stage1.Wide.FixedPointSoundness
+import NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC
+import NightstreamFPrime.Export.Stage1.Wide.DecodedPiRLCInputs
+import NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBindingTransport
 import NightstreamFPrime.Layout.Stage1.Wide.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.Wide.StepPhysicalCompleteness
@@ -1061,3 +1066,39 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Layout.Stage1.Wide.StepPhysicalCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.Stage1.Wide.StepSourceSpecs.specs_of_step
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBinding.evalOutput_eq_of_agree
+
+-- Arbitrary-assignment phase decoding and checked phase connections.
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix.reference_one
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix.pilot
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix.piCcs
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiRLCInputs.value
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiRLCInputs.initialState
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.before_parent
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.form_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.location
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.phase
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.parent
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.AccumulatorSemantics.piRlcPoint_eq_roundTranscript
+
+#audit_axioms NightstreamFPrime.Layout.Stage1.Wide.PiRLCInputBounds.samplerInitialBelow
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piDecAttemptForParent_unchanged
+
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.outputForAttempt_unchanged
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix.piCcsSpec
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC.physical
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.witnessView
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.ordered_of_view
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.parent_of_view
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.accepted
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.decodedAccepted
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPointSoundness.rowsZero_implies_stepHoldsFor

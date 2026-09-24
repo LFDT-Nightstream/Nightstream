@@ -86,6 +86,48 @@ theorem piCcsCheck_unchanged (relation : ProductionKey.LogicalRelation logicalWi
       Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai) running fresh proof :=
   (ccs_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid running fresh proof).2.2
 
+private theorem dec_with_response (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (before : ProductionKey.KeyType relation)
+    (response : Transcript.State → Option (Fin before.arity.total → RingF))
+    (valid : ∀ state values, response state = some values → ∀ index, before.piRlcAlgebra.challengeValid (values index))
+    (proof : Proof (ProductionKey.degreeBound relation))
+    (parent : PiRLC.v1_1.InputBinding.InputInstance logicalWidth publicFits)
+    (attempt : PiDEC.PaperVerifier.Attempt (PaperAlgebra.Structure logicalWidth)
+      (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment before.params)
+    (publicInputs : Fin before.params.k → PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    let after := { before with piRlcResponse := response, piRlcResponseValid := valid }
+    after.piDecAttemptForParent proof parent = before.piDecAttemptForParent proof parent ∧
+      after.outputForAttempt proof attempt publicInputs = before.outputForAttempt proof attempt publicInputs := by
+  intro after
+  constructor
+  · unfold Nifs.PaperNonInteractive.Key.piDecAttemptForParent
+    rfl
+  · unfold Nifs.PaperNonInteractive.Key.outputForAttempt
+    rfl
+
+theorem piDecAttemptForParent_unchanged (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation))
+    (parent : PiRLC.v1_1.InputBinding.InputInstance logicalWidth publicFits) :
+    (key relation ajtai).piDecAttemptForParent proof parent =
+      (ProductionKey.key relation ajtai).piDecAttemptForParent proof parent :=
+  (dec_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid
+    proof parent ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent)
+    (fun _ => parent.publicInput)).1
+
+theorem outputForAttempt_unchanged (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof (ProductionKey.degreeBound relation))
+    (attempt : PiDEC.PaperVerifier.Attempt (PaperAlgebra.Structure logicalWidth)
+      (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
+      PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment productionGlobalParams)
+    (publicInputs : Fin productionGlobalParams.k → PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    (key relation ajtai).outputForAttempt proof attempt publicInputs =
+      (ProductionKey.key relation ajtai).outputForAttempt proof attempt publicInputs :=
+  (dec_with_response relation (ProductionKey.key relation ajtai) piRlcResponse piRlcResponse_valid
+    proof attempt.parent attempt publicInputs).2
+
 theorem key_response (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) (state : Transcript.State) :
     (key relation ajtai).piRlcResponse state = some (response state) := rfl

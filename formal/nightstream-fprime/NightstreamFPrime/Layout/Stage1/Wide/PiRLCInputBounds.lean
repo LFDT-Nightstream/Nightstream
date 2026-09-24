@@ -51,7 +51,7 @@ private theorem evalK_le_evalA :
   unfold PiRLC.Wide.Formal.evalAOffset
   omega
 
-private theorem samplerInitialBelow
+theorem samplerInitialBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) (lane : Fin Spec.Poseidon2.width) :
     (PiRLCInputs.piCcsOutputState

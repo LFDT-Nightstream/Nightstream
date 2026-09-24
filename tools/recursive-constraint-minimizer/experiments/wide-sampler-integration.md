@@ -135,7 +135,8 @@ candidate**, using the current application:
 The candidate dimensions are derived from the assembled row plan and retained
 intervals. They are not counts from a regenerated production artifact, and are
 not an achieved production or overall performance reduction. Whole-package
-source preservation and matrix-program correspondence remain open.
+witness construction and step soundness are proved. Matrix-program
+correspondence remains open.
 
 The old sampler's ordinary retained blocks contain 2,230,400 + 6,758,112 =
 8,988,512 coordinates. The external funnel's 8,998,512 entry is 10,000 too high;
@@ -173,8 +174,8 @@ claimed from this correctness repair.
 `tests/WideRetainedSupport.lean` rejects all three removed coordinate intervals,
 including a stored entry with coefficient zero. It also checks that a column
 cannot be mapped without a support proof, and that public column zero retains
-its own identity. Physical source-environment transport is still open; this
-support result concerns the CCS matrices, not the old PiDEC witness builder.
+its own identity. The complete candidate witness construction now uses this support result;
+the old PiDEC witness builder is not a candidate proof premise.
 
 ## Retained witness projection
 
@@ -303,18 +304,50 @@ Rust witness generator to compute discarded R1CS ring scratch. The compact
 PiRLC witness still constructs its own products and quotient coefficients
 directly. Rust transport remains to be connected to this construction.
 
-Whole-plan soundness for arbitrary accepted candidate assignments,
-emitted-matrix correspondence, the full normalized nonzero count, and the
+Emitted-matrix correspondence, the full normalized nonzero count, and the
 selected security and Rust connections remain open. The candidate remains at
 137,341,872 committed coordinates. This proof batch changes no circuit count.
+
+## Whole-step soundness for arbitrary assignments
+
+`Wide.FixedPointSoundness.rowsZero_implies_stepHoldsFor` proves that every
+accepted candidate assignment with constant column one satisfies the complete
+HyperNova augmented step. It selects `Wide.FixedPoint.relation` and the wide
+NIFS key. It decodes the input, output and application advice from the same
+assignment. No canonical witness, physical-row satisfaction, sampler success,
+or retained-block encoding premise is required.
+
+The theorem requires the relation's constant coordinate to equal one. The
+production boundary must derive this from its verifier-supplied encoded public
+input and connect the decoded output digest to that input. The reused public
+pin plan already proves its digest equations; the combined candidate wrapper
+is still open. Its attempted proof reached a Lean kernel normalization timeout on the concrete
+layout, so it is not included in this checkpoint. The accepted step theorem
+adds no cryptographic assumption and does not claim to close this boundary.
+The context digest is decoded from the constrained state; its identification
+with the verifier-owned package context also remains part of production binding.
+
+`Wide.DecodedPrefix` recovers the pilot and PiCCS contracts. The direct PiRLC
+inputs use the checked PiCCS transcript endpoint and values. `DecodedPiDEC`
+recovers the retained child fields and their parent values. `DecodedAccumulator`
+composes these contracts into acceptance by the new NIFS key and proves that
+auxiliary physical proof values do not change the decoded input, proof or
+output. The running transition and application use those same values. The
+final composition proves both HyperNova branches and the exact next-state
+hash serialization, including field reduction of the iteration word.
+
+The complete witness theorem in the preceding section supplies the other
+direction. This proof batch changes no row, coordinate or matrix count and
+does not select the candidate for production.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 905 sampler and integration audits, plus four retained-support regression
+all 927 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
-build passed with 4,396 jobs. The commands were:
+build passed with 4,401 jobs and covers both witness construction and full-step
+soundness. The commands were:
 
 ```sh
 timeout --signal=KILL 1500 scripts/validate.sh static
@@ -387,10 +420,12 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Prove whole-plan soundness for arbitrary accepted assignments with the new
-  key. Complete witness construction from a semantic step is now proved; it is
-  the other direction. Then prove that the emitted matrix program denotes the
-  same plan and measure all normalized matrix entries.
+- Connect the arbitrary-assignment step theorem to the verifier-supplied public
+  input, deriving the constant-one premise and binding the decoded output
+  digest. Complete the verifier-owned context binding at the same boundary.
+- Prove that the emitted matrix program denotes the same candidate plan, then
+  measure all normalized matrix entries. Whole-step soundness and complete
+  witness construction are proved.
 - Apply the security model to the selected production transcript and record the
   applicable Fiat–Shamir assumption and query accounting. The adaptive block
   budget `q` in `q * distance` must not be identified with a fold count or the

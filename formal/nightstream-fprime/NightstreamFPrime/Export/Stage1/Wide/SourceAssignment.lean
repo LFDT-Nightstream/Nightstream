@@ -154,4 +154,15 @@ theorem piRlc_complete (program : Program) (compiled : PiRlcWideSampler.RangePla
   apply AssignmentProjection.piRlc_complete
   exact PerApplicationCanonicalAssignment.assignment_one (raw program env application)
 
+theorem assignment_one (program : Program) (env : Env)
+    (application : Fin (PerApplicationPackage.addedPrivateColumnCount program) → F) :
+    assignment program env application (Stage1Plan.piRlcInterface program).oneColumn = 1 := by
+  apply PiRLCWitness.one _ _ (InputSupport.inputsBefore program)
+  rw [AssignmentProjection.seed_before program (raw program env application).assignment
+    (Stage1Plan.piRlcInterface program).oneColumn (InputSupport.inputsBefore program).sampler.one]
+  exact (AssignmentProjection.project_at program (raw program env application).assignment
+    (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program))
+    (ReadSupport.one program _ rfl)).trans
+      (PerApplicationCanonicalAssignment.assignment_one (raw program env application))
+
 end NightstreamFPrime.Export.Stage1.Wide.SourceAssignment

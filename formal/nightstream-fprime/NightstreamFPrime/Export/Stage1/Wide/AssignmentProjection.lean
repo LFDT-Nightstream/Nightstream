@@ -86,6 +86,21 @@ theorem seed_before (program : Program) (before : Assignment F (PerApplicationFi
     seed program before target = project program before target := by
   exact if_pos below
 
+/-- A common input form sees the same values before and after projection. -/
+theorem seed_form (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (common : FormSupport.Supported (FormSupport.Common program) form)
+    (supported : ReadSupport.Form program form) :
+    (RetainedLayout.renameForm program form supported).eval (seed program before) = form.eval before := by
+  calc
+    _ = (RetainedLayout.renameForm program form supported).eval (project program before) := by
+      apply FieldAssignment.form_eval_eq
+      intro entry member
+      exact seed_before program before entry.column
+        (FormSupport.renamed_before program form common entry member)
+    _ = _ := project_form program before form supported
+
 theorem seed_agree (program : Program)
     (before after : Assignment F (PerApplicationFixedPoint.logicalWidth program))
     (agrees : ∀ source, CoordinateRecovery.CommonSource program source.val → before source = after source) :

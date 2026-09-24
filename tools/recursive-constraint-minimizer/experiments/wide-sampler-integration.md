@@ -221,8 +221,20 @@ scan the 25,488 physical rows.
 witness accepts the reference source view under the existing PiDEC input
 assumptions. `PiDECWitnessInputs` also proves that the final compact witness
 preserves PiDEC proof, split, and scratch values, and that its parent forms read
-the direct ordered fold. The remaining PiDEC obligation is to equate that fold
-with the physical parent outputs using the common prefix and transcript.
+the direct ordered fold.
+
+`PiRLCSourceInputs` now proves that the direct constructor reads the checked
+physical PiCCS final state and the same ring operands. The PiCCS scope proof
+preserves that phase when reading the wide source view. The existing final-layer
+proof accepts any canonical raw packet with the copied base, so it does not
+require construction of old sampler-derived values.
+
+`PiRLCSourceOutput` connects all four direct ordered sums to the physical PiDEC
+parents. `Wide.PiDECCompletedAssignment.rowsZero` then proves acceptance of all
+25,488 compact PiDEC rows on `SourceAssignment.assignment`, from accepted
+physical C, wide R, and D phases under their existing input assumptions. The
+proof uses every PiDEC source location and the exact ordinary-row compiler;
+it does not add a row-validity callback or an old sampler-success premise.
 
 Whole-package acceptance still requires the corresponding source-execution
 connections for the prefix and remaining phases. Emitted-matrix correspondence,
@@ -232,7 +244,7 @@ connections also remain open. No selected circuit count changes in this batch.
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 769 sampler and integration audits, plus four retained-support regression
+all 788 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. These checks do not select the candidate.
 
@@ -288,9 +300,9 @@ All 681 rows and all 54 digits are checked for every case.
 
 - Close whole-package witness preservation and compatible witness construction
   for the assembled Stage 1 candidate. Matrix read support and the PiDEC
-  retained-parent connection and physical PiDEC source transport are proved.
-  Connect the direct parent outputs to the physical witness, then close the
-  prefix and remaining phase transport.
+  retained-parent connection, physical PiDEC source transport, and compact
+  PiDEC acceptance are proved. Close the prefix and remaining phase transport,
+  then compose the semantic-step witness, norm, public output and advice results.
   Prove the emitted matrix program denotes that same plan, then measure all
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.

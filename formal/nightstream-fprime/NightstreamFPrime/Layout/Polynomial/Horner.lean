@@ -337,4 +337,18 @@ theorem ownedCircuit_totalRowCount
   exact compile_totalRowCount offset (interface.point offset)
     (interface.coefficients offset) pointLinear coefficientsLinear
 
+/-- Parent-facing output shape: a nonempty owned Horner chain with linear
+coefficients exports one linear claim. -/
+theorem ownedOutput_linear
+    (interface :
+      NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.Interface)
+    (offset : Nat) (nonempty : interface.coefficients offset ≠ [])
+    (coefficientsLinear : ∀ coefficient ∈ interface.coefficients offset,
+      KExprLinear coefficient) :
+    KExprLinear
+      (NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output interface offset) := by
+  unfold NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
+  exact compile_output_linear _ _ _ nonempty coefficientsLinear
+
 end NightstreamFPrime.Layout.Polynomial.Horner

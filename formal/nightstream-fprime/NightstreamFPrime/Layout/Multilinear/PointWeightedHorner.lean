@@ -76,15 +76,8 @@ private theorem pointOutput_linear {variableCount : Nat}
       (NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.pointOutput
         interface offset) := by
   unfold NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.pointOutput
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.output
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.program
-  apply NightstreamFPrime.Layout.Multilinear.PointEquality.compile_output_linear_of_nonempty
-  intro empty
-  have lengthZero := congrArg List.length empty
-  simp [NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.coordinateExprs,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.canonicalFinIndices_length]
-    at lengthZero
-  omega
+  exact NightstreamFPrime.Layout.Multilinear.PointEquality.ownedOutput_linear_of_positive
+    _ offset positive
 
 private theorem weightedSum_linear {variableCount : Nat}
     (interface : Logical.Interface variableCount) (offset : Nat)
@@ -94,9 +87,7 @@ private theorem weightedSum_linear {variableCount : Nat}
       (NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.weightedSum
         interface offset) := by
   unfold NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.weightedSum
-    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output
-    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
-  exact compile_output_linear _ _ _ nonempty inputs.coefficient
+  exact ownedOutput_linear _ _ nonempty inputs.coefficient
 
 /-- The exported value is the direct quadratic-extension product of two
 materialized child outputs. -/

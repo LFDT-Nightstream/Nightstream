@@ -75,10 +75,7 @@ theorem output_linear
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.output
         interface offset) := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.output
-    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.output
-    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.ownedInterface
-  apply compile_output_linear
+  apply ownedOutput_linear
   · intro empty
     have coefficientExprsEmpty : coefficientExprs interface offset = [] := by
       simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.ownedInterface]

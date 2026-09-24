@@ -83,15 +83,8 @@ private theorem pointEqualityOutput_linear
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.pointEqualityOutput
         interface offset) := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.pointEqualityOutput
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.output
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.program
-  apply NightstreamFPrime.Layout.Multilinear.PointEquality.compile_output_linear_of_nonempty
-  intro empty
-  have lengthZero := congrArg List.length empty
-  simp [NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.coordinateExprs,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.canonicalFinIndices_length,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
-    at lengthZero
+  exact NightstreamFPrime.Layout.Multilinear.PointEquality.ownedOutput_linear_of_positive
+    _ offset cubeVariables_positive
 
 private theorem matrixPowerOutput_linear
     (interface :

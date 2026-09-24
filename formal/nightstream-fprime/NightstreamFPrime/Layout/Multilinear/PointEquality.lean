@@ -472,4 +472,25 @@ theorem ownedCircuit_totalRowCount_of_positive {variableCount : Nat}
   rw [compile_totalRowCount_of_nonempty _ _
     (coordinateExprs_linear interface offset inputs) nonempty, length]
 
+/-- Parent-facing output shape: a positive-dimension owned point-equality
+circuit exports one linear claim. -/
+theorem ownedOutput_linear_of_positive {variableCount : Nat}
+    (interface :
+      NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.Interface
+        variableCount)
+    (offset : Nat) (positive : 0 < variableCount) :
+    KExprLinear
+      (NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.output
+        interface offset) := by
+  unfold NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.output
+    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.program
+  apply compile_output_linear_of_nonempty
+  intro empty
+  have length :=
+    NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.coordinateExprs_length
+      interface offset
+  rw [empty] at length
+  simp at length
+  omega
+
 end NightstreamFPrime.Layout.Multilinear.PointEquality

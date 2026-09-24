@@ -710,6 +710,75 @@ that archive, including source bounds, witness coverage, ownership, column
 bounds, sparse normalization and the complete nonzero vector. No proving
 benchmark runs in this check.
 
+## Sealed candidate and complete native base witness
+
+The candidate emitter now writes a schema-6 sealed package with the new
+physical archive, matrix program, application metadata and schema-4 retained
+assignment transport. Its 76 retained blocks keep the common values, sampler
+S-box outputs, checked range values, ring outputs and quotient coefficients.
+The quotient recipe reads the checked three-bit digits directly. It does not
+read First-54 products or the 918 temporary digit words. The existing hint
+interpreter and dependency list are unchanged.
+
+The Lean base fixture uses the exact wide transcript. `batch_challenges`
+proves that its cached array returns the specified challenge at every source
+and lane. The array is stored once in the batch: returning a function that
+built the array on each read made the first fixture attempts too slow. The
+corrected full candidate export with its base fixture completed in 57.6 seconds.
+This is a development-loop measurement, not a proving-performance result.
+
+The native check uses the real sealed decoder, physical witness engine,
+retained-value transport and matrix reader. It verifies every one of the
+3,248,956 CCS rows and all 270 public coordinates against the Lean fixture.
+The logical assignment has 137,341,846 coordinates; its committed carrier has
+137,341,872 after 26 alignment coordinates. Replacing all 23,868 temporary
+helpers and 918 digit words leaves the assignment byte-identical. Flipping a
+checked sampler quotient bit produces an encodable assignment that the CCS
+rows reject. The fresh-export check passed in 12.12 seconds after compilation.
+
+The source relocation has additional structural Lean proofs. Successful
+expression and hint relocation preserves evaluation; successful affine-run
+relocation preserves every source index and its order. The common blocks
+select the reference block's sources after relocation, including the shortened
+PiCCS Poseidon prefix. The three retained range blocks select exactly the
+physical cells used by the proved hint program. These statements apply to
+arbitrary values, not just the fixture.
+
+The native check deliberately uses a supplied fixture context and a test
+identity. It does not establish the selected production identity, a recursive
+fold, universal Rust semantics, or the complete emitted-transport equality to
+`SourceAssignment.assignment`. That final equality and source-archive custody
+are still required. The already proved whole-plan matrix theorem still uses
+the reference archive; this batch does not claim otherwise.
+
+Reproduction, from the Lean project and then the repository root:
+
+```sh
+timeout --signal=KILL 1500 scripts/validate.sh build emitWidePhysicalPackage
+# The four context words are artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json[1].
+timeout --signal=KILL 1500 scripts/validate.sh lean-executable .lake/build/bin/emitWidePhysicalPackage /tmp/nightstream-wide-physical-package.json <context0> <context1> <context2> <context3>
+tools/recursive-constraint-minimizer/experiments/check_wide_assignment.sh /tmp/nightstream-wide-physical-package.json
+```
+
+The driver supplies the `.sealed.json` and `.base.json` companions and applies
+the required 300-second cap. The new exporter outputs stay in `/tmp`; selected
+packages and official fixtures are not regenerated in this batch. The checked
+implementation is this checkpoint, based on `965351823`.
+
+The full library, tests and emitter build, `static`, `axioms`, and `identity`
+all pass. The 16 new exported theorems use only the allowed standard axioms.
+All 44 regular Rust library tests pass; seven large or driven tests remain
+ignored by default, including the new test run through its committed driver.
+The original selected base fixture is byte-identical to a fresh Lean emission,
+and the existing structural, package and verifier-key identity pins match.
+The source-order cvc5 controls still produce the expected SAT counterexamples
+and UNSAT results. No proving benchmark ran.
+
+One export iteration took 75.3 seconds because the new `commonLimit` accessor
+constructed a complete source-run plan again just to read its slot count.
+Reading that count from the block geometry removed the duplicate work; the
+next run took 57.6 seconds and all four output files were byte-identical.
+
 ## Still required for the production switch
 
 - Connect the verifier-selected package to `ContextBinding.step_or_collision`.
@@ -718,8 +787,9 @@ benchmark runs in this check.
   Poseidon2 state-hash collision. It assumes no honest witness or context equality.
 - Finish source custody and committed-witness transport for the new physical
   archive. The physical archive and companion matrix program now emit and
-  pass Rust conformance. The final sealed transport and production authority
-  binding still need to consume them.
+  pass Rust conformance, including the complete sealed base-witness check.
+  Finish the universal emitted-transport and source-archive proof connections,
+  then bind them to the selected production authority.
 - Use the wide-key security consumers when selecting the production package.
   Their exact transcript link, adaptive query accounting, and explicit
   Fiat–Shamir boundary are proved and recorded above. Numerical cryptographic

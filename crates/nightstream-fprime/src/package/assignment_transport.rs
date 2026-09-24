@@ -26,9 +26,72 @@ const FIRST54_VALUE_BLOCK: usize = 7;
 const FIRST54_PRODUCT_BLOCK: usize = 8;
 const OUTPUT_DIGEST_BLOCK: usize = 24;
 
-/// Lean-authored block order for the final logical assignment.
+mod wide;
+
+/// The package selects one exact retained-value transport.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedAssignmentPlan {
+    program: AssignmentProgram,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum AssignmentProgram {
+    Legacy(LegacyAssignmentPlan),
+    Wide(wide::Plan),
+}
+
+impl LoadedAssignmentPlan {
+    #[cfg(test)]
+    pub(super) fn kind_codes(&self) -> Option<Vec<usize>> {
+        match &self.program {
+            AssignmentProgram::Legacy(plan) => Some(plan.blocks.iter().map(|block| block.opcode).collect()),
+            AssignmentProgram::Wide(_) => None,
+        }
+    }
+
+    pub(super) fn execute(
+        &self,
+        layout: &Layout,
+        assignment: &WitnessAssignment,
+    ) -> Result<LogicalAssignment, PackageError> {
+        match &self.program {
+            AssignmentProgram::Legacy(plan) => plan.execute(layout, assignment),
+            AssignmentProgram::Wide(plan) => plan.execute(layout, assignment),
+        }
+    }
+}
+
+pub(super) fn decode(
+    value: &Value,
+    physical_width: usize,
+    logical_public_width: usize,
+    logical_width: usize,
+) -> Result<LoadedAssignmentPlan, PackageError> {
+    let schema = value
+        .as_array()
+        .and_then(|fields| fields.first())
+        .ok_or(PackageError::Invalid("assignment transport plan"))?;
+    let program = match word(schema, "assignment transport schema")? {
+        3 => AssignmentProgram::Legacy(decode_legacy(
+            value,
+            physical_width,
+            logical_public_width,
+            logical_width,
+        )?),
+        4 => AssignmentProgram::Wide(wide::decode(
+            value,
+            physical_width,
+            logical_public_width,
+            logical_width,
+        )?),
+        _ => return Err(PackageError::Invalid("assignment transport schema version")),
+    };
+    Ok(LoadedAssignmentPlan { program })
+}
+
+/// Lean-authored block order for the final logical assignment.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LegacyAssignmentPlan {
     blocks: Vec<BlockPlan>,
     phi81: Phi81Recipe,
     first54: First54Recipe,
@@ -39,14 +102,7 @@ pub struct LoadedAssignmentPlan {
     logical_width: usize,
 }
 
-impl LoadedAssignmentPlan {
-    pub fn kind_codes(&self) -> [u8; BLOCK_COUNT] {
-        std::array::from_fn(|opcode| {
-            debug_assert_eq!(self.blocks[opcode].opcode, opcode);
-            opcode as u8
-        })
-    }
-
+impl LegacyAssignmentPlan {
     pub(super) fn execute(
         &self,
         layout: &Layout,
@@ -632,12 +688,12 @@ impl First54Recipe {
 }
 
 /// Decode and validate the exact six-field assignment transport.
-pub(super) fn decode(
+fn decode_legacy(
     value: &Value,
     physical_width: usize,
     logical_public_width: usize,
     logical_width: usize,
-) -> Result<LoadedAssignmentPlan, PackageError> {
+) -> Result<LegacyAssignmentPlan, PackageError> {
     let fields = exact_array(value, 6, "assignment transport plan")?;
     if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
         return Err(PackageError::Invalid("assignment transport schema version"));
@@ -695,7 +751,7 @@ pub(super) fn decode(
         }
     }
 
-    Ok(LoadedAssignmentPlan {
+    Ok(LegacyAssignmentPlan {
         blocks,
         phi81,
         first54,
@@ -838,7 +894,7 @@ fn phi81_quotient(left: &[u64; PHI81_RING_DEGREE], right: &[u64; PHI81_RING_DEGR
 }
 
 fn derive_phi81_quotients(
-    transport: &LoadedAssignmentPlan,
+    transport: &LegacyAssignmentPlan,
     physical: &PhysicalAssignment<'_>,
 ) -> Result<Vec<u64>, PackageError> {
     let recipe = &transport.phi81;
@@ -883,7 +939,7 @@ fn derive_phi81_quotients(
 }
 
 fn derive_first54_products(
-    transport: &LoadedAssignmentPlan,
+    transport: &LegacyAssignmentPlan,
     physical: &PhysicalAssignment<'_>,
 ) -> Result<Vec<u64>, PackageError> {
     let recipe = &transport.first54;
@@ -903,7 +959,7 @@ fn derive_first54_products(
 }
 
 fn validate_derived_block_sources(
-    transport: &LoadedAssignmentPlan,
+    transport: &LegacyAssignmentPlan,
     domains: &Domains<'_>,
     output_digest: [u64; OUTPUT_DIGEST_WORDS],
 ) -> Result<(), PackageError> {

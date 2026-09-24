@@ -34,6 +34,26 @@ def expand (column : Nat) : Nat :=
 
 def column (source : Nat) : Nat := relocate (Spartan.sourceToSpartan source)
 
+/-- Late private allocations keep their order and lose only the public
+prefix. This covers the complete sampler and all following private phases. -/
+theorem column_late (source : Nat) (lower : 14751804 ≤ source) (upper : source < sourceWidth) :
+    column source = source - 278 := by
+  rw [sourceWidth_eq] at upper
+  have mapped : Spartan.sourceToSpartan source = source - 278 := by
+    unfold Spartan.sourceToSpartan
+    rw [if_neg (by change ¬source < 14722512; omega),
+      if_neg (by change ¬source < 14722516; omega), if_neg (by exact Nat.not_lt.mpr lower)]
+    change 14751526 + (source - 14751804) = source - 278
+    omega
+  rw [column, mapped, relocate, Spartan.privateColumnCount_eq,
+    if_neg (by omega)]
+
+theorem column_late_add (source offset : Nat) (lower : 14751804 ≤ source)
+    (upper : source + offset < sourceWidth) :
+    column (source + offset) = column source + offset := by
+  rw [column_late _ (by omega) upper, column_late _ lower (by omega)]
+  omega
+
 /-- Every live source maps either into the retained private prefix or the
 public suffix. The removed interval cannot contain a mapped source. -/
 theorem reference_region (source : Nat) (bounded : source < sourceWidth) :

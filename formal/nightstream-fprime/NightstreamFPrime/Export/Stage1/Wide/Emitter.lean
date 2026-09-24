@@ -1,5 +1,8 @@
 import NightstreamFPrime.Export.Stage1.Wide.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource
+import NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport
+import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
+import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Main
 
@@ -86,7 +89,13 @@ def writeCircuit (handle : IO.FS.Handle) (value : CircuitPackage) : IO Unit := d
   writeByte handle 93
 
 def run (arguments : List String) : IO UInt32 := do
-  let [path] := arguments | throw (IO.userError "expected one output path")
+  let (path, context) ← match arguments with
+    | [path] => pure (path, none)
+    | [path, w0, w1, w2, w3] =>
+      match ParityEmitter.parseVerifierKey w0 w1 w2 w3 with
+      | .ok value => pure (path, some value)
+      | .error message => throw (IO.userError message)
+    | _ => throw (IO.userError "expected output path and optional four fixture-context words")
   let start ← IO.monoMsNow
   progress "wide_stage=common"
   let common ← prepareCommon
@@ -95,7 +104,7 @@ def run (arguments : List String) : IO UInt32 := do
     | .ok value => pure value
     | .error message => throw (IO.userError message)
   progress s!"wide_stage=application base_rows={base.layout.rowCount}"
-  let (package, _) ← match ApplicationPackage.ofBase Poseidon2HashChainV1Package.application base with
+  let (package, application) ← match ApplicationPackage.ofBase Poseidon2HashChainV1Package.application base with
     | .ok value => pure value
     | .error message => throw (IO.userError message)
   let some compiled := Layout.PiRlcWideSampler.RangePlan.compile?
@@ -106,6 +115,12 @@ def run (arguments : List String) : IO UInt32 := do
   let width := RetainedLayout.logicalWidth Poseidon2HashChainV1Package.application
   let package := TerminalPackage.install { package with
     relation := productionCcsRelation matrix.rowCount width Lifecycle.cubeVariables }
+  let transport ← match AssignmentTransport.plan Poseidon2HashChainV1Package.application
+      package.layout.totalColumnCount with
+    | .ok value => pure value
+    | .error message => throw (IO.userError message)
+  unless transport.coordinateCount = width do
+    throw (IO.userError s!"transport width {transport.coordinateCount} differs from matrix width {width}")
   progress s!"wide_physical_rows={package.layout.rowCount} columns={package.layout.totalColumnCount}"
   let handle ← IO.FS.Handle.mk ⟨path⟩ .write
   writeCircuit handle package
@@ -115,6 +130,27 @@ def run (arguments : List String) : IO UInt32 := do
   writeValue matrixHandle (Layout.MatrixProgram.Program.format.encode matrix)
   writeByte matrixHandle 10
   matrixHandle.flush
+  let sealedHandle ← IO.FS.Handle.mk ⟨path ++ ".sealed.json"⟩ .write
+  writeByte sealedHandle 91
+  writeValue sealedHandle (.atom PerApplicationCanonicalPackage.sealedPackageSchema)
+  comma sealedHandle
+  writeCircuit sealedHandle package
+  comma sealedHandle
+  writeValue sealedHandle (Layout.MatrixProgram.Program.format.encode matrix)
+  comma sealedHandle
+  writeApplicationPackagePlan sealedHandle application
+  comma sealedHandle
+  writeValue sealedHandle transport.encode
+  comma sealedHandle
+  writeValue sealedHandle (Layout.MatrixProgram.IndexRange.format.encode
+    ⟨application.rowStart + application.rowCount, 5⟩)
+  comma sealedHandle
+  writeValue sealedHandle (.atom PerApplicationCanonicalPackage.logicalPublicInputCount)
+  writeByte sealedHandle 93
+  writeByte sealedHandle 10
+  sealedHandle.flush
+  if let some value := context then
+    ParityEmitter.emit "wide_base_fixture" (← BaseStepFixture.valueIO value) ⟨path ++ ".base.json"⟩
   progress s!"wide_logical_rows={matrix.rowCount} logical_coordinates={width}"
   let stop ← IO.monoMsNow
   progress s!"wide_physical_package={path} elapsed_ms={stop - start}"

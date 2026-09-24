@@ -104,8 +104,8 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
     let plan =
         crate::package::assignment_transport::decode(&transport, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width)
             .expect("canonical assignment transport");
-    let canonical = (0..crate::package::assignment_transport::BLOCK_COUNT as u8).collect::<Vec<_>>();
-    assert_eq!(plan.kind_codes(), canonical.as_slice());
+    let canonical = (0..crate::package::assignment_transport::BLOCK_COUNT).collect::<Vec<_>>();
+    assert_eq!(plan.kind_codes().as_deref(), Some(canonical.as_slice()));
 
     for (pointer, value, expected) in [
         ("/0", json!(1), "assignment transport schema version"),

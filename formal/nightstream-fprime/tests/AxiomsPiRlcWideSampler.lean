@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
+import NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport
 import NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource
 import NightstreamFPrime.Export.Stage1.Wide.ApplicationPackage
 import NightstreamFPrime.Export.WitnessEncoding
@@ -1213,3 +1215,21 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverseRanges_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverse_unique
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverse_compose_column
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture.batch_challenges
+
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalRelabel.Map.expression_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalRelabel.Map.hint_eval
+#audit_axioms NightstreamFPrime.Layout.Stage1.Wide.SourceOrder.column_late
+#audit_axioms NightstreamFPrime.Layout.Stage1.Wide.SourceOrder.column_late_add
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.Values.ofSource_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.moveRun_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.moveRuns_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.moveRuns_value
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.takeRuns_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.takeRuns_count
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.commonLimit_le
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.commonBlock_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.rangeBlock_source
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.rangeBlock_count
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.rangeBlock_physical_source

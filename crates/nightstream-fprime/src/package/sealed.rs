@@ -767,6 +767,10 @@ fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageErr
 }
 
 #[cfg(test)]
+#[path = "../../tests/unit/wide_sealed_assignment.rs"]
+mod wide_assignment_tests;
+
+#[cfg(test)]
 #[path = "../../tests/unit/sealed.rs"]
 mod sealed_tests;
 

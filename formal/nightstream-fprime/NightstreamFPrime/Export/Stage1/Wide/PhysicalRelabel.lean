@@ -54,11 +54,85 @@ def expression (mapping : Map) : Expr → Except String Expr
   | .add left right => return .add (← expression mapping left) (← expression mapping right)
   | .mul left right => return .mul (← expression mapping left) (← expression mapping right)
 
+def pullback (target : Env) : Env := fun source =>
+  match mapping.column source with
+  | .ok column => target column
+  | .error _ => 0
+
+/-- Successful relocation preserves every expression value. An unmapped
+source cannot become an accepted constant-column read. -/
+theorem expression_eval (value moved : Expr) (emitted : expression mapping value = .ok moved)
+    (target : Env) : moved.eval target = value.eval (pullback mapping target) := by
+  induction value generalizing moved with
+  | var source =>
+    cases mapped : mapping.column source with
+    | error message => simp [Bind.bind, Except.bind, expression, mapped] at emitted
+    | ok column =>
+      simp [Bind.bind, Pure.pure, Except.bind, Except.pure, expression, mapped] at emitted
+      subst moved
+      simp only [Expr.eval, pullback, mapped]
+  | const value =>
+    simp [Pure.pure, Except.pure, expression] at emitted
+    subst moved
+    rfl
+  | add left right leftIH rightIH =>
+    cases leftMoved : expression mapping left with
+    | error message => simp [Bind.bind, Except.bind, expression, leftMoved] at emitted
+    | ok leftResult =>
+      cases rightMoved : expression mapping right with
+      | error message => simp [Bind.bind, Except.bind, expression, leftMoved, rightMoved] at emitted
+      | ok rightResult =>
+        simp [Bind.bind, Pure.pure, Except.bind, Except.pure, expression, leftMoved, rightMoved] at emitted
+        subst moved
+        simp only [Expr.eval, leftIH _ leftMoved, rightIH _ rightMoved]
+  | mul left right leftIH rightIH =>
+    cases leftMoved : expression mapping left with
+    | error message => simp [Bind.bind, Except.bind, expression, leftMoved] at emitted
+    | ok leftResult =>
+      cases rightMoved : expression mapping right with
+      | error message => simp [Bind.bind, Except.bind, expression, leftMoved, rightMoved] at emitted
+      | ok rightResult =>
+        simp [Bind.bind, Pure.pure, Except.bind, Except.pure, expression, leftMoved, rightMoved] at emitted
+        subst moved
+        simp only [Expr.eval, leftIH _ leftMoved, rightIH _ rightMoved]
+
 def hint : Hint → Except String Hint
   | .bit source index => return .bit (← expression mapping source) index
   | .inverseOrZero source => return .inverseOrZero (← expression mapping source)
   | .quotientFive source => return .quotientFive (← expression mapping source)
   | .remainderFive source => return .remainderFive (← expression mapping source)
+
+theorem hint_eval (value moved : Hint) (emitted : hint mapping value = .ok moved)
+    (target : Env) : moved.eval target = value.eval (pullback mapping target) := by
+  cases value with
+  | bit source index =>
+    cases result : expression mapping source with
+    | error message => simp [hint, result] at emitted
+    | ok expression =>
+      simp [hint, result] at emitted
+      subst moved
+      simp only [Hint.eval, expression_eval mapping source expression result target]
+  | inverseOrZero source =>
+    cases result : expression mapping source with
+    | error message => simp [hint, result] at emitted
+    | ok expression =>
+      simp [hint, result] at emitted
+      subst moved
+      simp only [Hint.eval, expression_eval mapping source expression result target]
+  | quotientFive source =>
+    cases result : expression mapping source with
+    | error message => simp [hint, result] at emitted
+    | ok expression =>
+      simp [hint, result] at emitted
+      subst moved
+      simp only [Hint.eval, expression_eval mapping source expression result target]
+  | remainderFive source =>
+    cases result : expression mapping source with
+    | error message => simp [hint, result] at emitted
+    | ok expression =>
+      simp [hint, result] at emitted
+      subst moved
+      simp only [Hint.eval, expression_eval mapping source expression result target]
 
 def batch (value : WitnessBatch) : Except String WitnessBatch := do
   return {

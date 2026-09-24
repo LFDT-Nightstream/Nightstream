@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment
+import NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
 import NightstreamFPrime.Export.Stage1.Wide.CompletedRows
 import NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCSourceInputs
@@ -961,3 +963,21 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.copied_rowsZero_iff
 #audit_axioms NightstreamFPrime.Export.Stage1.ApplicationCompactWitness.complete_of_base
 #audit_axioms NightstreamFPrime.Export.Stage1.NextPreimageCompleteness.rowsZero_of_base
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment.assignment_norm_prefix
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment.assignment_norm_suffix
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes.poseidon_prefix_count
+#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes.shared_prefix_count
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.assignment_copied
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.SourceAssignment.pilot_value
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.SourceAssignment.outputDigest
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentNorm.copied_norm
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentNorm.flag_valid
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentNorm.assignment_norm
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.logical_value
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.padding_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.norm
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.public_value
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.publicInput
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.publicOutput
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Wide.Relation.priorPreimage_unchanged
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Wide.Relation.nextPreimage_unchanged

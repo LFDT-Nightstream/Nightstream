@@ -275,6 +275,18 @@ private def position10 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position9, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
+/-- The field-only hash prefix ends at the existing product-group boundary. -/
+theorem poseidon_prefix_count {application : Program} (raw : RawValues application) :
+    PiRLCRetainedGeometry.productGroupStart application = ProductionAssignment.publicWidth +
+      CanonicalBlockAssignment.coordinateCount (raw.schedule.take 3) :=
+  (position3 raw).cursor.startEq
+
+/-- The common suffix follows the ten original PiRLC retained blocks. -/
+theorem shared_prefix_count {application : Program} (raw : RawValues application) :
+    PiRLCRetainedGeometry.prefixLogicalWidth application = ProductionAssignment.publicWidth +
+      CanonicalBlockAssignment.coordinateCount (raw.schedule.take 10) :=
+  (position10 raw).cursor.startEq
+
 private def position11 {application : Program} (raw : RawValues application) :
     Position raw (PiRLCPoseidonGeometry.outputInputStart application)
       (PiRLCPoseidonGeometry.sourceWidth application)

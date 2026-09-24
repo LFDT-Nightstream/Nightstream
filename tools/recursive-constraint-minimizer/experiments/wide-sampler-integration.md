@@ -260,19 +260,43 @@ an accepted wide physical prefix, the existing pilot/C/R/D input assumptions,
 the next-preimage specification, and the application step. It has no premise
 that the compact rows hold and no old sampler-success premise.
 
-This is the complete physical-source-to-compact-row acceptance proof. It does
-not yet construct that physical source from a semantic HyperNova step or prove
-the strict norm bound for every copied coordinate. Whole-plan soundness for the
-new key, emitted-matrix correspondence, the full normalized nonzero count, and
-the selected security and Rust connections remain open. No selected circuit
-count changes in this batch.
+`Wide.AssignmentNorm` now proves the strict magnitude bound below two for
+every logical coordinate. It checks only the copied hash prefix and common
+suffix; the removed First-54 bit blocks need no validity premise. Field slots
+use the existing total encoder. Accepted wide running-transition rows prove
+that the single copied branch flag is a bit. The direct PiRLC constructor
+supplies the bounds for its own allocation.
+
+`Wide.CarrierAssignment.values` extends that same logical assignment to the
+candidate carrier with zero padding. Its theorems prove preservation of every
+logical value, zero in every padding position, the full carrier norm, and the
+exact public encoding of the physical pilot output digest. This closes the
+norm and public-coordinate transport obligations from the physical source.
+
+`Lifecycle.Stage1.Wide.Relation.StepHoldsFor` instantiates the existing HyperNova
+transition with the candidate wide-sampler key. Its prior and next state-hash
+preimages are proved equal to the baseline preimages. This definition provides
+the target for semantic-step construction and whole-plan soundness; it is not
+yet a proof of either result.
+
+The accepted physical source still needs construction from that semantic step.
+Whole-plan soundness for the new key, emitted-matrix correspondence, the full
+normalized nonzero count, and the selected security and Rust connections remain
+open. No selected circuit count changes in this batch.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 827 sampler and integration audits, plus four retained-support regression
+all 845 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. These checks do not select the candidate.
+
+The carrier proof uses an abstract assignment while splitting the optional
+logical-column lookup. Splitting the concrete witness expression caused its
+code to unfold during proof elaboration. The affected module build changed
+from 94 seconds to 1.5 seconds after this proof-only change, as recorded by
+`validate.sh build NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment`.
+No runtime witness constructor or circuit count changed for this repair.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary
 inputs and three 17-scalar transcript traces. The saved fixture is byte-for-byte
@@ -332,8 +356,9 @@ All 681 rows and all 54 digits are checked for every case.
 
 - Complete the candidate witness construction from a semantic HyperNova step.
   All compact phase rows now accept one assignment built from the accepted wide
-  physical prefix. Prove the remaining source construction, strict carrier norm,
-  and full public-output correspondence. Prove whole-plan soundness with the
+  physical prefix. Its carrier norm and exact public-digest transport are proved.
+  Construct the physical source from the candidate semantic relation and connect
+  its state fields and advice to that step. Prove whole-plan soundness with the
   new key. Then prove that the emitted matrix program denotes the same plan and
   measure all normalized matrix entries. Acceptance from an existing physical
   witness does not by itself close these obligations.

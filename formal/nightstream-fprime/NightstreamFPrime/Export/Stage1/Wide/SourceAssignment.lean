@@ -144,6 +144,45 @@ theorem raw_source (program : Program) (env : Env)
   exact (PerApplicationSourceAssignment.source_ofCompleted program (targetEnv env) application source bounded).trans
     (targetEnv_source env source bounded)
 
+/-- The pilot's input and digest fields are copied from the physical source. -/
+theorem pilot_value (program : Program) (env : Env)
+    (application : Fin (PerApplicationPackage.addedPrivateColumnCount program) → F)
+    (source : Nat) (below : source < Layout.PilotProduction.witnessOffset) :
+    Layout.PilotSpartan.pullback (PilotOrdinaryDirectPlan.pilotEnv program (raw program env application).base)
+      source = env source := by
+  have bounded : source < Layout.Stage1.Spartan.SourceColumnCount := by
+    rw [Layout.PilotProduction.witnessOffset_eq] at below
+    rw [Layout.Stage1.Spartan.sourceColumnCount_eq]
+    omega
+  have pilotBound : source < Layout.Stage1.Spartan.pilotSourceColumnCount := by
+    exact lt_of_lt_of_le below (by rw [Layout.PilotProduction.witnessOffset_eq]; decide)
+  have beforeC : source < Layout.Stage1.PiCCSInputs.phaseOffset := by
+    rw [Layout.PilotProduction.witnessOffset_eq] at below
+    rw [Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    omega
+  have mapping : Layout.Stage1.Spartan.sourceToSpartan source =
+      Layout.Stage1.Spartan.liftPilotColumn (Layout.PilotSpartan.sourceToSpartan source) := by
+    exact if_pos pilotBound
+  change RunningTransitionDirectPlan.transitionEnv program (raw program env application).base
+    (Layout.Stage1.Spartan.liftPilotColumn (Layout.PilotSpartan.sourceToSpartan source)) = env source
+  rw [← mapping, RunningTransitionDirectPlan.transitionEnv_of_outside program _ source bounded (Or.inl beforeC)]
+  exact (raw_source program env application source bounded).trans
+    (sourceEnv_prefix env source (by
+      rw [Layout.PilotProduction.witnessOffset_eq] at below
+      change source < 19513117; omega))
+
+theorem outputDigest (program : Program) (env : Env)
+    (application : Fin (PerApplicationPackage.addedPrivateColumnCount program) → F) :
+    (raw program env application).outputDigest = List.ofFn
+      (fun lane : Fin Layout.PilotProduction.digestWords => env (Layout.PilotProduction.outputDigestStart + lane.val)) := by
+  apply congrArg List.ofFn
+  funext lane
+  apply pilot_value
+  have bound : lane.val < 4 := lane.isLt
+  rw [Layout.PilotProduction.witnessOffset_eq]
+  change 99056 + lane.val < 99060
+  omega
+
 def assignment (program : Program) (env : Env)
     (application : Fin (PerApplicationPackage.addedPrivateColumnCount program) → F) :=
   AssignmentProjection.assignment program (raw program env application).assignment

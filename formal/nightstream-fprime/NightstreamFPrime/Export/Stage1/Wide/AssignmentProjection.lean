@@ -230,4 +230,15 @@ theorem copied_rowsZero_iff (program : Program)
   mapped_rowsZero_iff (RetainedLayout.column program) plan supported before (assignment program before)
     (fun row port => copied_form program before _ (copied row port) (supported row port))
 
+theorem assignment_copied (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (source : Fin (PerApplicationFixedPoint.logicalWidth program))
+    (copied : CoordinateRecovery.CommonSource program source.val) :
+    assignment program before (RetainedLayout.column program source
+      (CoordinateRecovery.commonSource_live program source.val copied)) = before source := by
+  rw [assignment_eq_project]
+  exact (PiRLCWitness.assignment_before (Stage1Plan.piRlcInterface program) (project program before) _
+    (CoordinateRecovery.commonSource_before program source copied)).trans
+    (project_at program before source (CoordinateRecovery.commonSource_live program source.val copied))
+
 end NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection

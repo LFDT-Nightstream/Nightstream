@@ -80,34 +80,42 @@ theorem quotient_eq (initial : Initial) (values : Values) (ring : RingIndex) :
 
 def fieldValue (initial : Initial) (values : Values) (index : Fin fieldBlock.slotCount) : F :=
   if inOutput : index.val < outputCount then
-    output initial values ⟨index.val / 54, by change _ < 969; change index.val < 52326 at inOutput; omega⟩
-      ⟨index.val % 54, Nat.mod_lt _ (by decide)⟩
+    let slot : Fin PiRLCProductSchedule.invocationCount := ⟨index.val, inOutput⟩
+    output initial values (PiRLCProductRingSchedule.ringInvocation slot)
+      (PiRLCProductSchedule.descriptor slot).lane
   else
-    quotient initial values ⟨(index.val - outputCount) / 54, by
+    let slot : Fin PiRLCProductSchedule.invocationCount := ⟨index.val - outputCount, by
       have upper := index.isLt
       change index.val < 104652 at upper
-      change ¬ index.val < 52326 at inOutput
-      change (index.val - 52326) / 54 < 969
-      omega⟩ ⟨(index.val - outputCount) % 54, Nat.mod_lt _ (by decide)⟩
+      change ¬index.val < 52326 at inOutput
+      change index.val - 52326 < 52326
+      omega⟩
+    quotient initial values (PiRLCProductRingSchedule.ringInvocation slot)
+      (PiRLCProductSchedule.descriptor slot).lane
 
 theorem fieldValue_output (initial : Initial) (values : Values) (ring : RingIndex) (lane : Fin ringDegree) :
     fieldValue initial values (outputSlot ring lane) = output initial values ring lane := by
-  have r : ring.val < 969 := ring.isLt
-  have l : lane.val < 54 := lane.isLt
+  have bound : (PiRLCProductRingSchedule.laneInvocation ring lane).val < outputCount :=
+    (PiRLCProductRingSchedule.laneInvocation ring lane).isLt
   unfold fieldValue outputSlot
-  rw [dif_pos (by change ring.val * 54 + lane.val < 52326; omega)]
-  have quo : (ring.val * 54 + lane.val) / 54 = ring.val := by omega
-  have rem : (ring.val * 54 + lane.val) % 54 = lane.val := by omega
-  exact congrArg₂ (output initial values) (Fin.ext quo) (Fin.ext rem)
+  rw [dif_pos bound]
+  change output initial values
+    (PiRLCProductRingSchedule.ringInvocation (PiRLCProductRingSchedule.laneInvocation ring lane))
+    (PiRLCProductSchedule.descriptor (PiRLCProductRingSchedule.laneInvocation ring lane)).lane = _
+  rw [PiRLCProductRingSchedule.ringInvocation_laneInvocation,
+    PiRLCProductRingSchedule.descriptor_laneInvocation]
+  rfl
 
 theorem fieldValue_quotient (initial : Initial) (values : Values) (ring : RingIndex) (lane : Fin ringDegree) :
     fieldValue initial values (quotientSlot ring lane) = quotient initial values ring lane := by
-  have r : ring.val < 969 := ring.isLt
-  have l : lane.val < 54 := lane.isLt
   unfold fieldValue quotientSlot
-  rw [dif_neg (by change ¬52326 + ring.val * 54 + lane.val < 52326; omega)]
-  have quo : (52326 + ring.val * 54 + lane.val - 52326) / 54 = ring.val := by omega
-  have rem : (52326 + ring.val * 54 + lane.val - 52326) % 54 = lane.val := by omega
-  exact congrArg₂ (quotient initial values) (Fin.ext quo) (Fin.ext rem)
+  rw [dif_neg (by dsimp only; omega)]
+  simp only [Nat.add_sub_cancel_left]
+  change quotient initial values
+    (PiRLCProductRingSchedule.ringInvocation (PiRLCProductRingSchedule.laneInvocation ring lane))
+    (PiRLCProductSchedule.descriptor (PiRLCProductRingSchedule.laneInvocation ring lane)).lane = _
+  rw [PiRLCProductRingSchedule.ringInvocation_laneInvocation,
+    PiRLCProductRingSchedule.descriptor_laneInvocation]
+  rfl
 
 end NightstreamFPrime.Export.Stage1.Wide.PiRLCValues

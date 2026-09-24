@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery
 open NightstreamFPrime.Layout
 open RetainedLayout
 
-/-- Source lookup uses intervals and the proved ring/cell permutation only. -/
+/-- Source lookup reverses the retained interval shifts. -/
 def source? (program : Program) (target : Nat) : Option Nat :=
   if target < hashEnd program then some target
   else if target < hashEnd program + (sharedEnd program - sharedStart program) then
@@ -16,15 +16,10 @@ def source? (program : Program) (target : Nat) : Option Nat :=
   else if target < commonCount program then
     some (applicationStart program +
       (target - (hashEnd program + (sharedEnd program - sharedStart program))))
-  else if output : outputStart program ≤ target ∧ target < quotientStart program then
-    some (119147994 +
-      (ProductCoordinates.inverseCoordinate ⟨target - outputStart program, by
-        unfold quotientStart at output; omega⟩).val)
-  else if quotient : quotientStart program ≤ target ∧ target < logicalWidth program then
-    some (114443652 +
-      (ProductCoordinates.inverseCoordinate ⟨target - quotientStart program, by
-        simp only [logicalWidth, quotientStart, outputStart, PiRLCGeometry.coordinateCount_eq] at quotient ⊢
-        omega⟩).val)
+  else if outputStart program ≤ target ∧ target < quotientStart program then
+    some (119147994 + (target - outputStart program))
+  else if quotientStart program ≤ target ∧ target < logicalWidth program then
+    some (114443652 + (target - quotientStart program))
   else none
 
 theorem source?_lt (program : Program) (target source : Nat)
@@ -32,6 +27,7 @@ theorem source?_lt (program : Program) (target source : Nat)
   obtain ⟨hash, sharedStart, sharedEnd, application⟩ := boundaries program
   unfold source? at found
   rw [hash, sharedStart, sharedEnd, application, commonCount_eq] at found
+  simp only [quotientStart, outputStart, commonCount_eq, logicalWidth_eq] at found
   rw [referenceWidth_eq]
   split_ifs at found <;> simp only [Option.some.injEq] at found <;> omega
 
@@ -40,6 +36,7 @@ theorem source?_live (program : Program) (target source : Nat)
   obtain ⟨hash, sharedStart, sharedEnd, application⟩ := boundaries program
   unfold source? at found
   rw [hash, sharedStart, sharedEnd, application, commonCount_eq] at found
+  simp only [quotientStart, outputStart, commonCount_eq, logicalWidth_eq] at found
   unfold Live
   rw [hash, sharedStart, sharedEnd, application]
   split_ifs at found <;> simp only [Option.some.injEq] at found <;> omega
@@ -56,6 +53,7 @@ theorem source?_common (program : Program) (target source : Nat)
   obtain ⟨hash, sharedStart, sharedEnd, application⟩ := boundaries program
   unfold source? at found
   rw [hash, sharedStart, sharedEnd, application, commonCount_eq] at found
+  simp only [quotientStart, outputStart, commonCount_eq, logicalWidth_eq] at found
   rw [commonCount_eq] at before
   unfold CommonSource
   rw [hash, sharedStart, sharedEnd, application]
@@ -89,20 +87,10 @@ theorem source?_column? (program : Program) (source target : Nat)
     rw [if_neg (by omega), if_neg (by omega), if_pos (by omega)]
     exact congrArg some (by omega)
   · subst target
-    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_pos (by omega)]
-    have cancel : (⟨132904559 + applicationCount program + 135813 +
-        (ProductCoordinates.coordinate ⟨source - 119147994, by omega⟩).val -
-        (132904559 + applicationCount program + 135813), by omega⟩ : Fin 2145366) =
-        ProductCoordinates.coordinate ⟨source - 119147994, by omega⟩ := Fin.ext (by dsimp only; omega)
-    rw [cancel, ProductCoordinates.inverseCoordinate_coordinate]
-    exact congrArg some (by dsimp only; omega)
+    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
+    exact congrArg some (by omega)
   · subst target
-    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
-    have cancel : (⟨132904559 + applicationCount program + 135813 + 2145366 +
-        (ProductCoordinates.coordinate ⟨source - 114443652, by omega⟩).val -
-        (132904559 + applicationCount program + 135813 + 2145366), by omega⟩ : Fin 2145366) =
-        ProductCoordinates.coordinate ⟨source - 114443652, by omega⟩ := Fin.ext (by dsimp only; omega)
-    rw [cancel, ProductCoordinates.inverseCoordinate_coordinate]
-    exact congrArg some (by dsimp only; omega)
+    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
+    exact congrArg some (by omega)
 
 end NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery

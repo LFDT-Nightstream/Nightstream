@@ -55,22 +55,19 @@ theorem fieldFits {columns : Nat} (interface : Interface columns) :
   simpa only [coordinateCount, BatchPlan.coordinateCount_eq, fieldStart, Nat.add_assoc]
     using interface.fits
 
+/-- Keep the reference family/source/block/lane/cell order. -/
 def outputSlot (ring : RingIndex) (lane : Fin ringDegree) : Fin fieldBlock.slotCount :=
-  ⟨ring.val * ringDegree + lane.val, by
-    have r := ring.isLt
-    have l := lane.isLt
-    change ring.val < 969 at r
-    change lane.val < 54 at l
-    change ring.val * 54 + lane.val < 104652
+  let slot := PiRLCProductRingSchedule.laneInvocation ring lane
+  ⟨slot.val, by
+    have bound : slot.val < 52326 := slot.isLt
+    change slot.val < 104652
     omega⟩
 
 def quotientSlot (ring : RingIndex) (lane : Fin ringDegree) : Fin fieldBlock.slotCount :=
-  ⟨outputCount + ring.val * ringDegree + lane.val, by
-    have r := ring.isLt
-    have l := lane.isLt
-    change ring.val < 969 at r
-    change lane.val < 54 at l
-    change 52326 + ring.val * 54 + lane.val < 104652
+  let slot := PiRLCProductRingSchedule.laneInvocation ring lane
+  ⟨outputCount + slot.val, by
+    have bound : slot.val < 52326 := slot.isLt
+    change 52326 + slot.val < 104652
     omega⟩
 
 def output {columns : Nat} (interface : Interface columns) (ring : RingIndex) :

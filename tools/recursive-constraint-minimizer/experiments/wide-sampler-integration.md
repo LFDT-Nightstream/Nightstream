@@ -110,15 +110,16 @@ coordinates keep their internal order. The complete PiRLC allocation follows
 them, so its direct witness cannot overwrite its inputs.
 
 Lean proves that the retained map is bounded and injective on its domain.
-`ProductCoordinates.lean` also proves the required permutation from the old
-lane/cell order to the new ring/lane order. In particular, a plain shift would
-not preserve the two extension-field cells in Eval_K and Eval_A.
+The candidate now keeps the reference family/source/block/lane/cell order
+for both outputs and quotient coefficients, as requested by the owner on
+2026-09-24. Each product region moves by a constant shift. The former
+ring/lane permutation module has been removed.
 `InputSupport.lean` proves that the actual initial transcript forms and every
 right operand read common coordinates. `Stage1Witness.lean` supplies the direct
 PiRLC completion on these forms, preserves common values, and identifies the
 final ordered combinations. `PiDECOutput.lean` proves that all four PiDEC
-parent views read those same retained outputs, including the extension-cell
-permutation. This does not yet construct a complete accepting Stage 1 assignment.
+parent views read those same retained outputs, including both extension-field
+cells in the reference order. This does not yet construct a complete accepting Stage 1 assignment.
 
 `HashChainCounts.lean` proves these counts of the **assembled, unselected
 candidate**, using the current application:
@@ -180,7 +181,8 @@ support result concerns the CCS matrices, not the old PiDEC witness builder.
 `CoordinateRecovery.source?` is an executable inverse of the retained map.
 Lean proves that every result is a live, bounded reference coordinate and that
 mapping a retained coordinate forward and back recovers the same coordinate.
-The two-cell product permutation has explicit inverses in both directions.
+Output and quotient coordinates recover their reference indices by subtracting
+the corresponding block start; no cell/lane permutation is needed.
 
 `AssignmentProjection.project` preserves the evaluation of every certified
 sparse form and the row equations of each reused plan. This is an equality for
@@ -230,8 +232,9 @@ connections also remain open. No selected circuit count changes in this batch.
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 776 sampler and integration audits, plus four retained-support regression
-audits. Every audited declaration uses only the three allowed axioms. Static boundary checks pass. These checks do not select the candidate.
+all 769 sampler and integration audits, plus four retained-support regression
+audits. Every audited declaration uses only the three allowed axioms. Static
+boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary
 inputs and three 17-scalar transcript traces. The saved fixture is byte-for-byte
@@ -239,9 +242,11 @@ equal to a fresh Lean emission. Production Rust rho derivation still calls the
 old sampler. There is no new hint kind, generic hint-interpreter change, crate
 dependency, or selected production artifact.
 
-The four cvc5 coordinate controls in `wide_layout_controls.py` return the
-expected SAT/UNSAT results. The negative control detects a plain lane/cell
-shift; the positive controls check collisions, bounds, and inverse recovery.
+The six controls in `wide_source_controls.py` return the expected SAT/UNSAT
+results. They reject the former ring-major indexing for a reference-order
+block, prove recovery of lane/cell/digit indices after a shift, and check the
+separate PiDEC source offsets and their bounds. The obsolete permutation
+control script has been removed.
 These solver controls do not replace the universal Lean coordinate proofs.
 The experiment uses the semantics-preserving compilation discipline described
 in [CLAP](https://arxiv.org/abs/2405.12115), with the applicable
@@ -290,10 +295,14 @@ All 681 rows and all 54 digits are checked for every case.
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.
 - Apply the security model to the selected production transcript and record the
-  applicable Fiat–Shamir assumption and query accounting.
+  applicable Fiat–Shamir assumption and query accounting. The adaptive block
+  budget `q` in `q * distance` must not be identified with a fold count or the
+  extractor index count without a proved experiment connection. No fixed
+  comparison with the extraction loss is claimed here.
 - Switch native Rust rho derivation and assignment transport to the checked
   decoder after the full layout and security gates pass, then select and
-  regenerate the package, identities, and fixtures.
+  regenerate the package, identities, and fixtures. The owner confirmed approval
+  for this protocol change on 2026-09-24; no additional approval is pending.
 - Run the required conformance checks and remove the old sampler dependencies.
 
 The selected baseline remains 3,588,191 rows, 149,293,044 committed coordinates,

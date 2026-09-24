@@ -1,8 +1,8 @@
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Witness
 import NightstreamFPrime.Export.Stage1.Wide.CheckedForm
 
-/-! The PiDEC parent views read the newly retained PiRLC outputs, including
-the extension-cell permutation. No copied parent fields are allocated. -/
+/-! The PiDEC parent views read the newly retained PiRLC outputs, in
+the reference lane/cell order. No copied parent fields are allocated. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.PiDECOutput
 
@@ -66,17 +66,12 @@ theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.R
   let coordinate : Fin 2145366 := Fin.encodeProd (oldSlot, digit)
   have bound := coordinate.isLt
   have mapped : RetainedLayout.column? program (119147994 + coordinate.val) =
-      some (RetainedLayout.outputStart program + (ProductCoordinates.coordinate coordinate).val) := by
+      some (RetainedLayout.outputStart program + coordinate.val) := by
     obtain ⟨hash, start, stop, app⟩ := RetainedLayout.boundaries program
     unfold RetainedLayout.column?
     rw [hash, start, stop, app]
-    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_pos (by omega)]
-    have indexEq : (⟨119147994 + coordinate.val - 119147994, by omega⟩ : Fin 2145366) = coordinate := by
-      apply Fin.ext
-      dsimp only
-      omega
-    exact congrArg (fun index : Fin 2145366 =>
-      some (RetainedLayout.outputStart program + (ProductCoordinates.coordinate index).val)) indexEq
+    rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
+    exact congrArg some (by omega)
   apply Fin.ext
   have oldColumn :
       ((PiRLCRetainedGeometry.productOutputBlock program).column
@@ -94,18 +89,16 @@ theorem output_column (program : RetainedLayout.Program) (ring : PiRLCGeometry.R
         (PiRLCRetainedGeometry.productOutputFits
           (PiCCSPoseidonPlan.prefixGeometry (Stage1Plan.poseidonGeometry program)))
         oldSlot digit).val =
-      some (RetainedLayout.outputStart program + (ProductCoordinates.coordinate coordinate).val) := by
+      some (RetainedLayout.outputStart program + coordinate.val) := by
     rw [oldColumn]
     exact mapped
   calc
-    _ = RetainedLayout.outputStart program + (ProductCoordinates.coordinate coordinate).val :=
+    _ = RetainedLayout.outputStart program + coordinate.val :=
       RetainedLayout.column_of_some program _ _ _ lookup
     _ = _ := by
-      dsimp only [coordinate, oldSlot]
-      rw [ProductCoordinates.coordinate_lane]
-      change RetainedLayout.outputStart program + (41 * (ringDegree * ring.val + lane.val) + digit.val) =
+      change RetainedLayout.outputStart program + (41 * oldSlot.val + digit.val) =
         PiRLCGeometry.fieldStart (Stage1Plan.piRlcInterface program) +
-          ((ring.val * ringDegree + lane.val) * 41 + digit.val)
+          (oldSlot.val * 41 + digit.val)
       unfold RetainedLayout.outputStart PiRLCGeometry.fieldStart Stage1Plan.piRlcInterface
       ring
 

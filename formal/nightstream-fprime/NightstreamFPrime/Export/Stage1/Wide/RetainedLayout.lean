@@ -1,7 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCGeometry
 import NightstreamFPrime.Layout.ProductionRelation.ColumnMap
-import NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates
 
 /-! Candidate coordinate order. Common retained intervals keep their internal
 order; the complete wide PiRLC allocation follows them. Old sampler and
@@ -75,12 +74,10 @@ def column? (program : Program) (source : Nat) : Option Nat :=
       source < applicationStart program + applicationCount program then
     some (hashEnd program + (sharedEnd program - sharedStart program) +
       (source - applicationStart program))
-  else if output : 119147994 ≤ source ∧ source < 121293360 then
-    some (outputStart program +
-      (ProductCoordinates.coordinate ⟨source - 119147994, by omega⟩).val)
-  else if quotient : 114443652 ≤ source ∧ source < 116589018 then
-    some (quotientStart program +
-      (ProductCoordinates.coordinate ⟨source - 114443652, by omega⟩).val)
+  else if 119147994 ≤ source ∧ source < 121293360 then
+    some (outputStart program + (source - 119147994))
+  else if 114443652 ≤ source ∧ source < 116589018 then
+    some (quotientStart program + (source - 114443652))
   else none
 
 /-- Exact domain of the coordinate map. This predicate concerns stored
@@ -115,12 +112,6 @@ theorem column?_injective (program : Program) {left right target : Nat}
   simp only [quotientStart, outputStart, commonCount_eq] at leftMap rightMap
   split_ifs at leftMap <;> split_ifs at rightMap <;>
     simp only [Option.some.injEq] at leftMap rightMap <;>
-    first | omega | skip
-  all_goals
-    have mappedEq := Nat.add_left_cancel (leftMap.trans rightMap.symm)
-    have inputEq := ProductCoordinates.coordinate_injective (Fin.ext mappedEq)
-    have values := congrArg Fin.val inputEq
-    dsimp only at values
     omega
 
 /-- A removed source coordinate has no value of this type. -/

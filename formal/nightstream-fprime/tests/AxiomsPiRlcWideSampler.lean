@@ -30,7 +30,6 @@ import NightstreamFPrime.Export.Stage1.Wide.InputSupport
 import NightstreamFPrime.Export.Stage1.Wide.FormSupport
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
 import NightstreamFPrime.Export.Stage1.Wide.RetainedLayout
-import NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates
 import NightstreamFPrime.Layout.ProductionRelation.ColumnMap
 import NightstreamFPrime.Export.Stage1.Wide.FieldAssignment
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCGeometry
@@ -687,9 +686,6 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.mapColumns_rowCount
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.mapColumns_port_eval
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.mapColumns_rowsZero_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.slot_injective
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.coordinate_injective
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.coordinate_lane
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.RetainedLayout.boundaries
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.RetainedLayout.commonCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.RetainedLayout.logicalWidth_eq
@@ -832,10 +828,6 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.AffineGrid.Program.form?_property
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.mapColumnsChecked_rowCount
 
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.inverseSlot_slot
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.slot_inverseSlot
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.inverseCoordinate_coordinate
-#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductCoordinates.coordinate_inverseCoordinate
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery.source?_lt
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery.source?_live
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery.source?_common

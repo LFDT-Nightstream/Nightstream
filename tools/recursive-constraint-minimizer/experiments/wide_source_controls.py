@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
-"""Check the seven PiDEC source intervals used by Wide/PiDECSource.lean.
+"""Check PiDEC source shifts and the retained reference lane/cell order.
 
 These arithmetic controls do not prove circuit or witness equivalence. Lean
 owns the starts, slot meanings, bounds, and source transport proofs.
 """
 
 import json
+import shutil
+import subprocess
 
-from wide_layout_controls import solve
+
+def solve(body, expected, values=()):
+    solver = shutil.which("cvc5")
+    if solver is None:
+        raise RuntimeError("cvc5 is required")
+    query = "(set-logic QF_LIA)\n(set-option :produce-models true)\n"
+    query += body + "\n(check-sat)\n"
+    if values:
+        query += "(get-value (" + " ".join(values) + "))\n"
+    result = subprocess.run([solver, "--lang=smt2"], input=query, text=True,
+                            capture_output=True, check=True)
+    output = result.stdout.strip()
+    if output.splitlines()[0] != expected:
+        raise AssertionError(output + result.stderr)
+    return output
 
 # (old start, new start, slot count), in PiDECDirectPlan.Location order.
 # Exact offsets are proved by PiDECSource.source_offsets.
@@ -41,8 +57,32 @@ def variables(suffix):
 """
 
 
+def slot_variables():
+    return """
+(declare-const lane Int)
+(declare-const cell Int)
+(declare-const digit Int)
+(declare-const start Int)
+(assert (and (<= 0 lane) (< lane 54) (<= 0 cell) (< cell 2)))
+(assert (and (<= 0 digit) (< digit 41) (<= 0 start)))
+(define-fun reference () Int (+ (* 41 (+ (* 2 lane) cell)) digit))
+(define-fun retained () Int (+ start reference))
+(define-fun transposed () Int (+ start (* 41 (+ (* 54 cell) lane)) digit))
+"""
+
+
 def main():
     checks = {
+        "ring_major_order_changes_reference_cells": solve(
+            slot_variables() + "(assert (distinct retained transposed))", "sat",
+            ("lane", "cell", "digit", "retained", "transposed")),
+        "shift_recovers_reference_lane_cell_and_digit": solve(
+            slot_variables() + """
+(define-fun recovered () Int (- retained start))
+(assert (or (distinct (div (div recovered 41) 2) lane)
+            (distinct (mod (div recovered 41) 2) cell)
+            (distinct (mod recovered 41) digit)))
+""", "unsat"),
         "one_global_shift_corrupts_parent_fields": solve(
             variables("") + "(assert (distinct (- old 925480) new))", "sat",
             ("kind", "slot", "old", "new")),
@@ -54,7 +94,7 @@ def main():
         "all_sources_precede_running_transition": solve(
             variables("") + "(assert (or (< new 0) (>= new 27563400)))", "unsat"),
     }
-    print(json.dumps({"scope": "seven PiDEC source intervals", "checks": checks}, indent=2))
+    print(json.dumps({"scope": "PiDEC source intervals and reference slot order", "checks": checks}, indent=2))
 
 
 if __name__ == "__main__":

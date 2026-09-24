@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.MatrixProgram.Exact
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgramSemantics
@@ -31,14 +32,7 @@ def relation (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :=
   PerApplicationProductionPlan.relation application fits
 
-/-- Exact compact interpretation of one semantic plan. -/
-structure Exact {logicalWidth : Nat}
-    (matrixProgram : MatrixProgram.Program)
-    (plan : ProductionRelation.Plan logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) : Prop where
-  rowCount : matrixProgram.rowCount = plan.rowCount
-  row? : ∀ row : Fin plan.rowCount,
-    matrixProgram.row? logicalWidth sourceRow row.val = some (plan.forms row)
+abbrev Exact {logicalWidth : Nat} := @MatrixProgram.Exact logicalWidth
 
 theorem Exact.append {logicalWidth : Nat}
     {leftProgram rightProgram : MatrixProgram.Program}
@@ -49,14 +43,8 @@ theorem Exact.append {logicalWidth : Nat}
     (fits : leftPlan.rowCount + rightPlan.rowCount ≤
       2 ^ Lifecycle.cubeVariables) :
     Exact (leftProgram.append rightProgram)
-      (ProductionRelation.Plan.append leftPlan rightPlan fits) sourceRow := by
-  refine ⟨?_, ?_⟩
-  · rw [MatrixProgram.Program.append_rowCount,
-      ProductionRelation.Plan.append_rowCount, left.rowCount, right.rowCount]
-  · intro global
-    exact MatrixProgram.Program.append_plan_row? leftProgram rightProgram
-      leftPlan rightPlan fits sourceRow left.rowCount left.row? right.row?
-      global
+      (ProductionRelation.Plan.append leftPlan rightPlan fits) sourceRow :=
+  MatrixProgram.Exact.append left right fits
 
 /-- The final source-row accessor must return the exact Lean-selected source
 row for every ordinary family. -/

@@ -317,15 +317,14 @@ NIFS key. It decodes the input, output and application advice from the same
 assignment. No canonical witness, physical-row satisfaction, sampler success,
 or retained-block encoding premise is required.
 
-The theorem requires the relation's constant coordinate to equal one. The
-production boundary must derive this from its verifier-supplied encoded public
-input and connect the decoded output digest to that input. The reused public
-pin plan already proves its digest equations; the combined candidate wrapper
-is still open. Its attempted proof reached a Lean kernel normalization timeout on the concrete
-layout, so it is not included in this checkpoint. The accepted step theorem
-adds no cryptographic assumption and does not claim to close this boundary.
+`Wide.PublicBinding.step` now derives the constant-one premise from the actual
+carrier public-input projection. It also proves that the output digest decoded
+from any accepted compact assignment equals the verifier-supplied digest. The
+proof uses pointwise public-coordinate equalities; it does not normalize the
+complete concrete layout. There is no canonical-witness premise.
+
 The context digest is decoded from the constrained state; its identification
-with the verifier-owned package context also remains part of production binding.
+with the verifier-owned package context remains part of production binding.
 
 `Wide.DecodedPrefix` recovers the pilot and PiCCS contracts. The direct PiRLC
 inputs use the checked PiCCS transcript endpoint and values. `DecodedPiDEC`
@@ -340,22 +339,75 @@ The complete witness theorem in the preceding section supplies the other
 direction. This proof batch changes no row, coordinate or matrix count and
 does not select the candidate for production.
 
+## Compact matrix decoder batch
+
+`Wide.ReusedMatrixPrograms` proves exact sparse-form equality for all six
+reused phases: the pilot/PiCCS prefix, PiDEC, the running transition, the
+application, next-preimage binding, and public-output binding. The row
+accessor remains explicit. `source_custody` constructs its contract from the
+actual Lean-authored package for the candidate relation. There is no
+old-sampler row in that contract.
+
+`MatrixProjection.column_eq` proves that the serialized interval map is the
+checked retained-column map. The matrix interpreter rejects missing and
+out-of-range coordinates, including zero-coefficient entries. The generic
+`Exact.mapColumns` theorem connects that interpreter to the supported Lean
+plan. It does not scan the full matrices.
+
+`PiRlcWideSampler.BatchMatrix.exact` proves exact interpretation of the
+complete 14,501-row sampler. Its 34 Poseidon permutations use the specified
+[4,i] entry and digest-advance schedule. The eight initial forms come directly
+from the semantic plan. The 17 range blocks contain a certified 681-row
+template and use checked source substitutions. This template is matrix data;
+it does not add physical R1CS constraints, hints, or committed coordinates.
+The 1,404 temporary helper columns remain unmapped.
+
+The codec preserves the five selected block tags and their encoding. The
+candidate adds checked-column projection and an ordinary-row template, plus
+a small sparse table for the initial Poseidon state. The recursive codec has
+private encode/decode helpers. The source-boundary check now accepts those
+codec signatures; its regression tests still reject physical declarations,
+non-private helpers and non-codec return types. The Format round-trip proofs
+are audited as well as the row proofs.
+
+These new forms still need Rust decoder support before selection. No selected
+artifact has changed. The candidate's generic mapped-row evaluation is not a
+proving-time improvement; its runtime and cache behavior must be checked at
+consumer integration. The selected evaluator retains its current paths.
+
+The actual range compiler passed its new active-source check. The focused
+sampler cost run and the independent Python normalization returned the same
+complete JSON cost record as `wide-sampler-matrix-cost.json`: 14,501 rows,
+135,813 coordinates, and 1,794,350 normalized nonzeros. The complete candidate
+nonzero count remains open. The new ring-product program and the final
+whole-program composition also remain open.
+
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 927 sampler and integration audits, plus four retained-support regression
+all 964 sampler, integration and codec audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
-build passed with 4,401 jobs and covers both witness construction and full-step
+build passed with 4,412 jobs and covers both witness construction and full-step
 soundness. The commands were:
 
 ```sh
 timeout --signal=KILL 1500 scripts/validate.sh static
 timeout --signal=KILL 1500 scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests
 timeout --signal=KILL 1500 scripts/validate.sh axioms
+timeout --signal=KILL 1500 scripts/validate.sh identity
 ```
 
-These checks do not select the candidate.
+The identity check passed: the freshly computed canonical binding, structural
+identifier, package identity and verifier-key pins all match the selected
+fixture. This check writes only a temporary binding file. Selected packages
+and fixtures were not regenerated.
+
+These checks do not select the candidate. The 12 source-codec boundary tests
+also pass. The full gate exposed missing new-block cases in `FreshRowsCheck`;
+those cases now use the existing fail-closed sparse-row checker. The static
+gate rejected private recursive codec helpers before the codec-signature rule
+and its rejection tests were added.
 
 The carrier proof uses an abstract assignment while splitting the optional
 logical-column lookup. Splitting the concrete witness expression caused its
@@ -420,9 +472,8 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Connect the arbitrary-assignment step theorem to the verifier-supplied public
-  input, deriving the constant-one premise and binding the decoded output
-  digest. Complete the verifier-owned context binding at the same boundary.
+- Complete the verifier-owned context binding. The actual public-input
+  projection now supplies constant one and binds the decoded output digest.
 - Prove that the emitted matrix program denotes the same candidate plan, then
   measure all normalized matrix entries. Whole-step soundness and complete
   witness construction are proved.

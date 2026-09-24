@@ -15,6 +15,13 @@ DECLARATION = re.compile(ATTRIBUTES + MODIFIERS +
     r'(def|abbrev|structure|inductive|class|theorem|lemma|opaque|instance|axiom)\b')
 CODEC = re.compile(ATTRIBUTES + MODIFIERS + r'def\s+' + NAME +
     r'\s*:\s*(?:(?:_root_\.)?NightstreamFPrime\.Export\.Codec\.)?Format\s+(.+)\s+where')
+# Recursive codecs need private encode/decode functions before their Format
+# round-trip proof. Their type fixes the boundary; physical data stays rejected.
+CODEC_HELPER = re.compile(
+    r'private\s+def\s+' + NAME + r'\s*\(\s*' + NAME + r'\s*:\s*' + NAME +
+    r'\s*\)\s*:\s*Value\s*:=|'
+    r'private\s+def\s+' + NAME + r'\s*\(\s*' + NAME + r'\s*:\s*Value\s*\)'
+    r'\s*:\s*Except\s+String\s+' + NAME + r'\s*:=')
 SCAFFOLD = re.compile(
     r'(?:(?:(?:public|private|meta)\s+)*import\s+' + NAME + r'(?:\s+' + NAME + r')*|'
     r'namespace\s+' + NAME + r'|end(?:\s+' + NAME + r')?|'
@@ -58,6 +65,9 @@ def check_source(text, path='<source>'):
                 header += ' ' + lines[index].strip()
                 index += 1
             codec = CODEC.fullmatch(header)
+            if CODEC_HELPER.fullmatch(header):
+                codec_indent = indent
+                continue
             if codec is None or not one_type_argument(codec[1]):
                 raise ValueError(f'{path}:{number}: expected a Format-typed codec definition')
             codec_indent = indent

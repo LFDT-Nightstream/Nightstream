@@ -1,4 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.Ordinary
+import NightstreamFPrime.Layout.MatrixProgram.OrdinaryTemplate
+import NightstreamFPrime.Layout.MatrixProgram.ColumnProjection
 import NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 import NightstreamFPrime.Layout.MatrixProgram.Pin
@@ -25,14 +27,18 @@ inductive Block where
   | phi81Product (block : Phi81Product.Block)
   | pin (block : Pin.Block)
   | poseidon (block : Poseidon.Block)
+  | ordinaryTemplate (block : Ordinary.Block) (rows : Affine.Table)
+  | mapped (sourceWidth : Nat) (projection : SourceProjection) (block : Block)
 deriving Repr, DecidableEq
 
 def Block.rowCount : Block → Nat
   | .ordinary block => block.rowCount
+  | .ordinaryTemplate block _ => block.rowCount
   | .multiplicationGrid block => block.rowCount
   | .phi81Product block => block.rowCount
   | .pin block => block.rowCount
   | .poseidon block => block.rowCount
+  | .mapped _ _ block => block.rowCount
 
 /-- Decode one block row. `sourceRow` is the identity-checked package R1CS
 row accessor and is used only by ordinary blocks. -/
@@ -42,6 +48,9 @@ def Block.row? (block : Block) (logicalWidth : Nat)
   match block with
   | .ordinary ordinaryBlock => do
       let forms ← ordinaryBlock.row? logicalWidth sourceRow ordinal
+      pure forms.meaningfulForm
+  | .ordinaryTemplate ordinaryBlock rows => do
+      let forms ← ordinaryBlock.row? logicalWidth (OrdinaryTemplate.row? rows) ordinal
       pure forms.meaningfulForm
   | .multiplicationGrid multiplicationBlock => do
       let forms ← multiplicationBlock.row? logicalWidth ordinal
@@ -53,6 +62,9 @@ def Block.row? (block : Block) (logicalWidth : Nat)
       pure forms.meaningfulForm
   | .poseidon poseidonBlock =>
       poseidonBlock.row? logicalWidth ordinal
+  | .mapped sourceWidth projection inner => do
+      let forms ← inner.row? sourceWidth sourceRow ordinal
+      projection.ports? logicalWidth forms
 
 /-- One identity-bound ordered matrix program. -/
 structure Program where
@@ -65,6 +77,11 @@ def Program.rowCount (program : Program) : Nat :=
 /-- Canonical ordered concatenation of two compact matrix programs. -/
 def Program.append (left right : Program) : Program where
   blocks := left.blocks ++ right.blocks
+
+/-- Apply a checked coordinate projection after each primitive row decoder.
+The projection data is part of the matrix program; no missing column defaults. -/
+def Program.mapColumns (program : Program) (sourceWidth : Nat) (projection : SourceProjection) : Program where
+  blocks := program.blocks.map (Block.mapped sourceWidth projection)
 
 /-- Select one row without expanding any block. -/
 def Program.row? (program : Program) (logicalWidth : Nat)
@@ -79,6 +96,23 @@ where
           block.row? logicalWidth sourceRow ordinal
         else
           select rest (ordinal - block.rowCount)
+
+theorem Program.mapColumns_rowCount (program : Program) (sourceWidth : Nat) (projection : SourceProjection) :
+    (program.mapColumns sourceWidth projection).rowCount = program.rowCount := by
+  simp only [Program.mapColumns, Program.rowCount, List.map_map, Function.comp_def, Block.rowCount]
+
+theorem Program.mapColumns_row? (program : Program) (sourceWidth targetWidth : Nat)
+    (projection : SourceProjection) (sourceRow : Nat → Option R1CS.Row) (ordinal : Nat) :
+    (program.mapColumns sourceWidth projection).row? targetWidth sourceRow ordinal =
+      (program.row? sourceWidth sourceRow ordinal).bind (projection.ports? targetWidth) := by
+  obtain ⟨blocks⟩ := program
+  induction blocks generalizing ordinal with
+  | nil => rfl
+  | cons head tail ih =>
+    simp only [Program.mapColumns, List.map_cons, Program.row?, Program.row?.select, Block.rowCount]
+    split_ifs with live
+    · rfl
+    · exact ih (ordinal - head.rowCount)
 
 @[simp] theorem Program.append_rowCount (left right : Program) :
     (left.append right).rowCount = left.rowCount + right.rowCount := by

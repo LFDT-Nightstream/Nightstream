@@ -80,6 +80,8 @@ def Term.format : Format Term where
           .atom invocationStride, .atom laneStride]
     | .optionalConstant values laneCount => .array [
         .atom 4, OptionalConstantTable.format.encode values, .atom laneCount]
+    | .sparse values laneCount => .array [
+        .atom 6, (list WireForm.format).encode values.toList, .atom laneCount]
     | .taggedAffine values substitution tags required laneCount => .array [
         .atom 5, Affine.Table.format.encode values,
         SourceSubstitution.format.encode substitution, TagTable.format.encode tags,
@@ -106,13 +108,15 @@ def Term.format : Format Term where
           (← SourceSubstitution.format.decode substitution)
           (← TagTable.format.decode tags) (← InvocationTag.format.decode required)
           laneCount)
+    | .array [.atom 6, values, .atom laneCount] => do
+        pure (.sparse (← (list WireForm.format).decode values).toArray laneCount)
     | _ => .error "invalid Poseidon2 input term"
   decode_encode := by
     intro term
     cases term <;> simp [RetainedBlock.format.decode_encode,
       TagTable.format.decode_encode, InvocationTag.format.decode_encode,
       OptionalConstantTable.format.decode_encode, Affine.Table.format.decode_encode,
-      SourceSubstitution.format.decode_encode] <;> rfl
+      SourceSubstitution.format.decode_encode, (list WireForm.format).decode_encode] <;> rfl
 
 def Rule.format : Format Rule where
   encode := fun rule => .array [

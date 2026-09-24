@@ -1,3 +1,13 @@
+import NightstreamFPrime.Export.Stage1.Wide.PublicBinding
+import NightstreamFPrime.Export.Stage1.Wide.MatrixProjection
+import NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms
+import NightstreamFPrime.Layout.MatrixProgram.ColumnProjection
+import NightstreamFPrime.Layout.MatrixProgram.Exact
+import NightstreamFPrime.Layout.MatrixProgram.Indexed
+import NightstreamFPrime.Layout.PiRlcWideSampler.MatrixSource
+import NightstreamFPrime.Layout.PiRlcWideSampler.MatrixProgram
+import NightstreamFPrime.Layout.PiRlcWideSampler.PoseidonMatrixProgram
+import NightstreamFPrime.Layout.PiRlcWideSampler.BatchMatrixProgram
 import NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator
 import NightstreamFPrime.Export.Stage1.Wide.FixedPointSoundness
 import NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC
@@ -1102,3 +1112,45 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedAccumulator.decodedAccepted
 
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPointSoundness.rowsZero_implies_stepHoldsFor
+
+-- Compact sampler matrix interpretation and public binding.
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PublicBinding.one
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PublicBinding.output_digest
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PublicBinding.step
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProjection.column_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProjection.exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.prefix_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.piDec_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.running_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.application_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.next_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.public_exact
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjection.entry?_of_image
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjection.entry?_unmapped
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjection.sparseForm?_checked
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjection.ports?_checked
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Exact.append
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Exact.mapColumns
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.indexed_count
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.indexed_row
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Exact.indexed
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixSource.temporary_unmapped
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixSource.form_eq
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixRows.rowCount
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixRows.poseidonFits
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixRows.input_forms
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.MatrixRows.rangeRow
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.PoseidonMatrix.input_form
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.PoseidonMatrix.exact
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.BatchMatrix.ranges_exact
+#audit_axioms NightstreamFPrime.Layout.PiRlcWideSampler.BatchMatrix.exact
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.mapColumns_rowCount
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.mapColumns_row?
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.OrdinaryTemplate.row?_ofSemantic
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms.source_custody
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Block.format
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.format
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.format

@@ -23,10 +23,21 @@ def constraints : List Expr :=
 theorem constraints_length : constraints.length = 681 :=
   WideReduction.Program.rowCount_eq interface 4
 
+/-- Matrix rows may read only the caller inputs and checked values. -/
+def Active (row : R1CS.Row) : Prop :=
+  (∀ term ∈ row.a.terms, term.1 < 4 ∨ 1408 ≤ term.1) ∧
+  (∀ term ∈ row.b.terms, term.1 < 4 ∨ 1408 ≤ term.1) ∧
+  (∀ term ∈ row.c.terms, term.1 < 4 ∨ 1408 ≤ term.1)
+
+private instance (row : R1CS.Row) : Decidable (Active row) := by
+  unfold Active
+  infer_instance
+
 structure Compiled where
   rows : List R1CS.Row
   correct : Rows.compile? 1408 constraints = some rows
   bounded : ∀ row ∈ rows, SourceCompiler.RowBounded 2025 row
+  active : ∀ row ∈ rows, Active row
 
 private instance (row : R1CS.Row) : Decidable (SourceCompiler.RowBounded 2025 row) :=
   @instDecidableAnd _ _ (SourceCompiler.combinationBoundedDecidable 2025 row.a)
@@ -38,7 +49,7 @@ def compile? : Option Compiled :=
   | none => none
   | some rows =>
       if bounded : ∀ row ∈ rows, SourceCompiler.RowBounded 2025 row then
-        some ⟨rows, correct, bounded⟩
+        if active : ∀ row ∈ rows, Active row then some ⟨rows, correct, bounded, active⟩ else none
       else none
 
 namespace Compiled

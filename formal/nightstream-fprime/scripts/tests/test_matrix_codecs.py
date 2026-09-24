@@ -35,6 +35,31 @@ class MatrixCodecTests(unittest.TestCase):
                                'Thing.format :\n    Format (Thing) where')
         self.assertEqual(codecs.check_source(source), 1)
 
+    def test_private_recursive_codec_helpers_are_allowed(self):
+        helpers = """private def encodeBlock (block : Block) : Value :=
+  match block with
+  | .next child => .array [encodeBlock child]
+  | .empty => .array []
+
+private def decodeBlock (value : Value) : Except String Block :=
+  match value with
+  | .array [child] => return .next (← decodeBlock child)
+  | _ => return .empty
+  termination_by sizeOf value
+"""
+        self.assertEqual(codecs.check_source(helpers + VALID), 1)
+
+    def test_private_helpers_require_a_codec_type_and_private_scope(self):
+        for header in [
+            'def encodeBlock (block : Block) : Value :=',
+            'private def rows (block : Block) : Nat :=',
+            'private def decodeBlock (value : Value) : Block :=',
+            'private def decodeBlock (input : Nat) : Except String Block :=',
+        ]:
+            with self.subTest(header=header):
+                with self.assertRaisesRegex(ValueError, 'Format-typed'):
+                    codecs.check_source(header + '\n  opaqueBody\n' + VALID)
+
     def test_physical_definition_is_rejected(self):
         for prefix in ['', 'private ', '@[inline] private ']:
             with self.subTest(prefix=prefix):

@@ -130,6 +130,18 @@ theorem checkBlock_of_units (block : MatrixProgram.Block) {columns : Nat}
       apply allFrom_complete
       intro unit _ upper
       exact checked unit (by simpa only [Nat.zero_add] using upper)
+  | ordinaryTemplate block rows =>
+      apply allFrom_complete
+      intro unit _ upper
+      have bounded : unit < (MatrixProgram.Block.ordinaryTemplate block rows).rowCount := by
+        simpa only [Nat.zero_add] using upper
+      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
+  | mapped width projection block =>
+      apply allFrom_complete
+      intro unit _ upper
+      have bounded : unit < (MatrixProgram.Block.mapped width projection block).rowCount := by
+        simpa only [Nat.zero_add] using upper
+      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
   | ordinary block =>
       apply allFrom_complete
       intro unit _ upper
@@ -256,6 +268,10 @@ theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
     (row : Nat) (bounded : row < block.rowCount) :
     checkRow (PiDECMatrixNumericRows.blockRow? block sourceRow read row) = true := by
   cases block with
+  | ordinaryTemplate block rows =>
+      exact allFrom_sound _ 0 _ checked row (by omega) (by simpa using bounded)
+  | mapped width projection block =>
+      exact allFrom_sound _ 0 _ checked row (by omega) (by simpa using bounded)
   | ordinary block =>
       exact allFrom_sound _ 0 _ checked row (by omega) (by simpa using bounded)
   | multiplicationGrid block =>

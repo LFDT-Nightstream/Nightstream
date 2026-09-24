@@ -1,4 +1,4 @@
-//! Owns call entry, return-context RAM, frame bases, parameter initialization,
+//! Owns call entry, return-context RAM, frame bases, local initialization,
 //! tail-frame replacement, and host-import attribution.
 
 use super::super::gadgets::push_gated_linear_zero;
@@ -9,9 +9,11 @@ use super::super::layout::{
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
     COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
-    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW,
-    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
+    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HALTED,
+    COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH,
+    COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
+    COL_LOCAL_VALUE_HI, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
     COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
     COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
@@ -28,6 +30,12 @@ use super::always;
 use neo_application::ZeroTest;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+pub(crate) const LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_LOCAL_ZERO_REMAINING_AFTER_INV,
+    COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO,
+);
 
 pub(crate) const PARAM_INIT_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::column(
     COL_PARAM_INIT_REMAINING_AFTER,
@@ -66,6 +74,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_linear_zero([
             (COL_IS_PROGRAM_ROW, F::ONE),
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
             (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
@@ -145,6 +154,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // in directly.
         let aux_row_gate_with_perm = [
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
             (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
@@ -156,30 +166,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_row(
             aux_row_gate_with_perm,
             [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)],
-            [],
-        );
-        b.push_row(
-            [
-                (COL_PADDING_ACTIVE, F::ONE),
-                (COL_TAIL_ENTER_ACTIVE, F::ONE),
-                (COL_TURN_BOUNDARY, F::ONE),
-            ],
-            [(COL_STACK_READS, F::ONE)],
-            [],
-        );
-        b.push_row(
-            [(COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE)],
-            [(COL_STACK_READS, F::ONE), (COL_ONE, -F::ONE)],
-            [],
-        );
-        b.push_row(
-            [
-                (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
-                (COL_PADDING_ACTIVE, F::ONE),
-                (COL_TAIL_ENTER_ACTIVE, F::ONE),
-                (COL_TURN_BOUNDARY, F::ONE),
-            ],
-            [(COL_STACK_WRITES, F::ONE)],
             [],
         );
         let param_init_row_gate = COL_PARAM_INIT_ACTIVE_BEFORE;
@@ -199,6 +185,10 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     b.with_tag(always("guest call flag"), |b| {
         push_guest_call_flag_constraints(b);
+    });
+
+    b.with_tag(always("local zero initialization"), |b| {
+        push_local_zero_constraints(b);
     });
 
     b.with_tag(always("call param init enter mode"), |b| {
@@ -500,25 +490,37 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 }
 
 fn push_param_init_state_preservation_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // Gather, tail-enter, and permutation rows carry param-init state. This
-    // prevents an aux row from injecting a guest parameter-init sequence.
-    for (after, before) in [
-        (COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE),
-        (COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE),
-    ] {
-        b.push_row(
-            [
-                (COL_GATHER_ACTIVE, F::ONE),
-                (COL_TAIL_ENTER_ACTIVE, F::ONE),
-                // ... and host-event perm rows: `pending + 1 - round_is_zero`.
-                (COL_PERM_PENDING_BEFORE, F::ONE),
-                (COL_ONE, F::ONE),
-                (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
-            ],
-            [(after, F::ONE), (before, -F::ONE)],
-            [],
-        );
-    }
+    // A guest call seeds the parameter count, a param-init row spends one,
+    // and a turn boundary resets the frame. Every other row preserves it.
+    b.push_row(
+        [
+            (COL_ONE, F::ONE),
+            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
+            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
+        ],
+        [
+            (COL_PARAM_INIT_REMAINING_AFTER, F::ONE),
+            (COL_PARAM_INIT_REMAINING_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+    // The last local-zero row may activate parameter initialization without
+    // changing its count; the final param-init row deactivates it.
+    b.push_row(
+        [
+            (COL_ONE, F::ONE),
+            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
+            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
+            (COL_LOCAL_ZERO_ACTIVE_BEFORE, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
+        ],
+        [
+            (COL_PARAM_INIT_ACTIVE_AFTER, F::ONE),
+            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
+        ],
+        [],
+    );
 }
 
 fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
@@ -558,6 +560,61 @@ fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
+fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let zero = COL_LOCAL_ZERO_ACTIVE_BEFORE;
+    LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
+    b.push_linear_zero([
+        (COL_LOCAL_ZERO_ACTIVE_AFTER, F::ONE),
+        (COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, F::ONE),
+        (COL_ONE, -F::ONE),
+    ]);
+    push_gated_linear_zero(
+        b,
+        zero,
+        [
+            (COL_LOCAL_ZERO_REMAINING_BEFORE, F::ONE),
+            (COL_LOCAL_ZERO_REMAINING_AFTER, -F::ONE),
+            (COL_ONE, -F::ONE),
+        ],
+    );
+    // All three columns are u32, so this difference is too small to wrap
+    // modulo the Goldilocks field: field equality is integer equality.
+    push_gated_linear_zero(
+        b,
+        zero,
+        [
+            (COL_LOCAL_INDEX, F::ONE),
+            (COL_CURRENT_FUNCTION_NUM_LOCALS, -F::ONE),
+            (COL_LOCAL_ZERO_REMAINING_BEFORE, F::ONE),
+        ],
+    );
+    push_gated_linear_zero(b, zero, [(COL_LOCAL_VALUE, F::ONE)]);
+    push_gated_linear_zero(b, zero, [(COL_LOCAL_VALUE_HI, F::ONE)]);
+    // Only a guest call or turn boundary may seed the verifier-bound count.
+    b.push_row(
+        [
+            (COL_ONE, F::ONE),
+            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
+            (zero, -F::ONE),
+        ],
+        [
+            (COL_LOCAL_ZERO_REMAINING_AFTER, F::ONE),
+            (COL_LOCAL_ZERO_REMAINING_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+    b.push_row(
+        [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_TURN_BOUNDARY, F::ONE)],
+        [
+            (COL_LOCAL_ZERO_REMAINING_AFTER, F::ONE),
+            (COL_CALL_PARAM_COUNT, F::ONE),
+            (COL_ENTERED_FUNCTION_NUM_LOCALS, -F::ONE),
+        ],
+        [],
+    );
+}
+
 fn push_call_param_init_enter_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let guest_call = COL_GUEST_ENTRY_ACTIVE;
 
@@ -582,11 +639,12 @@ fn push_call_param_init_enter_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>
 }
 
 fn push_call_param_init_exit_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    b.push_linear_zero([
-        (COL_PARAM_INIT_ACTIVE_AFTER, F::ONE),
-        (COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, F::ONE),
-        (COL_ONE, -F::ONE),
-    ]);
+    // Parameters start only after the new frame's zero writes are complete.
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, -F::ONE)],
+        [(COL_ONE, F::ONE), (COL_LOCAL_ZERO_ACTIVE_AFTER, -F::ONE)],
+        [(COL_PARAM_INIT_ACTIVE_AFTER, F::ONE)],
+    );
 
     // if we reached the end of the local initialization sequence
     PARAM_INIT_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
@@ -708,7 +766,11 @@ fn push_tail_call_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
     b.push_row(
         [(COL_TAIL_CALL_PENDING_BEFORE, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE)],
+        [
+            (COL_ONE, F::ONE),
+            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
+            (COL_LOCAL_ZERO_ACTIVE_BEFORE, -F::ONE),
+        ],
         [(COL_TAIL_ENTER_ACTIVE, F::ONE)],
     );
     push_gated_linear_zero(

@@ -314,6 +314,93 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
 }
 
 #[test]
+fn reentered_export_zeroes_an_unmapped_i64_local() {
+    let component_bytes = wat::parse_str(
+        r#"(component
+            (core module $m
+                (func (export "tick") (param i32) (result i32) (local i64)
+                    local.get 1 i32.wrap_i64
+                    i64.const -1 local.set 1))
+            (core instance $i (instantiate $m))
+            (alias core export $i "tick" (core func $tick))
+            (func (export "tick") (param "x" s32) (result s32)
+                (canon lift (core func $tick))))"#,
+    )
+    .unwrap();
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        1,
+        ExportTemplate {
+            entry: vec![EventBlock::op(
+                16,
+                slots(&[(
+                    0,
+                    SlotBinding::InputLocal {
+                        input: 0,
+                        local: 0,
+                        limb: Limb::Lo,
+                    },
+                )]),
+            )],
+            exit: vec![EventBlock::op(
+                17,
+                slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
+            )],
+            entry_input_count: 1,
+        },
+    );
+    let mut runtime = TracedTestComponent::new(&component_bytes, &bindings);
+    for _ in 0..2 {
+        let mut result = [ComponentVal::S32(-1)];
+        runtime.call("tick", &[ComponentVal::S32(5)], &mut result);
+        assert_eq!(result, [ComponentVal::S32(0)]);
+    }
+    let run = runtime.finish();
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default()).unwrap();
+    let zero_rows: Vec<_> = trace
+        .iter()
+        .filter(|row| row.row_kind.is_local_zero())
+        .collect();
+    assert_eq!(zero_rows.len(), 1, "re-entry clears only the scratch local");
+    assert_eq!(
+        zero_rows
+            .iter()
+            .map(|row| row.local_index)
+            .collect::<Vec<_>>(),
+        [Some(1)]
+    );
+    assert_eq!(
+        (zero_rows[0].local_write_value, zero_rows[0].local_write_value_hi),
+        (Some(0), Some(0))
+    );
+    common::sanity_check_trace_with_bindings(&trace, &run.artifacts, &bindings);
+    common::ccs_check_trace(&trace);
+
+    // Keep the claimed total local count at two while forging the boundary
+    // from one parameter plus one zero row to two parameters plus none.
+    // Only the verifier-owned call metadata distinguishes those claims.
+    let mut forged = trace.clone();
+    let boundary = forged
+        .iter_mut()
+        .find(|row| row.row_kind.is_turn_boundary())
+        .unwrap();
+    boundary.call_param_count = Some(2);
+    boundary.state_after.local_zero.remaining = 0;
+    boundary.state_after.local_zero.active = false;
+    let witnesses: Vec<_> = forged.iter().map(build_witness_vector).collect();
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&run.artifacts);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
+    let error = neo_wasm::memory_semantics::sanity_check_memory_rows(
+        neo_wasm::build_wasm_relation_layout(),
+        &witnesses,
+        &preload,
+    )
+    .expect_err("boundary parameter count must come from the function metadata ROM");
+    assert!(error.contains("function_call_metadata"), "{error}");
+}
+
+#[test]
 fn export_advice_preserves_arguments_without_absorbing_them() {
     use neo_wasm::host_event_bindings::EventSequenceBuilder;
     let component_bytes = wat::parse_str(

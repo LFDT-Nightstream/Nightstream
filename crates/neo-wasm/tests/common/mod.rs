@@ -168,6 +168,7 @@ pub fn step(
             halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
+            local_zero: WasmCountdownState::ZERO,
             tail_call_pending: false,
             host_callee_fref: 0,
             comm_chain: [0; 4],

@@ -648,6 +648,7 @@ impl HostEventRowContext {
             halted: self.halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
+            local_zero: WasmCountdownState::ZERO,
             tail_call_pending: false,
             host_callee_fref: self.host_callee_fref,
             comm_chain,

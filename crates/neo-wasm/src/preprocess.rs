@@ -21,7 +21,8 @@ use crate::ir::{
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
-    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE,
+    COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
     COL_MEMORY_PAGES_BEFORE, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_BEFORE,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
@@ -160,8 +161,8 @@ pub fn preprocess_seeded_batched(
     )?)
 }
 
-/// Top-level VM state before executing an exported wasm function of an
-/// import-free program: [`host_event_top_level_initial_state`] specialized to
+/// Top-level VM state before executing a parameterless exported wasm function
+/// of an import-free program: [`host_event_top_level_initial_state`] specialized to
 /// the canonical import-free bindings (empty boundary template for the
 /// invoked export, zero commitment chain).
 ///
@@ -176,7 +177,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         export_fref,
         CommChainState::default(),
     )
-    .expect("canonical import-free bindings contain the selected export")
+    .expect("canonical import-free bindings require a parameterless export")
 }
 
 /// The function ref whose body starts at `entry_pc`; the verifier-side
@@ -249,6 +250,7 @@ pub fn host_event_top_level_initial_state(
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
+        local_zero: WasmCountdownState::ZERO,
         tail_call_pending: false,
         host_callee_fref: 0,
         comm_chain: initial_comm_chain.canonical_u64(),
@@ -318,6 +320,8 @@ fn carried_state_field(state: WasmStepState, column: usize) -> F {
         COL_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.memory_pages.unwrap_or(0))),
         COL_MAX_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.max_memory_pages.unwrap_or(0))),
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
+        COL_LOCAL_ZERO_ACTIVE_BEFORE => bool_field(state.local_zero.active),
+        COL_LOCAL_ZERO_REMAINING_BEFORE => F::from_u64(u64::from(state.local_zero.remaining)),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
         COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),

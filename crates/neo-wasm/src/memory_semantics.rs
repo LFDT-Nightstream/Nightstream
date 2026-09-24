@@ -12,8 +12,8 @@ pub type WasmMemoryPreload = MemoryPreload<WasmMemoryId>;
 
 /// The preload is program-derived only: the locals RAM starts all-zero
 /// ([`RamInitialization::Zero`]), so entry-frame inputs must arrive through the export
-/// template's `InputLocal` bootstrap; callee params are written by
-/// CallParamInit rows before use.
+/// template's `InputLocal` bootstrap; subsequent entry frames are cleared by
+/// LocalZero rows before input or call-parameter writes.
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();

@@ -66,6 +66,20 @@ theorem commonSource_live (program : Program) (source : Nat)
   · exact Or.inr (Or.inl shared)
   · exact Or.inr (Or.inr (Or.inl application))
 
+/-- Every copied source is placed before the direct PiRLC allocation. -/
+theorem commonSource_before (program : Program)
+    (source : Fin (PerApplicationFixedPoint.logicalWidth program))
+    (common : CommonSource program source.val) :
+    (column program source (commonSource_live program source.val common)).val < commonCount program := by
+  have mapped := column_mapped program source (commonSource_live program source.val common)
+  obtain ⟨hash, start, stop, app⟩ := boundaries program
+  unfold column? at mapped
+  rw [hash, start, stop, app] at mapped
+  unfold CommonSource at common
+  rw [hash, start, stop, app] at common
+  rw [commonCount_eq]
+  split_ifs at mapped <;> simp only [Option.some.injEq] at mapped <;> omega
+
 /-- Every mapped source recovers its own old coordinate, including both
 product regions and the extension-field cell order. -/
 theorem source?_column? (program : Program) (source target : Nat)

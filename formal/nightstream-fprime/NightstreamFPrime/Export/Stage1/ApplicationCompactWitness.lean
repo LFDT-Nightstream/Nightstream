@@ -89,9 +89,13 @@ def raw (target : Env) (message : Fin 4 → F) : PerApplicationCanonicalAssignme
     (PerApplicationSourceAssignment.ofCompleted application target (privateSuffix (priorValues target) message))
 
 private theorem source_before (target : Env) (message : Fin 4 → F)
+    (packet : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : packet.base = (raw target message).base)
     (column : Fin (ApplicationRetainedBlocks.sourceWidth application))
     (before : column.val < Spartan.privateColumnCount) :
-    (raw target message).applicationSource column = target column.val := by
+    packet.applicationSource column = target column.val := by
+  change packet.base ⟨column.val, _⟩ = _
+  rw [baseEq]
   change PerApplicationSourceAssignment.ofCompleted application target
     (privateSuffix (priorValues target) message) ⟨column.val, _⟩ = _
   unfold PerApplicationSourceAssignment.ofCompleted
@@ -103,13 +107,17 @@ private theorem source_before (target : Env) (message : Fin 4 → F)
     exact before)]
 
 private theorem source_private (target : Env) (message : Fin 4 → F)
+    (packet : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : packet.base = (raw target message).base)
     (column : Fin (ApplicationRetainedBlocks.sourceWidth application)) (index : Fin 7700)
     (position : column.val = Spartan.privateColumnCount + index.val) :
-    (raw target message).applicationSource column = suffix (priorValues target) message index := by
+    packet.applicationSource column = suffix (priorValues target) message index := by
   let slot : Fin (PerApplicationPackage.addedPrivateColumnCount application) :=
     Fin.cast Poseidon2HashChainV1Package.addedPrivateColumnCount.symm index
   have stored := PerApplicationSourceAssignment.application_ofCompleted application target
     (privateSuffix (priorValues target) message) slot
+  change packet.base ⟨column.val, _⟩ = _
+  rw [baseEq]
   change PerApplicationSourceAssignment.ofCompleted application target
     (privateSuffix (priorValues target) message) ⟨column.val, _⟩ = _
   simpa only [position, slot, privateSuffix, Fin.val_cast, Fin.cast_cast, Fin.cast_eq_self] using stored
@@ -120,7 +128,7 @@ theorem witnessValue (target : Env) (message : Fin 4 → F) :
         List.ofFn message := by
   apply congrArg List.ofFn
   funext lane
-  have stored := source_private target message ((ApplicationRetainedBlocks.witnessBlock application).source lane)
+  have stored := source_private target message (raw target message) rfl ((ApplicationRetainedBlocks.witnessBlock application).source lane)
     ⟨lane.val, by have := lane.isLt; change lane.val < 4 at this; omega⟩ rfl
   rw [suffix_message] at stored
   exact (DirectApplicationPrefixPlan.applicationSource_eq_sourceEnv application
@@ -149,21 +157,23 @@ private theorem localEncoding {program : Lifecycle.Stage1.Application.Program} {
   exact encoded _
 
 /-- The direct three-permutation witness completes the selected application relation. -/
-theorem complete (target : Env) (message : Fin 4 → F)
+theorem complete_of_base (target : Env) (message : Fin 4 → F)
+    (packet : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : packet.base = (raw target message).base)
     (step : (List.ofFn fun lane : Fin 4 => target (ApplicationInputs.outputColumn lane)) =
       application.step (List.ofFn (priorValues target)) (List.ofFn message)) :
     (ApplicationDirectPlan.plan Poseidon2HashChainV1Package.fits.package
-      (PerApplicationFixedPoint.geometry application)).RowsZero (raw target message).assignment := by
+      (PerApplicationFixedPoint.geometry application)).RowsZero packet.assignment := by
   let geometry := ApplicationRetainedGeometry.poseidonGeometry
     (PerApplicationFixedPoint.geometry application) certificate selected
-  have encoding := (PerApplicationCanonicalEncodes.encodes (raw target message)).applicationEncoding
+  have encoding := (PerApplicationCanonicalEncodes.encodes packet).applicationEncoding
   rw [ApplicationDirectPlan.plan_some _ _ certificate selected]
-  apply ApplicationPoseidonSoundness.complete_of_encoding geometry (raw target message).assignment
+  apply ApplicationPoseidonSoundness.complete_of_encoding geometry packet.assignment
     (priorValues target) message (PerApplicationCanonicalAssignment.assignment_one _) ?_ ?_ ?_ ?_
   · intro lane
     change ((ApplicationRetainedBlocks.inputBlock application).form _ _ lane).eval _ = _
     rw [LowNormBlock.Block.form_eval _ _ _ _ _ encoding.input]
-    apply source_before
+    apply source_before target message packet baseEq
     change ApplicationInputs.inputColumn lane < Spartan.privateColumnCount
     rw [ApplicationInputs.inputColumn_value, Spartan.privateColumnCount_eq]
     simp only [ApplicationInputs.currentWordStart]
@@ -172,14 +182,14 @@ theorem complete (target : Env) (message : Fin 4 → F)
   · intro lane
     change ((ApplicationRetainedBlocks.witnessBlock application).form _ _ lane).eval _ = _
     rw [LowNormBlock.Block.form_eval _ _ _ _ _ encoding.witness]
-    exact (source_private target message _ ⟨lane.val, by have := lane.isLt; omega⟩ rfl).trans
+    exact (source_private target message packet baseEq _ ⟨lane.val, by have := lane.isLt; omega⟩ rfl).trans
       (suffix_message _ _ lane)
   · have outputs (lane : Fin 4) :
-        ((ApplicationPoseidonRetainedGeometry.interface geometry).digest lane).eval (raw target message).assignment =
+        ((ApplicationPoseidonRetainedGeometry.interface geometry).digest lane).eval packet.assignment =
           target (ApplicationInputs.outputColumn lane) := by
       change ((ApplicationRetainedBlocks.outputBlock application).form _ _ lane).eval _ = _
       rw [LowNormBlock.Block.form_eval _ _ _ _ _ encoding.output]
-      apply source_before
+      apply source_before target message packet baseEq
       change ApplicationInputs.outputColumn lane < Spartan.privateColumnCount
       rw [ApplicationInputs.outputColumn_value, Spartan.privateColumnCount_eq]
       have := lane.isLt
@@ -207,6 +217,15 @@ theorem complete (target : Env) (message : Fin 4 → F)
             ApplicationInputs.witnessStart
           change Spartan.privateColumnCount + 4 + 5920 + invocation.val * 592 + _ = _
           omega
-    exact (source_private target message _ _ position).trans (suffix_retained _ _ invocation row)
+    exact (source_private target message packet baseEq _ _ position).trans (suffix_retained _ _ invocation row)
+
+
+/-- The direct three-permutation witness completes the selected application relation. -/
+theorem complete (target : Env) (message : Fin 4 → F)
+    (step : (List.ofFn fun lane : Fin 4 => target (ApplicationInputs.outputColumn lane)) =
+      application.step (List.ofFn (priorValues target)) (List.ofFn message)) :
+    (ApplicationDirectPlan.plan Poseidon2HashChainV1Package.fits.package
+      (PerApplicationFixedPoint.geometry application)).RowsZero (raw target message).assignment := by
+  exact complete_of_base target message (raw target message) rfl step
 
 end NightstreamFPrime.Export.Stage1.ApplicationCompactWitness

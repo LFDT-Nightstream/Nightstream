@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Wide.PlanSupport
 import NightstreamFPrime.Export.Stage1.Wide.InputSupport
+import NightstreamFPrime.Export.Stage1.Wide.CoordinateRecovery
 
 /-! The supported source regions of the reused Stage 1 phases. Every result
 concerns stored sparse entries, before cancellation or matrix evaluation. -/
@@ -18,6 +19,23 @@ abbrev Form (program : Program) := Supported (Live program)
 abbrev Plans (program : Program) := PlanSupported (Live program)
 abbrev CommonForm (program : Program) := Supported (Common program)
 abbrev CommonPlans (program : Program) := PlanSupported (Common program)
+abbrev Copied (program : Program) (column : Fin (PerApplicationFixedPoint.logicalWidth program)) :=
+  CoordinateRecovery.CommonSource program column.val
+abbrev CopiedForm (program : Program) := Supported (Copied program)
+abbrev CopiedPlans (program : Program) := PlanSupported (Copied program)
+
+theorem common_copied (program : Program) (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (supported : CommonForm program form) : CopiedForm program form := by
+  refine mono supported (fun column inside => ?_)
+  rcases inside with hash | shared
+  · exact Or.inl hash
+  · exact Or.inr (Or.inl shared)
+
+theorem copied_plan (program : Program)
+    (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program))
+    (supported : CopiedPlans program plan) : Plans program plan := by
+  intro row port
+  exact mono (supported row port) (fun column live => CoordinateRecovery.commonSource_live program column.val live)
 
 theorem common (program : Program) (column : Fin (PerApplicationFixedPoint.logicalWidth program))
     (inside : FormSupport.Common program column) : Live program column := by

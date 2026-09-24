@@ -244,15 +244,33 @@ preserves those values. The existing pilot and PiCCS completeness proofs now
 accept any packet with the copied base. No old sampler execution, old PiRLC row,
 or sampler-success premise is used.
 
-Whole-package acceptance still requires the remaining phase connections and
-the semantic-step witness construction. Emitted-matrix correspondence, the full
-normalized nonzero count, and the selected security and Rust connections also
-remain open. No selected circuit count changes in this batch.
+`Wide.RunningCompletedAssignment.rowsZero` connects all 49,359 compact
+transition rows to the accepted wide physical transition. The proof transports
+its input values and logical equations, including the first scratch value used
+as the shared flag. It does not enumerate the physical rows.
+
+`Wide.ApplicationCompletedAssignment` constructs the three application
+permutations from the same source state and preserves the exact four advice
+words. Its support certificate includes only copied coordinates. The five
+next-preimage rows and four public-output rows also accept the same assignment.
+
+`Wide.CompletedRows.rowsZero` composes all seven candidate plan components:
+all 3,248,956 rows accept one `SourceAssignment.assignment`. Its premises are
+an accepted wide physical prefix, the existing pilot/C/R/D input assumptions,
+the next-preimage specification, and the application step. It has no premise
+that the compact rows hold and no old sampler-success premise.
+
+This is the complete physical-source-to-compact-row acceptance proof. It does
+not yet construct that physical source from a semantic HyperNova step or prove
+the strict norm bound for every copied coordinate. Whole-plan soundness for the
+new key, emitted-matrix correspondence, the full normalized nonzero count, and
+the selected security and Rust connections remain open. No selected circuit
+count changes in this batch.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 802 sampler and integration audits, plus four retained-support regression
+all 827 sampler and integration audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. These checks do not select the candidate.
 
@@ -271,6 +289,12 @@ These solver controls do not replace the universal Lean coordinate proofs.
 The experiment uses the semantics-preserving compilation discipline described
 in [CLAP](https://arxiv.org/abs/2405.12115), with the applicable
 [cvc5 arithmetic theories](https://cvc5.github.io/tutorials/beginners/theories.html).
+The 2026 [CLAP implementation report](https://www.nethermind.io/blog/clap-correctly-compiling-the-leanest-possible-circuits)
+also separates constraint soundness from completeness of the constraint system
+with its witness generator. We keep that same proof distinction here; this
+integration does not add a compiler dependency. The [cvc5 field/integer discussion](https://github.com/cvc5/cvc5/discussions/11911)
+is relevant to modular arithmetic experiments, but the checked integer bounds
+and field conversions remain Lean obligations.
 
 The source sampler allocates 55,403 private DSL values and has 32,623 DSL
 rows, including the 918 temporary digit bindings. Structural lowering gives
@@ -306,15 +330,13 @@ All 681 rows and all 54 digits are checked for every case.
 
 ## Still required for the production switch
 
-- Close whole-package witness preservation and compatible witness construction
-  for the assembled Stage 1 candidate. Matrix read support and the PiDEC
-  retained-parent connection, physical PiDEC source transport, and compact
-  PiDEC acceptance are proved. The pilot/PiCCS prefix also accepts the same
-  assignment. Close the remaining phase transport, then compose the semantic-step
-  witness, norm, public output and advice results.
-  Prove the emitted matrix program denotes that same plan, then measure all
-  normalized matrix entries. The dimension theorems alone do not close these
-  obligations.
+- Complete the candidate witness construction from a semantic HyperNova step.
+  All compact phase rows now accept one assignment built from the accepted wide
+  physical prefix. Prove the remaining source construction, strict carrier norm,
+  and full public-output correspondence. Prove whole-plan soundness with the
+  new key. Then prove that the emitted matrix program denotes the same plan and
+  measure all normalized matrix entries. Acceptance from an existing physical
+  witness does not by itself close these obligations.
 - Apply the security model to the selected production transcript and record the
   applicable Fiat–Shamir assumption and query accounting. The adaptive block
   budget `q` in `q * distance` must not be identified with a fold count or the

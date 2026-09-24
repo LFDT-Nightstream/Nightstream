@@ -206,4 +206,28 @@ theorem common_rowsZero_iff (program : Program)
   mapped_rowsZero_iff (RetainedLayout.column program) plan supported before (assignment program before)
     (fun row port => common_form program before _ (common row port) (supported row port))
 
+/-- Application coordinates, like shared coordinates, precede direct PiRLC. -/
+theorem copied_form (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (form : SparseForm (PerApplicationFixedPoint.logicalWidth program))
+    (copied : ReadSupport.CopiedForm program form) (supported : ReadSupport.Form program form) :
+    (RetainedLayout.renameForm program form supported).eval (assignment program before) = form.eval before := by
+  rw [assignment_eq_project]
+  calc
+    _ = (RetainedLayout.renameForm program form supported).eval (project program before) := by
+      apply PiRLCWitness.disjoint_form
+      intro entry member
+      obtain ⟨source, sourceMember, same⟩ := List.mem_pmap.mp member
+      subst entry
+      exact Or.inl (CoordinateRecovery.commonSource_before program source.column (copied source sourceMember))
+    _ = _ := project_form program before form supported
+
+theorem copied_rowsZero_iff (program : Program)
+    (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
+    (plan : ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth program))
+    (copied : ReadSupport.CopiedPlans program plan) (supported : ReadSupport.Plans program plan) :
+    (Stage1Plan.rename program plan supported).RowsZero (assignment program before) ↔ plan.RowsZero before :=
+  mapped_rowsZero_iff (RetainedLayout.column program) plan supported before (assignment program before)
+    (fun row port => copied_form program before _ (copied row port) (supported row port))
+
 end NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection

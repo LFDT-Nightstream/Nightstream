@@ -78,7 +78,7 @@ def piDec (program : Program) (relation : Lifecycle.ProductionKey.LogicalRelatio
 def running (program : Program) :=
   rename program (RunningTransitionReducedPlan.plan
     (DirectPiDECPrefixPlan.runningGeometry (piDecGeometry program)))
-    (ReadSupport.running program _)
+    (ReadSupport.common_plan program _ (ReadSupport.running program _))
 
 @[simp] theorem prefix_rows (program : Program)
     (relation : Lifecycle.ProductionKey.LogicalRelation relationWidth publicFits) :
@@ -129,7 +129,7 @@ def beforeApplication (program : Program) (compiled : PiRlcWideSampler.RangePlan
 
 def application (program : Program) (fits : PerApplicationPackage.FitsTwoPow28 program) :=
   rename program (ApplicationDirectPlan.plan fits (referenceGeometry program))
-    (ReadSupport.application program fits (referenceGeometry program))
+    (ReadSupport.copied_plan program _ (ReadSupport.application program fits (referenceGeometry program)))
 
 def nextPreimage (program : Program) :=
   rename program (DirectApplicationPrefixPlan.nextPreimagePlan (referenceGeometry program))

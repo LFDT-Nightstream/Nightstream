@@ -8,29 +8,29 @@ open ProductionRelation FormSupport
 theorem application_block (program : Program) {sourceWidth : Nat} (retained : LowNormBlock.Block sourceWidth)
     (start : Nat) (fits : start + retained.coordinateCount ≤ PerApplicationFixedPoint.logicalWidth program)
     (slot : Fin retained.slotCount) (lower : RetainedLayout.applicationStart program ≤ start) :
-    Form program (retained.form start fits slot) := by
+    CopiedForm program (retained.form start fits slot) := by
   apply block
   intro column low high
   have width := RetainedLayout.referenceWidth_eq program
   have appStart := (RetainedLayout.boundaries program).2.2.2
-  exact Or.inr (Or.inr (Or.inl ⟨by omega, by omega⟩))
+  exact Or.inr (Or.inr ⟨by omega, by omega⟩)
 
 theorem application_input (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))
-    (lane : Lifecycle.Stage1.Application.StateIndex) : Form program (ApplicationDirectPlan.inputForm geometry lane) := by
+    (lane : Lifecycle.Stage1.Application.StateIndex) : CopiedForm program (ApplicationDirectPlan.inputForm geometry lane) := by
   rw [ApplicationDirectPlan.inputForm_eq_pilot]
-  exact common_form program _ (prior_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
+  exact common_copied program _ (prior_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
 
 theorem application_output (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))
-    (lane : Lifecycle.Stage1.Application.StateIndex) : Form program (ApplicationDirectPlan.outputForm geometry lane) := by
+    (lane : Lifecycle.Stage1.Application.StateIndex) : CopiedForm program (ApplicationDirectPlan.outputForm geometry lane) := by
   rw [ApplicationDirectPlan.outputForm_eq_pilot]
-  exact common_form program _ (output_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
+  exact common_copied program _ (output_word program (ApplicationRetainedGeometry.pilotGeometry geometry) _)
 
 theorem application_location (program : Program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program))
     (selected : program.compactHashChain = none) (value : ApplicationOrdinaryPlan.Location program) :
-    Form program (value.form (ApplicationRetainedGeometry.ordinaryGeometry geometry selected)) := by
+    CopiedForm program (value.form (ApplicationRetainedGeometry.ordinaryGeometry geometry selected)) := by
   cases value <;> dsimp only [ApplicationOrdinaryPlan.Location.form]
   case input index => exact application_input program geometry index
   case output index => exact application_output program geometry index
@@ -75,12 +75,15 @@ theorem compact_application {columns : Nat} {predicate : Fin columns → Prop}
 
 theorem application (program : Program) (fits : PerApplicationPackage.FitsTwoPow28 program)
     (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program)) :
-    Plans program (ApplicationDirectPlan.plan fits geometry) := by
+    CopiedPlans program (ApplicationDirectPlan.plan fits geometry) := by
   cases selected : program.compactHashChain with
   | none =>
     rw [ApplicationDirectPlan.plan_none fits geometry selected]
     apply source_plan
-    · exact one program _ rfl
+    · left
+      change 0 < RetainedLayout.hashEnd program
+      rw [(RetainedLayout.boundaries program).1]
+      decide
     · intro row column
       dsimp only [ApplicationOrdinaryPlan.inputs, ApplicationOrdinaryPlan.sourceMap]
       split
@@ -89,7 +92,10 @@ theorem application (program : Program) (fits : PerApplicationPackage.FitsTwoPow
   | some certificate =>
     rw [ApplicationDirectPlan.plan_some fits geometry certificate selected]
     apply compact_application
-    · exact one program _ rfl
+    · left
+      change 0 < RetainedLayout.hashEnd program
+      rw [(RetainedLayout.boundaries program).1]
+      decide
     · exact application_input program geometry
     · intro lane; exact application_block program _ _ _ _ (Nat.le_refl _)
     · exact application_output program geometry

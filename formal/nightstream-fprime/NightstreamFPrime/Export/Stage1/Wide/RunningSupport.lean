@@ -10,17 +10,17 @@ open RunningTransitionReducedMatrixProgram
 private theorem shared_wire (program : Program) (wire : RetainedBlock)
     (lower : RetainedLayout.sharedStart program ≤ wire.start)
     (upper : wire.start + wire.coordinateCount ≤ RetainedLayout.sharedEnd program) :
-    WireSupported (Live program) wire := by
+    WireSupported (Common program) wire := by
   intro column low high
-  exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+  exact Or.inr ⟨by omega, by omega⟩
 
 theorem running_wires (program : Program) :
-    WireSupported (Live program) (stateWire program) ∧
-    WireSupported (Live program) (outputWire program) ∧
-    WireSupported (Live program) (piDecWire program) ∧
-    WireSupported (Live program) (poseidonWire program) ∧
-    WireSupported (Live program) (inverseWire program) ∧
-    WireSupported (Live program) (flagWire program) := by
+    WireSupported (Common program) (stateWire program) ∧
+    WireSupported (Common program) (outputWire program) ∧
+    WireSupported (Common program) (piDecWire program) ∧
+    WireSupported (Common program) (poseidonWire program) ∧
+    WireSupported (Common program) (inverseWire program) ∧
+    WireSupported (Common program) (flagWire program) := by
   let within : RunningTransitionRetainedGeometry.Geometry program (RetainedLayout.sharedEnd program) :=
     ⟨by rw [RunningTransitionRetainedGeometry.completeLogicalWidth_eq,
       (RetainedLayout.boundaries program).2.2.1]; decide⟩
@@ -55,18 +55,18 @@ theorem running_wires (program : Program) :
   exact lt_of_lt_of_eq high endpoint
 
 theorem running_blocks (program : Program) (oneColumn : Nat)
-    (one : ∀ column, column.val = oneColumn → Live program column)
+    (one : ∀ column, column.val = oneColumn → Common program column)
     (block : MatrixProgram.Block) (member : block ∈ (matrixProgram program oneColumn).blocks)
     (ordinal : Nat) (forms : RowForms (PerApplicationFixedPoint.logicalWidth program))
-    (loaded : block.row? _ (fun _ => none) ordinal = some forms) : ∀ port, Form program (forms port) := by
+    (loaded : block.row? _ (fun _ => none) ordinal = some forms) : ∀ port, CommonForm program (forms port) := by
   obtain ⟨state, output, piDec, poseidon, inverse, flag⟩ := running_wires program
   have grid (selected : MultiplicationGrid.Block)
       (oneEq : selected.oneColumn = oneColumn)
-      (left : AffineSupported (Live program) selected.left)
-      (right : AffineSupported (Live program) selected.right)
-      (out : AffineSupported (Live program) selected.output)
+      (left : AffineSupported (Common program) selected.left)
+      (right : AffineSupported (Common program) selected.right)
+      (out : AffineSupported (Common program) selected.output)
       (loaded : (MatrixProgram.Block.multiplicationGrid selected).row? _ (fun _ => none) ordinal = some forms) :
-      ∀ port, Form program (forms port) := by
+      ∀ port, CommonForm program (forms port) := by
     obtain ⟨decoded, decodedLoaded, same⟩ := Option.bind_eq_some_iff.mp loaded
     cases Option.some.inj same
     exact ordinary_form _ (multiplication_grid selected (fun column equal => one column (equal.trans oneEq))
@@ -84,14 +84,14 @@ theorem running_blocks (program : Program) (oneColumn : Nat)
 
 theorem running (program : Program)
     (geometry : RunningTransitionRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program)) :
-    Plans program (RunningTransitionReducedPlan.plan geometry) := by
+    CommonPlans program (RunningTransitionReducedPlan.plan geometry) := by
   intro row port
   let matrices := matrixProgram program (RunningTransitionRetainedGeometry.oneColumn geometry).val
-  change Form program ((matrices.row? _ (fun _ => none) row.val).getD (fun _ => .empty) port)
+  change CommonForm program ((matrices.row? _ (fun _ => none) row.val).getD (fun _ => .empty) port)
   cases loaded : matrices.row? _ (fun _ => none) row.val with
   | none => exact empty _
   | some forms =>
     exact matrix_program matrices (fun _ => none)
-      (running_blocks program _ (one program)) row.val forms loaded port
+      (running_blocks program _ (one_common program)) row.val forms loaded port
 
 end NightstreamFPrime.Export.Stage1.Wide.ReadSupport

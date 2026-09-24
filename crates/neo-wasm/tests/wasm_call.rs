@@ -105,10 +105,14 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
     assert_eq!(aux_param_steps.len(), 1, "expected one call-param init row");
     let aux = aux_param_steps[0];
     assert!(
-        call_step.state_after.param_init.active,
-        "call must enter param-init mode"
+        !call_step.state_after.local_zero.active,
+        "parameter-only frame needs no zero rows"
     );
+    assert!(call_step.state_after.param_init.active);
     assert_eq!(call_step.state_after.param_init.remaining, 1);
+    assert!(!trace
+        .iter()
+        .any(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero)));
     assert!(
         aux.state_before.param_init.active,
         "aux row must execute inside param-init mode"
@@ -248,6 +252,59 @@ fn call_trace_passes_witness_checks() {
         trace.iter().any(|row| row.call_stack_pop.is_some()),
         "trace must contain a call_stack_pop"
     );
+}
+
+#[test]
+fn reused_guest_frame_zeroes_both_lanes_before_a_local_read() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $dirty (local i64)
+                i64.const -1 local.set 0)
+            (func $read (result i64) (local i64)
+                local.get 0)
+            (func (export "main") (result i64)
+                call $dirty
+                call $read))"#,
+        "main",
+    );
+    assert_eq!(checked.run.results, ["0"]);
+    let zero_rows: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
+        .collect();
+    assert_eq!(zero_rows.len(), 2);
+    assert!(zero_rows.iter().all(|row| {
+        row.local_index == Some(0) && row.local_write_value == Some(0) && row.local_write_value_hi == Some(0)
+    }));
+    common::sanity_check_trace(&checked.trace, &checked.artifacts);
+    common::ccs_check_trace(&checked.trace);
+
+    let mut forged = neo_wasm::witness_builder::build_witness_vector(zero_rows[1]);
+    forged[neo_wasm::layout::COL_LOCAL_VALUE_HI] = neo_math::F::ONE;
+    common::assert_rejected(&forged, "local zero row cannot retain the previous high limb");
+
+    let mut omitted = checked.trace.clone();
+    let second_zero = omitted
+        .iter()
+        .rposition(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
+        .unwrap();
+    omitted.remove(second_zero);
+    let witnesses = build_witnesses(&omitted);
+    let layout = build_wasm_relation_layout();
+    assert!(neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses).is_err());
+
+    let mut forged_count = checked.trace.clone();
+    let call = forged_count
+        .iter_mut()
+        .find(|row| row.opcode == WasmOpcode::Call)
+        .unwrap();
+    call.state_after.local_zero.remaining = 0;
+    call.state_after.local_zero.active = false;
+    let witnesses = build_witnesses(&forged_count);
+    let preload = preload_from_program_artifacts(&checked.artifacts);
+    let error = sanity_check_memory_rows(&layout, &witnesses, &preload).unwrap_err();
+    assert!(error.contains("function_local_count"), "{error}");
 }
 
 #[test]

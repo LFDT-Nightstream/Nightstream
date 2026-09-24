@@ -734,6 +734,50 @@ fn program_validation_rejects_output_on_a_resultless_export() {
 }
 
 #[test]
+fn export_parameter_requires_entry_binding_even_for_one_turn() {
+    let wasm = wat::parse_str("(module (func (export \"run\") (param i32)))").unwrap();
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).unwrap();
+    let fref = artifacts.tables.function_entries[0].0 as u32;
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        fref,
+        ExportTemplate {
+            entry: vec![],
+            exit: vec![EventBlock::op(17, slots(&[]))],
+            entry_input_count: 0,
+        },
+    );
+    let error = bindings
+        .validate_against_program(&artifacts.tables)
+        .expect_err("an unbound parameter is invalid even for one turn");
+    assert!(error.to_string().contains("parameter local 0"));
+
+    bindings.exports.insert(fref, ExportTemplate::default());
+    let error = bindings
+        .validate_against_program(&artifacts.tables)
+        .expect_err("an empty single-shot template cannot supply its parameter");
+    assert!(error.to_string().contains("parameter local 0"));
+
+    let mut advice = [ZERO; 8];
+    advice[1] = SlotBinding::InputLocal {
+        input: 0,
+        local: 0,
+        limb: Limb::Lo,
+    };
+    bindings.exports.insert(
+        fref,
+        ExportTemplate {
+            entry: vec![EventBlock::advice(advice)],
+            exit: vec![EventBlock::op(17, slots(&[]))],
+            entry_input_count: 1,
+        },
+    );
+    bindings
+        .validate_against_program(&artifacts.tables)
+        .unwrap();
+}
+
+#[test]
 fn expansion_rejects_wrong_input_count() {
     let template = ImportTemplate {
         events: vec![EventBlock::op(

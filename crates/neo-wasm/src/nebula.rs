@@ -399,9 +399,8 @@ fn preprocess_inner(
     max_coordinates: Option<usize>,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     let allows_host_calls = bindings.is_some();
-    // Import-free preprocessing uses the canonical single-shot bindings, so
-    // the ROM image and the initial anchor match what the normalizer emits
-    // for plain traces.
+    // Import-free preprocessing uses the canonical parameterless, single-shot
+    // bindings, so the ROM image and initial anchor match plain traces.
     let import_free_bindings;
     let (bindings, export_fref, initial_comm_chain) = match bindings {
         Some((bindings, export_fref, initial_comm_chain)) => (bindings, export_fref, initial_comm_chain),

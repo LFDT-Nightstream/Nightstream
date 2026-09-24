@@ -5,10 +5,12 @@ use super::super::host_event_emit::{
 use super::super::memory::LinearMemoryImage;
 use super::super::NormalizedStep;
 use crate::host_event_bindings::{HostEventBindings, MemoryBase, SlotBinding};
-use crate::ir::WasmBuildError;
+use crate::ir::{function_call_metadata_shape, WasmBuildError};
 
 pub(super) struct TurnSetup<'g> {
     pub(super) fref: u32,
+    pub(super) param_count: u8,
+    pub(super) result_count: u8,
     pub(super) template: &'g crate::host_event_bindings::ExportTemplate,
     pub(super) entry_plans: Vec<EventBlockPlan>,
 }
@@ -26,6 +28,22 @@ pub(super) fn setup_turn<'g>(
             "host-event bindings require an export template for the invoked export (fref {fref})"
         ))
     })?;
+    let (param_count, result_count) = if let Some(program) = program {
+        let metadata = program
+            .function_call_metadata
+            .iter()
+            .find_map(|&(function_ref, metadata)| (function_ref == u64::from(fref)).then_some(metadata))
+            .ok_or_else(|| WasmBuildError::Trace(format!("missing call metadata for export fref {fref}")))?;
+        let (params, results, is_guest) = function_call_metadata_shape(metadata);
+        if !is_guest {
+            return Err(WasmBuildError::Trace(format!(
+                "export fref {fref} is not a guest function"
+            )));
+        }
+        (params, results)
+    } else {
+        (0, 0)
+    };
     if let Some(program) = program {
         let entry_pc = program
             .function_entries
@@ -76,21 +94,10 @@ pub(super) fn setup_turn<'g>(
             }
         }
     }
-    // This is a capture-to-bootstrap consistency check, not authentication of
-    // intended arguments. It also checks unmapped locals and missing hi writes;
-    // recovering mapped values alone does not establish full-frame equality.
-    // The locals RAM starts all-zero and re-entered turns inherit the
-    // previous turn's values, so every turn's entry frame must be exactly
-    // reproduced by the bootstrap writes: unwritten locals must have run as
-    // zero (first turn) or be rewritten (re-entry); inputs only ever arrive
-    // through `InputLocal` slots.
-    for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
-        if re_entered && !lo_written {
-            return Err(WasmBuildError::Trace(format!(
-                "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
-                 (the locals RAM still holds the previous turn's values)"
-            )));
-        }
+    // Zero-init rows clear non-parameter locals at re-entry; the entry
+    // template writes every parameter. Any unwritten local must be zero in
+    // the captured frame, just as on the first turn.
+    for (local, &(_, lo, hi)) in expected_locals.iter().enumerate() {
         let (ran_lo, ran_hi) = first.locals_snapshot[local];
         if (lo, hi) != (ran_lo, ran_hi) {
             return Err(WasmBuildError::Trace(format!(
@@ -101,6 +108,8 @@ pub(super) fn setup_turn<'g>(
     }
     Ok(TurnSetup {
         fref,
+        param_count,
+        result_count,
         template,
         entry_plans,
     })

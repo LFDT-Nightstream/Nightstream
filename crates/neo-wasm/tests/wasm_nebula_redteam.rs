@@ -114,7 +114,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
         .sum::<usize>();
     let physical_slots_per_step = memory.slot_count() / batch_size;
     assert_eq!(memory.regions().len(), declared.auxiliary.memory.entries().len());
-    assert_eq!(physical_slots_per_step, 21);
+    assert_eq!(physical_slots_per_step, 22);
     assert_eq!(memory.slot_count(), physical_slots_per_step * batch_size);
     assert_eq!(memory.logical_port_count(), declared_ports * batch_size);
     assert_eq!(
@@ -162,7 +162,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             "block {block} must route every logical port exactly once"
         );
     }
-    assert_eq!(declared_ports, 76, "Current layout declares 76 ports per step");
+    assert_eq!(declared_ports, 83, "Current layout declares 83 ports per step");
 }
 
 fn port_matches(routed: &MemoryPort, region: usize, declared: &MemoryPortSpec, offset: usize) -> bool {

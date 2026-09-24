@@ -14,6 +14,9 @@ fn return_call_replaces_the_top_level_frame() {
     let checked = common::checked_main(
         r#"(module
             (func $add_one (param i32) (result i32)
+                (local i64)
+                local.get 1
+                drop
                 local.get 0
                 i32.const 1
                 i32.add)
@@ -34,6 +37,19 @@ fn return_call_replaces_the_top_level_frame() {
     assert_eq!(tail.state_before.call_stack_depth, 0);
     assert_eq!(tail.state_after.call_stack_depth, 0);
     assert!(tail.state_after.tail_call_pending);
+    let zero_rows: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.row_kind.is_local_zero())
+        .collect();
+    assert_eq!(zero_rows.len(), 1, "tail target only zeroes its scratch local");
+    assert_eq!(
+        zero_rows
+            .iter()
+            .map(|row| row.local_index)
+            .collect::<Vec<_>>(),
+        [Some(1)]
+    );
 
     let enter = checked
         .trace

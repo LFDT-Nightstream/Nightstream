@@ -353,8 +353,8 @@ impl ExportTemplate {
 /// Per-program bindings: import templates keyed by callee function ref, and
 /// export boundary templates keyed by the exported function's ref.
 ///
-/// Import-free traces use [`HostEventBindings::import_free`]. Every executed
-/// host import and entered export must have a matching template.
+/// Parameterless import-free traces use [`HostEventBindings::import_free`].
+/// Every executed host import and entered export must have a matching template.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HostEventBindings {
     pub imports: BTreeMap<u32, ImportTemplate>,
@@ -362,10 +362,9 @@ pub struct HostEventBindings {
 }
 
 impl HostEventBindings {
-    /// The canonical bindings of an import-free single-shot program: no import
-    /// templates (so host calls are unprovable) and an empty boundary
-    /// template for the invoked export (so nothing is absorbed and the
-    /// commitment chain provably stays at its initial value).
+    /// The canonical bindings of an import-free, parameterless single-shot
+    /// program: no import templates and an empty export boundary template.
+    /// Parameterized exports need explicit entry bindings, even for one turn.
     pub fn import_free(export_fref: u32) -> Self {
         let mut bindings = Self::default();
         bindings
@@ -389,12 +388,7 @@ impl HostEventBindings {
         }
 
         for (&function_ref, template) in &self.exports {
-            // TODO: Require static coverage of every parameter: a Lo write for
-            // each, plus a Hi write for i64, using verifier-bound signature
-            // metadata. Current validation checks declared slots and their
-            // order, not coverage. Keep non-parameter local zeroing as a
-            // separate invariant across export, guest, and tail-call entry.
-            let (_, result_count, is_guest) = function_shape(program, function_ref)?;
+            let (param_count, result_count, is_guest) = function_shape(program, function_ref)?;
 
             if !is_guest {
                 return Err(WasmBuildError::Trace(format!(
@@ -419,6 +413,18 @@ impl HostEventBindings {
             })?;
 
             template.validate(local_bound, result_count)?;
+            // Every argument must enter through a declared local write,
+            // including on a single-shot export with an otherwise empty schedule.
+            for local in 0..param_count {
+                let covered = template.entry.iter().flat_map(|event| &event.block).any(|slot| {
+                    matches!(slot, SlotBinding::InputLocal { local: index, limb: Limb::Lo, .. } if *index == local)
+                });
+                if !covered {
+                    return Err(WasmBuildError::Trace(format!(
+                        "host-event export fref {function_ref} does not initialize parameter local {local}"
+                    )));
+                }
+            }
         }
         Ok(())
     }

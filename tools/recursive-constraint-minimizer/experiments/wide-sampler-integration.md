@@ -175,10 +175,44 @@ cannot be mapped without a support proof, and that public column zero retains
 its own identity. Physical source-environment transport is still open; this
 support result concerns the CCS matrices, not the old PiDEC witness builder.
 
+## Retained witness projection
+
+`CoordinateRecovery.source?` is an executable inverse of the retained map.
+Lean proves that every result is a live, bounded reference coordinate and that
+mapping a retained coordinate forward and back recovers the same coordinate.
+The two-cell product permutation has explicit inverses in both directions.
+
+`AssignmentProjection.project` preserves the evaluation of every certified
+sparse form and the row equations of each reused plan. This is an equality for
+arbitrary values, before assuming row acceptance. It does not claim that an
+arbitrary reference witness satisfies the new relation.
+
+The final constructor copies only the common coordinate prefix, then uses the
+proved direct wide PiRLC constructor. Lean proves exact equality with the result
+of projecting all retained reference values first. Old sampler coordinates,
+ring outputs, and quotient coordinates are not queried by this constructor.
+The new PiRLC rows and the strict `b = 2` norm bound are proved. This does not yet
+remove the corresponding work from the selected Rust witness program.
+
+`PiDECSource` gives the new physical address for each of the seven existing
+PiDEC location kinds. The four parent-product families move by 208,165 source
+columns; proof inputs, split values, and scratch fields move by 925,480. Lean
+connects the parent reads to the actual new PiDEC interface, including both
+extension-field cells. The cvc5 controls in `wide_source_controls.py` give a
+counterexample to one global shift, and find no counterexample to the two
+shifts, source disjointness, or the running-transition boundary.
+
+The remaining whole-package obligation is to construct these common source
+values from the new phase execution and prove acceptance after the direct
+PiRLC outputs replace the reference product values. The projection theorem
+alone does not close that obligation. Emitted-matrix correspondence, the full
+normalized nonzero count, and the selected security and Rust connections also
+remain open.
+
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 704 sampler and integration audits, plus four retained-support regression audits. Every audited declaration uses only the three allowed
+all 736 sampler and integration audits, plus four retained-support regression audits. Every audited declaration uses only the three allowed
 axioms. Static boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary

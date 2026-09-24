@@ -32,6 +32,28 @@ def mapColumnsChecked {source target : Nat} {predicate : Fin source → Prop}
     (supported : ∀ entry ∈ form.entries, predicate entry.column) : SparseForm target :=
   ⟨form.entries.pmap (fun entry live => ⟨column entry.column live, entry.coefficient⟩) supported⟩
 
+/-- Pointwise agreement on the supported sources preserves exact evaluation. -/
+theorem mapColumnsChecked_eval {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (form : SparseForm source)
+    (supported : ∀ entry ∈ form.entries, predicate entry.column)
+    (before : Assignment F source) (after : Assignment F target)
+    (agrees : ∀ source live, after (column source live) = before source) :
+    (mapColumnsChecked column form supported).eval after = form.eval before := by
+  rw [← evalSparse_eq_eval, ← evalSparse_eq_eval]
+  have loop (entries : List (SparseEntry source))
+      (supported : ∀ entry ∈ entries, predicate entry.column) (initial : F) :
+      (entries.pmap (fun entry live =>
+        ({ column := column entry.column live, coefficient := entry.coefficient } : SparseEntry target)) supported).foldl
+          (fun total entry => total + entry.coefficient * after entry.column) initial =
+        entries.foldl (fun total entry => total + entry.coefficient * before entry.column) initial := by
+    induction entries generalizing initial with
+    | nil => rfl
+    | cons entry rest ih =>
+      simp only [List.pmap, List.foldl_cons]
+      rw [agrees]
+      exact ih _ _
+  exact loop form.entries supported 0
+
 end SparseForm
 
 namespace Plan
@@ -76,6 +98,29 @@ def mapColumnsChecked {source target : Nat} {predicate : Fin source → Prop}
     (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
     (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column) :
     (mapColumnsChecked column plan supported).rowCount = plan.rowCount := rfl
+
+theorem mapColumnsChecked_port_eval {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
+    (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column)
+    (before : Assignment F source) (after : Assignment F target)
+    (agrees : ∀ source live, after (column source live) = before source)
+    (row : Fin plan.rowCount) (port : Fin Spec.ProductionRelation.matrixCount) :
+    ((mapColumnsChecked column plan supported).portForm row port).eval after =
+      (plan.portForm row port).eval before := by
+  unfold portForm
+  cases meaningfulPort? port with
+  | none => simp only [SparseForm.empty_eval]
+  | some meaningful => exact SparseForm.mapColumnsChecked_eval column _ _ before after agrees
+
+theorem mapColumnsChecked_rowsZero_iff {source target : Nat} {predicate : Fin source → Prop}
+    (column : ∀ source, predicate source → Fin target) (plan : ProductionRelation.Plan source)
+    (supported : ∀ row port entry, entry ∈ (plan.forms row port).entries → predicate entry.column)
+    (before : Assignment F source) (after : Assignment F target)
+    (agrees : ∀ source live, after (column source live) = before source) :
+    (mapColumnsChecked column plan supported).RowsZero after ↔ plan.RowsZero before := by
+  unfold RowsZero
+  simp only [rowImage_toVertex, mapColumnsChecked_port_eval column plan supported before after agrees]
+  rfl
 
 end Plan
 

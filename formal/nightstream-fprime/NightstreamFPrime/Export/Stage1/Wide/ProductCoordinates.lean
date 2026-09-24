@@ -43,6 +43,30 @@ theorem coordinate_injective : Function.Injective coordinate := by
   have encoded := congrArg Fin.encodeProd decoded
   simpa only [Fin.encodeProd_decodeProd] using encoded
 
+def inverseSlot (index : Fin 52326) : Fin PiRLCProductSchedule.invocationCount :=
+  ringLane.symm (Fin.decodeProd index)
+
+def inverseCoordinate (index : Fin 2145366) : Fin 2145366 :=
+  let pair : Fin 52326 × Fin 41 := Fin.decodeProd index
+  Fin.encodeProd (inverseSlot pair.1, pair.2)
+
+theorem inverseSlot_slot (index : Fin PiRLCProductSchedule.invocationCount) :
+    inverseSlot (slot index) = index := by
+  simp only [inverseSlot, slot, Fin.decodeProd_encodeProd, Equiv.symm_apply_apply]
+
+theorem slot_inverseSlot (index : Fin 52326) : slot (inverseSlot index) = index := by
+  simp only [inverseSlot, slot, Equiv.apply_symm_apply, Fin.encodeProd_decodeProd]
+
+theorem inverseCoordinate_coordinate (index : Fin 2145366) :
+    inverseCoordinate (coordinate index) = index := by
+  simp only [inverseCoordinate, coordinate, Fin.decodeProd_encodeProd, inverseSlot_slot]
+  exact Fin.encodeProd_decodeProd (m := 52326) (n := 41) index
+
+theorem coordinate_inverseCoordinate (index : Fin 2145366) :
+    coordinate (inverseCoordinate index) = index := by
+  simp only [inverseCoordinate, coordinate, Fin.decodeProd_encodeProd, slot_inverseSlot]
+  exact Fin.encodeProd_decodeProd (m := 52326) (n := 41) index
+
 theorem coordinate_lane (ring : Fin invocationCount) (lane : Fin ringDegree) (digit : Fin 41) :
     coordinate (Fin.encodeProd (laneInvocation ring lane, digit)) =
       Fin.encodeProd (Fin.encodeProd (ring, lane), digit) := by

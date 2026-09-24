@@ -239,3 +239,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "emitWideWitnessParity"
 root = "tests.WideWitnessParity"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWidePhysicalPackage"
+root = "NightstreamFPrime.Export.Stage1.Wide.Emitter"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

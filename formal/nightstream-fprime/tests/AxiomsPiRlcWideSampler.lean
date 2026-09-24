@@ -1,3 +1,5 @@
+import NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource
+import NightstreamFPrime.Export.Stage1.Wide.ApplicationPackage
 import NightstreamFPrime.Export.WitnessEncoding
 import NightstreamFPrime.Lifecycle.Nifs.WideSamplerSecurity
 import NightstreamFPrime.Export.Stage1.Wide.ContextBinding
@@ -1202,3 +1204,12 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.WitnessEncoding.batch_shape
 #audit_axioms NightstreamFPrime.Export.WitnessEncoding.batch_execute
 #audit_axioms NightstreamFPrime.Export.WitnessEncoding.batches_execute
+
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjectionRange.compose_column
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceProjection.compose_column
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalSampler.compilePacket_rows
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalSampler.expression_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalSampler.hint_eval
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverseRanges_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverse_unique
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.inverse_compose_column

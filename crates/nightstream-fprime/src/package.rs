@@ -14,6 +14,10 @@ use crate::witness::{
 };
 use crate::WitnessAssignment;
 
+#[cfg(test)]
+#[path = "../tests/unit/wide_physical_package.rs"]
+mod wide_physical_package_tests;
+
 mod assignment_transport;
 pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;

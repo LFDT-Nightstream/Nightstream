@@ -654,15 +654,72 @@ This is a budget obstruction for the current encoding, not an impossibility
 proof for other sound Poseidon2 encodings. The additional 50% target is not
 achieved, and no proving-time or peak-memory result is claimed.
 
+## Physical package and matrix-source cutover
+
+The wide physical prefix and complete application suffix now emit as one
+physical source archive. The exporter rejects unmapped old source columns
+and rows. It includes the new range gadget and its exact existing-hint
+program, the 34 new sampler permutations, the temporary digit bridge, the
+ring families, PiDEC, running transition, application and next-preimage rows.
+It does not emit First-54 templates or the old sampler witness batches.
+
+The physical archive has 27,724,114 R1CS rows and 27,867,239 source columns.
+These are witness/source dimensions, not committed CCS dimensions. Its
+companion matrix program has 3,248,956 logical rows and 137,341,846 logical
+coordinates; the carrier theorem adds 26 alignment coordinates. A complete
+Rust matrix traversal over this new source archive reproduces all 14
+nonzero counts from the candidate ledger, totalling 2,607,606,765.
+
+Lean proves the new range-row lowering, expression and hint evaluation under
+the source permutation, affine source-projection composition, and unique
+ownership of the inverse physical ranges. The existing whole-plan exactness
+theorem still uses the reference source archive. Connecting the new emitted
+archive to that theorem and the complete committed-witness transport remains
+part of the production cutover. The native sampler and selected identity pins
+are unchanged.
+
+The first physical export rebuilt common data through the reference path.
+That path also traversed the full running-transition expressions to collect
+one inverse hint. The exporter now shares each prepared arithmetic packet,
+uses the existing parallel preparation, and calls the proved direct
+running-transition hint exporter. The completed physical-only export took
+10.3 seconds; the physical archive plus matrix program took 12.7 seconds.
+The complete Rust source, ownership and matrix checks took 2.51 seconds after
+compilation. These are experiment costs, not proving-performance claims.
+
+Reproduction (the outputs remain temporary until the full switch is ready):
+
+```sh
+# From formal/nightstream-fprime:
+timeout --signal=KILL 1500 scripts/validate.sh build emitWidePhysicalPackage
+timeout --signal=KILL 1500 scripts/validate.sh lean-executable .lake/build/bin/emitWidePhysicalPackage /tmp/nightstream-wide-physical-package.json
+# From the repository root; the driver applies the 300-second test cap:
+tools/recursive-constraint-minimizer/experiments/check_wide_physical_package.sh /tmp/nightstream-wide-physical-package.json
+```
+
+Validation for this batch: the full Lean library and test build passes
+(4,427 jobs), including the eight new theorem audits. Static and axiom gates
+pass. All 44 regular Rust library tests pass; the new ignored conformance
+test passes through its committed driver. The selected-identity check also
+passes: the canonical binding and all existing identity pins match. Production
+selection is unchanged.
+
+The driver reads the physical archive and its `.matrix.json` companion. It
+uses the production package validator and checks every matrix row against
+that archive, including source bounds, witness coverage, ownership, column
+bounds, sparse normalization and the complete nonzero vector. No proving
+benchmark runs in this check.
+
 ## Still required for the production switch
 
 - Connect the verifier-selected package to `ContextBinding.step_or_collision`.
   This theorem now binds an arbitrary accepted assignment to the context in
   the verifier's checked state preimage, or produces the existing named
   Poseidon2 state-hash collision. It assumes no honest witness or context equality.
-- Connect the proved candidate matrix program to production package emission.
-  Whole-program matrix correspondence, full nonzero counts, whole-step
-  soundness and complete witness construction are established.
+- Finish source custody and committed-witness transport for the new physical
+  archive. The physical archive and companion matrix program now emit and
+  pass Rust conformance. The final sealed transport and production authority
+  binding still need to consume them.
 - Use the wide-key security consumers when selecting the production package.
   Their exact transcript link, adaptive query accounting, and explicit
   Fiat–Shamir boundary are proved and recorded above. Numerical cryptographic

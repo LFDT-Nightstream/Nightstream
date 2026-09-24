@@ -116,8 +116,9 @@ not preserve the two extension-field cells in Eval_K and Eval_A.
 `InputSupport.lean` proves that the actual initial transcript forms and every
 right operand read common coordinates. `Stage1Witness.lean` supplies the direct
 PiRLC completion on these forms, preserves common values, and identifies the
-final ordered combinations. This does not yet construct a complete accepting
-Stage 1 assignment.
+final ordered combinations. `PiDECOutput.lean` proves that all four PiDEC
+parent views read those same retained outputs, including the extension-cell
+permutation. This does not yet construct a complete accepting Stage 1 assignment.
 
 `HashChainCounts.lean` proves these counts of the **assembled, unselected
 candidate**, using the current application:
@@ -146,8 +147,8 @@ This closes a deterministic verifier connection, not the production FS model.
 
 ## Validation at this checkpoint
 
-The full production library and test gate passed (5,178 build jobs), including
-all 611 sampler audits. Every audited declaration uses only the three allowed
+The full production library and test gate passed, including
+all 618 sampler audits. Every audited declaration uses only the three allowed
 axioms. Static boundary checks pass. These checks do not select the candidate.
 
 The standalone Rust decoder passes both parity tests: 11 modular boundary
@@ -199,8 +200,8 @@ All 681 rows and all 54 digits are checked for every case.
 ## Still required for the production switch
 
 - Close whole-package source support, preservation, and compatible witness
-  construction for the assembled Stage 1 candidate. In particular, connect the
-  permuted final product fields to PiDEC and the physical source ownership.
+  construction for the assembled Stage 1 candidate. The PiDEC retained-parent
+  connection is proved; the physical source ownership still needs transport.
   Prove the emitted matrix program denotes that same plan, then measure all
   normalized matrix entries. The dimension theorems alone do not close these
   obligations.

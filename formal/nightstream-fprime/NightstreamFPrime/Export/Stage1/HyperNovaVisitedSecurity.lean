@@ -109,7 +109,6 @@ theorem source_failure_probability_linear_le
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -157,7 +156,7 @@ theorem source_failure_probability_linear_le
   have extracted := NifsProviderLaw.source_probability_linear_bound inputs tapes rawCall checkClock storageClock
     parentClock storageBound storageBounded baseSummable (realLaw visits) (guardedPrefix originalFirstPhase)
     abortTape g deltaFS (queries j) (models j) scalarSubClock inverseAdapterClock
-    assignmentSubClock scalarActionClock sourceCheckClock accessClock lowNorm bounds bounded
+    assignmentSubClock scalarActionClock sourceCheckClock accessClock bounds bounded
   dsimp only at extracted
   rw [HyperNovaVisitedAcceptance.realSuccessProbability_eq_goodActive] at extracted
   simp only [HyperNovaGuardedSourceLaw.realLaw_context_marginal] at extracted ⊢
@@ -189,7 +188,6 @@ theorem history_probability_linear_bound
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -242,7 +240,7 @@ theorem history_probability_linear_bound
   have each := source_failure_probability_linear_le tapes rawCall checkClock storageClock parentClock
     storageBound storageBounded baseSummable initial depth originalFirstPhase abortTape g deltaFS queries
     scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock accessClock
-    lowNorm bounds bounded models
+    bounds bounded models
   apply first.trans
   apply add_le_add_right
   apply Finset.sum_le_sum

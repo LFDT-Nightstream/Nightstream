@@ -147,7 +147,6 @@ variable
     (PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)))
   (sourceProgram : Context → CheckedWitnessExtraction.Program productionShape
     (FullShape logicalWidth publicFits))
-  (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (correct : Correct (PaperExtractionAlgebra.extractionAlgebra ajtai).ring
     (PaperExtractionAlgebra.extractionAlgebra ajtai).assignmentModule program)
   (bounds : PrimitiveBounds)
@@ -156,7 +155,7 @@ variable
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 
-include model lowNorm correct bounded sourceCorrect in
+include model correct bounded sourceCorrect in
 /-- Algebraic composition with the existing actual binding-event bound.
 Every implementation premise remains outside FiatShamirModel. -/
 theorem returned_source_bound_with_binding :
@@ -174,11 +173,11 @@ theorem returned_source_bound_with_binding :
   have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_binding relation ajtai running fresh
-    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
+    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right transfer _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include model correct bounded sourceCorrect in
 /-- The same-key MSIS success event is the existing executable reduction's
 event. Its probability is not replaced by a numerical hardness estimate. -/
 theorem returned_source_bound_with_msis :
@@ -197,11 +196,11 @@ theorem returned_source_bound_with_msis :
   have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_msis relation ajtai running fresh
-    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
+    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right transfer _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include model correct bounded sourceCorrect in
 /-- Transfer the v1.2 additive bound without changing the approved FS
 model. The MSIS term is the actual stopped reduction under the same context
 law; efficient translation and query applicability remain external. -/
@@ -220,11 +219,11 @@ theorem returned_source_bound_with_adaptive_msis :
   have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_adaptive_msis relation ajtai running fresh
-    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
+    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right (sub_le_sub_right transfer _) _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include model correct bounded sourceCorrect in
 /-- A supplied bound on that exact same-key success probability can be used
 without changing the FS hypothesis or its real verifier-success event. -/
 theorem returned_source_bound_of_msis
@@ -246,14 +245,14 @@ theorem returned_source_bound_of_msis
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only at msisBound ⊢
   have extracted := returned_source_bound_with_msis relation ajtai running fresh law
-    originalFirstPhase abortTape provider g deltaFS Q model program sourceProgram lowNorm correct bounds
+    originalFirstPhase abortTape provider g deltaFS Q model program sourceProgram correct bounds
     bounded sourceCorrect
   have errorBound := Real.sqrt_le_sqrt (_root_.add_le_add
     (mul_le_mul_of_nonneg_right msisBound (Nat.cast_nonneg PaperProfile.arity.total))
     (le_refl (IndependentExecution.testError productionShape 9)))
   exact (sub_le_sub_left errorBound _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include model correct bounded sourceCorrect in
 /-- Compose with the existing prepared source/MSIS work theorem. The supplied
 preparation call generates the same context law; its charged translation work
 and every local value/moment premise are separate from FiatShamirModel.
@@ -312,7 +311,7 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
   dsimp only
   intro baseSummable basePPT primitivePPT accessPPT preparationPPT
   have checked := SupportedExtraction.msis_probability_and_expected_work relation ajtai running fresh
-    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
+    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect setupTapes prepare preparedContexts preparationSummable
     call callCorrect accessBound accessBounded securityParameter
     preparationPolynomial basePolynomial primitivePolynomial accessPolynomial

@@ -5,9 +5,9 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 Owns the concrete deterministic and security closure for the verifier-owned
 `Poseidon2HashChainV1` package. The application, recursive fit, Ajtai setup,
 package identity, verifier-context digest, and full verification-key binding
-are fixed definitions. The only
-external premise used by the deterministic Lean reduction is the low-norm
-invertibility boundary used by SuperNeo's strong-set extraction argument.
+are fixed definitions. The deterministic Lean reduction uses no external
+premise; strong-set invertibility is proved by
+`Spec.Phi81StrongSet.lowNormInvertibility`.
 The final quantitative claim remains conditional on the owner-recorded
 Module-SIS, ChaCha20, wide-reduction, Poseidon2, and Fiat--Shamir/forking
 analyses; this package has no adversary or probability model that could state
@@ -59,11 +59,9 @@ theorem rowsZero_implies_stepHoldsFor
 
 /-- Accepted rows of the exact verifier-owned package reach the complete
 base-or-recursive SuperNeo security outcome. The base branch performs no NIFS
-extraction. The recursive branch uses the fixed package key and the explicit
-low-norm invertibility premise. -/
+extraction. The recursive branch uses the fixed package key. -/
 theorem rowsZero_implies_base_or_securityOutcome
     (raw : RawValues)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (accepted : (PerApplicationFixedPoint.structuralPlan
       Poseidon2HashChainV1Package.application
       Poseidon2HashChainV1Package.fits).RowsZero
@@ -95,10 +93,10 @@ theorem rowsZero_implies_base_or_securityOutcome
               Poseidon2HashChainV1Setup.productionSetup)
             (PerApplicationSecurity.productionStrongSet
               Poseidon2HashChainV1Package.fits
-              Poseidon2HashChainV1Setup.productionSetup theorem8))) := by
+              Poseidon2HashChainV1Setup.productionSetup))) := by
   exact PerApplicationSecurity.verifierBoundRowsZero_implies_base_or_securityOutcome
       Poseidon2HashChainV1Package.fits
-      Poseidon2HashChainV1Setup.productionSetup raw theorem8 accepted
+      Poseidon2HashChainV1Setup.productionSetup raw accepted
 
 /-- The verifier fixes the hash-chain package and setup. A claimed package
 with the same verification-key binding must have the same complete package
@@ -110,7 +108,6 @@ theorem expectedBindingAndRowsZero_implies_securityOrCollision
     (claimedSetup : PerApplicationCanonicalPackage.CommitmentSetup
       claimedProgram)
     (raw : PerApplicationCanonicalAssignment.RawValues claimedProgram)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (bindingEqual : Poseidon2HashChainV1Setup.verificationKeyBinding =
       PerApplicationCanonicalPackage.verificationKeyBinding
         claimedFits claimedSetup)
@@ -148,7 +145,7 @@ theorem expectedBindingAndRowsZero_implies_securityOrCollision
                 (PerApplicationSecurity.productionExtractionAlgebra
                   claimedFits claimedSetup)
                 (PerApplicationSecurity.productionStrongSet
-                  claimedFits claimedSetup theorem8))))) ∨
+                  claimedFits claimedSetup))))) ∨
       PerApplicationSecurity.StructuralPackageCollision
         Poseidon2HashChainV1Package.application claimedProgram
         Poseidon2HashChainV1Package.fits claimedFits ∨
@@ -162,7 +159,7 @@ theorem expectedBindingAndRowsZero_implies_securityOrCollision
         Poseidon2HashChainV1Setup.productionSetup claimedSetup := by
   exact PerApplicationSecurity.verificationKeyBindingAndRowsZero_implies_securityOrCollision
       Poseidon2HashChainV1Package.fits claimedFits
-      Poseidon2HashChainV1Setup.productionSetup claimedSetup raw theorem8
+      Poseidon2HashChainV1Setup.productionSetup claimedSetup raw
       bindingEqual accepted
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Closure

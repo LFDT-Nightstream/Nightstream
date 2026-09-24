@@ -35,8 +35,7 @@ provider, suffix correctness, parent-check correctness, call-value equality
 or prepared-context equality premise. Its prefix call is the existing
 checked run; preparation returns the context supplied by the experiment.
 
-The owner-approved parametric FS boundary, external low-norm invertibility,
-raw adversary calls and tape laws, declared clock bounds and moment bounds
+The owner-approved parametric FS boundary, raw adversary calls and tape laws, declared clock bounds and moment bounds
 remain explicit. This result does not construct an efficient adversary
 translation or PMF sampler. Its real success event requires accepted NIFS
 output with valid witnesses for all 16 exact children; public acceptance

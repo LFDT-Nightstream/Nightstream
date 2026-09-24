@@ -118,13 +118,12 @@ variable {Context State Tape : Type*}
   (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
   (checkClock : Context → PiCCSStoredSourceProbability.CheckClock)
   (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
-  (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (bounds : PrimitiveBounds)
   (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
     (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds)
 
-include model lowNorm bounded in
+include model bounded in
 /-- On an input law supported on invalid source instances, the existing
 conditional knowledge reduction bounds actual witness-bearing NIFS success.
 The factor seventeen is the selected arity, not a query or use budget. -/
@@ -164,7 +163,6 @@ theorem real_success_bound_of_invalid_source
       assignmentSubClock scalarActionClock)
     (fun context => PiCCSStoredSourceProbability.sourceProgram
       (inputs context) (checkClock context) (accessClock context))
-    lowNorm
     (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock)
     bounds bounded

@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.GoldilocksExtension
 import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
+import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
@@ -25,6 +26,8 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.scalar_cardinality
 #audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.productionMember_cardinality
 #audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.productionMember_cardinality_bits
+#audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.invertible_of_lowNorm
+#audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.lowNormInvertibility
 #audit_axioms NightstreamFPrime.Spec.production_bigB_below_half_modulus
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections.all_centeredMagnitude_lt_correctedAmbientBound
 #audit_axioms NightstreamFPrime.Lifecycle.ProductionKey.key_challengeSetSize_cardinality

@@ -243,8 +243,7 @@ open Poseidon2HashChainV1Setup (productionAjtaiKey)
 open PiDECInputCheck (relation)
 
 /-- Exact final linear history criterion for ordinary state and tape types.
-All source, FS, depth, invertibility and primitive-clock premises are stated
-here. This criterion does not assert hardness or an efficient FS translation. -/
+All source, FS, depth and primitive-clock premises are stated here. This criterion does not assert hardness or an efficient FS translation. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (State Tape : Type)
   (tapes : Visit → PublicCoins K productionShape →
@@ -280,7 +279,6 @@ def HyperNovaLinearSecurity : Prop :=
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (_lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (_bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -366,7 +364,6 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (_lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (_bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring

@@ -4,6 +4,7 @@ import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
+import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
 /-!
 Owns the deterministic binding reduction for one verifier-selected canonical
@@ -160,16 +161,16 @@ noncomputable def productionExtractionAlgebra {program : Program}
   Lifecycle.PaperExtractionAlgebra.extractionAlgebra
     (commitmentKey commitmentSetup)
 
-/-- Convert the isolated production low-norm theorem into the exact strong-set
-unit record used by the verifier-selected extraction algebra. -/
+/-- The exact strong-set unit record used by the verifier-selected extraction
+algebra. -/
 noncomputable def productionStrongSet {program : Program}
     (fits : FitsTwoPow28 program)
-    (commitmentSetup : CommitmentSetup program)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility) :
+    (commitmentSetup : CommitmentSetup program) :
     Spec.Folding.PiRLC.PaperForkExtraction.StrongSetUnits
       (productionExtractionAlgebra fits commitmentSetup).ring
       (canonicalKey fits commitmentSetup).piRlcAlgebra.challengeValid := by
-  exact Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits theorem8
+  exact Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits
+    Spec.Phi81StrongSet.lowNormInvertibility
 
 /-- Package-derived committed-statement reduction. The left authority, state,
 statement, fresh input, and round messages are all computed from one canonical
@@ -396,7 +397,6 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
     (input : StepInput program fits) (output : StepOutput program)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (step : Lifecycle.StepHoldsFor
       (PerApplicationFixedPoint.relation program fits)
       (commitmentKey commitmentSetup)
@@ -411,7 +411,7 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
             (canonicalKey fits commitmentSetup) (selectedRunning input)
             input.fresh input.nifsProof
             (productionExtractionAlgebra fits commitmentSetup)
-            (productionStrongSet fits commitmentSetup theorem8))) := by
+            (productionStrongSet fits commitmentSetup))) := by
   refine ⟨step, ?_⟩
   change FixedAugmentedTransition
     (Lifecycle.setup (PerApplicationFixedPoint.relation program fits)
@@ -438,7 +438,7 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
         (canonicalKey fits commitmentSetup) (selectedRunning input) input.fresh
         input.nifsProof (output.runningNext functionIndex)
         (productionExtractionAlgebra fits commitmentSetup)
-        (productionStrongSet fits commitmentSetup theorem8) accepted⟩
+        (productionStrongSet fits commitmentSetup) accepted⟩
 
 /-- Acceptance of the verifier-bound canonical matrix plan reaches the full
 per-application security boundary without a caller-owned semantic premise.
@@ -449,7 +449,6 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
     {program : Program} (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
     (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (accepted : (PerApplicationFixedPoint.structuralPlan program fits
       ).RowsZero
         (PerApplicationVerifierBoundAssignment.bind fits commitmentSetup raw
@@ -468,10 +467,9 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
             (canonicalKey fits commitmentSetup) (selectedRunning input)
             input.fresh input.nifsProof
             (productionExtractionAlgebra fits commitmentSetup)
-            (productionStrongSet fits commitmentSetup theorem8))) := by
+            (productionStrongSet fits commitmentSetup))) := by
   dsimp only
   apply stepHoldsFor_implies_base_or_securityOutcome fits commitmentSetup _ _
-    theorem8
   exact PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor
     program fits commitmentSetup raw accepted
 
@@ -567,7 +565,6 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
     (expectedSetup : CommitmentSetup expectedProgram)
     (claimedSetup : CommitmentSetup claimedProgram)
     (raw : PerApplicationCanonicalAssignment.RawValues claimedProgram)
-    (theorem8 : Spec.Phi81StrongSet.LowNormInvertibility)
     (bindingEqual : verificationKeyBinding expectedFits expectedSetup =
       verificationKeyBinding claimedFits claimedSetup)
     (accepted : (PerApplicationFixedPoint.structuralPlan claimedProgram
@@ -594,7 +591,7 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
                 (canonicalKey claimedFits claimedSetup)
                 (selectedRunning input) input.fresh input.nifsProof
                 (productionExtractionAlgebra claimedFits claimedSetup)
-                (productionStrongSet claimedFits claimedSetup theorem8))))) ∨
+                (productionStrongSet claimedFits claimedSetup))))) ∨
       StructuralPackageCollision expectedProgram claimedProgram
         expectedFits claimedFits ∨
       AuthorityComponentDigestCollision
@@ -607,7 +604,7 @@ theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
     identified | structuralCollision | componentCollision | finalCollision
   · exact Or.inl ⟨identified,
       verifierBoundRowsZero_implies_base_or_securityOutcome
-        claimedFits claimedSetup raw theorem8 accepted⟩
+        claimedFits claimedSetup raw accepted⟩
   · exact Or.inr (Or.inl structuralCollision)
   · exact Or.inr (Or.inr (Or.inl componentCollision))
   · exact Or.inr (Or.inr (Or.inr finalCollision))

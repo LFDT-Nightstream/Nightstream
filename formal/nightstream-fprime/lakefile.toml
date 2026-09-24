@@ -229,3 +229,8 @@ root = "tests.WideSamplerCost"
 name = "emitWideSamplerParity"
 root = "tests.WideSamplerParity"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWideMatrixCost"
+root = "tests.WideMatrixCost"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

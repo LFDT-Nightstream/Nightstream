@@ -130,7 +130,7 @@ candidate**, using the current application:
 | Logical coordinates | 149,292,999 | 137,341,846 |
 | Alignment coordinates | 45 | 26 |
 | Committed coordinates | 149,293,044 | 137,341,872 |
-| Normalized matrix nonzeros | 2,857,409,270 | Not measured for the complete plan |
+| Normalized matrix nonzeros | 2,857,409,270 | 2,607,606,765 |
 
 The candidate dimensions are derived from the assembled row plan and retained
 intervals. They are not counts from a regenerated production artifact, and are
@@ -304,9 +304,9 @@ Rust witness generator to compute discarded R1CS ring scratch. The compact
 PiRLC witness still constructs its own products and quotient coefficients
 directly. Rust transport remains to be connected to this construction.
 
-Emitted-matrix correspondence, the full normalized nonzero count, and the
-selected security and Rust connections remain open. The candidate remains at
-137,341,872 committed coordinates. This proof batch changes no circuit count.
+Whole-program matrix correspondence and the full normalized nonzero count
+are now complete. The selected security and Rust connections remain open.
+The candidate remains at 137,341,872 committed coordinates.
 
 ## Whole-step soundness for arbitrary assignments
 
@@ -378,17 +378,72 @@ consumer integration. The selected evaluator retains its current paths.
 The actual range compiler passed its new active-source check. The focused
 sampler cost run and the independent Python normalization returned the same
 complete JSON cost record as `wide-sampler-matrix-cost.json`: 14,501 rows,
-135,813 coordinates, and 1,794,350 normalized nonzeros. The complete candidate
-nonzero count remains open. The new ring-product program and the final
-whole-program composition also remain open.
+135,813 coordinates, and 1,794,350 normalized nonzeros. The complete product
+program and whole-program composition are now proved as described below.
+
+## Whole-program matrix correspondence and count
+
+`Wide.MatrixProgram.fixedPoint_exact` connects every decoded row and all
+13 meaningful ports to the candidate fixed-point plan. The fourteenth matrix
+is zero by the existing plan convention. The theorem constructs source custody
+from the canonical package; it requires no caller-supplied rows or sampler
+success premise.
+
+`Wide.ProductMatrix.interface_exact` connects all 969 products to the checked
+three-bit challenges, the relocated inputs, and the original output/quotient
+order. The six input maps retain their source-key ranges and strides. Their
+three retained blocks move by the proved shared-region shift. The reference
+product codec keeps its existing encoding; a direct sparse challenge has its
+own wire case. The existing optimized numeric interpreter is proved equal
+to that same decoder.
+
+The full counter reads the emitted compact program and the already validated
+95,161,747-byte source archive. It normalizes coefficients modulo the exact
+Goldilocks prime. Field forms remain 41-coordinate atoms during linear
+arithmetic; overlapping atoms are expanded before counting. One process pool
+uses the available logical CPUs for independent blocks. It first reproduces
+the full baseline vector, including every one of the 14 matrix totals.
+Reused byte-equal blocks preserve their counts under the checked injective
+column map and the Lean read-support proofs. The changed sampler and product
+blocks are counted directly. The input archive hash matches the earlier
+validated package record.
+
+| Measure | Selected baseline | Wide candidate | Reduction |
+| --- | ---: | ---: | ---: |
+| Logical rows | 3,588,191 | 3,248,956 | 339,235 (9.45%) |
+| Committed coordinates | 149,293,044 | 137,341,872 | 11,951,172 (8.01%) |
+| Normalized matrix nonzeros | 2,857,409,270 | 2,607,606,765 | 249,802,505 (8.74%) |
+
+The numeric nonzero count is an independent exact-arithmetic measurement,
+not a Lean numeric theorem. The matrix-program correspondence, slot mapping,
+row counts and coordinate counts are Lean theorems. No overall proving-time
+or peak-memory improvement is claimed. Production remains unselected.
+
+The complete vectors, block counts and input hashes are saved in
+[wide-matrix-cost.json](wide-matrix-cost.json). Reproduce from the formal
+project and then the repository root:
+
+```sh
+timeout --signal=KILL 1500 scripts/validate.sh build emitWideMatrixCost
+timeout --signal=KILL 1500 scripts/validate.sh lean-executable .lake/build/bin/emitWideMatrixCost /tmp/nightstream-wide-matrix-operands.json
+```
+
+```sh
+timeout --signal=KILL 300 python3 -B tools/recursive-constraint-minimizer/experiments/wide_matrix_cost.py /tmp/nightstream-wide-matrix-operands.json formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json /tmp/nightstream-wide-full-matrix-cost.json
+```
+
+The counter completed within the 300-second test cap. It does not generate a
+production package, fixture, or witness. The source/constraint distinction
+follows the semantics-preserving compilation approach in
+[CLAP](https://arxiv.org/abs/2405.12115). No compiler dependency was added.
 
 ## Validation at this checkpoint
 
 The full production library and test gate passed, including
-all 964 sampler, integration and codec audits, plus four retained-support regression
+all 979 sampler, integration and codec audits, plus four retained-support regression
 audits. Every audited declaration uses only the three allowed axioms. Static
 boundary checks pass. The complete `NightstreamFPrime NightstreamFPrimeTests`
-build passed with 4,412 jobs and covers both witness construction and full-step
+build passed with 4,416 jobs and covers both witness construction and full-step
 soundness. The commands were:
 
 ```sh
@@ -474,9 +529,9 @@ All 681 rows and all 54 digits are checked for every case.
 
 - Complete the verifier-owned context binding. The actual public-input
   projection now supplies constant one and binds the decoded output digest.
-- Prove that the emitted matrix program denotes the same candidate plan, then
-  measure all normalized matrix entries. Whole-step soundness and complete
-  witness construction are proved.
+- Connect the proved candidate matrix program to production package emission.
+  Whole-program matrix correspondence, full nonzero counts, whole-step
+  soundness and complete witness construction are established.
 - Apply the security model to the selected production transcript and record the
   applicable Fiat–Shamir assumption and query accounting. The adaptive block
   budget `q` in `q * distance` must not be identified with a fold count or the

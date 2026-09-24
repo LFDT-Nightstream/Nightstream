@@ -29,38 +29,38 @@ def Family.format : Format Family where
     rfl
 
 def Block.format : Format Block where
-  encode := fun block => .array [
-    (list Family.format).encode block.families,
-    .atom block.oneColumn,
-    RetainedBlock.format.encode block.challenge,
-    .atom block.challengeSlotStart,
-    .atom block.challengeSourceStride,
-    SourceSubstitution.format.encode block.input,
-    RetainedBlock.format.encode block.output,
-    RetainedBlock.format.encode block.group]
+  encode := fun block => match block.challenge with
+    | .retained retained slotStart sourceStride => .array [
+        (list Family.format).encode block.families, .atom block.oneColumn,
+        RetainedBlock.format.encode retained, .atom slotStart, .atom sourceStride,
+        SourceSubstitution.format.encode block.input,
+        RetainedBlock.format.encode block.output, RetainedBlock.format.encode block.group]
+    | .direct forms sourceStride => .array [
+        (list Family.format).encode block.families, .atom block.oneColumn,
+        (list WireForm.format).encode forms.toList, .atom sourceStride,
+        SourceSubstitution.format.encode block.input,
+        RetainedBlock.format.encode block.output, RetainedBlock.format.encode block.group]
   decode
-    | .array [families, .atom oneColumn, challenge,
-        .atom challengeSlotStart, .atom challengeSourceStride,
+    | .array [families, .atom oneColumn, retained, .atom slotStart, .atom sourceStride,
         input, output, group] => do
       pure {
         families := ← (list Family.format).decode families
         oneColumn
-        challenge := ← RetainedBlock.format.decode challenge
-        challengeSlotStart
-        challengeSourceStride
+        challenge := .retained (← RetainedBlock.format.decode retained) slotStart sourceStride
+        input := ← SourceSubstitution.format.decode input
+        output := ← RetainedBlock.format.decode output
+        group := ← RetainedBlock.format.decode group }
+    | .array [families, .atom oneColumn, forms, .atom sourceStride, input, output, group] => do
+      pure {
+        families := ← (list Family.format).decode families
+        oneColumn
+        challenge := .direct (← (list WireForm.format).decode forms).toArray sourceStride
         input := ← SourceSubstitution.format.decode input
         output := ← RetainedBlock.format.decode output
         group := ← RetainedBlock.format.decode group }
     | _ => .error "invalid Phi81 product block"
   decode_encode := by
-    rintro ⟨families, oneColumn, challenge, challengeSlotStart,
-      challengeSourceStride, input, output, group⟩
-    simp only
-    rw [(list Family.format).decode_encode,
-      RetainedBlock.format.decode_encode,
-      SourceSubstitution.format.decode_encode,
-      RetainedBlock.format.decode_encode,
-      RetainedBlock.format.decode_encode]
-    rfl
+    rintro ⟨families, oneColumn, challenge, input, output, group⟩
+    cases challenge <;> simp [Format.decode_encode] <;> rfl
 
 end NightstreamFPrime.Layout.MatrixProgram.Phi81Product

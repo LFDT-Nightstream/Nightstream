@@ -79,11 +79,9 @@ def block {program : Lifecycle.Stage1.Application.Program}
     MatrixProgram.Phi81Product.Block where
   families := families
   oneColumn := (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).val
-  challenge := MatrixProgram.RetainedBlock.ofSemantic
+  challenge := .retained (MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCFirst54RetainedBlocks.valueBlock program)
-    (PiRLCRetainedGeometry.valueStart program)
-  challengeSlotStart := challengeSlotStart
-  challengeSourceStride := challengeSourceStride
+    (PiRLCRetainedGeometry.valueStart program)) challengeSlotStart challengeSourceStride
   input := PiRLCValueMatrixProgram.substitution program
   output := MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCRetainedGeometry.productOutputBlock program)

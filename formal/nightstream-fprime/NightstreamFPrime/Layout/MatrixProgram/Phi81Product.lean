@@ -151,13 +151,46 @@ def descriptor? (families : List Family) (index : Nat) : Option Descriptor :=
 def invocationCount (families : List Family) : Nat :=
   (families.map Family.invocationCount).sum
 
+/-- A challenge is either the legacy retained digit or an explicit sparse
+form. Sparse forms carry the centered value and allocate no copied field. -/
+inductive Challenge where
+  | retained (block : RetainedBlock) (slotStart sourceStride : Nat)
+  | direct (forms : Array WireForm) (sourceStride : Nat)
+deriving Repr, DecidableEq
+
+def Challenge.form? {columns : Nat} (challenge : Challenge) (one : Fin columns)
+    (source lane : Nat) : Option (SparseForm columns) :=
+  match challenge with
+  | .retained block slotStart sourceStride => do
+      let digit ← block.form? columns (slotStart + source * sourceStride + lane)
+      pure (SparseForm.add digit (SparseForm.singleton one (-2)))
+  | .direct forms sourceStride => do
+      let encoded ← forms[source * sourceStride + lane]?
+      encoded.semantic? columns
+
+/-- Decoding the old operand keeps the same centered form and entry order. -/
+theorem Challenge.retained_form {columns : Nat} (block : RetainedBlock)
+    (slotStart sourceStride source lane : Nat) (one : Fin columns) (digit : SparseForm columns)
+    (loaded : block.form? columns (slotStart + source * sourceStride + lane) = some digit) :
+    (Challenge.retained block slotStart sourceStride).form? one source lane =
+      some (SparseForm.add digit (SparseForm.singleton one (-2))) := by
+  simp only [Challenge.form?, loaded]
+  rfl
+
+/-- The direct operand preserves every coefficient and its stored position. -/
+theorem Challenge.direct_form {columns count : Nat}
+    (forms : Fin count → SparseForm columns) (one : Fin columns)
+    (sourceStride source lane : Nat) (index : Fin count)
+    (position : source * sourceStride + lane = index.val) :
+    (Challenge.direct (Array.ofFn fun i => WireForm.ofSemantic (forms i)) sourceStride).form?
+      one source lane = some (forms index) := by
+  simp [Challenge.form?, position, WireForm.semantic?_ofSemantic]
+
 /-- Complete wire operands for one direct Phi81 product family block. -/
 structure Block where
   families : List Family
   oneColumn : Nat
-  challenge : RetainedBlock
-  challengeSlotStart : Nat
-  challengeSourceStride : Nat
+  challenge : Challenge
   input : SourceSubstitution
   output : RetainedBlock
   group : RetainedBlock
@@ -277,13 +310,9 @@ def Block.oneColumn? (block : Block) (logicalWidth : Nat) :
   else
     none
 
-def Block.challengeState? (block : Block) (logicalWidth : Nat)
-    (descriptor : Descriptor) :
-    Option (Phi81ProductPlan.State logicalWidth) :=
-  loadFin? ringDegree fun lane =>
-    block.challenge.form? logicalWidth
-      (block.challengeSlotStart +
-        descriptor.source.val * block.challengeSourceStride + lane.val)
+def Block.challengeState? (block : Block) {logicalWidth : Nat} (one : Fin logicalWidth)
+    (descriptor : Descriptor) : Option (Phi81ProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane => block.challenge.form? one descriptor.source.val lane.val
 
 def Block.inputState? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
@@ -316,13 +345,11 @@ def Block.interface? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
     Option (Phi81ProductPlan.Interface logicalWidth) := do
   let oneColumn ← block.oneColumn? logicalWidth
-  let challenge ← block.challengeState? logicalWidth descriptor
+  let left ← block.challengeState? oneColumn descriptor
   let input ← block.inputState? logicalWidth descriptor
   let quotient ← block.quotientState? logicalWidth descriptor
   let prior ← block.priorState? logicalWidth descriptor
   let output ← block.outputState? logicalWidth descriptor
-  let left : Phi81ProductPlan.State logicalWidth := fun lane =>
-    SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
   pure { oneColumn, left, right := input, quotient, prior, output }
 
 /-- Ring-major order, then every fixed evaluation point in increasing order. -/

@@ -213,7 +213,8 @@ theorem challenge_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
-    (block geometry).challenge.form? logicalWidth
+    (RetainedBlock.ofSemantic (PiRLCFirst54RetainedBlocks.valueBlock program)
+      (PiRLCRetainedGeometry.valueStart program)).form? logicalWidth
         (challengeSlotStart + descriptor.source.val *
           challengeSourceStride + lane.val) =
       some (PiRLCProductPlan.challengeForm
@@ -234,14 +235,17 @@ theorem challengeState?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
-    (block geometry).challengeState? logicalWidth (wireDescriptor descriptor) =
-      some (PiRLCProductPlan.challengeForm
-        (inputs geometry) descriptor.invocation) := by
+    (block geometry).challengeState? (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry))
+        (wireDescriptor descriptor) =
+      some (fun lane => SparseForm.add (PiRLCProductPlan.challengeForm
+        (inputs geometry) descriptor.invocation lane)
+        (SparseForm.singleton (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)) (-2))) := by
   unfold MatrixProgram.Phi81Product.Block.challengeState?
   apply loadFin?_of_some
   intro lane
-  simpa [block, wireDescriptor_source] using
-    challenge_form? geometry descriptor lane
+  simp only [block, wireDescriptor_source]
+  apply MatrixProgram.Phi81Product.Challenge.retained_form
+  exact challenge_form? geometry descriptor lane
 
 @[simp] theorem wireDescriptor_invocationAtLane
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
@@ -540,8 +544,9 @@ theorem block_interface?
     (block geometry).interface? logicalWidth (wireRingDescriptor descriptor) =
       some (semanticInterface geometry descriptor) := by
   unfold MatrixProgram.Phi81Product.Block.interface? wireRingDescriptor
-  rw [block_oneColumn?, challengeState?, inputState?, quotientState?, priorState?,
-    outputState?]
+  rw [block_oneColumn?]
+  simp only [bind, Option.bind]
+  rw [challengeState?, inputState?, quotientState?, priorState?, outputState?]
   apply congrArg some
   simp only [semanticInterface, Phi81ProductFamilyPlan.ringInterface,
     PiRLCProductPlan.interface, PiRLCProductRingSchedule.laneInvocation,

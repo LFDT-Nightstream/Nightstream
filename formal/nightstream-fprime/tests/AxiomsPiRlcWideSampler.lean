@@ -1,3 +1,7 @@
+import NightstreamFPrime.Layout.MatrixProgram.RetainedMap
+import NightstreamFPrime.Export.Stage1.Wide.ProductInputMap
+import NightstreamFPrime.Export.Stage1.Wide.ProductMatrixProgram
+import NightstreamFPrime.Export.Stage1.Wide.MatrixProgram
 import NightstreamFPrime.Export.Stage1.Wide.PublicBinding
 import NightstreamFPrime.Export.Stage1.Wide.MatrixProjection
 import NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms
@@ -1154,3 +1158,20 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.format
 
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.format
+
+-- Exact direct-product operands and whole candidate matrix program.
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Challenge.retained_form
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Challenge.direct_form
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedBlock.shift_slotCount
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RetainedBlock.form?_of_not_lt
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceRange.mapRetained_form
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceGrid.mapRetained_form
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.SourceSubstitution.mapRetained_form
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductInputMap.block_form
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductInputMap.form
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductMatrix.interface_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductMatrix.rowCount
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.ProductMatrix.exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.piRlc_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.fixedPoint_exact

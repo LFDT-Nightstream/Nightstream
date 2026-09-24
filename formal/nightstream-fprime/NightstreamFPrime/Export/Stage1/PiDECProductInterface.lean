@@ -51,10 +51,8 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
     (descriptor : Phi81Product.Descriptor) :
     Option (Phi81ProductPlan.Interface logicalWidth) := do
   let oneColumn ← block.oneColumn? logicalWidth
-  let challenge ← loadFin? ringDegree fun lane =>
-    block.challenge.form? logicalWidth
-      (block.challengeSlotStart +
-        descriptor.source.val * block.challengeSourceStride + lane.val)
+  let left ← loadFin? ringDegree fun lane =>
+    block.challenge.form? oneColumn descriptor.source.val lane.val
   let input ← loadFin? ringDegree fun lane =>
     block.input.form? logicalWidth (descriptor.invocationAtLane lane)
   let quotient ← loadFin? ringDegree fun lane =>
@@ -67,8 +65,6 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
           (descriptor.invocationAtLane lane - descriptor.family.privateCount)
   let output ← loadFin? ringDegree fun lane =>
     block.output.form? logicalWidth (descriptor.invocationAtLane lane)
-  let left : Phi81ProductPlan.State logicalWidth := fun lane =>
-    SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
   pure { oneColumn, left, right := input, quotient, prior, output }
 
 /-- Exact equality includes all missing-input rejections. -/

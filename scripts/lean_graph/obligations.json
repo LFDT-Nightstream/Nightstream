@@ -6,7 +6,7 @@
     "security-scope": {"roots": ["scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md", "docs/superneo-paper-v1_2", "docs/reviews/nightstream-fprime-requirements/SUPERNEO_V1_2_DELTA.md", "docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md", "docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md"]},
     "lean": {"roots": ["formal/nightstream-fprime"], "exclude": ["*.md", "artifacts", "artifacts/*"]},
     "libraries": {"roots": ["formal/nightstream-fprime/.lake/packages"], "exclude": ["*.md"]},
-    "rust": {"roots": ["crates", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/config.toml", "crates/neo-fold-legacy/tests/preprocessing_read_only.md", "crates/neo-fold-legacy/tests/nebula_preprocessing_read_only.md"], "exclude": ["*.md"]},
+    "rust": {"roots": ["crates", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/config.toml", "crates/neo-fold-legacy/tests/preprocessing_read_only.md", "crates/neo-fold-legacy/tests/nebula_preprocessing_read_only.md"], "exclude": ["*.md", "nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json", "nightstream/tests/fixtures/lean"]},
     "owner": {"roots": ["AGENTS.md", "FPRIME_STAGE1_GOAL.md", "FPRIME_LEAN_ARCHITECTURE_SPEC.md", "decisions/fprime-stage1-domain-2p28.md", "scripts/lean_graph/STAGE1_BASELINE.md"]},
     "checker": {"roots": ["scripts/lean_graph", "scripts/fprime_stage1_review_manifest.py"], "exclude": ["*.md"]}
   },

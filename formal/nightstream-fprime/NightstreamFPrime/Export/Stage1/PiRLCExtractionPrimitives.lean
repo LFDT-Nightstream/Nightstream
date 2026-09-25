@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingPowerInverse
 
@@ -22,8 +22,10 @@ open _root_.NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra (UnitWitness)
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Primitives Correct)
 
+variable (inst : SecurityInstance)
+
 abbrev Assignment := PaperAlgebra.Assignment
-  (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
+  (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)
 
 private theorem inverse_of_erasure (stored : StoredRingArithmetic.StoredRing)
     (value : RingF) (same : stored.get = value)
@@ -43,8 +45,8 @@ returned by the executed inverse call. No caller clock is assumed bounded. -/
 def program
     (scalarSubClock : RingF → RingF → Nat)
     (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : Assignment → Assignment → Nat)
-    (scalarActionClock : RingF → Assignment → Nat) : Primitives RingF Assignment where
+    (assignmentSubClock : Assignment inst → Assignment inst → Nat)
+    (scalarActionClock : RingF → Assignment inst → Nat) : Primitives RingF (Assignment inst) where
   scalarSub := fun left right =>
     ⟨Phi81StrongSet.ringFSub left right, scalarSubClock left right⟩
   unitInverse := fun value =>
@@ -53,10 +55,10 @@ def program
     ⟨inverse.value.get, inverse.work + inverseAdapterClock value⟩
   assignmentSub := fun left right =>
     ⟨(PaperExtractionAlgebra.extractionAlgebra
-      Poseidon2HashChainV1Setup.productionAjtaiKey).assignmentModule.sub left right,
+      inst.ajtai).assignmentModule.sub left right,
       assignmentSubClock left right⟩
   scalarAction := fun scalar assignment =>
-    ⟨CarrierAction.act (logicalWidth := PiDECInputCheck.logicalWidth) scalar assignment,
+    ⟨CarrierAction.act (logicalWidth := inst.logicalWidth) scalar assignment,
       scalarActionClock scalar assignment⟩
 
 /-- The exact Correct parameter used by the existing extraction and
@@ -65,13 +67,13 @@ the executed primitive receives only its scalar value. -/
 theorem program_correct
     (scalarSubClock : RingF → RingF → Nat)
     (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : Assignment → Assignment → Nat)
-    (scalarActionClock : RingF → Assignment → Nat) :
+    (assignmentSubClock : Assignment inst → Assignment inst → Nat)
+    (scalarActionClock : RingF → Assignment inst → Nat) :
     Correct (PaperExtractionAlgebra.extractionAlgebra
-      Poseidon2HashChainV1Setup.productionAjtaiKey).ring
+      inst.ajtai).ring
       (PaperExtractionAlgebra.extractionAlgebra
-        Poseidon2HashChainV1Setup.productionAjtaiKey).assignmentModule
-      (program scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock) := by
+        inst.ajtai).assignmentModule
+      (program inst scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock) := by
   constructor
   · intro left right
     exact (Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring_sub_eq left right).symm

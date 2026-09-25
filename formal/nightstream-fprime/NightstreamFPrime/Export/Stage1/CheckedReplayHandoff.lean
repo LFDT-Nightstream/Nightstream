@@ -28,6 +28,7 @@ theorem prior_eq_payload
         nextProof) children raw.completeAssignment =
       CheckedReplaySuccessor.payload result children raw := by
   unfold CheckedReplayStep.prior
+  unfold PiCCSInputCheck.running PiCCSInputCheck.fresh
   rw [HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims]
   rfl
 

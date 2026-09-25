@@ -88,11 +88,6 @@ noncomputable def realSuccessProbability
   ∑' outcome, if RealSuccess relation ajtai (running outcome.1) (fresh outcome.1) outcome.2
     then (law outcome).toReal else 0
 
-/-- The translated experiment keeps the same context and hence the same
-running/fresh public input law. The relation and Ajtai key are shared parameters. -/
-noncomputable def contextLaw (law : PMF (Context × Option (RealOutput relation))) : PMF Context :=
-  law.map Prod.fst
-
 variable {State Tape : Type*}
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation ajtai).piRlcAlgebra)]
@@ -100,18 +95,9 @@ variable {State Tape : Type*}
   (law : PMF (Context × Option (RealOutput relation)))
   (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
   (abortTape : Tape)
-  (provider : SupportedContinuation.Provider Tape relation ajtai running fresh (contextLaw relation law)
+  (provider : SupportedContinuation.Provider Tape relation ajtai running fresh
+      (FiatShamirTransfer.contextLaw relation law)
     (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running)))
-
-/-- Exactly the success mean consumed by SupportedExtraction, on the
-supported R/D continuation of the same checked causal prefix. -/
-noncomputable def originalSuccessProbability : ℝ :=
-  StrongProbability.clockMean (contextLaw relation law)
-    (InteractiveComposition.originalSuccess relation ajtai running fresh originalFirstPhase
-      (SupportedExtraction.publicCheck running)
-      (SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
-        (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
-        abortTape provider))
 
 /-- The existing parametric classical transfer boundary, for the wide verifier. Its sole field
 transfers success to the typed interactive experiment. No source conclusion,
@@ -122,7 +108,8 @@ specified in FIAT_SHAMIR_MODEL.md. The protocol change was approved on
 structure FiatShamirModel (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat) : Prop where
   successTransfer :
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
-      originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider
+      FiatShamirTransfer.originalSuccessProbability relation ajtai running fresh law originalFirstPhase
+        abortTape provider
 
 variable
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
@@ -145,22 +132,21 @@ include model lowNorm correct bounded sourceCorrect in
 model. The MSIS term is the actual stopped reduction under the same context
 law; efficient translation and query applicability remain external. -/
 theorem returned_source_bound_with_adaptive_msis :
-    let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
+    let continuation := SupportedContinuation.extension relation ajtai running fresh
+        (FiatShamirTransfer.contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
       AdaptiveBindingProbability.successProbability relation ajtai program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram
-        (contextLaw relation law) * PaperProfile.arity.total ≤
+        (FiatShamirTransfer.contextLaw relation law) * PaperProfile.arity.total ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
-        (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
-  dsimp only
-  have transfer := model.successTransfer
-  unfold originalSuccessProbability at transfer
-  have extracted := SupportedExtraction.returned_source_bound_with_adaptive_msis relation ajtai running fresh
-    (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
-    correct bounds bounded sourceCorrect
-  exact (sub_le_sub_right (sub_le_sub_right (sub_le_sub_right transfer _) _) _).trans extracted
+        (SupportedExtraction.publicCheck running) continuation program sourceProgram
+            (FiatShamirTransfer.contextLaw relation law) := by
+  exact FiatShamirTransfer.returned_source_bound_with_adaptive_msis relation ajtai running fresh law
+    originalFirstPhase abortTape provider g deltaFS Q
+        (realSuccessProbability relation ajtai running fresh law)
+    model.successTransfer program sourceProgram lowNorm correct bounds bounded sourceCorrect
 
 end NightstreamFPrime.Lifecycle.Nifs.WideFiatShamir

@@ -224,8 +224,15 @@ def proofValues (input : Input) : PiCCSProofInputs.ProofValues where
   outputEval_A := fun source matrix coefficient =>
     ((input.evalA.get source).get matrix).get coefficient
 
+section Views
+
+/- The input arrays fix every size. The carrier width only names the typed
+claim, so each width reads the same values. -/
+variable {width : Nat}
+  {fits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth width}
+
 def runningFromInput (input : RunningInput) :
-    Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
+    Running (logicalWidth := width) (publicFits := fits) where
   point := {
     coordinates := input.point.toList
     dimension := by
@@ -243,14 +250,23 @@ def runningFromInput (input : RunningInput) :
     pad := (input.evalK.get source).get
     matrix := fun matrix => ((input.evalA.get source).get matrix).get }
 
-def running (input : Input) :
-    Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+def runningAt (input : Input) :
+    Running (logicalWidth := width) (publicFits := fits) :=
   runningFromInput input.running
 
-def fresh (input : Input) :
-    Fresh (logicalWidth := logicalWidth) (publicFits := publicFits) where
+def freshAt (input : Input) :
+    Fresh (logicalWidth := width) (publicFits := fits) where
   commitments := fun _ => (proofValues input).freshCommitment
   publicInputs := fun _ => input.publicInput.get
+
+end Views
+
+/-- The claims at the Poseidon2 hash-chain package width. -/
+abbrev running (input : Input) :=
+  runningAt (width := logicalWidth) (fits := publicFits) input
+
+abbrev fresh (input : Input) :=
+  freshAt (width := logicalWidth) (fits := publicFits) input
 
 def verifierInput (input : Input) :
     ProtocolPolynomial.VerifierInput K productionShape where

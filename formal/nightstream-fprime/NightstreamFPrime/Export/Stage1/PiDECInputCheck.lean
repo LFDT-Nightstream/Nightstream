@@ -73,8 +73,12 @@ def attempt (values : ParentValues) (messages : Messages) :
       PaperAlgebra.Commitment productionGlobalParams where
   parent := parent values
   messages := fun child => {
-    commitment := (PiCCSInputCheck.runningFromInput messages).commitments child
-    evaluations := #[(PiCCSInputCheck.runningFromInput messages).evaluations child] }
+    commitment :=
+        (PiCCSInputCheck.runningFromInput (width := logicalWidth) (fits := publicFits)
+        messages).commitments child
+    evaluations :=
+        #[(PiCCSInputCheck.runningFromInput (width := logicalWidth) (fits := publicFits)
+        messages).evaluations child] }
 
 def children (values : ParentValues) (messages : Messages) : Fin 16 → Claim :=
   PiDEC.PaperVerifier.children
@@ -191,7 +195,7 @@ def runningValue (values : ParentValues) (messages : Messages) : Value :=
       PiDECParity.evalAValue ((children values messages child).evaluations.getD 0 evaluationZero))]
 
 def inputValue (values : ParentValues) (messages : Messages) : Value :=
-  let running := PiCCSInputCheck.runningFromInput messages
+  let running := PiCCSInputCheck.runningFromInput (width := logicalWidth) (fits := publicFits) messages
   .array [claimValue (parent values),
     .array ((List.finRange 16).map fun child => PiDECParity.commitmentValue (running.commitments child)),
     .array ((List.finRange 16).map fun child => PiDECParity.evalKValue (running.evaluations child)),
@@ -209,7 +213,7 @@ def resultValue (values : ParentValues) (messages : Messages) : Value :=
   if !parentBounded values then
     .array [.atom 0, .atom 0, PiCCSParity.stateValue values.outgoing]
   else
-    let running := PiCCSInputCheck.runningFromInput messages
+    let running := PiCCSInputCheck.runningFromInput (width := logicalWidth) (fits := publicFits) messages
     let combinedC := Commitment.recomposeCommitment running.commitments
     let combinedX := PublicInput.recomposePublicInput fun child => (children values messages child).publicInput
     let combinedY := recomposeEvaluationFamily running.evaluations

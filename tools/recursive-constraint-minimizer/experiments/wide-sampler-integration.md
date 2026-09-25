@@ -1053,4 +1053,40 @@ Review fixes in the same merge:
   Widening the key is an owner decision.
 
 The wide-key security port of the baseline NIFS and HyperNova history chain
-remains open; its scoped plan is recorded in the review.
+is recorded in the next section.
+
+## Wide-key security port
+
+The NIFS extraction and HyperNova history chain now proves its statements
+for the wide package. Nothing in the chain is pinned to the baseline
+Poseidon2 package.
+
+- `SecurityInstance` holds the width, relation and Ajtai key that one
+  extraction statement is about. The NIFS modules (`PiCCSStoredWitnessCheck`
+  through `NifsProviderLaw`) take it as their first argument.
+  `PiCCSInputCheck.runningAt` and `freshAt` read the checker input at any
+  width. The input arrays fix every size, so no proof compares two concrete
+  widths.
+- `Wide.Target` fixes the application program, compiled sampler plan, carrier
+  fit, Ajtai key and verifier context digest. `Wide.TerminalSecurity` proves,
+  for each target, the preimage match, the matching step, the wide-key NIFS
+  output, the PiDEC parent and both predecessor cases, or the named
+  state-hash collision. The history modules (`HyperNovaHistory` through
+  `HyperNovaSourceWork`) take a target.
+- `WideFiatShamir` stays the owner of the approved wide real event and
+  model. `FiatShamirTransfer` keeps only the key-independent composition,
+  with the transfer inequality as a premise. The retired `ProductionKey`
+  event and model were deleted; the approved wide text is unchanged.
+- `ActualContextSecurity`, `ActualTerminalSecurity` and `HyperNovaPredecessor`
+  were deleted. The baseline replay modules keep the baseline payload type
+  from `PerApplicationTerminal`.
+- The four evidence targets (terminal assignment, terminal parent, linear
+  history security and terminal false acceptance) now quantify over a wide
+  target. Their meaning changed, so their target-meaning reviews must be
+  done again.
+
+`Wide.selected compiled parts` is the selected package's target: the
+Poseidon2 hash-chain application, its compiled sampler plan and fit, the
+production Ajtai key and the context digest of the prepared descriptor. The
+statements stay general over the target; no numerical security level is
+claimed.

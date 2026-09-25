@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 import NightstreamFPrime.Export.Stage1.NifsExtractionProvider
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
@@ -31,8 +32,8 @@ open _root_.NightstreamFPrime.Lifecycle
 open _root_.NightstreamFPrime.Lifecycle.Nifs
 open PiRLC.PaperForkExtraction PiRLC.PaperForkExtractionWork
 open PiRLC.CoordinateForkLaw
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
-open PiDECInputCheck (relation)
+
+variable (inst : SecurityInstance)
 
 /-- The context has already been supplied by this experiment's PMF. The
 caller labels this preparation with its declared context-dependent work. -/
@@ -54,129 +55,131 @@ def prefixCall {Context State : Type*}
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
+  [Fintype (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
+  (law : PMF (Context × Option (FiatShamirTransfer.RealOutput inst.relation)))
   (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
   (abortTape : Tape)
   (tapes : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
       context coins output state → PMF Tape)
   (rawCall : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
       context coins output state →
-        PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
+        PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) (NifsExtractionProvider.rlc inst))
   (suffixCheckClock : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
-      context coins output state → NifsExtractionProvider.CheckClock)
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
+      context coins output state → NifsExtractionProvider.CheckClock inst)
   (storageClock : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
-      context coins output state → NifsExtractionProvider.StorageClock)
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
+      context coins output state → NifsExtractionProvider.StorageClock inst)
   (parentClock : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
-      context coins output state → NifsExtractionProvider.ParentClock)
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
+      context coins output state → NifsExtractionProvider.ParentClock inst)
   (storageBound : ∀ context coins output state,
-    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw relation law)
+    SupportedContinuation.Supported (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
       context coins output state → Nat)
   (storageBounded : ∀ context coins output state support assignments,
     storageClock context coins output state support assignments ≤
       storageBound context coins output state support)
   (suffixSummable : ∀ context coins output state support vector, Summable fun tape =>
     (tapes context coins output state support tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram
-          (NifsExtractionProvider.batchAt inputs context coins output)
+      (PaperWeakOracle.baseWork (NifsExtractionProvider.rlc inst)
+        (NifsExtractionProvider.suffixProgram inst
+          (NifsExtractionProvider.batchAt inst inputs context coins output)
           (suffixCheckClock context coins output state support)
           (storageClock context coins output state support))
         (rawCall context coins output state support) vector tape : ℝ))
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
-    (fun context => PiCCSInputCheck.running (inputs context))
-    (fun context => PiCCSInputCheck.fresh (inputs context))
+  (model : WideFiatShamir.FiatShamirModel inst.relation inst.ajtai
+    (fun context => inst.running (inputs context))
+    (fun context => inst.fresh (inputs context))
     law originalFirstPhase abortTape
-    (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
+    (NifsExtractionProvider.provider inst inputs (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
       tapes rawCall suffixCheckClock
       storageClock parentClock storageBound storageBounded suffixSummable) g deltaFS Q)
   (scalarSubClock : RingF → RingF → Nat)
   (inverseAdapterClock : RingF → Nat)
-  (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-  (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-  (checkClock : Context → PiCCSStoredSourceProbability.CheckClock)
-  (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
+  (assignmentSubClock : PiRLCExtractionPrimitives.Assignment inst →
+      PiRLCExtractionPrimitives.Assignment inst → Nat)
+  (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment inst → Nat)
+  (checkClock : Context → PiCCSStoredSourceProbability.CheckClock inst)
+  (accessClock : Context → PiCCSStoredSourceProbability.AccessClock inst)
   (preparationClock : Context → Nat)
   (prefixClock : Context → CubePoint K productionShape.cubeVariables → K →
     CubePoint K productionShape.cubeVariables → Nat)
   (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (bounds : PrimitiveBounds)
-  (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-    (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+  (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra inst.ajtai).ring
+    (PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds)
 
 include model lowNorm bounded in
 /-- The same selected source PMF satisfies the additive retry bound. The
 MSIS term measures the actual adaptive reduction with this source program. -/
 theorem source_probability_linear_bound :
-    let running := fun context => PiCCSInputCheck.running (inputs context)
-    let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
-    let contexts := FiatShamirTransfer.contextLaw relation law
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    let running := fun context => inst.running (inputs context)
+    let fresh := fun context => inst.fresh (inputs context)
+    let contexts := FiatShamirTransfer.contextLaw inst.relation law
+    let program := PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock
-    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram
+    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram inst
       (inputs context) (checkClock context) (accessClock context)
-    let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+    let continuation := SupportedContinuation.extension inst.relation inst.ajtai running fresh contexts
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape
-      (NifsExtractionProvider.provider inputs contexts
+      (NifsExtractionProvider.provider inst inputs contexts
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
-      InteractiveComposition.weakLoss relation productionAjtaiKey -
+    g Q (WideFiatShamir.realSuccessProbability inst.relation inst.ajtai running fresh law) - deltaFS Q -
+      InteractiveComposition.weakLoss inst.relation inst.ajtai -
       IndependentExecution.testError productionShape 9 -
-      AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+      AdaptiveBindingProbability.successProbability inst.relation inst.ajtai program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram contexts *
           PaperProfile.arity.total ≤
-      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
-        {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
+      ((HyperNovaSourceLaw.law inst inputs contexts originalFirstPhase continuation program).toOuterMeasure
+        {sample | SourceReturned (PiCCSStoredWitnessCheck.commit inst) productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement inst (inputs sample.1)) sample.2}).toReal := by
   dsimp only
-  let contexts := FiatShamirTransfer.contextLaw relation law
-  let running := fun context => PiCCSInputCheck.running (inputs context)
-  let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
-  let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+  let contexts := FiatShamirTransfer.contextLaw inst.relation law
+  let running := fun context => inst.running (inputs context)
+  let fresh := fun context => inst.fresh (inputs context)
+  let program := PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
     assignmentSubClock scalarActionClock
-  let provider := NifsExtractionProvider.provider inputs contexts
+  let provider := NifsExtractionProvider.provider inst inputs contexts
     (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
     tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable
-  let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+  let continuation := SupportedContinuation.extension inst.relation inst.ajtai running fresh contexts
     (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
     abortTape provider
-  have lower := FiatShamirTransfer.returned_source_bound_with_adaptive_msis relation productionAjtaiKey
+  have lower := WideFiatShamir.returned_source_bound_with_adaptive_msis inst.relation inst.ajtai
     running fresh law originalFirstPhase abortTape provider g deltaFS Q model program
-    (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)
+    (fun context => PiCCSStoredSourceProbability.sourceProgram inst (inputs context)
       (checkClock context) (accessClock context)) lowNorm
-    (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
+    (PiRLCExtractionPrimitives.program_correct inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds bounded
-    (fun context => PiCCSStoredSourceProbability.sourceProgram_correct
+    (fun context => PiCCSStoredSourceProbability.sourceProgram_correct inst
       (inputs context) (checkClock context) (accessClock context))
-  have storedEvent := PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue
+  have storedEvent := PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue inst
     inputs contexts originalFirstPhase (SupportedExtraction.publicCheck running)
     continuation program checkClock accessClock
   exact lower.trans (le_of_eq (storedEvent.trans
-    (HyperNovaSourceLaw.source_event_mass_eq inputs contexts originalFirstPhase continuation program).symm))
+    (HyperNovaSourceLaw.source_event_mass_eq inst inputs contexts originalFirstPhase continuation
+        program).symm))
 
 include model lowNorm bounded in
 /-- The actual stored source event and the prepared reduction use the same
@@ -186,42 +189,42 @@ The constructed source PMF realizes the exact existing sequential event law.
 No efficient translation, runtime bound, or numerical MSIS estimate follows. -/
 theorem finishValue_probability_and_expected_work
     (preparationSummable : Summable fun context =>
-      (FiatShamirTransfer.contextLaw relation law context).toReal * preparationClock context)
+      (FiatShamirTransfer.contextLaw inst.relation law context).toReal * preparationClock context)
     (accessBound : Nat)
     (accessBounded : ∀ context, CostedWitnessProjection.Bounded
-      (PiCCSStoredSourceProbability.sourceProgram (inputs context)
+      (PiCCSStoredSourceProbability.sourceProgram inst (inputs context)
         (checkClock context) (accessClock context)).access accessBound)
     (securityParameter : Nat)
     (preparationPolynomial basePolynomial primitivePolynomial accessPolynomial : Polynomial ℝ) :
-    let running := fun context => PiCCSInputCheck.running (inputs context)
-    let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
-    let contexts := FiatShamirTransfer.contextLaw relation law
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    let running := fun context => inst.running (inputs context)
+    let fresh := fun context => inst.fresh (inputs context)
+    let contexts := FiatShamirTransfer.contextLaw inst.relation law
+    let program := PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock
-    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram
+    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram inst
       (inputs context) (checkClock context) (accessClock context)
-    let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+    let continuation := SupportedContinuation.extension inst.relation inst.ajtai running fresh contexts
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape
-      (NifsExtractionProvider.provider inputs contexts
+      (NifsExtractionProvider.provider inst inputs contexts
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         tapes rawCall suffixCheckClock
         storageClock parentClock storageBound storageBounded suffixSummable)
     let call := prefixCall
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running)) prefixClock
-    let base := InteractiveWork.baseClock relation productionAjtaiKey running fresh
+    let base := InteractiveWork.baseClock inst.relation inst.ajtai running fresh
       continuation call program sourceProgram
-    let bindingTotal := BindingWork.totalClock productionAjtaiKey program relation running fresh
+    let bindingTotal := BindingWork.totalClock inst.ajtai program inst.relation running fresh
       originalFirstPhase (SupportedExtraction.publicCheck running) continuation call sourceProgram
     let total := ContextPreparation.clock (prepare preparationClock)
       (fun context => StrongProbability.verifierMean (bindingTotal context))
     let sourcePolynomial := Polynomial.C ((PaperProfile.arity.total : ℝ) + 1) * basePolynomial +
       Polynomial.C (PaperProfile.arity.total : ℝ) * (primitivePolynomial + Polynomial.C 3) +
       Polynomial.C (productionShape.freshCount : ℝ) *
-        (Polynomial.C (WitnessProjection.privateWidth PiCCSStoredWitnessCheck.carrier : ℝ) *
+        (Polynomial.C (WitnessProjection.privateWidth (PiCCSStoredWitnessCheck.carrier inst) : ℝ) *
           (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) +
       Polynomial.C (productionShape.runningCount : ℝ) *
-        (Polynomial.C (PiCCSStoredWitnessCheck.carrier.carrierWidth : ℝ) *
+        (Polynomial.C ((PiCCSStoredWitnessCheck.carrier inst).carrierWidth : ℝ) *
           (accessPolynomial + Polynomial.C 6) + Polynomial.C 9) + Polynomial.C 13
     Summable (fun context => (contexts context).toReal *
       StrongProbability.verifierMean (base context)) →
@@ -230,41 +233,43 @@ theorem finishValue_probability_and_expected_work
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
     (∑' context, (contexts context).toReal * preparationClock context) ≤
       preparationPolynomial.eval (securityParameter : ℝ) →
-    (g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
-      InteractiveComposition.weakLoss relation productionAjtaiKey -
+    (g Q (WideFiatShamir.realSuccessProbability inst.relation inst.ajtai running fresh law) - deltaFS Q -
+      InteractiveComposition.weakLoss inst.relation inst.ajtai -
       Real.sqrt ((∑' context, (contexts context).toReal * BindingProbability.localSuccessProbability
-        productionAjtaiKey program (sourceProgram context).access relation running fresh
+        inst.ajtai program (sourceProgram context).access inst.relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation context) *
           PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
-      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
-        {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal) ∧
+      ((HyperNovaSourceLaw.law inst inputs contexts originalFirstPhase continuation program).toOuterMeasure
+        {sample | SourceReturned (PiCCSStoredWitnessCheck.commit inst) productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement inst (inputs sample.1)) sample.2}).toReal) ∧
     Summable (fun context => (contexts context).toReal * total context) ∧
     (∑' context, (contexts context).toReal * total context) ≤
       (preparationPolynomial + Polynomial.C 2 * sourcePolynomial + Polynomial.C 3 * primitivePolynomial +
-        Polynomial.C (PiCCSStoredWitnessCheck.carrier.carrierWidth : ℝ) *
+        Polynomial.C ((PiCCSStoredWitnessCheck.carrier inst).carrierWidth : ℝ) *
           (accessPolynomial + Polynomial.C 6) + Polynomial.C 13).eval (securityParameter : ℝ) := by
   dsimp only
   intro baseSummable basePPT primitivePPT accessPPT preparationPPT
-  have preparedContexts : FiatShamirTransfer.contextLaw relation law =
-      ContextPreparation.contexts (FiatShamirTransfer.contextLaw relation law) (prepare preparationClock) := by
+  have preparedContexts : FiatShamirTransfer.contextLaw inst.relation law =
+      ContextPreparation.contexts (FiatShamirTransfer.contextLaw inst.relation law)
+          (prepare preparationClock) := by
     simpa only [ContextPreparation.contexts, prepare] using!
-      (PMF.map_id (FiatShamirTransfer.contextLaw relation law)).symm
-  have checked := NifsFiatShamir.finishValue_probability_and_expected_work
+      (PMF.map_id (FiatShamirTransfer.contextLaw inst.relation law)).symm
+  have checked := NifsFiatShamir.finishValue_probability_and_expected_work inst
     inputs law originalFirstPhase abortTape
-    (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
+    (NifsExtractionProvider.provider inst inputs (FiatShamirTransfer.contextLaw inst.relation law)
       (InteractiveComposition.firstPhase originalFirstPhase
-        (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
       tapes rawCall suffixCheckClock
       storageClock parentClock storageBound storageBounded suffixSummable) g deltaFS Q model
     scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock checkClock accessClock
-    lowNorm bounds bounded (FiatShamirTransfer.contextLaw relation law) (prepare preparationClock) preparedContexts
+    lowNorm bounds bounded (FiatShamirTransfer.contextLaw inst.relation law)
+        (prepare preparationClock) preparedContexts
     preparationSummable
     (prefixCall (InteractiveComposition.firstPhase originalFirstPhase
-      (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))) prefixClock)
+      (SupportedExtraction.publicCheck (fun context => inst.running (inputs context)))) prefixClock)
     (fun _ _ _ _ => rfl) accessBound accessBounded securityParameter
     preparationPolynomial basePolynomial primitivePolynomial accessPolynomial
     baseSummable basePPT primitivePPT accessPPT preparationPPT
-  simpa only [prepare, HyperNovaSourceLaw.source_event_mass_eq] using checked
+  simpa only [prepare, (HyperNovaSourceLaw.source_event_mass_eq inst)] using checked
 
 end NightstreamFPrime.Export.Stage1.NifsClosure

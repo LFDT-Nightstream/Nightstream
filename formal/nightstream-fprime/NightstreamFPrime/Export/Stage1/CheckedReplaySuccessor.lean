@@ -71,8 +71,8 @@ theorem output_unique
   exact output_ext left right state running pc
     (leftStep.2.2.1.trans ((congrArg machine.hash preimage).trans rightStep.2.2.1.symm))
 
-def nextStatement (statement : HyperNovaHistory.Statement) (advice : AppWitness) :
-    HyperNovaHistory.Statement where
+def nextStatement (statement : PerApplicationTerminal.Statement) (advice : AppWitness) :
+    PerApplicationTerminal.Statement where
   iteration := statement.iteration + 1
   z0 := statement.z0
   zi := application.step statement.zi advice
@@ -85,7 +85,8 @@ noncomputable def payload
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
-    (raw : RawValues application) : HyperNovaHistory.Payload where
+    (raw : RawValues application) : PerApplicationTerminal.Payload
+        Poseidon2HashChainV1Package.application where
   running := fun _ => result
   runningWitness := fun _ => children
   fresh := {
@@ -101,7 +102,7 @@ Child CE membership is supplied by the source/R/D opening kernels, never by
 public D acceptance alone. Input and context custody are explicit ABI links;
 no output equality or accepted successor is a premise. -/
 theorem accepted_of_checked_rows
-    (statement : HyperNovaHistory.Statement)
+    (statement : PerApplicationTerminal.Statement)
     (input : PiCCSInputCheck.Input) (batch : PiRLCParent.Batch)
     (parent : PiRLCParent.Values) (messages : PiDECInputCheck.Messages)
     (runningWitness : Stage1.Terminal.RunningWitness

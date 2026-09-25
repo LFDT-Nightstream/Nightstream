@@ -142,7 +142,7 @@ theorem returned_witness
 Initial acceptance supplies old openings. New evaluation and R-block custody
 refer to concrete source kernels at the actual C point and sampled rho. -/
 theorem parent_opening
-    (statement : HyperNovaHistory.Statement) (input : PiCCSInputCheck.Input)
+    (statement : PerApplicationTerminal.Statement) (input : PiCCSInputCheck.Input)
     (runningWitness : Stage1.Terminal.RunningWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

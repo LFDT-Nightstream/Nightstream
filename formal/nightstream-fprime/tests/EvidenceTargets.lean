@@ -19,8 +19,7 @@ import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
 import NightstreamFPrime.Export.Stage1.ActualPiDECOutput
-import NightstreamFPrime.Export.Stage1.ActualContextSecurity
-import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
+import NightstreamFPrime.Export.Stage1.Wide.TerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
@@ -162,66 +161,41 @@ theorem stage1Assignment : Stage1Assignment := by
 #audit_axioms stage1Assignment
 
 /-- Actual terminal membership must supply the arbitrary opening and all
-row/public premises, plus exact advertised-state matching or a named collision. -/
+row/public premises, plus exact advertised-state matching or a named collision.
+The wide target fixes the application, sampler plan, key and context. -/
 def Stage1TerminalAssignment : Prop :=
-  ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
-    (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
-    (payload : ActualContextSecurity.TerminalPayload application),
-    Lifecycle.Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-      application statement (.recursive payload) →
-    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
-    (StepHoldsFor (PerApplicationFixedPoint.relation application fits)
-        (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-        (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup) application
-        (ActualStep.input application fits assignment (ActualStep.decodedFresh application assignment)
-          (ActualPiDECMessages.proof application fits assignment))
-        (ActualStep.output application assignment
-          (stateHash (ActualContextSecurity.terminalPreimage
-            application fits commitmentSetup statement payload))) ∧
-      ActualContextSecurity.decodedNext application assignment =
-        ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload) ∨
-      PiCCSSecurity.StateHashCollision (ActualContextSecurity.decodedNext application assignment)
-        (ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload)
+  ∀ (target : Wide.Target) (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
+    (payload : target.Payload),
+    target.Holds statement (.recursive payload) →
+    (Lifecycle.Stage1.Wide.Relation.StepHoldsFor target.relation target.ajtai target.context
+        target.program (target.decodedInput payload) (target.decodedOutput payload) ∧
+      target.decodedNext payload = target.preimage statement payload) ∨
+      target.Collision statement payload
 
 theorem stage1TerminalAssignment : Stage1TerminalAssignment :=
-  ActualContextSecurity.terminal_implies_matchingStepOrCollision
+  fun target => target.terminal_implies_matchingStepOrCollision
 
 #audit_axioms stage1TerminalAssignment
 
-/-- The terminal's actual witnesses must open the exact decoded PiDEC parent.
-The first step needs no NIFS extraction; collisions remain named events. -/
+/-- The terminal's actual witnesses must open the exact decoded PiDEC parent
+of the wide-key proof. The first step needs no NIFS extraction; collisions
+remain named events. -/
 def Stage1TerminalParent : Prop :=
-  ∀ (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
-    (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
-    (payload : ActualContextSecurity.TerminalPayload application),
-    Lifecycle.Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
-      (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
-      (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
-      application statement (.recursive payload) →
-    let assignment := ProductionRelation.Plan.logicalAssignment payload.freshWitness
-    let input := ActualStep.input application fits assignment
-      (ActualStep.decodedFresh application assignment)
-      (ActualPiDECMessages.proof application fits assignment)
-    let relation := PerApplicationFixedPoint.relation application fits
-    let ajtai := PerApplicationCanonicalPackage.commitmentKey commitmentSetup
-    let key := ProductionKey.key relation ajtai
+  ∀ (target : Wide.Target) (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
+    (payload : target.Payload),
+    target.Holds statement (.recursive payload) →
+    let input := target.decodedInput payload
+    let key := PiRLC.Wide.Key.key target.relation target.ajtai
     input.iteration = 0 ∨
       (0 < input.iteration ∧ ∃ attempt,
         key.piDecAttempt (input.running functionIndex) input.fresh input.nifsProof = some attempt ∧
-        Spec.CE.Holds (semantics ajtai) productionGlobalParams attempt.parent
-          ((PaperAlgebra.piDecAlgebra ajtai).recomposeAssignment
+        Spec.CE.Holds (semantics target.ajtai) productionGlobalParams attempt.parent
+          ((PaperAlgebra.piDecAlgebra target.ajtai).recomposeAssignment
             (payload.runningWitness functionIndex))) ∨
-      PiCCSSecurity.StateHashCollision (ActualContextSecurity.decodedNext application assignment)
-        (ActualContextSecurity.terminalPreimage application fits commitmentSetup statement payload)
+      target.Collision statement payload
 
 theorem stage1TerminalParent : Stage1TerminalParent :=
-  ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision
+  fun target => target.terminal_implies_parentOrBaseOrCollision
 
 #audit_axioms stage1TerminalParent
 
@@ -236,91 +210,97 @@ open scoped BigOperators ENNReal
 open Spec.Folding Spec.Folding.Nifs Lifecycle.Nifs
 open StrongReduction
 open PiRLC.CoordinateForkLaw (Challenge)
-open HyperNovaHistory (Statement Envelope)
+open HyperNovaHistory (Statement)
 open HyperNovaVisitedLaw (Visit goodActive visitedLaw guardedDraw)
 open HyperNovaGuardedSourceLaw (inputs realLaw guardedPrefix)
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
-open PiDECInputCheck (relation)
 
 /-- Exact final linear history criterion for ordinary state and tape types.
 All source, FS, depth, invertibility and primitive-clock premises are stated
 here. This criterion does not assert hardness or an efficient FS translation. -/
 def HyperNovaLinearSecurity : Prop :=
-  ∀ (State Tape : Type)
-  (tapes : Visit → PublicCoins K productionShape →
+  ∀ (target : Wide.Target) (State Tape : Type)
+  (tapes : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
-  (rawCall : Visit → PublicCoins K productionShape →
+  (rawCall : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State →
-      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
-  (checkClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
-  (storageClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
-  (parentClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
-  (storageBound : Visit → PublicCoins K productionShape →
+      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity)
+          (NifsExtractionProvider.rlc target.security))
+  (checkClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock
+        target.security)
+  (storageClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock
+        target.security)
+  (parentClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock
+        target.security)
+  (storageBound : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State → Nat)
   (storageBounded : ∀ visit coins output state assignments,
     storageClock visit coins output state assignments ≤ storageBound visit coins output state)
   (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
     (tapes visit coins output state tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
+      (PaperWeakOracle.baseWork (NifsExtractionProvider.rlc target.security)
+        (NifsExtractionProvider.suffixProgram target.security
+            (NifsExtractionProvider.batchAt target.security (inputs target) visit coins output)
           (checkClock visit coins output state) (storageClock visit coins output state))
         (rawCall visit coins output state) vector tape : ℝ))
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
+  [Fintype (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+    (initial : PMF (Statement × target.Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit target → InteractivePrefix.Prover State productionShape 9)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
-    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment target.security →
+        PiRLCExtractionPrimitives.Assignment target.security → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment target.security → Nat)
+    (sourceCheckClock : Visit target → PiCCSStoredSourceProbability.CheckClock target.security)
+    (accessClock : Visit target → PiCCSStoredSourceProbability.AccessClock target.security)
     (_lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (_bounded : PiRLC.PaperForkExtractionWork.Bounded
-      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      (PaperExtractionAlgebra.extractionAlgebra target.ajtai).ring
+      (PiRLCExtractionPrimitives.program target.security scalarSubClock inverseAdapterClock
         assignmentSubClock scalarActionClock) bounds),
-    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+    let continuation := NifsProviderLaw.continuation target.security (inputs target) tapes rawCall
+        checkClock storageClock parentClock
       storageBound storageBounded baseSummable
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    let program := PiRLCExtractionPrimitives.program target.security scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock
-    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-    let visits := fun j : Fin depth => visitedLaw source initial j.val
-    let running := fun visit => PiCCSInputCheck.running (inputs visit)
-    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
-    let firstPhase := guardedPrefix originalFirstPhase
+    let source := HyperNovaGuardedSourceLaw.source target originalFirstPhase continuation program
+    let visits := fun j : Fin depth => visitedLaw target source initial j.val
+    let running := fun visit => target.security.running (inputs target visit)
+    let fresh := fun visit => target.security.fresh (inputs target visit)
+    let firstPhase := guardedPrefix target originalFirstPhase
     let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
-    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
+    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw target.relation
+        (realLaw target (visits j))
     let provider := fun j : Fin depth =>
-      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+      (NifsProviderLaw.supportedProvider target.security) (inputs target) tapes rawCall checkClock
+          storageClock parentClock
         storageBound storageBounded baseSummable (contexts j) checked
     let extended := fun j : Fin depth =>
-      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
+      SupportedContinuation.extension target.relation target.ajtai running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+      WideFiatShamir.FiatShamirModel target.relation target.ajtai running fresh
+        (realLaw target (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
     (initial.toOuterMeasure {input |
-      PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
-        Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2}).toReal ≤
-      ((HyperNovaHistoryLaw.law source initial).toOuterMeasure
-        {sample | HyperNovaHistoryProbability.AdviceReturned sample}).toReal +
+      target.Holds input.1 input.2}).toReal ≤
+      ((HyperNovaHistoryLaw.law target source initial).toOuterMeasure
+        {sample | HyperNovaHistoryProbability.AdviceReturned target sample}).toReal +
         ∑ j : Fin depth,
           (((visits j).toOuterMeasure
-              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
-            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
-              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              {visit | HyperNovaFirstFailure.MarkedHashCollision target visit}).toReal +
+            (((visits j).toOuterMeasure {visit | goodActive target visit}).toReal -
+              g (queries j) ((visits j).toOuterMeasure {visit | goodActive target visit}).toReal +
+              deltaFS (queries j) + InteractiveComposition.weakLoss target.relation target.ajtai +
               IndependentExecution.testError productionShape 9 +
-              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+              AdaptiveBindingProbability.successProbability target.relation target.ajtai program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
-                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
+                (fun visit => PiCCSStoredSourceProbability.sourceProgram target.security (inputs target visit)
                   (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
 
 /-- The final selected history theorem discharges the literal registered
@@ -332,77 +312,86 @@ theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
 
 /-- The selected terminal false-acceptance event and its exact symbolic loss. -/
 def HyperNovaTerminalFalseAcceptance : Prop :=
-  ∀ (State Tape : Type)
-  (tapes : Visit → PublicCoins K productionShape →
+  ∀ (target : Wide.Target) (State Tape : Type)
+  (tapes : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State → PMF Tape)
-  (rawCall : Visit → PublicCoins K productionShape →
+  (rawCall : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State →
-      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity) NifsExtractionProvider.rlc)
-  (checkClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock)
-  (storageClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock)
-  (parentClock : Visit → PublicCoins K productionShape →
-    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock)
-  (storageBound : Visit → PublicCoins K productionShape →
+      PaperWeakOracle.Call (Tape := Tape) (arity := PaperProfile.arity)
+          (NifsExtractionProvider.rlc target.security))
+  (checkClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.CheckClock
+        target.security)
+  (storageClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.StorageClock
+        target.security)
+  (parentClock : Visit target → PublicCoins K productionShape →
+    FullOutputCoordinates.FullOutput K productionShape → State → NifsExtractionProvider.ParentClock
+        target.security)
+  (storageBound : Visit target → PublicCoins K productionShape →
     FullOutputCoordinates.FullOutput K productionShape → State → Nat)
   (storageBounded : ∀ visit coins output state assignments,
     storageClock visit coins output state assignments ≤ storageBound visit coins output state)
   (baseSummable : ∀ visit coins output state vector, Summable fun tape =>
     (tapes visit coins output state tape).toReal *
-      (PaperWeakOracle.baseWork NifsExtractionProvider.rlc
-        (NifsExtractionProvider.suffixProgram (NifsExtractionProvider.batchAt inputs visit coins output)
+      (PaperWeakOracle.baseWork (NifsExtractionProvider.rlc target.security)
+        (NifsExtractionProvider.suffixProgram target.security
+            (NifsExtractionProvider.batchAt target.security (inputs target) visit coins output)
           (checkClock visit coins output state) (storageClock visit coins output state))
         (rawCall visit coins output state) vector tape : ℝ))
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-    (initial : PMF (Statement × Envelope)) (depth : Nat)
+  [Fintype (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+    (initial : PMF (Statement × target.Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+    (originalFirstPhase : Visit target → InteractivePrefix.Prover State productionShape 9)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
-    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
-    (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
+    (assignmentSubClock : PiRLCExtractionPrimitives.Assignment target.security →
+        PiRLCExtractionPrimitives.Assignment target.security → Nat)
+    (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment target.security → Nat)
+    (sourceCheckClock : Visit target → PiCCSStoredSourceProbability.CheckClock target.security)
+    (accessClock : Visit target → PiCCSStoredSourceProbability.AccessClock target.security)
     (_lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (_bounded : PiRLC.PaperForkExtractionWork.Bounded
-      (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      (PaperExtractionAlgebra.extractionAlgebra target.ajtai).ring
+      (PiRLCExtractionPrimitives.program target.security scalarSubClock inverseAdapterClock
         assignmentSubClock scalarActionClock) bounds),
-    let continuation := NifsProviderLaw.continuation inputs tapes rawCall checkClock storageClock parentClock
+    let continuation := NifsProviderLaw.continuation target.security (inputs target) tapes rawCall
+        checkClock storageClock parentClock
       storageBound storageBounded baseSummable
-    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    let program := PiRLCExtractionPrimitives.program target.security scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock
-    let source := HyperNovaGuardedSourceLaw.source originalFirstPhase continuation program
-    let visits := fun j : Fin depth => visitedLaw source initial j.val
-    let running := fun visit => PiCCSInputCheck.running (inputs visit)
-    let fresh := fun visit => PiCCSInputCheck.fresh (inputs visit)
-    let firstPhase := guardedPrefix originalFirstPhase
+    let source := HyperNovaGuardedSourceLaw.source target originalFirstPhase continuation program
+    let visits := fun j : Fin depth => visitedLaw target source initial j.val
+    let running := fun visit => target.security.running (inputs target visit)
+    let fresh := fun visit => target.security.fresh (inputs target visit)
+    let firstPhase := guardedPrefix target originalFirstPhase
     let checked := InteractiveComposition.firstPhase firstPhase (SupportedExtraction.publicCheck running)
-    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw relation (realLaw (visits j))
+    let contexts := fun j : Fin depth => FiatShamirTransfer.contextLaw target.relation
+        (realLaw target (visits j))
     let provider := fun j : Fin depth =>
-      NifsProviderLaw.supportedProvider inputs tapes rawCall checkClock storageClock parentClock
+      (NifsProviderLaw.supportedProvider target.security) (inputs target) tapes rawCall checkClock
+          storageClock parentClock
         storageBound storageBounded baseSummable (contexts j) checked
     let extended := fun j : Fin depth =>
-      SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
+      SupportedContinuation.extension target.relation target.ajtai running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
-    (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance input}).toReal ≤
+      WideFiatShamir.FiatShamirModel target.relation target.ajtai running fresh
+        (realLaw target (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+    (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance target input}).toReal ≤
       ∑ j : Fin depth,
           (((visits j).toOuterMeasure
-              {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
-            (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
-              g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              {visit | HyperNovaFirstFailure.MarkedHashCollision target visit}).toReal +
+            (((visits j).toOuterMeasure {visit | goodActive target visit}).toReal -
+              g (queries j) ((visits j).toOuterMeasure {visit | goodActive target visit}).toReal +
+              deltaFS (queries j) + InteractiveComposition.weakLoss target.relation target.ajtai +
               IndependentExecution.testError productionShape 9 +
-              AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+              AdaptiveBindingProbability.successProbability target.relation target.ajtai program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
-                (fun visit => PiCCSStoredSourceProbability.sourceProgram (inputs visit)
+                (fun visit => PiCCSStoredSourceProbability.sourceProgram target.security (inputs target visit)
                   (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
 
 /-- The original mixed-law event bridge discharges the registered criterion. -/

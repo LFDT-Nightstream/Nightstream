@@ -33,8 +33,8 @@ Required premises:
   operational source and all visit laws. Existing storage and primitive clock
   bounds, correctness facts, summability and low-norm invertibility stay visible.
 - Every guarded real experiment satisfies the already approved classical
-  additive-Poseidon2 `FiatShamirTransfer.FiatShamirModel`, with shared `g` and
-  `deltaFS` and its own total permutation-query count `Q_j`. This registration
+  additive-Poseidon2 `WideFiatShamir.FiatShamirModel` for the selected wide key,
+  with shared `g` and `deltaFS` and its own total permutation-query count `Q_j`. This registration
   does not construct or strengthen that external model.
 - The public fixed-seed MSIS assumption can bound the computed reduction only
   after its adaptive calls, termination, expected work, preprocessing and query
@@ -63,8 +63,9 @@ All namespaces in the table have prefix `NightstreamFPrime`. The new
 `AdaptiveBindingProbability.retryDisagreement_le_success` connects the gated
 pair to the actual original-context average; `successProbability_tendsto`
 proves its finite-driver interpretation. The linear consumer chain is
-`SupportedExtraction` → `FiatShamirTransfer` → `NifsClosure` → `NifsProviderLaw`
-→ `HyperNovaVisitedSecurity`.
+`SupportedExtraction` → `FiatShamirTransfer` → `WideFiatShamir` → `NifsClosure`
+→ `NifsProviderLaw` → `HyperNovaVisitedSecurity`. Since the wide security port,
+the chain is generic over one `Wide.Target` and its `SecurityInstance`.
 
 `AdaptiveBindingWork` supplies the actual-step mean equalities, convergence,
 entered termination, context moment bound and prepared polynomial bound.

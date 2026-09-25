@@ -10,6 +10,15 @@ the concrete continuation is now consumed by
 and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
 `formal/nightstream-fprime/NIFS_CLOSURE_STATUS.md`.
 
+Retired key, 2026-09-25: the security chain moved to the selected wide key.
+The events `FiatShamirTransfer.RealSuccess` and `FiatShamirModel` named below
+were for the retired `ProductionKey` sampler. No theorem consumed them after
+the move, so they were deleted. `FiatShamirTransfer` keeps only the
+key-independent composition, which takes the transfer inequality as a
+premise. `NifsClosure.finishValue_probability_and_expected_work` now consumes
+`WideFiatShamir.FiatShamirModel`. The selected boundary is the wide section
+below; its approved text is unchanged.
+
 For the fixed Nightstream Goldilocks profile, assume an external classical
 FS/SuperNeo game transfer for the **actual additive Poseidon2 transcript**.
 The real success event is `FiatShamirTransfer.RealSuccess`: the actual

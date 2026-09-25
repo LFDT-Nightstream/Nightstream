@@ -103,8 +103,8 @@ to `NightstreamFPrime/Export/Stage1/`; the generic decoder is in
 | Shared inputs and application step | `ActualApplicationStep.selectedRowsZero_implies_decodedStep` uses the same actual states as the pilot hashes. | `NightstreamFPrime.Export.Stage1.ActualApplicationStep` |
 | Pilot and PiCCS children | The decoded phase theorems derive the opaque child contracts from the selected rows. | `NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase` |
 | Complete typed Step from arbitrary rows | `ActualPiDECOutput.selectedRowsAndPublic_imply_step` derives the full decoded Step, including the exact PiDEC check and NIFS output, under the decoded context. | `NightstreamFPrime.Export.Stage1.ActualPiDECOutput` |
-| Selected context and complete advertised state | `ActualContextSecurity.terminal_implies_matchingStepOrCollision` derives the selected Step and full next-preimage equality, or a named collision, from actual terminal acceptance. Canonical counter and state-width checks supply the natural successor bounds. | `NightstreamFPrime.Export.Stage1.ActualContextSecurity` |
-| Actual terminal child witnesses | `ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision` derives the exact NIFS output match and opens the PiDEC parent using the terminal's sixteen child witnesses. | `NightstreamFPrime.Export.Stage1.ActualTerminalSecurity` |
+| Selected context and complete advertised state | `Wide.Target.terminal_implies_matchingStepOrCollision` derives the wide Step and full next-preimage equality, or a named collision, from actual terminal acceptance. Canonical counter and state-width checks supply the natural successor bounds. | `NightstreamFPrime.Export.Stage1.Wide.TerminalSecurity` |
+| Actual terminal child witnesses | `Wide.Target.terminal_implies_parentOrBaseOrCollision` derives the exact wide-key NIFS output match and opens the PiDEC parent using the terminal's sixteen child witnesses. | `NightstreamFPrime.Export.Stage1.Wide.TerminalSecurity` |
 | Broader Stage 1 acceptance and history | The terminal targets do not replace the broader Stage 1 target. Complete the required independent reviews, history/security composition and production refinement. | `scripts/lean_graph/obligations.json` keeps these obligations open |
 
 Before implementing an open arrow, record its exact Lean statement, a short
@@ -1436,9 +1436,9 @@ canonical package and selected ProductionKey
 
 `AcceptedOpening.freshHolds_implies_rowsAndPublic` supplies the rows and public
 input without canonical padding or a representation premise.
-`ActualContextSecurity.terminal_implies_matchingStepOrCollision` supplies the
+`Wide.Target.terminal_implies_matchingStepOrCollision` supplies the
 complete step and advertised-state match.
-`ActualTerminalSecurity.terminal_implies_parentOrBaseOrCollision` consumes the
+`Wide.Target.terminal_implies_parentOrBaseOrCollision` consumes the
 actual terminal witnesses; it does not assume a detached child opening or an
 output-match premise. The canonical counter and state widths in `Terminal.HoldsFor`
 are part of the changed target meaning and need independent review.

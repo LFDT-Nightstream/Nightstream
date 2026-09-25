@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Export.Stage1.NifsFiatShamir
 
 /-!
@@ -26,23 +27,23 @@ open _root_.NightstreamFPrime.Lifecycle
 open _root_.NightstreamFPrime.Lifecycle.Nifs
 open PiRLC.PaperForkExtraction PiRLC.PaperForkExtractionWork
 open PiRLC.CoordinateForkLaw
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
-open PiDECInputCheck (relation)
+
+variable (inst : SecurityInstance)
 
 /-- No full witness satisfies the selected fresh CCS and running CE source
 relations, with their existing commitment and public-input semantics. -/
 def SourceInvalid (input : PiCCSInputCheck.Input) : Prop :=
-  ¬ ∃ witness : PiCCSStoredSourceProbability.FunctionalWitness,
+  ¬ ∃ witness : PiCCSStoredSourceProbability.FunctionalWitness inst,
     SourceHolds extensionOps K.embed
-      (openingMaps PiCCSStoredWitnessCheck.commit) productionGlobalParams
-      (PiCCSStoredWitnessCheck.statement input) witness
+      (openingMaps (PiCCSStoredWitnessCheck.commit inst)) productionGlobalParams
+      (PiCCSStoredWitnessCheck.statement inst input) witness
 
 private theorem not_sourceReturned (input : PiCCSInputCheck.Input)
-    (invalid : SourceInvalid input)
+    (invalid : SourceInvalid inst input)
     (result : Option (WitnessProjection.SourceWitness productionShape
-      PiCCSStoredWitnessCheck.carrier)) :
-    ¬ SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-      (PiCCSStoredWitnessCheck.statement input) result := by
+      (PiCCSStoredWitnessCheck.carrier inst))) :
+    ¬ SourceReturned (PiCCSStoredWitnessCheck.commit inst) productionGlobalParams
+      (PiCCSStoredWitnessCheck.statement inst input) result := by
   rintro ⟨values, _returned, valid⟩
   exact invalid ⟨_, valid⟩
 
@@ -69,25 +70,25 @@ theorem source_event_probability_eq_zero {Context State Endpoint : Type*}
       FullOutputCoordinates.FullOutput K productionShape → State → PMF Endpoint)
     (consume : Context → PublicCoins K productionShape →
       FullOutputCoordinates.FullOutput K productionShape → State → Endpoint →
-        Option PiCCSStoredSourceProbability.FunctionalWitness)
-    (invalid : ∀ context, 0 < (contexts context).toReal → SourceInvalid (inputs context)) :
+        Option (PiCCSStoredSourceProbability.FunctionalWitness inst))
+    (invalid : ∀ context, 0 < (contexts context).toReal → SourceInvalid inst (inputs context)) :
     PaperCompositionProbability.eventProbability contexts firstPhase suffixLaw consume
-      (fun context outcome => SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-        (PiCCSStoredWitnessCheck.statement (inputs context))
-        (PiCCSStoredWitnessCheck.finishValue (inputs context)
-          (PiCCSStoredSourceProbability.storeOutcome outcome))) = 0 := by
+      (fun context outcome => SourceReturned (PiCCSStoredWitnessCheck.commit inst) productionGlobalParams
+        (PiCCSStoredWitnessCheck.statement inst (inputs context))
+        (PiCCSStoredWitnessCheck.finishValue inst (inputs context)
+          (PiCCSStoredSourceProbability.storeOutcome inst outcome))) = 0 := by
   unfold PaperCompositionProbability.eventProbability
   refine (tsum_congr fun context => ?_).trans tsum_zero
   by_cases positive : 0 < (contexts context).toReal
   · have indicatorZero :
-        (fun outcome : Outcome productionShape PiCCSStoredWitnessCheck.carrier =>
-          if SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-            (PiCCSStoredWitnessCheck.statement (inputs context))
-            (PiCCSStoredWitnessCheck.finishValue (inputs context)
-              (PiCCSStoredSourceProbability.storeOutcome outcome)) then (1 : ℝ) else 0) =
+        (fun outcome : Outcome productionShape (PiCCSStoredWitnessCheck.carrier inst) =>
+          if SourceReturned (PiCCSStoredWitnessCheck.commit inst) productionGlobalParams
+            (PiCCSStoredWitnessCheck.statement inst (inputs context))
+            (PiCCSStoredWitnessCheck.finishValue inst (inputs context)
+              (PiCCSStoredSourceProbability.storeOutcome inst outcome)) then (1 : ℝ) else 0) =
           fun _ => 0 := by
       funext outcome
-      exact if_neg (not_sourceReturned (inputs context) (invalid context positive) _)
+      exact if_neg (not_sourceReturned inst (inputs context) (invalid context positive) _)
     rw [indicatorZero, sequentialMean_zero, StrongProbability.verifierMean_const, mul_zero]
   · have zero : (contexts context).toReal = 0 :=
       le_antisymm (le_of_not_gt positive) ENNReal.toReal_nonneg
@@ -96,32 +97,33 @@ theorem source_event_probability_eq_zero {Context State Endpoint : Type*}
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
+  [Fintype (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
+  (law : PMF (Context × Option (FiatShamirTransfer.RealOutput inst.relation)))
   (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
   (abortTape : Tape)
-  (provider : SupportedContinuation.Provider Tape relation productionAjtaiKey
-    (fun context => PiCCSInputCheck.running (inputs context))
-    (fun context => PiCCSInputCheck.fresh (inputs context))
-    (FiatShamirTransfer.contextLaw relation law)
+  (provider : SupportedContinuation.Provider Tape inst.relation inst.ajtai
+    (fun context => inst.running (inputs context))
+    (fun context => inst.fresh (inputs context))
+    (FiatShamirTransfer.contextLaw inst.relation law)
     (InteractiveComposition.firstPhase originalFirstPhase
-      (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))))
+      (SupportedExtraction.publicCheck (fun context => inst.running (inputs context)))))
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
-    (fun context => PiCCSInputCheck.running (inputs context))
-    (fun context => PiCCSInputCheck.fresh (inputs context))
+  (model : WideFiatShamir.FiatShamirModel inst.relation inst.ajtai
+    (fun context => inst.running (inputs context))
+    (fun context => inst.fresh (inputs context))
     law originalFirstPhase abortTape provider g deltaFS Q)
   (scalarSubClock : RingF → RingF → Nat)
   (inverseAdapterClock : RingF → Nat)
-  (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
-  (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-  (checkClock : Context → PiCCSStoredSourceProbability.CheckClock)
-  (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
+  (assignmentSubClock : PiRLCExtractionPrimitives.Assignment inst →
+      PiRLCExtractionPrimitives.Assignment inst → Nat)
+  (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment inst → Nat)
+  (checkClock : Context → PiCCSStoredSourceProbability.CheckClock inst)
+  (accessClock : Context → PiCCSStoredSourceProbability.AccessClock inst)
   (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (bounds : PrimitiveBounds)
-  (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
-    (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+  (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra inst.ajtai).ring
+    (PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds)
 
 include model lowNorm bounded in
@@ -129,65 +131,68 @@ include model lowNorm bounded in
 conditional knowledge reduction bounds actual witness-bearing NIFS success.
 The factor seventeen is the selected arity, not a query or use budget. -/
 theorem real_success_bound_of_invalid_source
-    (invalid : ∀ context, 0 < (FiatShamirTransfer.contextLaw relation law context).toReal →
-      SourceInvalid (inputs context))
+    (invalid : ∀ context, 0 < (FiatShamirTransfer.contextLaw inst.relation law context).toReal →
+      (SourceInvalid inst) (inputs context))
     (epsilonMSIS : ℝ)
     (msisBound :
-      let continuation := SupportedContinuation.extension relation productionAjtaiKey
-        (fun context => PiCCSInputCheck.running (inputs context))
-        (fun context => PiCCSInputCheck.fresh (inputs context))
-        (FiatShamirTransfer.contextLaw relation law)
+      let continuation := SupportedContinuation.extension inst.relation inst.ajtai
+        (fun context => inst.running (inputs context))
+        (fun context => inst.fresh (inputs context))
+        (FiatShamirTransfer.contextLaw inst.relation law)
         (InteractiveComposition.firstPhase originalFirstPhase
-          (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+          (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
         abortTape provider
-      BindingProbability.successProbability productionAjtaiKey
-        (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
-          assignmentSubClock scalarActionClock) relation
-        (fun context => PiCCSInputCheck.running (inputs context))
-        (fun context => PiCCSInputCheck.fresh (inputs context))
+      BindingProbability.successProbability inst.ajtai
+        (PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
+          assignmentSubClock scalarActionClock) inst.relation
+        (fun context => inst.running (inputs context))
+        (fun context => inst.fresh (inputs context))
         originalFirstPhase (SupportedExtraction.publicCheck
-          (fun context => PiCCSInputCheck.running (inputs context))) continuation
-        (fun context => (PiCCSStoredSourceProbability.sourceProgram
+          (fun context => inst.running (inputs context))) continuation
+        (fun context => (PiCCSStoredSourceProbability.sourceProgram inst
           (inputs context) (checkClock context) (accessClock context)).access)
-        (FiatShamirTransfer.contextLaw relation law) ≤ epsilonMSIS) :
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey
-      (fun context => PiCCSInputCheck.running (inputs context))
-      (fun context => PiCCSInputCheck.fresh (inputs context)) law) ≤
-        deltaFS Q + InteractiveComposition.weakLoss relation productionAjtaiKey +
+        (FiatShamirTransfer.contextLaw inst.relation law) ≤ epsilonMSIS) :
+    g Q (WideFiatShamir.realSuccessProbability inst.relation inst.ajtai
+      (fun context => inst.running (inputs context))
+      (fun context => inst.fresh (inputs context)) law) ≤
+        deltaFS Q + InteractiveComposition.weakLoss inst.relation inst.ajtai +
           Real.sqrt (epsilonMSIS * 17 + IndependentExecution.testError productionShape 9) := by
   have extracted := FiatShamirTransfer.returned_source_bound_of_msis
-    relation productionAjtaiKey
-    (fun context => PiCCSInputCheck.running (inputs context))
-    (fun context => PiCCSInputCheck.fresh (inputs context))
-    law originalFirstPhase abortTape provider g deltaFS Q model
-    (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    inst.relation inst.ajtai
+    (fun context => inst.running (inputs context))
+    (fun context => inst.fresh (inputs context))
+    law originalFirstPhase abortTape provider g deltaFS Q
+    (WideFiatShamir.realSuccessProbability inst.relation inst.ajtai
+      (fun context => inst.running (inputs context)) (fun context => inst.fresh (inputs context)) law)
+    model.successTransfer
+    (PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock)
-    (fun context => PiCCSStoredSourceProbability.sourceProgram
+    (fun context => PiCCSStoredSourceProbability.sourceProgram inst
       (inputs context) (checkClock context) (accessClock context))
     lowNorm
-    (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
+    (PiRLCExtractionPrimitives.program_correct inst scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock)
     bounds bounded
-    (fun context => PiCCSStoredSourceProbability.sourceProgram_correct
+    (fun context => PiCCSStoredSourceProbability.sourceProgram_correct inst
       (inputs context) (checkClock context) (accessClock context)) epsilonMSIS msisBound
   dsimp only at extracted
   rw [PiCCSStoredSourceProbability.returnedSourceProbability_eq_finishValue] at extracted
-  have returnedZero := source_event_probability_eq_zero inputs
-    (FiatShamirTransfer.contextLaw relation law)
+  have returnedZero := source_event_probability_eq_zero inst inputs
+    (FiatShamirTransfer.contextLaw inst.relation law)
     (InteractiveComposition.firstPhase originalFirstPhase
-      (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
-    (InteractiveComposition.suffixLaw relation productionAjtaiKey
-      (fun context => PiCCSInputCheck.running (inputs context))
-      (fun context => PiCCSInputCheck.fresh (inputs context))
-      (SupportedContinuation.extension relation productionAjtaiKey
-        (fun context => PiCCSInputCheck.running (inputs context))
-        (fun context => PiCCSInputCheck.fresh (inputs context))
-        (FiatShamirTransfer.contextLaw relation law)
+      (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
+    (InteractiveComposition.suffixLaw inst.relation inst.ajtai
+      (fun context => inst.running (inputs context))
+      (fun context => inst.fresh (inputs context))
+      (SupportedContinuation.extension inst.relation inst.ajtai
+        (fun context => inst.running (inputs context))
+        (fun context => inst.fresh (inputs context))
+        (FiatShamirTransfer.contextLaw inst.relation law)
         (InteractiveComposition.firstPhase originalFirstPhase
-          (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+          (SupportedExtraction.publicCheck (fun context => inst.running (inputs context))))
         abortTape provider))
-    (InteractiveComposition.consume relation productionAjtaiKey
-      (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+    (InteractiveComposition.consume inst.relation inst.ajtai
+      (PiRLCExtractionPrimitives.program inst scalarSubClock inverseAdapterClock
         assignmentSubClock scalarActionClock)) invalid
   have errorBound := extracted.trans returnedZero.le
   simp only [PaperProfile.arity_total, Nat.cast_ofNat] at errorBound

@@ -32,6 +32,21 @@ abbrev ProofEnvelope (application : Program) :=
     (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
     (publicFits := PerApplicationFixedPoint.publicFits application)
 
+abbrev Statement := TerminalStatement AppState
+
+/-- One recursive terminal opening at this package's width. -/
+abbrev Payload (application : Program) := TerminalProof
+  (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application))
+  (Lifecycle.Stage1.Terminal.RunningWitness
+    (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application))
+  (Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application))
+  (Lifecycle.Stage1.Terminal.FreshWitness
+    (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
+    (publicFits := PerApplicationFixedPoint.publicFits application)) slotCount
+
 noncomputable def Holds
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

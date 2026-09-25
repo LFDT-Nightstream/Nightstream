@@ -366,6 +366,6 @@ theorem successProbability_tendsto :
       (by rintro ⟨witness, impossible⟩; cases impossible)
   have summed := (tendsto_finsetSum Finset.univ (fun coordinate _ => each coordinate)).div_const
     (PaperProfile.arity.total : ℝ)
-  simpa only [successProbability, ← Finset.sum_div, div_right_comm] using summed
+  simpa only [successProbability, ← Finset.sum_div, div_right_comm] using! summed
 
 end NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingLaw

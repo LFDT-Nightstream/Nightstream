@@ -94,7 +94,6 @@ theorem matrixVectorAt_extend
       rw [extendMatrix_embedLogical, extendAssignment_embedLogical])
     (by
       intro column tail
-      dsimp only
       rw [extendAssignment_tail_zero ops.zero assignment column tail,
         laws.mul_zero])
   unfold matrixVectorAt

@@ -1129,7 +1129,7 @@ theorem rowRing_eq_sumRange
           else 0) := by
   have equal := congrArg (fun value : RingF => value output)
     (rowRing_eq_blockSum system matrix assignment vertex)
-  simpa only [blockRowSum, blockRowRing, sumFinF] using equal
+  simpa only [blockRowSum, blockRowRing, sumFinF] using! equal
 
 private theorem blockRowRing_eq_sumRingF
     {shape : Shape}
@@ -1292,7 +1292,7 @@ theorem evaluate_zero
   unfold evaluate BaseLinear.assignmentZero BaseLinear.Raw.assignmentZero
     BaseLinear.evaluationZero ringKZero
   unfold BooleanTable.evaluate
-  simpa only [BaseLinear.matrixVectorAt_zero] using
+  simpa only [BaseLinear.matrixVectorAt_zero] using!
     (BaseLinear.evaluateTabulated_zero point)
 
 theorem evaluate_add
@@ -1311,7 +1311,7 @@ theorem evaluate_add
     BaseLinear.evaluationAdd
   unfold BooleanTable.evaluate
   simpa only [BaseLinear.matrixVectorAt_add,
-    ConcreteCarrier.embed_add] using
+    ConcreteCarrier.embed_add] using!
     (BaseLinear.evaluateTabulated_add
       (fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
         ConcreteCarrier.baseOps
@@ -1345,7 +1345,7 @@ theorem evaluate_scale
         K.mul (K.embed scalar) (K.embed value) := by
     simpa only [ConcreteCarrier.baseOps, ConcreteCarrier.extensionOps] using
       (ConcreteCarrier.embed_mul scalar value)
-  simpa only [BaseLinear.matrixVectorAt_scale, embedScale] using
+  simpa only [BaseLinear.matrixVectorAt_scale, embedScale] using!
     (BaseLinear.evaluateTabulated_scale (K.embed scalar)
       (fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
         ConcreteCarrier.baseOps

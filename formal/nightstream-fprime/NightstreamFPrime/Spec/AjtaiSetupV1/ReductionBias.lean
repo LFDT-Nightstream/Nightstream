@@ -82,7 +82,7 @@ theorem wide_frequency_error_le (event : Nat → Prop) [DecidablePred event] :
     |frequency (2 ^ 256) goldilocksModulus event -
       frequency goldilocksModulus goldilocksModulus event| ≤
       (4294967295 : ℚ) / 2 ^ 256 := by
-  simpa only [wide_remainder_eq, Nat.cast_pow, Nat.cast_ofNat] using
+  simpa only [wide_remainder_eq, Nat.cast_pow, Nat.cast_ofNat] using!
     frequency_error_le (2 ^ 256) goldilocksModulus (by decide) (by decide) event
 
 end NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias

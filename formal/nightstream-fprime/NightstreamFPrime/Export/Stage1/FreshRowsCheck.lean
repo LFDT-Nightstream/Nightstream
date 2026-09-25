@@ -129,7 +129,7 @@ theorem checkBlock_of_units (block : MatrixProgram.Block) {columns : Nat}
   | poseidon block =>
       apply allFrom_complete
       intro unit _ upper
-      exact checked unit (by simpa only [Nat.zero_add] using upper)
+      exact checked unit (by simpa only [Nat.zero_add] using! upper)
   | ordinary block =>
       apply allFrom_complete
       intro unit _ upper

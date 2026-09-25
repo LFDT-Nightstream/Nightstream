@@ -480,7 +480,7 @@ private theorem evaluation_probe
             have result := lowInduction tailPoint
             rw [alphaPolynomial_evaluate_eq_evaluateTerms] at result
             simpa only [toAlphaPolynomial, canonicalAlphaBasis,
-              evaluate] using result
+              evaluate] using! result
           have highEvaluation :
               evaluateTerms ops tailPoint
                   (interpolateCoefficients ops high)
@@ -490,7 +490,7 @@ private theorem evaluation_probe
             have result := highInduction tailPoint
             rw [alphaPolynomial_evaluate_eq_evaluateTerms] at result
             simpa only [toAlphaPolynomial, canonicalAlphaBasis,
-              evaluate] using result
+              evaluate] using! result
           rw [lowEvaluation, highEvaluation]
 
 /-- Evaluating the canonical polynomial derived from a Boolean table equals

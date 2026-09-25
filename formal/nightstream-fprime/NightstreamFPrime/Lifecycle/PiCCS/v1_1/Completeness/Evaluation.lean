@@ -83,7 +83,7 @@ private theorem appendInitialClaim
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared] using operationsEq
   · simpa [shared, sumcheckOffset] using nextEq
-  · simpa [shared] using childSpec
+  · simpa [shared] using! childSpec
 
 private theorem sumcheckEvidence_of_accepted
     {logicalWidth base : Nat}
@@ -170,19 +170,19 @@ private theorem sumcheckEvidence_of_accepted
       before.current context (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) challengeSpec
+          using! statementState) challengeSpec
   have keyChallenges :=
     ChallengeDerivation.spec_implies_keyExecution_challenges
       relation ajtai running fresh proof (challengeInterface shared offset)
       (challengeOffset interface offset) before.current (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) challengeSpec
+          using! statementState) challengeSpec
   have roundCoverage := RoundTranscript.spec_implies_keyExecution_rounds
     relation ajtai running fresh proof (roundTranscriptInterface shared)
       (roundTranscriptOffset interface offset) before.current (by
         simpa [shared, context, challengeInterface,
-          roundTranscriptInterface, atOffset] using challengeCoverage.2.2)
+          roundTranscriptInterface, atOffset] using! challengeCoverage.2.2)
       (by
         intro roundIndex
         rfl)
@@ -191,7 +191,7 @@ private theorem sumcheckEvidence_of_accepted
     relation ajtai running fresh proof (initialClaimInterface shared)
       (initialClaimOffset interface offset) before.current (by
         simpa [shared, initialClaimInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -241,7 +241,7 @@ private theorem sumcheckEvidence_of_accepted
         rfl)
       (sumcheckRoundPointEq.trans roundCoverage.1)
       (by
-        simpa [ChallengeDerivation.productionContext] using coverage.chain)
+        simpa [ChallengeDerivation.productionContext] using! coverage.chain)
   simpa [shared, running, fresh, proof] using evidence
 
 private theorem appendSumcheckChain
@@ -273,7 +273,7 @@ private theorem appendSumcheckChain
     (assumptionsAt assumptions before.current).sumcheck
   have zeroAssumptions : SumcheckChain.Assumptions
       (sumcheckInterface shared) childStart (fun _ => 0) := by
-        simpa [SumcheckChain.Assumptions, FixedChain.Assumptions] using
+        simpa [SumcheckChain.Assumptions, FixedChain.Assumptions] using!
           childAssumptions
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops (sumcheckCircuit shared).main childStart),
@@ -289,7 +289,7 @@ private theorem appendSumcheckChain
     ⟨after, operationsEq, nextEq, preserves, _childHolds⟩
   refine ⟨after, ?_, ?_, preserves⟩
   · simpa [shared, childStart] using operationsEq
-  · simpa [shared, childStart] using nextEq
+  · simpa [shared, childStart] using! nextEq
 
 private theorem appendEvalKTerminal
     {logicalWidth degreeBound base : Nat}
@@ -333,7 +333,7 @@ private theorem appendEvalKTerminal
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared] using operationsEq
   · simpa [shared, evalAOffset] using nextEq
-  · simpa [shared] using childSpec
+  · simpa [shared] using! childSpec
 
 private theorem appendEvalATerminal
     {logicalWidth degreeBound base : Nat}
@@ -377,7 +377,7 @@ private theorem appendEvalATerminal
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared] using operationsEq
   · simpa [shared, ccsOffset] using nextEq
-  · simpa [shared] using childSpec
+  · simpa [shared] using! childSpec
 
 private theorem transcriptSpecs_preserved
     {logicalWidth degreeBound base : Nat}
@@ -614,19 +614,19 @@ private theorem evidence_of_specs
       context (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) challengeSpec
+          using! statementState) challengeSpec
   have keyChallenges :=
     ChallengeDerivation.spec_implies_keyExecution_challenges
       relation ajtai running fresh proof (challengeInterface shared offset)
       (challengeOffset interface offset) env (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) challengeSpec
+          using! statementState) challengeSpec
   have roundCoverage := RoundTranscript.spec_implies_keyExecution_rounds
     relation ajtai running fresh proof (roundTranscriptInterface shared)
       (roundTranscriptOffset interface offset) env (by
         simpa [shared, context, challengeInterface,
-          roundTranscriptInterface, atOffset] using challengeCoverage.2.2)
+          roundTranscriptInterface, atOffset] using! challengeCoverage.2.2)
       (by
         intro roundIndex
         rfl)
@@ -635,10 +635,10 @@ private theorem evidence_of_specs
     relation ajtai running fresh proof (evalKInterface shared)
       (evalKOffset interface offset) env (by
         simpa [shared, evalKInterface, roundTranscriptInterface, roundPoint,
-          atOffset] using roundCoverage.1)
+          atOffset] using! roundCoverage.1)
       (by rfl) (by
         simpa [shared, evalKInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -647,10 +647,10 @@ private theorem evidence_of_specs
     relation ajtai running fresh proof (evalAInterface shared)
       (evalAOffset interface offset) env (by
         simpa [shared, evalAInterface, roundTranscriptInterface, roundPoint,
-          atOffset] using roundCoverage.1)
+          atOffset] using! roundCoverage.1)
       (by rfl) (by
         simpa [shared, evalAInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -797,7 +797,7 @@ theorem evidence_preserved
           roundIndex).VarsBelow (ccsOffset interface offset) := by
       apply KExpr.varsBelow_mono _ below
       simpa only [initialClaimOffset, nextOffset, childLength,
-        roundTranscriptCircuit] using initialClaimLeCcs
+        roundTranscriptCircuit] using! initialClaimLeCcs
     exact (RoundTranscript.challenge (roundTranscriptInterface shared)
       (roundTranscriptOffset interface offset) roundIndex
       ).eval_eq_of_agree_below (ccsOffset interface offset) after.current
@@ -845,7 +845,7 @@ theorem evidence_preserved
     have belowCcs : (EvalATerminal.output (evalAInterface shared)
         (evalAOffset interface offset)).VarsBelow
           (ccsOffset interface offset) := by
-      simpa only [ccsOffset, nextOffset, childLength, evalACircuit] using below
+      simpa only [ccsOffset, nextOffset, childLength, evalACircuit] using! below
     exact (EvalATerminal.output (evalAInterface shared)
       (evalAOffset interface offset)).eval_eq_of_agree_below
         (ccsOffset interface offset) after.current before.current belowCcs

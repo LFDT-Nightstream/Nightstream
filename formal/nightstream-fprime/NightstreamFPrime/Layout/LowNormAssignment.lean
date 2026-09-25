@@ -132,7 +132,7 @@ private theorem coordinates_getD_prefix {sourceWidth : Nat}
   | cons head tail inductionHypothesis =>
       rcases slot with ⟨_ | index, bound⟩
       · have inside : coordinate.val < (head.encode source).length := by
-          simpa only [Slot.encode_length] using coordinate.isLt
+          simpa only [Slot.encode_length] using! coordinate.isLt
         simpa [coordinates, prefixWidth, logicalWidth] using
           List.getD_append (head.encode source) (coordinates tail source)
             0 coordinate.val inside

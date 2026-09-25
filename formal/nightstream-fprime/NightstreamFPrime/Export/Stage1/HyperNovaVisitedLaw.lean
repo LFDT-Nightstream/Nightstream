@@ -223,7 +223,7 @@ private theorem readDraw_marginal (steps : Nat) (visit : Visit) :
             ((resultLaw source (advance visit result)).map (result :: ·)).map (readDraw 0 visit) =
               PMF.pure (visit, if goodActive visit then result else none) := by
           rw [PMF.map_comp]
-          simpa only [Function.comp_def, readDraw, List.headD_cons, Function.const] using
+          simpa only [Function.comp_def, readDraw, List.headD_cons, Function.const] using!
             (PMF.map_const (resultLaw source (advance visit result))
               (visit, if goodActive visit then result else none))
         simp only [head]

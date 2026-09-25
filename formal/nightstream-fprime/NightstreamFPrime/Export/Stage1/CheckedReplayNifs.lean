@@ -122,7 +122,7 @@ private theorem execution_outgoing (input : PiCCSInputCheck.Input)
   apply congrArg (fun state => ProductionKey.absorbFullOutput state
     (PiCCSProofInputs.output (PiCCSInputCheck.proofValues input)))
   rw [execution_finalState, production_oracle, ProductionKey.key_publicInputState_eq]
-  simpa only [proof, pre, ProductionKey.absorbPublicInput] using
+  simpa only [proof, pre, ProductionKey.absorbPublicInput] using!
     (congrArg Prod.snd (PiCCSInputCheck.traceFrom_eq_derive input
       (pre input).state (canonicalFinIndices productionShape.cubeVariables))).symm
 

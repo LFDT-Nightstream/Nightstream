@@ -200,7 +200,7 @@ private theorem canonicalBitValue
     (childInterface interface offset) env offset index 1 specification (by
       simpa [bitCount, CanonicalU64.bitCount] using Nat.succ_le_of_lt bounded)
   simpa [CanonicalU64.weightedValue, CanonicalU64.bitValue,
-    childInterface] using window
+    childInterface] using! window
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

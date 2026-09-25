@@ -79,7 +79,7 @@ theorem selected_bounds (position : Fin logicalCountPerLane) :
       position.val < start (selected position) + count (selected position) := by
   have bound : position.val < 100 := position.isLt
   unfold selected
-  split_ifs <;> simp only [start, count] <;> omega
+  split_ifs <;> simp [start, count, logicalCountPerLane] <;> omega
 
 theorem selected_eq (position : Fin logicalCountPerLane) (segment : Fin 8)
     (lower : start segment ≤ position.val)
@@ -364,7 +364,7 @@ theorem envelope_form? {program : Program} {logicalWidth : Nat}
       roundCount, PiRLCSamplerOrdinaryRows.digestRoundCount, offset]
     omega
   rw [sameSlot] at lookup
-  convert lookup using 1
+  convert! lookup using 1
   congr 1
   dsimp [offset]
   omega

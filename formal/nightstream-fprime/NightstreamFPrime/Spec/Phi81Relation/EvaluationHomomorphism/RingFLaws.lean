@@ -706,7 +706,7 @@ private theorem basisExpansion_eq (value : RingF) :
         exact equal
       · rw [if_neg equal, if_neg (Ne.symm equal), Fin.mul_zero]
     _ = value output := by
-      simpa using
+      simpa using!
         (sumRange_select ConcreteCarrier.baseOps ConcreteCarrier.baseLaws
           ringDegree output.val (fun _ => value output) output.isLt)
 

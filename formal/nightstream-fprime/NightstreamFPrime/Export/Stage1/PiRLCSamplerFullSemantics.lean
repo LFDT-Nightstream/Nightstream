@@ -140,7 +140,7 @@ theorem positionOutput_eval_eq
       rw [← PiRLCFirst54DirectBridge.finalValue_eq_eval program base source]
       exact sourceHolds.full
     rw [roundEq, slotEq]
-    simpa [First54.finalFull, finalRound, First54.candidateCount] using
+    simpa [First54.finalFull, finalRound, First54.candidateCount] using!
       semanticFull.trans canonicalFull.symm
   · have notFinal : descriptor.positionColumn ≠
         PiRLCSamplerOrdinaryDirectSource.selectorSource source.val := by

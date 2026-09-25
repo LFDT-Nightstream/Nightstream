@@ -74,7 +74,7 @@ theorem queryStep_work_hasSum (law : Law Index Challenge Assignment)
       (law.meanWork vector) := by
   have summed := hasSum_sum (s := Finset.univ)
     (fun result _ => (law.workSummable vector result).hasSum)
-  simpa only [queryStep, Nat.cast_add, Nat.cast_one] using summed
+  simpa only [queryStep, Nat.cast_add, Nat.cast_one] using! summed
 
 variable [DecidableEq Index] [Fintype Challenge]
 
@@ -122,7 +122,7 @@ theorem call_work_hasSum (law : Law Index Challenge Assignment)
     queryStep_work_hasSum law check (callVector coordinate rest challenge))
   have divided := summed.div_const (Fintype.card Challenge : ℝ)
   simp only [lineWork, Fintype.expect_eq_sum_div_card] at divided ⊢
-  convert divided using 1
+  convert! divided using 1
   funext steps
   rw [Fintype.sum_prod_type, Finset.sum_div]
   apply Finset.sum_congr rfl

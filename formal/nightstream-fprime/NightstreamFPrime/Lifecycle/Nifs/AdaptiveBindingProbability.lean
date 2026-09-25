@@ -432,7 +432,7 @@ theorem local_retryDisagreement_le_success (context : Context)
     unfold AdaptiveBindingLaw.rate
     exact (AcceptedRetryLaw.successRate_range _ _).1
   have divided := div_le_div_of_nonneg_right numerator rateNonnegative
-  convert divided using 1
+  convert! divided using 1
   · congr 1
     exact (rate_eq relation ajtai program sourceProgram running fresh originalFirstPhase
       publicCheck continuation context sourceCorrect).symm
@@ -489,6 +489,6 @@ theorem retryDisagreement_le_success (contexts : PMF Context)
         context (accessesCorrect context) (sourcesCorrect context))
   simpa only [StrongProbability.clockMean, StrongProbability.verifierMean_const,
     base, total, add_zero, successProbability, PaperCompositionProbability.retryDisagreementProbability,
-    StrongProbability.globalRetryDisagreementProbability] using averaged.2
+    StrongProbability.globalRetryDisagreementProbability] using! averaged.2
 
 end NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability

@@ -59,7 +59,7 @@ theorem productSemantics_imply_commitmentCanonical
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
         geometry assignment base product descriptor
     simpa only [descriptor,
-      PiRLCProductSchedule.Descriptor.sourceConstraint] using zero
+      PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell
     exact PiRLCCombinationInvocations.commitmentSourceConstraint_eq_stepAssertion
       (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -104,7 +104,7 @@ theorem productSemantics_imply_publicInputCanonical
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
         geometry assignment base product descriptor
     simpa only [descriptor,
-      PiRLCProductSchedule.Descriptor.sourceConstraint] using zero
+      PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell
     exact PiRLCCombinationInvocations.publicInputSourceConstraint_eq_stepAssertion
       (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -194,7 +194,7 @@ theorem productSemantics_imply_evalACanonical
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
         geometry assignment base product descriptor
     simpa only [descriptor,
-      PiRLCProductSchedule.Descriptor.sourceConstraint] using zero
+      PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell
     exact PiRLCCombinationInvocations.evalASourceConstraint_eq_stepAssertion
       (logicalWidth := logicalWidth) (publicFits := publicFits)

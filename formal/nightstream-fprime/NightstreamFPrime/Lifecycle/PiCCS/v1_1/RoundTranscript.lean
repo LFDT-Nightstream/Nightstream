@@ -1046,7 +1046,7 @@ theorem spec_implies_keyExecution_rounds
   have productionEq : (key.piCcsExecution running fresh proof).coins =
       derived := by
     simpa [key, context, certificate, derived,
-      ChallengeDerivation.productionContext, oracle] using coinsEq
+      ChallengeDerivation.productionContext, oracle] using! coinsEq
   exact ⟨
     roundPointDerived.trans
       (congrArg (fun coins => coins.roundPoint) productionEq).symm,

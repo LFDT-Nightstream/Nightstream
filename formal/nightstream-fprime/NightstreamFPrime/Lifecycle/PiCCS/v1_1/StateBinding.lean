@@ -363,7 +363,7 @@ theorem constraintsHold_of_spec (interface : Interface) (env : Env)
     apply agrees index
     rw [localLength_eq]
     omega
-  simpa only [completedEq] using rows
+  simpa only [completedEq] using! rows
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (main interface) offset).length = 160 := by

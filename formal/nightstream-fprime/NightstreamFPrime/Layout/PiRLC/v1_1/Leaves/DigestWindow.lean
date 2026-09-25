@@ -61,7 +61,7 @@ private def laneInputs (interface : Logical.Interface) (offset : Nat)
       (Logical.laneInterface interface offset lane)
       (Logical.laneOffset offset lane) where
   source := by
-    simpa [Logical.laneInterface] using inputs.initialState (Logical.rateLane lane)
+    simpa [Logical.laneInterface] using! inputs.initialState (Logical.rateLane lane)
 
 private def permutationInputs (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
@@ -70,7 +70,7 @@ private def permutationInputs (interface : Logical.Interface) (offset : Nat)
       (Logical.permutationOffset offset) where
   initialState := by
     intro lane
-    simpa [Logical.permutationInterface] using inputs.initialState lane
+    simpa [Logical.permutationInterface] using! inputs.initialState lane
 
 def logicalConstraints (interface : Logical.Interface) (offset : Nat) :
     List Expr :=
@@ -177,7 +177,7 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
   have lengthEq : localLength
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestWindow.opsAt
         interface offset) = Logical.logicalPrivateCount := by
-    simpa using Logical.localLength_eq interface offset
+    simpa using! Logical.localLength_eq interface offset
   change localLength
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestWindow.opsAt
         interface offset) +
@@ -242,6 +242,6 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
   refine ⟨completed, ?_, rows⟩
   have combined := logicalAgreesFixed.append physicalAgrees
   rw [totalFreshCount_eq interface offset inputs] at combined
-  simpa [Logical.logicalPrivateCount] using combined
+  simpa [Logical.logicalPrivateCount] using! combined
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestWindow

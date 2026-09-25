@@ -535,7 +535,7 @@ private theorem absorbCarry64_denote (state : HashState64) :
   apply List.ext_get
   · simp [Poseidon2.width]
   · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa [State64.denote] using leftLt
+    have indexLt : index < 8 := by simpa [State64.denote] using! leftLt
     interval_cases index <;>
       simp [Poseidon2.width, State64.denote, UInt64.denote, Poseidon2.ofNat]
 

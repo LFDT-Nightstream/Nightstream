@@ -58,6 +58,6 @@ theorem physical_complete (interface : Logical.Interface)
   have combined := logicalAgreesFixed.append physicalAgrees
   rw [← logicalConstraints_eq_flatten interface coordinate offset,
     totalFreshCount_eq interface coordinate offset inputs] at combined
-  simpa [Logical.logicalPrivateCount] using combined
+  simpa [Logical.logicalPrivateCount] using! combined
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Sampler

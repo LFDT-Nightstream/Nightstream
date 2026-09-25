@@ -223,7 +223,7 @@ theorem decode_carrierColumn
       (block, coefficient) := by
   apply Phi81ColumnLayout.decode_encode
   simpa [carrierColumn, layout,
-    MatrixCoefficientSource.RingColumnLayout.encode?] using
+    MatrixCoefficientSource.RingColumnLayout.encode?] using!
     (layout_encode?_isSome block coefficient)
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout

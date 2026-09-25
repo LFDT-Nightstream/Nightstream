@@ -188,7 +188,7 @@ private theorem source_pair (input : PiCCSPublicReplay.Input)
   cases bit
   · change (retained masks groups first second challenges source).getD
         (0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-    simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using endpoint
+    simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using! endpoint
   · change (retained masks groups first second challenges source).getD
         (1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
     simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, if_true] using endpoint

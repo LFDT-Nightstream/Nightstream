@@ -539,7 +539,7 @@ theorem block_row?
     (block geometry) logicalWidth ordinal bound (wireDescriptor descriptor)
       selected (semanticInterface geometry descriptor)
       (block_interface? geometry descriptor) semanticRow rowSelected
-  simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using loaded
+  simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using! loaded
 
 /-- The singleton matrix program returns the exact semantic row for every
 authoritative invocation and local row. -/

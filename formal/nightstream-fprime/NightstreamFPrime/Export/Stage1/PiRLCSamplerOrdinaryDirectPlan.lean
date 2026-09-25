@@ -300,7 +300,7 @@ private theorem logicalCandidate_source
   let sourceOffset := 592 + round * 992 + lane * 100 + position
   let roundOffset := lane * 100 + position
   have roundLt8 : round < 8 := by
-    simpa [roundCount] using roundLt
+    simpa [roundCount] using! roundLt
   have laneLt4 : lane < 4 := by
     simpa [laneCount] using laneLt
   have positionLt100 : position < 100 := by
@@ -394,7 +394,7 @@ private theorem freshCandidate_source
   let sourceOffset := round * 1212 + lane * 303 + position
   let roundOffset := lane * 303 + position
   have roundLt8 : round < 8 := by
-    simpa [roundCount] using roundLt
+    simpa [roundCount] using! roundLt
   have laneLt4 : lane < 4 := by
     simpa [laneCount] using laneLt
   have positionLt303 : position < 303 := by
@@ -541,7 +541,7 @@ private theorem poseidonWindowCandidate_source (source previous : Nat)
   let sourceOffset := 1576 + previous * 992 + lane.val
   let previousOffset := previous * 992 + lane.val
   have roundLt8 : previous + 1 < 8 := by
-    simpa [roundCount] using roundLt
+    simpa [roundCount] using! roundLt
   have sourceOffsetLt : sourceOffset < 15504 := by
     dsimp [sourceOffset]
     have laneLt := lane.isLt
@@ -632,7 +632,7 @@ private theorem logicalSourceOffset_poseidonWindow (source previous : Nat)
       1576 + previous * 992 + lane.val := by
   let offset := 1576 + previous * 992 + lane.val
   have roundLt8 : previous + 1 < 8 := by
-    simpa [roundCount] using roundLt
+    simpa [roundCount] using! roundLt
   have offsetLt : offset < 15504 := by
     dsimp [offset]
     have laneLt := lane.isLt
@@ -844,7 +844,7 @@ private theorem poseidonWindow_before_fresh (source : Fin sourceCount)
         (previous + 1) lane < PiRLCStarts.samplerFreshStart := by
   have sourceLt := source.isLt
   have laneLt := lane.isLt
-  have roundLt8 : previous + 1 < 8 := by simpa [roundCount] using roundLt
+  have roundLt8 : previous + 1 < 8 := by simpa [roundCount] using! roundLt
   norm_num [sourceCount, PiRLCSamplerOrdinaryRows.sourceCount] at sourceLt
   unfold PiRLCStarts.samplerFreshStart
   rw [PiRLCStarts.phaseFreshStart_eq]

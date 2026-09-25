@@ -269,7 +269,7 @@ private theorem entryAssumptions (interface : Interface) (coordinate offset : Na
     {env : Env} (assumptions : Assumptions interface offset env) :
     TranscriptAbsorption.Assumptions (entryInterface interface)
       (entryOffset offset) env := by
-  simpa [entryInterface, entryOffset] using assumptions
+  simpa [entryInterface, entryOffset] using! assumptions
 
 private theorem windowAssumptionsNat (interface : Interface)
     (coordinate offset : Nat) {env : Env}
@@ -387,7 +387,7 @@ theorem selectorAssumptions (interface : Interface)
           if ((DigestWindow.candidate (windowOffset offset round.val) position).eval
               env).val = rejectionBucket then 1 else 0 := by
       simpa [DigestWindow.reject, DigestWindow.candidate, DigestLane.reject,
-        DigestLane.candidate] using rejectEq
+        DigestLane.candidate] using! rejectEq
     change
       ((1 - DigestWindow.reject (windowOffset offset round.val) position).eval env =
           0 ∨
@@ -466,7 +466,7 @@ private theorem completeEntry (interface : Interface) (coordinate offset : Nat)
       entryEnv entryAgrees entryRows with
     ⟨completed, operationsEq, _, _, _⟩
   refine ⟨completed, ?_⟩
-  simpa [empty, entryOp] using operationsEq
+  simpa [empty, entryOp] using! operationsEq
 
 private theorem completeWindows (interface : Interface)
     (coordinate offset : Nat) (env : Env)
@@ -570,11 +570,11 @@ theorem flatConstraints_varsBelow (interface : Interface)
       subst operation
       apply Expr.VarsBelow.mono expression
         (entryScope interface coordinate offset env assumptions expression (by
-          simpa [entryOp, Sequence.childOp] using expressionMember))
+          simpa [entryOp, Sequence.childOp] using! expressionMember))
       have lengthEq : localLength
           (Circuit.ops (entryCircuit interface coordinate).main
             (entryOffset offset)) = entryPrivateCount := by
-        simpa [entryCircuit] using TranscriptAbsorption.localLength_eq
+        simpa [entryCircuit] using! TranscriptAbsorption.localLength_eq
           (entryInterface interface) coordinate (entryOffset offset)
       rw [lengthEq]
       simp [entryOffset, entryPrivateCount, logicalPrivateCount]
@@ -584,13 +584,13 @@ theorem flatConstraints_varsBelow (interface : Interface)
       apply Expr.VarsBelow.mono expression
         (windowScope interface coordinate offset env assumptions round bounded
           expression (by
-            simpa [windowOp, Sequence.childOp] using expressionMember))
+            simpa [windowOp, Sequence.childOp] using! expressionMember))
       have lengthEq : localLength
           (Circuit.ops
             (windowCircuit interface coordinate offset round).main
               (windowOffset offset round)) =
           DigestWindow.logicalPrivateCount := by
-        simpa [windowCircuit] using DigestWindow.localLength_eq
+        simpa [windowCircuit] using! DigestWindow.localLength_eq
           (windowInterface interface coordinate offset round)
             (windowOffset offset round)
       rw [lengthEq]
@@ -603,7 +603,7 @@ theorem flatConstraints_varsBelow (interface : Interface)
     apply Expr.VarsBelow.mono expression
       (selectorScope interface coordinate offset env
         specification.toPrefixHolds.window expression (by
-          simpa [selectorOp, Sequence.childOp] using expressionMember))
+          simpa [selectorOp, Sequence.childOp] using! expressionMember))
     have lengthEq : localLength
         (Circuit.ops (selectorCircuit interface coordinate offset).main
           (selectorOffset offset)) = First54.logicalPrivateCount := by
@@ -715,7 +715,7 @@ theorem windowState_eq_stateBeforeBlock (interface : Interface)
       simpa [windowInitialState, evalState,
         ProductionSchedule.stateBeforeBlock_succ,
         NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.machine,
-        previousRound] using outputEq
+        previousRound] using! outputEq
 
 theorem candidate_eq_sourceStream (interface : Interface)
     (coordinate offset : Nat) (env : Env)
@@ -744,7 +744,7 @@ theorem candidate_eq_sourceStream (interface : Interface)
   simpa [ProductionSchedule.source, ProductionSchedule.candidateStream,
     ProductionSchedule.chunksAt,
     NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.machine,
-    round, position, candidateRound, candidatePosition] using chunksEq
+    round, position, candidateRound, candidatePosition] using! chunksEq
 
 theorem outputState_eq_nextState (interface : Interface)
     (coordinate offset : Nat) (env : Env)
@@ -756,7 +756,7 @@ theorem outputState_eq_nextState (interface : Interface)
   have final := windowState_eq_stateBeforeBlock interface coordinate offset env
     specification digestRoundCount (Nat.le_refl _)
   simpa [outputState, windowInitialState, ProductionSchedule.source,
-    digestRoundCount] using final
+    digestRoundCount] using! final
 
 def evalCandidate (env : Env) (offset : Nat)
     (candidate : Fin First54.candidateCount) : Chunk :=
@@ -835,7 +835,7 @@ theorem selector_accepts_eq_production (interface : Interface)
   have rejectValue :
       (DigestWindow.reject (windowOffset offset round.val) position).eval env =
         if (evalCandidate env offset candidate).val = rejectionBucket then 1 else 0 := by
-    simpa [DigestWindow.reject, DigestLane.reject, decoderCandidateEq] using
+    simpa [DigestWindow.reject, DigestLane.reject, decoderCandidateEq] using!
       rejectEq
   rw [Bool.eq_iff_iff, accepts_eq_true_iff_ne_rejectionBucket]
   by_cases rejected : (evalCandidate env offset candidate).val = rejectionBucket
@@ -903,7 +903,7 @@ theorem candidatePrefix_eq_sourcePrefix (interface : Interface)
   have point := candidate_eq_sourceStream interface coordinate offset env
     specification (First54.candidateIndex index)
   simpa [Function.comp_def, First54.candidateIndex, First54.candidateCount,
-    Nat.mod_eq_of_lt indexLt] using point
+    Nat.mod_eq_of_lt indexLt] using! point
 
 private theorem acceptedSymbols_eq_productionMap (interface : Interface)
     (coordinate offset : Nat) (env : Env)
@@ -1085,7 +1085,7 @@ theorem relation_implies_outputChallenge
     have selected := congrArg
       (fun values : List F => values.getD position.val 0) outputEq
     simpa [outputCoefficients, First54.evalOutput, outputWord, outputSlot,
-      List.getD_eq_getElem?_getD, positionLt, outputPositionLt] using selected
+      List.getD_eq_getElem?_getD, positionLt, outputPositionLt] using! selected
   calc
     evalOutputChallenge env offset position =
         coefficientWord (coefficients.getD position.val ⟨2, by decide⟩) - 2 := by
@@ -1225,7 +1225,7 @@ theorem complete_of_success (interface : Interface) (coordinate : Nat)
           windowsCompleted.current First54.candidateCount := by
     rw [countEq]
     simpa [First54.outputCount, First54ValueStep.outputCount,
-      coefficientCount] using productionEnoughCount
+      coefficientCount] using! productionEnoughCount
   have selectorChildAssumptions := selectorAssumptions interface coordinate
     offset windowsCompleted.current prefixSpecification.window
   rcases First54.complete_of_enough

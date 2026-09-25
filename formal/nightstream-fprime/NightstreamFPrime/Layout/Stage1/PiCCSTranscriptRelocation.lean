@@ -563,7 +563,7 @@ theorem formalRoundOutputs_exactLocalSupport
     dsimp only [Formal.roundTranscriptInterface, Formal.challengeFinalState]
     rw [roundStartEq]
     exact challengeSupport
-  simpa [formalRoundEnd, shared] using roundOutputs_localSupport
+  simpa [formalRoundEnd, shared] using! roundOutputs_localSupport
     (Formal.roundTranscriptInterface shared) offset
     (Formal.roundTranscriptStart shared) (by omega) roundInitialSupport
 

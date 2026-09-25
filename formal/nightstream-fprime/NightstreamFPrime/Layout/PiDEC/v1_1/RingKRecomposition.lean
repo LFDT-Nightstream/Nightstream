@@ -50,8 +50,8 @@ theorem expressionCell_mulCount (cell : Fin Logical.cellCount)
     (value : KExpr) (linear : ValueLinear value) :
     R1CS.mulCount (Logical.expressionCell cell value) = 0 := by
   fin_cases cell
-  · simpa [Logical.expressionCell, Logical.cellCount] using linear.c0_mulCount
-  · simpa [Logical.expressionCell, Logical.cellCount] using linear.c1_mulCount
+  · simpa [Logical.expressionCell, Logical.cellCount] using! linear.c0_mulCount
+  · simpa [Logical.expressionCell, Logical.cellCount] using! linear.c1_mulCount
 
 def scalarInputs {blockCount : Nat}
     (interface : Logical.Interface blockCount)
@@ -62,14 +62,14 @@ def scalarInputs {blockCount : Nat}
   intro offset
   refine ⟨?_, ?_⟩
   · intro coordinate
-    simpa [Logical.scalarInterface] using
+    simpa [Logical.scalarInterface] using!
       expressionCell_mulCount (Logical.coordinates coordinate).2.2
         (interface.parent offset (Logical.coordinates coordinate).1
           (Logical.coordinates coordinate).2.1)
         (inputs offset |>.parent (Logical.coordinates coordinate).1
           (Logical.coordinates coordinate).2.1)
   · intro child coordinate
-    simpa [Logical.scalarInterface] using
+    simpa [Logical.scalarInterface] using!
       expressionCell_mulCount (Logical.coordinates coordinate).2.2
         (interface.child offset child (Logical.coordinates coordinate).1
           (Logical.coordinates coordinate).2.1)

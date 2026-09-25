@@ -44,7 +44,7 @@ private theorem locationSource_injective {application : Program} :
       Layout.Stage1.ApplicationInputs.localStart,
       Layout.Stage1.ApplicationInputs.currentWordStart,
       Layout.Stage1.ApplicationInputs.witnessStart] at same
-    simp only [Lifecycle.Stage1.Application.stateWordCount] at leftBound rightBound
+    try simp only [Lifecycle.Stage1.Application.stateWordCount] at leftBound rightBound
     first
     | exact congrArg Location.input (Fin.ext (by omega))
     | exact congrArg Location.witness (Fin.ext (by omega))

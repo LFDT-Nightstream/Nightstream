@@ -90,6 +90,6 @@ theorem endpoint_port (input : PiCCSPublicReplay.Input)
     ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
-    if_false, if_true] using value
+    if_false, if_true] using! value
 
 end NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixSource

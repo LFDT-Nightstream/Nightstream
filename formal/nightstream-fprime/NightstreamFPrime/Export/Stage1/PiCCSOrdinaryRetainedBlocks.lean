@@ -302,8 +302,8 @@ def outputEndpointStart : Nat := PiCCSStarts.logicalFreshBase - 8
 def outputEndpointBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program 8 outputEndpointStart (by
-    rw [outputEndpointStart, PiCCSStarts.logicalFreshBase,
-      PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
+    unfold outputEndpointStart PiCCSStarts.logicalFreshBase
+    rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
     norm_num)
 
 def freshCount : Nat := 731605

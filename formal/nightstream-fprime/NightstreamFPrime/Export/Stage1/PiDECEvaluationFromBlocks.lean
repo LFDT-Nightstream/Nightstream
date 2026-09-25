@@ -192,7 +192,7 @@ theorem matrixRow_child
       PiDECEvaluationSelectedPrefix.matrixRow (reference blocks) child matrix index := by
   by_cases live : index < selectedPlan.rowCount
   · simpa only [matrixRow, PiDECEvaluationSelectedPrefix.matrixRow, dif_pos live,
-      programForm_value, PiDECEvaluationRows.row] using
+      programForm_value, PiDECEvaluationRows.row] using!
       congrArg (fun source : Nat → Vector StoredRing productionGlobalParams.k =>
         (PiDECEvaluationBlockSupport.kernel
           (selectedPlan.portForm ⟨index, live⟩ matrix) source).get child)

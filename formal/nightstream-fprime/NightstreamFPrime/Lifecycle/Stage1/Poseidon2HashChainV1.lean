@@ -232,8 +232,8 @@ theorem constraintsSupported
     inputs.output (by
       intro index lower upper
       apply localSupport index lower
-      simpa [circuit] using upper)
-  simpa [circuit] using supported
+      simpa [circuit] using! upper)
+  simpa [circuit] using! supported
 
 /-- The closed verifier-owned application program. -/
 def program : Application.Program where

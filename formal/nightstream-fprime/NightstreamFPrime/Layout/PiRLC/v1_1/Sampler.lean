@@ -83,7 +83,7 @@ private def entryInputs (interface : Logical.Interface) (offset : Nat)
     Leaves.TranscriptAbsorption.InputsAffine
       (Logical.entryInterface interface) (Logical.entryOffset offset) where
   initialState := by
-    simpa [Logical.entryInterface, Logical.entryOffset] using inputs.initialState
+    simpa [Logical.entryInterface, Logical.entryOffset] using! inputs.initialState
 
 private theorem entryOutput_fresh (interface : Logical.Interface)
     (coordinate offset : Nat) :
@@ -141,10 +141,10 @@ def windowInputs (interface : Logical.Interface)
   initialState := by
     cases round with
     | zero =>
-        simpa [Logical.windowInterface, Logical.windowInitialState] using
+        simpa [Logical.windowInterface, Logical.windowInitialState] using!
           (entryOutput_fresh interface coordinate offset).affine
     | succ previous =>
-        simpa [Logical.windowInterface, Logical.windowInitialState] using
+        simpa [Logical.windowInterface, Logical.windowInitialState] using!
           (digestWindowOutput_fresh interface coordinate offset previous).affine
 
 def childConstraints (child : FormalCircuit) (offset : Nat) : List Expr :=

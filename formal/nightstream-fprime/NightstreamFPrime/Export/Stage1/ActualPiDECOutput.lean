@@ -92,7 +92,7 @@ theorem selectedRowsAndPublic_imply_decodedOutput :
       simpa only [Nifs.PaperNonInteractive.Key.outputForAttempt,
         ActualPiDECMessages.proof, ActualStep.withDecodedPiCCS,
         PiCCS.v1_1.Formal.evalProof, ActualPiDECMessages.sourceProof, relation, env]
-        using AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput
+        using! AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput
           relation ajtai env phase)
   have agreement := congrArg
     (fun running => (ProductionKey.key relation ajtai).output

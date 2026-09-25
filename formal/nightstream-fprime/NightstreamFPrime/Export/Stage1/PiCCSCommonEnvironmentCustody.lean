@@ -63,8 +63,9 @@ private theorem source_beforeSampler {source : Nat}
       exact Nat.lt_of_lt_of_le ordinary.2 (by
         rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq,
           show PiRLCStarts.samplerLogicalStart = 20064823 by rfl]
-        norm_num [PiCCSStarts.initialClaimLogicalStart,
-          PiCCSStarts.roundTranscriptWitnessStart_eq])
+        unfold PiCCSStarts.initialClaimLogicalStart
+        rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+        norm_num)
   · simpa [PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, Formal.samplerOffset_eq] using fresh.2
 

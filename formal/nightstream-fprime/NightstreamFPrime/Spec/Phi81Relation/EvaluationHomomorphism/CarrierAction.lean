@@ -504,7 +504,7 @@ theorem basisExpansion_eq (value : RingF) :
       · rw [if_neg equal, if_neg]
         exact Ne.symm equal
     _ = value output := by
-      simpa using
+      simpa using!
         (sumRange_select ConcreteCarrier.baseOps ConcreteCarrier.baseLaws
           ringDegree output.val (fun _ => value output) output.isLt)
 

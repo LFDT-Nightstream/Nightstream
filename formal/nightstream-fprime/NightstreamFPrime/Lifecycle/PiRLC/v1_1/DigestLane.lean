@@ -139,7 +139,7 @@ private theorem canonicalAssumptions (interface : Interface) (offset : Nat)
     {env : Env} (assumptions : Assumptions interface offset env) :
     CanonicalU64.Assumptions (canonicalInterface interface offset)
       (canonicalOffset offset) env := by
-  simpa [Assumptions, canonicalInterface, canonicalOffset] using assumptions
+  simpa [Assumptions, canonicalInterface, canonicalOffset] using! assumptions
 
 private theorem decoderWordEnd (offset : Nat) (part : Fin 2) :
     canonicalOffset offset + CanonicalU64.auxiliaryCount ≤
@@ -302,7 +302,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     expression.VarsBelow (offset + localLength (opsAt interface offset))
   rw [flatConstraints_opsAt]
   have lengthEq : localLength (opsAt interface offset) = logicalPrivateCount := by
-    simpa using localLength_eq interface offset
+    simpa using! localLength_eq interface offset
   rw [lengthEq]
   intro expression member
   rcases List.mem_append.mp member with previous | highMember
@@ -458,7 +458,7 @@ theorem complete (interface : Interface) (env : Env) (offset : Nat)
     ⟨afterCanonical, canonicalOps, canonicalEnd, _, _⟩
   have canonicalPrefix : afterCanonical.operations =
       [canonicalOp interface offset] := by
-    simpa [empty, canonicalOp] using canonicalOps
+    simpa [empty, canonicalOp] using! canonicalOps
   have sourceAssumptionsCanonical :
       Assumptions interface offset afterCanonical.current := assumptions
   have canonicalSpec := prefixCanonicalSpec interface offset env afterCanonical
@@ -506,8 +506,8 @@ theorem complete (interface : Interface) (env : Env) (offset : Nat)
     rfl
   refine ⟨completed.current, ?_, ?_⟩
   · rw [localLength_eq]
-    simpa [completedOps] using completed.agrees
-  · simpa [completedOps] using completed.rows
+    simpa [completedOps] using! completed.agrees
+  · simpa [completedOps] using! completed.rows
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

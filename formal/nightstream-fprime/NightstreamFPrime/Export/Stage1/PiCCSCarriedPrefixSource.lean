@@ -277,7 +277,7 @@ theorem padPrefix_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
-    if_false, if_true] using value
+    if_false, if_true] using! value
 
 /-- Exact next-round matrix endpoint, with successful scalar initialization
 proved and the complete matrix family retained in canonical coordinate order. -/
@@ -302,7 +302,7 @@ theorem matrixPrefix_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
-    if_false, if_true] using value
+    if_false, if_true] using! value
 
 /-- The Pad initializer retains the complete carrier, including its tail. -/
 theorem padPrefix_size (masks : Array (Array (Nat × Nat))) (gamma : K) :

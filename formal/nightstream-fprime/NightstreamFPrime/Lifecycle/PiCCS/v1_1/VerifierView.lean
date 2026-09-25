@@ -54,13 +54,13 @@ theorem roundPoint_eq_key
       (Formal.challengeOffset interface offset) env context (by
         simpa [shared, running, fresh, context, Formal.challengeInterface,
           Formal.statementAbsorptionInterface, Formal.atOffset,
-          Formal.evalRunning, Formal.evalFresh] using statementState)
+          Formal.evalRunning, Formal.evalFresh] using! statementState)
       specification.challenge
   have roundCoverage := RoundTranscript.spec_implies_keyExecution_rounds
     relation ajtai running fresh proof (Formal.roundTranscriptInterface shared)
       (Formal.roundTranscriptOffset interface offset) env (by
         simpa [shared, context, Formal.challengeInterface,
-          Formal.roundTranscriptInterface, Formal.atOffset] using
+          Formal.roundTranscriptInterface, Formal.atOffset] using!
             challengeCoverage.2.2)
       (by intro roundIndex; rfl) specification.roundTranscript
   exact roundCoverage.1

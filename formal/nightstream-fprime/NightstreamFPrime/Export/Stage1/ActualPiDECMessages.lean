@@ -109,7 +109,7 @@ theorem attemptForParent_eq
   rw [← AccumulatorSemantics.piDecParent_eq_piRlcOutput] at boundary
   simpa only [Nifs.PaperNonInteractive.Key.piDecAttemptForParent, proof,
     ActualStep.withDecodedPiCCS, PiCCS.v1_1.Formal.evalProof, sourceProof,
-    attempt, PiDECArithmetic.phaseInterface, relation, env] using boundary
+    attempt, PiDECArithmetic.phaseInterface, relation, env] using! boundary
 
 /-- Exact parent equality is the remaining input to the production key's
 optional attempt. Its message fields are already fixed by the assignment. -/

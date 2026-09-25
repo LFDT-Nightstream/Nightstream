@@ -223,14 +223,14 @@ theorem parentCoverage {blockCount : Nat} (interface : Interface blockCount)
       (evalOutput interface offset env block lane).c0 =
           CombinationFamily.orderedCombination (familyInterface interface)
             offset env block c0Cell lane := by
-        simpa [evalOutput, output, CombinationFamily.evalOutput] using c0Result
+        simpa [evalOutput, output, CombinationFamily.evalOutput] using! c0Result
       _ = (PiRLCFinite.combineEvaluation
             (evalChallenges interface offset env)
             (fun source => evalInputs interface offset env source block) lane).c0 := by
         simpa [CombinationFamily.orderedCombination,
           CombinationFamily.term, CombinationFamily.challengeValue,
           CombinationFamily.inputValue, familyInterface, expressionCell,
-          evalChallenges, evalInputs, ringKCell, kCell, c0Cell] using
+          evalChallenges, evalInputs, ringKCell, kCell, c0Cell] using!
           congrFun (rightCombination_eq_combineEvaluation_cell
             (evalChallenges interface offset env)
             (fun source => evalInputs interface offset env source block)
@@ -239,14 +239,14 @@ theorem parentCoverage {blockCount : Nat} (interface : Interface blockCount)
       (evalOutput interface offset env block lane).c1 =
           CombinationFamily.orderedCombination (familyInterface interface)
             offset env block c1Cell lane := by
-        simpa [evalOutput, output, CombinationFamily.evalOutput] using c1Result
+        simpa [evalOutput, output, CombinationFamily.evalOutput] using! c1Result
       _ = (PiRLCFinite.combineEvaluation
             (evalChallenges interface offset env)
             (fun source => evalInputs interface offset env source block) lane).c1 := by
         simpa [CombinationFamily.orderedCombination,
           CombinationFamily.term, CombinationFamily.challengeValue,
           CombinationFamily.inputValue, familyInterface, expressionCell,
-          evalChallenges, evalInputs, ringKCell, kCell, c1Cell] using
+          evalChallenges, evalInputs, ringKCell, kCell, c1Cell] using!
           congrFun (rightCombination_eq_combineEvaluation_cell
             (evalChallenges interface offset env)
             (fun source => evalInputs interface offset env source block)

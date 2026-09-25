@@ -252,7 +252,7 @@ theorem childrenOf_holds
   intro i
   have parentNorm := parentValid.1.2.2
   have combinedNorm : semantics.normBounded params.bigB assignment := by
-    simpa [parentCombined] using parentNorm
+    simpa [parentCombined] using! parentNorm
   exact ⟨⟨rfl, rfl, algebra.split_norm assignment combinedNorm i⟩,
     parentValid.2.1, rfl⟩
 
@@ -390,7 +390,7 @@ theorem reduce_knowledge
   have freshNorms : ∀ i, semantics.normBounded params.b (childAssignments i) := by
     intro i
     have childNorm := (childrenValid i).1.2.2
-    simpa [accepted.childFresh i] using childNorm
+    simpa [accepted.childFresh i] using! childNorm
   let first : Fin params.k := ⟨0, kPositive⟩
   have parentPointValid :
       semantics.evaluationPointValid attempt.parent.constraintSystem
@@ -405,7 +405,7 @@ theorem reduce_knowledge
       ((congrArg algebra.recomposePublicInput publicInputsAgree).trans
         accepted.publicInputEquation.symm)
   · have combinedNorm := algebra.recompose_norm childAssignments freshNorms
-    simpa [accepted.parentCombined] using combinedNorm
+    simpa [accepted.parentCombined] using! combinedNorm
   · exact (algebra.evaluations_hom attempt.parent.constraintSystem
       attempt.parent.point childAssignments).trans
       ((congrArg algebra.recomposeEvaluations evaluationsAgree).trans
@@ -489,14 +489,14 @@ theorem accepted_parent_eq_recompose_or_bindingCollision
       semantics.normBounded params.b (childAssignments i) := by
     intro i
     have childNorm := (childrenValid i).1.2.2
-    simpa [accepted.childFresh i] using childNorm
+    simpa [accepted.childFresh i] using! childNorm
   have recomposedNorm :
       semantics.normBounded params.bigB
         (algebra.recomposeAssignment childAssignments) :=
     algebra.recompose_norm childAssignments freshNorms
   have parentNorm : semantics.normBounded params.bigB parentAssignment := by
     have validNorm := parentValid.1.2.2
-    simpa [accepted.parentCombined] using validNorm
+    simpa [accepted.parentCombined] using! validNorm
   by_cases same : parentAssignment = algebra.recomposeAssignment childAssignments
   · exact Or.inl same
   · exact Or.inr ⟨{

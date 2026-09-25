@@ -299,6 +299,6 @@ theorem physical_complete (wordOffset : Nat) (part : Fin 2)
   refine ⟨completed, ?_, rows⟩
   have combined := logicalAgreesFixed.append physicalAgrees
   rw [totalFreshCount_eq wordOffset part offset] at combined
-  simpa [Logical.auxiliaryCount] using combined
+  simpa [Logical.auxiliaryCount] using! combined
 
 end NightstreamFPrime.Layout.Sampling.Candidate16Five

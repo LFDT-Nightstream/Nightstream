@@ -24,7 +24,7 @@ theorem modulus_degree :
   have lower :
       (Polynomial.X ^ ringMiddleDegree + 1 : Polynomial Base).degree =
         (ringMiddleDegree : WithBot Nat) := by
-    simpa only [ringMiddleDegree] using
+    simpa only [ringMiddleDegree] using!
       (Polynomial.degree_X_pow_add_C (R := Base) (n := 27) (by decide) (1 : Base))
   rw [modulus_toPolynomial, Polynomial.degree_add_eq_left_of_degree_lt]
   · exact Polynomial.degree_X_pow ringDegree

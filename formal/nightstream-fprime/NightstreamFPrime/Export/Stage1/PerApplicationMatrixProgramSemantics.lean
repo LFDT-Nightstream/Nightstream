@@ -134,7 +134,7 @@ theorem piCcsPoseidonExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piCcsPoseidonProgram,
     PerApplicationMatrixProgram.piCcsOrdinaryGeometry,
     PerApplicationMatrixProgram.piDecGeometry,
-    PerApplicationProductionPlan.BlockKind.plan] using
+    PerApplicationProductionPlan.BlockKind.plan] using!
       PiCCSPoseidonMatrixProgram.matrixProgram_row?
         (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application)
         sourceRow row
@@ -277,7 +277,7 @@ theorem piCcsOrdinaryExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piCcsOrdinaryGeometry,
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
-    DirectPiDECPrefixPlan.piCcsOrdinaryPlan] using
+    DirectPiDECPrefixPlan.piCcsOrdinaryPlan] using!
       PiCCSOrdinaryMatrixProgram.matrixProgram_row?
         (relation application fits)
         (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application)
@@ -318,7 +318,7 @@ theorem samplerOrdinaryExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.samplerOrdinaryProgram,
     PerApplicationMatrixProgram.samplerGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
-    DirectPiRLCSamplerCompletePrefixPlan.samplerOrdinaryPlan] using
+    DirectPiRLCSamplerCompletePrefixPlan.samplerOrdinaryPlan] using!
       PiRLCSamplerOrdinaryMatrixProgram.matrixProgram_row?
         (relation application fits)
         (PerApplicationMatrixProgram.samplerGeometry application)
@@ -339,7 +339,7 @@ theorem piDecExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
     DirectPiRLCSamplerCompletePrefixPlan.piDecPlan,
-    DirectPiDECPrefixPlan.piDecPlan] using
+    DirectPiDECPrefixPlan.piDecPlan] using!
       PiDECMatrixProgram.matrixProgram_row? (relation application fits)
         (PerApplicationMatrixProgram.piDecGeometry application) sourceRow
         custody.piDecPublic custody.piDecCommitment custody.piDecEvalK
@@ -362,7 +362,7 @@ theorem runningTransitionExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
     DirectPiRLCSamplerCompletePrefixPlan.transitionPlan,
-    DirectPiDECPrefixPlan.transitionPlan] using
+    DirectPiDECPrefixPlan.transitionPlan] using!
       RunningTransitionMatrixProgram.matrixProgram_row?
         (relation application fits)
         (PerApplicationMatrixProgram.runningGeometry application) sourceRow

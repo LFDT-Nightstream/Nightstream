@@ -125,7 +125,7 @@ private theorem checks_of_no_first_failure (depth : Nat)
                       previousAccepted previousBound previousNoFailure
                     constructor
                     · rw [SuccessfulSources.eq_def]
-                      simpa only [if_neg nonzero, if_pos counter, if_neg base] using
+                      simpa only [if_neg nonzero, if_pos counter, if_neg base] using!
                         And.intro success previous.1
                     · rw [NoStateHashCollisions.eq_def]
                       simpa only [if_neg nonzero, if_pos counter, if_neg base] using

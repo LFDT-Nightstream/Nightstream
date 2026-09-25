@@ -234,7 +234,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   apply Expr.VarsBelow.mono expression
     (childScope interface offset source sourceLt env assumptions
       (internal ⟨source, sourceLt⟩) expression (by
-        simpa [childOp, Sequence.childOp] using expressionMember))
+        simpa [childOp, Sequence.childOp] using! expressionMember))
   have scaled := Nat.mul_le_mul_right Sampler.logicalPrivateCount
     (Nat.succ_le_iff.mpr sourceLt)
   simpa [sourceOffset, logicalPrivateCount, Nat.succ_mul, Nat.add_assoc] using
@@ -357,7 +357,7 @@ theorem sampleRingChallenge_eq (interface : Interface) (offset : Nat)
                 (evalStateAt interface offset env source.val) source.val).stream
               candidateBound) = some coefficients := by
       simpa only [Sampler.productionCandidates, Sampler.productionSource,
-        Sampler.evalInitialState, childInterface, evalStateAt] using success
+        Sampler.evalInitialState, childInterface, evalStateAt] using! success
     unfold sourceAt
     rw [← stateEq]
     exact directSuccess
@@ -452,7 +452,7 @@ private theorem completeAvailablePrefix (interface : Interface) (offset : Nat)
           (sourceOffset offset count) before.current := by
         refine ⟨execution.output, ?_⟩
         simpa only [Sampler.productionCandidates, Sampler.productionSource,
-          currentInitialEq, sourceAt] using originalSuccess
+          currentInitialEq, sourceAt] using! originalSuccess
       rcases Sampler.complete_of_success
           (childInterface interface offset count) count before.current
           (sourceOffset offset count) childAssumptionsNow currentSuccess with
@@ -564,7 +564,7 @@ private theorem available_of_children (interface : Interface) (offset : Nat)
             (evalStateAt interface offset env source.val) source.val).stream candidateBound) =
         some coefficients := by
       simpa only [Sampler.productionCandidates, Sampler.productionSource,
-        Sampler.evalInitialState, childInterface, evalStateAt] using success
+        Sampler.evalInitialState, childInterface, evalStateAt] using! success
     have successAt : FirstAccepted.boundedSample verifier coefficientCount
         (FirstAccepted.streamPrefix
           (sourceAt NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification

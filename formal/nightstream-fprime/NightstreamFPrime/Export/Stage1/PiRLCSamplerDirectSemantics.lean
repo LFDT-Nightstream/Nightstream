@@ -214,7 +214,7 @@ theorem endpointRows_imply_samplerInitialState
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface,
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.atOffset,
     PiRLCInputs.interface, PiRLCInputs.piCcsOutputState,
-    PiRLCInputs.piCcsOutputInterface, PiRLCInputs.piCcsSharedInterface] using
+    PiRLCInputs.piCcsOutputInterface, PiRLCInputs.piCcsSharedInterface] using!
       endpointRows_imply_piCcsFinalState relation poseidonGeometry
         ordinaryGeometry samplerGeometry assignment base groupValue products
         one encoding rowsZero
@@ -365,7 +365,7 @@ theorem retainedStateExpr_windowInitialState
       apply Fin.ext
       exact zero
     rw [stepEq, zero]
-    simpa [Sampler.windowInitialState] using retainedStateExpr_entry source
+    simpa [Sampler.windowInitialState] using! retainedStateExpr_entry source
   · obtain ⟨previous, roundEq⟩ := Nat.exists_eq_succ_of_ne_zero zero
     have previousLt : previous <
         PiRLCSamplerOrdinaryRetainedBlocks.roundCount := by
@@ -374,7 +374,7 @@ theorem retainedStateExpr_windowInitialState
       rw [roundEq] at roundLt
       change previous < 8
       omega
-    simpa [roundEq, Sampler.windowInitialState] using
+    simpa [roundEq, Sampler.windowInitialState] using!
       retainedStateExpr_window source ⟨previous, previousLt⟩
 
 def priorStep (round : Fin PiRLCSamplerOrdinaryRetainedBlocks.roundCount) :

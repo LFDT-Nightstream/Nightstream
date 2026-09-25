@@ -259,7 +259,6 @@ theorem accepted_probability_le (initial : PMF (Statement × Envelope)) :
       {input | PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
         Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2})
     (initial_marginal source initial)
-  dsimp only at acceptedMass
   rw [PMF.toOuterMeasure_map_apply] at acceptedMass
   calc
     _ = (law source initial).toOuterMeasure

@@ -406,7 +406,7 @@ theorem priorPosition_eval_eq
         descriptor notFinal
       simpa [First54.priorPosition, descriptor, previousRound,
         PiRLCFirst54DirectSchedule.Position.positionColumn,
-        PiRLCFirst54Invocations.positionSourceStart] using custody
+        PiRLCFirst54Invocations.positionSourceStart] using! custody
 
 theorem priorOutput_eval_eq
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -439,6 +439,6 @@ theorem priorOutput_eval_eq
         descriptor
       simpa [First54.priorOutput, descriptor, previousRound,
         PiRLCFirst54DirectSchedule.Value.valueColumn,
-        PiRLCFirst54Invocations.valueSourceStart] using custody
+        PiRLCFirst54Invocations.valueSourceStart] using! custody
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerSelectorCustody

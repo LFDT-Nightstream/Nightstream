@@ -170,7 +170,7 @@ def laneInputs (source round : Nat) (lane : Fin 4) :
   simpa [laneInterface, windowInterface, DigestWindow.laneInterface,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
-    DigestWindow.laneOffset] using
+    DigestWindow.laneOffset] using!
       windowInputs.initialState (DigestWindow.rateLane lane)
 
 private def laneConstraintsFromCircuit (source round : Nat)
@@ -210,7 +210,7 @@ theorem laneConstraints_eq_fromCircuit (source round : Nat) (lane : Fin 4) :
     NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.logicalConstraints,
     NightstreamFPrime.Layout.Range.CanonicalU64.logicalConstraints,
     NightstreamFPrime.Layout.Sampling.Candidate16Five.logicalConstraints]
-    using DigestLane.flatConstraints_opsAt
+    using! DigestLane.flatConstraints_opsAt
       (laneInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
         source round lane)
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart

@@ -250,7 +250,7 @@ theorem compile_causal_and_output_below
           · have outputBelow := add_varsBelow coefficient
               (productAt productStart) (productStart + 2)
               coefficientAtFinal productBelow
-            simpa [compile, tail, productStart] using outputBelow
+            simpa [compile, tail, productStart] using! outputBelow
 
 theorem compile_causal
     (start : Nat) (point : KExpr) (coefficients : List KExpr)
@@ -674,7 +674,7 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
       assumptions.1 assumptions.2).2
   change (program interface offset).output.VarsBelow
     (offset + localLength (Circuit.ops (main interface) offset))
-  simpa [main, opsAt, localLength, Op.localLength] using below
+  simpa [main, opsAt, localLength, Op.localLength] using! below
 
 end Owned
 

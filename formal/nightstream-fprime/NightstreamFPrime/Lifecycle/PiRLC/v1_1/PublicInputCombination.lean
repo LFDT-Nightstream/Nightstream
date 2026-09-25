@@ -259,7 +259,7 @@ theorem flatConstraints_varsBelow
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
       expression.VarsBelow (offset + 4590) := by
-  simpa [circuit, logicalPrivateCount_eq] using
+  simpa [circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions
 

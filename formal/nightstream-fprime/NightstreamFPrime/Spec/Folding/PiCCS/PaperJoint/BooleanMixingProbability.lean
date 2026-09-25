@@ -56,7 +56,7 @@ theorem zeroProbability_le (samples : Finset K) (nonempty : samples.Nonempty)
   induction table with
   | leaf value =>
       have different : value ≠ K.zero := by
-        simpa [BooleanTable.AllEntriesZero, BooleanTable.entries] using nonzero
+        simpa [BooleanTable.AllEntriesZero, BooleanTable.entries] using! nonzero
       simp [zeroProbability, uniformAverage, BooleanTable.evaluateCoordinates, different]
   | @branch dimension low high lowIH highIH =>
       have selected : ∃ table : BooleanTable K dimension,

@@ -238,7 +238,7 @@ private theorem previous_entry (source : Fin PiRLCSamplerPoseidonPlan.sourceCoun
         PiRLCStarts.digestPermutationLogicalStart, PiRLCStarts.windowLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, Sampler.digestRoundCount,
         DigestWindow.permutationOffset, Sampler.windowOffset, Sampler.windowBase,
-        SamplerChain.sourceOffset] using output
+        SamplerChain.sourceOffset] using! output
 
 omit geometry assignment groupValue products encoding initial in
 private theorem entry_rows (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :

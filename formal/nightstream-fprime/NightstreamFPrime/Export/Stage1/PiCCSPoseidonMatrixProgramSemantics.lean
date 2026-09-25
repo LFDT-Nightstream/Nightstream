@@ -55,7 +55,7 @@ private theorem previousRule_succ
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
             ⟨78 + invocationOffset.val * 86 + selected.val,
               slotBound selected⟩) lane)) by
-    simpa [previousRule] using
+    simpa [previousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
         (region := PoseidonInput.Region.mk 1 7603 0 8)
         invocationOffset lane lane.isLt
@@ -308,7 +308,7 @@ theorem poseidonBlock_row?
       some (PoseidonSboxFamilyPlan.rowForms
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) decoded.1 decoded.2) := by
-  simpa [poseidonBlock, PiCCSPoseidonPlan.interface] using
+  simpa [poseidonBlock, PiCCSPoseidonPlan.interface] using!
     Poseidon.Block.row?_ofSemantic (PiCCSPoseidonPlan.schedule program)
       (by rfl) (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)

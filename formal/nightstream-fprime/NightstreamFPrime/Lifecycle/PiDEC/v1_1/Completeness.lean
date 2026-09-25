@@ -62,7 +62,7 @@ theorem completePrefix
           (Circuit.ops (inputBindingCircuit relation shared).main
             (inputBindingOffset offset))) := by
     rw [inputLength]
-    simpa [inputBindingOffset] using
+    simpa [inputBindingOffset] using!
       InputBinding.flatConstraints_varsBelow relation
         (inputBindingInterface shared) (inputBindingOffset offset)
   rcases Sequence.appendAt p0 "pidec.v1_1.input_binding"
@@ -98,7 +98,7 @@ theorem completePrefix
           (Circuit.ops (publicInputCircuit shared).main
             (publicInputOffset offset))) := by
     rw [publicLength]
-    simpa [publicInputOffset, PublicInputSplit.logicalPrivateCount_eq] using
+    simpa [publicInputOffset, PublicInputSplit.logicalPrivateCount_eq] using!
       PublicInputSplit.flatConstraints_varsBelow
         (publicInputInterface shared) (publicInputOffset offset)
         p1.current publicAssumptions
@@ -226,7 +226,7 @@ theorem completePrefix
           (Circuit.ops (outputBindingCircuit relation shared).main
             (outputBindingOffset offset))) := by
     rw [outputLength]
-    simpa using OutputBinding.flatConstraints_varsBelow relation
+    simpa using! OutputBinding.flatConstraints_varsBelow relation
       (outputBindingInterface shared) (outputBindingOffset offset)
   rcases Sequence.appendAt p5 "pidec.v1_1.output_binding"
       (outputBindingCircuit relation shared) (outputBindingOffset offset)

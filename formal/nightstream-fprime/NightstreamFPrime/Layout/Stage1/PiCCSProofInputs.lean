@@ -732,10 +732,10 @@ theorem eval_outputEval_K
   apply congrArg₂ K.mk
   · have componentEquality :=
       eval_outputEvalKComponent values source coefficient 0
-    simpa [outputEval_K, pairAt, serializeK] using componentEquality
+    simpa [outputEval_K, pairAt, serializeK] using! componentEquality
   · have componentEquality :=
       eval_outputEvalKComponent values source coefficient 1
-    simpa [outputEval_K, pairAt, serializeK] using componentEquality
+    simpa [outputEval_K, pairAt, serializeK] using! componentEquality
 
 /-- One output `Eval_A` coordinate evaluates from the separate CCS-matrix
 segment. -/
@@ -749,10 +749,10 @@ theorem eval_outputEval_A
   apply congrArg₂ K.mk
   · have componentEquality :=
       eval_outputEvalAComponent values source matrix coefficient 0
-    simpa [outputEval_A, pairAt, serializeK] using componentEquality
+    simpa [outputEval_A, pairAt, serializeK] using! componentEquality
   · have componentEquality :=
       eval_outputEvalAComponent values source matrix coefficient 1
-    simpa [outputEval_A, pairAt, serializeK] using componentEquality
+    simpa [outputEval_A, pairAt, serializeK] using! componentEquality
 
 private theorem fullOutput_ext
     (left right : FullOutputCoordinates.FullOutput K productionShape)
@@ -1231,7 +1231,7 @@ theorem formalEvalFresh_protocolEnv_eq
     (logicalWidth := logicalWidth) (publicFits := publicFits)
     (protocolValues prior priorPublic outputPreimage digest
       priorFixed outputFixed digestFixed proofValues)
-  simpa [protocolEnv, protocolValues, fresh, protocolFresh] using evaluated
+  simpa [protocolEnv, protocolValues, fresh, protocolFresh] using! evaluated
 
 /-- Relation-typed parent view of the proof with only PiCCS fields replaced. -/
 theorem formalEvalProof_protocolEnv_eq

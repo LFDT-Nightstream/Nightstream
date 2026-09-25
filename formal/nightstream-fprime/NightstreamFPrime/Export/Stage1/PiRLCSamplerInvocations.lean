@@ -155,7 +155,7 @@ theorem entryState_affine (source : Nat) :
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.samplerInputs
         (logicalWidth := logicalWidth) (publicFits := publicFits))
       source (sourceLogicalStart source)
-  simpa [entryState, sourceInterface, sourceLogicalStart] using
+  simpa [entryState, sourceInterface, sourceLogicalStart] using!
     child.initialState
 
 theorem entryTrace_state_matches (source : Nat) :
@@ -242,7 +242,7 @@ theorem windowState_affine (source round : Nat) :
   simpa [windowState, sourceLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
-    Sampler.windowOffset, Sampler.windowBase, Sampler.entryPrivateCount] using
+    Sampler.windowOffset, Sampler.windowBase, Sampler.entryPrivateCount] using!
       inputs.initialState
 
 /-- One held raw window invocation is exactly the permutation child selected

@@ -133,7 +133,7 @@ private theorem core_totalFreshCount
         7 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs
           interface offset).length - 1) := by
       simpa only [
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit] using
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit] using!
         NightstreamFPrime.Layout.Multilinear.PointWeightedHorner.totalFreshCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coreInterface
             interface) cubeVariables_positive offset
@@ -154,7 +154,7 @@ private theorem core_totalRowCount
         9 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coefficientExprs
           interface offset).length - 1) := by
       simpa only [
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit] using
+        NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.circuit] using!
         NightstreamFPrime.Layout.Multilinear.PointWeightedHorner.totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.EvalKTerminal.coreInterface
             interface) cubeVariables_positive offset

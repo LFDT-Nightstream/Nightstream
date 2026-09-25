@@ -137,7 +137,7 @@ theorem signed_gamma_probability_le {shape : Shape}
         ConcreteCarrier.extensionOps.toOps gamma = K.zero then (1 : ℝ) else 0) ≤
       (shape.jointCoefficientCount - 1 : Nat) / (samples.card : ℝ) := by
   simpa only [SignedCoefficientPolynomial.polynomial, Message.evaluate,
-    GoldilocksRoots.ops, SignedCoefficientPolynomial.coefficients_length] using
+    GoldilocksRoots.ops, SignedCoefficientPolynomial.coefficients_length] using!
     coefficient_root_probability_le
       (SignedCoefficientPolynomial.coefficients ConcreteCarrier.extensionOps data alpha) samples nonzero
 

@@ -72,7 +72,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
         NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
         (fun child => evalChildren interface offset env child matrix) := by
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
-    RingKRecomposition.evalChildren, ringInterface] using
+    RingKRecomposition.evalChildren, ringInterface] using!
     RingKRecomposition.parentCoverage
       (ringInterface interface) offset env specification
 
@@ -86,7 +86,7 @@ theorem specHolds_of_parentCoverage
   apply RingKRecomposition.specHolds_of_parentCoverage
     (blockCount := blockCount) (ringInterface interface) offset env
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
-    RingKRecomposition.evalChildren, ringInterface] using equation
+    RingKRecomposition.evalChildren, ringInterface] using! equation
 
 theorem coordinateCount_eq :
     RingKRecomposition.coordinateCount blockCount = 1512 := by

@@ -202,7 +202,7 @@ theorem accepted_implies_tableTruth_or_badEvent
               roundPoint.coordinates (q roundPoint.coordinates)
               (SumCheck.Finite.FixedPhase.RawCertificate.encode certificate)
               []).1
-            simpa [SumCheck.Claim.True, SumCheckInitial.symbolicInstance] using
+            simpa [SumCheck.Claim.True, SumCheckInitial.symbolicInstance] using!
               jointInitialTrue
           rcases
               (SignedCoefficientObject.evaluate_eq_zero_iff_coefficientTruth_or_mixingRoot

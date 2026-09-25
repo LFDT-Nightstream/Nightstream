@@ -196,7 +196,7 @@ theorem priorDigestRange_form?
         geometry) := by
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn]
   simpa [priorDigestRange, PilotOrdinaryDirectPlan.Location.form,
-    PilotOrdinaryDirectPlan.finalSlot] using
+    PilotOrdinaryDirectPlan.finalSlot] using!
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.priorLastBlock program)
       (PiCCSOrdinaryRetainedGeometry.priorLastStart program)
@@ -233,7 +233,7 @@ theorem outputStateRange_form?
         geometry) := by
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
   simpa [outputStateRange, PilotOrdinaryDirectPlan.Location.form,
-    PilotOrdinaryDirectPlan.finalSlot] using
+    PilotOrdinaryDirectPlan.finalSlot] using!
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.outputLastBlock program)
       (PiCCSOrdinaryRetainedGeometry.outputLastStart program)

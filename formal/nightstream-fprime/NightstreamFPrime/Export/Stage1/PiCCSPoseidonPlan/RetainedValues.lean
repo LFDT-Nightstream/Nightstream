@@ -155,7 +155,7 @@ private theorem physicalSboxColumn_val (index : InvocationIndex)
     PoseidonRetainedBlock.laterWitnessStart_bound
     (Fin.encodeProd (laterIndex index, row))
   simpa only [Fin.decodeProd_encodeProd, ← physicalInvocation_witnessStart]
-    using selected
+    using! selected
 
 /-- Projection through two domain lifts and a zero-offset slice depends only
 on the selected source slot. The underlying block remains opaque. -/
@@ -184,7 +184,7 @@ private theorem schedule_source_val (application : Lifecycle.Stage1.Application.
     ⟨selected.val, by
       have fits : LaterPoseidonRetainedBlocks.piCcsSlotCount ≤
           PoseidonRetainedBlock.laterBlock.slotCount := by
-        simpa only [Nat.zero_add] using LaterPoseidonRetainedBlocks.piCcsFits application
+        simpa only [Nat.zero_add] using! LaterPoseidonRetainedBlocks.piCcsFits application
       exact Nat.lt_of_lt_of_le selected.isLt fits⟩
   have parentSlot_eq : parentSlot = Fin.encodeProd (laterIndex index, row) := by
     apply Fin.ext

@@ -369,7 +369,7 @@ theorem Term.external_form?_ofSemantic
         block.form retainedStart fits
           ⟨slotBase + invocationOffset * invocationStride + selected.val,
             slotBound selected⟩) lane) := by
-  simpa [Nat.add_assoc] using
+  simpa [Nat.add_assoc] using!
     RetainedBlock.externalForm?_ofSemantic block retainedStart fits
       (slotBase + invocationOffset * invocationStride)
       (fun selected => by simpa [Nat.add_assoc] using slotBound selected) lane

@@ -66,7 +66,7 @@ theorem success_implies_coordinate_bound
   have selected := Finset.single_le_sum
     (f := fun trial => if BindingReduction.Succeeds ajtai
       (BindingReduction.run program access left right trial).value then (1 : ℝ) else 0)
-    (fun _ _ => by dsimp only; split_ifs <;> norm_num) (Finset.mem_univ coordinate)
+    (fun _ _ => by split_ifs <;> norm_num) (Finset.mem_univ coordinate)
   simpa only [if_pos success] using selected
 
 variable {Context State Tape : Type*}
@@ -271,6 +271,6 @@ theorem binding_le_success
         strongSet correct (accessesCorrect context) context)
   simpa only [StrongProbability.clockMean, base, total,
     StrongProbability.verifierMean_const, add_zero, successProbability,
-    InteractiveAgreement.bindingProbability] using averaged.2
+    InteractiveAgreement.bindingProbability] using! averaged.2
 
 end NightstreamFPrime.Lifecycle.Nifs.BindingProbability

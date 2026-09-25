@@ -181,9 +181,9 @@ theorem parentCoverage {blockCount : Nat}
         (fun child => evalChildren interface offset env child block) := by
   funext block lane
   exact congrArg₂ K.mk
-    (by simpa [kCell, c0Cell] using
+    (by simpa [kCell, c0Cell] using!
       parentCoverage_cell interface offset env specification block lane c0Cell)
-    (by simpa [kCell, c1Cell] using
+    (by simpa [kCell, c1Cell] using!
       parentCoverage_cell interface offset env specification block lane c1Cell)
 
 theorem specHolds_of_parentCoverage {blockCount : Nat}

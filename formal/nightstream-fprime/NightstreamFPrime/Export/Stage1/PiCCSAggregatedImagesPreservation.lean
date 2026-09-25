@@ -242,7 +242,7 @@ private theorem pad_value
       rfl
   | some column =>
       simpa only [decoded, prepare, PiCCSGammaAggregation.padTotal,
-        PiCCSSourceImages.preparedPadImage] using carriedRead_value forms
+        PiCCSSourceImages.preparedPadImage] using! carriedRead_value forms
           (fun output => powers (productionShape.runningCount * output.val)) powers assignments column
 
 private theorem ofFnM_some {Alpha : Type} {count : Nat}

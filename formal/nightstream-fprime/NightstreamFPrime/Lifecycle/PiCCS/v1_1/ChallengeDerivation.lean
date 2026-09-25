@@ -709,7 +709,7 @@ theorem duplexSpec_iff_specHolds
     (interface : Interface) (offset : Nat) (env : Env) :
     Formal.SpecHolds (duplexInterface interface) offset env ↔
       SpecHolds interface offset env := by
-  simpa only [Formal.SpecHolds, duplexInterface] using
+  simpa only [Formal.SpecHolds, duplexInterface] using!
     trace_iff_specHolds interface offset env
 
 /-- The owned leaf emits only the causal recipe batch. Sample and final-state

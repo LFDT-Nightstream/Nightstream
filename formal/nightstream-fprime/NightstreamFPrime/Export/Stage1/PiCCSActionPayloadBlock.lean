@@ -253,7 +253,7 @@ theorem materializedPayloadExpressions_eq :
   unfold materializedPayloadExpressions
   rw [materializedPayloadKinds_eq, ← List.ofFn_comp']
   symm
-  simpa only [payloadCount, payloadExpression, payloadExpr] using
+  simpa only [payloadCount, payloadExpression, payloadExpr] using!
     (ofFn_decodeProd_eq_nested invocationCount Spec.Poseidon2.rate
       (fun invocation lane => payloadExprForKind (kindAt invocation) lane))
 

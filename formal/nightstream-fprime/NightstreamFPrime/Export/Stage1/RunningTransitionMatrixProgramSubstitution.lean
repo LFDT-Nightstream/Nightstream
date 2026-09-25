@@ -171,7 +171,7 @@ theorem stateRange_form?
           (RunningTransitionSourceSupport.stateStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.state index).form geometry) := by
   rw [stateTarget]
-  simpa [stateRange, RunningTransitionDirectPlan.Location.form] using
+  simpa [stateRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (stateBlock program) (stateStart program)
       (Spartan.sourceToSpartan RunningTransitionSourceSupport.stateStart)
       RunningTransitionSourceSupport.stateCount 0
@@ -186,7 +186,7 @@ theorem outputRange_form?
           (RunningTransitionSourceSupport.outputStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.output index).form geometry) := by
   rw [outputTarget]
-  simpa [outputRange, RunningTransitionDirectPlan.Location.form] using
+  simpa [outputRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (outputBlock program) (outputStart program)
       (Spartan.sourceToSpartan RunningTransitionSourceSupport.outputStart)
       RunningTransitionSourceSupport.outputCount 0

@@ -35,7 +35,7 @@ private def retainedSchedule (block : Block)
       block.invocationCount where
   block := block.retained.semantic
   slotCount_eq := by
-    simpa only [PoseidonRetainedSlots.rows_length] using slotCountEq
+    simpa only [PoseidonRetainedSlots.rows_length] using! slotCountEq
 
 def Block.invocationInterface (block : Block) (logicalWidth : Nat)
     (oneBound : block.oneColumn < logicalWidth)

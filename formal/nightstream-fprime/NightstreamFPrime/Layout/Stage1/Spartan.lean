@@ -291,9 +291,9 @@ theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
     omega
   have startPilot : start < pilotSourceColumnCount := by omega
   have sumPrior : start + offset < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using upper
+    simpa [PilotSpartan.priorPublicStart] using! upper
   have startPrior : start < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using startUpper
+    simpa [PilotSpartan.priorPublicStart] using! startUpper
   unfold sourceToSpartan
   rw [if_pos sumPilot, if_pos startPilot]
   rw [PilotSpartan.sourceToSpartan, if_pos sumPrior,
@@ -320,16 +320,16 @@ theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
     omega
   have startPilot : start < pilotSourceColumnCount := by omega
   have sumNotPrior : ¬ start + offset < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using lower.trans (Nat.le_add_right _ _)
+    simpa [PilotSpartan.priorPublicStart] using! lower.trans (Nat.le_add_right _ _)
   have startNotPrior : ¬ start < PilotSpartan.priorPublicStart := by
-    simpa [PilotSpartan.priorPublicStart] using lower
+    simpa [PilotSpartan.priorPublicStart] using! lower
   have sumBeforeOutput :
       start + offset < PilotSpartan.outputPreimageStart := by
     simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
-      using upper
+      using! upper
   have startBeforeOutput : start < PilotSpartan.outputPreimageStart := by
     simpa [PilotSpartan.outputPreimageStart, PilotSpartan.priorPublicStart]
-      using startUpper
+      using! startUpper
   have pilotAffine :
       PilotSpartan.sourceToSpartan (start + offset) =
         PilotSpartan.sourceToSpartan start + offset := by

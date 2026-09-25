@@ -77,11 +77,11 @@ private theorem piRlcPhase_of_piCcs
     piCcsOffset (AssemblerInputs.piDecOffset program) right
   have roundsEq : leftProof.piCcsRounds = rightProof.piCcsRounds := by
     simpa [leftProof, rightProof, stageInterface,
-      AssemblerSoundness.nifsProofValue] using
+      AssemblerSoundness.nifsProofValue] using!
         congrArg (fun proof => proof.piCcsRounds) proofEq
   have outputEq : leftProof.piCcsOutput = rightProof.piCcsOutput := by
     simpa [leftProof, rightProof, stageInterface,
-      AssemblerSoundness.nifsProofValue] using
+      AssemblerSoundness.nifsProofValue] using!
         congrArg (fun proof => proof.piCcsOutput) proofEq
   let key := ProductionKey.key relation ajtai
   have executionEq :
@@ -120,7 +120,7 @@ private theorem piRlcPhase_of_piCcs
           (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset left)
           (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof := by
-        simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key] using
+        simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key] using!
           AssemblerSoundness.compactPiRlcInputs_eq_keyOutputs relation ajtai
             program left template piCcsLeft
       _ = key.piCcsOutputs
@@ -129,7 +129,7 @@ private theorem piRlcPhase_of_piCcs
           rightProof := outputsEq
       _ = _ := by
         symm
-        simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key] using
+        simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key] using!
           AssemblerSoundness.compactPiRlcInputs_eq_keyOutputs relation ajtai
             program right template piCcsRight
   have initialStateEq : PiRLC.v1_1.SamplerChain.evalInitialState
@@ -181,7 +181,7 @@ private theorem piRlcPhase_of_piCcs
           (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof).coins.roundPoint := by
         simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key,
-          AssemblerSoundness.nifsProofValue] using piCcsLeft.roundPoint
+          AssemblerSoundness.nifsProofValue] using! piCcsLeft.roundPoint
       _ = (key.piCcsExecution
           (PiCCS.v1_1.Formal.evalRunning piCcsInterface piCcsOffset right)
           (PiCCS.v1_1.Formal.evalFresh piCcsInterface piCcsOffset right)
@@ -190,7 +190,7 @@ private theorem piRlcPhase_of_piCcs
       _ = _ := by
         symm
         simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key,
-          AssemblerSoundness.nifsProofValue] using piCcsRight.roundPoint
+          AssemblerSoundness.nifsProofValue] using! piCcsRight.roundPoint
   have pointEq : PiCCS.v1_1.StatementAbsorption.evalPoint
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) left =
@@ -239,12 +239,12 @@ private theorem piRlcPhase_of_piCcs
         simpa [piRlcOffset, PiRLC.v1_1.Formal.samplerOffset] using bounded)
   have outputValueEq := PiRLC.v1_1.Semantics.evalOutput_eq_of_point_and_agree_from
     relation piRlcInterface piRlcOffset left right (by
-      simpa [piRlcInterface, AssemblerInputs.piRlcInterface] using pointEq)
+      simpa [piRlcInterface, AssemblerInputs.piRlcInterface] using! pointEq)
     localAgrees
   have attemptEq := PiRLC.v1_1.Semantics.attempt_eq_of_components relation
     piRlcInterface piRlcOffset left right inputsEq (by
       simpa [PiRLC.v1_1.Semantics.evalChallenges, piRlcInterface, piRlcOffset,
-        samplerInterface] using challengesEq) outputValueEq
+        samplerInterface] using! challengesEq) outputValueEq
   exact ⟨PiRLC.v1_1.Semantics.PhaseHolds.of_attempt_eq relation ajtai
     piRlcInterface piRlcOffset left right samplerRight attemptEq piRlcLeft,
     attemptEq⟩

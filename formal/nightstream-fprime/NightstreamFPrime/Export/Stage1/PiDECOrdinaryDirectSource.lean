@@ -180,7 +180,7 @@ private theorem freshDeltas
     evalAConstraints, PiDECArithmetic.publicInputConstraints,
     PiDECArithmetic.commitmentConstraints, PiDECArithmetic.evalKConstraints,
     PiDECArithmetic.evalAConstraints, PiDECArithmetic.phaseInterface,
-    List.map_cons, List.map_nil] using
+    List.map_cons, List.map_nil] using!
     (NightstreamFPrime.Layout.PiDEC.v1_1.physicalFreshDeltas_eq relation
       (phaseInterface logicalWidth publicFits) PiDECInputs.phaseOffset
       (PiDECInputs.inputShapes relation))
@@ -222,7 +222,7 @@ private theorem rowDeltas
     evalAConstraints, PiDECArithmetic.publicInputConstraints,
     PiDECArithmetic.commitmentConstraints, PiDECArithmetic.evalKConstraints,
     PiDECArithmetic.evalAConstraints, PiDECArithmetic.phaseInterface,
-    List.map_cons, List.map_nil] using
+    List.map_cons, List.map_nil] using!
     (NightstreamFPrime.Layout.PiDEC.v1_1.physicalRowDeltas_eq relation
       (phaseInterface logicalWidth publicFits) PiDECInputs.phaseOffset
       (PiDECInputs.inputShapes relation))
@@ -317,7 +317,7 @@ theorem publicRows_varsSatisfy
   apply fresh_source column
   rw [publicFreshCount relation] at support
   simpa [publicFreshStart, PiDECStarts.publicInputFreshStart,
-    PiDECStarts.inputFreshStart, freshCount] using support
+    PiDECStarts.inputFreshStart, freshCount] using! support
 
 theorem commitmentRows_varsSatisfy
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

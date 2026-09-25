@@ -706,7 +706,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     have matrixAgreesAt : AgreesOutside afterPoint afterMatrix
         (offset + pointLength interface offset)
         (matrixLength interface offset) := by
-      simpa only [matrixOffset] using matrixAgrees
+      simpa only [matrixOffset] using! matrixAgrees
     exact pointAgrees.append matrixAgreesAt
   rcases Power.build constraintExponent
       (constraintPowerInterfaceAt interface offset) afterMatrix
@@ -1019,7 +1019,7 @@ theorem spec_implies_keyTerminal
   rw [NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity.terminal_eq_eval_K_add_shifted_eval_A_add_constraints]
   unfold SignedJointIdentity.gammaTerm
   rw [gammaFreshPower_eq]
-  simpa [input, execution, message, matrixExponent, constraintExponent] using
+  simpa [input, execution, message, matrixExponent, constraintExponent] using!
     specification
 
 /-- Exact completeness direction: the canonical SumCheck terminal equality

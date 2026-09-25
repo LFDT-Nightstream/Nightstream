@@ -31,7 +31,7 @@ theorem inputRange_form?
       some ((ApplicationDirectPlan.Location.input index).form geometry) := by
   rw [ApplicationInputs.inputColumn_value,
     ApplicationDirectPlan.Location.input_form_eq_pilot]
-  simpa [inputRange, ApplicationDirectPlan.Location.preimageWord] using
+  simpa [inputRange, ApplicationDirectPlan.Location.preimageWord] using!
     (SourceRange.form?_ofSemantic
       (PiRLCPoseidonGeometry.priorInputBlock application)
       (PiRLCPoseidonGeometry.priorInputStart application)
@@ -65,7 +65,7 @@ theorem outputRange_form?
       some ((ApplicationDirectPlan.Location.output index).form geometry) := by
   rw [ApplicationInputs.outputColumn_value,
     ApplicationDirectPlan.Location.output_form_eq_pilot]
-  simpa [outputRange, ApplicationDirectPlan.Location.preimageWord] using
+  simpa [outputRange, ApplicationDirectPlan.Location.preimageWord] using!
     (SourceRange.form?_ofSemantic
       (PiRLCPoseidonGeometry.outputInputBlock application)
       (PiRLCPoseidonGeometry.outputInputStart application)

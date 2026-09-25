@@ -592,7 +592,7 @@ private theorem logicalConstraints_varsBelow
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal.flatConstraints_varsBelow
       relation (Formal.ccsInterface relation interface) offset assumptions
   simpa [logicalConstraints,
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal.privateCount] using scope
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal.privateCount] using! scope
 
 theorem physical_implies_logicalConstraints
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -645,7 +645,7 @@ theorem physical_complete
       specification with ⟨logicalEnv, logicalAgrees, logicalRows⟩
   have logicalAgreesFixed : AgreesOutside env logicalEnv offset
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal.privateCount := by
-    simpa [Formal.ccsCircuit] using logicalAgrees
+    simpa [Formal.ccsCircuit] using! logicalAgrees
   have scope := logicalConstraints_varsBelow relation interface offset
     logicalEnv assumptions
   have logicalHolds : ConstraintsHold logicalEnv

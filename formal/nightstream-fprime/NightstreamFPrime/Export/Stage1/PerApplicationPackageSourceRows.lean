@@ -211,11 +211,8 @@ private theorem pilotIndexRanges_nodup :
   refine ⟨List.nodup_range', List.nodup_range', ?_⟩
   intro first firstMember second secondMember equal
   rw [List.mem_range'_1] at firstMember secondMember
-  norm_num [PilotData.priorBindingRowStart, PilotData.outputChain,
-    PilotData.outputHashRowStart, PilotValues.priorBindingRowStart,
-    PilotValues.outputHashRowStart, PilotValues.priorBindingRowCount,
-    PilotValues.priorExtraRowCount, PilotValues.priorCanonicalRowCount,
-    PilotValues.priorFixedRowCount] at firstMember secondMember
+  change 7311200 ≤ first ∧ first < 7312526 at firstMember
+  change 14623726 ≤ second ∧ second < 14623730 at secondMember
   omega
 
 theorem pilotRows_rowIndices_nodup :
@@ -239,20 +236,10 @@ theorem pilotRows_rowIndex_lt (row : Rows.CompiledRow)
   rw [List.mem_append] at rangesMember
   rcases rangesMember with prior | digest
   · rw [List.mem_range'_1] at prior
-    norm_num [PilotData.priorBindingRowStart,
-      PilotValues.priorBindingRowStart, PilotValues.priorHashRowStart,
-      PilotValues.hashWitnessCount, PilotValues.absorbCount,
-      PilotValues.stateHashWords, PilotValues.stateHashBaseWords,
-      Spec.Poseidon2.rate, PilotValues.permutationRecipeCount] at prior ⊢
+    change 7311200 ≤ row.rowIndex ∧ row.rowIndex < 7312526 at prior
     omega
   · rw [List.mem_range'_1] at digest
-    norm_num [PilotData.outputChain, PilotData.outputHashRowStart,
-      PilotValues.outputHashRowStart, PilotValues.priorBindingRowStart,
-      PilotValues.priorBindingRowCount, PilotValues.priorExtraRowCount,
-      PilotValues.priorCanonicalRowCount, PilotValues.priorFixedRowCount,
-      PilotValues.hashWitnessCount, PilotValues.absorbCount,
-      PilotValues.stateHashWords, PilotValues.stateHashBaseWords,
-      Spec.Poseidon2.rate, PilotValues.permutationRecipeCount] at digest ⊢
+    change 14623726 ≤ row.rowIndex ∧ row.rowIndex < 14623730 at digest
     omega
 
 private theorem piDecRowCount_sum : PiDEC.v1_1.exactRowCount =
@@ -822,7 +809,6 @@ private theorem indexedPackageStoredRow?_eq_some
     have selected := congrArg
       (fun values : List R1CS.Row =>
         values.getD index.val target.toR1CS) exactRows
-    dsimp only at selected
     rw [List.getD_map,
       List.getD_eq_getElem rows target indexBound] at selected
     have referenceBound : index.val < (List.ofFn programRow).length := by
@@ -859,7 +845,6 @@ theorem indexedPackageSourceRow?_eq_some
     have selected := congrArg
       (fun values : List Nat =>
         values.getD index.val target.rowIndex) rowIndices
-    dsimp only at selected
     rw [List.getD_map,
       List.getD_eq_getElem rows target indexBound] at selected
     have rangeBound : index.val < (List.range' rowStart count).length := by
@@ -1142,7 +1127,6 @@ theorem pilotPackageSourceRowAt?_eq_some
   have selected := congrArg
     (fun values : List Nat => values.getD index.val target.rowIndex)
     rowIndices
-  dsimp only at selected
   rw [List.getD_map,
     List.getD_eq_getElem rows target indexBound] at selected
   have referenceBound : index.val <

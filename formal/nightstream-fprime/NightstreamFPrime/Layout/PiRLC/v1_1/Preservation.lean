@@ -40,7 +40,7 @@ theorem physical_implies_holdsFlat
   have logicalRows :=
     R1CS.LoweringPlan.sound (plan relation interface offset) env physical
   rw [plan_constraints] at logicalRows
-  simpa only [logicalConstraints] using logicalRows
+  simpa only [logicalConstraints] using! logicalRows
 
 theorem physical_implies_specHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

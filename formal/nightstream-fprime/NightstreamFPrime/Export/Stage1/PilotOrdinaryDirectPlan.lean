@@ -128,8 +128,7 @@ theorem physicalSupport (location : Location) :
 
 theorem sourceColumn_lt (location : Location) :
     location.sourceColumn < PilotSpartan.SourceColumnCount := by
-  simpa [PilotSpartan.SourceColumnCount] using
-    physicalSource_lt location.sourceColumn location.physicalSupport
+  exact physicalSource_lt location.sourceColumn location.physicalSupport
 
 theorem targetColumn_lt (location : Location) :
     PilotSpartan.sourceToSpartan location.sourceColumn <
@@ -278,8 +277,7 @@ theorem classifyTarget_complete {column : Nat} (support : Target column) :
       PilotSpartan.sourceToSpartan decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
   have bound := physicalSource_lt source sourceSupport
-  have inverse := PilotSpartan.spartanToSource_sourceToSpartan source (by
-    simpa [PilotSpartan.SourceColumnCount] using bound)
+  have inverse := PilotSpartan.spartanToSource_sourceToSpartan source bound
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
   | none => simp [found] at complete
@@ -622,12 +620,7 @@ theorem outputState_form_eval_chainOutput
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 592 + 584 + lane.val)) = _
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
-  norm_num [PilotData.circuitPackage, PilotData.permutationTemplate,
-    PilotData.outputChain, PilotData.outputWitnessStart,
-    Spec.Poseidon2.rate, PilotValues.absorbCount,
-    PilotValues.stateHashWords, PilotValues.stateHashBaseWords,
-    PilotValues.outputWitnessStart, PilotValues.witnessPrivateStart,
-    PilotValues.hashWitnessCount, PilotValues.priorCanonicalPrivateCount]
+  rfl
 
 theorem sourceMap_form_eval_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

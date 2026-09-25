@@ -98,11 +98,11 @@ theorem specs_of_step
       (congrArg (fun preimage => preimage.running functionIndex) nextDecoded)
   have initial (index : Lifecycle.Stage1.RunningTransition.StateIndex) :
       (RunningTransitionInputs.initialStateExpr index).eval env = input.z0.getD index.val 0 := by
-    simpa only [RunningTransitionInputs.initialStateExpr, Expr.eval_var, Nat.add_assoc] using
+    simpa only [RunningTransitionInputs.initialStateExpr, Expr.eval_var, Nat.add_assoc] using!
       initial_word _ prior priorDecoded index
   have current (index : Lifecycle.Stage1.RunningTransition.StateIndex) :
       (RunningTransitionInputs.currentStateExpr index).eval env = input.zi.getD index.val 0 := by
-    simpa only [RunningTransitionInputs.currentStateExpr, Expr.eval_var, Nat.add_assoc] using
+    simpa only [RunningTransitionInputs.currentStateExpr, Expr.eval_var, Nat.add_assoc] using!
       current_word _ prior priorDecoded index
   constructor
   · rcases step.2.2.2 with base | recursive

@@ -52,7 +52,7 @@ private theorem foldl_eq_sumRange (term : Nat → F) (count : Nat) :
   | zero => rfl
   | succ count ih =>
       simpa only [List.range_succ, List.foldl_append, List.foldl_cons,
-        List.foldl_nil, sumRange] using
+        List.foldl_nil, sumRange] using!
           congrArg (fun value : F => value + term count) ih
 
 private def applySigned (table : FixedArray MaterializedRingF ringDegree)

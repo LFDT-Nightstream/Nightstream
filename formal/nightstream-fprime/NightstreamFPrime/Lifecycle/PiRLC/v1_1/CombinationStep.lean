@@ -190,7 +190,7 @@ private theorem rawExpr_eval (env : Env)
     (rawExpr challenge value degree).eval env =
       rawMulCoeffF (evalRing env challenge) (evalRing env value) degree := by
   unfold rawExpr rawMulCoeffF
-  simpa using foldl_eval env (List.range ringDegree) degree
+  simpa using! foldl_eval env (List.range ringDegree) degree
     challenge value 0
 
 theorem mulExpr_eval (env : Env)

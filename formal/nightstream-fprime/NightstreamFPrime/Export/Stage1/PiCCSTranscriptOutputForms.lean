@@ -92,9 +92,8 @@ theorem pointSource_eq_transcriptSource
     pointSource coordinate component =
       transcriptSource (pointInvocation coordinate component)
         ⟨0, by norm_num [Poseidon2.width]⟩ := by
-  simp only [pointSource, pointSourceStart, transcriptSource,
-    transcriptSourceStart, pointInvocation,
-    PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
+  unfold pointSource pointSourceStart transcriptSource transcriptSourceStart pointInvocation
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
   norm_num [RunningTransitionInputs.roundSampleC0Offset,
     RunningTransitionInputs.roundStride]
   omega
@@ -154,8 +153,9 @@ theorem transcriptGrid_form?
     unfold transcriptSource
     rw [Nat.add_assoc, Spartan.sourceToSpartan_add_of_piCcsLocal]
     · omega
-    · norm_num [transcriptSourceStart, PiCCSInputs.phaseOffset_eq,
-        Spartan.piCcsPhaseOffset]
+    · unfold transcriptSourceStart
+      rw [PiCCSInputs.phaseOffset_eq]
+      norm_num [Spartan.piCcsPhaseOffset]
   let minor : Fin 1 := ⟨0, by omega⟩
   have direct := SourceGrid.form?_externalOfSemantic
     (PiCCSPoseidonPlan.retainedBlock program)

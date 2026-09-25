@@ -227,7 +227,7 @@ theorem productInputs_preserves
     have value := valuePreserves
       ((PiRLCProductSchedule.descriptor invocation).withLane lane).invocation
     simpa only [PiRLCProductSchedule.descriptor_invocation,
-      PiRLCProductSchedule.Descriptor.withLane_valueColumn] using value
+      PiRLCProductSchedule.Descriptor.withLane_valueColumn] using! value
   · intro invocation
     let descriptor := PiRLCProductSchedule.descriptor invocation
     unfold PiRLCProductPlan.priorForm productInputs

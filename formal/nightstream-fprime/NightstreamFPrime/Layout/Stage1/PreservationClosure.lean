@@ -121,7 +121,7 @@ private theorem compactRecursiveRunning_eq
       AssemblerInputs.recursiveRunningExpr,
       PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
       PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using pointEq
+      PiDEC.v1_1.Formal.atOffset] using! pointEq
   · funext source row coefficient
     have childEq := congrFun outputsEq
       (RunningTransitionInputs.childOfRunning source)
@@ -133,7 +133,7 @@ private theorem compactRecursiveRunning_eq
       PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
       PiDEC.v1_1.Formal.outputBindingInterface,
       PiDEC.v1_1.Formal.atOffset,
-      AssemblerInputs.childOfRunning] using coordinateEq
+      AssemblerInputs.childOfRunning] using! coordinateEq
   · funext source column
     have childEq := congrFun outputsEq
       (RunningTransitionInputs.childOfRunning source)
@@ -147,7 +147,7 @@ private theorem compactRecursiveRunning_eq
       PiDEC.v1_1.Formal.outputBindingInterface,
       PiDEC.v1_1.Formal.atOffset,
       AssemblerInputs.childOfRunning,
-      AssemblerInputs.digitCoordinate] using coordinateEq
+      AssemblerInputs.digitCoordinate] using! coordinateEq
   · funext source
     have childEq := congrFun outputsEq
       (RunningTransitionInputs.childOfRunning source)
@@ -160,7 +160,7 @@ private theorem compactRecursiveRunning_eq
       PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
       PiDEC.v1_1.Formal.outputBindingInterface,
       PiDEC.v1_1.Formal.atOffset,
-      AssemblerInputs.childOfRunning] using evaluationEq
+      AssemblerInputs.childOfRunning] using! evaluationEq
 
 /-- The source running-transition specification relocates to the exact
 running field of the compact Stage 1 parent. -/

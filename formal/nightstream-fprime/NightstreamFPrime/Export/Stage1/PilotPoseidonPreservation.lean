@@ -316,7 +316,7 @@ theorem priorInputState_eval
         apply congrArg (fun value =>
           previousValue (priorOutputValue geometry assignment)
             invocation lane + value)
-        simpa only [offset] using
+        simpa only [offset] using!
           inputValues ⟨offset, present⟩
       · rw [dif_neg present]
         have pilotAbsent : ¬offset < PilotData.priorChain.inputLength := by
@@ -402,7 +402,7 @@ theorem outputInputState_eval
         apply congrArg (fun value =>
           previousValue (outputOutputValue geometry assignment)
             invocation lane + value)
-        simpa only [offset] using
+        simpa only [offset] using!
           inputValues ⟨offset, present⟩
       · rw [dif_neg present]
         have pilotAbsent : ¬offset < PilotData.outputChain.inputLength := by

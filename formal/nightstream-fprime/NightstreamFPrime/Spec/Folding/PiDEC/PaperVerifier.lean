@@ -769,7 +769,7 @@ theorem output_complete
   · exact honestChildren_eq_childrenOf algebra publicSplit parent assignment
       parentValid.1.2.1
   · simpa [attemptForOutput, messagesOf, honestAttempt, honestMessages,
-      PiDEC.childrenOf] using operational.1
+      PiDEC.childrenOf] using! operational.1
   · intro child
     have childrenEq := honestChildren_eq_childrenOf algebra publicSplit parent
       assignment parentValid.1.2.1

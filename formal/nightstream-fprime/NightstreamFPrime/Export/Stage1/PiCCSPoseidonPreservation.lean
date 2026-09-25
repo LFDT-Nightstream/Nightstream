@@ -435,7 +435,7 @@ theorem squeezeExpected_eval
     simpa [sub_eq_add_neg,
       payloadLaneValue_squeezeFirst_one program prefixAssignment current
         expected found, PiCCSPoseidonPlan.outputState, outputValue,
-      PiCCSPoseidonPlan.interface] using rowOne
+      PiCCSPoseidonPlan.interface] using! rowOne
   exact congrArg₂ NightstreamFPrime.Spec.K.mk c0 c1
 
 theorem rowsZero_implies_canonicalSemantics

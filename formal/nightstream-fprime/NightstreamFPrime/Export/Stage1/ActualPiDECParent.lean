@@ -92,7 +92,7 @@ theorem sourceCommitment_eq
       (PiDECRetainedGeometry.prefixGeometry (piDecGeometry geometry)) assignment)))
     (PiRLCCombinationInvocations.productionCommitmentValue_eq
       (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source row coefficient)).symm
-  simpa only [PiRLCCombinationInvocations.sourceValue, Nat.mul_one, Expr.eval_var] using value
+  simpa only [PiRLCCombinationInvocations.sourceValue, Nat.mul_one, Expr.eval_var] using! value
 
 theorem parentCommitment_eq_form
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
@@ -171,7 +171,7 @@ theorem sourcePublicInput_eq
       (PiDECRetainedGeometry.prefixGeometry (piDecGeometry geometry)) assignment)))
     (PiRLCCombinationInvocations.productionPublicInputValue_eq
       (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source block coefficient)).symm
-  simpa only [PiRLCCombinationInvocations.sourceValue, Nat.mul_one, Expr.eval_var] using value
+  simpa only [PiRLCCombinationInvocations.sourceValue, Nat.mul_one, Expr.eval_var] using! value
 
 theorem parentPublicInput_eq_form
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)

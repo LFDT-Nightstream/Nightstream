@@ -1,0 +1,20 @@
+{
+  "author": "implementation task bab9b858 (Claude, security port)",
+  "statement": "LeanGraph.Targets.HyperNovaLinearSecurity",
+  "premises": [
+    "A wide target (Wide.Target): application program, compiled sampler plan, 2^28 fit proof, Ajtai key, and a verifier context digest of length four.",
+    "Ordinary State and Tape types; the fixed operational continuation data (tapes, raw calls, check, storage and parent clocks) with storage bounds and base-work summability; DecidableEq RingF and Fintype/Nonempty challenge instances for the interactive key.",
+    "An initial PMF of terminal statements and envelopes whose counters are at most the symbolic depth on its support.",
+    "The original first phase, an abort tape, shared functions g and deltaFS, per-visit query counts, primitive clocks, source-check and access clocks, LowNormInvertibility, primitive bounds and the Bounded premise.",
+    "For every visit j < depth, WideFiatShamir.FiatShamirModel for the target's relation and key at the guarded real law of that visit, with the guarded prefix and the supported provider."
+  ],
+  "argument": "HyperNovaVisitedSecurity.history_probability_linear_bound, now generic over the target. Accepted mass is at most AdviceReturned mass plus the first-failure masses (HyperNovaFirstFailure). The marked hash-collision term is kept. Each marked source failure is bounded by the NIFS closure at that visit: the wide FS transfer (WideFiatShamir.FiatShamirModel.successTransfer, consumed by FiatShamirTransfer.returned_source_bound_with_adaptive_msis), the weak loss, the test error and arity.total times the adaptive MSIS success probability of the actual reduction. The real-success event is identified with goodActive through HyperNovaRealInput.realSuccess_of_terminal and the wide terminal NIFS link.",
+  "parent_use": "The final registered history criterion for the selected wide package (Wide.selected) and any wide target; numerical FS, MSIS and query applicability remain external.",
+  "dependencies": [
+    "NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_linear_bound",
+    "NightstreamFPrime.Export.Stage1.HyperNovaRealInput.realSuccess_of_terminal",
+    "NightstreamFPrime.Lifecycle.Nifs.WideFiatShamir.FiatShamirModel",
+    "NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer.returned_source_bound_with_adaptive_msis",
+    "NightstreamFPrime.Export.Stage1.NifsProviderLaw.source_probability_linear_bound"
+  ]
+}

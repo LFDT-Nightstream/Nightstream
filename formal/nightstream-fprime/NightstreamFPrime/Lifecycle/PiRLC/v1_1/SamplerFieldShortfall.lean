@@ -1,0 +1,131 @@
+import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerShortfall
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldBatchShortfall
+
+/-!
+Owns the deterministic link from the actual scalar source to its 32 ordered
+field lanes, and the exact batch failure event. It assigns no probability
+law to the transcript states or lanes.
+-/
+
+namespace NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFieldShortfall
+
+open NightstreamFPrime.Spec
+open Folding.Nifs.NonInteractive.PiRlcSampler
+open ProductionAlphabet
+
+/-- Eight successive digest states, with lanes zero through three read
+before each permutation. Both candidates of a lane use this same value. -/
+def fieldWindow (initial : Transcript.State) (coordinate : Nat) :
+    FieldShortfall.FieldWindow :=
+  fun index =>
+    (ProductionSchedule.stateBeforeBlock Transcript.PiRlcSampler.machine
+      (Transcript.PiRlcSampler.enterScalar
+        (stateAt Transcript.PiRlcSampler.specification initial coordinate) coordinate)
+      coordinate (index.val / Poseidon2.rate)).getD (index.val % Poseidon2.rate) 0
+
+private theorem candidate_part_value (value : F) :
+    ∀ side : Fin 2,
+      ((finTwoArrowEquiv Chunk).symm (FieldPairLaw.candidates value) side).val =
+        (value.val / (2 ^ (16 * side.val))) % chunkModulus := by
+  refine (Fin.forall_fin_two (p := fun side : Fin 2 =>
+    ((finTwoArrowEquiv Chunk).symm (FieldPairLaw.candidates value) side).val =
+      (value.val / (2 ^ (16 * side.val))) % chunkModulus)).mpr ?_
+  constructor
+  · simpa using (FieldPairLaw.candidate_values value).1
+  · change (FieldPairLaw.candidates value).2.val =
+      (value.val / chunkModulus) % chunkModulus
+    exact (FieldPairLaw.candidate_values value).2
+
+private theorem fieldCandidates_at_pair (fields : FieldShortfall.FieldWindow)
+    (lane : Fin FieldShortfall.fieldLaneCount) (side : Fin 2) :
+    FieldShortfall.fieldCandidates fields (finProdFinEquiv (lane, side)) =
+      (finTwoArrowEquiv Chunk).symm (FieldPairLaw.candidates (fields lane)) side := by
+  change (finTwoArrowEquiv Chunk).symm
+    (FieldPairLaw.candidates
+      (fields (finProdFinEquiv.symm (finProdFinEquiv (lane, side))).1))
+        (finProdFinEquiv.symm (finProdFinEquiv (lane, side))).2 = _
+  rw [finProdFinEquiv.symm_apply_apply]
+
+/-- The actual source prefix is exactly the field comparison decoder's
+ordered 64-candidate input, for every initial state and scalar coordinate. -/
+theorem candidateWindow_eq_fieldCandidates (initial : Transcript.State) (coordinate : Nat) :
+    SamplerShortfall.candidateWindow initial coordinate =
+      FieldShortfall.fieldCandidates (fieldWindow initial coordinate) := by
+  funext index
+  obtain ⟨⟨lane, side⟩, rfl⟩ :=
+    (finProdFinEquiv : Fin FieldShortfall.fieldLaneCount × Fin 2 ≃
+      Fin candidateBound).surjective index
+  rw [fieldCandidates_at_pair]
+  apply Fin.ext
+  rw [candidate_part_value]
+  have blockIndex : (side.val + 2 * lane.val) / chunksPerDigest =
+      lane.val / Poseidon2.rate := by
+    change (side.val + 2 * lane.val) / 8 = lane.val / 4
+    omega
+  have laneIndex : ((side.val + 2 * lane.val) % chunksPerDigest) / 2 =
+      lane.val % Poseidon2.rate := by
+    change ((side.val + 2 * lane.val) % 8) / 2 = lane.val % 4
+    omega
+  have partIndex : ((side.val + 2 * lane.val) % chunksPerDigest) % 2 = side.val := by
+    change ((side.val + 2 * lane.val) % 8) % 2 = side.val
+    omega
+  let entered := Transcript.PiRlcSampler.enterScalar
+    (stateAt Transcript.PiRlcSampler.specification initial coordinate) coordinate
+  change
+    (((ProductionSchedule.stateBeforeBlock Transcript.PiRlcSampler.machine entered coordinate
+      ((side.val + 2 * lane.val) / chunksPerDigest)).getD
+        (((side.val + 2 * lane.val) % chunksPerDigest) / 2) 0).val /
+          (2 ^ (16 * (((side.val + 2 * lane.val) % chunksPerDigest) % 2)))) %
+            chunkModulus =
+      ((fieldWindow initial coordinate lane).val / (2 ^ (16 * side.val))) % chunkModulus
+  rw [blockIndex, laneIndex, partIndex]
+  rfl
+
+private theorem sampleBatch_step_none (initial : Transcript.State) (count : Nat) :
+    Transcript.PiRlcSampler.sampleBatch initial (count + 1) = none ↔
+      Transcript.PiRlcSampler.sampleBatch initial count = none ∨
+        Transcript.PiRlcSampler.sampleScalar initial count = none := by
+  have ringFailure : Transcript.PiRlcSampler.sampleRingChallenge initial count = none ↔
+      Transcript.PiRlcSampler.sampleScalar initial count = none := Option.map_eq_none_iff
+  rw [← ringFailure, Transcript.PiRlcSampler.sampleBatch]
+  generalize Transcript.PiRlcSampler.sampleBatch initial count = prior
+  generalize Transcript.PiRlcSampler.sampleRingChallenge initial count = sampled
+  generalize stateAt Transcript.PiRlcSampler.specification initial (count + 1) = finalState
+  cases prior <;> cases sampled <;>
+    simp only [reduceCtorEq, true_or, or_true, false_or, or_false]
+
+/-- The batch preserves every scalar failure, including its final coordinate. -/
+theorem sampleBatch_none_iff_exists_scalar_none (initial : Transcript.State) (count : Nat) :
+    Transcript.PiRlcSampler.sampleBatch initial count = none ↔
+      ∃ index : Fin count, Transcript.PiRlcSampler.sampleScalar initial index.val = none := by
+  induction count with
+  | zero =>
+      constructor
+      · intro failure
+        rw [Transcript.PiRlcSampler.sampleBatch] at failure
+        exact (Option.some_ne_none _ failure).elim
+      · rintro ⟨index, _⟩
+        exact Fin.elim0 index
+  | succ count inductionHypothesis =>
+      rw [sampleBatch_step_none, inductionHypothesis, Fin.exists_fin_succ']
+      simp only [Fin.val_castSucc, Fin.val_last]
+
+/-- The selected batch fails exactly on the field comparison's failure
+predicate, evaluated at its actual transcript-derived field windows. -/
+theorem sampleBatch_none_iff_field_shortfall (initial : Transcript.State) :
+    Transcript.PiRlcSampler.sampleBatch initial FieldBatchShortfall.batchCount = none ↔
+      FieldBatchShortfall.BatchShortfall (fun index => fieldWindow initial index.val) := by
+  rw [sampleBatch_none_iff_exists_scalar_none]
+  change
+    (∃ index : Fin FieldBatchShortfall.batchCount,
+      Transcript.PiRlcSampler.sampleScalar initial index.val = none) ↔
+    ∃ index : Fin FieldBatchShortfall.batchCount,
+      FieldBatchShortfall.ScalarShortfall (fieldWindow initial index.val)
+  apply exists_congr
+  intro index
+  rw [SamplerShortfall.sampleScalar_eq_windowDecode, Option.map_eq_none_iff,
+    Sampling.FirstAccepted.boundedSample_eq_none_iff_shortfall,
+    candidateWindow_eq_fieldCandidates]
+  rfl
+
+end NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerFieldShortfall

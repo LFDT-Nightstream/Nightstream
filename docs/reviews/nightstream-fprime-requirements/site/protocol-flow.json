@@ -1,0 +1,1028 @@
+{
+  "title": "SuperNeo + HyperNova recursion",
+  "description": "One fold, the circuit that checks it, and the next fresh claim. Select a box for its exact requirements, assumptions, Lean proofs and Rust evidence.",
+  "sections": [
+    {
+      "id": "inputs",
+      "label": "1 · Inputs and setup",
+      "note": "Existing commitments are fixed before challenges.",
+      "rows": [
+        [
+          "foundations"
+        ],
+        [
+          "fresh"
+        ],
+        [
+          "running"
+        ]
+      ]
+    },
+    {
+      "id": "representations",
+      "label": "2 · Pack and evaluate",
+      "note": "The same witness in field and ring form.",
+      "rows": [
+        [
+          "packing"
+        ],
+        [
+          "packed-commitment"
+        ],
+        [
+          "tables"
+        ],
+        [
+          "embedding"
+        ]
+      ]
+    },
+    {
+      "id": "ccs",
+      "label": "3 · PiCCS / sum-check",
+      "note": "Test and align 17 claims at one new point.",
+      "rows": [
+        [
+          "bind"
+        ],
+        [
+          "polynomial"
+        ],
+        [
+          "rounds"
+        ],
+        [
+          "evaluations"
+        ],
+        [
+          "identity"
+        ],
+        [
+          "aligned"
+        ]
+      ]
+    },
+    {
+      "id": "rlc",
+      "label": "4 · PiRLC / ring fold",
+      "note": "The public and private sums use the same ρ.",
+      "rows": [
+        [
+          "ccs-rlc"
+        ],
+        [
+          "rho"
+        ],
+        [
+          "public-fold"
+        ],
+        [
+          "private-fold"
+        ],
+        [
+          "combined"
+        ]
+      ]
+    },
+    {
+      "id": "dec",
+      "label": "5 · PiDEC / norm reset",
+      "note": "Split into 16 claims with small-norm witnesses.",
+      "rows": [
+        [
+          "rlc-dec"
+        ],
+        [
+          "split"
+        ],
+        [
+          "child-commitments"
+        ],
+        [
+          "child-evaluations"
+        ],
+        [
+          "public-digits"
+        ],
+        [
+          "recombine"
+        ],
+        [
+          "children"
+        ]
+      ]
+    },
+    {
+      "id": "next",
+      "label": "6 · Next claim and final check",
+      "note": "The outer prover retains the actual witnesses.",
+      "rows": [
+        [
+          "next-witness"
+        ],
+        [
+          "next-commitment"
+        ],
+        [
+          "repeat"
+        ],
+        [
+          "terminal"
+        ],
+        [
+          "compression"
+        ]
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "initialize",
+      "label": "Base case and application",
+      "kind": "operation",
+      "records": [
+        "H.base",
+        "H.application",
+        "H.compat.default_satisfies"
+      ],
+      "short": "Apply the step; at i = 0 check s = s₀ and use defaults.",
+      "detail": "The application transition produces the next state. At i = 0, check the initial state and set the output running batch to the canonical valid defaults. Skip the prior-state and NIFS checks. The first fresh claim is encoded and committed by the outer prover after this circuit execution.",
+      "actor": "Circuit",
+      "uses": [
+        "N.profile",
+        "L"
+      ]
+    },
+    {
+      "id": "fresh",
+      "label": "1 fresh CCS claim",
+      "kind": "claim",
+      "records": [
+        "C.input.fresh"
+      ],
+      "short": "New constraints and a claimed small witness.",
+      "detail": "The new input claims a CCS witness with norm below 2. The commitment is fixed before the folding challenges.",
+      "actor": "Input",
+      "formula": "Witness norm < 2"
+    },
+    {
+      "id": "running",
+      "label": "16 carried CE claims",
+      "kind": "claim",
+      "records": [
+        "C.input.running"
+      ],
+      "short": "Prior evaluations at the same point r.",
+      "detail": "The carried claims share point r and claim witnesses with norm below 2. The base branch supplies the canonical initial values; later folds carry actual prior claims.",
+      "actor": "Input",
+      "formula": "Witness norm < 2"
+    },
+    {
+      "id": "bind",
+      "label": "Bind inputs and derive α, γ",
+      "kind": "operation",
+      "records": [
+        "C.transcript.input",
+        "C.transcript.alpha",
+        "C.transcript.gamma",
+        "C.replay.transcript"
+      ],
+      "short": "Commitments enter the transcript before challenges.",
+      "detail": "The verifier replays the input absorption and derives the exact challenge coordinates. Nightstream uses Poseidon2; transfer from interactive coins has an explicit Fiat–Shamir assumption.",
+      "actor": "Verifier",
+      "uses": [
+        "T",
+        "N.security.fiat_shamir"
+      ]
+    },
+    {
+      "id": "polynomial",
+      "label": "Batch four check families",
+      "kind": "operation",
+      "records": [
+        "C.prover",
+        "C.sumcheck.honest_sum"
+      ],
+      "short": "Fresh CCS, all norms, prior Pad and matrix evaluations.",
+      "detail": "The prover combines the fresh CCS, all-source norm and carried evaluation polynomials. Lean relates this joint polynomial to the four required obligation families.",
+      "actor": "Prover",
+      "uses": [
+        "F"
+      ],
+      "except": [
+        "C.prover.pad",
+        "C.prover.matrix",
+        "C.prover.constant"
+      ]
+    },
+    {
+      "id": "rounds",
+      "label": "Check each sum-check round",
+      "kind": "operation",
+      "records": [
+        "C.sumcheck.initial_k",
+        "C.sumcheck.initial_a",
+        "C.sumcheck.degree",
+        "C.sumcheck.round",
+        "C.sumcheck.endpoint",
+        "C.transcript.round",
+        "C.replay.rounds",
+        "C.replay.polynomial_spec"
+      ],
+      "short": "Prover sends a polynomial; verifier checks, then challenges.",
+      "detail": "Every round checks message width and p(0) + p(1) = v, absorbs that message and derives the next challenge. All 28 recorded rounds match Rust. The pure coefficient constructors are now proved equal to the original-witness polynomial for every allowed prefix. Full causal transcript execution and runtime implementation proofs remain open.",
+      "actor": "Prover → Verifier",
+      "formula": "p(0) + p(1) = v",
+      "uses": [
+        "T"
+      ]
+    },
+    {
+      "id": "evaluations",
+      "label": "Send full evaluations at r′",
+      "kind": "operation",
+      "records": [
+        "C.output.eval_k",
+        "C.output.eval_a",
+        "C.transcript.output",
+        "C.replay.evaluations"
+      ],
+      "short": "All Pad and matrix coefficients enter the transcript.",
+      "detail": "The prover sends both complete evaluation families at the round-challenge point. All 27,540 output words, the point, outgoing transcript and PiCCS encoding match in independent execution. The original-source polynomial proof is complete; full runtime correspondence remains open.",
+      "actor": "Prover → Verifier"
+    },
+    {
+      "id": "identity",
+      "label": "Check the final joint identity",
+      "kind": "operation",
+      "records": [
+        "C.terminal"
+      ],
+      "short": "Fresh CCS, all norms, and prior evaluations.",
+      "detail": "The verifier checks the joint terminal identity against the sum-check endpoint. The extraction and error theorems for the whole phase state what follows from acceptance.",
+      "actor": "Verifier"
+    },
+    {
+      "id": "aligned",
+      "label": "17 aligned CE claims",
+      "kind": "claim",
+      "records": [
+        "C.output.preserve"
+      ],
+      "short": "Same commitments; common point r′.",
+      "detail": "PiCCS changes the evaluation point while preserving the exact source commitments, structure and public inputs. The result remains a set of claims.",
+      "formula": "1 + 16 = 17"
+    },
+    {
+      "id": "ccs-security",
+      "label": "PiCCS strong reduction",
+      "kind": "assurance",
+      "records": [
+        "C.security",
+        "C.connection.native"
+      ],
+      "short": "Completeness, extraction and probability under stated premises.",
+      "detail": "These records cover the strong reduction, probability and extraction results, arbitrary-row phase correspondence, and scoped native comparison. They apply across the PiCCS operations above."
+    },
+    {
+      "id": "ccs-rlc",
+      "label": "Pass the exact claims and transcript",
+      "kind": "handoff",
+      "records": [
+        "R.input.batch",
+        "R.sampler.seed"
+      ],
+      "short": "PiCCS output → PiRLC input",
+      "detail": "PiRLC must receive the same 17 claims at r′ and start from the transcript after the full PiCCS evaluation message. A carried digest cannot replace that replay.",
+      "actor": "PiCCS → PiRLC"
+    },
+    {
+      "id": "rho",
+      "label": "Derive the 17 ring challenges ρ",
+      "kind": "operation",
+      "records": [
+        "R.sampler",
+        "R.connection.native"
+      ],
+      "short": "Poseidon2 challenges after the full PiCCS messages.",
+      "detail": "Poseidon2 supplies canonical candidates. The sampler rejects 65535, reduces accepted symbols modulo 5, selects the first 54 per ring element, and rejects a shortfall. Lean connects arbitrary accepted rows to the exact verifier challenges.",
+      "except": [
+        "R.sampler.seed"
+      ],
+      "actor": "Verifier",
+      "uses": [
+        "F",
+        "T"
+      ]
+    },
+    {
+      "id": "private-fold",
+      "label": "Combine the private witnesses",
+      "kind": "operation",
+      "records": [
+        "R.prover",
+        "R.replay.witness"
+      ],
+      "short": "Use the same 17 ring challenges as the public fold.",
+      "detail": "The prover forms the packed witness sum. Its exact opening and strict parent norm bound are proved under the selected input and challenge premises.",
+      "except": [
+        "R.prover.complete"
+      ],
+      "actor": "Prover",
+      "formula": "Z* = Pack⁻¹(Σᵢ ρᵢ · Pack(Zᵢ))",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "public-fold",
+      "label": "Combine the public claims",
+      "kind": "operation",
+      "records": [
+        "R.combine.commitment",
+        "R.combine.public",
+        "R.combine.eval_k",
+        "R.combine.eval_a"
+      ],
+      "short": "Commitments, public inputs and both evaluation families.",
+      "detail": "The verifier applies the same challenges and source order to all four public sums. Accepted selected rows are connected to those exact sums.",
+      "actor": "Verifier",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "combined",
+      "label": "1 combined CE claim",
+      "kind": "claim",
+      "records": [
+        "R.combine.output"
+      ],
+      "short": "Temporary parent at r′; not the carried accumulator.",
+      "detail": "The public result names one combined witness. For valid selected inputs, its norm is at most 17 × 216 × (2 − 1) = 3,672, strictly below B = 65,536. It is the intermediate input to PiDEC, not the persistent accumulator. Acceptance alone does not open the witness.",
+      "formula": "17 small claims → 1 CE(B) claim"
+    },
+    {
+      "id": "rlc-security",
+      "label": "PiRLC weak extraction",
+      "kind": "assurance",
+      "records": [
+        "R.security",
+        "R.prover.complete"
+      ],
+      "short": "Coordinate extraction under binding and invertibility premises.",
+      "detail": "These records prove the coordinate-fork extraction, probability and expected-work results, completeness and the corrected ambient bound. Their invertibility and cryptographic premises remain explicit."
+    },
+    {
+      "id": "rlc-dec",
+      "label": "Pass the exact combined parent",
+      "kind": "handoff",
+      "records": [
+        "R.connection.schedule",
+        "D.connection.parent"
+      ],
+      "short": "PiRLC output → PiDEC input",
+      "detail": "The PiDEC parent must equal the result computed from the exact PiCCS outputs and verifier challenges. The outgoing PiRLC transcript state has its own native conformance record.",
+      "actor": "PiRLC → PiDEC"
+    },
+    {
+      "id": "split",
+      "label": "Split the witness into 16 parts",
+      "kind": "operation",
+      "records": [
+        "D.prover.split",
+        "D.replay.witnesses"
+      ],
+      "short": "Independently replay the complete signed-binary digits.",
+      "detail": "The prover uses signed binary decomposition on the combined witness. The private-digit replay separately calculates every child coefficient from the Lean-computed parent and compares with fresh native Rust children. Child commitments and evaluations are the next operations.",
+      "actor": "Prover",
+      "formula": "Z* = Σ 2ⁱ Zᵢ",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "public-digits",
+      "label": "Check and split the public input",
+      "kind": "operation",
+      "records": [
+        "D.public"
+      ],
+      "short": "Reject norm ≥ B, then compute the public digits.",
+      "detail": "The verifier checks the strict parent public-input bound before constructing signed binary public digits. The prover does not choose these child public inputs.",
+      "actor": "Verifier",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "recombine",
+      "label": "Check that the children recombine",
+      "kind": "operation",
+      "records": [
+        "D.verify"
+      ],
+      "short": "Check shape, commitments and both evaluation families.",
+      "detail": "The verifier checks the exact child count, stages, shapes and recomposition equations. It rejects any failed check. This does not independently verify each private child norm.",
+      "actor": "Verifier"
+    },
+    {
+      "id": "children",
+      "label": "16 child CE claims",
+      "kind": "claim",
+      "records": [
+        "D.connection.output"
+      ],
+      "short": "Carry 16 claims at r′; private norms remain claimed.",
+      "detail": "The computed PiDEC output is the exact carried output. Subsequent PiCCS folds test these claims; terminal verification supplies the selected final opening checks.",
+      "formula": "Claimed witness norms < 2"
+    },
+    {
+      "id": "dec-security",
+      "label": "PiDEC reconstruction",
+      "kind": "assurance",
+      "records": [
+        "D.security",
+        "D.connection.native"
+      ],
+      "short": "Valid child openings reconstruct the parent.",
+      "detail": "These records relate valid child openings to the parent, identify possible binding collisions, prove honest completeness and connect the phase to accepted rows. Interior child validity is part of the recursive security argument."
+    },
+    {
+      "id": "fold-security",
+      "label": "NIFS composition",
+      "kind": "assurance",
+      "records": [
+        "N"
+      ],
+      "short": "Combine all three phases and their security bounds.",
+      "detail": "The whole-fold records fix the selected profile, exact phase equalities and native order. They include the composed extraction result and symbolic terminal error bound, with the approved MSIS and Fiat–Shamir assumptions explicit."
+    },
+    {
+      "id": "next-state",
+      "label": "Bind outgoing state",
+      "kind": "operation",
+      "records": [
+        "H.output",
+        "H.recursive.output_preimage",
+        "H.replay.state"
+      ],
+      "short": "Bind i + 1, the next state and the same 16 child claims.",
+      "detail": "The outgoing public digest binds the verifier context, initial state, next application state, next counter and exact running output. Counter encoding and non-wrap conditions remain explicit. The circuit ends here; the outer prover encodes and commits this execution afterward. The independently derived iteration 2-to-3 caller now matches all private and public words and its point/transcript links. The completion record closes the selected local iteration 2-to-3 replay under the accepted-prior-state, sampler-success and canonical-counter premises.",
+      "actor": "Circuit",
+      "uses": [
+        "T",
+        "N.binding.context"
+      ]
+    },
+    {
+      "id": "next-witness",
+      "label": "Encode this circuit execution",
+      "kind": "operation",
+      "records": [
+        "H.prover",
+        "H.compat",
+        "H.size",
+        "H.replay.assignment"
+      ],
+      "short": "Construct the complete bounded fresh witness outside F′.",
+      "detail": "The selected local replay constructs the complete fresh witness from independently derived C/R/D and caller values. Every carrier coefficient and all physical rows match the recorded checks. Audited kernels connect stored execution, logical values and canonical assignment to their specifications. Python/shell assembly and file/task orchestration remain outside a universal IO proof.",
+      "except": [
+        "H.prover.commit_fresh",
+        "H.prover.envelope",
+        "H.compat.default_satisfies"
+      ],
+      "actor": "Prover",
+      "uses": [
+        "L"
+      ]
+    },
+    {
+      "id": "repeat",
+      "label": "Retain the next prover state",
+      "kind": "handoff",
+      "records": [
+        "H.prover.envelope",
+        "H.recursive.unchanged"
+      ],
+      "short": "16 running claims + 1 fresh claim, with their witnesses.",
+      "detail": "The next recursive step receives the fresh statement and 16 carried claims from this output. Its exact point, transcript, framing and state connections must hold. This is an iteration loop, not a circular proof dependency.",
+      "actor": "Next iteration",
+      "formula": "(Uᵢ₊₁, uᵢ₊₁; Wᵢ₊₁, wᵢ₊₁)"
+    },
+    {
+      "id": "terminal",
+      "label": "Check the final running and fresh claims",
+      "kind": "operation",
+      "records": [
+        "H.terminal"
+      ],
+      "short": "Check the endpoint and every retained opening.",
+      "detail": "The selected terminal verifier checks the public endpoint, all 16 running openings and the pending fresh opening, including norms, evaluations, context binding and fresh CCS rows. It performs no additional fold. This full-opening check does not by itself provide a succinct or zero-knowledge proof.",
+      "actor": "Verifier",
+      "uses": [
+        "P.delivery.terminal",
+        "P.delivery.backend"
+      ]
+    },
+    {
+      "id": "history-security",
+      "label": "History and terminal security",
+      "kind": "assurance",
+      "records": [
+        "H.security"
+      ],
+      "short": "Conditional symbolic bound for the complete computation.",
+      "detail": "These theorems connect reverse extraction to a forward history and the symbolic linear error bound. Hash events, fixed-seed MSIS hardness, Fiat–Shamir applicability and declared resource premises remain explicit."
+    },
+    {
+      "id": "foundations",
+      "label": "Selected field, ring and setup",
+      "kind": "assurance",
+      "records": [
+        "F"
+      ],
+      "short": "Goldilocks · b = 2 · kρ = 16 · B = 65,536.",
+      "detail": "The selected Nightstream Goldilocks profile fixes one fresh source and 16 running sources, signed-binary decomposition, ring arithmetic and the exact verifier-bound setup. The original approved hardness assumption concerns a specific fixed public-seed matrix; this is not inherited from the paper’s uniform-matrix security estimate.",
+      "except": [
+        "F.packing",
+        "F.commitment",
+        "F.transform",
+        "F.multilinear"
+      ]
+    },
+    {
+      "id": "transcript",
+      "label": "Poseidon2 and transcript primitives",
+      "kind": "assurance",
+      "records": [
+        "T"
+      ],
+      "short": "Canonical words, absorption and challenges.",
+      "detail": "The protocol must use the specified absorption order, labels, canonical words and challenge sampler. Mathematical transcript primitives and cryptographic assumptions have different scopes."
+    },
+    {
+      "id": "compiler",
+      "label": "Circuit, layout and exported package",
+      "kind": "assurance",
+      "records": [
+        "L"
+      ],
+      "short": "Connect the Lean relation to accepted rows and Rust.",
+      "detail": "Expression semantics, circuit contracts, layout preservation, arbitrary-assignment decoding and export connect the protocol model to the package consumed by Rust. Definitions are not additional missing lemmas."
+    },
+    {
+      "id": "delivery",
+      "label": "Runtime and evidence delivery",
+      "kind": "assurance",
+      "records": [
+        "P"
+      ],
+      "short": "Public-call tests and delivery retain their own scope.",
+      "detail": "This records the implementation and release requirements beyond individual protocol steps. Staged execution, full public-call tests, reproducibility, production approval and backend selection retain their separate states.",
+      "except": [
+        "P.delivery.backend"
+      ]
+    },
+    {
+      "id": "child-commitments",
+      "label": "Compute the child commitments",
+      "kind": "operation",
+      "actor": "Prover",
+      "records": [
+        "D.prover.commitment",
+        "D.replay.commitments"
+      ],
+      "short": "Commit all 16 private digit witnesses.",
+      "detail": "Use the exact selected fixed setup to commit each child witness. The existing commitment equations and the new independent witness-to-commitment replay are separate requirements.",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "child-evaluations",
+      "label": "Evaluate every child witness",
+      "kind": "operation",
+      "actor": "Prover",
+      "records": [
+        "D.prover.eval_k",
+        "D.prover.eval_a",
+        "D.connection.messages",
+        "D.replay.evaluations"
+      ],
+      "short": "Send full Pad and matrix-evaluation families.",
+      "detail": "Compute all child evaluations at the same point and fill the actual proof messages. Independent replay must derive these from the Lean-generated digits, with Rust outputs used only for comparison."
+    },
+    {
+      "id": "next-commitment",
+      "label": "Commit the next fresh claim",
+      "kind": "operation",
+      "actor": "Prover",
+      "records": [
+        "H.prover.commit_fresh",
+        "H.replay.commitment"
+      ],
+      "short": "Create uᵢ₊₁ after the circuit execution is complete.",
+      "detail": "The outer prover commits the complete fresh assignment using the unchanged production key. All commitment coefficients and the complete fresh claim match in the selected local replay. This creates the pending fresh claim for the next iteration. The result uses staged evidence with exact input continuity; it is not a new uninterrupted public extend run.",
+      "uses": [
+        "F"
+      ]
+    },
+    {
+      "id": "packing",
+      "label": "One witness, two representations",
+      "kind": "operation",
+      "actor": "Representation",
+      "records": [
+        "F.packing"
+      ],
+      "short": "Flatten to field words; pack the same words into rings.",
+      "detail": "Flattening and packing describe the same witness in the native field and ring representations. Their inverse and dimension equations must agree. This is a change of representation, not another protocol round."
+    },
+    {
+      "id": "packed-commitment",
+      "label": "Packed opening and commitment",
+      "kind": "operation",
+      "actor": "Representation",
+      "records": [
+        "F.commitment"
+      ],
+      "short": "The commitment uses the packed witness.",
+      "detail": "The selected Ajtai commitment is linear in the packed witness. Algebraic linearity is proved independently of cryptographic hardness. Binding security keeps the approved fixed-public-seed MSIS assumption explicit.",
+      "uses": [
+        "F.setup"
+      ]
+    },
+    {
+      "id": "tables",
+      "label": "Two full evaluation families",
+      "kind": "operation",
+      "actor": "Prover",
+      "records": [
+        "C.prover.pad",
+        "C.prover.matrix"
+      ],
+      "short": "Keep Pad separate from all 14 CCS matrices.",
+      "detail": "The prover derives the Pad and matrix tables from the same original witness. The transcript carries each full ring evaluation, not only its constant coefficient.",
+      "uses": [
+        "F.transform",
+        "F.multilinear"
+      ]
+    },
+    {
+      "id": "embedding",
+      "label": "Why evaluation commutes with folding",
+      "kind": "operation",
+      "actor": "Representation",
+      "records": [
+        "F.transform",
+        "F.multilinear",
+        "C.prover.constant"
+      ],
+      "short": "Constant terms connect ring evaluations to field evaluations.",
+      "detail": "The embedding and evaluation identities connect the field and ring descriptions of the same witness. Keep both full evaluation families so ring folding preserves every coefficient. These algebraic facts do not assume MSIS hardness."
+    },
+    {
+      "id": "incoming-state",
+      "label": "Bind incoming state",
+      "kind": "operation",
+      "actor": "Circuit",
+      "records": [
+        "H.state",
+        "H.recursive.prior_pc",
+        "H.recursive.fresh_parse",
+        "H.recursive.prior_hash"
+      ],
+      "short": "For i > 0, bind the previous digest and actual claims.",
+      "detail": "Check the fresh public instance against the complete prior-state hash. The verifier context includes the selected setup, profile, relation and transcript schedule. The hash-instance encoding uses bounded coordinates. It is not a claim that arbitrary raw hash words already have small norm.",
+      "uses": [
+        "T",
+        "N.binding.context"
+      ]
+    },
+    {
+      "id": "circuit-ccs",
+      "label": "Check PiCCS",
+      "kind": "operation",
+      "actor": "Circuit",
+      "records": [
+        "C.connection.actual",
+        "H.recursive.piccs"
+      ],
+      "short": "Constrain the transcript, rounds and final identity.",
+      "detail": "The selected circuit replays PiCCS verifier checks from actual public inputs and messages. The arbitrary-assignment theorem connects accepted rows to the exact phase. It does not recompute the private witness-derived prover polynomials.",
+      "uses": [
+        "C.terminal"
+      ]
+    },
+    {
+      "id": "circuit-rlc",
+      "label": "Check PiRLC",
+      "kind": "operation",
+      "actor": "Circuit",
+      "records": [
+        "R.connection.challenges",
+        "R.connection.sums"
+      ],
+      "short": "Derive ρ and constrain the exact public sums.",
+      "detail": "The selected circuit derives the ring challenges from its transcript and constrains the public commitment, input and evaluation sums. The private witness combination remains outside the recursive verifier.",
+      "uses": [
+        "R.combine"
+      ]
+    },
+    {
+      "id": "circuit-dec",
+      "label": "Check PiDEC",
+      "kind": "operation",
+      "actor": "Circuit",
+      "records": [
+        "D.connection.phase",
+        "H.recursive.fold_exact"
+      ],
+      "short": "Constrain public digits and message recombination.",
+      "detail": "Check the public norm, derive the public digits and constrain recombination of commitments and both evaluation families. Accepted rows yield the exact 16 output claims. Private child norm validity remains a claim to be tested in the next fold or at termination.",
+      "uses": [
+        "D.verify"
+      ]
+    },
+    {
+      "id": "compression",
+      "label": "Separate terminal proof backend",
+      "kind": "operation",
+      "actor": "External decision",
+      "records": [
+        "P.delivery.backend"
+      ],
+      "short": "Backend selection and production proof remain open.",
+      "detail": "A succinct terminal proof would establish that the terminal relation accepts. It is separate from the existing full-opening verifier and needs its own approved backend and validation. Spartan/FRI is not an approved or completed Nightstream backend."
+    }
+  ],
+  "edges": [
+    {
+      "from": "fresh",
+      "to": "packing",
+      "kind": "data"
+    },
+    {
+      "from": "running",
+      "to": "packing",
+      "kind": "data"
+    },
+    {
+      "from": "packing",
+      "to": "packed-commitment",
+      "kind": "data"
+    },
+    {
+      "from": "packing",
+      "to": "tables",
+      "kind": "data"
+    },
+    {
+      "from": "packed-commitment",
+      "to": "bind",
+      "kind": "data"
+    },
+    {
+      "from": "tables",
+      "to": "polynomial",
+      "kind": "data"
+    },
+    {
+      "from": "bind",
+      "to": "polynomial",
+      "kind": "data"
+    },
+    {
+      "from": "polynomial",
+      "to": "rounds",
+      "kind": "data"
+    },
+    {
+      "from": "rounds",
+      "to": "evaluations",
+      "kind": "data"
+    },
+    {
+      "from": "evaluations",
+      "to": "identity",
+      "kind": "data"
+    },
+    {
+      "from": "identity",
+      "to": "aligned",
+      "kind": "data"
+    },
+    {
+      "from": "aligned",
+      "to": "ccs-rlc",
+      "kind": "data"
+    },
+    {
+      "from": "ccs-rlc",
+      "to": "rho",
+      "kind": "data"
+    },
+    {
+      "from": "rho",
+      "to": "private-fold",
+      "kind": "data"
+    },
+    {
+      "from": "rho",
+      "to": "public-fold",
+      "kind": "data"
+    },
+    {
+      "from": "private-fold",
+      "to": "combined",
+      "kind": "data"
+    },
+    {
+      "from": "public-fold",
+      "to": "combined",
+      "kind": "data"
+    },
+    {
+      "from": "combined",
+      "to": "rlc-dec",
+      "kind": "data"
+    },
+    {
+      "from": "rlc-dec",
+      "to": "split",
+      "kind": "data"
+    },
+    {
+      "from": "split",
+      "to": "child-commitments",
+      "kind": "data"
+    },
+    {
+      "from": "split",
+      "to": "child-evaluations",
+      "kind": "data"
+    },
+    {
+      "from": "child-commitments",
+      "to": "public-digits",
+      "kind": "data"
+    },
+    {
+      "from": "child-evaluations",
+      "to": "public-digits",
+      "kind": "data"
+    },
+    {
+      "from": "public-digits",
+      "to": "recombine",
+      "kind": "data"
+    },
+    {
+      "from": "recombine",
+      "to": "children",
+      "kind": "data"
+    },
+    {
+      "from": "next-witness",
+      "to": "next-commitment",
+      "kind": "data"
+    },
+    {
+      "from": "next-commitment",
+      "to": "repeat",
+      "kind": "data"
+    },
+    {
+      "from": "repeat",
+      "to": "terminal",
+      "kind": "data"
+    },
+    {
+      "from": "initialize",
+      "to": "incoming-state",
+      "kind": "circuit",
+      "label": "i > 0"
+    },
+    {
+      "from": "incoming-state",
+      "to": "circuit-ccs",
+      "kind": "circuit"
+    },
+    {
+      "from": "circuit-ccs",
+      "to": "circuit-rlc",
+      "kind": "circuit"
+    },
+    {
+      "from": "circuit-rlc",
+      "to": "circuit-dec",
+      "kind": "circuit"
+    },
+    {
+      "from": "circuit-dec",
+      "to": "next-state",
+      "kind": "circuit"
+    },
+    {
+      "from": "identity",
+      "to": "circuit-ccs",
+      "kind": "check",
+      "label": "Same verifier checks"
+    },
+    {
+      "from": "public-fold",
+      "to": "circuit-rlc",
+      "kind": "check",
+      "label": "Same verifier checks"
+    },
+    {
+      "from": "recombine",
+      "to": "circuit-dec",
+      "kind": "check",
+      "label": "Same verifier checks"
+    },
+    {
+      "from": "next-state",
+      "to": "next-witness",
+      "kind": "encode",
+      "label": "Encode after F′ returns"
+    },
+    {
+      "from": "initialize",
+      "to": "next-state",
+      "kind": "base",
+      "label": "i = 0: valid defaults"
+    },
+    {
+      "from": "repeat",
+      "to": "fresh",
+      "kind": "feedback",
+      "label": "Next iteration: fresh claim"
+    },
+    {
+      "from": "repeat",
+      "to": "running",
+      "kind": "feedback",
+      "label": "Next iteration: 16 running claims"
+    },
+    {
+      "from": "children",
+      "to": "next-state",
+      "kind": "check",
+      "label": "Same 16 output claims"
+    },
+    {
+      "from": "terminal",
+      "to": "compression",
+      "kind": "backend",
+      "label": "Separate approved proof backend required"
+    }
+  ],
+  "support": [
+    "ccs-security",
+    "rlc-security",
+    "dec-security",
+    "fold-security",
+    "history-security",
+    "compiler",
+    "transcript",
+    "delivery"
+  ],
+  "circuit": {
+    "label": "HyperNova augmented circuit F′",
+    "note": "The F′ verifier contains the PiCCS → PiRLC → PiDEC verification chain, prior-state checks, one application transition and next-state binding. The complete fresh witness and commitment are constructed outside this circuit.",
+    "items": [
+      "initialize",
+      "incoming-state",
+      "circuit-ccs",
+      "circuit-rlc",
+      "circuit-dec",
+      "next-state"
+    ],
+    "base_note": "Base case (i = 0): check the initial state and use valid default running claims. Skip prior-state and fold checks; still bind the outgoing state."
+  },
+  "conditions": [
+    {
+      "id": "fixed_matrix_msis",
+      "label": "Fixed public-seed MSIS",
+      "detail": "Hardness for the selected fixed matrix, not the paper’s uniform-matrix estimate."
+    },
+    {
+      "id": "fiat_shamir",
+      "label": "Selected Fiat–Shamir transfer",
+      "detail": "Approved parametric Poseidon2 assumption; concrete query applicability remains explicit."
+    },
+    {
+      "id": "poseidon2",
+      "label": "Poseidon2 collision security",
+      "detail": "Named state-hash collision events stay in the security bound."
+    },
+    {
+      "id": "low_norm_invertibility",
+      "label": "Low-norm invertibility",
+      "detail": "An external mathematical premise used by weak extraction."
+    }
+  ],
+  "feedback_note": "NEXT ITERATION · Carry 16 running claims and the new fresh claim, with their witnesses."
+}

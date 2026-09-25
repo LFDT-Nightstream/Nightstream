@@ -30,6 +30,17 @@ impl WasmMemoryPreload {
     fn clone_cells(&self) -> BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>> {
         self.cells.clone()
     }
+
+    pub fn entries(&self) -> Vec<(&'static str, Vec<u32>, u32)> {
+        self.cells
+            .iter()
+            .flat_map(|(&memory, cells)| {
+                cells
+                    .iter()
+                    .map(move |(address, &value)| (memory, address.clone(), value))
+            })
+            .collect()
+    }
 }
 
 /// Read a witness column and narrow to u32, returning a descriptive
@@ -143,18 +154,11 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
             narrow(type_id, "function_types.type_id"),
         );
     }
-    for &(function_ref, param_count) in &tables.function_param_counts {
+    for &(function_ref, metadata) in &tables.function_call_metadata {
         preload.insert(
-            "function_param_counts",
-            vec![narrow(function_ref, "function_param_counts.function_ref")],
-            narrow(param_count, "function_param_counts.param_count"),
-        );
-    }
-    for &(function_ref, result_count) in &tables.function_result_counts {
-        preload.insert(
-            "function_result_counts",
-            vec![narrow(function_ref, "function_result_counts.function_ref")],
-            narrow(result_count, "function_result_counts.result_count"),
+            "function_call_metadata",
+            vec![narrow(function_ref, "function_call_metadata.function_ref")],
+            narrow(metadata, "function_call_metadata.metadata"),
         );
     }
     for &(function_ref, local_count) in &tables.function_local_counts {
@@ -162,13 +166,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
             "function_local_counts",
             vec![narrow(function_ref, "function_local_counts.function_ref")],
             narrow(local_count, "function_local_counts.local_count"),
-        );
-    }
-    for &(function_ref, is_guest) in &tables.function_guest_flags {
-        preload.insert(
-            "function_guest_flags",
-            vec![narrow(function_ref, "function_guest_flags.function_ref")],
-            narrow(is_guest, "function_guest_flags.is_guest"),
         );
     }
     for &(pc_before, function_ref) in &tables.call_targets {
@@ -208,6 +205,114 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     preload
 }
 
+/// Preload the grammar-mode ROM families from an embedder grammar: the
+/// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
+/// (exports number entry events then exit events) and the per-fref event
+/// counts. Call after [`preload_from_program_artifacts`] when checking a
+/// grammar-mode trace.
+pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
+    use crate::event_grammar::{GrammarEvent, Limb, MemoryBase, SlotSource};
+    use crate::ir::WasmGrammarSlotKind;
+    let limb_bit = |limb| match limb {
+        Limb::Lo => 0,
+        Limb::Hi => 1,
+    };
+    let encode = |source: &SlotSource| match *source {
+        SlotSource::Const(value) => (
+            u32::from(WasmGrammarSlotKind::Const.code()),
+            0,
+            0,
+            value as u32,
+            (value >> 32) as u32,
+        ),
+        SlotSource::ArgElem { arg, limb } => (
+            u32::from(WasmGrammarSlotKind::Arg.code()),
+            u32::from(arg),
+            limb_bit(limb),
+            0,
+            0,
+        ),
+        SlotSource::ResultElem { limb } => (u32::from(WasmGrammarSlotKind::Result.code()), 0, limb_bit(limb), 0, 0),
+        SlotSource::Claim { idx } => (u32::from(WasmGrammarSlotKind::Claim.code()), u32::from(idx), 0, 0, 0),
+        SlotSource::ClaimLocal { local, limb, .. } => (
+            u32::from(WasmGrammarSlotKind::ClaimLocal.code()),
+            u32::from(local),
+            limb_bit(limb),
+            0,
+            0,
+        ),
+        SlotSource::OutputElem { limb } => (u32::from(WasmGrammarSlotKind::Output.code()), 0, limb_bit(limb), 0, 0),
+        SlotSource::MemoryRead32 { base, byte_offset } => {
+            let (arg, base_kind) = match base {
+                MemoryBase::Arg(arg) => (arg, 0),
+                MemoryBase::Local(local) => (local, 1),
+            };
+            (
+                u32::from(WasmGrammarSlotKind::MemoryRead.code()),
+                u32::from(arg),
+                base_kind,
+                byte_offset,
+                0,
+            )
+        }
+        SlotSource::MemoryWrite32 {
+            claim,
+            base,
+            byte_offset,
+        } => {
+            let (arg, base_kind) = match base {
+                MemoryBase::Arg(arg) => (arg, 0),
+                MemoryBase::Local(local) => (local, 1),
+            };
+            (
+                u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
+                u32::from(arg),
+                base_kind,
+                byte_offset,
+                u32::from(claim),
+            )
+        }
+    };
+    let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&GrammarEvent>| {
+        for (event_index, event) in events.into_iter().enumerate() {
+            for (slot_index, source) in event.block.iter().enumerate() {
+                let key = vec![fref, event_index as u32, slot_index as u32];
+                let (kind, arg, variant, const_lo, const_hi) = encode(source);
+                // Bit 3 carries the per-event advice flag.
+                let kind = kind + WasmGrammarSlotKind::COUNT as u32 * u32::from(!event.absorb);
+                preload.insert("grammar_slot_kind", key.clone(), kind);
+                preload.insert("grammar_slot_arg", key.clone(), arg);
+                preload.insert("grammar_slot_variant", key.clone(), variant);
+                preload.insert("grammar_slot_const_lo", key.clone(), const_lo);
+                preload.insert("grammar_slot_const_hi", key, const_hi);
+            }
+        }
+    };
+    // Count cells in the fref-keyed-from-free-state families store
+    // count + 1 (presence bias): an undeclared fref reads the zero-filled 0
+    // and the CCS load rows subtract 1, poisoning the schedule to
+    // EVREM = p-1. See the relation-layout family comment for the full
+    // non-termination argument. Export exit counts stay raw: their read key
+    // is bound within an already-entered turn.
+    for (&fref, template) in &grammar.imports {
+        preload.insert(
+            "grammar_import_pre_counts",
+            vec![fref],
+            template.events.len() as u32 + 1,
+        );
+        insert_slots(preload, fref, template.events.iter().collect());
+    }
+    for (&fref, template) in &grammar.exports {
+        preload.insert(
+            "grammar_export_entry_counts",
+            vec![fref],
+            template.entry.len() as u32 + 1,
+        );
+        preload.insert("grammar_export_exit_counts", vec![fref], template.exit.len() as u32);
+        insert_slots(preload, fref, template.entry.iter().chain(&template.exit).collect());
+    }
+}
+
 pub fn sanity_check_memory_rows(
     layout: &WasmRelationLayout,
     witness_rows: &[Vec<F>],
@@ -216,7 +321,7 @@ pub fn sanity_check_memory_rows(
     assert_all_memory_specs_have_init_modes(layout)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
-        let expected = crate::range_check::range_checked_witness_width();
+        let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
         if witness.len() != expected {
             return Err(format!(
                 "memory sanity check expected witness width {}, got {} on row {}",
@@ -384,6 +489,7 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("stack", DebugInitMode::Strict),
     ("call_stack_return_pcs", DebugInitMode::Strict),
     ("call_stack_caller_fbps", DebugInitMode::Strict),
+    ("call_stack_caller_sp_bases", DebugInitMode::Strict),
     // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
     // segments are preloaded into the cells in `preload_from_program_artifacts`
     // (via `artifacts.tables.linear_memory_init`), so the RMW Read at data-initialized

@@ -1,0 +1,55 @@
+# Generated from src/assurance/graph.json and leaf claim facts.
+schema_version = 2
+contract_id = "nightstream-superneo-v1"
+root_claim = "E2E-NIGHTSTREAM-SECURITY"
+eligible = false
+implementation_ready = false
+implementation_ready_gate = "G1-DECISIONS"
+production_claim_permitted = false
+highest_closed_gate = "none"
+next_gate = "G0-MECHANICAL-SOURCE"
+forbidden_claims = [
+  "the current Rust verifier implements PaddedRowIdentity",
+  "the padded identity and zero-row embedding have completed Lean proofs",
+  "the Nightstream stages satisfy the strong and weak composition conditions",
+  "the Poseidon2 transcript has a complete Fiat-Shamir reduction",
+  "the native and circuit samplers have proved conformance",
+  "the current circuit is equivalent to the normative verifier",
+  "the selected decider and on-chain verifier close the terminal relation",
+  "Nightstream has a concrete end-to-end production security level",
+]
+
+[[gate]]
+id = "G0-MECHANICAL-SOURCE"
+closure_state = "blocked"
+requires = ["SRC-REVIEWED-LOCK", "SRC-BASE-DERIVATION"]
+
+[[gate]]
+id = "G0B-SEMANTIC-SOURCE"
+closure_state = "blocked"
+requires = ["SOURCE-NORMALIZATION-REVIEW"]
+
+[[gate]]
+id = "G1-DECISIONS"
+closure_state = "blocked"
+requires = ["DEC-DOMAINS", "DEC-NORM-BINDING", "DEC-PICCS", "DEC-BATCH-COINS", "DEC-CARRIER", "DEC-SPLIT", "DEC-ENCODING", "DEC-TRANSCRIPT", "DEC-SAMPLER", "DEC-AUTHORITY", "DEC-REDUCTION-FRAMEWORK", "DEC-SECURITY-POLICY", "DEC-CIRCUIT-PROFILE", "DEC-DECIDER-PROFILE", "DEC-PROVENANCE"]
+
+[[gate]]
+id = "G2-LEAN"
+closure_state = "blocked"
+requires = ["LEAN-PAPER-CORE", "LEAN-REDUCTION-FRAMEWORK", "LEAN-PADDED-IDENTITY", "LEAN-PADDING-REFINEMENT", "LEAN-NIGHTSTREAM-SECURITY"]
+
+[[gate]]
+id = "G3-RUST"
+closure_state = "blocked"
+requires = ["RUST-BUILD-IDENTITY", "RUST-VERIFIER-REFINEMENT", "RUST-ORIGIN-ARTIFACTS"]
+
+[[gate]]
+id = "G4-CIRCUIT"
+closure_state = "blocked"
+requires = ["CIRCUIT-MANIFEST", "CIRCUIT-COMPLETENESS", "CIRCUIT-SOUNDNESS", "CIRCUIT-PUBLIC-INPUT", "CIRCUIT-HINT-LOWERING"]
+
+[[gate]]
+id = "G5-SECURITY"
+closure_state = "blocked"
+requires = ["SEC-INTERACTIVE-CORE", "SEC-NORM-BINDING", "SEC-STRONG-WEAK", "SEC-PADDED-PICCS", "SEC-COMMITMENT", "SEC-FIAT-SHAMIR", "SEC-SAMPLER", "SEC-IMPLEMENTATION-TRANSFER", "SEC-DECIDER", "SEC-COMPOSITION", "E2E-NIGHTSTREAM-SECURITY"]

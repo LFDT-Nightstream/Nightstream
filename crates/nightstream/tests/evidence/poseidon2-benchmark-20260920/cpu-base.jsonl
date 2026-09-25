@@ -1,0 +1,6 @@
+{"active_extends":0,"benchmark":"poseidon2_hash_chain_v1","engine":"optimized","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"profile":{"B":65536,"b":2,"k_rho":16},"schema":1,"steps":1}
+{"event":"phase_started","phase":"prepare","step":null}
+{"event":"phase_finished","phase":"prepare","seconds":67.61619125,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+{"event":"phase_finished","phase":"prove","seconds":105.35713025,"step":1}
+{"event":"phase_started","phase":"verify","step":1}

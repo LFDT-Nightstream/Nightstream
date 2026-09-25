@@ -1,0 +1,578 @@
+{
+  "schema": 1,
+  "milestone": "Specialize original PiCCS matrix readers without changing their mathematics",
+  "status": "Compiler-only optimization, retained complete-byte comparisons and all checkpoint gates passed; full matrix execution remains open",
+  "base_commit": "a115f2c1e95fe303518dea197792936fd16175d5",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "source_revision": "The exact final source files below are committed with this report; separate manifests bind the intermediate 11-annotation executable.",
+  "scope": "Original-source PiCCS matrix replay with all 17 sources,14 ports and54 coefficients at the point derived from all 28 Lean rounds. The shared kernels also serve PiDEC; this report does not claim a new complete PiDEC benchmark.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "sources": 17,
+    "matrix_ports": 14,
+    "ring_degree": 54,
+    "matrix_rows": 6377559,
+    "carrier_blocks": 4685394
+  },
+  "preserved": "No definition body, theorem statement, production key, protocol, package, coefficient, field operation, row order, source index, point, input check or coverage rule changed.",
+  "implementation": {
+    "files": 8,
+    "specialize": 15,
+    "inline": 2,
+    "reason": "Keep the concrete captured reader visible through the existing higher-order loops. The generated inner loops directly borrow tables/masks/source/output and call OriginalReads.read without the boxed reader callback or per-entry captured-array reference updates.",
+    "compiler": "Existing stock Lean 4.30.0 specializer; no compiler fork or GPU change.",
+    "annotations": {
+      "Export/Stage1/PiCCSOriginalMatrixSupported.lean": {
+        "invocations": "specialize",
+        "sparse": "specialize"
+      },
+      "Export/Stage1/PiDECMatrixInvocationRange.lean": {
+        "sum": "specialize"
+      },
+      "Export/Stage1/PiDECMatrixInvocation.lean": {
+        "prepare": "specialize"
+      },
+      "Export/Stage1/PiDECPoseidonNumericRows.lean": {
+        "values": "specialize",
+        "rowsWithState": "specialize",
+        "stored": "inline"
+      },
+      "Export/Stage1/PiDECPoseidonNumericStep.lean": {
+        "stateValues": "specialize",
+        "stepValues": "specialize",
+        "fullStepValues": "specialize",
+        "retainedValue": "inline"
+      },
+      "Layout/ProductionRelation/SparseEvaluation.lean": {
+        "evalSparse": "specialize"
+      },
+      "Export/Stage1/PiDECMatrixSparseRange.lean": {
+        "row": "specialize",
+        "sum": "specialize"
+      },
+      "Export/Stage1/PiDECEvaluationBatch.lean": {
+        "step": "specialize",
+        "foldFrom": "specialize",
+        "range": "specialize"
+      }
+    }
+  },
+  "runtime": "Original Linux Ryzen7 7700X,8 cores/16 threads. Benchmarks ran serially with every subagent idle. Shared initialization and range loading are separate from arithmetic.",
+  "profile_evidence": {
+    "before": {
+      "lean_apply_1_percent": 15.65,
+      "lean_dec_ref_cold_percent": 14.26,
+      "malloc_percent": 9.02,
+      "cfree_percent": 6.64,
+      "samples": 14467680,
+      "lost_samples": 0
+    },
+    "after_poseidon": {
+      "lean_dec_ref_cold_percent": 2.44,
+      "malloc_percent": 12.26,
+      "cfree_percent": 11.19,
+      "lost_samples": 0
+    },
+    "interpretation": "Percentages are leaf cycle samples and do not identify complete caller costs. Generated C confirms the removed callback and reference-update path."
+  },
+  "measurements": {
+    "poseidon": {
+      "base": "a115f2c1e95fe303518dea197792936fd16175d5",
+      "compute_before_s": 252.187831373,
+      "compute_after_s": 148.66372636,
+      "command_before_s": 278.56,
+      "command_after_s": 174.01,
+      "peak_before_kib": 2500844,
+      "peak_after_kib": 2501060,
+      "compute_speedup": 1.6963642547362823,
+      "command_speedup": 1.6008275386472042,
+      "compared_field_words": 25704,
+      "byte_equal": true,
+      "profile": "Both cycles:u with the same default perf settings; no other agents active.",
+      "comparison_versions": "Supported baseline versus11 annotations. Both profiled with identical cycles:u settings.",
+      "rows": 150400,
+      "block": 0,
+      "local": [
+        1504,
+        151904
+      ]
+    },
+    "product": {
+      "before": {
+        "compute_s": 241.090049563,
+        "command_s": 262.89,
+        "shared_load_s": 16.819150912,
+        "load_s": 3.493562577,
+        "peak_rss_kib": 3036644
+      },
+      "after": {
+        "compute_s": 75.517372611,
+        "command_s": 97.37,
+        "shared_load_s": 16.861256041,
+        "load_s": 3.505115811,
+        "peak_rss_kib": 3049496
+      },
+      "compute_speedup": 3.1925110901949254,
+      "command_speedup": 2.6999075690664474,
+      "compared_field_words": 25704,
+      "byte_equal": true,
+      "rows": 80750,
+      "global": [
+        4100120,
+        4180870
+      ],
+      "case": "block10 local34..80784",
+      "profiled": false,
+      "comparison_versions": "Saved11-annotation executable versus final17 annotations. Both unprofiled.",
+      "block": 10,
+      "local": [
+        34,
+        80784
+      ]
+    },
+    "small": {
+      "before": {
+        "compute": [
+          2.607996563,
+          0.12858727,
+          1.529977267
+        ],
+        "command": 26.01,
+        "load": 16.931767449
+      },
+      "poseidonOnly": {
+        "compute": [
+          1.539211247,
+          0.122372733,
+          1.554544877
+        ],
+        "command": 24.9,
+        "load": 16.850251556
+      },
+      "after": {
+        "compute": [
+          1.547265238,
+          0.087738878,
+          0.633045048
+        ],
+        "command": 23.8,
+        "load": 16.735393321,
+        "peak_rss_kib": 2437820
+      },
+      "byteMatched": 77112,
+      "filesEqual": true,
+      "scope": "Three retained original-source matrix ranges; every agent idle; large product comparison now running.",
+      "attrCount": 17,
+      "bodyChanges": 0,
+      "sourceFiles": 8
+    }
+  },
+  "checks": {
+    "large_poseidon": "All25,704 field words and complete bytes match; changed target rejects.",
+    "large_product": "All25,704 field words and complete bytes match; changed target rejects.",
+    "small": "All77,112 field words and three complete files match; changed targets reject.",
+    "source_selection": "passed 9 complete byte comparisons and3 malformed-input rejections with the final executable"
+  },
+  "rejected_experiments": [
+    {
+      "change": "Nine named specialize parameters, plus two inline wrappers",
+      "result": "Compiled, but generated C kept the reader callback. Named specialization requires ground arguments; this reader captures runtime data. Replaced with bare specialization before measured acceptance."
+    },
+    {
+      "change": "Return the original weighted accumulator for an all-zero row",
+      "result": "Proof/build/audit and all retained bytes passed. Small compute4.26656\u21924.16704s, sparse case slightly slower; total26.01\u219228.56s with input-load variation. No production gain established. Reverted; patch/source/executable retained outside Git."
+    }
+  ],
+  "attempts": {
+    "callback_named": 1,
+    "callback_bare": 2,
+    "sparse_extension": 1,
+    "zero_row_proof": 1
+  },
+  "coverage": {
+    "completed_matrix_ranges": 5,
+    "completed_matrix_rows": 234018,
+    "total_matrix_rows": 6377559,
+    "plan": "original-matrix-plan.json",
+    "note": "The larger Poseidon repeat adds no new rows. The larger product result adds80,750 rows. Complete original Pad already matches Rust at checkpoint64be502c."
+  },
+  "validation": {
+    "static_build_axioms": "passed",
+    "exact_target_build": "passed",
+    "literal_target": "passed",
+    "metadata": "passed",
+    "graph_tests": "passed 85",
+    "source_selection": "passed 9 complete byte comparisons and3 malformed-input rejections with the final executable",
+    "read_only_review": "No concrete scope, correctness or measurement issue found."
+  },
+  "remaining": [
+    "Complete original-source matrix scan and full Rust comparison",
+    "Post-output transcript, full proof encoding and HyperNova",
+    "Existing PiCCSCarriedSource check11 remains owner-gated and was not attempted",
+    "Portable delivery of retained evidence remains open"
+  ],
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e",
+  "authority": "The Lean arithmetic/refinement theorems remain the same. Saved-value comparisons are execution evidence, not universal Rust correctness. SHA-256 identifies retained bytes only.",
+  "limits": "Lean 1500s/native 300s from project policy. Owner ten-round rule; prior attempts count. No new heartbeat, recursion, resource, compiler or runtime setting.",
+  "scheduled_external_review": {
+    "read_at_utc": "2026-09-16 12:20:29 UTC",
+    "review": "Unchanged September4 public Nebula compressed-path finding; selected replay has Nebula inactive.",
+    "fable": "absent"
+  },
+  "sources": [
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSOriginalMatrixSupported.lean",
+      "bytes": 2491,
+      "sha256": "c8e83cd7088403e1d93a660fba52c274a26f9403492d19ff44b28d79615c8c4a"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationBatch.lean",
+      "bytes": 10527,
+      "sha256": "51f084327122dfaef407840e1ce6c6bd3724b8305a1297059027e9507c0763cf"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixInvocation.lean",
+      "bytes": 5978,
+      "sha256": "7bd25d8323c842d272ca011c4d62a61829889b73288bc0cef625cf0e05769995"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixInvocationRange.lean",
+      "bytes": 1422,
+      "sha256": "b2ed47a286317fc6bb9acd4d20faf9b78dd5e45b2f738a10ccd745438fd1d488"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixSparseRange.lean",
+      "bytes": 4597,
+      "sha256": "c97b988a1d100e97b23f8ab91f45f415c9bf76dfec38a911499d7cc4f1ed7011"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECPoseidonNumericRows.lean",
+      "bytes": 9793,
+      "sha256": "2f595bd67bb06c4f5674eeeaa3698ca193782e87419fd4efc62ce194fc2cb573"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECPoseidonNumericStep.lean",
+      "bytes": 14746,
+      "sha256": "62d296981e36878281a5f36027723e7a0e740f1a111501ea54b3daf3601f407c"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Layout/ProductionRelation/SparseEvaluation.lean",
+      "bytes": 2614,
+      "sha256": "28794d4e918ce91b4b2e3509224ec24ddeeb876d2a5d1575b149d1c9cfe40062"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/scripts/lean_graph/STAGE1_BASELINE.md",
+      "bytes": 28014,
+      "sha256": "275c093ee3bf7d1152befb86d5db6baaf497e95e663ba2752525b4c7b7c078de"
+    }
+  ],
+  "producer_inputs": [
+    {
+      "path": "/tmp/nightstream-piccs-original-public-1.json",
+      "bytes": 410910,
+      "sha256": "54dc9d56e0b0b2cb6c14d9e3cc5d2d56114132721ff9cb35577946f1f64b5a37"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+      "bytes": 562056218,
+      "sha256": "b4b093059cfb8da5266e9a7188348958a6a93b512e7c854b6157b7ad57fb8619"
+    },
+    {
+      "path": "/tmp/nightstream-piccs-first-round-independent-1.json",
+      "bytes": 2181,
+      "sha256": "15c5e977ada8fd3510aa5a968fff2af285dffda499138b2a3b210bed52e7af4d"
+    },
+    {
+      "path": "/tmp/nightstream-piccs-second-round-independent-1.json",
+      "bytes": 2183,
+      "sha256": "a734dd6131e087af90ac47420ae4b6258921d9d0e4e957260881361f7be70b05"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json",
+      "bytes": 2183,
+      "sha256": "7ab3206a4db4726ba5c7acdb0dcfd790cfe9f4f3dbc4d3453c571d6ca01e4d41"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-3.json",
+      "bytes": 2184,
+      "sha256": "d14f8397ed8a12f9534f606e2f7e47ad14d7d6ea37afe8f58dfd99b1099a00c2"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-4.json",
+      "bytes": 2177,
+      "sha256": "9387be56ebc864db2c8eaeaec5dcfabef52933d1dc127875922e74746f0d37ce"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-5.json",
+      "bytes": 2180,
+      "sha256": "f3911914208dca6ec027be31bafc53476583f280345ee50e132a1a645fa42c44"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-6.json",
+      "bytes": 2180,
+      "sha256": "c138cfaccf19015bcf81ea93b4170be6b75a804118eff65ece1e0573c84649d0"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-7.json",
+      "bytes": 2178,
+      "sha256": "a4de1832105532bad2a9727ad2372b9c4518d71a12678860565348e6b3cf35f6"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-8.json",
+      "bytes": 2179,
+      "sha256": "c6a2f1c85794e550ad19379d09ae53f052c7ec203bc679c6a1fb7eaad2d31390"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-9.json",
+      "bytes": 2185,
+      "sha256": "41d3fea2c793dbf58accc984793f26a44889087b48b8ce4e2373b51264826ee8"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-10.json",
+      "bytes": 2186,
+      "sha256": "ea32050026fe30ebb33f8b7a31d008afe86a2b6c90549135f3e1ffb0d2a07c20"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-11.json",
+      "bytes": 2184,
+      "sha256": "dabd40d553a14586b2f2d0c49febe7745cc99639af8de297c4e4f156c6385886"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-12.json",
+      "bytes": 2175,
+      "sha256": "bf436d40856348424c0a8dcbedccdf3abc1db631eb62fcd3773814d9a81ce2d2"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-13.json",
+      "bytes": 2173,
+      "sha256": "02d00822315ec58f5789b2001ec1b0a93f9a237bde90483d64b236b048f4f76f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-14.json",
+      "bytes": 2182,
+      "sha256": "e20dadfc08a3c77c0efa3468fe01febcbbcda17262b02f372b51878ef1974534"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-15.json",
+      "bytes": 2182,
+      "sha256": "9fc9022c16b5f3bc54b5392df9d55c47db48a6df58533f24b7ce831cbcd84782"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-16.json",
+      "bytes": 2175,
+      "sha256": "44db0679a3facbe433115ce16cc22c56ea01aee71035b2ad811783c3e1295c40"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-17.json",
+      "bytes": 2180,
+      "sha256": "975522956370cf5337527ed1b66d0a4da4930a8d37f715dcc2374385795c55fc"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-18.json",
+      "bytes": 2174,
+      "sha256": "c5981890a4c6a42f6edf4a5d7d6830b88b9fc01cc1998cb38711f932ab888ff6"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-19.json",
+      "bytes": 2174,
+      "sha256": "e97f78e73261934b81c0360b0396c0086f74d79f49fec9d01069fb5088302098"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-20.json",
+      "bytes": 2180,
+      "sha256": "93936079641cb22e445506b8b88783a8afef00aff4a5501a884e2675c618165f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-21.json",
+      "bytes": 2180,
+      "sha256": "01f692cfa9ad85cbbb199cd07db2942a960ec2ae8b826ec37dbda02bf8f2a378"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-22.json",
+      "bytes": 2172,
+      "sha256": "c172c425084a6304f5cba2ff9e49aea77bf9eab9f09a2e04ccba98f3a029fab0"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-23.json",
+      "bytes": 2180,
+      "sha256": "abb1b40f4b44bc09e189b66d16c0316d2256cfdd3e7745f145a469529cadc357"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-24.json",
+      "bytes": 2188,
+      "sha256": "3dfbfa62394d9e26ecffa4a1727da3b5aee277a6d43484c2b18de514987b0081"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-25.json",
+      "bytes": 2184,
+      "sha256": "58fae9fc627b0164b6109257815cfdff81afa93bb4dd4ac2b48117c5cca21455"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-26.json",
+      "bytes": 2186,
+      "sha256": "fdd0b7a2eb5e0a15aa88db497f6fa750bd40de10e8ed0a6afabcfc5cedd3fff8"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-27.json",
+      "bytes": 2183,
+      "sha256": "8b1536c875b3eb97bcc2361d7ca6fd80705e62a6446ba378f5c14cb6a3dfab2a"
+    }
+  ],
+  "body_check": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-body-check.json",
+    "bytes": 2713,
+    "sha256": "daac7a59cfe12cfd18d146060afd9c5daacab79d9be8c59729af77d181d55b17"
+  },
+  "intermediate_poseidon_manifest": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/poseidon-specialization-manifest.json",
+    "bytes": 7988,
+    "sha256": "ee61bb5fc088e6af5518470594d2b8c8516f728b7a166ef41071afa1a8a9c592"
+  },
+  "executables": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/replayPiCCSPrefix.supported",
+      "bytes": 137639880,
+      "sha256": "6429b3827ed96191b6b3249bb58121ccd0ebd714a97ffd6337ef17de0bf6a4ec"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/replayPiCCSPrefix.poseidon-specialized",
+      "bytes": 137655624,
+      "sha256": "ca8a617351d760910549168afd6bd3c47994fee0806d1bae2a1dcfb6e61f7d3b"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/replayPiCCSPrefix.fully-specialized",
+      "bytes": 137653272,
+      "sha256": "e438cfe32b3dc3849c3076629af52d579cecf031c862e29a5abc53120a63b3ac"
+    }
+  ],
+  "generated_c": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/OriginalEvaluation.fully-specialized.c",
+    "bytes": 658722,
+    "sha256": "7ec4edddb101122f2a1af308f1ed2f94ae724a0c7420b1c21dd07601310e6734"
+  },
+  "logs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-checkpoint-all.log",
+      "bytes": 1306301,
+      "sha256": "176c64b92bad28c57944e59d07d4678ee1ef1bdf3395eca7e6662257a10d30bb"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-target-build.log",
+      "bytes": 156432,
+      "sha256": "55738551a2fb542f71e5e4d15549e6f72a15fb555ba10c881ce8a7f958c13162"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-target-acceptance.log",
+      "bytes": 2719,
+      "sha256": "7d22b27d3ae9fc5b1a5d6ee0e2191711b8b3c14940cf132e7ee144d07b068ade"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-graph-tests.log",
+      "bytes": 456,
+      "sha256": "6eaa682b6ea29f80436acbbea55ca2dcb13b59417bd54f8191f046e9e0292ccc"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-support-checks.log",
+      "bytes": 7120,
+      "sha256": "5b39bec14489beac699bcb1306c99bf9d9dff21ef73f0964afbf6cc37f96d560"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialized-byte-comparison.log",
+      "bytes": 2532,
+      "sha256": "68deaba1a3a8ba1185d4b9156fe87eec3b01031588f083ec029c39deb1028ad2"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialized-large-byte-comparison.log",
+      "bytes": 1168,
+      "sha256": "c1e92daaf738c57ce952677f9b6cc691ca98dda5db317109baeb3b4d347d1e8a"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/fully-specialized-byte-comparison.log",
+      "bytes": 2568,
+      "sha256": "60e32816bc4e687f62e2eeecde78b1da88d741bd12262c5a652e42b01f34a7d0"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/product-large-byte-comparison.log",
+      "bytes": 1139,
+      "sha256": "0fc9a9de5f81de44a03c76a1f2377350f12c6c94728a7e9a703152d2a48690ea"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialization-target-metadata.log",
+      "bytes": 654205477,
+      "sha256": "f9278fb3ba976795d3d5423cfd66f8eb43240486483dee9be1ffa3056347fad6"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialized-matrix-small.log",
+      "bytes": 12244,
+      "sha256": "0042fb082e4f1c87594177f9db7bbd15205891f249c388e008951b75cf1137b0"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/fully-specialized-matrix-small.log",
+      "bytes": 12313,
+      "sha256": "530231506a50159251e16a1384ad49f00ad4d9172d00cba7ffc8c38b65df5a5a"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/matrix-range-01-profiled.log",
+      "bytes": 11500,
+      "sha256": "4b8e58c00624ae261448ba3f229f6840108ac217ecb0ddf6e34b8da7dd4e4c05"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/matrix-range-01-specialized-profiled.log",
+      "bytes": 11482,
+      "sha256": "20b123d87fc3555166dc39b805c13425bc37933b7614a2bc90776655c9586834"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/product-large-before.log",
+      "bytes": 10874,
+      "sha256": "5235bca6a86f1648d63488ea8b396594d6ba19557e3b880fb739cab879f7c471"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/product-large-after.log",
+      "bytes": 10846,
+      "sha256": "8644d5a32296223ba9dcc884f41b76f23bb29a3ab4de6ebb026d9fb9f9c8216a"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/specialized-range-01-0001504-0151904.json",
+      "bytes": 110586,
+      "sha256": "6882943e86e33192d45eebcb8002a550736218b28535bf1cfe42157a16c97d84"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/product-large-before.json",
+      "bytes": 154784,
+      "sha256": "d79829512ccff49d900ec72a8b33773400319ad6c9f4c89e2ac9efee2fcde39f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/complete-matrix/range-28-4100120-4180870.json",
+      "bytes": 154784,
+      "sha256": "d79829512ccff49d900ec72a8b33773400319ad6c9f4c89e2ac9efee2fcde39f"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/fully-specialized-block-0.json",
+      "bytes": 110723,
+      "sha256": "66079425a2eefa4429ed86bc2f03f7ed8851c1f41eae100ed21764ec9bd28b46"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/fully-specialized-block-10.json",
+      "bytes": 151152,
+      "sha256": "7b48340cda8b84936b6df52b280db695bacbe553e8d34057b9f04da4c38dfdbf"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/fully-specialized-block-5.json",
+      "bytes": 122280,
+      "sha256": "fb216df853f5713b56bc51c603aee8753e936e6a6deb80fac40d464321c8c825"
+    }
+  ],
+  "old_source_bridge": {
+    "path": "/home/nicoarq/develop/Nightstream/docs/reviews/nightstream-fprime-requirements/PICCS_SOURCE_BRIDGE_PENDING.patch",
+    "bytes": 52591,
+    "sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133"
+  },
+  "commands": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/SPECIALIZATION_RUNS.json",
+    "bytes": 39712,
+    "sha256": "76d8b4573f8b59e34f75080cce7ca079ad218df394722b976e666f4e0974734e"
+  }
+}

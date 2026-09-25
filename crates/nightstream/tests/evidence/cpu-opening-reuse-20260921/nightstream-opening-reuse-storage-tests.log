@@ -1,0 +1,18 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 13.16s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 10 tests
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_first_round_inner_norm_matches_lean ... ignored, Requires original sources.jsonl and lean-norm.json in the local fixture directory; run under the 300-second cap.
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_second_round_inner_norm_matches_lean ... ignored, Requires original sources.jsonl, lean-first-round.json and lean-second-norm.json; run under the 300-second cap.
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::source_capture_rejects_malformed_records_even_outside_the_range ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::encoded_prefix_folding_reuses_its_codes ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::openings_reuse_the_consumed_carrier_buffer ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_rows_beyond_the_witness_carrier_are_retained ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::dense_prefix_folding_reuses_its_storage ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_table_has_no_flat_combined_witness ... ok
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::range_uses_absolute_weights_and_keeps_the_last_running_lane ... ok
+test engines::optimized_engine::prefix::tests::encoded_prefix_matches_dense_folding_through_the_representation_change ... ok
+
+test result: ok. 8 passed; 0 failed; 2 ignored; 0 measured; 1 filtered out; finished in 0.01s
+

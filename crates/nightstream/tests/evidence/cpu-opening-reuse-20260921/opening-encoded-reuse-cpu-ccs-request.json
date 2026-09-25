@@ -1,0 +1,7 @@
+{
+  "phase": "ccs",
+  "directory": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/opening-encoded-reuse-cpu",
+  "step": 2,
+  "engine": "optimized",
+  "cpu_reference": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu"
+}

@@ -250,7 +250,49 @@ fn call_trace_passes_witness_checks() {
 }
 
 #[test]
-fn halted_row_requires_empty_call_stack_depth() {
+fn guest_call_with_loop_only_pops_frame_at_function_end() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $count_to (param $limit i32) (result i32)
+                (local $counter i32)
+                (loop $again
+                    local.get $counter
+                    i32.const 1
+                    i32.add
+                    local.tee $counter
+                    local.get $limit
+                    i32.lt_u
+                    br_if $again)
+                local.get $counter)
+            (func (export "main") (result i32)
+                i32.const 5
+                call $count_to))"#,
+        "main",
+        &[],
+    );
+
+    assert_eq!(checked.run.results, ["5"]);
+    let nested_ends: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.opcode == WasmOpcode::End && row.state_before.call_stack_depth == 1)
+        .collect();
+    assert!(nested_ends.len() >= 2, "expected loop and function end rows");
+    assert!(nested_ends
+        .iter()
+        .any(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::Static && row.call_stack_pop.is_none()));
+    assert_eq!(
+        nested_ends
+            .iter()
+            .filter(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::ReturnLike && row.call_stack_pop.is_some())
+            .count(),
+        1,
+        "only the function-ending End may pop the caller frame"
+    );
+}
+
+#[test]
+fn clean_halted_row_requires_empty_call_stack_depth() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -263,7 +305,32 @@ fn halted_row_requires_empty_call_stack_depth() {
     final_row.state_after.call_stack_depth = 1;
 
     let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
-    common::assert_rejected(&witness, "halted row with non-empty call stack depth");
+    common::assert_rejected(&witness, "clean halted row with non-empty call stack depth");
+}
+
+#[test]
+fn nested_trap_may_halt_with_nonempty_call_stack_depth() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func $divide (param i32 i32) (result i32)
+                local.get 0
+                local.get 1
+                i32.div_u)
+            (func (export "run") (result i32)
+                i32.const 42
+                i32.const 0
+                call $divide))"#,
+    )
+    .expect("wat parse");
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace nested trap");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize nested trap");
+    let trap = trace.last().expect("terminal trap row");
+
+    assert!(trap.state_after.halted);
+    assert!(trap.state_after.trapped);
+    assert_eq!(trap.state_before.call_stack_depth, 1);
+    let witness = neo_wasm::witness_builder::build_witness_vector(trap);
+    common::assert_satisfied(&witness, "nested trap with abandoned caller frame");
 }
 
 #[test]
@@ -294,6 +361,27 @@ fn final_halt_captures_simple_output() {
     assert!(final_row.state_after.output.enabled, "result carry should be enabled");
     assert_eq!(final_row.state_after.output.value_lo, 6);
     assert_eq!(final_row.state_after.output.value_hi, 0);
+}
+
+#[test]
+fn clean_halt_with_a_result_requires_output_capture() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let mut final_row = trace
+        .iter()
+        .find(|row| row.state_after.halted)
+        .expect("halted row")
+        .clone();
+
+    final_row.output_captured = false;
+    final_row.state_after.output.enabled = false;
+    final_row.state_after.output.value_lo = 0;
+    final_row.state_after.output.value_hi = 0;
+    final_row.state_after.sp = final_row.state_before.sp;
+
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    common::assert_rejected(&witness, "clean halt leaving its result uncaptured");
 }
 
 #[test]

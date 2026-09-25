@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "reviewer": "/root/review_linear_security_contract",
+  "timestamp_utc": "2026-09-13T08:15:34.547181+00:00",
+  "review_kind": "Independent diagnostic source review; not protected-checker approval",
+  "worktree": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "base_commit": "48f06fabef53d3f8f20eb501077b756fb529a805",
+  "reviewed_sources": [
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaFalseAcceptance.lean",
+      "sha256": "7a6b0c1f03f5ed3fea9b2a8d4e4016652d7b6fb3c7e129ce3c6a2033bfbb3a25"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export.lean",
+      "sha256": "78c5f914ace5882199006b01c5f819f4ef12d538bc95b3ae8f5f2765c2f56143"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/EvidenceTargets.lean",
+      "sha256": "c879f13e98069bef7faeb7a18b1b6203c843ac7e143595b961c460c5a4a6f156"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/EvidenceAcceptance.lean",
+      "sha256": "6cafcfe9f1488beaeed48b3fcf884c43dc589d328a277f25ba88cac6d15a9710"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/AxiomsStage1Security.lean",
+      "sha256": "3dd94b44785ca5872451096f13a4f3ad3ab28904d6ab54d19e3d459d570cdc92"
+    },
+    {
+      "path": "scripts/lean_graph/ExportMetadata.lean",
+      "sha256": "ac51739866ddfe27b5b50851ee38bf97984d0dd0b8b53840b1e6c18e49e21de1"
+    },
+    {
+      "path": "scripts/lean_graph/obligations.json",
+      "sha256": "840463fcc7490c45bd34cefcf7feec194f630bb6b5b7a01c1b372afb87837213"
+    },
+    {
+      "path": "scripts/lean_graph/STAGE1_BASELINE.md",
+      "sha256": "af3ccbf9a601c8aeb9073dc5889a2f6268a075de894f699305433baddea6f562"
+    },
+    {
+      "path": "docs/reviews/nightstream-fprime-requirements/site/requirements.json",
+      "sha256": "183867e693d095f4da58c4682a299205cc0bb861a1b6fc6a75dd5350a7e66170"
+    }
+  ],
+  "contract": "Review the new selected terminal false-acceptance event, its original mixed-law linear bound, the literal target and the graph registration without changing the approved security model or unrelated obligations.",
+  "verdict": "pass",
+  "verdict_scope": "Source statement, premises, argument, correspondence, intended parent use and registration preservation. No new compiler or execution result is asserted by this reviewer.",
+  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+  "closure": "LeanGraph.Targets.hyperNovaTerminalFalseAcceptance",
+  "closing_theorem": "NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance.probability_linear_bound",
+  "event": {
+    "declaration": "HyperNovaFalseAcceptance.FalseAcceptance",
+    "exact_meaning": "PerApplicationTerminal.Holds application fits productionSetup statement envelope, and no advice list has length statement.iteration and folds application.step from statement.z0 to statement.zi.",
+    "boundary": "Selected typed terminal membership with complete openings. This is not bare NIFS Boolean acceptance, extractor failure on a valid statement, or a production backend acceptance event."
+  },
+  "assessments": [
+    {
+      "name": "statement",
+      "verdict": "pass",
+      "reason": "The left side is the mass of the exact false-acceptance event under the original PMF of terminal statement/envelope pairs. The right side has no positive AdviceReturned mass. It sums each actual visit's marked hash-collision mass plus good-active mass minus g at that mass, deltaFS, weakLoss, independent testError and actual adaptive MSIS success times the selected arity 17. Depth, queries, g and deltaFS remain symbolic."
+    },
+    {
+      "name": "premises",
+      "verdict": "pass",
+      "reason": "The theorem and literal target retain the support depth bound, fixed raw-call/tape family, storage bound, per-call base-work summability, low-norm invertibility, declared primitive bounds and each exact guarded FiatShamirModel. They add no invalid-source support, conditioned initial law, honest sampler-success premise, free output-soundness assumption or numerical security choice. Useful transfer functions, total-query applicability, fixed-seed hardness and any needed global resource applicability remain external."
+    },
+    {
+      "name": "argument",
+      "verdict": "pass",
+      "reason": "falseAcceptance_not_adviceReturned follows directly from the two event definitions. The exact initial marginal of HyperNovaHistoryLaw.law lifts the event without conditioning. For every supported sample, accepted_failure_exists_first gives a marked hash or source failure below depth; its soundness is the existing checked run_correct result, not a caller premise. The finite union bound and visitedDraw marginal give the first-failure mass bound. PMF finite-mass facts justify conversion from ENNReal to real probabilities. probability_linear_bound then adds unchanged marked hash mass to the existing per-visit adaptive source bound and sums it."
+    },
+    {
+      "name": "correspondence",
+      "verdict": "pass",
+      "reason": "visitedLaw is generated from the same original initial law and fixed source continuation. realLaw, contextLaw, guardedPrefix, supportedProvider and the abort extension are the existing exact owners. The adaptive term is AdaptiveBindingProbability.successProbability with the full stored source program at those same contexts and visits; it retains both accepted calls and the selected source-coordinate loss. It does not substitute the old independent-pair BindingProbability experiment or treat invocation count as permutation-query count."
+    },
+    {
+      "name": "parent_use",
+      "verdict": "pass",
+      "reason": "The literal target spells out the same original mixed-law event, loss expression and all premises. Its closure is the direct application @HyperNovaFalseAcceptance.probability_linear_bound. The exported theorem remains universe-polymorphic; the literal target uses ordinary State/Tape Type, as in the existing registered security target. Export, axiom audit, exact acceptance and declaration metadata references include the new theorem/closure."
+    },
+    {
+      "name": "map_applicability",
+      "verdict": "pass",
+      "reason": "The theorem closes the symbolic selected-terminal false-acceptance part named by the N.security.error_budget disposition. The current map record still cites the old invalid-source square-root corollary and retains stale remaining text; its planned update must cite the new event and theorem and state the full-opening terminal scope. Numerical deployment choices, external model/query/hardness applicability, honest rejection and production backend approval remain separate."
+    },
+    {
+      "name": "graph_registration",
+      "verdict": "pass",
+      "reason": "Parsed comparison with HEAD preserves all pre-existing obligations except the intentional stage1-baseline progress/gate update. No obligation is removed. Reviews, source groups, inputs, identity inputs, schema and graph gate are unchanged. The new false-acceptance obligation requires security-validation, assignment-targets, target-meaning and decomposition. Existing command executions and previous closure/metadata completion requirements are preserved; new target requirements are appended. The separate intended stage1-test-build gate is added to the baseline."
+    }
+  ],
+  "material_findings": [],
+  "remaining_work_not_claimed_complete": [
+    "Further nonzero-running C/R/D production, complete independent Lean comparison, and the later caller/envelope/terminal execution remain open. Previous capped C/R and isolated C failures remain failures.",
+    "Successful active public extension and absent/changed-cache recovery coverage remain open.",
+    "Remote authentication, release upload, remote byte verification and fresh-download replay remain open.",
+    "Approved production/backend delivery and numerical or concrete FS/MSIS/query/work applicability are not granted by these source reviews."
+  ],
+  "exclusions": [
+    "No builds, tests, repo edits, branches or commits were made by this reviewer.",
+    "No bare NIFS Boolean or production backend security claim.",
+    "No conditioned invalid-input law, new hardness premise, numerical bound or general Fiat-Shamir theorem.",
+    "No claim of authenticated checker approval."
+  ],
+  "output_path": "/tmp/nightstream-baseline-false-acceptance-final-review.json",
+  "superseded_source_review": {
+    "path": "/tmp/nightstream-baseline-false-acceptance-review.json",
+    "sha256": "7918c5bd8fd91d7609acf02ec5fe000a4477098d2352fc63b914ab0d709e1598",
+    "timestamp_utc": "2026-09-13T07:06:19.562824+00:00",
+    "verdict": "pass",
+    "changed_file_hashes": [
+      {
+        "path": "formal/nightstream-fprime/tests/AxiomsStage1Security.lean",
+        "superseded_sha256": "e999519e5a254bd89c2ba63a3db98b29634c8c2b57311efaeff7c2d5e20b9b3c",
+        "current_sha256": "3dd94b44785ca5872451096f13a4f3ad3ab28904d6ab54d19e3d459d570cdc92"
+      }
+    ],
+    "status": "Superseded only for final source identity; the earlier bounded findings remain recorded."
+  },
+  "root_reported_final_validation": {
+    "source": "Reported by root; no gate or test was run again by this reviewer.",
+    "frozen_gate_run": "97f16091b5c645229136564936320d14",
+    "frozen_gate_outcome": "passed",
+    "malformed_emitter_cases": {
+      "count": 4,
+      "result": "all rejected with no output"
+    },
+    "affected_raw_recursive_checker_regression": {
+      "outcome": "passed",
+      "elapsed_seconds": 35.67
+    },
+    "scope": "These reported results do not establish later nonzero-running C/R/D or terminal execution, remote authentication, upload or fresh-download replay."
+  },
+  "open_boundaries_at_final_review": [
+    "Further nonzero-running C/R/D production, complete independent Lean comparison, and the later caller/envelope/terminal execution remain open. Previous capped C/R and isolated C failures remain failures.",
+    "Successful active public extension and absent/changed-cache recovery coverage remain open.",
+    "Remote authentication, release upload, remote byte verification and fresh-download replay remain open.",
+    "Approved production/backend delivery and numerical or concrete FS/MSIS/query/work applicability are not granted by these source reviews."
+  ],
+  "final_delta_assessment": {
+    "verdict": "pass",
+    "scope": "Only the final AxiomsStage1Security cleanup since the completed false-acceptance review.",
+    "reason": "The only audit removals are HyperNovaVisitedSecurity.source_failure_probability_le and history_probability_bound, matching the deleted obsolete wrappers. The source_failure_probability_linear_le and history_probability_linear_bound audits remain. The false-acceptance module import and all three new public theorem audits remain. The FalseAcceptance definition, probability_linear_bound, literal target, direct closure, exact acceptance and metadata references are unchanged from the passing source review.",
+    "target_meaning": "No remaining concern within the selected full-opening terminal event. Its original mixed law, explicit guarded FS/clock/moment/invertibility premises and actual adaptive MSIS term remain unchanged. This is not bare NIFS Boolean security or production backend approval."
+  },
+  "prior_compiler_status_at_request": {
+    "source": "Reported by root",
+    "focused_module": "Passed in 2.32 seconds after correcting the final additive order with add_le_add.",
+    "literal_target_build": "Running at the request time.",
+    "reviewer_ran_builds": false
+  }
+}

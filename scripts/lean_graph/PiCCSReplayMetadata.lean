@@ -1,0 +1,30 @@
+import tests.EvidenceTargets
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
+
+/-! Exact dependency graph for original-source PiCCS replay kernels. -/
+#evidence_export LeanGraph.Targets.piCCSFirstRoundReplayKernel
+#evidence_export LeanGraph.Targets.piCCSFirstRoundSourceCoefficients
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.full_components_eq_firstRound
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation.moment_of_exact_row_callbacks
+
+#evidence_export LeanGraph.Targets.piCCSNormPrefixKernel
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.decode_pairedCodes
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold.code_byte
+
+#evidence_export LeanGraph.Targets.piCCSPrefixNormAccumulation
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.finish_accumulate_eq_add_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets.accumulate_append
+
+#evidence_export LeanGraph.Targets.piCCSRetainedPrefixKernel
+#evidence_export NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold.foldPrefix_evaluate
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix.portValues_foldRows
+
+#evidence_export LeanGraph.Targets.piCCSOriginalEvaluationKernel
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalReads.read_eq_preparedRead
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_append
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.sparse_eq_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.invocations_eq_range
+#evidence_export NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange.range_eq_matrix
+
+#evidence_export LeanGraph.Targets.piCCSAllRoundSourceCoefficients

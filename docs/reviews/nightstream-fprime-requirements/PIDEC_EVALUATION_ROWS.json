@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "source_base_commit": "396ae6de",
+  "status": "Row and weight proof checkpoint; complete child evaluation replay remains open.",
+  "scope": "The sparse row kernel equals the full block sum. Complete selected matrix and Pad rows equal the existing Phi81 row semantics, including carrier tails and the padded Boolean suffix. Point-weighted accumulation equals Boolean-table evaluation; its prefix theorem states the domain bound and zero-suffix premises explicitly.",
+  "independence": "These kernels receive row forms, the point and child witness blocks. They receive no claimed evaluation, commitment, Rust-computed evaluation table, opening or cryptographic premise. PiRLC parent provenance still depends on Lean-verified Rust PiCCS messages until C prover replay.",
+  "open": [
+    "Compose the row and weight results into the exact evaluationFamily and honestMessages target.",
+    "Run complete Pad and all 14 matrix evaluations for all 16 children; compare all 25,920 field words and reject a changed target.",
+    "Register final kernel/metadata/value gates only when the composed target is checked."
+  ],
+  "unchecked_draft": {
+    "path": "docs/reviews/nightstream-fprime-requirements/PIDEC_EVALUATION_FAMILY_DRAFT.lean.txt",
+    "status": "Not imported or audited. Zero checks. Retained for resume."
+  },
+  "independent_review": "Pass for this partial checkpoint. Sparse support retains repeated entries and proves omitted blocks zero. Complete carrier and selected row padding are covered. Final family and execution remain open. Reviewer ran no builds and made no edits.",
+  "execution": "No new full evaluation execution in this checkpoint. Prior actual-block measurement is preserved in PIDEC_EVALUATION_PILOT.json; it is not a full evaluation bound.",
+  "package_identity": "Protocol, setup and package definitions are unchanged. This checkpoint adds proofs and replay functions. No Rust changes. Identity and unchanged native producer tests were not repeated.",
+  "source_sha256": {
+    "formal/nightstream-fprime/NightstreamFPrime/Spec/Phi81Relation/EvaluationHomomorphism/PiRLC.lean": "37a7a5aba54aff1d32ac0ebbbd9f3ad8c118cb81a39062d770d99a7e00edd46b",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationBlockSupport.lean": "43ee5aaa024ec8f0edacc2bfe0d93ab237b7ab3436112aa1d67338eefc21f062",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationRows.lean": "8df7b230862b07f5b2c072a48f1f8d95d69e357b3e1c317ff3d1816fde3a8377",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationSelectedPrefix.lean": "bf84d47565868f6f0e00c0610ab3bceb62ed60d1eac2f6139a9fecf77a5883f3",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECEvaluationWeights.lean": "fd50f03b58648ce013e8836df7071d5ccf65eacd42f63f2937b5f7f6e8888e53",
+    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "def5571a4c332bdc043c4ae42511433186f0087e70bfe1cd6608257cbcefed16",
+    "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean": "33201cfae43fbe4e6174b9593a0fbe0a28509bd500721a8bd655fb74b6228861",
+    "scripts/lean_graph/STAGE1_BASELINE.md": "22fbd3198b830295916ea808f589021ba5c308573d031a6974360d5a14dc8a41",
+    "scripts/lean_graph/obligations.json": "3e259bd4cfd6bf419d5183833aa53ad18900e404bebec46adbac86576169f19c",
+    "docs/reviews/nightstream-fprime-requirements/PIDEC_EVALUATION_FAMILY_DRAFT.lean.txt": "0886d926c49d8ddbafcb9cbbf56020def6b970714e98ffbed0536a34c22af809"
+  },
+  "validation": {
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 9.128363011986949,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_sha256": "d8da6b5a480b69ba792eb5a3ab132ba8bb0a33a832eff616cdc894edbd2a0740",
+      "log_path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-evaluation-rows-396ae6de/nightstream-pidec-row-checkpoint-static-2.log",
+      "peak_rss_kib": 19336
+    },
+    "build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 0.9151602699421346,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_sha256": "57ece41906211b04b151c8d619dd34f7be3a863423e9a60033f8014900d6830c",
+      "log_path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-evaluation-rows-396ae6de/nightstream-pidec-row-checkpoint-build-2.log",
+      "peak_rss_kib": 889640
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 47.01207921199966,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "log_sha256": "91ccb9665268caa92f3724c68df1d434c2fc0d85ef433550df208638287973f8",
+      "log_path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-evaluation-rows-396ae6de/nightstream-pidec-row-checkpoint-axioms-1.log",
+      "peak_rss_kib": 5995560
+    },
+    "registrations": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 0.2140041490783915,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "scripts.lean_graph.tests.test_conformance_registrations"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "log_sha256": "821a62709acf4b0c11a84c24a6ec1ebbf554e372332c5b4a8247c90f89242ca2",
+      "log_path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-evaluation-rows-396ae6de/nightstream-pidec-row-checkpoint-registrations-1.log",
+      "peak_rss_kib": 22252
+    }
+  },
+  "development_logs": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-evaluation-rows-396ae6de"
+}

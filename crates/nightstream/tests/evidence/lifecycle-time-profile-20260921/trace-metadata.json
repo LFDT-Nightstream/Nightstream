@@ -1,0 +1,100 @@
+{
+  "bounded-cpu-time-profile": {
+    "process": {
+      "arguments": "--engine optimized --steps 3",
+      "type": "launched",
+      "return-exit-status": "0",
+      "name": "application-replay-benchmark-binary",
+      "pid": "80683",
+      "termination-reason": "exit(0)"
+    },
+    "summary": {
+      "start-date": "2026-09-21T19:29:33.287-05:00",
+      "end-date": "2026-09-21T19:50:30.071-05:00",
+      "duration": "1256.784620",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes"
+    },
+    "device": {
+      "platform": "macOS",
+      "model": "MacBook Pro",
+      "memory-size": "68719476736",
+      "os-version": "26.6.2 (25G83)"
+    },
+    "sampling": [
+      {
+        "target-pid": "SINGLE",
+        "context-switch-sampling": "0",
+        "high-frequency-sampling": "0",
+        "schema": "time-profile",
+        "record-waiting-threads": "0",
+        "needs-kernel-callstack": "0",
+        "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+      },
+      {
+        "sample-rate-micro-seconds": "1000",
+        "target": "SINGLE",
+        "schema": "time-sample",
+        "callstack": "user",
+        "all-thread-states": "NO",
+        "documentation": "Holds a raw CPU profiling sample."
+      }
+    ]
+  },
+  "bounded-metal-time-profile": {
+    "process": {
+      "arguments": "--engine metal --steps 3",
+      "type": "launched",
+      "return-exit-status": "0",
+      "name": "application-replay-benchmark-binary",
+      "pid": "83259",
+      "termination-reason": "exit(0)"
+    },
+    "summary": {
+      "start-date": "2026-09-21T19:54:46.938-05:00",
+      "end-date": "2026-09-21T19:57:32.490-05:00",
+      "duration": "165.551724",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes"
+    },
+    "device": {
+      "platform": "macOS",
+      "model": "MacBook Pro",
+      "memory-size": "68719476736",
+      "os-version": "26.6.2 (25G83)"
+    },
+    "sampling": [
+      {
+        "target-pid": "SINGLE",
+        "context-switch-sampling": "0",
+        "high-frequency-sampling": "0",
+        "schema": "time-profile",
+        "record-waiting-threads": "0",
+        "needs-kernel-callstack": "0",
+        "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+      },
+      {
+        "sample-rate-micro-seconds": "1000",
+        "target": "SINGLE",
+        "schema": "time-sample",
+        "callstack": "user",
+        "all-thread-states": "NO",
+        "documentation": "Holds a raw CPU profiling sample."
+      }
+    ]
+  },
+  "host_cpu_confirmation": {
+    "command": [
+      "sysctl",
+      "-n",
+      "machdep.cpu.brand_string"
+    ],
+    "output": "Apple M1 Max"
+  }
+}

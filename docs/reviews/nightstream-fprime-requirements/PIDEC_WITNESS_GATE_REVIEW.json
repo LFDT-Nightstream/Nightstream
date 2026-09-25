@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "timestamp_utc": "2026-09-13T20:05:05.648146+00:00",
+  "reviewer": "/root/review_linear_security_contract",
+  "review_kind": "Independent diagnostic source review; not protected-checker approval",
+  "base_commit": "9d01f7a4c5b386a80dc98f621e2e5f58067a0585",
+  "source_state": "Uncommitted delta; exact file hashes identify the reviewed source.",
+  "scope": "Only total StoredSplit equality, boundary test, PiDEC literal target/audit wiring, and the two new PiDEC gates. Earlier private-witness source review remains separate.",
+  "source_sha256": {
+    "formal/nightstream-fprime/NightstreamFPrime/Spec/Phi81Relation/PiDECAlgebra/StoredSplit.lean": "0853b54f1970ee0ea364aa231878b9fb1c660e713de04d81bacf8abbb5bd8f7d",
+    "formal/nightstream-fprime/tests/pi_dec_witness_replay.py": "1ec0e7fa381693910d2feae87dd73cb26beffaf09ee6f2173c1b47c63bb8396b",
+    "formal/nightstream-fprime/tests/EvidenceTargets.lean": "a53932f74433ea0c654b1d402d69bbec39b91e6b847690e1858fe54bab2d1890",
+    "formal/nightstream-fprime/tests/EvidenceAcceptance.lean": "c4c5d18f64ef98d5c4844a660983f43f4bec2f6fbe4c1cdf3fe3ca256b01d822",
+    "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean": "ad4679d0b8bf49075b0cb3ecde1c9cfa935d620e926e7774a971496aa2998f1d",
+    "scripts/lean_graph/PiDECReplayMetadata.lean": "b83e4e8569de945fff5459f367c3978ad936d5ced7fdfcaaf7b47d06f1021d80",
+    "formal/nightstream-fprime/scripts/validate.sh": "83ababda53bd434899ee98f093588ca139e1f9200ce33f1eda802cc6e1ed9e2d",
+    "scripts/lean_graph/obligations.json": "52bfa96a4df842f18706df0a375893c4697c4ddecf6b45dad893359a01c0aa84"
+  },
+  "gate_sha256": {
+    "pidec-witness-kernel": "6ab6f7e54b6a27c54fe394e3ed915495d5debad209391b682ec7ba86a4a11258",
+    "pidec-witness-values": "8283fe52a063525c1156e11dbd081e39027ba63c6e7fcb552580354ec425334a"
+  },
+  "verdict": "pass",
+  "required_corrections": [],
+  "assessments": {
+    "total_kernel": "kernel_eq_spec equates splitChecked to the existing Radix.splitScalar at every returned coordinate exactly when all centered magnitudes are below B; otherwise it returns none. There is no success or expected-child premise. The literal PiDECWitnessReplay target uses this same total statement.",
+    "boundary_test": "The positive expected masks encode lanes [0, +1, -1, +(B-1), -(B-1)] exactly: child 0 has positive mask 10 and negative mask 20; children 1..15 have masks 8 and 16. The same test checks explicit and omitted zero blocks. +B, -B, and the noncanonical word p require nonzero exit and the exact rejection reason. The gate and nested invocations are capped at 300 seconds.",
+    "gate_independence": "The values gate regenerates the original source capture, checks it byte-for-byte against pinned inputs, generates a fresh native R parent, independently replays and compares the complete Lean R parent, then runs Lean D only on those Lean R ranges. Native D targets are freshly generated from the separately produced native R parent by check-owned-parent. No D child target enters Lean.",
+    "coverage": "The two ranges are [0,74272) and [74272,4685394). The existing comparators require contiguous full-carrier coverage. The D completion requires all 16*54*4685394 = 4048180416 coefficients and localized final-tail mutation rejection.",
+    "gate_completion": "The existing runner requires zero exit before checking completion patterns, exact target closure and equal_files. Gate identity inputs are bound through identity_bound. The D values gate contains its own R production commands and does not assume outputs from another gate workspace.",
+    "unrelated_registration": "Parsed comparison against HEAD found no changed or removed pre-existing gates."
+  },
+  "execution_evidence": {
+    "authority": "Coordinator-run logs inspected read-only; no execution was performed by this reviewer.",
+    "logs_sha256": {
+      "/tmp/nightstream-pidec-full-comparison-1.log": "249fbafbc1f62bb9f9c89c9b6634aa94efff6f413f8804c66a8c36a5f5ed2094",
+      "/tmp/nightstream-pidec-current-producer-1.log": "782edefcf6ece849a9ea251331bc9249bf9133afd42d2be5ac7dac472658eee0",
+      "/tmp/nightstream-pidec-kernel-eq-spec-1.log": "3dbc98d59b1578522bfd5cdaf9ac033981e3ce72a984d92556139b855ead27fc"
+    },
+    "reported_results": "Current native child producer exit 0; complete comparison exit 0 for 4048180416 coefficients; changed child 15, block 4685393, lane 53 rejected; kernel equality focused build exit 0.",
+    "still_pending_at_review": "Current full library build, audit/boundary execution and captured graph gate results remain with the coordinator."
+  },
+  "open_boundaries": [
+    "C proof and outputs remain verified Rust inputs until independent C replay.",
+    "Input provenance reuses the already checked source-opening evidence and exact source bytes.",
+    "Release asset upload, fresh-download replay and protected-checker approval remain open.",
+    "Private-witness equality does not close child commitment/evaluation execution or complete PiDEC prover replay."
+  ],
+  "actions": "Read small source files and logs; wrote this /tmp review only. No builds, tests, repository edits or branches."
+}

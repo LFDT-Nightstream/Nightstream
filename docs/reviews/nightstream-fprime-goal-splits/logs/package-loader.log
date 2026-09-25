@@ -1,0 +1,53 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-ajtai)
+   Compiling nightstream-fprime v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 22.02s
+     Running tests/package_loader.rs (target/release/deps/package_loader-3bfae012a51fd6fd)
+
+running 8 tests
+
+thread 'loader_binds_the_lean_owned_ccs_polynomial_to_the_relation_identity' (630990) panicked at crates/nightstream-fprime/tests/package_loader.rs:324:77:
+sealed production package: Error("expected value", line: 1, column: 1)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'loader_rejects_a_different_verifier_owned_identity' (630991) panicked at crates/nightstream-fprime/tests/package_loader.rs:316:5:
+assertion failed: matches!(load_per_application_package(&sealed_artifact_bytes(), [0; 4]),
+    Err(PackageError::ExpectedIdentityMismatch { .. }))
+
+thread 'sealed_package_builds_the_package_owned_logical_relation_header' (630994) panicked at crates/nightstream-fprime/tests/package_loader.rs:42:72:
+verifier-owned production package: Json(Error("expected value", line: 1, column: 1))
+
+thread 'sealed_stage1_encoder_appends_the_exact_application_witness' (630995) panicked at crates/nightstream-fprime/tests/package_loader.rs:111:72:
+verifier-owned production package: Json(Error("expected value", line: 1, column: 1))
+test v1_1_input_encoder_rejects_a_missing_eval_a_matrix ... ok
+
+thread 'loader_rejects_noncanonical_json_bytes' (630992) panicked at crates/nightstream-fprime/tests/package_loader.rs:346:5:
+assertion failed: matches!(load_poseidon2_hash_chain_v1_package(&bytes),
+    Err(PackageError::NonCanonicalBytes))
+
+thread 'lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate' (630989) panicked at crates/nightstream-fprime/tests/package_loader.rs:171:72:
+verifier-owned production package: Json(Error("expected value", line: 1, column: 1))
+test loader_rejects_a_different_verifier_owned_identity ... FAILED
+test loader_binds_the_lean_owned_ccs_polynomial_to_the_relation_identity ... FAILED
+test sealed_package_builds_the_package_owned_logical_relation_header ... FAILED
+test sealed_stage1_encoder_appends_the_exact_application_witness ... FAILED
+test loader_rejects_noncanonical_json_bytes ... FAILED
+test lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate ... FAILED
+
+thread 'rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector' (630993) panicked at crates/nightstream-fprime/tests/package_loader.rs:277:72:
+verifier-owned production package: Json(Error("expected value", line: 1, column: 1))
+test rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector ... FAILED
+
+failures:
+
+failures:
+    lean_emitted_v1_1_pi_ccs_output_keeps_eval_k_and_eval_a_separate
+    loader_binds_the_lean_owned_ccs_polynomial_to_the_relation_identity
+    loader_rejects_a_different_verifier_owned_identity
+    loader_rejects_noncanonical_json_bytes
+    rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector
+    sealed_package_builds_the_package_owned_logical_relation_header
+    sealed_stage1_encoder_appends_the_exact_application_witness
+
+test result: FAILED. 1 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p nightstream-fprime --test package_loader`

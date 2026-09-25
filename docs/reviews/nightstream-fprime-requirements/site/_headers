@@ -1,0 +1,15 @@
+/requirements.md
+  Content-Type: text/plain; charset=utf-8
+  Content-Disposition: inline
+
+/proof-map.md
+  Content-Type: text/plain; charset=utf-8
+  Content-Disposition: inline
+
+/protocol-flow.md
+  Content-Type: text/plain; charset=utf-8
+  Content-Disposition: inline
+
+/markdown/*
+  Content-Type: text/plain; charset=utf-8
+  Content-Disposition: inline

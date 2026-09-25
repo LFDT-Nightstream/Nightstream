@@ -1,0 +1,5 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 1m 20s

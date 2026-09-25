@@ -11,15 +11,11 @@ dist
 demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace
 formal/*-lean/.lake
-formal/wasm-zklean/.lake
-formal/wasm-zklean/WasmCircuit/Generated.lean
-formal/wasm-zklean/WasmCircuit/Columns.lean
+/formal/nightstream-fprime/.lake/
 formal/external
-formal/superneo-lean/deprecated
-formal/superneo-lean/bundles
-formal/superneo-lean/handoffs
-formal/superneo-lean/SuperNeo/Generated
 formal/nightstream-lean/.tmp_tv_test*
+/formal/nightstream-lean/
+/formal/nightstream-alt/
 .bundle_tmp/
 .tmp/
 tmp/
@@ -41,4 +37,28 @@ docs/hypernova-paper
 personal_notes
 .claude
 profile-output.txt
-/specs
+/neo_prover_cuda.ll
+/neo_prover_cuda.opt.ll
+/neo_prover_cuda.ptx
+/.oxide-artifacts/
+crates/neo-prover-cuda/*.ll
+crates/neo-prover-cuda/*.ptx
+crates/neo-prover-cuda/.oxide-artifacts/
+METAL_IMPLEMENTATION_BEST_PRACTICES.md
+profile-xctrace.txt
+/TEMPORAL_EXTERNAL_PROGRESS_REVIEW.md
+/FABLE_TEMPORAL_EXTERNAL_PROGRESS_REVIEW.md
+
+# Lean proof artifacts under formal/ are source, not build output. These
+# negations guard against user-global ignore patterns (e.g. Hardhat's
+# unanchored "artifacts") silently hiding new generated proof payloads.
+!**/Artifacts/
+!**/Artifacts/**
+
+# Contract checks import local Python modules. Their bytecode is not source.
+protocol-contract/__pycache__/
+nightstream-fprime-source.zip
+FPRIME_LEAN_ARCHITECTURE_SPEC.md
+FPRIME_STAGE1_EXTERNAL_FABLE_REVIEW.md
+FPRIME_STAGE1_EXTERNAL_REVIEW.md
+FPRIME_STAGE1_GOAL.md

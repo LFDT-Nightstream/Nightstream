@@ -3,23 +3,26 @@ set -eo pipefail
 
 # Profile a Rust test using Apple Instruments (xctrace) and export symbolicated results
 #
-# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--features <csv>]
+# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--instrument <name>] [--features <csv>]
 #
 # Templates (run `xcrun xctrace list templates` for full list):
-#   Time Profiler (default), Allocations, Leaks, File Activity, System Trace, etc.
+#   Time Profiler (default), Metal System Trace, Allocations, Leaks, etc.
 #
 # Examples:
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations
 #   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Leaks
+#   ./scripts/profile_xctrace.sh neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template "Metal System Trace" --time-limit 60s
+#   ./scripts/profile_xctrace.sh neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template "Metal System Trace" --instrument "Metal GPU Counters" --time-limit 60s
 #   ./scripts/profile_xctrace.sh neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20
 #
 # Output:
 #   - profile-xctrace.trace     : Open with `open profile-xctrace.trace` for Instruments GUI
-#   - profile-xctrace.txt       : Symbolicated text output for AI analysis
+#   - profile-xctrace.txt       : Symbolicated CPU report, or capture summary for non-CPU templates
 #
 # Requirements:
-#   - Xcode Command Line Tools (xcrun xctrace)
+#   - Full Xcode with its license accepted (xcrun xctrace)
+#   - Metal Toolchain component when the target builds Metal shaders
 #   - jq (brew install jq)
 #   - Python 3
 
@@ -27,15 +30,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# Instruments and Metal are full-Xcode tools. Respect an explicit selection,
+# otherwise avoid inheriting a system-wide CommandLineTools selection.
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+if [ ! -d "$DEVELOPER_DIR" ]; then
+  echo "❌ Full Xcode was not found at '$DEVELOPER_DIR'."
+  echo "   Set DEVELOPER_DIR to the Developer directory inside Xcode.app."
+  exit 1
+fi
+
 if [ $# -lt 3 ]; then
-  echo "Usage: $0 <package> <test_file> <test_function> [--ignored] [--template <name>] [--features <csv>] [--time-limit <N|Nms|Ns|Nm|Nh>]"
+  echo "Usage: $0 <package> <test_file> <test_function> [--ignored] [--template <name>] [--instrument <name>] [--features <csv>] [--time-limit <N|Nms|Ns|Nm|Nh>]"
   echo ""
-  echo "Templates: Time Profiler (default), Allocations, Leaks, File Activity, System Trace"
+  echo "Templates: Time Profiler (default), Metal System Trace, Allocations, Leaks, File Activity, System Trace"
   echo "Run 'xcrun xctrace list templates' for full list"
   echo ""
   echo "Examples:"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored"
   echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations"
+  echo "  $0 neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
   echo "  $0 neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20"
   exit 1
 fi
@@ -47,8 +60,9 @@ shift 3
 
 IGNORED_FLAG=""
 TEMPLATE="Time Profiler"
-TIME_LIMIT=""
+TIME_LIMIT="5m"
 FEATURES=""
+INSTRUMENTS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -64,6 +78,10 @@ while [ $# -gt 0 ]; do
       TIME_LIMIT="$2"
       shift 2
       ;;
+    --instrument)
+      INSTRUMENTS+=("$2")
+      shift 2
+      ;;
     --features)
       FEATURES="$2"
       shift 2
@@ -75,13 +93,22 @@ while [ $# -gt 0 ]; do
 done
 
 # Normalize --time-limit: plain numbers default to seconds for xctrace.
-if [ -n "$TIME_LIMIT" ]; then
-  if [[ "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-    TIME_LIMIT="${TIME_LIMIT}s"
-  elif [[ ! "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?(ms|s|m|h)$ ]]; then
-    echo "❌ Invalid --time-limit '$TIME_LIMIT'. Use e.g. 20, 20s, 500ms, 2m."
-    exit 1
-  fi
+if [[ "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  TIME_LIMIT="${TIME_LIMIT}s"
+elif [[ ! "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?(ms|s|m|h)$ ]]; then
+  echo "❌ Invalid --time-limit '$TIME_LIMIT'. Use e.g. 20, 20s, 500ms, 2m."
+  exit 1
+fi
+
+case "$TIME_LIMIT" in
+  *ms) LIMIT_VALUE="${TIME_LIMIT%ms}"; LIMIT_FACTOR=1 ;;
+  *s) LIMIT_VALUE="${TIME_LIMIT%s}"; LIMIT_FACTOR=1000 ;;
+  *m) LIMIT_VALUE="${TIME_LIMIT%m}"; LIMIT_FACTOR=60000 ;;
+  *h) LIMIT_VALUE="${TIME_LIMIT%h}"; LIMIT_FACTOR=3600000 ;;
+esac
+if ! awk -v value="$LIMIT_VALUE" -v factor="$LIMIT_FACTOR" 'BEGIN { exit !(value * factor <= 300000) }'; then
+  echo "❌ --time-limit must not exceed the repository's 5-minute test cap."
+  exit 1
 fi
 
 OUTPUT_FILE="$PROJECT_ROOT/profile-xctrace.txt"
@@ -92,6 +119,7 @@ echo "   Package: $PACKAGE"
 echo "   Test file: $TEST_FILE"
 echo "   Test function: $TEST_FUNCTION"
 echo "   Template: $TEMPLATE"
+[ "${#INSTRUMENTS[@]}" -gt 0 ] && echo "   Extra instruments: ${INSTRUMENTS[*]}"
 [ -n "$FEATURES" ] && echo "   Features: $FEATURES"
 [ -n "$TIME_LIMIT" ] && echo "   Time limit: $TIME_LIMIT"
 echo ""
@@ -108,6 +136,19 @@ if ! command -v python3 &> /dev/null; then
   exit 1
 fi
 
+# Fail before a long Rust build when Apple's profiling toolchain is not ready.
+if ! xcodebuild -license check &> /dev/null; then
+  echo "❌ The Xcode license has not been accepted."
+  echo "   Run: sudo xcodebuild -license"
+  echo "   Then: sudo xcodebuild -runFirstLaunch"
+  exit 1
+fi
+if ! xcrun --sdk macosx metal --version &> /dev/null; then
+  echo "❌ The Xcode Metal Toolchain component is unavailable."
+  echo "   Run: xcodebuild -downloadComponent MetalToolchain"
+  exit 1
+fi
+
 # Build with profiling profile (debug symbols + optimizations)
 echo "🔨 Building test with profiling profile..."
 CARGO_FEATURES_ARGS=()
@@ -119,9 +160,11 @@ cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATU
 
 # Find the test binary
 echo "🔎 Finding test binary..."
-TEST_BINARY=$(cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" \
-  --no-run --message-format=json 2>/dev/null | \
-  jq -r 'select(.executable != null) | .executable' | head -1)
+TEST_BINARY=$(cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" \
+  --message-format=json 2>/dev/null | \
+  jq -r --arg test_name "$TEST_FILE" \
+    'select(.executable != null and .target.name == $test_name and (.target.kind | index("test"))) | .executable' | \
+  head -1)
 
 if [ -z "$TEST_BINARY" ]; then
   echo "❌ Could not find test binary"
@@ -139,26 +182,29 @@ dsymutil "$TEST_BINARY" -o "$DSYM_PATH" 2>/dev/null
 rm -rf "$TRACE_FILE"
 
 # Build test arguments
-TEST_ARGS="$TEST_FUNCTION --nocapture"
+TEST_ARGS="$TEST_FUNCTION --exact --nocapture"
 if [ -n "$IGNORED_FLAG" ]; then
-  TEST_ARGS="$TEST_FUNCTION --ignored --nocapture"
+  TEST_ARGS="$TEST_FUNCTION --exact --ignored --nocapture"
 fi
 
 # Record with xctrace, capture test output
 echo "🚀 Recording with xctrace $TEMPLATE..."
 TEST_OUTPUT_FILE="/tmp/xctrace-test-output-$$.txt"
 
-TIME_LIMIT_ARG=""
-if [ -n "$TIME_LIMIT" ]; then
-  TIME_LIMIT_ARG="--time-limit $TIME_LIMIT"
-fi
+TIME_LIMIT_ARG="--time-limit $TIME_LIMIT"
+INSTRUMENT_ARGS=()
+for instrument in "${INSTRUMENTS[@]}"; do
+  INSTRUMENT_ARGS+=(--instrument "$instrument")
+done
 
 # xctrace may return non-zero even after producing a valid trace
 # (e.g. target killed at time limit). Continue if output trace exists.
 set +e
 xcrun xctrace record --template "$TEMPLATE" \
+  "${INSTRUMENT_ARGS[@]}" \
   --output "$TRACE_FILE" \
   $TIME_LIMIT_ARG \
+  --target-stdout - \
   --launch -- "$TEST_BINARY" $TEST_ARGS 2>&1 | tee "$TEST_OUTPUT_FILE"
 RECORD_STATUS=${PIPESTATUS[0]}
 set -e
@@ -172,7 +218,34 @@ if [ "$RECORD_STATUS" -ne 0 ]; then
   echo "⚠️  xctrace exited with status $RECORD_STATUS, but trace was produced; continuing."
 fi
 
-# Symbolicate the trace
+# GPU-oriented and allocation templates do not expose the Time Profiler XML
+# schema parsed below. Preserve their native trace and a small textual capture
+# summary; Instruments is the authoritative viewer for those schemas. Avoid
+# symbolication here because system-wide Metal traces can contain many unrelated
+# processes and do not need CPU call-stack symbolication.
+if [ "$TEMPLATE" != "Time Profiler" ]; then
+  {
+    echo "XCTRACE CAPTURE SUMMARY"
+    echo "Package: $PACKAGE"
+    echo "Test file: $TEST_FILE"
+    echo "Test function: $TEST_FUNCTION"
+    echo "Template: $TEMPLATE"
+    [ "${#INSTRUMENTS[@]}" -gt 0 ] && echo "Extra instruments: ${INSTRUMENTS[*]}"
+    echo "Time limit: $TIME_LIMIT"
+    echo "Trace: $TRACE_FILE"
+    echo ""
+    echo "TEST OUTPUT"
+    sed -n '1,240p' "$TEST_OUTPUT_FILE"
+  } > "$OUTPUT_FILE"
+  rm -f "$TEST_OUTPUT_FILE"
+  echo ""
+  echo "✅ Capture summary saved to: $OUTPUT_FILE"
+  echo "📂 Trace file (for Instruments): $TRACE_FILE"
+  echo "💡 Open in Instruments: open $TRACE_FILE"
+  exit 0
+fi
+
+# Symbolicate CPU call stacks for the Time Profiler path.
 echo "📝 Symbolicating trace..."
 SYMBOLICATED_TRACE="$PROJECT_ROOT/profile-xctrace-sym.trace"
 rm -rf "$SYMBOLICATED_TRACE"

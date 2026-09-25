@@ -1,0 +1,47 @@
+   Compiling neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+   Compiling neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+    Finished `release` profile [optimized] target(s) in 12.04s
+     Running tests/nightstream_fprime_batch_commitment.rs (target/release/deps/nightstream_fprime_batch_commitment-edf273d0d8445adf)
+
+running 3 tests
+test batch_rejects_dimensions_and_nonunit_values_at_their_input_index ... ok
+test empty_and_zero_batches_preserve_order_and_prefix_dimensions ... ok
+test batched_prefix_commitments_match_scalar_and_independent_ring_products ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/nightstream_fprime_matrix_commitment.rs (target/release/deps/nightstream_fprime_matrix_commitment-9606a9d27332f6da)
+
+running 2 tests
+test production_matrix_commitment_rejects_shape_and_nonunit ... ok
+test production_matrix_commitment_matches_sparse_endpoint_key_products ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/nightstream_fprime_prefix_commitment.rs (target/release/deps/nightstream_fprime_prefix_commitment-d15f01b6ab60af2c)
+
+running 2 tests
+test prefix_commitment_checks_bounds_before_zero_or_key_expansion ... ok
+test prefix_commitment_equals_exact_suffix_zero_extension ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/nightstream_fprime_setup_parity.rs (target/release/deps/nightstream_fprime_setup_parity-96c2a699d4559391)
+
+running 2 tests
+test external_lean_setup_vectors_match_current_rust ... ignored, current Lean setup fixture path as JSON on stdin; run under the 300-second cap
+test lean_setup_vectors_match_rust_and_rfc8439 ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/nightstream_fprime_signed_commitment.rs (target/release/deps/nightstream_fprime_signed_commitment-49c5fd2b8e9b188b)
+
+running 4 tests
+test streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases ... okproptest: FileFailurePersistence::SourceParallel set, but failed to find lib.rs or main.rs
+
+test streamed_key_blocks_match_scalar_for_arbitrary_addresses ... ok
+test signed_commitment_rejects_wrong_lengths_and_out_of_range_units ... ok
+test signed_commitment_matches_the_ordinary_sum_under_the_same_key ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+

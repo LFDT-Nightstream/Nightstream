@@ -1,0 +1,71 @@
+   Compiling itertools v0.15.0
+   Compiling tracing v0.1.44
+   Compiling num-bigint v0.5.1
+   Compiling num-bigint v0.4.8
+   Compiling p3-maybe-rayon v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-params v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-params)
+   Compiling hashbrown v0.17.1
+   Compiling p3-util v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-math v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-math)
+   Compiling wip-spartan v0.4.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/wip-spartan)
+   Compiling neo-ccs v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-ccs)
+   Compiling p3-field v0.5.3
+   Compiling p3-field v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-transcript v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-transcript)
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-ajtai)
+   Compiling p3-symmetric v0.5.3
+   Compiling p3-matrix v0.5.3
+   Compiling p3-matrix v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-symmetric v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-poseidon1 v0.5.3
+   Compiling neo-reductions v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-reductions)
+   Compiling nightstream-fprime v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream-fprime)
+   Compiling p3-dft v0.5.3
+   Compiling p3-challenger v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-dft v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-multilinear-util v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-air v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-mds v0.5.3
+   Compiling p3-poseidon2 v0.5.3
+   Compiling p3-monty-31 v0.5.3
+   Compiling p3-commit v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-mds v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-zk-codes v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-security v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-poseidon2 v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-poseidon1 v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-merkle-tree v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-sumcheck v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-goldilocks v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling p3-challenger v0.5.3
+   Compiling p3-goldilocks v0.5.3
+   Compiling p3-whir v0.6.0 (https://github.com/Plonky3/Plonky3.git?rev=6b6a3b4d40fca2187d368c9dc1fca417c84ae8c3#6b6a3b4d)
+   Compiling neo-fold-clean v0.1.0 (/Users/nicarq/starstream/develop/nightstream-clean-up/crates/neo-fold-clean)
+    Finished `release` profile [optimized] target(s) in 49.45s
+     Running tests/nifs/fixed.rs (target/release/deps/nifs_fixed-e4e084f3f53cbd4f)
+
+running 3 tests
+verify_dec_public failed: commitment check mismatch
+test fixed_interface_rejects_variable_arity_running_state ... ok
+test fixed_interface_rejects_a_forged_decomposition_parent_cache ... ok
+test canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/nifs/r1cs_isolated.rs (target/release/deps/nifs_r1cs_isolated-af87263388b68d95)
+
+running 1 test
+
+thread 'nifs_round_trip_on_r1cs_structure' (640527) panicked at crates/neo-fold-clean/tests/nifs/r1cs_isolated.rs:59:6:
+NIFS.P: PiCcs(Engine(Reductions(InvalidInput("optimized v1_1 digest-only statement requires a running claim"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test nifs_round_trip_on_r1cs_structure ... FAILED
+
+failures:
+
+failures:
+    nifs_round_trip_on_r1cs_structure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p neo-fold-clean --test nifs_r1cs_isolated`

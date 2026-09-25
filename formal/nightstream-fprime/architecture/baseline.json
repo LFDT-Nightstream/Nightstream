@@ -1,0 +1,122 @@
+{
+  "source_commit": "8c5d11cad263ac7a6bc2c6d43d9d73ffef9d2fb8",
+  "measurement": "source import reachability; excludes changed module; not measured rebuilds",
+  "modules": 915,
+  "internal_import_edges": 3078,
+  "layers": {
+    "Circuit": {
+      "files": 8,
+      "lines": 1634
+    },
+    "Export": {
+      "files": 321,
+      "lines": 114577
+    },
+    "Gadgets": {
+      "files": 33,
+      "lines": 14269
+    },
+    "Layout": {
+      "files": 179,
+      "lines": 52875
+    },
+    "Lifecycle": {
+      "files": 119,
+      "lines": 37958
+    },
+    "NightstreamFPrime": {
+      "files": 1,
+      "lines": 39
+    },
+    "Spec": {
+      "files": 226,
+      "lines": 58774
+    },
+    "tests": {
+      "files": 28,
+      "lines": 7052
+    }
+  },
+  "selected": {
+    "NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution": {
+      "import_dependents": 89
+    },
+    "NightstreamFPrime.Gadgets.Range.CanonicalU64": {
+      "import_dependents": 413
+    },
+    "NightstreamFPrime.Layout.Stage1.PiDECStarts": {
+      "import_dependents": 347
+    },
+    "NightstreamFPrime.Lifecycle.PiDEC.v1_1.SignedSplitScalar": {
+      "import_dependents": 365
+    }
+  },
+  "identity_baseline": {
+    "command": "scripts/validate.sh poseidon2-hash-chain-v1-canonical-binding <output>",
+    "elapsed_seconds": 133.34,
+    "maximum_resident_kib": 3726596,
+    "includes_build_work": true,
+    "fixture_and_rust_pins_match": true,
+    "emitted_value_sha256": "015fc7273e6c661cde2a74560a626ffc31f25e3f9cd913fcd045fe9b01f2692c"
+  },
+  "allocation_baseline": {
+    "source_commit": "8c5d11cad263ac7a6bc2c6d43d9d73ffef9d2fb8",
+    "change": "One extra sign-hint cell per scalar; 270 scalar invocations; unchanged constraints/specification",
+    "scope": "Compiler results. Review parent-size failures separately from unrelated phase failures.",
+    "results": [
+      {
+        "label": "leaf",
+        "target": "NightstreamFPrime.Layout.PiDEC.v1_1.Leaves.SignedSplitScalar",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "piccs",
+        "target": "NightstreamFPrime.Layout.PiCCS.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc",
+        "target": "NightstreamFPrime.Layout.PiRLC.v1_1.Lowering",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "pirlc_input",
+        "target": "NightstreamFPrime.Layout.Stage1.PiRLCInputBounds",
+        "exit_code": 0,
+        "errors": []
+      },
+      {
+        "label": "full",
+        "target": "NightstreamFPrime",
+        "exit_code": 1,
+        "errors": [
+          "NightstreamFPrime/Lifecycle/PiDEC/v1_1/PublicInputSplit.lean:70:2: Tactic `rfl` failed: The left-hand side"
+        ]
+      }
+    ],
+    "first_blocked_declaration": "NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit.logicalPrivateCount_eq",
+    "frontier_limit": "The immediate parent failed. Dependent declarations beyond that parent were not checked.",
+    "fresh_leaf_elaboration_seconds": {
+      "logical": 1.3,
+      "physical": 1.2
+    },
+    "source_restored": true
+  },
+  "identity_gate": {
+    "command": "scripts/validate.sh identity",
+    "elapsed_seconds": 128.83,
+    "maximum_resident_kib": 2057260,
+    "fixture_and_rust_pins_match": true
+  },
+  "substitution_file_before": {
+    "elapsed_seconds": 2.76,
+    "maximum_resident_kib": 3759892
+  },
+  "nifs_matrix_entry_file_before": {
+    "elapsed_seconds": 17.5,
+    "maximum_resident_kib": 5776516
+  }
+}

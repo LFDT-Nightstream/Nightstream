@@ -1,0 +1,7 @@
+[parallel] LEAN_NUM_THREADS=18
+[bounded 1500s] lake env lean -j18 -DautoImplicit=false -DrelaxedAutoImplicit=false /Users/nicarq/starstream/develop/nightstream-clean-up/docs/reviews/nightstream-fprime-prove2/tests/EncodingCheck.lean
+FPrimeProve2EncodingReview.alternative_length: [propext]
+FPrimeProve2EncodingReview.alternative_norm: [propext, Classical.choice, Quot.sound]
+FPrimeProve2EncodingReview.alternative_recomposes: [propext, Classical.choice, Quot.sound]
+FPrimeProve2EncodingReview.alternative_not_canonical: []
+[bounded] exit=0 elapsed=1s

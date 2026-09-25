@@ -19,13 +19,11 @@ Field, ring, and embedding primitives. `#![forbid(unsafe_code)]`.
 ## Consumers
 
 Everything. `neo-ajtai` builds commitments from `Rq`/`SAction`; `neo-ccs` builds
-relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-clean`
+relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-legacy`
 maps these to paper symbols 1:1 (`paper/mod.rs` §4–5 tables).
 
-## Specs and formal backing
+## Formal backing
 
-`specs/{Goldilocks, Ring, BarTransform, Norms, SAction}.spec.md` state the MUST/SHOULD
-contracts. The same surfaces are the core of the Lean cross-check in
-`formal/superneo-lean` (inner-product transform identity, ring multiplication, norm,
-split_b round-trips, Definition 7/8 embeddings, Theorem 4/5 identities) — Lean is the
-mathematical source of truth for these definitions.
+The active formal authority is `formal/nightstream-lean`. Its
+`Nightstream.SuperNeo` modules own the algebra and relation definitions. Rust
+behavior checks live in `crates/neo-math/tests`.

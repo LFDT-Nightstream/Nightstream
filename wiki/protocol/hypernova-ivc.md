@@ -1,7 +1,7 @@
 # HyperNova IVC (Construction 2 and F′)
 
 HyperNova §6.3's Construction 2 compiles a folding scheme into IVC. Nightstream
-implements it in `crates/neo-fold-clean/src/paper/construction2/` over the SuperNeo
+implements it in `crates/neo-fold-legacy/src/paper/construction2/` over the SuperNeo
 NIFS, specialized to ℓ = 1 (a single step function; `pc` is the constant
 `TRIVIAL_PC`).
 
@@ -60,9 +60,9 @@ step's fold, then computes the public hash chain. Two layers implement it:
   frontends (e.g. `frontends/r1cs_f_prime`) build on. Dependency direction is one-way:
   `frontends::* → paper::f_prime`.
 
-The Fiat-Shamir discipline for what F′ must absorb before each NIFS.V challenge is
-specified in `specs/direct-ccs-superneo-transcript-binding.md` — see
-[Transcript & digests](transcript-and-digests.md).
+The selected Fiat-Shamir order is defined by
+[NS-TRANSCRIPT-ORDER](../../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule).
+See [Transcript & digests](transcript-and-digests.md).
 
 ## Finalization and chunks
 

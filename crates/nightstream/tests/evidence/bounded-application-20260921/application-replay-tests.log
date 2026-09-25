@@ -1,0 +1,10 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 16.12s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 2 tests
+test session::joint::application_tests::terminal_replay_reports_the_global_row_in_the_final_window ... ok
+test session::joint::application_tests::replay_matches_cpu_and_resident_rounds_transcript_and_complete_openings ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 1.48s
+

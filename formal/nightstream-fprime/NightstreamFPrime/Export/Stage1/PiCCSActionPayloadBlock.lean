@@ -1,0 +1,310 @@
+import NightstreamFPrime.Export.Stage1.PiCCSInvocations
+import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
+import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
+import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
+import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
+
+/-!
+Owns the four-lane payload source view for every PiCCS Poseidon2 invocation.
+The exact action lists remain the transcript authority. This module only
+selects their absorb chunks in invocation-major order and gives squeeze
+invocations a zero payload.
+
+Original PiCCS expressions are evaluated through the per-application column
+pullback. The prover does not select an application or an action schedule.
+-/
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
+
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Export.Stage1.Invocations
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Gadgets.Poseidon2.Duplex
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle.PiCCS.v1_1
+open NightstreamFPrime.Spec
+
+def statementActions (_delay : Unit := ()) : List Formal.Action :=
+  PiCCSInvocations.statementActions Data.logicalWidth Data.publicFits
+
+def challengeActions (_delay : Unit := ()) : List Formal.Action :=
+  ChallengeDerivation.actions
+    (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
+    PiCCSInvocations.challengeWitnessStart
+
+def roundActions (_delay : Unit := ()) : List Formal.Action :=
+  RoundTranscript.actions
+    (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
+    PiCCSInvocations.roundWitnessStart
+
+def outputActions (_delay : Unit := ()) : List Formal.Action :=
+  PiCCSInvocations.outputActions Data.logicalWidth Data.publicFits
+
+theorem challengeInvocationCount_eq :
+    Invocations.invocationCount challengeActions = 87 := by
+  have same := Invocations.invocationCount_eq_of_shapes challengeActions
+    (PiCCSInvocations.challengeActions Data.logicalWidth Data.publicFits) (by
+      unfold challengeActions
+      exact (PiCCSInvocations.challengeActions_shape_matches
+        Data.logicalWidth Data.publicFits).symm)
+  exact same.trans (PiCCSInvocations.challengeInvocationCount_eq
+    Data.logicalWidth Data.publicFits)
+
+theorem roundInvocationCount_eq :
+    Invocations.invocationCount roundActions = 252 := by
+  have same := Invocations.invocationCount_eq_of_shapes roundActions
+    (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits) (by
+      unfold roundActions
+      exact (PiCCSInvocations.roundActions_shape_matches
+        Data.logicalWidth Data.publicFits).symm)
+  exact same.trans (PiCCSInvocations.roundInvocationCount_eq
+    Data.logicalWidth Data.publicFits)
+
+def statementKindAt : Fin 379 → PoseidonActionSchedule.Kind :=
+  fun index => PoseidonActionSchedule.kindAt statementActions <|
+    Fin.cast (PiCCSInvocations.statementInvocationCount_eq
+      Data.logicalWidth Data.publicFits).symm index
+
+def challengeKindAt : Fin 87 → PoseidonActionSchedule.Kind :=
+  fun index => PoseidonActionSchedule.kindAt challengeActions <|
+    Fin.cast challengeInvocationCount_eq.symm index
+
+def roundKindAt : Fin 252 → PoseidonActionSchedule.Kind :=
+  fun index => PoseidonActionSchedule.kindAt roundActions <|
+    Fin.cast roundInvocationCount_eq.symm index
+
+def outputKindAt : Fin 6886 → PoseidonActionSchedule.Kind :=
+  fun index => PoseidonActionSchedule.kindAt outputActions <|
+    Fin.cast (PiCCSInvocations.outputInvocationCount_eq
+      Data.logicalWidth Data.publicFits).symm index
+
+theorem statementKindAt_materializes :
+    List.ofFn statementKindAt = PoseidonActionSchedule.kinds statementActions := by
+  calc
+    List.ofFn statementKindAt =
+        List.ofFn (PoseidonActionSchedule.kindAt statementActions) :=
+      (List.ofFn_congr
+        (PiCCSInvocations.statementInvocationCount_eq
+          Data.logicalWidth Data.publicFits)
+        (PoseidonActionSchedule.kindAt statementActions)).symm
+    _ = PoseidonActionSchedule.kinds statementActions :=
+      PoseidonActionSchedule.kindAt_materializes statementActions
+
+theorem challengeKindAt_materializes :
+    List.ofFn challengeKindAt = PoseidonActionSchedule.kinds challengeActions := by
+  calc
+    List.ofFn challengeKindAt =
+        List.ofFn (PoseidonActionSchedule.kindAt challengeActions) :=
+      (List.ofFn_congr
+        challengeInvocationCount_eq
+        (PoseidonActionSchedule.kindAt challengeActions)).symm
+    _ = PoseidonActionSchedule.kinds challengeActions :=
+      PoseidonActionSchedule.kindAt_materializes challengeActions
+
+theorem roundKindAt_materializes :
+    List.ofFn roundKindAt = PoseidonActionSchedule.kinds roundActions := by
+  calc
+    List.ofFn roundKindAt =
+        List.ofFn (PoseidonActionSchedule.kindAt roundActions) :=
+      (List.ofFn_congr
+        roundInvocationCount_eq
+        (PoseidonActionSchedule.kindAt roundActions)).symm
+    _ = PoseidonActionSchedule.kinds roundActions :=
+      PoseidonActionSchedule.kindAt_materializes roundActions
+
+theorem outputKindAt_materializes :
+    List.ofFn outputKindAt = PoseidonActionSchedule.kinds outputActions := by
+  calc
+    List.ofFn outputKindAt =
+        List.ofFn (PoseidonActionSchedule.kindAt outputActions) :=
+      (List.ofFn_congr
+        (PiCCSInvocations.outputInvocationCount_eq
+          Data.logicalWidth Data.publicFits)
+        (PoseidonActionSchedule.kindAt outputActions)).symm
+    _ = PoseidonActionSchedule.kinds outputActions :=
+      PoseidonActionSchedule.kindAt_materializes outputActions
+
+def invocationCount : Nat := 7604
+
+@[simp] theorem invocationCount_eq : invocationCount = 7604 := by
+  rfl
+
+def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
+
+@[simp] theorem payloadCount_eq : payloadCount = 30416 := by
+  rw [payloadCount, invocationCount_eq]
+  rfl
+
+def kindAt : Fin invocationCount → PoseidonActionSchedule.Kind :=
+  Fin.append statementKindAt <|
+    Fin.append challengeKindAt <| Fin.append roundKindAt outputKindAt
+
+/-- The random-access schedule materializes to the canonical action expansion. -/
+theorem kindAt_materializes :
+    List.ofFn kindAt =
+      PoseidonActionSchedule.kinds statementActions ++
+        (PoseidonActionSchedule.kinds challengeActions ++
+          (PoseidonActionSchedule.kinds roundActions ++
+            PoseidonActionSchedule.kinds outputActions)) := by
+  calc
+    List.ofFn kindAt =
+        List.ofFn statementKindAt ++
+          (List.ofFn challengeKindAt ++
+            (List.ofFn roundKindAt ++ List.ofFn outputKindAt)) := by
+      unfold kindAt invocationCount
+      rw [List.ofFn_fin_append, List.ofFn_fin_append,
+        List.ofFn_fin_append]
+    _ = _ := by
+      rw [statementKindAt_materializes, challengeKindAt_materializes,
+        roundKindAt_materializes, outputKindAt_materializes]
+
+/-- Materialize each action expansion once. In particular, the PiCCS output
+absorb is chunked once instead of once per random payload lookup. -/
+def materializedPayloadKinds (_delay : Unit := ()) :
+    List PoseidonActionSchedule.Kind :=
+  PoseidonActionSchedule.kinds statementActions ++
+    (PoseidonActionSchedule.kinds challengeActions ++
+      (PoseidonActionSchedule.kinds roundActions ++
+        PoseidonActionSchedule.kinds outputActions))
+
+theorem materializedPayloadKinds_eq :
+    materializedPayloadKinds () =
+      List.ofFn kindAt := by
+  simpa only [materializedPayloadKinds] using
+    kindAt_materializes.symm
+
+theorem kindAt_wellFormed (invocation : Fin invocationCount) :
+    (kindAt invocation).WellFormed := by
+  have member : kindAt invocation ∈ List.ofFn kindAt :=
+    (List.mem_ofFn).2 ⟨invocation, rfl⟩
+  rw [kindAt_materializes] at member
+  simp only [List.mem_append] at member
+  rcases member with statement | challenge | round | output
+  · exact PoseidonActionSchedule.kinds_wellFormed statementActions _ statement
+  · exact PoseidonActionSchedule.kinds_wellFormed challengeActions _ challenge
+  · exact PoseidonActionSchedule.kinds_wellFormed roundActions _ round
+  · exact PoseidonActionSchedule.kinds_wellFormed outputActions _ output
+
+def selectedBlockForKind : PoseidonActionSchedule.Kind → List Expr
+  | .absorb block => block
+  | .squeezeFirst expected => [expected.c0, expected.c1]
+  | .squeezeSecond => []
+
+def selectedBlock (invocation : Fin invocationCount) : List Expr :=
+  selectedBlockForKind (kindAt invocation)
+
+def payloadExprForKind (kind : PoseidonActionSchedule.Kind)
+    (lane : Fin Spec.Poseidon2.rate) : Expr :=
+  (selectedBlockForKind kind).getD lane.val 0
+
+/-- One exact rate-lane payload. `getD` is the canonical absorb padding rule. -/
+def payloadExpr (invocation : Fin invocationCount)
+    (lane : Fin Spec.Poseidon2.rate) : Expr :=
+  (selectedBlock invocation).getD lane.val 0
+
+def payloadExpression (index : Fin payloadCount) : Expr :=
+  let decoded : Fin invocationCount × Fin Spec.Poseidon2.rate :=
+    Fin.decodeProd index
+  payloadExpr decoded.1 decoded.2
+
+@[simp] theorem payloadExpression_encode
+    (invocation : Fin invocationCount) (lane : Fin Spec.Poseidon2.rate) :
+    payloadExpression (Fin.encodeProd (invocation, lane)) =
+      payloadExpr invocation lane := by
+  simp [payloadExpression]
+
+
+/-- Expand each invocation once, then visit its rate lanes in canonical order. -/
+def materializedPayloadExpressions (_delay : Unit := ()) : List Expr :=
+  List.flatten <| (materializedPayloadKinds ()).map fun kind =>
+    List.ofFn fun lane : Fin Spec.Poseidon2.rate => payloadExprForKind kind lane
+
+private theorem ofFn_decodeProd_eq_nested {Alpha : Type}
+    (m n : Nat) (value : Fin m → Fin n → Alpha) :
+    List.ofFn (fun index : Fin (m * n) =>
+      let decoded : Fin m × Fin n := Fin.decodeProd index
+      value decoded.1 decoded.2) =
+      List.flatten (List.ofFn fun outer : Fin m =>
+        List.ofFn fun inner : Fin n => value outer inner) := by
+  rw [List.ofFn_mul]
+  apply congrArg List.flatten
+  apply congrArg List.ofFn
+  funext outer
+  apply congrArg List.ofFn
+  funext inner
+  let combined : Fin (m * n) :=
+    ⟨outer.val * n + inner.val, by
+      calc
+        outer.val * n + inner.val < (outer.val + 1) * n := by
+          simpa [Nat.add_mul] using
+            Nat.add_lt_add_left inner.isLt (outer.val * n)
+        _ ≤ m * n := Nat.mul_le_mul_right n outer.isLt⟩
+  change value (Fin.decodeProd combined).1 (Fin.decodeProd combined).2 =
+    value outer inner
+  have combined_eq : combined = Fin.encodeProd (outer, inner) := by
+    apply Fin.ext
+    simp [combined, Fin.encodeProd, Nat.mul_comm]
+  rw [combined_eq, Fin.decodeProd_encodeProd]
+
+/-- Ordered materialization equals every declared indexed payload expression. -/
+theorem materializedPayloadExpressions_eq :
+    materializedPayloadExpressions () = List.ofFn payloadExpression := by
+  unfold materializedPayloadExpressions
+  rw [materializedPayloadKinds_eq, ← List.ofFn_comp']
+  symm
+  simpa only [payloadCount, payloadExpression, payloadExpr] using!
+    (ofFn_decodeProd_eq_nested invocationCount Spec.Poseidon2.rate
+      (fun invocation lane => payloadExprForKind (kindAt invocation) lane))
+
+def prefixSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  PiRLCRetainedGeometry.sourceWidth program
+
+def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
+  FieldSuffixBlock.sourceWidth (prefixSourceWidth program) payloadCount
+
+def prefixColumn (program : Lifecycle.Stage1.Application.Program)
+    (column : Fin (prefixSourceWidth program)) : Fin (sourceWidth program) :=
+  FieldSuffixBlock.baseColumn (prefixSourceWidth program) payloadCount column
+
+def payloadColumn (program : Lifecycle.Stage1.Application.Program)
+    (index : Fin payloadCount) : Fin (sourceWidth program) :=
+  FieldSuffixBlock.derivedColumn (prefixSourceWidth program) payloadCount index
+
+/-- Original PiCCS expressions read the exact shifted per-application package
+columns from the retained prefix. -/
+def packageEnv (program : Lifecycle.Stage1.Application.Program)
+    (prefixAssignment : Fin (prefixSourceWidth program) → F) : Env :=
+  NightstreamFPrime.Layout.Stage1.Spartan.pullback <|
+    PiCCSTranscriptReadout.env <|
+      PerApplicationPackage.baseEnv program
+        (SourceCompiler.sourceEnv prefixAssignment)
+
+def payloadValue (program : Lifecycle.Stage1.Application.Program)
+    (prefixAssignment : Fin (prefixSourceWidth program) → F)
+    (index : Fin payloadCount) : F :=
+  (payloadExpression index).eval (packageEnv program prefixAssignment)
+
+def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
+    (prefixAssignment : Fin (prefixSourceWidth program) → F) :
+    Fin (sourceWidth program) → F :=
+  FieldSuffixBlock.sourceAssignment (prefixSourceWidth program) payloadCount
+    prefixAssignment (payloadValue program prefixAssignment)
+
+@[simp] theorem sourceAssignment_prefix
+    (program : Lifecycle.Stage1.Application.Program)
+    (prefixAssignment : Fin (prefixSourceWidth program) → F)
+    (column : Fin (prefixSourceWidth program)) :
+    sourceAssignment program prefixAssignment (prefixColumn program column) =
+      prefixAssignment column := by
+  exact FieldSuffixBlock.sourceAssignment_base _ _ _ _ column
+
+@[simp] theorem sourceAssignment_payload
+    (program : Lifecycle.Stage1.Application.Program)
+    (prefixAssignment : Fin (prefixSourceWidth program) → F)
+    (index : Fin payloadCount) :
+    sourceAssignment program prefixAssignment (payloadColumn program index) =
+      payloadValue program prefixAssignment index := by
+  exact FieldSuffixBlock.sourceAssignment_derived _ _ _ _ index
+
+end NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nightstream.dev/schema/security-instantiation-v1.json",
+  "title": "Nightstream end-to-end security instantiation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "contract_id",
+    "source_registry_hash",
+    "profile_hash",
+    "transcript_profile_hash",
+    "circuit_manifest_hash",
+    "backend_profile_hash",
+    "model",
+    "resource_limits",
+    "terms",
+    "assumptions",
+    "total"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["illustrative-only", "draft", "release"] },
+    "contract_id": { "const": "nightstream-superneo-v1" },
+    "source_registry_hash": { "$ref": "#/$defs/sha256" },
+    "profile_hash": { "$ref": "#/$defs/sha256" },
+    "transcript_profile_hash": { "$ref": "#/$defs/sha256" },
+    "circuit_manifest_hash": { "$ref": "#/$defs/sha256" },
+    "backend_profile_hash": { "$ref": "#/$defs/sha256" },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adversary", "random_oracle", "quantum", "statement", "extractor"],
+      "properties": {
+        "adversary": { "type": "string", "minLength": 1 },
+        "random_oracle": { "type": "string", "minLength": 1 },
+        "quantum": { "type": "boolean" },
+        "statement": { "type": "string", "minLength": 1 },
+        "extractor": { "type": "string", "minLength": 1 }
+      }
+    },
+    "resource_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["folds", "sessions", "oracle_queries", "sampler_candidates", "proofs_per_key"],
+      "properties": {
+        "folds": { "type": "integer", "minimum": 1 },
+        "sessions": { "type": "integer", "minimum": 1 },
+        "oracle_queries": { "type": "integer", "minimum": 0 },
+        "sampler_candidates": { "type": "integer", "minimum": 1 },
+        "proofs_per_key": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "formula", "status", "upper_bound", "multiplicity", "evidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "formula": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["symbolic", "instantiated", "proved-zero"] },
+          "upper_bound": { "type": ["string", "null"] },
+          "multiplicity": { "type": "integer", "minimum": 0 },
+          "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement", "status", "evidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "statement": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["open", "reviewed", "proved", "computational-assumption"] },
+          "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "total": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formula", "upper_bound", "security_bits_floor", "rounding"],
+      "properties": {
+        "formula": { "type": "string", "minLength": 1 },
+        "upper_bound": { "type": ["string", "null"] },
+        "security_bits_floor": { "type": ["integer", "null"], "minimum": 0 },
+        "rounding": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "release" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "terms": {
+            "items": {
+              "properties": {
+                "status": { "enum": ["instantiated", "proved-zero"] },
+                "upper_bound": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "total": {
+            "properties": {
+              "upper_bound": { "type": "string", "minLength": 1 },
+              "security_bits_floor": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

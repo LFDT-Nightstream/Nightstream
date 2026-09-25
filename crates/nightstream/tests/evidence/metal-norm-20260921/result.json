@@ -1,0 +1,42 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "uncommitted norm storage, carried projection, and buffer allocation changes",
+  "device": "Apple M1 Max, 64 GiB, macOS 26.6.2",
+  "scope": "first production PiCCS fold with zero carried witnesses; full proof equality including output openings; not a complete lifecycle benchmark",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "rows": 6377559,
+    "logical_columns": 253011231,
+    "carrier_width": 253011276
+  },
+  "cpu": {
+    "phase_seconds": 217.0306164579997,
+    "preparation_seconds": 67.494671416,
+    "cache_seconds": 54.974612458,
+    "proving_seconds": 94.11797375,
+    "maximum_resident_bytes": 11892965376,
+    "preparation_sampling": "sample(1), 10 seconds at 1 ms per scripts/profile_for_ai.sh defaults; release symbols were stripped"
+  },
+  "metal": {
+    "phase_seconds": 132.39830174999952,
+    "preparation_seconds": 66.873228167,
+    "cache_seconds": 53.271426416,
+    "proving_seconds": 11.317969083,
+    "maximum_resident_bytes": 12220039168,
+    "gpu_dispatches": 271,
+    "downloaded_bytes": 16576
+  },
+  "proof_bytes_match_cpu": true,
+  "source_files_match": true,
+  "norm_prefix_unit_tests_passed": 2,
+  "all_16_carried_sources_unit_test_passed": true,
+  "complete_small_cpu_metal_comparisons_passed": 3,
+  "allocation_rejection_test_passed": true,
+  "buffer_limit_bytes": 16000000000,
+  "buffer_limit_scope": "explicit Metal buffer allocations through session allocator; not a guarantee for total CPU plus GPU process memory",
+  "full_lifecycle_5x_and_all_circuits_16gb": "not established",
+  "lean_rerun": false,
+  "working_inputs_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h"
+}

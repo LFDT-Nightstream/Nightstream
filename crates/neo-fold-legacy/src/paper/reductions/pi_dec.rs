@@ -1,0 +1,662 @@
+//! Π_DEC — SuperNeo §7.5. Decomposition (norm reduction).
+//!
+//! Reduction:  CE(B, ℒ)   →   CE(b, ℒ)^k     where B = b^k
+//!
+//! Soundness: reduction of knowledge (Theorem 7, proof in §D.6). The verifier
+//! has no random coins here; soundness comes from the verifier's
+//! reconstruction checks.
+//!
+//! ## Read this file top-to-bottom
+//!
+//! - `prove` runs `split_b`, commits each child, and returns `(Children, Proof)`.
+//! - `verify` uses `combine_b_pows` to re-derive parent commitments and y's
+//!   from the children, and rejects on any mismatch.
+
+use neo_ajtai::{
+    nightstream_fprime_setup::{
+        commit_production_signed_unit_matrix, PRODUCTION_CARRIER_WIDTH, PRODUCTION_VERIFIER_ROWS,
+    },
+    AjtaiSModule,
+};
+use neo_ccs::Mat;
+use neo_math::balanced::within_nc_bound;
+use neo_math::{D, F, K};
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
+use neo_reductions::superneo_eval::SuperneoEvalCache;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use thiserror::Error;
+
+use crate::engine::optimized as engine;
+use crate::engine::paper_exact as reference_engine;
+use crate::paper::params::Params;
+use crate::paper::relations::{
+    ajtai_dec_mixer, recompose_adv, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer,
+    LaneScheme, Structure,
+};
+
+#[cfg(test)]
+#[path = "../../../tests/reductions/pi_dec_selected.rs"]
+mod selected_tests;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("\u{03A0}_DEC: child count {got} does not match params.k_rho() {expected}")]
+    ChildCount { expected: usize, got: usize },
+    #[error("\u{03A0}_DEC: accelerator witness count {got} does not match child count {expected}")]
+    AcceleratorWitnessCount { expected: usize, got: usize },
+    #[error("\u{03A0}_DEC: verifier rejected the children reconstruction")]
+    VerifyRejected,
+    #[error("\u{03A0}_DEC: X must use the canonical whole-ring coefficient embedding in {0}")]
+    NoncanonicalXShape(&'static str),
+    #[error("\u{03A0}_DEC: child X active entries must lie in the CE(b) alphabet")]
+    ChildXLowNorm,
+    #[error("\u{03A0}_DEC: child fold_digest must equal parent fold_digest")]
+    FoldDigest,
+    #[error("\u{03A0}_DEC: noncanonical fold_digest byte limb in {owner} at lane {lane}")]
+    FoldDigestCanonicality { owner: &'static str, lane: usize },
+    #[error("\u{03A0}_DEC: r length must match the joint row point in {0}")]
+    RShape(&'static str),
+    #[error("\u{03A0}_DEC: v1_1 evaluation shape mismatch in {0}")]
+    EvaluationShape(&'static str),
+    #[error(
+        "\u{03A0}_DEC: adv presence must be all-or-nothing across parent and children ({present}/{total} present)"
+    )]
+    AdvPresence { present: usize, total: usize },
+    #[error("\u{03A0}_DEC: children adv must recompose to the parent adv component-wise")]
+    AdvRecomposition,
+    #[error("\u{03A0}_DEC: adv-bearing parent requires a LaneScheme to commit child lane slices")]
+    AdvLaneSchemeMissing,
+    #[error("\u{03A0}_DEC: lane scheme rejected a child witness: {0}")]
+    AdvLaneCommit(#[from] crate::paper::relations::LaneSchemeError),
+    #[error("\u{03A0}_DEC: evaluation padding lanes must be zero in {0}")]
+    EvaluationPadding(&'static str),
+    #[error("\u{03A0}_DEC: unsupported sidecar field {field} in {owner}")]
+    UnsupportedSidecar {
+        owner: &'static str,
+        field: &'static str,
+    },
+    #[error(transparent)]
+    Engine(#[from] engine::Error),
+    #[error(transparent)]
+    ProductionCommitment(#[from] neo_ajtai::AjtaiError),
+    #[error(transparent)]
+    PaperExactEngine(#[from] reference_engine::Error),
+}
+
+/// Output of one Π_DEC step — k CE claims of norm b plus their k witness
+/// matrices `Z_i = split_b(parent_witness)[i]`. Witnesses are prover-only;
+/// the verifier sees only `Children::claims`.
+#[derive(Clone, Debug)]
+pub struct Children {
+    pub claims: Vec<CeClaim>,
+    pub witnesses: Vec<Mat<F>>,
+}
+
+/// Wire-format proof: just the children CE claims. The verifier reconstructs
+/// `parent.c = Σ b^{i-1} c_i` and the y's from these and checks equality.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Proof {
+    pub children: Vec<CeClaim>,
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Prover (§7.5)
+// ──────────────────────────────────────────────────────────────────────────
+
+pub fn prove(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+) -> Result<(Children, Proof), Error> {
+    prove_inner(pp, s, cache, log, lanes, combine, parent, parent_witness, None, None)
+}
+
+/// Plain selected-key D from the actual parent witness and owner-built rows.
+/// Digit planes, commitments and all openings are computed here; callers
+/// supply no split material, evaluator results or commitment callback.
+pub(crate) fn prove_with_production_key(
+    pp: &Params,
+    s: &Structure,
+    cache: &SuperneoEvalCache,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+) -> Result<(Children, Proof), Error> {
+    #[cfg(feature = "perf-timers")]
+    let started = {
+        eprintln!("[pi-dec/selected] start");
+        std::time::Instant::now()
+    };
+    let production = Params::production();
+    if pp.b() != production.b()
+        || pp.k_rho() != production.k_rho()
+        || pp.big_b() != production.big_b()
+        || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
+        || neo_reductions::common::superneo_carrier_width(s.m) != PRODUCTION_CARRIER_WIDTH
+        || cache.relation_shape() != Some((s.n, PRODUCTION_CARRIER_WIDTH, s.t()))
+    {
+        return Err(engine::Error::from(neo_reductions::PiCcsError::InvalidInput(
+            "selected PiDEC production key or row-cache shape mismatch".into(),
+        ))
+        .into());
+    }
+    if parent.adv.is_some() {
+        return Err(Error::AdvLaneSchemeMissing);
+    }
+    neo_reductions::common::validate_superneo_witness_mat(parent_witness, s.m).map_err(engine::Error::from)?;
+    let (digits, flags) =
+        neo_reductions::common::split_b_matrix_k_with_nonzero_flags(parent_witness, pp.k_rho() as usize, pp.b())
+            .map_err(engine::Error::from)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] split elapsed={:.3}s active={}",
+        started.elapsed().as_secs_f64(),
+        flags.iter().filter(|&&active| active).count()
+    );
+    let commitments = digits
+        .iter()
+        .map(commit_production_signed_unit_matrix)
+        .collect::<Result<Vec<_>, _>>()?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] commitments elapsed={:.3}s",
+        started.elapsed().as_secs_f64()
+    );
+    let (children, ok_y, ok_x, ok_c) =
+        neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+            neo_reductions::api::FoldingMode::Optimized,
+            s,
+            pp.inner(),
+            parent,
+            &digits,
+            &flags,
+            D.next_power_of_two().trailing_zeros() as usize,
+            &commitments,
+            ajtai_dec_mixer,
+            Some(cache),
+            None,
+            None,
+        );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec/selected] openings elapsed={:.3}s",
+        started.elapsed().as_secs_f64()
+    );
+    if children.is_empty() {
+        return Err(engine::Error::PiDecFailed.into());
+    }
+    if !(ok_y && ok_x && ok_c) {
+        return Err(engine::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }.into());
+    }
+    let proof = Proof { children };
+    let claims = verify(pp, s, ajtai_dec_mixer, parent, &proof)?;
+    Ok((
+        Children {
+            claims,
+            witnesses: digits,
+        },
+        proof,
+    ))
+}
+
+pub(crate) fn prove_with_precompute(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: &PiDecProverPrecompute,
+) -> Result<(Children, Proof), Error> {
+    prove_inner(
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        combine,
+        parent,
+        parent_witness,
+        Some(precompute),
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_with_precompute_and_backend(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: &PiDecProverPrecompute,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Children, Proof), Error> {
+    prove_inner(
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        combine,
+        parent,
+        parent_witness,
+        Some(precompute),
+        Some(backend),
+    )
+}
+
+/// PaperExact PiDEC prover used by the end-to-end NIFS reference.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_paper_exact(
+    pp: &Params,
+    s: &Structure,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+) -> Result<(Children, Proof), Error> {
+    let (mut children, witnesses) =
+        reference_engine::prove_pi_dec(pp, s, log, parent, parent_witness, |commitments, base| {
+            combine(commitments, base)
+        })?;
+    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    validate_child_count(pp, children.len())?;
+    validate_canonical_x_shape(parent, &children)?;
+    validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
+    Ok((
+        Children {
+            claims: children.clone(),
+            witnesses,
+        },
+        Proof { children },
+    ))
+}
+
+/// Π_DEC prover from accelerator-produced split witnesses and commitments.
+///
+/// The caller must validate that the digit planes are low norm and recompose
+/// to `parent_witness`. This function retains canonical child construction,
+/// lane attachment, and every public consistency check.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_split_material(
+    pp: &Params,
+    s: &Structure,
+    lanes: Option<&LaneScheme>,
+    child_adv: Option<Vec<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    z_split: Vec<Mat<F>>,
+    digit_nonzero: Vec<bool>,
+    child_commitments: Vec<neo_ajtai::Commitment>,
+    precomputed_openings: Vec<neo_ccs::V1_1Evaluations<K>>,
+) -> Result<(Children, Proof), Error> {
+    if precomputed_openings.len() != z_split.len()
+        || precomputed_openings
+            .iter()
+            .any(|opening| opening.eval_k.len() != D || opening.eval_a.len() != s.t())
+    {
+        return Err(Error::EvaluationShape("accelerator output"));
+    }
+    if digit_nonzero.len() != z_split.len()
+        || digit_nonzero
+            .iter()
+            .zip(&precomputed_openings)
+            .any(|(&nonzero, opening)| {
+                !nonzero
+                    && (opening.eval_k.iter().any(|&value| value != K::ZERO)
+                        || opening
+                            .eval_a
+                            .iter()
+                            .flatten()
+                            .any(|&value| value != K::ZERO))
+            })
+    {
+        return Err(Error::EvaluationPadding("accelerator output"));
+    }
+    let (mut children, witnesses) = engine::prove_pi_dec_from_split(
+        pp,
+        s,
+        parent,
+        z_split,
+        digit_nonzero,
+        child_commitments,
+        &precomputed_openings,
+        None,
+        |commitments, b| combine(commitments, b),
+    )?;
+    if let Some(child_adv) = child_adv {
+        if child_adv.len() != children.len() {
+            return Err(Error::AdvPresence {
+                present: child_adv.len(),
+                total: children.len(),
+            });
+        }
+        for (child, adv) in children.iter_mut().zip(child_adv) {
+            child.adv = Some(adv);
+        }
+    } else {
+        attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    }
+    validate_child_count(pp, children.len())?;
+    validate_canonical_x_shape(parent, &children)?;
+    validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
+    Ok((
+        Children {
+            claims: children.clone(),
+            witnesses,
+        },
+        Proof { children },
+    ))
+}
+
+/// Π_DEC boundary for accelerator-owned child witnesses.
+///
+/// Complete public claims are verified canonically here while the backend
+/// retains ownership of the private witness buffers.
+#[doc(hidden)]
+pub fn prove_from_accelerator_claims(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    claims: Vec<CeClaim>,
+    witnesses: Vec<Mat<F>>,
+) -> Result<(Children, Proof), Error> {
+    if witnesses.len() != claims.len() {
+        return Err(Error::AcceleratorWitnessCount {
+            expected: claims.len(),
+            got: witnesses.len(),
+        });
+    }
+    let proof = Proof { children: claims };
+    let claims = verify(pp, s, combine, parent, &proof)?;
+    Ok((Children { claims, witnesses }, proof))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_inner(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: Option<&PiDecProverPrecompute>,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
+) -> Result<(Children, Proof), Error> {
+    let (mut children, witnesses) = match backend {
+        Some(backend) => engine::prove_pi_dec_with_backend(
+            pp,
+            s,
+            cache,
+            log,
+            parent,
+            parent_witness,
+            precompute,
+            |cs, b| combine(cs, b),
+            backend,
+        )?,
+        None => engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, precompute, |cs, b| {
+            combine(cs, b)
+        })?,
+    };
+    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    validate_child_count(pp, children.len())?;
+    validate_canonical_x_shape(parent, &children)?;
+    validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
+    Ok((
+        Children {
+            claims: children.clone(),
+            witnesses,
+        },
+        Proof { children },
+    ))
+}
+
+/// the auxiliary-commitment flow (Π_DEC prover side): an adv-bearing parent's children each
+/// carry the lane commitments of their own digit witness — `adv_{i,L} =
+/// A_L · Z_i[L]` — so the tuples recompose to the parent by the same
+/// `b`-power linearity as `c`, and each child opens its slices at the
+/// terminal decider (R3).
+fn attach_child_adv(
+    lanes: Option<&LaneScheme>,
+    parent: &CeClaim,
+    children: &mut [CeClaim],
+    witnesses: &[Mat<F>],
+) -> Result<(), Error> {
+    if parent.adv.is_none() {
+        return Ok(());
+    }
+    let Some(lanes) = lanes else {
+        return Err(Error::AdvLaneSchemeMissing);
+    };
+    for (child, witness) in children.iter_mut().zip(witnesses.iter()) {
+        child.adv = Some(lanes.commit(witness)?);
+    }
+    Ok(())
+}
+
+/// the auxiliary-commitment flow (Π_DEC verifier side): the children's tuples must
+/// recompose to the parent's, component-wise, under the same `Σ b^{i−1}`
+/// combiner that reconstructs `parent.c` — pure public arithmetic, no
+/// lane scheme needed. Presence is all-or-nothing; a plain parent with
+/// plain children passes as `None == None`.
+fn validate_adv_recomposition(
+    pp: &Params,
+    combine: DecMixer,
+    parent: &CeClaim,
+    children: &[CeClaim],
+) -> Result<(), Error> {
+    let advs: Vec<_> = children.iter().map(|child| child.adv.clone()).collect();
+    let recomposed = recompose_adv(combine, pp.b(), &advs).map_err(|e| Error::AdvPresence {
+        present: e.present,
+        total: e.total,
+    })?;
+    if recomposed != parent.adv {
+        return Err(Error::AdvRecomposition);
+    }
+    Ok(())
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Verifier (§7.5)
+// ──────────────────────────────────────────────────────────────────────────
+
+pub fn verify(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    proof: &Proof,
+) -> Result<Vec<CeClaim>, Error> {
+    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
+    if !ok {
+        return Err(Error::VerifyRejected);
+    }
+    Ok(proof.children.clone())
+}
+
+/// Verify PiDEC with direct PaperExact recomposition loops.
+pub(crate) fn verify_paper_exact(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    proof: &Proof,
+) -> Result<Vec<CeClaim>, Error> {
+    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    if !reference_engine::verify_pi_dec(pp, parent, &proof.children, |commitments, base| {
+        combine(commitments, base)
+    }) {
+        return Err(Error::VerifyRejected);
+    }
+    Ok(proof.children.clone())
+}
+
+fn validate_verifier_inputs(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    proof: &Proof,
+) -> Result<(), Error> {
+    validate_child_count(pp, proof.children.len())?;
+    validate_fold_digest_canonical("parent", parent)?;
+    for child in &proof.children {
+        validate_fold_digest_canonical("child", child)?;
+    }
+    validate_r_shape(s, parent, &proof.children)?;
+    validate_evaluation_shape(s, parent, &proof.children)?;
+    validate_canonical_x_shape(parent, &proof.children)?;
+    validate_child_x_low_norm(pp, &proof.children)?;
+    validate_evaluation_padding_zero(parent, &proof.children)?;
+    validate_fold_digest_consistency(parent, &proof.children)?;
+    validate_adv_recomposition(pp, combine, parent, &proof.children)?;
+    Ok(())
+}
+
+fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    validate_r_shape_one("parent", s, parent)?;
+    for child in children {
+        validate_r_shape_one("child", s, child)?;
+    }
+    Ok(())
+}
+
+fn validate_r_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let expected =
+        s.n.max(neo_reductions::common::superneo_carrier_width(s.m))
+            .next_power_of_two()
+            .max(2)
+            .trailing_zeros() as usize;
+    if claim.r.len() != expected {
+        return Err(Error::RShape(owner));
+    }
+    Ok(())
+}
+
+fn validate_child_count(pp: &Params, got: usize) -> Result<(), Error> {
+    let expected = pp.k_rho() as usize;
+    if got != expected {
+        return Err(Error::ChildCount { expected, got });
+    }
+    Ok(())
+}
+
+/// Reject parent and children that are not exact whole-ring embeddings.
+fn validate_canonical_x_shape(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    if !superneo_has_canonical_x_shape(&parent.X, parent.m_in) {
+        return Err(Error::NoncanonicalXShape("parent"));
+    }
+    for child in children {
+        if !superneo_has_canonical_x_shape(&child.X, child.m_in) {
+            return Err(Error::NoncanonicalXShape("child"));
+        }
+    }
+    Ok(())
+}
+
+/// Π_DEC outputs CE(b) children. The public projection `X_i` is part of
+/// each child CE claim, so its active packed entries must stay in the same
+/// centered alphabet as a low-norm child witness. Recomposition alone would
+/// allow canceling out-of-alphabet child `X` values.
+fn validate_child_x_low_norm(pp: &Params, children: &[CeClaim]) -> Result<(), Error> {
+    let b = pp.b();
+    for child in children {
+        let active_cols = superneo_public_x_cols(child.m_in);
+        if active_cols > child.X.cols() {
+            return Err(Error::ChildXLowNorm);
+        }
+        for r in 0..child.X.rows() {
+            for c in 0..active_cols {
+                if !within_nc_bound(child.X[(r, c)], b) {
+                    return Err(Error::ChildXLowNorm);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Π_DEC decomposes one parent CE claim into children; it must not let a
+/// child introduce a fresh Π_CCS transcript digest. The native prover fills
+/// each child from `parent.fold_digest`, and the circuit-side DEC verifier
+/// enforces the same equality lane-by-lane.
+fn validate_fold_digest_consistency(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    for child in children {
+        if child.fold_digest != parent.fold_digest {
+            return Err(Error::FoldDigest);
+        }
+    }
+    Ok(())
+}
+
+fn validate_fold_digest_canonical(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
+    for (lane, chunk) in claim.fold_digest.chunks_exact(8).enumerate() {
+        let value = u64::from_le_bytes(chunk.try_into().expect("fold_digest lanes are 8 bytes"));
+        if value >= F::ORDER_U64 {
+            return Err(Error::FoldDigestCanonicality { owner, lane });
+        }
+    }
+    Ok(())
+}
+
+fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    validate_evaluation_shape_one("parent", s, parent)?;
+    for child in children {
+        validate_evaluation_shape_one("child", s, child)?;
+    }
+    Ok(())
+}
+
+fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let width = D.next_power_of_two();
+    if claim.eval_k.len() != width || claim.eval_a.len() != s.t() || claim.eval_a.iter().any(|row| row.len() != width) {
+        return Err(Error::EvaluationShape(owner));
+    }
+    Ok(())
+}
+
+fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    validate_evaluation_padding_zero_one("parent", parent)?;
+    for child in children {
+        validate_evaluation_padding_zero_one("child", child)?;
+    }
+    Ok(())
+}
+
+fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
+    if claim
+        .eval_k
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::EvaluationPadding(owner));
+    }
+    for row in &claim.eval_a {
+        for &lane in row.iter().skip(D) {
+            if lane != K::default() {
+                return Err(Error::EvaluationPadding(owner));
+            }
+        }
+    }
+    Ok(())
+}

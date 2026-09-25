@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightstream:protocol-contract:rule-index:v2",
+  "title": "Nightstream normative rule index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "generated_from",
+    "normative",
+    "rules"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_from": {
+      "const": "src/bundle.json"
+    },
+    "normative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "semantic_sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "semantic_sha256": {
+          "type": "string",
+          "description": "Framed digest of authored normative modules and requirement metadata.",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "authorities": {
+      "type": "object",
+      "description": "Syntactic authority citations in the exact rule block. These flags do not assign sentence-level authorship.",
+      "additionalProperties": false,
+      "required": [
+        "reviewed_paper",
+        "reviewed_errata",
+        "nightstream_decision",
+        "derived_conformance"
+      ],
+      "properties": {
+        "reviewed_paper": {
+          "type": "boolean"
+        },
+        "reviewed_errata": {
+          "type": "boolean"
+        },
+        "nightstream_decision": {
+          "type": "boolean"
+        },
+        "derived_conformance": {
+          "type": "boolean",
+          "description": "Curated flag: the block contains a derived production or fail-closed invariant."
+        }
+      }
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lean",
+        "rust",
+        "rust_origin",
+        "circuit",
+        "reduction"
+      ],
+      "properties": {
+        "lean": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rust": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rust_origin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "circuit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reduction": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidence_locations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lean",
+        "rust",
+        "rust_origin",
+        "circuit",
+        "reduction"
+      ],
+      "properties": {
+        "lean": {
+          "$ref": "#/$defs/string_set"
+        },
+        "rust": {
+          "$ref": "#/$defs/string_set"
+        },
+        "rust_origin": {
+          "$ref": "#/$defs/string_set"
+        },
+        "circuit": {
+          "$ref": "#/$defs/string_set"
+        },
+        "reduction": {
+          "$ref": "#/$defs/string_set"
+        }
+      }
+    },
+    "declaration_anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "declaration"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "declaration": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "declaration_anchors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lean",
+        "rust",
+        "rust_origin",
+        "circuit",
+        "reduction"
+      ],
+      "properties": {
+        "lean": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/declaration_anchor"
+          }
+        },
+        "rust": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/declaration_anchor"
+          }
+        },
+        "rust_origin": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "circuit": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "reduction": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "section",
+        "kind",
+        "assembly",
+        "replaces",
+        "depends_on",
+        "normative_block_sha256",
+        "coverage_row_sha256",
+        "authorities",
+        "source_ids",
+        "paper_items",
+        "errata_ids",
+        "normative_decision_ids",
+        "coverage_decision_ids",
+        "blocker_ids",
+        "review_flags",
+        "states",
+        "evidence_locations",
+        "declaration_anchors"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "section": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assembly": {
+          "enum": [
+            "adopt",
+            "add",
+            "replace",
+            "remove"
+          ]
+        },
+        "replaces": {
+          "$ref": "#/$defs/string_set"
+        },
+        "depends_on": {
+          "$ref": "#/$defs/string_set"
+        },
+        "normative_block_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "coverage_row_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "authorities": {
+          "$ref": "#/$defs/authorities"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "paper_items": {
+          "$ref": "#/$defs/string_set"
+        },
+        "errata_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "normative_decision_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "coverage_decision_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "blocker_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "review_flags": {
+          "$ref": "#/$defs/string_set",
+          "description": "Curated semantic review findings. Hash refresh does not change this list."
+        },
+        "states": {
+          "$ref": "#/$defs/states"
+        },
+        "evidence_locations": {
+          "$ref": "#/$defs/evidence_locations"
+        },
+        "declaration_anchors": {
+          "$ref": "#/$defs/declaration_anchors"
+        }
+      }
+    }
+  }
+}

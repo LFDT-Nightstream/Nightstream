@@ -1,0 +1,212 @@
+name = "nightstream_fprime"
+version = "0.1.0"
+defaultTargets = ["NightstreamFPrime", "NightstreamFPrimeTests"]
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.32.2"
+
+[[require]]
+name = "CompPoly"
+git = "https://github.com/Verified-zkEVM/CompPoly"
+rev = "6133f9f796707c438d0a614f97dc218ae976ab8f"
+
+[[lean_lib]]
+name = "NightstreamFPrime"
+roots = ["NightstreamFPrime"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_lib]]
+name = "NightstreamFPrimeTests"
+roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.SharedVerifier", "tests.PiCCSNativeDot", "tests.CheckedReplayEvidence", "tests.RecursiveLoopEvidence", "tests.AxiomsStoredPhysicalRowCheck", "tests.AxiomsCompactRowExecution", "tests.FreshWitnessEvidence", "tests.AxiomsCachedAssignmentProducts", "tests.AxiomsCachedAssignmentPlan", "tests.AxiomsFreshCommitmentBlock", "tests.AxiomsStoredWitnessExecution", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.PiRLCSamplerCandidateWiring", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.StoredRingInverse", "tests.StoredRingPowerInverseComparison", "tests.PerApplicationEmitterFixture", "tests.EvidenceMetadata", "tests.EvidenceTargets", "tests.EvidenceAcceptance", "tests.EvidenceContractChecks"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emit"
+root = "NightstreamFPrime.Export.Entrypoint"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitSharedFormulas"
+root = "NightstreamFPrime.Export.EmitSharedFormulas"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitSharedVerifier"
+root = "NightstreamFPrime.Export.EmitSharedVerifier"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPerApplicationReferenceFixture"
+root = "tests.PerApplicationReferenceMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPerApplicationStreamedFixture"
+root = "tests.PerApplicationStreamedMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPilotParity"
+root = "NightstreamFPrime.Export.PilotParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitBaseStepFixture"
+root = "NightstreamFPrime.Export.BaseStepFixtureMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitRecursiveStepFixture"
+root = "NightstreamFPrime.Export.RecursiveStepFixtureMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiCCSParity"
+root = "NightstreamFPrime.Export.PiCCSParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkPiCCSInput"
+root = "NightstreamFPrime.Export.PiCCSInputCheckMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkPiRLCInput"
+root = "NightstreamFPrime.Export.PiRLCInputCheckMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiCCSFirstRound"
+root = "NightstreamFPrime.Export.PiCCSFirstRoundMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiCCSPrefix"
+root = "NightstreamFPrime.Export.PiCCSPrefixMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiRLCWitness"
+root = "NightstreamFPrime.Export.PiRLCWitnessReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiDECWitness"
+root = "NightstreamFPrime.Export.PiDECWitnessReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "measurePiDECCommitmentBlock"
+root = "NightstreamFPrime.Export.PiDECCommitmentBlockMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiDECCommitment"
+root = "NightstreamFPrime.Export.PiDECCommitmentReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiDECEvaluation"
+root = "NightstreamFPrime.Export.PiDECEvaluationReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "measurePiDECMatrixRows"
+root = "NightstreamFPrime.Export.PiDECMatrixRowsMeasure"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayPiDECMatrix"
+root = "NightstreamFPrime.Export.PiDECMatrixReplayMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "mergePiDECMatrix"
+root = "NightstreamFPrime.Export.PiDECMatrixMergeMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "measurePiDECEvaluationBlock"
+root = "NightstreamFPrime.Export.PiDECEvaluationBlockMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkPiDECInput"
+root = "NightstreamFPrime.Export.PiDECInputCheckMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkPiDECActualMutations"
+root = "tests.PiDECActualMutations"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiRlcSamplerParity"
+root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiRLCParity"
+root = "NightstreamFPrime.Export.PiRLCParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiDECParity"
+root = "NightstreamFPrime.Export.PiDECParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitAjtaiSetupV1Parity"
+root = "NightstreamFPrime.Export.AjtaiSetupV1ParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitAjtaiSparseCommitmentV1Parity"
+root = "NightstreamFPrime.Export.AjtaiSparseCommitmentV1ParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPoseidon2HashChainV1Parity"
+root = "NightstreamFPrime.Export.Poseidon2HashChainV1ParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPoseidon2HashChainV1BindingParity"
+root = "NightstreamFPrime.Export.Poseidon2HashChainV1BindingParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitPiCCSOwnershipAudit"
+root = "NightstreamFPrime.Export.PiCCSOwnershipAuditMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitFoundationParity"
+root = "NightstreamFPrime.Export.FoundationParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkStoredWitnessExecution"
+root = "tests.StoredWitnessExecutionCheck"
+
+[[lean_exe]]
+name = "replayPhysicalWitness"
+root = "NightstreamFPrime.Export.StoredPhysicalReplayMain"
+
+[[lean_exe]]
+name = "replayFreshAssignment"
+root = "NightstreamFPrime.Export.FreshAssignmentReplayMain"
+
+[[lean_exe]]
+name = "replayFreshCommitment"
+root = "NightstreamFPrime.Export.FreshCommitmentReplayMain"
+
+[[lean_exe]]
+name = "checkFreshRows"
+root = "NightstreamFPrime.Export.FreshRowsCheckMain"
+
+[[lean_exe]]
+name = "checkSharedVerifier"
+root = "tests.SharedVerifierMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

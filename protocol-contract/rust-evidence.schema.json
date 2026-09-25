@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nightstream.dev/schema/rust-conformance-evidence-v3.json",
+  "title": "Nightstream Rust-origin conformance evidence",
+  "description": "This is an assurance artifact. Its SHA-256 values are not protocol, transcript, proof, or public-digest authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "contract_hash",
+    "contract_rule",
+    "profile_id",
+    "profile_hash",
+    "origin",
+    "rust_revision",
+    "source_tree_hash",
+    "features",
+    "producer",
+    "run",
+    "input",
+    "rust_decision",
+    "trace",
+    "semantic_target",
+    "mutations",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 3
+    },
+    "contract_id": {
+      "const": "nightstream-superneo-v1"
+    },
+    "contract_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "contract_rule": {
+      "type": "string",
+      "pattern": "^(SN|NS)-[A-Z0-9-]+$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "origin": {
+      "const": "rust-execution"
+    },
+    "rust_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_tree_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "Hash of the profile-defined canonical manifest of every source and build-input byte used by the producer."
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["crate", "binary", "command", "binary_hash", "dirty", "cargo_lock_hash", "rustc", "target", "profile"],
+      "properties": {
+        "crate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "binary_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "cargo_lock_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rustc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner_id", "invocation_id", "exit_code", "event_log_hash", "attestation"],
+      "properties": {
+        "runner_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "event_log_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "identity", "payload_hash"],
+          "properties": {
+            "format": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "payload_hash": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "payload", "payload_hash"],
+      "properties": {
+        "encoding": {
+          "const": "canonical-json-rfc8785"
+        },
+        "payload": {},
+        "payload_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256 of the RFC 8785 canonical encoding of payload."
+        }
+      }
+    },
+    "rust_decision": {
+      "$ref": "#/$defs/rust_decision"
+    },
+    "trace": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/trace_event"
+      }
+    },
+    "semantic_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "model_hash", "predicate", "checker"],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checker": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mutation_id", "field", "operation", "input_payload_hash", "trace_hash", "rust_decision"],
+        "properties": {
+          "mutation_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input_payload_hash": {
+            "$ref": "#/$defs/sha256"
+          },
+          "trace_hash": {
+            "$ref": "#/$defs/sha256"
+          },
+          "rust_decision": {
+            "$ref": "#/$defs/rust_decision"
+          }
+        }
+      }
+    },
+    "content_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256 of the RFC 8785 canonical object with this content_hash member omitted."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "rust_decision": {
+            "properties": { "accepted": { "const": true } },
+            "required": ["accepted"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "rust_decision": {
+            "properties": {
+              "first_reject_rule": { "type": "null" },
+              "output_hash": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rust_decision": {
+            "properties": {
+              "first_reject_rule": { "type": "string", "pattern": "^(SN|NS)-[A-Z0-9-]+$" },
+              "output_hash": { "type": "null" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "rust_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accepted", "result_code", "first_reject_rule", "output_hash", "decision_hash"],
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "result_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "first_reject_rule": {
+          "type": ["string", "null"],
+          "pattern": "^(SN|NS)-[A-Z0-9-]+$"
+        },
+        "output_hash": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "Hash of the canonical Rust-emitted decision record, not an expected result written by the semantic checker."
+        }
+      }
+    },
+    "trace_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "phase", "kind", "contract_rule", "source_symbol", "input_hash", "output_hash"],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": ["decode", "shape-check", "derive", "absorb", "squeeze", "retry", "equation-check", "relation-check", "output", "reject", "finalize"]
+        },
+        "contract_rule": {
+          "type": "string",
+          "pattern": "^(SN|NS)-[A-Z0-9-]+$"
+        },
+        "source_symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "integer", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

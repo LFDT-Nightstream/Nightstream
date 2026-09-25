@@ -1,0 +1,14 @@
+
+running 1 test
+staged request=Ccs { directory: "/private/tmp/nightstream-metal-production-20260920/cpu-shared-patterns", step: 1, engine: Optimized, cpu_reference: Some("/private/tmp/nightstream-metal-production-20260920/cpu") }
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+staged circuit preparation elapsed=71.571779875s
+C cache elapsed=55.010359708s
+C proving engine=Optimized elapsed=100.064081875s
+C CPU proof byte equality passed; source files also match
+C completed elapsed=155.088195792s
+staged phase passed elapsed=227.122133584s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 227.12s
+

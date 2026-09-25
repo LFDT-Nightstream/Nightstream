@@ -1,11 +1,119 @@
 // crates/neo-ajtai/tests/red_team.rs
 #![allow(non_snake_case)] // Allow Z, Z_bad, etc. for matrix notation consistency
-use neo_ajtai::{commit, decomp_b, setup, verify_open, verify_split_open, Commitment, DecompStyle, PP};
-use neo_math::ring::D;
-use p3_field::PrimeCharacteristicRing;
+use neo_ajtai::{
+    commit, decomp_b, s_lincomb, setup, setup_par, verify_open, verify_split_open, Commitment, DecompStyle, PP,
+};
+use neo_math::ring::{Rq as RqEl, D};
+use neo_params::NeoParams;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as Fq;
 use rand::{Rng, SeedableRng};
 use std::convert::TryInto;
+use std::panic::catch_unwind;
+
+#[test]
+fn ajtai_s_lincomb_rejects_cross_codomain_commitments() {
+    let narrow = Commitment::zeros(D, 1);
+    let mut wide_a = Commitment::zeros(D, 2);
+    let mut wide_b = Commitment::zeros(D, 2);
+    wide_a.data[D] = Fq::ONE;
+    wide_b.data[D] = Fq::from_u64(2);
+
+    assert_eq!(narrow.data.len(), narrow.d * narrow.kappa);
+    assert_eq!(wide_a.data.len(), wide_a.d * wide_a.kappa);
+    assert_eq!(wide_b.data.len(), wide_b.d * wide_b.kappa);
+
+    let zero = RqEl::from_field_scalar(Fq::ZERO);
+    let one = RqEl::from_field_scalar(Fq::ONE);
+    let mixed_a = s_lincomb(&[zero, one], &[narrow.clone(), wide_a]);
+    let mixed_b = s_lincomb(&[zero, one], &[narrow, wide_b]);
+    let accepted_and_collided = matches!((&mixed_a, &mixed_b), (Ok(a), Ok(b)) if a == b);
+
+    assert!(
+        !accepted_and_collided,
+        "Ajtai S-linear combination accepted distinct canonical commitments from a wider codomain and discarded their extra column"
+    );
+}
+
+#[test]
+fn ajtai_verify_open_rejects_wrong_length_without_panicking() {
+    let mut rng = rand::rngs::StdRng::from_seed([0xA5; 32]);
+    let pp: PP<neo_math::ring::Rq> = setup(&mut rng, D, 2, 1).expect("setup");
+    let z = vec![Fq::ZERO; D];
+    let commitment = commit(&pp, &z);
+    let malformed = vec![Fq::ZERO; D - 1];
+
+    let result = catch_unwind(|| verify_open(&pp, &commitment, &malformed));
+    let accepted = result.expect("public opening verifier must return false, not panic");
+    assert!(!accepted, "wrong-length Ajtai opening must be rejected");
+}
+
+#[test]
+fn decomposition_preserves_digits_for_every_valid_u32_base() {
+    let b = (1u32 << 31) + 1;
+    assert!(
+        NeoParams::new(Fq::ORDER_U64, 81, 54, 18, 1, b, 2, 1, 2, 1).is_ok(),
+        "the public parameter validator admits this base"
+    );
+    let value = Fq::from_u64(1u64 << 31);
+    let digits = decomp_b(&[value], b, 1, DecompStyle::NonNegative);
+
+    assert_eq!(digits, vec![value], "one base-b digit must round-trip");
+}
+
+#[test]
+fn ajtai_verify_split_open_checks_each_child_opening() {
+    let mut rng = rand::rngs::StdRng::from_seed([0x5A; 32]);
+    let pp: PP<neo_math::ring::Rq> = setup(&mut rng, D, 2, 1).expect("setup");
+    let zero_witness = vec![Fq::ZERO; D];
+    let parent = commit(&pp, &zero_witness);
+
+    let mut child_zero = parent.clone();
+    let mut child_one = parent.clone();
+    child_zero.data[0] = Fq::from_u64(2);
+    child_one.data[0] = Fq::ZERO - Fq::ONE;
+    assert!(!verify_open(&pp, &child_zero, &zero_witness));
+    assert!(!verify_open(&pp, &child_one, &zero_witness));
+    let canceled_children_accepted = verify_split_open(
+        &pp,
+        &parent,
+        2,
+        &[child_zero, child_one],
+        &[zero_witness.clone(), zero_witness],
+    );
+
+    assert!(
+        !canceled_children_accepted,
+        "split-opening verifier accepted individually false child openings that canceled only in aggregate"
+    );
+}
+
+#[test]
+fn ajtai_setup_rejects_zero_module_rank() {
+    let mut serial_rng = rand::rngs::StdRng::from_seed([0xC1; 32]);
+    let serial = setup(&mut serial_rng, D, 0, 1);
+    let false_opening_accepted = serial
+        .as_ref()
+        .map(|pp| {
+            let zero = vec![Fq::ZERO; D];
+            let mut one = zero.clone();
+            one[0] = Fq::ONE;
+            let commitment = commit(pp, &zero);
+            assert_eq!(commitment, commit(pp, &one));
+            verify_open(pp, &commitment, &one)
+        })
+        .unwrap_or(false);
+
+    let mut parallel_rng = rand::rngs::StdRng::from_seed([0xC2; 32]);
+    let parallel = setup_par(&mut parallel_rng, D, 0, 1);
+
+    assert!(
+        serial.is_err() && parallel.is_err() && !false_opening_accepted,
+        "Ajtai setup accepted kappa=0 (serial_ok={}, parallel_ok={}) and false opening={false_opening_accepted}",
+        serial.is_ok(),
+        parallel.is_ok(),
+    );
+}
 
 #[test]
 fn ajtai_opening_rejects_one_digit_flip() {

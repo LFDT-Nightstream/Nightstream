@@ -3,7 +3,7 @@
 SuperNeo §7 defines Neo's folding scheme for CCS in the lattice setting. One fold
 takes `K` fresh committed CCS instances plus the carried accumulator of `k` CE claims
 and outputs a new accumulator of `k` low-norm CE claims. The composition of the three
-reductions is what `neo-fold-clean` calls `NIFS` (`src/paper/nifs/`).
+reductions is what `neo-fold-legacy` calls `NIFS` (`src/paper/nifs/`).
 
 ## The relations (SuperNeo §7.1)
 
@@ -26,7 +26,7 @@ claims `y′_{i,j}` at `r′`.
 
 - The math lives in `neo-reductions` (`api::pi_ccs_prove` / `pi_ccs_verify`, optimized
   and paper-exact engines).
-- The paper layer in `neo-fold-clean` exposes only a shape-checked seam:
+- The paper layer in `neo-fold-legacy` exposes only a shape-checked seam:
   `paper/reductions/pi_ccs.rs` wrapping `engine/optimized.rs`.
 - Sum-check soundness comes from the extension field `K = F_{q²}`; per-shape effective
   λ is validated at preprocessing (see [Parameters](parameters.md)).
@@ -65,8 +65,9 @@ CCS arithmetic happens over `F_q`, but commitments live over the ring
 the `bar(·)` lift satisfies `Mz = ct(bar(M)·z)` (Thm. 4), so field-level matrix-vector
 products are recoverable from ring-level products, and linear combinations of
 evaluations commute with the commitment's S-action (Thm. 5). In code:
-`neo_math::superneo_bar_*`, enforced at the seam by `paper/reductions/pi_rlc.rs`;
-formally cross-checked in `formal/superneo-lean`.
+`neo_math::superneo_bar_*`, enforced at the seam by `paper/reductions/pi_rlc.rs`.
+The maintained proof and Rust/R1CS refinement work lives in
+`formal/nightstream-lean`; sibling Lean projects are legacy references only.
 
 ## Engines
 

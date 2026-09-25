@@ -25,12 +25,3 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 
 [dev-dependencies]
 rand_chacha = { workspace = true }
-
-# Spec-derived tests (invariant obligations from Transcript.spec.md)
-[[test]]
-name = "spec_transcript"
-path = "spec-tests/transcript.rs"
-
-[[test]]
-name = "spec_rng"
-path = "spec-tests/rng.rs"

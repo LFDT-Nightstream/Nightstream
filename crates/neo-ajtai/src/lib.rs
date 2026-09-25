@@ -21,6 +21,7 @@
 mod commit;
 mod decomp;
 mod error;
+pub mod nightstream_fprime_setup;
 pub mod prg;
 mod types;
 pub mod util;
@@ -41,13 +42,12 @@ pub use commit::rot_step;
 
 pub use s_module::{
     get_global_pp, get_global_pp_for_dims, get_global_pp_for_z_len, get_global_pp_seeded_params_for_dims,
-    has_global_pp_for_dims, has_seed_for_dims, set_global_pp, set_global_pp_seeded, try_get_loaded_global_pp_for_dims,
-    unload_global_pp_for_dims, AjtaiSModule,
+    has_global_pp_for_dims, has_seed_for_dims, materialize_seeded_pp, set_global_pp, set_global_pp_seeded,
+    try_get_loaded_global_pp_for_dims, unload_global_pp_for_dims, AjtaiSModule,
 };
 
 #[doc(hidden)]
 pub use commit::{
-    audit_commit_row_major_seeded_binary_cols_with_chunk_seeds, commit_row_major_seeded,
-    commit_row_major_seeded_binary_cols, commit_row_major_seeded_binary_cols_with_chunk_seeds,
-    commit_row_major_seeded_many, sample_uniform_rq, seeded_pp_chunk_seeds, SeededBinaryColsCommitAudit,
+    commit_row_major_seeded, commit_row_major_seeded_binary_cols, commit_row_major_seeded_binary_cols_with_chunk_seeds,
+    commit_row_major_seeded_many, sample_uniform_rq, seeded_pp_chunk_seeds,
 };

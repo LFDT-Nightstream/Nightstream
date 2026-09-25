@@ -1,0 +1,75 @@
+{
+  "source_checkpoint": "8060f6998afef1ff2e52d18a678b5d5d2c697183",
+  "migration_patch_sha256": "808e25a840560d794fd1e33f1c1e3861a73238cf04a6cea2283d73fff85987da",
+  "namespace": {
+    "from": "NightstreamFPrime.Export.MatrixProgram",
+    "to": "NightstreamFPrime.Layout.MatrixProgram",
+    "rule": "Keep each declaration suffix. Codec methods use the shared type namespace but remain defined in Export."
+  },
+  "physical_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Affine.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Affine.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/AffineGrid.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/AffineGrid.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/CoefficientWork.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/CoefficientWork.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/MultiplicationGrid.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/MultiplicationGrid.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Ordinary.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Ordinary.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Phi81Product.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Phi81Product.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Pin.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Pin.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/PlanBridge.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/PlanBridge.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Poseidon.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Poseidon.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/PoseidonInput.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/PoseidonInput.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Program.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/Program.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/RetainedWork.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/RetainedWork.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/SourceGridSupport.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/SourceGridSupport.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/SourceProjection.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/SourceProjection.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/SparseWork.lean": "formal/nightstream-fprime/NightstreamFPrime/Layout/MatrixProgram/SparseWork.lean"
+  },
+  "codec_files": [
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Affine.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/AffineGrid.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/MultiplicationGrid.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Ordinary.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Phi81Product.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Pin.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Poseidon.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/PoseidonInput.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/Program.lean",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/MatrixProgram/SourceProjection.lean"
+  ],
+  "column_map": [
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapRowColumns",
+      "to": "NightstreamFPrime.Layout.R1CS.mapRowColumns"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_zero",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_zero"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_const",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_const"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_one",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_one"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_ofVar",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_ofVar"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_add",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_add"
+    },
+    {
+      "from": "NightstreamFPrime.Export.Package.mapCombinationColumns_scale",
+      "to": "NightstreamFPrime.Layout.R1CS.mapCombinationColumns_scale"
+    }
+  ],
+  "scope": "Owner relocation only. The Git diff retains exact declarations; compiler locations are checked after proof repairs. No requirement status change."
+}

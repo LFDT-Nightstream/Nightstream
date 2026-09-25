@@ -1,0 +1,22 @@
+[paper_goldilocks]
+field = "Goldilocks"
+q_decimal = "18446744069414584321"
+q_hex = "0xffffffff00000001"
+extension_degree = 2
+eta = 81
+phi_degree = 54
+phi_nonzero_degrees = [0, 27, 54]
+kappa = 18
+n_f_declared = 1073741824
+n_f_mod_phi_degree = 46
+dimension_relation_satisfied = false
+b = 2
+k = 14
+B = 16384
+max_fresh_claims = 61
+expansion_T = 216
+challenge_alphabet = [-2, -1, 0, 1, 2]
+challenge_set_bits_approx = 125
+msis_bits_approx = 129
+msis_infinity_bound = 28311552
+

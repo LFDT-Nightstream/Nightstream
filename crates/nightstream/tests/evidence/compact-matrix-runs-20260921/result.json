@@ -1,0 +1,60 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "uncommitted compact formula and cache changes after compact norm and carried projection changes",
+  "scope": "first production PiCCS fold with zero carried witnesses; not full lifecycle",
+  "device": "Apple M1 Max, 64 GiB, macOS 26.6.2",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "rows": 6377559,
+    "logical_columns": 253011231,
+    "carrier_width": 253011276
+  },
+  "reference": "saved expanded-cache CPU proof and identical source files",
+  "engines": {
+    "cpu": {
+      "elapsed_seconds": 175.1230698750005,
+      "maximum_resident_bytes": 12426706944,
+      "outcome": "passed",
+      "preparation_seconds": 66.716788084,
+      "cache_seconds": 5.304200208,
+      "proving_seconds": 102.100793334,
+      "proof_bytes_match_reference": true
+    },
+    "metal": {
+      "elapsed_seconds": 89.57526704100019,
+      "maximum_resident_bytes": 14220787712,
+      "outcome": "passed",
+      "preparation_seconds": 66.71470725,
+      "cache_seconds": 5.306905875,
+      "proving_seconds": 17.087997791,
+      "proof_bytes_match_reference": true
+    }
+  },
+  "formula_tests_passed": 14,
+  "cache_tests_passed": 4,
+  "all_16_carried_sources_gpu_test_passed": true,
+  "lean_rerun": false,
+  "full_lifecycle_5x_and_general_16gb": "not established",
+  "memory_tradeoff": "Metal peak process RSS rose from 12.22 GB to 14.22 GB with run and opening metadata; later production folds remain unverified",
+  "clippy": "completed with --cap-lints warn; no warnings on changed lines; existing warnings remain",
+  "metal_activity": {
+    "command_buffers": 100,
+    "dispatches": 425,
+    "host_waits": 100,
+    "cumulative_allocated_bytes": 13640817875,
+    "uploaded_bytes": 4589176294,
+    "downloaded_bytes": 16576,
+    "retained_device_bytes_after_proof": 3316727808
+  },
+  "post_run_gpu": {
+    "in_use_system_memory_bytes": 21856256,
+    "driver_in_use_system_memory_bytes": 0,
+    "recovery_count": 0,
+    "test_processes_remaining": false
+  },
+  "default_release_check": "passed",
+  "metal_cuda_release_test_build": "passed",
+  "format_and_diff_check": "passed"
+}

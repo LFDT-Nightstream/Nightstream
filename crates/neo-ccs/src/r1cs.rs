@@ -65,3 +65,51 @@ where
 
     CcsStructure::new_sparse(vec![a, b, c], f_base)
 }
+
+/// Sparse native-selector R1CS embedding.
+///
+/// Given row-aligned sparse matrices `A`, `B`, `C`, and `S`, this constructs
+/// the four-matrix CCS relation
+///
+/// `S z * ((A z) * (B z) - C z) = 0`.
+///
+/// A selector value of one enforces the source R1CS row. A selector value of
+/// zero disables that row. The selector is a CCS matrix input. This
+/// construction allocates no residual witness and adds no second row.
+pub fn sparse_selected_r1cs_to_ccs<F>(
+    a: CcsMatrix<F>,
+    b: CcsMatrix<F>,
+    c: CcsMatrix<F>,
+    selector: CcsMatrix<F>,
+) -> Result<CcsStructure<F>, RelationError>
+where
+    F: Field,
+{
+    let rows = a.rows();
+    let columns = a.cols();
+    if b.rows() != rows
+        || c.rows() != rows
+        || selector.rows() != rows
+        || b.cols() != columns
+        || c.cols() != columns
+        || selector.cols() != columns
+    {
+        return Err(RelationError::InvalidStructure);
+    }
+
+    let polynomial = SparsePoly::new(
+        4,
+        vec![
+            Term {
+                coeff: F::ONE,
+                exps: vec![1, 1, 0, 1],
+            },
+            Term {
+                coeff: -F::ONE,
+                exps: vec![0, 0, 1, 1],
+            },
+        ],
+    );
+
+    CcsStructure::new_sparse(vec![a, b, c, selector], polynomial)
+}

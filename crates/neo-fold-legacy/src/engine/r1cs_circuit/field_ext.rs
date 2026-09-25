@@ -1,0 +1,414 @@
+//! Extension-field 𝕂 = 𝔽[X]/(X² − W) arithmetic as R1CS gadgets.
+//!
+//! For `neo-math`'s `K = BinomialExtensionField<Goldilocks, 2>`, `W = 7`
+//! (see `p3-goldilocks::extension`). One 𝕂-element is represented in the
+//! witness as two consecutive base-field columns `(c0, c1)`, where the
+//! algebraic value is `c0 + c1 · X` with `X² = W`.
+//!
+//! ## Operations
+//!
+//! - `KVar` — pair of `Var`s representing one 𝕂-element.
+//! - `KLc` — pair of linear combinations over 𝕂.
+//! - `klc_add`, `klc_add_scaled` — linear, emit no constraints.
+//! - `enforce_k_mul` — Karatsuba-form `out = a · b` in 𝕂, emitting
+//!   3 mult-constraints + 2 linear-equalities.
+//! - `enforce_k_dot_product` — the same K multiplications with one exact
+//!   product-sum trace, allowing direct CCS lowering of the linear sum.
+//!
+//! ## Soundness
+//!
+//! Mechanical. No paper claims. The W constant is read at runtime from
+//! [`<p3_goldilocks::Goldilocks as BinomiallyExtendable<2>>::W`] to keep this
+//! gadget byte-identical with native 𝕂 arithmetic.
+
+use neo_math::{Fq, F};
+use p3_field::extension::BinomiallyExtendable;
+use p3_field::PrimeCharacteristicRing;
+
+use crate::engine::r1cs_circuit::builder::{
+    Lc, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace, R1csBuilder, Var,
+};
+use crate::engine::r1cs_circuit::encoding_trace::KMulTraceEntry;
+
+/// `K = F[X]/(X² − W)`. For Goldilocks-quadratic, `W = 7`.
+pub(crate) fn w_constant() -> F {
+    <Fq as BinomiallyExtendable<2>>::W
+}
+
+/// One 𝕂-element: low limb (constant term) + high limb (coefficient of X).
+#[derive(Clone, Copy, Debug)]
+pub struct KVar {
+    pub c0: Var,
+    pub c1: Var,
+}
+
+impl KVar {
+    pub fn new(c0: Var, c1: Var) -> Self {
+        Self { c0, c1 }
+    }
+
+    pub fn alloc(builder: &mut R1csBuilder, value_c0: F, value_c1: F) -> Self {
+        Self {
+            c0: builder.alloc(value_c0),
+            c1: builder.alloc(value_c1),
+        }
+    }
+}
+
+/// Two linear combinations representing one 𝕂-element. No allocation.
+#[derive(Clone, Debug)]
+pub struct KLc {
+    pub c0: Lc,
+    pub c1: Lc,
+}
+
+impl KLc {
+    pub fn zero() -> Self {
+        Self {
+            c0: Lc::zero(),
+            c1: Lc::zero(),
+        }
+    }
+
+    pub fn from_var(v: KVar) -> Self {
+        Self {
+            c0: Lc::from_var(v.c0),
+            c1: Lc::from_var(v.c1),
+        }
+    }
+
+    pub fn from_base_const(c: F) -> Self {
+        Self {
+            c0: Lc::from_const(c),
+            c1: Lc::zero(),
+        }
+    }
+}
+
+/// `out = a + s · b`. Linear; no constraints emitted.
+pub fn klc_add_scaled(a: &KLc, b: &KLc, s: F) -> KLc {
+    KLc {
+        c0: a.c0.clone().add_scaled(&b.c0, s),
+        c1: a.c1.clone().add_scaled(&b.c1, s),
+    }
+}
+
+pub fn klc_add(a: &KLc, b: &KLc) -> KLc {
+    klc_add_scaled(a, b, F::ONE)
+}
+
+/// Allocate a fresh `KVar` constrained to equal `lc`. Linear; no K-mult.
+pub fn alloc_klc(builder: &mut R1csBuilder, lc: &KLc) -> KVar {
+    let c0 = builder.eval(&lc.c0);
+    let c1 = builder.eval(&lc.c1);
+    let v = KVar::alloc(builder, c0, c1);
+    builder.enforce_eq(&Lc::from_var(v.c0), &lc.c0);
+    builder.enforce_eq(&Lc::from_var(v.c1), &lc.c1);
+    v
+}
+
+/// The three Karatsuba intermediates `enforce_k_mul` allocates. Exposed
+/// so parity tests can compare a K-mul's internal wires against the
+/// `KMulView` slot the F' source image reserves. `enforce_k_mul`
+/// itself drops these and only returns the output `KVar`.
+#[derive(Clone, Copy, Debug)]
+pub struct KMulIntermediates {
+    /// `p = a.c0 · b.c0`.
+    pub p: Var,
+    /// `q = a.c1 · b.c1`.
+    pub q: Var,
+    /// `r = (a.c0 + a.c1) · (b.c0 + b.c1)`.
+    pub r: Var,
+}
+
+fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
+    let first_row = builder.rows();
+    let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
+    let sum_b = b.c0.clone().add_scaled(&b.c1, F::ONE);
+    let w = w_constant();
+    let p = builder.eval(&a.c0) * builder.eval(&b.c0);
+    let q = builder.eval(&a.c1) * builder.eval(&b.c1);
+    let r = builder.eval(&sum_a) * builder.eval(&sum_b);
+    let p_var = builder.alloc(p);
+    let q_var = builder.alloc(q);
+    let r_var = builder.alloc(r);
+    let out_c0 = builder.alloc(p + w * q);
+    let out_c1 = builder.alloc(r - p - q);
+    for (row_a, row_b, row_c) in k_mul_constraint_rows(a, b, p_var, q_var, r_var, KVar::new(out_c0, out_c1)) {
+        builder.enforce(&row_a, &row_b, &row_c);
+    }
+    builder.record_k_mul(p_var, q_var, r_var);
+    builder.record_k_mul_encoding(KMulTraceEntry {
+        a: [a.c0.clone(), a.c1.clone()],
+        b: [b.c0.clone(), b.c1.clone()],
+        intermediates: [p_var, q_var, r_var],
+        output: [out_c0, out_c1],
+        source_rows: first_row..builder.rows(),
+    });
+    (
+        KVar::new(out_c0, out_c1),
+        KMulIntermediates {
+            p: p_var,
+            q: q_var,
+            r: r_var,
+        },
+    )
+}
+
+pub(crate) fn k_mul_constraint_rows(
+    a: &KLc,
+    b: &KLc,
+    p: Var,
+    q: Var,
+    r: Var,
+    output: KVar,
+) -> [super::row_formula::ConstraintRow; 5] {
+    let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
+    let sum_b = b.c0.clone().add_scaled(&b.c1, F::ONE);
+    [
+        super::row_formula::multiplication_constraint_row(&a.c0, &b.c0, p),
+        super::row_formula::multiplication_constraint_row(&a.c1, &b.c1, q),
+        super::row_formula::multiplication_constraint_row(&sum_a, &sum_b, r),
+        super::row_formula::equality_constraint_row(
+            &Lc::from_var(output.c0),
+            &Lc::from_var(p).add_scaled(&Lc::from_var(q), w_constant()),
+        ),
+        super::row_formula::equality_constraint_row(
+            &Lc::from_var(output.c1),
+            &Lc::from_var(r)
+                .add_scaled(&Lc::from_var(p), -F::ONE)
+                .add_scaled(&Lc::from_var(q), -F::ONE),
+        ),
+    ]
+}
+
+/// Allocate `out = a · b` in 𝕂 and emit the constraints. Same shape as
+/// [`enforce_k_mul`] but returns the three Karatsuba intermediates as
+/// well, for tests and audit tooling that need to bind them to a
+/// bit-backed `KMulView` slot.
+pub fn enforce_k_mul_with_intermediates(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
+    let row_start = builder.rows();
+    let column_start = builder.cols();
+    let (out, intermediates) = alloc_k_mul(builder, a, b);
+    let w = w_constant();
+    builder.record_product_sum_batch(ProductSumBatchTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        retained_columns: vec![out.c0.col(), out.c1.col()],
+        identities: vec![
+            ProductSumIdentityTrace {
+                factors: vec![
+                    ProductFactorTrace {
+                        left: a.c0.clone(),
+                        right: b.c0.clone(),
+                        coefficient: F::ONE,
+                    },
+                    ProductFactorTrace {
+                        left: a.c1.clone(),
+                        right: b.c1.clone(),
+                        coefficient: w,
+                    },
+                ],
+                result: Lc::from_var(out.c0),
+            },
+            ProductSumIdentityTrace {
+                factors: vec![
+                    ProductFactorTrace {
+                        left: a.c0.clone(),
+                        right: b.c1.clone(),
+                        coefficient: F::ONE,
+                    },
+                    ProductFactorTrace {
+                        left: a.c1.clone(),
+                        right: b.c0.clone(),
+                        coefficient: F::ONE,
+                    },
+                ],
+                result: Lc::from_var(out.c1),
+            },
+        ],
+    });
+    (out, intermediates)
+}
+
+/// Allocate `out = a · b` in 𝕂 and emit the constraints.
+///
+/// `(a0 + a1·X) · (b0 + b1·X) = (a0·b0 + W·a1·b1) + (a0·b1 + a1·b0) · X`.
+///
+/// Uses the Karatsuba-like 3-multiplication trick:
+///
+/// ```text
+///     p = a0 · b0
+///     q = a1 · b1
+///     r = (a0 + a1) · (b0 + b1)
+///     out_c0 = p + W · q
+///     out_c1 = r - p - q
+/// ```
+///
+/// 3 multiplication constraints + 2 linear equalities. For audit/test
+/// access to the `p, q, r` intermediates, use
+/// [`enforce_k_mul_with_intermediates`].
+pub fn enforce_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> KVar {
+    let (out, _) = enforce_k_mul_with_intermediates(builder, a, b);
+    out
+}
+
+/// Allocate `sum_i lhs[i] * rhs[i]` in K.
+///
+/// The emitted R1CS is the ordinary sequence of Karatsuba multiplications
+/// plus linear sums. Its trace exposes the three exact aggregate sums `P`,
+/// `Q`, and `R`; retaining `Q` is enough to derive both output limbs without
+/// retaining every per-term K output.
+pub fn enforce_k_dot_product(builder: &mut R1csBuilder, lhs: &[KVar], rhs: &[KVar]) -> KVar {
+    assert_eq!(lhs.len(), rhs.len(), "K dot-product length mismatch");
+    assert!(!lhs.is_empty(), "K dot product must be nonempty");
+
+    let row_start = builder.rows();
+    let column_start = builder.cols();
+    let mut sum = KLc::zero();
+    let mut q_sum_lc = Lc::zero();
+    for (&left, &right) in lhs.iter().zip(rhs) {
+        let (term, intermediates) = alloc_k_mul(builder, &KLc::from_var(left), &KLc::from_var(right));
+        sum.c0.add_term(term.c0, F::ONE);
+        sum.c1.add_term(term.c1, F::ONE);
+        q_sum_lc.add_term(intermediates.q, F::ONE);
+    }
+    let q_sum = builder.alloc(builder.eval(&q_sum_lc));
+    builder.enforce_eq(&Lc::from_var(q_sum), &q_sum_lc);
+    let out = alloc_klc(builder, &sum);
+    let w = w_constant();
+    let q_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c1),
+            right: Lc::from_var(right.c1),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let p_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c0),
+            right: Lc::from_var(right.c0),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let r_factors = lhs
+        .iter()
+        .zip(rhs)
+        .map(|(&left, &right)| ProductFactorTrace {
+            left: Lc::from_var(left.c0).add_scaled(&Lc::from_var(left.c1), F::ONE),
+            right: Lc::from_var(right.c0).add_scaled(&Lc::from_var(right.c1), F::ONE),
+            coefficient: F::ONE,
+        })
+        .collect();
+    builder.record_product_sum_batch(ProductSumBatchTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        retained_columns: vec![q_sum.col(), out.c0.col(), out.c1.col()],
+        identities: vec![
+            ProductSumIdentityTrace {
+                factors: q_factors,
+                result: Lc::from_var(q_sum),
+            },
+            ProductSumIdentityTrace {
+                factors: p_factors,
+                result: Lc::from_var(out.c0).add_scaled(&Lc::from_var(q_sum), -w),
+            },
+            ProductSumIdentityTrace {
+                factors: r_factors,
+                result: Lc::from_var(out.c1)
+                    .add_scaled(&Lc::from_var(out.c0), F::ONE)
+                    .add_scaled(&Lc::from_var(q_sum), F::ONE - w),
+            },
+        ],
+    });
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neo_math::{KExtensions, K};
+
+    fn alloc_k(builder: &mut R1csBuilder, value: K) -> KVar {
+        let [c0, c1] = value.as_coeffs();
+        KVar::alloc(builder, c0, c1)
+    }
+
+    fn read_k(builder: &R1csBuilder, value: KVar) -> K {
+        K::from_coeffs([builder.witness()[value.c0.col()], builder.witness()[value.c1.col()]])
+    }
+
+    #[test]
+    fn k_mul_matches_native_extension_arithmetic() {
+        let cases = [
+            (K::ZERO, K::ONE),
+            (K::ONE, K::ONE),
+            (
+                K::from_coeffs([F::from_u64(3), F::from_u64(5)]),
+                K::from_coeffs([F::from_u64(7), F::from_u64(11)]),
+            ),
+            (
+                K::from_coeffs([-F::ONE, F::from_u64(2)]),
+                K::from_coeffs([F::from_u64(4), -F::ONE]),
+            ),
+        ];
+
+        for (a, b) in cases {
+            let mut builder = R1csBuilder::new();
+            let a_var = alloc_k(&mut builder, a);
+            let b_var = alloc_k(&mut builder, b);
+            let out = enforce_k_mul(&mut builder, &KLc::from_var(a_var), &KLc::from_var(b_var));
+
+            assert_eq!(read_k(&builder, out), a * b, "native K multiplication mismatch");
+            assert!(
+                builder.is_satisfied(),
+                "K multiplication gadget unsatisfied (first bad row: {:?})",
+                builder.first_unsatisfied_row()
+            );
+        }
+    }
+
+    #[test]
+    fn k_mul_rejects_tampered_output_limb() {
+        let mut builder = R1csBuilder::new();
+        let a = alloc_k(&mut builder, K::from_coeffs([F::from_u64(7), F::from_u64(11)]));
+        let b = alloc_k(&mut builder, K::from_coeffs([F::from_u64(13), F::from_u64(17)]));
+        let out = enforce_k_mul(&mut builder, &KLc::from_var(a), &KLc::from_var(b));
+        assert!(builder.is_satisfied(), "baseline should satisfy");
+
+        let target = out.c0.col();
+        builder.tamper_witness(target, builder.witness()[target] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "tampered K multiplication output must violate constraints"
+        );
+    }
+
+    #[test]
+    fn alloc_klc_binds_linear_combinations_to_witness_values() {
+        let mut builder = R1csBuilder::new();
+        let x = builder.alloc(F::from_u64(10));
+        let y = builder.alloc(F::from_u64(3));
+        let lc = KLc {
+            c0: Lc::from_var(x).add_scaled(&Lc::from_var(y), F::from_u64(2)),
+            c1: Lc::from_var(x).add_scaled(&Lc::from_var(y), -F::ONE),
+        };
+
+        let out = alloc_klc(&mut builder, &lc);
+        assert_eq!(builder.witness()[out.c0.col()], F::from_u64(16));
+        assert_eq!(builder.witness()[out.c1.col()], F::from_u64(7));
+        assert!(builder.is_satisfied(), "linear K allocation should satisfy");
+
+        builder.tamper_witness(out.c1.col(), F::from_u64(8));
+        assert!(
+            !builder.is_satisfied(),
+            "tampered allocated linear-combination output must fail"
+        );
+    }
+}

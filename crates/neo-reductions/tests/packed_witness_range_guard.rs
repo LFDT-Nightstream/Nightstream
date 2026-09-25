@@ -44,7 +44,12 @@ fn prove_rejects_out_of_range_packed_witness_early() {
     let w: Vec<F> = (0..ccs.m).map(|c| Z[(c % D, c / D)]).collect();
 
     let c = l.commit(&Z);
-    let mcs_list = vec![CcsClaim { c, x: vec![], m_in: 0 }];
+    let mcs_list = vec![CcsClaim {
+        adv: None,
+        c,
+        x: vec![],
+        m_in: 0,
+    }];
     let mcs_witnesses = vec![CcsWitness { w, Z }];
 
     let mut tr = Poseidon2Transcript::new(b"neo.reductions/packed_range_guard");
@@ -86,7 +91,12 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     let w: Vec<F> = (0..ccs.m).map(|c| Z[(c % D, c / D)]).collect();
 
     let c = l.commit(&Z);
-    let mcs_list = vec![CcsClaim { c, x: vec![], m_in: 0 }];
+    let mcs_list = vec![CcsClaim {
+        adv: None,
+        c,
+        x: vec![],
+        m_in: 0,
+    }];
     let mcs_witnesses = vec![CcsWitness { w, Z }];
 
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/packed_range_accept");

@@ -9,6 +9,7 @@ struct ContentView: View {
     private enum DetailSection: String, CaseIterable, Identifiable {
         case circuit
         case output
+        case metal
 
         var id: String { rawValue }
 
@@ -18,11 +19,14 @@ struct ContentView: View {
                 return "Circuit"
             case .output:
                 return "Output"
+            case .metal:
+                return "Metal"
             }
         }
     }
 
     @StateObject private var vm = WasmViewModel()
+    @StateObject private var metalBenchmark = MetalBenchmarkService()
     @State private var isFileImporterPresented = false
     @State private var isJsonEditorPresented = false
     @State private var selectedSection: DetailSection = .circuit
@@ -107,6 +111,9 @@ struct ContentView: View {
             if vm.isRunning {
                 Badge(text: "Run: in progress", kind: .warning)
             }
+            if metalBenchmark.isRunning {
+                Badge(text: "Metal: profiling", kind: .warning)
+            }
         }
     }
 
@@ -140,7 +147,7 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
 
                     if !NeoFoldNativeService.isAvailable {
-                        Text("Native backend unavailable. Build `NeoFoldFFI.xcframework` with `./scripts/build_native.sh` to enable it.")
+                        Text("Native prover backend is not linked in the Metal benchmark target.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -202,7 +209,153 @@ struct ContentView: View {
             circuitPanel
         case .output:
             outputPanel
+        case .metal:
+            metalBenchmarkPanel
         }
+    }
+
+    private var metalBenchmarkPanel: some View {
+        Panel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Button {
+                        metalBenchmark.run(.quick)
+                    } label: {
+                        Label("Quick profile", systemImage: "bolt")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!MetalBenchmarkService.isAvailable || metalBenchmark.isRunning)
+
+                    Button {
+                        metalBenchmark.run(.full)
+                    } label: {
+                        Label("M0 - M5", systemImage: "gauge.with.dots.needle.67percent")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!MetalBenchmarkService.isAvailable || metalBenchmark.isRunning)
+
+                    Button {
+                        metalBenchmark.run(.m6)
+                    } label: {
+                        Label("M6 soak", systemImage: "timer")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!MetalBenchmarkService.isAvailable || metalBenchmark.isRunning)
+
+                    if metalBenchmark.isRunning {
+                        ProgressView()
+                    }
+                }
+
+                if !MetalBenchmarkService.isAvailable {
+                    Text("NeoMetalBench.xcframework unavailable")
+                        .foregroundStyle(.secondary)
+                } else if let error = metalBenchmark.errorMessage {
+                    Text(error)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                } else if let report = metalBenchmark.report {
+                    metalReport(report)
+                } else {
+                    Text("No Metal profile")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func metalReport(_ report: MetalBenchmarkReport) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(report.device.gpuName)
+                    .font(.headline)
+                Spacer()
+                Badge(text: report.m1ParityPassed ? "Parity: pass" : "Parity: fail", kind: report.m1ParityPassed ? .normal : .error)
+                Badge(text: report.m2LifecyclePassed ? "Proof: pass" : "Proof: fail", kind: report.m2LifecyclePassed ? .normal : .error)
+                Badge(text: report.m3ResidencyPassed ? "Resident: pass" : "Resident: fail", kind: report.m3ResidencyPassed ? .normal : .error)
+                Badge(text: report.m4ProjectionPassed ? "DEC: Metal" : "DEC: open", kind: report.m4ProjectionPassed ? .normal : .warning)
+                Badge(text: report.m5AdapterPassed ? "Adapter: pass" : "Adapter: open", kind: report.m5AdapterPassed ? .normal : .warning)
+                Badge(text: report.m6Passed ? "M6: pass" : "M6: open", kind: report.m6Passed ? .normal : .warning)
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 7) {
+                GridRow {
+                    Text("Primitive")
+                    Text("CPU")
+                    Text("Metal")
+                    Text("Speedup")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                ForEach(report.primitives) { primitive in
+                    let selected = primitive.candidates.first { $0.name == primitive.selectedCandidate }
+                    GridRow {
+                        Text(primitive.name)
+                        Text(metalMs(primitive.cpu.medianMs))
+                        Text(metalMs(selected?.timing.medianMs))
+                        Text(String(format: "%.2fx", primitive.selectedSpeedupOverCpu))
+                    }
+                }
+            }
+            .font(.system(.caption, design: .monospaced))
+
+            if !report.lifecycle.isEmpty {
+                Divider()
+                ForEach(report.lifecycle) { lifecycle in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("\(lifecycle.name) [\(lifecycle.backend)]")
+                            Spacer()
+                            Text("prove \(metalMs(lifecycle.online.medianMs))")
+                            Text("verify \(metalMs(lifecycle.verifyMs.medianMs))")
+                        }
+                        if let pipeline = lifecycle.pipeline {
+                            Text("synthesis \(metalMs(pipeline.synthesisWork.medianMs))  fold \(metalMs(pipeline.foldWork.medianMs))  final \(metalMs(pipeline.finalMaterialization.medianMs))  overlap \(metalMs(pipeline.overlapSaved.medianMs))")
+                        }
+                        if let profile = lifecycle.nifsProfile {
+                            Text("NIFS \(metalMs(profile.total.medianMs))  CCS \(metalMs(profile.piCcs.medianMs))  Y-eval \(metalMs(profile.ajtaiYEval.medianMs))  RLC \(metalMs(profile.piRlc.medianMs))  DEC \(metalMs(profile.piDec.medianMs))")
+                            Text("DEC forms \(metalMs(profile.decFormBuild.medianMs))  projection \(metalMs(profile.decProjection.medianMs))  host \(metalMs(profile.decHostMaterialization.medianMs))")
+                            Text("route FE:\(route(profile.feOnMetal)) Y-eval:\(route(profile.ajtaiYEvalOnMetal)) NC:\(route(profile.ncOnMetal)) mask-native:\(route(profile.ncMaskNativeOnMetal)) RLC:\(route(profile.rlcWitnessOnMetal)) rho-i8:\(route(profile.rlcRhoSmallCoefficients)) resident-only:\(route(profile.rlcWitnessResidentOnly)) split:\(route(profile.decSplitOnMetal)) recompose:\(route(profile.decRecompositionOnMetal)) forms:\(route(profile.decFormsOnMetal)) y:\(route(profile.decYOnMetal)) commit:\(route(profile.decCommitOnMetal))")
+                            Text("resident \(profile.residentInputFolds)/\(profile.residentOutputFolds)  deferred \(profile.deferredProofFolds)/\(profile.deferredRunningFolds)  replay:\(profile.recursiveCompileReverifyRequired ? "required" : "skipped")")
+                            Text("commands \(profile.activityPerSample.commandBuffers)  dispatches \(profile.activityPerSample.dispatches)  waits \(profile.activityPerSample.hostWaits)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.system(.caption, design: .monospaced))
+                }
+            }
+
+            ForEach(report.lifecycleCrossover) { crossover in
+                Text("\(crossover.name) crossover median \(String(format: "%.2fx", crossover.medianSpeedupOverCpu))  p95 \(String(format: "%.2fx", crossover.p95SpeedupOverCpu))  parity:\(crossover.proofParityOk ? "pass" : "fail")")
+                    .font(.system(.caption, design: .monospaced))
+            }
+
+            if let sustained = report.sustained {
+                Text("sustained \(sustained.secondsPerBackend)s/backend  CPU \(String(format: "%.3f", sustained.cpuProofsPerSecond)) proof/s  Metal \(String(format: "%.3f", sustained.metalProofsPerSecond)) proof/s  \(String(format: "%.2fx", sustained.speedupOverCpu))")
+                    .font(.system(.caption, design: .monospaced))
+            }
+
+            DisclosureGroup("Raw report") {
+                ScrollView {
+                    Text(metalBenchmark.rawJSON)
+                        .font(.system(.caption2, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .frame(minHeight: 180)
+            }
+        }
+    }
+
+    private func metalMs(_ value: Double?) -> String {
+        guard let value else { return "-" }
+        return String(format: "%.3f ms", value)
+    }
+
+    private func route(_ onMetal: Bool) -> String {
+        onMetal ? "GPU" : "CPU"
     }
 
     private var circuitPanel: some View {

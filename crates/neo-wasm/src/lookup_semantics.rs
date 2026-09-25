@@ -94,7 +94,7 @@ pub fn append_lookup_semantics_digest(tr: &mut Poseidon2Transcript, semantics: &
 }
 
 pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]) -> Result<(), String> {
-    let expected = crate::range_check::range_checked_witness_width();
+    let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
     if witness.len() != expected {
         return Err(format!(
             "lookup sanity check expected witness width {}, got {}",

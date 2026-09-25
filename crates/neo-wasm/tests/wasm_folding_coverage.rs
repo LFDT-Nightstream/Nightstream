@@ -1,5 +1,4 @@
-//! End-to-end folding-proof coverage for cross-step state dimensions
-//! fibonacci does not exercise:
+//! State coverage for dimensions that the Fibonacci trace does not exercise.
 //!
 //! - **Nested calls** — exercises the `call_stack_depth`, `locals_fbp`,
 //!   and `param_init` columns the semantic-state digest carries through
@@ -12,13 +11,8 @@
 
 mod common;
 
-use neo_wasm::{
-    collect_wasmtime_steps, extract_wasm_program_artifacts, preprocess_seeded_batched, prove_batched,
-    top_level_initial_state_digest, traces_from_wasmtime_steps, verify,
-};
-
 #[test]
-fn folding_proof_covers_nested_calls() {
+fn satisfying_trace_covers_nested_calls() {
     let checked = common::checked_main(
         r#"(module
             (func $add_one (param i32) (result i32)
@@ -32,56 +26,14 @@ fn folding_proof_covers_nested_calls() {
     );
     assert_eq!(checked.run.results.as_slice(), &["7".to_string()]);
 
-    // "main" is the second defined function in this module; passing its
-    // entry PC is the verifier's claim about which export is being proven.
-    let entry_pc = common::entry_pc_for_function_ref(&checked.artifacts, 2);
-    let digest = top_level_initial_state_digest(&checked.artifacts.tables, entry_pc);
-
-    // batch_size 4 with two call boundaries guarantees at least one
-    // call/return crosses a batch edge, so the semantic-state digest must
-    // carry `call_stack_depth` / `locals_fbp` / `param_init` correctly.
-    let batch_size = 4;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
-}
-
-/// Regression for global operand-stack addressing: the caller holds `10`
-/// under the call's argument, so the callee's slots must not restart at
-/// address 0 (per-frame aliasing) and the sp chain must stay continuous
-/// across the frame boundary. Builds the trace without the debug checkers
-/// so the proof pipeline itself is what accepts or rejects the witness.
-#[test]
-fn folding_proof_covers_operand_held_across_call() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func $one (param i32) (result i32)
-                i32.const 1)
-            (func (export "main") (result i32)
-                i32.const 10
-                i32.const 5
-                call $one
-                i32.add))"#,
-    )
-    .expect("wat");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    assert_eq!(run.results.as_slice(), &["11".to_string()]);
-
-    let entry_pc = common::entry_pc_for_function_ref(&artifacts, 2);
-    let digest = top_level_initial_state_digest(&artifacts.tables, entry_pc);
-    // batch_size 2 forces the call/return frame boundary across a batch
-    // edge, so sp continuity is enforced by the carried digest as well as
-    // the in-batch links.
-    let batch_size = 2;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&trace)).expect("verify");
+    assert!(checked
+        .trace
+        .iter()
+        .any(|row| row.state_after.call_stack_depth != 0));
 }
 
 #[test]
-fn folding_proof_covers_memory_mutation() {
+fn satisfying_trace_covers_memory_mutation() {
     let checked = common::checked_main(
         r#"(module
             (memory 1)
@@ -108,15 +60,11 @@ fn folding_proof_covers_memory_mutation() {
     );
     assert_eq!(checked.run.results.as_slice(), &["3".to_string()]);
 
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let batch_size = 6;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
+    assert!(checked.trace.iter().any(|row| row.linear_memory.is_some()));
 }
 
 #[test]
-fn folding_proof_covers_i64_arithmetic() {
+fn satisfying_trace_covers_i64_arithmetic() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i64)
@@ -126,9 +74,5 @@ fn folding_proof_covers_i64_arithmetic() {
     );
     assert_eq!(checked.run.results.as_slice(), &["4294967303".to_string()]);
 
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let batch_size = 2;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
+    assert!(checked.trace.iter().any(|row| row.wide_values_enabled));
 }

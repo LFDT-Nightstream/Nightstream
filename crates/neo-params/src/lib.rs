@@ -2,10 +2,10 @@
 //!
 //! Exposes field/cyclotomic/commitment/folding parameters and enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
-//!  2) Extension policy v1 for soundness-factor feasibility:
-//!     - s_min = ceil((λ + log2(soundness_factor)) / log2(q))
-//!     - support only s=2; if s_min>2, return a configuration error
-//!     - and record slack_bits when s_min ≤ 2.
+//!  2) extension policy v1 for field-space soundness factors; and
+//!  3) the production padded-row Π_CCS statistical census, which combines
+//!     the joint SumCheck, the paper mixing polynomial, and the corrected
+//!     coordinate-fork loss.
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
@@ -20,6 +20,7 @@
 //! All hash operations (transcripts, digests) MUST use this single source of truth.
 
 use core::fmt;
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -37,7 +38,8 @@ pub struct NeoParams {
     pub d: u32,
     /// MSIS module rank κ used in Ajtai Setup(M ∈ R_q^{κ×m}).
     pub kappa: u32,
-    /// Number of columns (message length) m committed with Ajtai.
+    /// Maximum padded row-domain length `m` from the paper profile.
+    /// The corresponding Ajtai ring-message length is `floor(m / d)`.
     pub m: u64,
     /// Decomposition base b (usually 2).
     pub b: u32,
@@ -50,7 +52,11 @@ pub struct NeoParams {
     pub T: u32,
     /// Extension degree s used by sum-check over K=F_{q^s} (v1 supports s=2 only).
     pub s: u32,
-    /// Target soundness λ in bits for the sum-check (e.g., 128).
+    /// Statistical target λ bound into the protocol header.
+    ///
+    /// The Appendix B.2 reference value is not, by itself, an end-to-end
+    /// security claim. Executable padded-row profiles select this value from
+    /// the combined field and coordinate-fork census for their concrete shape.
     pub lambda: u32,
 }
 
@@ -70,6 +76,12 @@ pub mod goldilocks_paper_b2 {
     pub const LAMBDA: u32 = 125;
     pub const MAX_FRESH_K: u32 = 61;
     pub const B_INV_FLOOR: u64 = 2_500_000_000;
+    pub const CHALLENGE_SET_CARDINALITY: u128 = 55_511_151_231_257_827_021_181_583_404_541_015_625;
+    /// Minimum whole-digest schedule whose exact sampler shortfall is below
+    /// `2^-LAMBDA`. See [`crate::pi_rlc_sampler_completeness_summary`].
+    pub const PI_RLC_SAMPLER_DIGEST_ROUNDS: usize = 8;
+    pub const PI_RLC_SAMPLER_LANES_PER_DIGEST: usize = 4;
+    pub const PI_RLC_SAMPLER_CANDIDATES_PER_LANE: usize = 2;
 
     pub static PHI_COEFFS: [i32; D] = {
         let mut coeffs = [0i32; D];
@@ -81,6 +93,25 @@ pub mod goldilocks_paper_b2 {
     pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 }
 
+/// Nightstream Goldilocks production parameters with binary decomposition.
+///
+/// This profile keeps the field, ring, sampler, and extension parameters from
+/// the SuperNeo Goldilocks reference, but selects the Nightstream production
+/// module rank `κ = 22`, exponent `k_rho = 16`, and `B = 2^16`.
+pub mod nightstream_goldilocks_k16 {
+    pub const Q: u64 = super::goldilocks_paper_b2::Q;
+    pub const ETA: usize = super::goldilocks_paper_b2::ETA;
+    pub const D: usize = super::goldilocks_paper_b2::D;
+    pub const KAPPA: u32 = 22;
+    pub const M: u64 = super::goldilocks_paper_b2::M;
+    pub const B_BASE: u32 = 2;
+    pub const K_RHO: u32 = 16;
+    pub const B: u64 = 1u64 << K_RHO;
+    pub const T: u32 = super::goldilocks_paper_b2::T;
+    pub const EXTENSION_DEGREE: u32 = super::goldilocks_paper_b2::EXTENSION_DEGREE;
+    pub const LAMBDA: u32 = super::goldilocks_paper_b2::LAMBDA;
+}
+
 /// Summary returned by the extension policy check for a concrete soundness factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExtensionSummary {
@@ -88,6 +119,91 @@ pub struct ExtensionSummary {
     pub s_supported: u32,
     /// slack_bits = s_supported·log2(q) − (λ + log2(soundness_factor))
     pub slack_bits: i32,
+}
+
+/// Exact statistical census for the one-joint padded-row protocol.
+///
+/// The field and coordinate-fork terms have different denominators. The
+/// `security_bits` value is therefore computed from their exact sum, not from
+/// the minimum of two separately rounded bit estimates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PaddedRowSecuritySummary {
+    pub s_supported: u32,
+    pub cube_variables: u32,
+    pub verifier_degree: u32,
+    pub sumcheck_factor: u128,
+    pub mixing_factor: u128,
+    pub field_factor: u128,
+    pub fork_factor: u128,
+    pub challenge_set_cardinality: u128,
+    /// Floor of `-log2(field_factor / q^s + fork_factor / |C|)`.
+    pub security_bits: u32,
+    /// `security_bits - lambda` for the selected parameter set.
+    pub slack_bits: i32,
+}
+
+/// Exact completeness census for the fixed Π_RLC alphabet sampler.
+///
+/// This is an abort bound, not a soundness term. Conditional on no abort, the
+/// sampler output is exactly uniform over the selected strong set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PiRlcSamplerCompletenessSummary {
+    pub digest_rounds: usize,
+    pub field_lanes: usize,
+    pub candidates: usize,
+    pub required: usize,
+    /// Floor of `-log2(Pr[fewer than required candidates accept])`.
+    pub completeness_bits: u32,
+    pub slack_bits: i32,
+}
+
+/// Return the fixed sampler's exact shortfall census under uniform Poseidon2
+/// field lanes.
+///
+/// One lane has two candidate words. For `B=2^16` and
+/// `q=B^2(B^2-1)+1`, the counts for zero, one, or two rejected raw-zero words
+/// are `(B-1)^2(B^2-1)`, `2(B-1)(B^2-1)`, and `B^2`. Convolution across all
+/// lanes gives the exact shortfall numerator.
+pub fn pi_rlc_sampler_completeness_summary() -> PiRlcSamplerCompletenessSummary {
+    use goldilocks_paper_b2::{
+        D, LAMBDA, PI_RLC_SAMPLER_CANDIDATES_PER_LANE, PI_RLC_SAMPLER_DIGEST_ROUNDS, PI_RLC_SAMPLER_LANES_PER_DIGEST, Q,
+    };
+
+    let radix = 1u128 << 16;
+    let regular_preimages = radix * radix - 1;
+    let rejection_counts = [
+        (radix - 1) * (radix - 1) * regular_preimages,
+        2 * (radix - 1) * regular_preimages,
+        regular_preimages + 1,
+    ];
+    let field_lanes = PI_RLC_SAMPLER_DIGEST_ROUNDS * PI_RLC_SAMPLER_LANES_PER_DIGEST;
+    let candidates = field_lanes * PI_RLC_SAMPLER_CANDIDATES_PER_LANE;
+    let first_failure = candidates - D + 1;
+
+    let mut counts = vec![BigUint::from(1u8)];
+    for _ in 0..field_lanes {
+        let mut next = vec![BigUint::from(0u8); counts.len() + 2];
+        for (seen, count) in counts.iter().enumerate() {
+            for (added, ways) in rejection_counts.iter().enumerate() {
+                next[seen + added] += count * BigUint::from(*ways);
+            }
+        }
+        counts = next;
+    }
+
+    let failure_numerator = counts[first_failure..]
+        .iter()
+        .fold(BigUint::from(0u8), |sum, count| sum + count);
+    let total = BigUint::from(Q).pow(field_lanes as u32);
+    let completeness_bits = floor_log2_ratio(&total, &failure_numerator);
+    PiRlcSamplerCompletenessSummary {
+        digest_rounds: PI_RLC_SAMPLER_DIGEST_ROUNDS,
+        field_lanes,
+        candidates,
+        required: D,
+        completeness_bits,
+        slack_bits: signed_difference(completeness_bits, LAMBDA),
+    }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -99,6 +215,12 @@ pub enum ParamsError {
     #[error("unsupported extension degree; required s={required}, supported s=2")]
     /// This includes cases where 2^λ * (ℓ·d_sc) overflows u128, implying s_min ≥ 3.
     UnsupportedExtension { required: u32 },
+    #[error("arithmetic overflow while computing {0}")]
+    ArithmeticOverflow(&'static str),
+    #[error(
+        "padded-row statistical security target is {required} bits, but the combined field and coordinate-fork census provides only {available} bits"
+    )]
+    InsufficientStatisticalSecurity { required: u32, available: u32 },
 }
 
 impl NeoParams {
@@ -149,6 +271,9 @@ impl NeoParams {
         }
 
         let B = pow_u64_checked(b as u64, k_rho)?;
+        if (B as u128) * 2 >= q as u128 {
+            return Err(ParamsError::Invalid("2*B must be strictly smaller than q"));
+        }
         // Enforce (k_rho+1)·T·(b-1) < B   [Π_RLC bound]
         let lhs = (k_rho as u128 + 1) * (T as u128) * ((b as u128).saturating_sub(1));
         if lhs >= (B as u128) {
@@ -192,6 +317,42 @@ impl NeoParams {
         .unwrap()
     }
 
+    /// Nightstream Goldilocks production profile: `b = 2`, `k_rho = 16`,
+    /// `B = 2^16`.
+    #[allow(non_snake_case)]
+    pub fn nightstream_goldilocks_k16() -> Self {
+        Self::new(
+            nightstream_goldilocks_k16::Q,
+            nightstream_goldilocks_k16::ETA as u32,
+            nightstream_goldilocks_k16::D as u32,
+            nightstream_goldilocks_k16::KAPPA,
+            nightstream_goldilocks_k16::M,
+            nightstream_goldilocks_k16::B_BASE,
+            nightstream_goldilocks_k16::K_RHO,
+            nightstream_goldilocks_k16::T,
+            nightstream_goldilocks_k16::EXTENSION_DEGREE,
+            nightstream_goldilocks_k16::LAMBDA,
+        )
+        .expect("Nightstream Goldilocks k_rho=16 parameters")
+    }
+
+    pub fn is_nightstream_goldilocks_k16(&self) -> bool {
+        self.has_nightstream_goldilocks_k16_core() && self.lambda == nightstream_goldilocks_k16::LAMBDA
+    }
+
+    pub fn has_nightstream_goldilocks_k16_core(&self) -> bool {
+        self.q == nightstream_goldilocks_k16::Q
+            && self.eta == nightstream_goldilocks_k16::ETA as u32
+            && self.d == nightstream_goldilocks_k16::D as u32
+            && self.kappa == nightstream_goldilocks_k16::KAPPA
+            && self.m == nightstream_goldilocks_k16::M
+            && self.b == nightstream_goldilocks_k16::B_BASE
+            && self.k_rho == nightstream_goldilocks_k16::K_RHO
+            && self.B == nightstream_goldilocks_k16::B
+            && self.T == nightstream_goldilocks_k16::T
+            && self.s == nightstream_goldilocks_k16::EXTENSION_DEGREE
+    }
+
     pub fn is_goldilocks_paper_b2(&self) -> bool {
         self.has_goldilocks_paper_b2_core() && self.lambda == goldilocks_paper_b2::LAMBDA
     }
@@ -209,44 +370,98 @@ impl NeoParams {
             && self.s == goldilocks_paper_b2::EXTENSION_DEGREE
     }
 
-    /// Auto-pick params for an R1CS instance reduced to CCS.
+    /// Select the strongest Appendix B.2 lambda supported by a square
+    /// R1CS-derived CCS shape.
     ///
-    /// Starts from the Appendix B.2 Goldilocks profile and only lowers `lambda`
-    /// when the concrete CCS shape needs extra `F_{q^2}` slack under the full
-    /// SuperNeo D.4 Π_CCS soundness budget.
-    ///
-    /// Callers pass the effective R1CS/CCS shape size.
-    /// We:
-    ///   - pad `n_rows` to next power of two,
-    ///   - set ℓ = ceil(log2(d * padded_rows))   // d = φ(η) from the preset
-    ///   - use SuperNeo D.4's
-    ///     ε_SC + ε_SZ numerator:
-    ///     max(u, 2b + 1, 2)·ℓ + (2K + k)·max(ℓ, ktd)
-    ///     with u=2, t=3, and conservative K=max fresh count allowed by the
-    ///     Appendix B.2 RLC guard,
-    ///   - keep s=2 (policy v1), and search the largest λ ≤ preset λ with ≥ `safety_margin` slack.
-    ///
-    /// Defaults: min_lambda=100, safety_margin=2 bits. Returns UnsupportedExtension{required:3}
-    /// if even λ=min_lambda would force s≥3.
+    /// Production callers that know distinct row and column counts must use
+    /// [`Self::goldilocks_auto_rectangular_r1cs_ccs_with`]. This convenience
+    /// method treats `shape_size` as both dimensions.
     pub fn goldilocks_auto_r1cs_ccs(n_rows: usize) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_r1cs_ccs_with(n_rows, 100, 2)
+        Self::goldilocks_auto_rectangular_r1cs_ccs(n_rows, n_rows)
     }
 
-    /// Same as above, but with explicit knobs for `min_lambda` and `safety_margin`.
+    /// Select the strongest Appendix B.2 lambda supported by a rectangular
+    /// R1CS-derived CCS shape.
+    pub fn goldilocks_auto_rectangular_r1cs_ccs(row_count: usize, column_count: usize) -> Result<Self, ParamsError> {
+        Self::goldilocks_auto_rectangular_ccs(row_count, column_count, 3, 2)
+    }
+
+    /// Select the strongest Appendix B.2 lambda supported by a concrete CCS
+    /// shape. The exact census is evidence, not a caller-independent policy
+    /// floor.
+    pub fn goldilocks_auto_rectangular_ccs(
+        row_count: usize,
+        column_count: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<Self, ParamsError> {
+        let mut params = Self::goldilocks_paper_b2();
+        let summary = params.padded_row_security_summary_for_shape(
+            row_count,
+            column_count,
+            matrix_count,
+            poly_degree,
+            goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )?;
+        params.lambda = params.lambda.min(summary.security_bits);
+        if params.lambda == 0 {
+            return Err(ParamsError::InsufficientStatisticalSecurity {
+                required: 1,
+                available: 0,
+            });
+        }
+        Ok(params)
+    }
+
+    /// Square-shape convenience with explicit security policy values.
     pub fn goldilocks_auto_r1cs_ccs_with(
-        n_rows: usize,
+        shape_size: usize,
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_ccs_with(n_rows, 3, 2, min_lambda, safety_margin)
+        Self::goldilocks_auto_rectangular_r1cs_ccs_with(shape_size, shape_size, min_lambda, safety_margin)
     }
 
-    /// Auto-pick Appendix B.2 core params for a concrete CCS shape.
-    ///
-    /// This is the generic version of [`Self::goldilocks_auto_r1cs_ccs_with`].
-    /// `matrix_count` is SuperNeo's `t`; `poly_degree` is SuperNeo's `u`.
+    /// Square-shape convenience for a general CCS relation.
     pub fn goldilocks_auto_ccs_with(
-        n_rows: usize,
+        shape_size: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+        min_lambda: u32,
+        safety_margin: u32,
+    ) -> Result<Self, ParamsError> {
+        Self::goldilocks_auto_rectangular_ccs_with(
+            shape_size,
+            shape_size,
+            matrix_count,
+            poly_degree,
+            min_lambda,
+            safety_margin,
+        )
+    }
+
+    /// Auto-pick Appendix B.2 parameters for the implemented rectangular
+    /// R1CS specialization (`t = 3`, `u = 2`).
+    pub fn goldilocks_auto_rectangular_r1cs_ccs_with(
+        row_count: usize,
+        column_count: usize,
+        min_lambda: u32,
+        safety_margin: u32,
+    ) -> Result<Self, ParamsError> {
+        Self::goldilocks_auto_rectangular_ccs_with(row_count, column_count, 3, 2, min_lambda, safety_margin)
+    }
+
+    /// Auto-pick Appendix B.2 core parameters for the one-joint padded-row
+    /// protocol on a rectangular CCS shape.
+    ///
+    /// The selected `lambda` charges the exact sum of:
+    ///
+    /// - the one joint SumCheck degree budget;
+    /// - the paper alpha/gamma mixing degree; and
+    /// - Appendix D.5's conservative coordinate-fork loss over `5^54`.
+    pub fn goldilocks_auto_rectangular_ccs_with(
+        row_count: usize,
+        column_count: usize,
         matrix_count: usize,
         poly_degree: u32,
         min_lambda: u32,
@@ -255,36 +470,43 @@ impl NeoParams {
         if matrix_count == 0 {
             return Err(ParamsError::Invalid("matrix_count must be > 0"));
         }
+        if min_lambda == 0 {
+            return Err(ParamsError::Invalid("min_lambda must be > 0"));
+        }
 
         let mut p = Self::goldilocks_paper_b2();
 
-        // Compute SuperNeo D.4's Π_CCS soundness factor for this CCS shape.
-        // pad rows to power of two (min 2)
-        let padded_rows = if n_rows == 0 {
-            2
-        } else {
-            n_rows.next_power_of_two().max(2)
-        };
-        // ℓ = ceil(log2(d * padded_rows))
-        let prod: u128 = (p.d as u128) * (padded_rows as u128);
-        let ell: u32 = ceil_log2_u128(prod);
-
-        let fresh_count = p.max_fresh_count_from_rlc_guard()?;
-        let soundness_factor = p.pi_ccs_soundness_factor(ell, fresh_count, matrix_count, poly_degree)?;
-
-        // Search λ downward (keep s=2) until extension_check passes with slack
+        // Search λ downward while the implemented extension remains s=2.
         let mut lam = p.lambda.max(min_lambda);
         while lam >= min_lambda {
             p.lambda = lam;
-            match p.extension_check_factor(soundness_factor) {
-                Ok(sum) if sum.slack_bits >= safety_margin as i32 => return Ok(p),
-                Ok(_) | Err(ParamsError::UnsupportedExtension { .. }) => {
-                    lam = lam.saturating_sub(1);
-                }
-                Err(e) => return Err(e),
+            let summary = p.padded_row_security_summary_for_shape(
+                row_count,
+                column_count,
+                matrix_count,
+                poly_degree,
+                goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            )?;
+            if summary.slack_bits >= 0 && summary.slack_bits as u32 >= safety_margin {
+                return Ok(p);
             }
+            lam = lam.saturating_sub(1);
         }
-        Err(ParamsError::UnsupportedExtension { required: 3 })
+
+        let required = min_lambda.saturating_add(safety_margin);
+        let mut probe = p;
+        probe.lambda = min_lambda;
+        let summary = probe.padded_row_security_summary_for_shape(
+            row_count,
+            column_count,
+            matrix_count,
+            poly_degree,
+            goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )?;
+        Err(ParamsError::InsufficientStatisticalSecurity {
+            required,
+            available: summary.security_bits,
+        })
     }
 
     #[inline]
@@ -379,9 +601,93 @@ impl NeoParams {
         })
     }
 
+    /// Validate the combined statistical error of the one-joint padded-row
+    /// protocol for the maximum source counts allowed by this profile.
+    pub fn padded_row_security_check_for_shape(
+        &self,
+        row_count: usize,
+        column_count: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+        challenge_alphabet_size: u32,
+    ) -> Result<PaddedRowSecuritySummary, ParamsError> {
+        let summary = self.padded_row_security_summary_for_shape(
+            row_count,
+            column_count,
+            matrix_count,
+            poly_degree,
+            challenge_alphabet_size,
+        )?;
+        if summary.slack_bits < 0 {
+            return Err(ParamsError::InsufficientStatisticalSecurity {
+                required: self.lambda,
+                available: summary.security_bits,
+            });
+        }
+        Ok(summary)
+    }
+
+    /// Compute the exact production census without first requiring it to meet
+    /// this parameter set's selected `lambda`.
+    pub fn padded_row_security_summary_for_shape(
+        &self,
+        row_count: usize,
+        column_count: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+        challenge_alphabet_size: u32,
+    ) -> Result<PaddedRowSecuritySummary, ParamsError> {
+        let (cube_variables, verifier_degree, sumcheck_factor, mixing_factor, field_factor) =
+            self.padded_row_field_components_for_shape(row_count, column_count, matrix_count, poly_degree)?;
+        let fresh_count = self.max_fresh_count_from_rlc_guard()?;
+        let fork_factor = (fresh_count as u128)
+            .checked_add(self.k_rho as u128)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(ParamsError::ArithmeticOverflow("coordinate-fork numerator"))?;
+        let challenge_set_cardinality =
+            pow_u128_checked(challenge_alphabet_size as u128, self.d, "challenge-set cardinality")?;
+        if challenge_set_cardinality == 0 {
+            return Err(ParamsError::Invalid("challenge set must be nonempty"));
+        }
+
+        let field_size = BigUint::from(self.q).pow(self.s);
+        let challenge_size = BigUint::from(challenge_set_cardinality);
+        let total_numerator = BigUint::from(field_factor) * &challenge_size + BigUint::from(fork_factor) * &field_size;
+        let total_denominator = &field_size * &challenge_size;
+        let security_bits = floor_log2_ratio(&total_denominator, &total_numerator);
+        let slack_bits = signed_difference(security_bits, self.lambda);
+
+        Ok(PaddedRowSecuritySummary {
+            s_supported: self.s,
+            cube_variables,
+            verifier_degree,
+            sumcheck_factor,
+            mixing_factor,
+            field_factor,
+            fork_factor,
+            challenge_set_cardinality,
+            security_bits,
+            slack_bits,
+        })
+    }
+
+    /// Exact field-space numerator for the one-joint padded-row protocol.
+    /// The corresponding error is `factor / q^s`.
+    pub fn pi_ccs_padded_row_field_factor_for_shape(
+        &self,
+        row_count: usize,
+        column_count: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<u128, ParamsError> {
+        let (_, _, _, _, field_factor) =
+            self.padded_row_field_components_for_shape(row_count, column_count, matrix_count, poly_degree)?;
+        Ok(field_factor)
+    }
+
     /// Maximum fresh CCS inputs K allowed by Definition 14's RLC guard:
     /// `(K + k)·T·(b - 1) < B`.
-    fn max_fresh_count_from_rlc_guard(&self) -> Result<u32, ParamsError> {
+    pub fn max_fresh_count_from_rlc_guard(&self) -> Result<u32, ParamsError> {
         let denom = (self.T as u128)
             .checked_mul((self.b as u128).saturating_sub(1))
             .ok_or(ParamsError::GuardInequality)?;
@@ -397,50 +703,152 @@ impl NeoParams {
             .map_err(|_| ParamsError::GuardInequality)
     }
 
-    /// SuperNeo D.4 Π_CCS soundness numerator for a concrete CCS shape.
-    fn pi_ccs_soundness_factor(
+    /// Return the one-joint padded-row field-space components.
+    #[allow(clippy::type_complexity)]
+    fn padded_row_field_components_for_shape(
         &self,
-        ell: u32,
-        fresh_count: u32,
+        row_count: usize,
+        column_count: usize,
         matrix_count: usize,
         poly_degree: u32,
-    ) -> Result<u128, ParamsError> {
-        let d_sc = poly_degree
-            .max(self.b.saturating_mul(2).saturating_add(1))
-            .max(2);
-        let epsilon_sc = (ell as u128)
-            .checked_mul(d_sc as u128)
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+    ) -> Result<(u32, u32, u128, u128, u128), ParamsError> {
+        if matrix_count == 0 {
+            return Err(ParamsError::Invalid("matrix_count must be > 0"));
+        }
+        if row_count == 0 || column_count == 0 {
+            return Err(ParamsError::Invalid("row_count and column_count must be > 0"));
+        }
+        let ring_degree = self.d as usize;
+        if ring_degree == 0 {
+            return Err(ParamsError::Invalid("ring degree must be > 0"));
+        }
+        let row_bound =
+            usize::try_from(self.m).map_err(|_| ParamsError::ArithmeticOverflow("parameter row-domain bound"))?;
+        if row_count > row_bound {
+            return Err(ParamsError::Invalid("row_count exceeds parameter row-domain bound"));
+        }
+        let assignment_bound = row_bound / ring_degree * ring_degree;
+        if column_count > assignment_bound {
+            return Err(ParamsError::Invalid(
+                "column_count exceeds parameter packed-assignment bound",
+            ));
+        }
+        let carrier_width = column_count
+            .checked_add(ring_degree - 1)
+            .and_then(|value| value.checked_div(ring_degree))
+            .and_then(|blocks| blocks.checked_mul(ring_degree))
+            .ok_or(ParamsError::ArithmeticOverflow("padded assignment width"))?;
+        let cube_variables =
+            padded_cube_variables(row_count.max(carrier_width), "joint padded-row domain must be nonempty")?;
+        let ccs_degree = poly_degree
+            .checked_add(1)
+            .ok_or(ParamsError::ArithmeticOverflow("CCS SumCheck degree"))?;
+        let norm_degree = self
+            .b
+            .checked_mul(2)
+            .ok_or(ParamsError::ArithmeticOverflow("norm SumCheck degree"))?;
+        let verifier_degree = ccs_degree.max(norm_degree).max(2);
+        let sumcheck_factor = (cube_variables as u128)
+            .checked_mul(verifier_degree as u128)
+            .ok_or(ParamsError::ArithmeticOverflow("joint SumCheck numerator"))?;
 
-        let ktd = (self.k_rho as u128)
-            .checked_mul(matrix_count as u128)
+        let fresh_count = self.max_fresh_count_from_rlc_guard()? as u128;
+        let running_count = self.k_rho as u128;
+        let source_count = fresh_count
+            .checked_add(running_count)
+            .ok_or(ParamsError::ArithmeticOverflow("paper source count"))?;
+        let carried_offset = fresh_count
+            .checked_add(source_count)
+            .ok_or(ParamsError::ArithmeticOverflow("carried-evaluation offset"))?;
+        let joint_matrix_count = (matrix_count as u128)
+            .checked_add(1)
+            .ok_or(ParamsError::ArithmeticOverflow("identity-first matrix count"))?;
+        let carried_count = running_count
+            .checked_mul(joint_matrix_count)
             .and_then(|v| v.checked_mul(self.d as u128))
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
-        let sz_degree = (ell as u128).max(ktd);
-        let sz_terms = (2u128)
-            .checked_mul(fresh_count as u128)
-            .and_then(|v| v.checked_add(self.k_rho as u128))
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
-        let epsilon_sz = sz_terms
-            .checked_mul(sz_degree)
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+            .ok_or(ParamsError::ArithmeticOverflow("carried-coordinate count"))?;
+        let alpha_dependent_degree = (cube_variables as u128)
+            .checked_add(
+                carried_offset
+                    .checked_sub(1)
+                    .ok_or(ParamsError::ArithmeticOverflow("paper mixing offset"))?,
+            )
+            .ok_or(ParamsError::ArithmeticOverflow("alpha-dependent mixing degree"))?;
+        let joint_coefficient_count = carried_offset
+            .checked_add(carried_count)
+            .ok_or(ParamsError::ArithmeticOverflow("joint coefficient count"))?;
+        let carried_mixing_degree = joint_coefficient_count
+            .checked_sub(1)
+            .ok_or(ParamsError::ArithmeticOverflow("carried mixing degree"))?;
+        let mixing_factor = alpha_dependent_degree.max(carried_mixing_degree);
+        let field_factor = sumcheck_factor
+            .checked_add(mixing_factor)
+            .ok_or(ParamsError::ArithmeticOverflow("padded-row field numerator"))?;
 
-        epsilon_sc
-            .checked_add(epsilon_sz)
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })
+        Ok((
+            cube_variables,
+            verifier_degree,
+            sumcheck_factor,
+            mixing_factor,
+            field_factor,
+        ))
     }
 }
 
 // ---------- small helpers ----------
 
-/// ceil(log2(x)) for u128, with ceil_log2(0) = 0 and ceil_log2(1) = 0.
-#[inline]
-fn ceil_log2_u128(x: u128) -> u32 {
-    if x <= 1 {
-        0
-    } else {
-        128u32 - (x - 1).leading_zeros()
+fn padded_cube_variables(size: usize, zero_error: &'static str) -> Result<u32, ParamsError> {
+    if size == 0 {
+        return Err(ParamsError::Invalid(zero_error));
     }
+    let padded = size
+        .max(2)
+        .checked_next_power_of_two()
+        .ok_or(ParamsError::ArithmeticOverflow("padded rectangular dimension"))?;
+    Ok(padded.trailing_zeros())
+}
+
+fn pow_u128_checked(base: u128, mut exp: u32, label: &'static str) -> Result<u128, ParamsError> {
+    let mut result = 1u128;
+    let mut power = base;
+    while exp > 0 {
+        if exp & 1 == 1 {
+            result = result
+                .checked_mul(power)
+                .ok_or(ParamsError::ArithmeticOverflow(label))?;
+        }
+        exp >>= 1;
+        if exp > 0 {
+            power = power
+                .checked_mul(power)
+                .ok_or(ParamsError::ArithmeticOverflow(label))?;
+        }
+    }
+    Ok(result)
+}
+
+/// Largest `bits` such that `2^bits * numerator <= denominator`.
+fn floor_log2_ratio(denominator: &BigUint, numerator: &BigUint) -> u32 {
+    if numerator == &BigUint::from(0u8) {
+        return u32::MAX;
+    }
+    if denominator < numerator {
+        return 0;
+    }
+
+    let bit_gap = denominator.bits().saturating_sub(numerator.bits());
+    let mut bits = bit_gap.min(u32::MAX as u64) as u32;
+    if (numerator << bits) > *denominator {
+        bits = bits.saturating_sub(1);
+    } else if bits < u32::MAX && (numerator << (bits + 1)) <= *denominator {
+        bits += 1;
+    }
+    bits
+}
+
+fn signed_difference(left: u32, right: u32) -> i32 {
+    let difference = left as i64 - right as i64;
+    difference.clamp(i32::MIN as i64, i32::MAX as i64) as i32
 }
 
 fn pow_u64_checked(base: u64, mut exp: u32) -> Result<u64, ParamsError> {

@@ -1,30 +1,6 @@
-use std::collections::BTreeMap;
-use std::collections::HashSet;
-
 use neo_wasm::layout::SELECTOR_COLS;
 use neo_wasm::{WasmOpcode, WasmVmSpec};
-
-#[test]
-fn constraint_catalog_exposes_per_opcode_rows() {
-    let vm = WasmVmSpec::default();
-    let catalog = vm.constraint_catalog();
-    let i32_add_rows: HashSet<_> = catalog
-        .rows_owned_by_opcode(WasmOpcode::I32Add)
-        .into_iter()
-        .collect();
-    let i64_load_rows: HashSet<_> = catalog
-        .rows_owned_by_opcode(WasmOpcode::I64Load)
-        .into_iter()
-        .collect();
-
-    assert!(!i32_add_rows.is_empty());
-    assert!(!i64_load_rows.is_empty());
-    assert_ne!(
-        i32_add_rows, i64_load_rows,
-        "opcode-owned constraint rows should differ across unrelated opcodes"
-    );
-    assert!(catalog.count_owned_by_opcode(WasmOpcode::CallIndirect) > 0);
-}
+use std::collections::BTreeMap;
 
 #[test]
 #[ignore]

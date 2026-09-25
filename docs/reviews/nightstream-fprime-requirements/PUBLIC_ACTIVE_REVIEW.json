@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "reviewer": "/root/connect_adaptive_binding_probability",
+  "role": "Source review of the installed checks and coordinator correction by the worker who drafted the fixture. This is not a protected independent-approval record.",
+  "reviewed_at_utc": "2026-09-13T10:48:58.872660+00:00",
+  "worktree": "/home/nicoarq/develop/Nightstream-nifs-proof-links",
+  "head": "854327d91ca36412f957ac5becbde30bb117b715",
+  "source_binding": "The file hashes identify the current reviewed bytes, including uncommitted edits. HEAD alone is not this source snapshot.",
+  "verdict": "pass",
+  "scope": "Installed public active fixture and dispatch: exact source loading, one full extend call per positive case, complete output comparison, cache variants and the cheap semantic rejection.",
+  "findings": [],
+  "checks": [
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 37
+      },
+      "result": "pass",
+      "finding": "Reference paths are caller arguments. Expected schema/iteration/child count and file presence are checked before proving. Reference data is used only in assertions/comparisons; package, state, running/fresh source matrices and message come from the original source directory."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 69
+      },
+      "result": "pass",
+      "finding": "Typed arrays require exactly four state/message words. Canonical Goldilocks bounds are checked. Iteration is exactly2 and the request state must match envelope.json. The existing source loader checks original package/public/frame/parent and complete witness projection shapes before any mutation."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 89
+      },
+      "result": "pass",
+      "finding": "original leaves the source unchanged. parent-absent removes only the derived parent cache. parent-changed alters that cache commitment/public/point/K/A/frame fields. Both variants change child frame metadata and redundant fresh w only; original running semantic fields, fresh claim, complete source Z matrices, state and message remain fixed."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 117
+      },
+      "result": "pass",
+      "finding": "Each positive case calls package.extend exactly once. Expected data, saved C proofs, D openings, result flags or replacement callbacks do not enter the call. The normal Active branch performs prior-state checking, cache reconstruction, canonical-family checking, full prove, step_inputs and complete_step."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 124
+      },
+      "result": "pass",
+      "finding": "Compares full returned Stage1State, all ordered CeClaim fields, complete parent cache and16 witnesses. Matrix comparison checks shape and all packed signed-unit masks, virtual-constant value or every Mat coordinate; tails are included."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 154
+      },
+      "result": "pass",
+      "finding": "Explicit c, x, m_in and adv assertions cover all four fields of the actual CcsClaim struct. This correctly replaces the unavailable whole-claim PartialEq. The complete fresh Mat, zero completion tail and empty redundant w are also checked."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+        "line": 174
+      },
+      "result": "pass",
+      "finding": "The negative case loads original sources, changes child0.X[(0,0)] to2, recomputes the selected-context state hash/fresh public claim and calls the same public extend. It requires PriorFamily(PiDec(ChildXLowNorm)), not a generic failure. Production checks this family before prove; unchanged witness matrices make no successful-extension claim."
+    },
+    {
+      "anchor": {
+        "path": "/home/nicoarq/develop/Nightstream-nifs-proof-links/crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+        "line": 259
+      },
+      "result": "pass",
+      "finding": "The positive dispatch forwards case/package/source/reference-envelope/reference-children in the declared order to owned_nifs::active. The negative dispatch forwards only package/source to that same fixture owner. stage1_nifs.rs imports active with the correct relative path; no Cargo target, production API, feature or ENV is added by these entries."
+    }
+  ],
+  "execution_status": {
+    "positive_original": "not_run",
+    "positive_parent_absent": "not_run",
+    "positive_parent_changed": "not_run",
+    "negative": "execution not reviewed in this record",
+    "staged_iteration3": "Coordinator reports all staged/envelope/terminal cases pass; they are separate evidence and were not rerun here.",
+    "build2": "The completed build2 log was read: passed, exit0,21.901948362006806 seconds under300 seconds. No build was run by this reviewer."
+  },
+  "cost_proposal": {
+    "evidence": {
+      "path": "/tmp/nightstream-public-active-measured-cost.json",
+      "bytes": 1052,
+      "sha256": "4d0eb3ea99a2818b7bf4f9f02970d4354d4ac43dd6b4360cae0fe49c825d13d4"
+    },
+    "sum_seconds": 984.2158457220066,
+    "rounded_up_seconds": 985,
+    "arithmetic_checked": true,
+    "current_authorized_cap_seconds": 300,
+    "owner_approved": false,
+    "meaning": "A measured planning allowance from separately completed stages, which repeat source loading/cache/commitment work. Public prove shares its C/D cache. The sum is not a formal upper bound or evidence that a positive public run passed. This review does not authorize or launch a longer call."
+  },
+  "limits": [
+    "Each cache case needs its own positive execution result; one passing case cannot stand for all cases.",
+    "Terminal verification is separate: the full compared iteration3 envelope must have its own actual terminal checks. A saved success flag is not consumed.",
+    "This fixture compares full returned envelope data; it does not expose or compare internal public-extend NIFS proof bytes directly. Existing staged C/R/D proof-byte evidence remains separate.",
+    "The earlier compile failure on absent CcsClaim PartialEq remains a failed build; the explicit four-field repair is the reviewed current source.",
+    "No universal Rust semantics, security hardness, production approval or performance theorem is asserted."
+  ],
+  "reviewed_file_hashes_sha256": {
+    "crates/neo-fold-clean/tests/nifs/stage1_active.rs": "6554927ac7cc31847bcc8aea781690e0b79c5c1965adee20c8110ab580d35de0",
+    "crates/neo-fold-clean/tests/nifs/stage1_nifs.rs": "76f90c774492ddc7e218cbf1cfeb34812ab62a0f88ea391e55652a32d7957587",
+    "crates/neo-fold-clean/tests/nifs/stage1_actual.rs": "5b980efe9d133897f8ab7935ff76ac783af92fdc8e53f4e0754bd83ca551c623",
+    "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs": "539f57e74d3d0327014b1c1570a6e5bebec1534bd3f51d375b6e07f236a5bff2",
+    "crates/neo-fold-clean/src/stage1/extend.rs": "f78e92945518d4140a53921770cf03b835ec7267146699840067fe61e7ee1e11",
+    "crates/neo-fold-clean/src/stage1/step_inputs.rs": "1934ef46cbf3eae20c073d26b3b95d08be032239a07562b30bdd2bd818b249f7",
+    "crates/neo-fold-clean/src/stage1/inputs.rs": "e306175147d57c2e7660da2c2d9d9ac41d8869d7e2a2960bd6c59c7090965f0c",
+    "crates/neo-fold-clean/src/paper/nifs/verifier.rs": "03e79df198e06979d48331650097c2504a9db1a48c6b92cbb623847fcb130682",
+    "crates/neo-fold-clean/src/paper/reductions/pi_dec.rs": "d055fc7ad0a406310e0f8df2019159ca6ce6dfcfce1c1afdb5ebb7c6b886bf31",
+    "crates/neo-ccs/src/relations.rs": "080e87a053e24ace44b2c88982643724b67fb545034b6e2886205a644779c990",
+    "crates/neo-ccs/src/matrix.rs": "7b2a8db62855dae35dd19ad4a48a41b5e444cb21e64f06c6be17bc6c8fc0ba27"
+  },
+  "build_log": {
+    "path": "/tmp/nightstream-baseline-public-active-build-2.log",
+    "bytes": 1414,
+    "sha256": "43bcc6f3e27d0248b379c9170c1c419b4ec78979a953b71eb59fbe4bbd39a0e8"
+  },
+  "actions": "Read-only source/log inspection; only this requested /tmp review JSON was written. No builds, tests, source edits or owner question."
+}

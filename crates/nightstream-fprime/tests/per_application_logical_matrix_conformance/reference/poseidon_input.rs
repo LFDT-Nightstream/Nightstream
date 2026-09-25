@@ -5,7 +5,8 @@ use serde_json::Value;
 use super::matrix::SourceSubstitution;
 use super::source::SourceCombination;
 use super::{
-    array, checked_add, checked_mul, decode_list, exact_array, field, word, Entry, Field, Form, Result, RetainedBlock,
+    array, checked_add, checked_mul, decode_form, decode_list, exact_array, field, word, Entry, Field, Form, Result,
+    RetainedBlock,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +79,10 @@ enum Term {
         values: Vec<Option<Field>>,
         lane_count: usize,
     },
+    Sparse {
+        values: Vec<Form>,
+        lane_count: usize,
+    },
     TaggedAffine {
         values: Vec<SourceCombination>,
         substitution: SourceSubstitution,
@@ -133,6 +138,14 @@ impl Term {
                 tags: decode_list(&fields[3], InvocationTag::decode, "affine invocation tags")?,
                 required: InvocationTag::decode(&fields[4])?,
                 lane_count: word(&fields[5], "affine lane count")?,
+            }),
+            Some(6) if fields.len() == 3 => Ok(Self::Sparse {
+                values: decode_list(
+                    &fields[1],
+                    |form| decode_form(form, logical_width),
+                    "Poseidon2 sparse inputs",
+                )?,
+                lane_count: word(&fields[2], "Poseidon2 sparse lane count")?,
             }),
             _ => Err("unknown Poseidon2 input term opcode".into()),
         }
@@ -196,6 +209,18 @@ impl Term {
                     Some(coefficient) => constant(logical_width, one_column, *coefficient),
                     None => Ok(Form::default()),
                 }
+            }
+            Self::Sparse { values, lane_count } => {
+                let index = checked_add(
+                    checked_mul(invocation, *lane_count, "Poseidon2 sparse input")?,
+                    lane,
+                    "Poseidon2 sparse input",
+                )?;
+                let form = values
+                    .get(index)
+                    .ok_or_else(|| "Poseidon2 sparse input is absent".to_string())?;
+                form.validate(logical_width)?;
+                Ok(form.clone())
             }
             Self::TaggedAffine {
                 values,

@@ -16,7 +16,19 @@ use serde::Deserialize;
 use serde_json::Value;
 
 const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 16, 64];
+fn schedule() -> Vec<u64> {
+    let modulus = Goldilocks::ORDER_U64;
+    let value = serde_json::json!([
+        words(b"Nightstream/SuperNeo/PiCCS/digest-only/v1_1"),
+        [28, 10, 17, 14, 54],
+        words(b"Nightstream/PiRLC/wide-reduction/v1"),
+        [17, 4, 4, modulus, 5, 54, 1],
+        [modulus - 2, modulus - 1, 0, 1, 2]
+    ]);
+    let mut encoded = Vec::new();
+    append_value_preimage(&value, &mut encoded);
+    encoded
+}
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
@@ -54,8 +66,8 @@ fn read_lean_binding() -> LeanBindingFixture {
         verification_key_digest,
     ) = serde_json::from_slice(&bytes).expect("strict Lean binding fixture");
     assert_eq!(schema, 1, "Lean binding fixture schema");
-    assert_eq!(descriptor_words.len(), 86, "Lean descriptor length");
-    assert_eq!(binding_words.len(), 126, "Lean binding length");
+    assert_eq!(descriptor_words.len(), 480, "Lean descriptor length");
+    assert_eq!(binding_words.len(), 520, "Lean binding length");
     LeanBindingFixture {
         structural_identifier,
         package_identity,
@@ -146,7 +158,7 @@ struct RebuiltBinding {
 fn rebuild_binding(structural_identifier: [u64; 4], component_digests: [[u64; 4]; 4]) -> RebuiltBinding {
     let mut descriptor = words(b"Nightstream/FPrime/verifier-context/v1_1");
     descriptor.extend(framed(&PROFILE));
-    descriptor.extend(framed(&SCHEDULE));
+    descriptor.extend(framed(&schedule()));
     for digest in component_digests {
         descriptor.extend(framed(&digest));
     }
@@ -191,7 +203,7 @@ fn independent_binding(sealed: &Value, seed: &[u8; 32]) -> IndependentBinding {
     let mut nifs_key_words = words(b"Nightstream/FPrime/nifs-key/v1_1");
     nifs_key_words.extend(framed(&relation_words));
     nifs_key_words.extend(framed(&PROFILE));
-    nifs_key_words.extend(framed(&SCHEDULE));
+    nifs_key_words.extend(framed(&schedule()));
     nifs_key_words.extend(framed(&commitment_digest));
 
     let relation_digest = component(1, &relation_words);
@@ -222,8 +234,10 @@ fn production_binding_matches_independent_lean_framing() {
     assert_eq!(independent.structural_identifier, lean.structural_identifier);
     assert_eq!(independent.package_identity, lean.package_identity);
     assert_eq!(independent.descriptor_words, lean.descriptor_words);
-    let component_start =
-        words(b"Nightstream/FPrime/verifier-context/v1_1").len() + framed(&PROFILE).len() + framed(&SCHEDULE).len() + 1;
+    let component_start = words(b"Nightstream/FPrime/verifier-context/v1_1").len()
+        + framed(&PROFILE).len()
+        + framed(&schedule()).len()
+        + 1;
     for (index, digest) in independent.component_digests.iter().enumerate() {
         let start = component_start + index * framed(&[0; 4]).len();
         assert_eq!(&lean.descriptor_words[start..start + 4], digest);
@@ -265,10 +279,10 @@ fn production_binding_matches_independent_lean_framing() {
     assert_eq!(independent.components[3].as_slice(), context.commitment_key_words());
     assert_eq!(
         independent.components.each_ref().map(|words| words.len()),
-        [5_120, 1_922_828, 5_184, 73]
+        [5_120, 1_922_828, 5_578, 73]
     );
-    assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
-    assert_eq!(binding.verification_key_words().len(), 126);
+    assert_eq!(binding.verifier_context().descriptor_words().len(), 480);
+    assert_eq!(binding.verification_key_words().len(), 520);
 }
 
 #[test]

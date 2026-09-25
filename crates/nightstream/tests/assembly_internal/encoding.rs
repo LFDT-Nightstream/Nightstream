@@ -35,7 +35,7 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     reference.assignment.schema = 2;
     assert!(manifest.check_reference(&reference).is_err());
-    reference.assignment.schema = 3;
+    reference.assignment.schema = 4;
     let application = poseidon2_hash_chain_v1().unwrap();
     let actual = assemble(reference, &manifest, &application).unwrap();
 
@@ -102,6 +102,60 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
         assert_eq!(plan.rows[lane].c.terms, vec![(plan.private_start + lane, 1)]);
     }
     manifest.check_dimensions(Counts::of(&circuit)).unwrap();
+}
+
+#[test]
+fn ordinary_application_relocation_moves_the_wide_sampler_tail() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let bytes = std::fs::read(path).unwrap();
+    let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    manifest.check_reference(&reference).unwrap();
+    assert!(!manifest.selected_reference.matrix_relocations.is_empty());
+    connect::ordinary_reference(&mut reference, &manifest).unwrap();
+    let ordinary = serde_json::to_value(&reference.matrix).unwrap();
+    for relocation in &manifest.selected_reference.matrix_relocations {
+        let mut value = &ordinary;
+        for index in &relocation.path {
+            value = &value[*index];
+        }
+        assert_eq!(value.as_u64(), Some(relocation.ordinary as u64));
+    }
+
+    let counts = Counts {
+        witness: 0,
+        local: 0,
+        rows: 4,
+    };
+    manifest.check_dimensions(counts).unwrap();
+    connect::matrix(&mut reference, &manifest, counts).unwrap();
+    connect::assignment(&mut reference, &manifest, counts).unwrap();
+    assert_eq!(reference.assignment.schema, 4);
+    assert_eq!(reference.assignment.blocks.len(), 76);
+    let coordinates = reference
+        .assignment
+        .blocks
+        .iter()
+        .fold(270, |total, block| {
+            total + block.slot_count * if block.slot_kind == 2 { 41 } else { 1 }
+        });
+    assert_eq!(coordinates, manifest.geometry.logical_width.eval(counts).unwrap());
+    assert_eq!(reference.assignment.blocks[20].slot_count, 0);
+    assert_eq!(reference.assignment.blocks[21].slot_count, 0);
+    assert_eq!(
+        reference.assignment.blocks[75].runs[0][0],
+        manifest.geometry.source_total.eval(counts).unwrap()
+    );
+
+    let mut changed: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let selected = &manifest.selected_reference.matrix_relocations[0];
+    let mut value = &mut changed.matrix[selected.path[0]];
+    for index in &selected.path[1..] {
+        value = &mut value[*index];
+    }
+    *value = json!(selected.selected + 1);
+    assert!(connect::ordinary_reference(&mut changed, &manifest).is_err());
 }
 
 #[test]

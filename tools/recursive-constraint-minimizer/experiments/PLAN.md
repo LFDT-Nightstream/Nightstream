@@ -2,6 +2,15 @@
 
 ## Active goal
 
+Owner update, 2026-09-24: finish the approved wide-sampler production switch,
+using the existing hint kinds and the old output order. Complete package
+soundness, constructive witness transport and archive correspondence are
+pushed at `a0f4b5b41`. The local selection has 137,341,872 committed coordinates,
+3,248,956 rows and 2,607,606,765 normalized matrix entries. Native conformance
+and fresh recursive fixture work are in progress; the current evidence is in
+[wide-sampler-integration.md](wide-sampler-integration.md). Keep the additional
+50% target open and investigate the remaining state-hashing budget.
+
 Owner update, 2026-09-23: implement the compact SumCheck chain, shared gamma
 powers, and compact application Poseidon2 with its constant prefix evaluated
 once. The focused proof batch is recorded in [piccs-lowering-batch.md](piccs-lowering-batch.md).
@@ -21,7 +30,8 @@ research target, not an assumed feasible result. Track committed coordinates,
 logical rows, and matrix nonzero entries separately. Moving cost between
 these measures does not establish an overall improvement.
 
-Keep the specification, soundness, constructive completeness, witness maps,
+Except for the approved wide-sampler revision, keep the specification,
+soundness, constructive completeness, witness maps,
 security assumptions, Goldilocks, Poseidon2, and the exact production profile
 `b = 2`, `k_rho = 16`, `B = 65536` unchanged.
 

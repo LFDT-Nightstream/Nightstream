@@ -1,5 +1,7 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.Wide.PiRLCInputCheck
+import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
 
 private def run (p0 p1 p2 p3 inputPath messagesPath outputPath : String) : IO UInt32 := do
   let inputText ← IO.FS.readFile inputPath
@@ -15,7 +17,8 @@ private def run (p0 p1 p2 p3 inputPath messagesPath outputPath : String) : IO UI
       pure 2
   | .ok (identity, input, messages) =>
       NightstreamFPrime.Export.ParityEmitter.runIO "checked_pi_dec_input"
-        (NightstreamFPrime.Export.Stage1.PiDECInputCheck.checkValueIO input messages identity)
+        (NightstreamFPrime.Export.Stage1.PiDECInputCheck.checkValueIOWith
+          NightstreamFPrime.Export.Stage1.Wide.PiRLCInputCheck.checkIO input messages identity)
         [outputPath]
 
 open NightstreamFPrime.Spec
@@ -39,7 +42,7 @@ private def decodeReplay (commitmentText evaluationText : String) :
   let commitmentFields ← (← Lean.Json.parse commitmentText).getArr?
   let rows ← match commitmentFields.toList with
     | [schema, blocks, first, finish, values] => do
-        let expected := Poseidon2HashChainV1Setup.messageColumns
+        let expected := Wide.SetupBinding.messageColumns
         unless (← schema.getNat?) == 1 && (← blocks.getNat?) == expected &&
             (← first.getNat?) == 0 && (← finish.getNat?) == expected do
           throw "expected a complete selected Lean commitment result"
@@ -51,7 +54,7 @@ private def decodeReplay (commitmentText evaluationText : String) :
   match evaluationFields.toList with
   | [schema, blocks, point, pad, matrix] => do
       unless (← schema.getNat?) == 1 &&
-          (← blocks.getNat?) == Poseidon2HashChainV1Setup.messageColumns do
+          (← blocks.getNat?) == Wide.SetupBinding.messageColumns do
         throw "expected a complete selected Lean evaluation result"
       let point ← PiCCSInputCheck.decodeVector 28 decodeExtension point
       let pad ← PiCCSInputCheck.decodeVector 16
@@ -84,7 +87,7 @@ private def fromReplay (p0 p1 p2 p3 : String)
   let input ← checked (PiCCSInputCheck.parse (← IO.FS.readFile inputPath))
   let supplied ← checked (decodeReplay (← IO.FS.readFile commitmentsPath)
     (← IO.FS.readFile evaluationsPath))
-  let previous ← PiRLCInputCheck.checkIO input identity
+  let previous ← Wide.PiRLCInputCheck.checkIO input identity
   let some parent := previous.parent
     | throw (IO.userError "PiCCS/PiRLC rejected or returned no parent")
   unless PiDECInputCheck.parentBounded parent do

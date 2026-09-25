@@ -60,7 +60,7 @@ theorem inverse_compose_column (extraColumns : Nat) (target : SourceProjection) 
       ((inverse extraColumns).column? source).bind target.column? :=
   SourceProjection.compose_column _ _ (inverse_unique extraColumns) source
 
-private theorem selected_range (ranges : List SourceProjectionRange) (source target : Nat)
+theorem selected_range (ranges : List SourceProjectionRange) (source target : Nat)
     (selected : (SourceProjection.mapped ranges).column? source = some target) :
     ∃ range ∈ ranges, range.column? source = some target := by
   unfold SourceProjection.column? at selected
@@ -76,7 +76,7 @@ private theorem selected_range (ranges : List SourceProjectionRange) (source tar
       exact List.mem_singleton_self target
     | cons next rest => simp [found] at selected
 
-private theorem range_position (range : SourceProjectionRange) (source target : Nat)
+theorem range_position (range : SourceProjectionRange) (source target : Nat)
     (selected : range.column? source = some target) :
     range.packageStart ≤ source ∧ source - range.packageStart < range.count ∧
       target = range.sourceStart + (source - range.packageStart) := by

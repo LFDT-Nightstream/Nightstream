@@ -240,13 +240,18 @@ def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
       parityValueForFixture (fixtureFromComputed computed batch) context packageIdentity
   | none => .array [.atom 2, .array [], rejectedValue]
 
-def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value := do
+def parityValueIOWith
+    (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch PiRLCNonzero.SourceCount))
+    (context packageIdentity : VerifierContext.Digest4) : IO Value := do
   let computed ← PiCCSNonzero.computeIO context.toList
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState PiRLCNonzero.SourceCount with
+  match sampler computed.outgoingState with
   | some batch =>
       pure (parityValueForFixture (fixtureFromComputed computed batch)
         context packageIdentity)
   | none => throw (IO.userError "PiRLC sampler shortfall before PiDEC fixture")
+
+def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value :=
+  parityValueIOWith (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state PiRLCNonzero.SourceCount)
+    context packageIdentity
 
 end NightstreamFPrime.Export.Stage1.PiDECParity

@@ -7,11 +7,22 @@ use crate::lifecycle::validate_key_prefix;
 
 #[test]
 fn preparation_requires_the_exact_selected_key_prefix_authority() {
-    // ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts:
-    // four private words and four addition outputs require eight retained words.
-    let addition_width: usize = 149_282_257 + 41 * 8;
-    // The selected hash-chain suffix retains four message and 258 S-box fields.
-    let golden_width: usize = 149_282_257 + 41 * 262;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
+    let dimensions = manifest["geometry"]["logical_width"].as_array().unwrap();
+    // The real addition application has four message words, four local values,
+    // and eight rows. The Lean manifest owns the shared verifier dimensions.
+    let addition_width = dimensions
+        .iter()
+        .zip([1usize, 4, 4, 8])
+        .map(|(coefficient, value)| usize::try_from(coefficient.as_u64().unwrap()).unwrap() * value)
+        .sum::<usize>();
+    let golden_width = usize::try_from(
+        manifest["selected_reference"]["logical_width"]
+            .as_u64()
+            .unwrap(),
+    )
+    .unwrap();
     for width in [addition_width, golden_width, PRODUCTION_CARRIER_WIDTH] {
         let columns = width.div_ceil(D) as u64;
         let authority = authority_words(PRODUCTION_VERIFIER_ROWS, columns, &PRODUCTION_SEED);

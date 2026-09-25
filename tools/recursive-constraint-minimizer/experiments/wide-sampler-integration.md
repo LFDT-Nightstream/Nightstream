@@ -654,6 +654,68 @@ This is a budget obstruction for the current encoding, not an impossibility
 proof for other sound Poseidon2 encodings. The additional 50% target is not
 achieved, and no proving-time or peak-memory result is claimed.
 
+### Further research: fewer matrix evaluations in the carried state
+
+A source review on 2026-09-25 identified a different possible route. The
+selected matrix program uses ordinary R1CS rows, linear pins, Poseidon2
+`x^7 = y` rows, and single-product Phi81 checks. The Phi81 output form already
+includes the prior output and the fixed evaluation-point multiple of the
+quotient. It therefore has only one variable product, despite the generic
+five-product interface that represents it.
+
+These selected families appear compatible with four matrix ports and
+`A*B + D^7 - C = 0`, with the existing canonical constant coordinate equal
+to one. This is a candidate, not a Lean-proved replacement. The generic
+five-product, centered-unit, and borrow-row interfaces are outside this
+claim. Every emitted selected row still needs a structural classification
+and an equivalence proof; matrix entry counts need their own measurement.
+
+The possible coordinate benefit comes from a smaller recursive state.
+Reducing `Eval_A` from 14 matrices to four would remove 1,080 words from each
+running claim. Applied only to the two state hashes and the PiCCS output
+binding, the current schedules predict 13,230 fewer Poseidon2 permutations,
+or 46,648,980 fewer S-box coordinates. Subtracting that estimate alone from
+the current total gives 90,692,892 coordinates. This is **not** a complete
+candidate count: the recursive layout and witness budget must be rebuilt
+and proved before counting any saving.
+
+The [HyperNova author paper](https://www.andrew.cmu.edu/user/bparno/papers/hypernova.pdf),
+Theorems 1 and 3, explicitly makes prover work and recursive hash cost depend
+on the number of matrices. It supports studying this cost source; it does
+not prove the proposed local encoding. The change would also change claims,
+state serialization, transcript lengths, the polynomial degree and package
+binding. Existing 14-matrix evaluation claims cannot in general be converted
+by a fixed linear map because the proposed routing depends on the row family.
+This requires a concrete reviewed protocol/specification change, structural
+Lean proofs, cvc5 controls and updated security accounting before selection.
+The approved profile and Poseidon2 must remain fixed.
+
+The current format also reserves a final zero matrix. Keeping that convention
+would use five matrices: four useful ports and one zero port. With nine fewer
+`Eval_A` families, the Poseidon-only estimate is 95,357,790 coordinates.
+The existing retained-block owners give these further disjoint reductions:
+
+| Allocation | Formula | Coordinates saved |
+|---|---|---:|
+| Two state preimages | `2 * 16 * 9 * 108 * 41` | 1,275,264 |
+| Carried child fields | `16 * 9 * 108 * 41` | 637,632 |
+| PiCCS proof outputs | `17 * 9 * 108 * 41` | 677,484 |
+| PiRLC outputs and quotients | `2 * 17 * 9 * 108 * 41` | 1,354,968 |
+| Total additional reduction | | 3,945,348 |
+
+The owners are `Lifecycle/XOut.lean`, `Layout/Stage1/Wide/PiDECInputs.lean`,
+`Layout/Stage1/PiCCSInputs.lean`, and `Wide/PiRLCGeometry.lean`. PiDEC's proof
+view reuses the carried-child block; its parent views reuse PiRLC outputs;
+PiRLC inputs reuse PiCCS proof values. These aliases are not counted again.
+
+This gives a conditional carrier budget of **91,412,442**, or 767,340 below
+the research target. It keeps 28 rounds, all five evaluation slots, the
+current field encoding, and the current budget for every uncounted block.
+The logical width would be 91,412,416 plus 26 alignment coordinates. This
+establishes a concrete budget worth testing, not feasibility of the complete
+new circuit: row classification, constructive witness maps, the new recursive
+layout, matrix costs, binding and security still need proofs and checks.
+
 ## Physical package and matrix-source cutover
 
 The wide physical prefix and complete application suffix now emit as one
@@ -852,7 +914,87 @@ mutation check on this new-context fixture passed in 12.4 seconds. This check
 does not establish native parity for the new binding serializer; that remains
 part of the production switch.
 
-## Still required for the production switch
+## Native selection and conformance in progress
+
+The local production entrypoint and Rust sampler now select the proved wide
+package. The saved proof checkpoint is `a0f4b5b41`; this native integration
+batch is not yet committed. The fixed profile and approved indexed setup seed
+are unchanged. The selected key uses 2,543,368 ring columns and 22 rows.
+
+| Measure | Previous selected package | Wide selection |
+|---|---:|---:|
+| Logical rows | 3,588,191 | 3,248,956 |
+| Committed coordinates | 149,293,044 | 137,341,872 |
+| Normalized matrix entries | 2,857,409,270 | 2,607,606,765 |
+
+The complete independent Rust comparison checked every entry of all 14
+matrices in 27.26 seconds. The per-matrix counts are
+`[16904205, 3144304, 264072386, 25752159, 800725610, 1496903449, 0, 104652, 0, 0, 0, 0, 0, 0]`.
+Changed block order, a changed column, and a changed nonzero coefficient all
+decode independently and then fail the selected structural identity.
+
+The following current-package checks pass:
+
+- Eight package-loader checks, three independent binding checks, and complete
+  physical-matrix comparison against the separate Lean expansion.
+- Direct CCS assignment equals full physical assignment at every logical
+  coordinate; both paths reject the checked invalid caller inputs.
+- Native wide sampling matches the Lean boundary and transcript fixtures,
+  including both existing Rust engines and the production sampler entrypoint.
+- Setup vectors and the sparse commitment match Lean, including the final
+  coordinate of the smaller carrier.
+- The independent assignment interpreter checks all 3,248,956 rows and the
+  retained-value mutations. The complete check passes in 62.93 seconds.
+- All 44 regular F′ library tests pass. Seven large driver checks remain
+  ignored by default. The loader now rejects the retired transport schema 3;
+  the selected schema 4 is the only witness-transport decoder.
+- Native assembly passes for the selected hash-chain application and a second
+  application. The same-seed setup-prefix test derives its widths from the
+  selected Lean manifest and passes.
+
+Logs are `/tmp/nightstream-wide-selected-{loader,binding,physical-matrices,
+direct-assignment,logical-matrices,matrix-mutations,sampler-engines,setup,
+primitive}.log`. Each native test used the project 300-second cap. These
+check durations are validation evidence, not proving benchmarks.
+
+The first direct-assignment check exposed an application fixture that still
+used the old sampler. Its generator now uses the wide sampler and derives
+terminal metadata from the wide structural plan. The corrected fixture
+passes the direct/full witness comparison. The independent matrix decoder
+now supports the emitted checked column maps, local affine row templates,
+direct challenge forms, and sparse Poseidon inputs; expected arithmetic
+still runs in the independent reference interpreter.
+
+Only the unused old sampler parity emitter, its wrapper, and its artifact
+have been removed. Baseline layout and witness proofs still use old sampler
+owner modules for the common regions they preserve. Their presence does not
+select old sampler rows or change the new committed width.
+
+Recipe rejection, fresh recursive fixtures, final consumer checks, the full
+Lean gate and identity check remain open. No proving-time or peak-memory
+improvement is claimed.
+
+Fresh native fixture construction uses
+`/tmp/nightstream-wide-selection-FAJ41z`. The normal optimized C prover and
+verifier pass on the selected base witness. Source loading ends at 42.514 s,
+proof construction ends at 118.459 s, and verification ends at 118.476 s.
+The full invocation takes 118.76 s and has peak RSS 5,522,316 KiB. The proof
+phase is 75.945 s; the RSS includes preparation. These are absolute stage
+measurements, not a before/after performance comparison.
+
+R replays the saved C proof against the original sources and constructs the
+new parent. Its invocation passes in 46.65 s with peak RSS 3,596,020 KiB.
+The separate parent check recomputes the commitment and canonical split;
+it passes in 108.02 s with peak RSS 3,596,792 KiB. Children 0 through 5 are
+active. The six openings pass in one 201.05 s invocation with peak RSS 5,538,624 KiB.
+D assembly, normal NIFS verification and all 43 mutation controls pass in
+114.92 s with peak RSS 3,596,024 KiB. The independent Lean C/R/D result and
+recursive caller fixture are freshly emitted from the C input and child
+claims. Native comparison passes on every result field and the complete
+945,983-byte proof; all 55 PiDEC mutation cases reject. The new proof and
+independent fixtures are installed in their published paths.
+
+## Production-switch obligations at the proof checkpoint
 
 - Select the candidate authority, archive and transport together. The candidate
   now has full matrix correspondence, constructive emitted-witness transport,
@@ -869,5 +1011,6 @@ part of the production switch.
   for this protocol change on 2026-09-24; no additional approval is pending.
 - Run the required conformance checks and remove the old sampler dependencies.
 
-The selected baseline remains 3,588,191 rows, 149,293,044 committed coordinates,
-and 2,857,409,270 normalized matrix nonzeros. No Rust benchmark has been run.
+At `a0f4b5b41`, the selected baseline remained 3,588,191 rows, 149,293,044
+committed coordinates, and 2,857,409,270 normalized matrix nonzeros. The
+native-selection section above records the subsequent working-tree changes.

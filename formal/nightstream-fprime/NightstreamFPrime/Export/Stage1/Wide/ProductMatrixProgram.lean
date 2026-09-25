@@ -39,13 +39,35 @@ private theorem quotientFits (program : Program) :
   change _ + 2145366 + 2145366 ≤ _
   omega
 
+@[noinline] private def challengeForms (program : Program) : Array WireForm :=
+  let sampler := PiRLCGeometry.sampler (interface program)
+  Array.ofFn fun index : Fin (17 * 54) =>
+    let pair : Fin 17 × Fin 54 := Fin.decodeProd index
+    WireForm.ofSemantic (Challenges.form sampler pair.1 pair.2)
+
+private theorem challengeForms_eq (program : Program) :
+    challengeForms program = Array.ofFn (fun index => WireForm.ofSemantic (left program index)) := by
+  let sampler := PiRLCGeometry.sampler (interface program)
+  have functions : (fun index : Fin (17 * 54) =>
+      let pair : Fin 17 × Fin 54 := Fin.decodeProd index
+      WireForm.ofSemantic (Challenges.form sampler pair.1 pair.2)) =
+      (fun index => WireForm.ofSemantic (left program index)) := by
+    funext index
+    rfl
+  exact congrArg Array.ofFn functions
+
 def block (program : Program) : Phi81Product.Block where
   families := PiRLCProductMatrixProgram.families
   oneColumn := (interface program).oneColumn.val
-  challenge := .direct (Array.ofFn fun index => WireForm.ofSemantic (left program index)) 54
+  challenge := .direct (challengeForms program) 54
   input := ProductInputMap.substitution program
   output := RetainedBlock.ofSemantic fields (PiRLCGeometry.fieldStart (interface program))
   group := RetainedBlock.ofSemantic fields (PiRLCGeometry.fieldStart (interface program) + 2145366)
+
+private theorem block_challenge (program : Program) :
+    (block program).challenge =
+      .direct (Array.ofFn (fun index => WireForm.ofSemantic (left program index))) 54 := by
+  simp only [block, challengeForms_eq]
 
 def matrixProgram (program : Program) : MatrixProgram.Program := ⟨[.phi81Product (block program)]⟩
 
@@ -86,7 +108,7 @@ private theorem challenge (program : Program) (descriptor : Descriptor) :
   apply Phi81Product.loadFin?_of_some
   intro lane
   change (block program).challenge.form? (interface program).oneColumn _ _ = _
-  rw [wire_source]
+  rw [block_challenge, wire_source]
   have loaded := Phi81Product.Challenge.direct_form (left program) (interface program).oneColumn
     54 descriptor.source.val lane.val (Fin.encodeProd (descriptor.source, lane)) (by
       simp [Fin.encodeProd, Nat.mul_comm])

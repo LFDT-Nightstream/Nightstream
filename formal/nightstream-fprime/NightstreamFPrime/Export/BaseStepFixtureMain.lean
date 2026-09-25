@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.ParityEmitter
-import NightstreamFPrime.Export.Stage1.BaseStepFixture
+import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
 
 private def usage : String :=
   "usage: emitBaseStepFixture <vk0> <vk1> <vk2> <vk3> <output-path>"
@@ -11,7 +11,8 @@ private def run (w0 w1 w2 w3 path : String) : IO UInt32 := do
       pure 2
   | .ok verifierKey =>
       NightstreamFPrime.Export.ParityEmitter.runIO "emitted_base_step_fixture"
-        (NightstreamFPrime.Export.Stage1.BaseStepFixture.valueIO verifierKey)
+        (NightstreamFPrime.Export.Stage1.BaseStepFixture.valueIOWith
+          (fun state => some (NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture.batch state)) verifierKey)
         [path]
 
 def main (arguments : List String) : IO UInt32 :=

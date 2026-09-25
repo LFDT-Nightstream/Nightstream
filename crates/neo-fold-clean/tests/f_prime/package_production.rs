@@ -25,6 +25,8 @@ fn canonical_pin_entry(package: &mut serde_json::Value) -> &mut Vec<serde_json::
         .and_then(serde_json::Value::as_array_mut)
         .and_then(|blocks| blocks.get_mut(3))
         .and_then(serde_json::Value::as_array_mut)
+        .and_then(|mapped| mapped.get_mut(3))
+        .and_then(serde_json::Value::as_array_mut)
         .and_then(|block| block.get_mut(1))
         .and_then(serde_json::Value::as_array_mut)
         .and_then(|pin| pin.get_mut(1))
@@ -88,6 +90,9 @@ fn production_package_rejects_canonical_mutation() {
 fn production_package_rejects_matrix_row_column_and_coefficient_mutations() {
     let bytes = fs::read(package_path()).expect("canonical Lean package");
     let value: serde_json::Value = serde_json::from_slice(&bytes).expect("package JSON");
+    let logical_width = value[1][4][1]
+        .as_u64()
+        .expect("sealed archive logical width");
 
     let mut changed_row_order = value.clone();
     let blocks = changed_row_order
@@ -107,8 +112,7 @@ fn production_package_rejects_matrix_row_column_and_coefficient_mutations() {
     let entry = canonical_pin_entry(&mut changed_column);
     let column = entry[0].as_u64().expect("selected nonzero matrix column");
     let replacement = column.checked_add(1).expect("next matrix column");
-    // Poseidon2HashChainV1Package.logicalWidth fixes the valid column range.
-    assert!(replacement < 254_260_583);
+    assert!(replacement < logical_width);
     entry[0] = serde_json::Value::from(replacement);
     assert!(matches!(
         Poseidon2HashChainV1Package::load(&canonical_bytes(&changed_column)),

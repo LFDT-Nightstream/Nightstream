@@ -1,5 +1,7 @@
 use neo_math::{D, F};
+use neo_params::NeoParams;
 use neo_reductions::common::decode_pi_rlc_wide_coefficients;
+use neo_reductions::{sample_rot_rhos_n, RotRing};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Deserialize;
@@ -76,5 +78,28 @@ fn one_window_schedule_matches_lean_transcript_states() {
             assert_eq!(transcript.absorbed(), 0);
         }
         assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), case.r#final);
+    }
+}
+
+#[test]
+fn production_sampler_matches_lean_coefficients_and_final_state() {
+    let params = NeoParams::nightstream_goldilocks_k16();
+    let ring = RotRing::goldilocks();
+    for case in fixture().transcripts {
+        let mut transcript = Poseidon2Transcript::from_state_and_absorbed(case.initial.map(field), 0);
+        let rhos = sample_rot_rhos_n(&mut transcript, &params, &ring, case.steps.len())
+            .expect("the whole-vector sampler is total for the production profile");
+        for (rho, step) in rhos.iter().zip(case.steps) {
+            for (lane, coefficient) in step.coefficients.into_iter().enumerate() {
+                assert_eq!(
+                    rho[(lane, 0)],
+                    F::from_i8(coefficient),
+                    "source {}, lane {lane}",
+                    step.source
+                );
+            }
+        }
+        assert_eq!(transcript.state().map(|value| value.as_canonical_u64()), case.r#final);
+        assert_eq!(transcript.absorbed(), 0);
     }
 }

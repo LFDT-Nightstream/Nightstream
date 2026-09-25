@@ -93,21 +93,19 @@ fn artifact(name: &str) -> PathBuf {
 // Decode only the retained ownership metadata; skip the large row program.
 fn retained_ranges(sealed: &[u8]) -> Vec<std::ops::Range<usize>> {
     #[derive(Deserialize)]
-    struct Block(usize, usize, usize, IgnoredAny, IgnoredAny);
+    struct Block(usize, usize, IgnoredAny);
     #[derive(Deserialize)]
-    struct Assignment(u64, Vec<Block>, IgnoredAny, IgnoredAny, IgnoredAny, IgnoredAny);
+    struct Assignment(u64, Vec<Block>, IgnoredAny, IgnoredAny);
     #[derive(Deserialize)]
     struct Envelope(u64, IgnoredAny, IgnoredAny, IgnoredAny, Assignment, IgnoredAny, usize);
 
-    let Envelope(schema, _, _, _, Assignment(transport, blocks, _, _, _, _), _, mut offset) =
+    let Envelope(schema, _, _, _, Assignment(transport, blocks, _, _), _, mut offset) =
         serde_json::from_slice(sealed).expect("retained assignment layout");
-    assert_eq!((schema, transport), (6, 3));
-    assert_eq!(blocks.len(), 31, "schema-3 assignment block count");
+    assert_eq!((schema, transport), (6, 4));
+    assert_eq!(blocks.len(), 76, "schema-4 assignment block count");
     blocks
         .into_iter()
-        .enumerate()
-        .map(|(index, Block(opcode, kind, slots, _, _))| {
-            assert_eq!(opcode, index, "canonical assignment block order");
+        .map(|Block(kind, slots, _)| {
             let width = match kind {
                 0 | 1 => 1,
                 2 => 41,
@@ -189,7 +187,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (28_674_023, 28_792_440, 28_792_440, PUBLIC_INPUTS, 28_792_719)
+        (27_724_114, 27_866_960, 27_866_960, PUBLIC_INPUTS, 27_867_239)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -329,8 +327,11 @@ fn pi_rlc_value_wiring_rejects_detached_values() {
         panic!("one canonical PiRLC product block");
     };
 
-    // AssignmentPlan.BlockKind: productGroup=3, productOutput=9, runningPiDec=12.
-    for (label, selected) in [("PiRLC products", &[3usize, 9][..]), ("PiDEC children", &[12usize][..])] {
+    // Schema-4 transport order: output=74, quotient=75, runningPiDec=5.
+    for (label, selected) in [
+        ("PiRLC products", &[74usize, 75][..]),
+        ("PiDEC children", &[5usize][..]),
+    ] {
         let mut changed = original.balanced_values().to_vec();
         for &block in selected {
             let range = ranges[block].clone();
@@ -387,8 +388,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 28_792_719);
-    assert_eq!(package.physical_row_count(), 28_674_023);
+    assert_eq!(package.total_column_count(), 27_867_239);
+    assert_eq!(package.physical_row_count(), 27_724_114);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -620,7 +621,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 45);
+    assert_eq!(alignment, 26);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
@@ -745,11 +746,12 @@ fn base_step_rows_reject_a_detached_application_output() {
 pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
     let started = Instant::now();
     let ranges = retained_ranges(&sealed);
-    // AssignmentPlan.BlockKind: applicationWitness=29 and applicationLocal=30.
-    let application_start = ranges[29].start;
-    let application_local = ranges[30].clone();
-    assert_eq!(ranges[29].end, application_local.start);
-    assert_eq!(application_local.end, package.logical_column_count());
+    // Schema-4 transport order: application witness=20, local=21, sampler=22.
+    let application_start = ranges[20].start;
+    let application_local = ranges[21].clone();
+    assert_eq!(ranges[20].end, application_local.start);
+    assert_eq!(application_local.end, ranges[22].start);
+    let application_range = application_start..application_local.end;
     let output_words = package.application().output_columns().len();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
@@ -837,18 +839,21 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
     assert_eq!(checked, application_row_end - application_row_start);
 
-    // Keep every prefix/hash/public coordinate unchanged and replace only
-    // the application witness/local block family. Input/output coordinates
-    // belong to the preserved pilot preimage blocks.
+    // Replace only the application witness/local blocks. The pilot owns
+    // the input/output coordinates; sampler blocks follow the application.
     let mut detached = original.balanced_values().to_vec();
-    detached[application_start..].copy_from_slice(&changed.balanced_values()[application_start..]);
+    detached[application_range.clone()].copy_from_slice(&changed.balanced_values()[application_range.clone()]);
     assert_eq!(
         &detached[..application_start],
         &original.balanced_values()[..application_start]
     );
     assert_ne!(
-        &detached[application_start..],
-        &original.balanced_values()[application_start..]
+        &detached[application_range.clone()],
+        &original.balanced_values()[application_range]
+    );
+    assert_eq!(
+        &detached[application_local.end..],
+        &original.balanced_values()[application_local.end..]
     );
     assert!(detached.iter().all(|value| (-1..=1).contains(value)));
     drop(original);

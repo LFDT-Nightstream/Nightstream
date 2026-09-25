@@ -680,39 +680,6 @@ fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
     Ok(())
 }
 
-pub const PI_RLC_V1_1_DIGEST_ROUNDS: usize = 8;
-pub const PI_RLC_V1_1_RATE_LANES: usize = 4;
-pub const PI_RLC_V1_1_REJECTION_BUCKET: usize = 65_535;
-
-/// Decode the exact Lean PiRLC 54-of-64 coefficient schedule.
-///
-/// Each field lane supplies its low and high 16-bit candidates, in that
-/// order. Candidate 65535 is rejected. Every other candidate selects one
-/// value from the fixed centered alphabet by reduction modulo five.
-pub fn decode_pi_rlc_v1_1_coefficients(
-    digests: &[[F; PI_RLC_V1_1_RATE_LANES]; PI_RLC_V1_1_DIGEST_ROUNDS],
-) -> Result<[i8; D], PiCcsError> {
-    let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
-    let mut coefficients = Vec::with_capacity(D);
-    for digest in digests {
-        for lane in digest {
-            let word = lane.as_canonical_u64();
-            for shift in [0, 16] {
-                let candidate = ((word >> shift) & 0xffff) as usize;
-                if candidate != PI_RLC_V1_1_REJECTION_BUCKET && coefficients.len() < D {
-                    coefficients.push(alphabet[candidate % alphabet.len()]);
-                }
-            }
-        }
-    }
-    let accepted = coefficients.len();
-    coefficients.try_into().map_err(|_| {
-        PiCcsError::InvalidInput(format!(
-            "PiRLC sampler shortfall: accepted {accepted} of {D} coefficients from the fixed 64 candidates"
-        ))
-    })
-}
-
 fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, label: &str) -> Result<(), PiCcsError> {
     let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
     let required_expansion = expansion_factor_T(alphabet);
@@ -738,7 +705,10 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
 
 /// Sample `count` rotation matrices ρ_i = rot(a_i) for ΠRLC with a_i having small coefficients.
 ///
-/// This is the **paper-compliant** ΠRLC sampler (Section 4.5, Definition 14).
+/// The Nightstream wide sampler reduces one four-field block modulo 5^54.
+/// It always returns 54 centered coefficients and advances once per scalar.
+/// Lean proves the challenge law and its bias from uniform under the stated
+/// joint-block oracle model.
 ///
 /// ## Key Insight: Decoupling `count` from `k_rho`
 ///
@@ -845,8 +815,8 @@ pub fn sample_rot_rhos_n(
         let coordinate =
             u64::try_from(i).map_err(|_| PiCcsError::InvalidInput("PiRLC challenge coordinate exceeds u64".into()))?;
         tr.absorb_v1_1(&[F::from_u64(4), F::from_u64(coordinate)]);
-        let digests = std::array::from_fn(|_| tr.squeeze_digest_v1_1());
-        let coeffs_i8 = decode_pi_rlc_v1_1_coefficients(&digests)?;
+        let digest = tr.squeeze_digest_v1_1();
+        let coeffs_i8 = decode_pi_rlc_wide_coefficients(&digest);
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();

@@ -1,6 +1,19 @@
 # Replacement crate validation
 
-## Current quotient integration
+## Wide-sampler selection
+
+The local production package now selects the proved wide sampler from
+`a0f4b5b41`. It has 137,341,872 committed coordinates, 3,248,956 logical rows,
+and 2,607,606,765 normalized matrix entries. The native sampler, setup prefix,
+binding, full matrix and assignment comparisons, and shared assembly checks
+pass. Fresh recursive fixtures and final consumer checks are in progress.
+The [integration record](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md)
+contains the current proof and execution scope.
+
+The records below describe their named historical package versions. Their
+counts and saved proof bytes do not describe the wide-sampler selection.
+
+## Historical quotient integration
 
 The quotient layout from `8b7c07d8` and the complete Lean direct-producer proof
 at signed checkpoint `6bcdbb7c` are now connected to the selected Rust core

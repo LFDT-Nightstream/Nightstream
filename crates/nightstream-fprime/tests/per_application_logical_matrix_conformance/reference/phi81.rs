@@ -4,7 +4,8 @@ use serde_json::Value;
 
 use super::matrix::SourceSubstitution;
 use super::{
-    checked_add, checked_mul, decode_list, empty_row, exact_array, word, Field, Form, Result, RetainedBlock, RowForms,
+    array, checked_add, checked_mul, decode_form, decode_list, empty_row, exact_array, word, Field, Form, Result,
+    RetainedBlock, RowForms,
 };
 
 const RING_DEGREE: usize = 54;
@@ -81,11 +82,19 @@ struct RingForms {
 }
 
 #[derive(Clone, Debug)]
+enum Challenge {
+    Digits {
+        block: RetainedBlock,
+        slot_start: usize,
+    },
+    Centered(Vec<Form>),
+}
+
+#[derive(Clone, Debug)]
 pub struct Block {
     families: Vec<Family>,
     one_column: usize,
-    challenge: RetainedBlock,
-    challenge_slot_start: usize,
+    challenge: Challenge,
     challenge_source_stride: usize,
     input: SourceSubstitution,
     output: RetainedBlock,
@@ -94,21 +103,48 @@ pub struct Block {
 
 impl Block {
     pub fn decode(value: &Value, logical_width: usize) -> Result<Self> {
-        let fields = exact_array(value, 8, "Phi81 matrix block")?;
+        let fields = array(value, "Phi81 matrix block")?;
+        let (challenge, stride, input, output, quotient) = match fields {
+            [_, _, retained, start, stride, input, output, quotient] => {
+                let block = RetainedBlock::decode(retained)?;
+                block.validate(logical_width)?;
+                (
+                    Challenge::Digits {
+                        block,
+                        slot_start: word(start, "Phi81 challenge slot start")?,
+                    },
+                    stride,
+                    input,
+                    output,
+                    quotient,
+                )
+            }
+            [_, _, forms, stride, input, output, quotient] => (
+                Challenge::Centered(decode_list(
+                    forms,
+                    |form| decode_form(form, logical_width),
+                    "Phi81 centered challenges",
+                )?),
+                stride,
+                input,
+                output,
+                quotient,
+            ),
+            _ => return Err("invalid Phi81 matrix block".into()),
+        };
         let block = Self {
             families: decode_list(&fields[0], Family::decode, "Phi81 families")?,
             one_column: word(&fields[1], "Phi81 one column")?,
-            challenge: RetainedBlock::decode(&fields[2])?,
-            challenge_slot_start: word(&fields[3], "Phi81 challenge slot start")?,
-            challenge_source_stride: word(&fields[4], "Phi81 challenge source stride")?,
-            input: SourceSubstitution::decode(&fields[5], logical_width)?,
-            output: RetainedBlock::decode(&fields[6])?,
-            quotient: RetainedBlock::decode(&fields[7])?,
+            challenge,
+            challenge_source_stride: word(stride, "Phi81 challenge source stride")?,
+            input: SourceSubstitution::decode(input, logical_width)?,
+            output: RetainedBlock::decode(output)?,
+            quotient: RetainedBlock::decode(quotient)?,
         };
         if block.one_column != 0 || block.one_column >= logical_width {
             return Err("Phi81 one column is not logical column zero".into());
         }
-        for retained in [&block.challenge, &block.output, &block.quotient] {
+        for retained in [&block.output, &block.quotient] {
             retained.validate(logical_width)?;
         }
         Ok(block)
@@ -185,25 +221,24 @@ impl Block {
     }
 
     fn ring_forms(&self, logical_width: usize, descriptor: Descriptor) -> Result<RingForms> {
-        let challenge_base = checked_add(
-            self.challenge_slot_start,
-            checked_mul(
-                descriptor.source,
-                self.challenge_source_stride,
-                "Phi81 challenge source",
-            )?,
-            "Phi81 challenge base",
+        let challenge_base = checked_mul(
+            descriptor.source,
+            self.challenge_source_stride,
+            "Phi81 challenge source",
         )?;
         let negative_two = -Field::checked(2, "Phi81 centering")?;
         Ok(RingForms {
             left: fixed_state(|lane| {
-                Ok(self
-                    .challenge
-                    .form(
-                        logical_width,
-                        checked_add(challenge_base, lane, "Phi81 challenge lane")?,
-                    )?
-                    .append(Form::singleton(self.one_column, negative_two)))
+                let index = checked_add(challenge_base, lane, "Phi81 challenge lane")?;
+                match &self.challenge {
+                    Challenge::Digits { block, slot_start } => Ok(block
+                        .form(logical_width, checked_add(*slot_start, index, "Phi81 challenge slot")?)?
+                        .append(Form::singleton(self.one_column, negative_two))),
+                    Challenge::Centered(forms) => forms
+                        .get(index)
+                        .cloned()
+                        .ok_or_else(|| "Phi81 centered challenge is absent".to_string()),
+                }
             })?,
             right: fixed_state(|lane| {
                 self.input

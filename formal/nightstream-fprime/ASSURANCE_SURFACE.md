@@ -5,6 +5,12 @@ Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`, 17 sources, 16 childr
 14 matrices, 28 rounds, and Poseidon2 binding. A successful build checks the
 stated conclusions under their stated hypotheses.
 
+The current production entrypoint selects the wide sampler package. Its
+proof authority is listed in the wide-sampler section below. The earlier
+baseline declarations and native trace records remain evidence for their
+recorded package versions. The current native integration checks and open
+fixture work are recorded in the integration report.
+
 The selected native NIFS-to-successor bridge is checked at `68c5d94a`.
 It constructs the complete caller packet from the actual saved NIFS output,
 matches every caller word with Lean, and passes independent complete
@@ -82,12 +88,12 @@ The constructor consumes `Export.Stage1.DirectApplicationPrefixPlan.rowsZero_iff
 - Verifier-owned identity and setup checks remain necessary at the runtime trust boundary. The retained optimized Lean/Rust examples establish only their recorded inputs and rejection cases. This note adds no arbitrary-input Rust proof, backend claim, PaperExact authorization, or efficient probabilistic full-history extraction result.
 - The selected native cache now derives its rows through `Poseidon2HashChainV1Package.build_superneo_cache`. Exact reservations control memory; every actual row still passes order, coefficient and coverage checks. The actual base witness and logical transport matched all 14 × 54 retained Lean matrix outputs in 197.77 seconds of test time, with 26.90 GiB peak RSS. This is one full-profile matrix comparison. The normal selected PiCCS prover now passes from the actual base witness and fixed-key commitment: all round messages, transcript states and complete outputs match retained assertions, and the normal optimized verifier accepts (231.52 seconds, 26.86 GiB peak RSS). The complete selected-base C → R → D path now passes through capped actual-witness stages: computed D openings, normal NIFS acceptance, all 43 NIFS mutations, and strict comparison with an independently computed Lean C/R/D result, including all 55 D mutations. The retained regression checks that result and its 945,983-byte proof encoding against the current pinned package. The unused-allocation mutation repair is recorded separately in `NIFS_UNUSED_ALLOCATIONS.md`. See [native evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md) for exact sources, inputs and logs. Full-profile later running inputs, universal Rust semantics, the production proof backend and performance remain separate.
 
-### Wide-sampler candidate (not selected)
+### Selected wide sampler
 
 The owner approved the map and transcript change on 2026-09-24. The candidate
 keeps Poseidon2 and the Nightstream Goldilocks profile `b=2`, `k_rho=16`,
-`B=65536`. The selected production statements above still describe the old
-sampler until the package switch.
+`B=65536`. `Export.Entrypoint` uses `Wide.Emitter` for the selected package,
+and the Rust native sampler reads the same joint four-field block.
 
 - `Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_answer`
   proves that normalized block histories replay the exact additive Poseidon2
@@ -151,8 +157,10 @@ sampler until the package switch.
   smaller same-seed key to the existing approved MSIS instance by zero
   extension.
 
-All three candidate costs are recorded in
+All three selected costs are recorded in
 [the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
-Production still selects the baseline package. Native parity for the new
-binding and production selection remain separate from these candidate
-proofs. No numerical security level or performance claim follows from them.
+The selected layout has 3,248,956 rows, 137,341,872 committed coordinates,
+and 2,607,606,765 normalized matrix entries. The complete independent Rust
+matrix comparison and native binding parity pass. Recursive fixture and
+consumer checks remain required before the integration is complete. No
+numerical security level or performance claim follows from these counts.

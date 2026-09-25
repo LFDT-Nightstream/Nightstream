@@ -148,6 +148,9 @@ import NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Closure
+import NightstreamFPrime.Export.Stage1.Wide.PackageAuthority
+import NightstreamFPrime.Export.Stage1.Wide.PackageCompleteness
+import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 import NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation

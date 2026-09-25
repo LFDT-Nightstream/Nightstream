@@ -90,15 +90,7 @@ def writeCircuit (handle : IO.FS.Handle) (value : CircuitPackage) : IO Unit := d
   writeValue handle ((option TerminalLayout.format).encode value.terminal)
   writeByte handle 93
 
-def run (arguments : List String) : IO UInt32 := do
-  let (path, context) ← match arguments with
-    | [path] => pure (path, none)
-    | [path, w0, w1, w2, w3] =>
-      match ParityEmitter.parseVerifierKey w0 w1 w2 w3 with
-      | .ok value => pure (path, some value)
-      | .error message => throw (IO.userError message)
-    | _ => throw (IO.userError "expected output path and optional four fixture-context words")
-  let start ← IO.monoMsNow
+def prepare : IO AuthorityStream.Parts := do
   progress "wide_stage=common"
   let common ← prepareCommon
   progress s!"wide_stage=relocate common_instructions={common.witnessInstructions.length}"
@@ -121,7 +113,38 @@ def run (arguments : List String) : IO UInt32 := do
     | .error message => throw (IO.userError message)
   unless transport.coordinateCount = width do
     throw (IO.userError s!"transport width {transport.coordinateCount} differs from matrix width {width}")
-  let parts := AuthorityStream.ofChildren package matrix application transport
+  return AuthorityStream.ofChildren package matrix application transport
+
+def writeSealed (handle : IO.FS.Handle) (parts : AuthorityStream.Parts) : IO Unit := do
+  writeByte handle 91
+  writeValue handle (.atom PerApplicationCanonicalPackage.sealedPackageSchema)
+  comma handle
+  writeCircuit handle parts.package
+  comma handle
+  writeValue handle (Layout.MatrixProgram.Program.format.encode parts.matrix)
+  comma handle
+  writeApplicationPackagePlan handle parts.application
+  comma handle
+  writeValue handle parts.transport.encode
+  comma handle
+  writeValue handle (Layout.MatrixProgram.IndexRange.format.encode
+    (AuthorityStream.nextPreimageRange parts))
+  comma handle
+  writeValue handle (.atom PerApplicationCanonicalPackage.logicalPublicInputCount)
+  writeByte handle 93
+
+def run (arguments : List String) : IO UInt32 := do
+  let (path, context) ← match arguments with
+    | [path] => pure (path, none)
+    | [path, w0, w1, w2, w3] =>
+      match ParityEmitter.parseVerifierKey w0 w1 w2 w3 with
+      | .ok value => pure (path, some value)
+      | .error message => throw (IO.userError message)
+    | _ => throw (IO.userError "expected output path and optional four fixture-context words")
+  let start ← IO.monoMsNow
+  let parts ← prepare
+  let matrix := parts.matrix
+  let width := RetainedLayout.logicalWidth Poseidon2HashChainV1Package.application
   let package := parts.package
   progress s!"wide_physical_rows={package.layout.rowCount} columns={package.layout.totalColumnCount}"
   let handle ← IO.FS.Handle.mk ⟨path⟩ .write
@@ -133,22 +156,7 @@ def run (arguments : List String) : IO UInt32 := do
   writeByte matrixHandle 10
   matrixHandle.flush
   let sealedHandle ← IO.FS.Handle.mk ⟨path ++ ".sealed.json"⟩ .write
-  writeByte sealedHandle 91
-  writeValue sealedHandle (.atom PerApplicationCanonicalPackage.sealedPackageSchema)
-  comma sealedHandle
-  writeCircuit sealedHandle package
-  comma sealedHandle
-  writeValue sealedHandle (Layout.MatrixProgram.Program.format.encode parts.matrix)
-  comma sealedHandle
-  writeApplicationPackagePlan sealedHandle parts.application
-  comma sealedHandle
-  writeValue sealedHandle parts.transport.encode
-  comma sealedHandle
-  writeValue sealedHandle (Layout.MatrixProgram.IndexRange.format.encode
-    (AuthorityStream.nextPreimageRange parts))
-  comma sealedHandle
-  writeValue sealedHandle (.atom PerApplicationCanonicalPackage.logicalPublicInputCount)
-  writeByte sealedHandle 93
+  writeSealed sealedHandle parts
   writeByte sealedHandle 10
   sealedHandle.flush
   progress "wide_stage=binding"
@@ -162,7 +170,17 @@ def run (arguments : List String) : IO UInt32 := do
   progress s!"wide_physical_package={path} elapsed_ms={stop - start}"
   return 0
 
-end NightstreamFPrime.Export.Stage1.Wide.Emitter
+/-- The selected command emits the same typed children as the proved builder. -/
+def emitSelected (path : System.FilePath) (expanded : Bool) : IO Unit := do
+  if let some parent := path.parent then IO.FS.createDirAll parent
+  let parts ← prepare
+  let handle ← IO.FS.Handle.mk path .write
+  if expanded then writeCircuit handle parts.package else writeSealed handle parts
+  writeByte handle 10
+  handle.flush
+  progress s!"emitted_selected_wide={path}"
 
-def main (arguments : List String) : IO UInt32 :=
-  NightstreamFPrime.Export.Stage1.Wide.Emitter.run arguments
+def bindingFixtureIO : IO Codec.Value := do
+  return SetupBinding.bindingFixture (← prepare)
+
+end NightstreamFPrime.Export.Stage1.Wide.Emitter

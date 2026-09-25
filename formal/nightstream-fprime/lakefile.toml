@@ -152,11 +152,6 @@ root = "tests.PiDECActualMutations"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
-name = "emitPiRlcSamplerParity"
-root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
 name = "emitPiRLCParity"
 root = "NightstreamFPrime.Export.PiRLCParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
@@ -242,5 +237,5 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
 name = "emitWidePhysicalPackage"
-root = "NightstreamFPrime.Export.Stage1.Wide.Emitter"
+root = "NightstreamFPrime.Export.WidePhysicalPackageMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

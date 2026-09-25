@@ -169,7 +169,7 @@ private def valueStart (descriptor : Descriptor) : Nat :=
   | .evalK => evalKValueSourceStart descriptor.source.val descriptor.block.val descriptor.cell.val
   | .evalA => evalAValueSourceStart descriptor.source.val descriptor.block.val descriptor.cell.val
 
-private def sourceColumn (descriptor : Descriptor) (input : Nat) : Nat :=
+def sourceColumn (descriptor : Descriptor) (input : Nat) : Nat :=
   if input < 54 then challengeSourceStart descriptor.source.val + input
   else if input < 108 then valueStart descriptor +
     (input - 54) * descriptor.family.valueStride
@@ -178,7 +178,7 @@ private def sourceColumn (descriptor : Descriptor) (input : Nat) : Nat :=
   else if input = 109 then descriptor.outputColumn
   else 0
 
-private theorem inputColumn_eq (descriptor : Descriptor) (input : Nat)
+theorem inputColumn_eq (descriptor : Descriptor) (input : Nat)
     (bounded : input < 110) :
     inputColumn descriptor input = Spartan.sourceToSpartan (sourceColumn descriptor input) := by
   rcases descriptor with ⟨family, source, block, lane, cell⟩

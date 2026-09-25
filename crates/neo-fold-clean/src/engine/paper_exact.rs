@@ -7,7 +7,7 @@ use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::api as reductions;
-use neo_reductions::common::{decode_pi_rlc_v1_1_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho};
+use neo_reductions::common::{decode_pi_rlc_wide_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
@@ -150,17 +150,15 @@ pub fn sample_rho_n(
             neo_reductions::error::PiCcsError::InvalidInput("PaperExact PiRLC challenge coordinate exceeds u64".into())
         })?;
         transcript.absorb_v1_1(&[F::from_u64(4), F::from_u64(coordinate)]);
-        let coefficients = sample_alphabet_coefficients(transcript)?;
+        let digest = transcript.squeeze_digest_v1_1();
+        let coefficients: Vec<F> = decode_pi_rlc_wide_coefficients(&digest)
+            .into_iter()
+            .map(signed_field)
+            .collect();
         let matrix = rotation_matrix(&coefficients, ring.phi_coeffs);
         output.push(RotRho::new_checked(params.inner(), matrix)?);
     }
     Ok(output)
-}
-
-fn sample_alphabet_coefficients(transcript: &mut neo_transcript::Poseidon2Transcript) -> Result<Vec<F>, Error> {
-    let digests = std::array::from_fn(|_| transcript.squeeze_digest_v1_1());
-    let symbols = decode_pi_rlc_v1_1_coefficients(&digests)?;
-    Ok(symbols.into_iter().map(signed_field).collect())
 }
 
 fn signed_field(value: i8) -> F {

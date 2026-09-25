@@ -186,14 +186,19 @@ theorem contextKey_recomputed (parts : AuthorityStream.Parts) :
       (Poseidon2.hash (contextSerialize (VerifierContext.descriptor (authority parts))))).toList := by
   rw [contextKey, contextDigest, descriptor_recomputed]
 
-def bindingValues (parts : AuthorityStream.Parts) : VerifierContext.Digest4 × Stage1.VerificationKey.Binding :=
-  let structural := AuthorityStream.structuralIdentity parts
-  let context := descriptorFromStructural parts structural
-  (structural, {
+/-- Component replay for parity. A caller-supplied digest is not package
+authority; the selected constructor below recomputes each component. -/
+def bindingFromStructural (structural : VerifierContext.Digest4)
+    (context : VerifierContext.Descriptor) : Stage1.VerificationKey.Binding :=
+  {
     packageIdentity := VerifierContext.Digest4.ofList (Poseidon2.hash
       (PerApplicationCanonicalPackage.packageIdentityDomain ++
         VerifierContext.framed structural.toList ++ VerifierContext.framed (contextSerialize context)))
-    context := context })
+    context := context }
+
+def bindingValues (parts : AuthorityStream.Parts) : VerifierContext.Digest4 × Stage1.VerificationKey.Binding :=
+  let structural := AuthorityStream.structuralIdentity parts
+  (structural, bindingFromStructural structural (descriptorFromStructural parts structural))
 
 def verificationKeyBinding (parts : AuthorityStream.Parts) : Stage1.VerificationKey.Binding :=
   (bindingValues parts).2

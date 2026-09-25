@@ -26,7 +26,7 @@ pub use logical_reference::mutation::RecipeFamily;
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PRIVATE_INPUT_COUNT: usize = 177_326;
 const PUBLIC_INPUT_COUNT: usize = 278;
-const TOTAL_COLUMN_COUNT: usize = 28_792_719;
+const TOTAL_COLUMN_COUNT: usize = 27_867_239;
 const FIRST_GENERATED_COLUMN: usize = 128_074;
 const STATE_PREIMAGE_WORDS: usize = 49_393;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
@@ -243,7 +243,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         assignment.public_values(),
     )
     .expect("independent canonical assignment evaluation");
-    assert_eq!(evaluated_rows, 28_674_023);
+    assert_eq!(evaluated_rows, 27_724_114);
     assert_eq!(evaluated_rows, package.physical_row_count());
     let mut changed_assignment = assignment.private_values().to_vec();
     changed_assignment[FIRST_GENERATED_COLUMN] = (changed_assignment[FIRST_GENERATED_COLUMN] + 1) % GOLDILOCKS_MODULUS;
@@ -258,7 +258,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .r1cs_matrices()
         .expect("intermediate physical R1CS A/B/C matrices");
     let r1cs_matrix_nonzeros = conformance_support::compare_sealed_matrices(&bytes, &matrices);
-    assert_eq!(r1cs_matrix_nonzeros, [93_238_030, 38_665_934, 28_343_420]);
+    assert_eq!(r1cs_matrix_nonzeros, [91_935_932, 37_291_416, 27_552_988]);
     drop(matrices);
     eprintln!("intermediate_r1cs_matrix_nonzeros={r1cs_matrix_nonzeros:?}");
 
@@ -296,9 +296,9 @@ fn phi81_recipe_mutation_fails_the_original_logical_relation() {
 }
 
 #[test]
-#[ignore = "complete assignment control and First54 recipe rejection; run this target explicitly under the 300-second cap"]
-fn first54_recipe_mutation_fails_the_original_logical_relation() {
-    check_selected_assignment(Some(RecipeFamily::First54));
+#[ignore = "complete assignment control and challenge-bit recipe rejection; run this target explicitly under the 300-second cap"]
+fn challenge_bits_recipe_mutation_fails_the_original_logical_relation() {
+    check_selected_assignment(Some(RecipeFamily::ChallengeBits));
 }
 
 #[test]
@@ -440,7 +440,7 @@ fn check_logical_assignment(
     let production_logical_assignment = package
         .execute_ccs_assignment(&private_inputs, &public_inputs)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 149_292_999);
+    assert_eq!(production_logical_assignment.len(), 137_341_846);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -467,7 +467,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 149_292_999);
+    assert_eq!(logical_assignment.len(), 137_341_846);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -503,9 +503,9 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 3_588_191);
+    assert_eq!(result.active_rows, 3_248_956);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 45);
+    assert_eq!(result.carrier_padding_columns, 26);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()

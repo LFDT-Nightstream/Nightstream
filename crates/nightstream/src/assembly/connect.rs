@@ -146,10 +146,8 @@ fn assignment_blocks(manifest: &Manifest, counts: Counts) -> Result<Vec<Assignme
                 return Err(AssemblyError::Invalid("assignment run coverage"));
             }
             Ok(AssignmentBlock {
-                opcode,
                 slot_kind: block.slot_kind,
                 slot_count,
-                source_domain: block.source_domain,
                 runs: sources,
             })
         })
@@ -166,14 +164,54 @@ pub(super) fn ordinary_reference(reference: &mut Envelope, manifest: &Manifest) 
         .ok_or(AssemblyError::Overflow)?;
     let replacement: Vec<Value> = serde_json::from_value(manifest.application_matrix_template.clone())?;
     reference.matrix.splice(child.block_start..end, replacement);
-    let opcode = manifest.selected_reference.application_local.opcode;
+    let ordinary_end = child
+        .block_start
+        .checked_add(child.block_count)
+        .ok_or(AssemblyError::Overflow)?;
+    let original = serde_json::to_value(&reference.matrix)?;
+    let mut ordinary_matrix = original.clone();
+    let mut used = BTreeSet::new();
+    for relocation in &manifest.selected_reference.matrix_relocations {
+        if relocation
+            .path
+            .first()
+            .is_none_or(|block| *block >= reference.matrix.len() || (child.block_start..ordinary_end).contains(block))
+            || !used.insert(&relocation.path)
+        {
+            return Err(AssemblyError::Invalid("selected matrix relocation path"));
+        }
+        let target = path_mut(&mut ordinary_matrix, &relocation.path)?;
+        if super::word(target)? != relocation.selected {
+            return Err(AssemblyError::Invalid(
+                "selected matrix relocation differs from reference",
+            ));
+        }
+        *target = json!(relocation.ordinary);
+    }
+    let mut restored = ordinary_matrix.clone();
+    for relocation in &manifest.selected_reference.matrix_relocations {
+        let target = path_mut(&mut restored, &relocation.path)?;
+        if super::word(target)? != relocation.ordinary {
+            return Err(AssemblyError::Invalid(
+                "ordinary matrix relocation differs from manifest",
+            ));
+        }
+        *target = json!(relocation.selected);
+    }
+    if restored != original {
+        return Err(AssemblyError::Invalid(
+            "selected matrix conversion changed undeclared fields",
+        ));
+    }
+    reference.matrix = serde_json::from_value(ordinary_matrix)?;
+    let index = manifest.selected_reference.application_local_index;
     let ordinary = assignment_blocks(manifest, manifest.reference())?;
     *reference
         .assignment
         .blocks
-        .get_mut(opcode)
+        .get_mut(index)
         .ok_or(AssemblyError::Invalid("selected application assignment block"))? = ordinary
-        .get(opcode)
+        .get(index)
         .ok_or(AssemblyError::Invalid("ordinary application assignment block"))?
         .clone();
     reference.source.relation.rows = manifest.geometry.logical_rows.eval(manifest.reference())?;
@@ -187,18 +225,21 @@ pub(super) fn assignment(reference: &mut Envelope, manifest: &Manifest, counts: 
         return Err(AssemblyError::Invalid("assignment templates differ from reference"));
     }
     reference.assignment.blocks = assignment_blocks(manifest, counts)?;
-    // The schema-3 quotient recipe stores valueSources at field 9.
+    // Schema 4 carries families, value sources, and checked challenge bits.
     let phi81 = reference
         .assignment
         .phi81
         .as_array_mut()
-        .filter(|fields| fields.len() == 11)
+        .filter(|fields| fields.len() == 3)
         .ok_or(AssemblyError::Invalid("Phi81 assignment recipe"))?;
-    if phi81[9] != serde_json::to_value(runs(&manifest.phi81_value_sources, manifest.reference())?)? {
-        return Err(AssemblyError::Invalid(
-            "Phi81 value source template differs from reference",
-        ));
+    for (index, sources) in [
+        (1, &manifest.phi81_value_sources),
+        (2, &manifest.phi81_challenge_sources),
+    ] {
+        if phi81[index] != serde_json::to_value(runs(sources, manifest.reference())?)? {
+            return Err(AssemblyError::Invalid("Phi81 source template differs from reference"));
+        }
+        phi81[index] = serde_json::to_value(runs(sources, counts)?)?;
     }
-    phi81[9] = serde_json::to_value(runs(&manifest.phi81_value_sources, counts)?)?;
     Ok(())
 }

@@ -20,7 +20,19 @@ use serde_json::Value;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 16, 64];
+fn schedule() -> Vec<u64> {
+    let modulus = Goldilocks::ORDER_U64;
+    let value = serde_json::json!([
+        words(b"Nightstream/SuperNeo/PiCCS/digest-only/v1_1"),
+        [28, 10, 17, 14, 54],
+        words(b"Nightstream/PiRLC/wide-reduction/v1"),
+        [17, 4, 4, modulus, 5, 54, 1],
+        [modulus - 2, modulus - 1, 0, 1, 2]
+    ]);
+    let mut encoded = Vec::new();
+    append_value_preimage(&value, &mut encoded);
+    encoded
+}
 
 // Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 3.
 #[derive(Deserialize)]
@@ -214,11 +226,11 @@ impl Candidate {
         let mut nifs_words = words(b"Nightstream/FPrime/nifs-key/v1_1");
         nifs_words.extend(framed(&relation_words));
         nifs_words.extend(framed(&PROFILE));
-        nifs_words.extend(framed(&SCHEDULE));
+        nifs_words.extend(framed(&schedule()));
         nifs_words.extend(framed(&commitment_digest));
         let mut expected_descriptor = words(b"Nightstream/FPrime/verifier-context/v1_1");
         expected_descriptor.extend(framed(&PROFILE));
-        expected_descriptor.extend(framed(&SCHEDULE));
+        expected_descriptor.extend(framed(&schedule()));
         for digest in [
             component(1, &relation_words),
             component(2, &application_words),
@@ -310,10 +322,10 @@ pub fn run(
         "physical" | "detached" => 1,
         "logical" | "mutations" => 0,
         "base" | "commitment" => 2,
-        "assignment" | "assignment-phi81" | "assignment-first54" | "assignment-output-digest" => 3,
+        "assignment" | "assignment-phi81" | "assignment-challenge-bits" | "assignment-output-digest" => 3,
         "recursive" | "recursive-mutations" => 7,
         _ => panic!(
-            "mode must be physical, logical, mutations, assignment, assignment-phi81, assignment-first54, assignment-output-digest, base, recursive, recursive-mutations, commitment, or detached"
+            "mode must be physical, logical, mutations, assignment, assignment-phi81, assignment-challenge-bits, assignment-output-digest, base, recursive, recursive-mutations, commitment, or detached"
         ),
     };
     assert_eq!(
@@ -336,11 +348,11 @@ pub fn run(
         }
         "logical" => super::logical_checks::check_logical_matrices(package, bytes),
         "mutations" => super::logical_checks::check_matrix_mutations(package, bytes),
-        "assignment" | "assignment-phi81" | "assignment-first54" | "assignment-output-digest" => {
+        "assignment" | "assignment-phi81" | "assignment-challenge-bits" | "assignment-output-digest" => {
             use super::assignment_checks::RecipeFamily;
             let recipe = match mode {
                 "assignment-phi81" => Some(RecipeFamily::Phi81),
-                "assignment-first54" => Some(RecipeFamily::First54),
+                "assignment-challenge-bits" => Some(RecipeFamily::ChallengeBits),
                 "assignment-output-digest" => Some(RecipeFamily::OutputDigest),
                 _ => None,
             };

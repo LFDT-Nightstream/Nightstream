@@ -270,7 +270,7 @@ case "$phase" in
     ;;
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiRlcSamplerParity -- "$2"
+    capped lake exe emitWideSamplerParity -- "$2"
     ;;
   pi-rlc-input-check)
     if (( $# != 7 )); then

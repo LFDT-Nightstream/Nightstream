@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiDECParity
+import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
 
 private def usage : String :=
   "usage: emitPiDECParity <context0> <context1> <context2> <context3> " ++
@@ -19,7 +20,8 @@ private def run (c0 c1 c2 c3 p0 p1 p2 p3 path : String) : IO UInt32 := do
       pure 2
   | .ok (context, packageIdentity) =>
       NightstreamFPrime.Export.ParityEmitter.runIO "emitted_pi_dec_parity"
-        (NightstreamFPrime.Export.Stage1.PiDECParity.parityValueIO
+        (NightstreamFPrime.Export.Stage1.PiDECParity.parityValueIOWith
+          (fun state => some (NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture.batch state))
           context packageIdentity) [path]
 
 def main (arguments : List String) : IO UInt32 :=

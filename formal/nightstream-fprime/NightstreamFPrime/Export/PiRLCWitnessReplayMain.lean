@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
+import NightstreamFPrime.Export.Stage1.Wide.PiRLCInputCheck
 import NightstreamFPrime.Export.SignedUnitSourceInput
 
 /-!
@@ -55,8 +55,8 @@ private def replay (ccsPath sourcePath outputPath : System.FilePath)
     (start finish : Nat) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let ccs ← checked (PiCCSInputCheck.parse (← IO.FS.readFile ccsPath))
-  let some batch := PiRLCInputCheck.sampled ccs
-    | throw (IO.userError "C rejected or PiRLC sampler shortfall")
+  let some batch := Wide.PiRLCInputCheck.sampled ccs
+    | throw (IO.userError "C rejected before PiRLC replay")
   let tables := PiRLCWitnessBlock.prepareWitnessActions batch.challenges
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
   let source ← IO.FS.Handle.mk sourcePath .read

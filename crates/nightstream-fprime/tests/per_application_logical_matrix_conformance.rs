@@ -70,12 +70,12 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 3_588_191;
-const EXPECTED_LOGICAL_COLUMNS: usize = 149_292_999;
+const EXPECTED_ACTIVE_ROWS: usize = 3_248_956;
+const EXPECTED_LOGICAL_COLUMNS: usize = 137_341_846;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
-const EXPECTED_PHYSICAL_ROWS: usize = 28_674_023;
-const EXPECTED_PHYSICAL_COLUMNS: usize = 28_792_719;
+const EXPECTED_PHYSICAL_ROWS: usize = 27_724_114;
+const EXPECTED_PHYSICAL_COLUMNS: usize = 27_867_239;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
 const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 86;
@@ -106,6 +106,8 @@ fn canonical_pin_entry(package: &mut Value) -> &mut Vec<Value> {
         .and_then(|sealed| sealed.get_mut(2))
         .and_then(Value::as_array_mut)
         .and_then(|blocks| blocks.get_mut(3))
+        .and_then(Value::as_array_mut)
+        .and_then(|mapped| mapped.get_mut(3))
         .and_then(Value::as_array_mut)
         .and_then(|block| block.get_mut(1))
         .and_then(Value::as_array_mut)
@@ -281,7 +283,7 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
 }
 
 #[test]
-#[ignore = "full independent 4,703,127-row matrix interpretation; run the documented release target under the 300-second cap"]
+#[ignore = "full independent logical-matrix interpretation; run the documented release target under the 300-second cap"]
 fn final_fourteen_matrices_equal_the_independent_sealed_interpretation() {
     let sealed_bytes = fs::read(artifact_path()).expect("Lean-emitted sealed package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("production package decoder");

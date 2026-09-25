@@ -1,5 +1,5 @@
 //! Named views of the existing numeric-array ABI in Export/Package.lean,
-//! Stage1/ApplicationPackage.lean and Stage1/PerApplicationAssignmentTransport.lean.
+//! Stage1/ApplicationPackage.lean and Stage1/Wide/AssignmentTransport.lean.
 
 use serde::{ser::SerializeTuple, Deserialize, Serialize, Serializer};
 use serde_json::Value;
@@ -85,9 +85,8 @@ wire_tuple!(ApplicationPlan {
     batches: Vec<Batch>, instructions: Vec<Instruction>, rows: Vec<Row>,
 });
 wire_tuple!(Assignment {
-    schema: usize, blocks: Vec<AssignmentBlock>, phi81: Value, first54: Value,
-    digest_block: usize, digest_expressions: Vec<Value>,
+    schema: usize, blocks: Vec<AssignmentBlock>, phi81: Value, digest_expressions: Vec<Value>,
 });
 wire_tuple!(AssignmentBlock {
-    opcode: usize, slot_kind: usize, slot_count: usize, source_domain: usize, runs: Vec<[usize; 3]>,
+    slot_kind: usize, slot_count: usize, runs: Vec<[usize; 3]>,
 });

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-! Counts of the assembled, unselected wide-sampler candidate. These do not
+/-! Counts of the selected wide-sampler package. These do not
 certify whole-package preservation or the matrix interpreter. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.HashChainCounts

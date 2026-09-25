@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity
+import NightstreamFPrime.Export.Stage1.Wide.Emitter
 
 open NightstreamFPrime.Lifecycle.VerifierContext
 open NightstreamFPrime.Spec
@@ -52,15 +53,16 @@ private def run
   | .ok (structural, relation, application, nifsKey, commitmentKey) =>
       NightstreamFPrime.Export.ParityEmitter.runIO
         "emitted_poseidon2_hash_chain_v1_binding_parity"
-        (NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity.parityValueIO
-          structural relation application nifsKey commitmentKey) [path]
+        (pure (NightstreamFPrime.Export.Stage1.Wide.SetupBinding.bindingFixtureValue
+          (structural, NightstreamFPrime.Export.Stage1.Wide.SetupBinding.bindingFromStructural
+            structural { relation, application, nifsKey, commitmentKey }))) [path]
 
 def main (arguments : List String) : IO UInt32 :=
   match arguments with
   | [path] | ["--", path] =>
       NightstreamFPrime.Export.ParityEmitter.runIO
         "emitted_poseidon2_hash_chain_v1_canonical_binding"
-        (NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity.canonicalParityValueIO ())
+        NightstreamFPrime.Export.Stage1.Wide.Emitter.bindingFixtureIO
         [path]
   | [i0, i1, i2, i3, r0, r1, r2, r3, a0, a1, a2, a3,
       n0, n1, n2, n3, c0, c1, c2, c3, path] =>

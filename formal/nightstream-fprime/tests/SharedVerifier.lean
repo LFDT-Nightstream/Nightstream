@@ -92,97 +92,175 @@ private partial def equalRuns : List AffineRuns.Run → List AffineRuns.Run → 
           { right with first := right.first + count * right.step, count := right.count - count } :: rs
         equalRuns ls rs
 
-private def checkApplication (manifest : Lean.Json)
-    (application : NightstreamFPrime.Lifecycle.Stage1.Application.Program) : Except String Unit := do
+private def programValue (compiled : PiRlcWideSampler.RangePlan.Compiled)
+    (application : NightstreamFPrime.Lifecycle.Stage1.Application.Program) : Except String Program :=
+  Wide.PhysicalMatrixSource.program application compiled
+
+private def applicationValue (application : NightstreamFPrime.Lifecycle.Stage1.Application.Program) :
+    Except String Program :=
+  Wide.PhysicalMatrixSource.relocateProgram
+    (PerApplicationPackage.directAddedPrivateColumnCount application)
+    (Wide.ReusedMatrixPrograms.applicationProgram application)
+
+private def replaceApplication (source replacement : Codec.Value) (start count : Nat) : Except String Codec.Value := do
+  let .array blocks := source | throw "matrix program is not an array"
+  let .array application := replacement | throw "application program is not an array"
+  require (start + count ≤ blocks.length) "application replacement exceeds program"
+  return .array (blocks.take start ++ application ++ blocks.drop (start + count))
+
+private def valueAt : Codec.Value → List Nat → Except String Nat
+  | .atom value, [] => pure value
+  | .array values, index :: rest => do
+      let some value := values[index]? | throw "matrix relocation is out of range"
+      valueAt value rest
+  | _, _ => throw "matrix relocation does not select an atom"
+
+private def applicationChild (manifest : Lean.Json) : Except String Lean.Json := do
+  let children ← array manifest "children"
+  let some child := children.find? (fun child => child.getObjValAs? Bool "replaceable" == .ok true)
+    | throw "manifest omits the application child"
+  return child
+
+private def checkApplication (manifest : Lean.Json) (reference : Program)
+    (application : NightstreamFPrime.Lifecycle.Stage1.Application.Program)
+    (expected : Program) : Except String Unit := do
   let parameters := [application.witnessWordCount,
     ApplicationRetainedBlocks.localCount application,
     PerApplicationPackage.directApplicationRowCount application]
+  let prefixRows ← Wide.PhysicalRelabel.row Data.physicalLayout.rowCount
+  let physicalPlan := Wide.ApplicationPackage.plan application prefixRows
+  let privateCount := application.witnessWordCount + physicalPlan.privateCount
+  let applicationProgram ← applicationValue application
   let geometry ← manifest.getObjVal? "geometry"
-  let sourceLayout := PerApplicationPackage.directFinalLayout application
-  for (name, expected) in [
-      ("source_rows", sourceLayout.rowCount),
-      ("source_private", sourceLayout.privateColumnCount),
-      ("source_constant", sourceLayout.constantColumn),
-      ("source_total", sourceLayout.totalColumnCount),
-      ("logical_rows", PerApplicationCanonicalPackage.directStructuralRowCount application),
-      ("logical_width", PerApplicationCanonicalPackage.directLogicalWidth application)] do
-    require ((← fieldDimension parameters geometry name) == expected)
+  for (name, value) in [
+      ("source_rows", prefixRows + physicalPlan.rowCount + 5),
+      ("source_private", Layout.Stage1.Wide.SourceOrder.privateColumns + privateCount),
+      ("source_constant", Layout.Stage1.Wide.SourceOrder.constantColumn + privateCount),
+      ("source_total", Layout.Stage1.Wide.SourceOrder.totalColumns + privateCount),
+      ("logical_rows", expected.rowCount),
+      ("logical_width", Wide.RetainedLayout.logicalWidth application)] do
+    require ((← fieldDimension parameters geometry name) == value)
       s!"manifest dimension differs: {name}"
   let children ← array manifest "children"
   require (children.length == PerApplicationProductionPlan.canonicalKinds.length)
     "manifest omits a required child"
-  let mut expectedBlockStart := 0
-  let mut expectedRowStart := 0
-  for (kind, metadata) in PerApplicationProductionPlan.canonicalKinds.zip children do
-    let reference := PerApplicationMatrixProgram.blockProgram
-      ordinaryReference kind
-    let expected := PerApplicationMatrixProgram.blockProgram application kind
-    let blockStart ← natural metadata "block_start"
-    let blockCount ← natural metadata "block_count"
-    require (blockStart == expectedBlockStart && blockCount == reference.blocks.length)
-      "manifest matrix child range differs"
-    require ((← fieldDimension parameters metadata "row_start") == expectedRowStart &&
-        (← fieldDimension parameters metadata "row_count") == expected.rowCount)
-      "manifest matrix row owner differs"
-    let source := Program.format.encode reference
-    if kind != .application then
-      let actual ← relocationsFor parameters manifest "matrix_relocations" blockStart blockCount source
-      require (equalValue actual (Program.format.encode expected))
-        s!"shared matrix relocation differs at child {← natural metadata "opcode"}"
-    else
-      let template ← codecValue (← manifest.getObjVal? "application_matrix_template")
-      let actual ← relocationsFor parameters manifest "application_matrix_relocations" 0 blockCount template
-      require (equalValue actual (Program.format.encode expected))
-        "application matrix connector differs"
-    expectedBlockStart := expectedBlockStart + blockCount
-    expectedRowStart := expectedRowStart + expected.rowCount
+  let mut blockStart := 0
+  let mut rowStart := 0
+  for (kind, child) in PerApplicationProductionPlan.canonicalKinds.zip children do
+    let count ← natural child "block_count"
+    require ((← natural child "block_start") == blockStart)
+      "matrix children do not cover their ordered blocks"
+    let rows := ((expected.blocks.drop blockStart).take count).foldl (fun total block => total + block.rowCount) 0
+    require ((← fieldDimension parameters child "row_start") == rowStart &&
+      (← fieldDimension parameters child "row_count") == rows)
+      "matrix child row ownership differs"
+    if kind == .application then
+      require (count == applicationProgram.blocks.length)
+        "application connector block count differs"
+    blockStart := blockStart + count
+    rowStart := rowStart + rows
+  require (blockStart == expected.blocks.length && rowStart == expected.rowCount)
+    "matrix children omit program rows"
+  let child ← applicationChild manifest
+  let start ← natural child "block_start"
+  let count ← natural child "block_count"
+  let shared ← relocationsFor parameters manifest "matrix_relocations" 0 reference.blocks.length
+    (Program.format.encode reference)
+  let template ← codecValue (← manifest.getObjVal? "application_matrix_template")
+  let connector ← relocationsFor parameters manifest "application_matrix_relocations" 0 count template
+  require (equalValue connector (Program.format.encode applicationProgram))
+    "application matrix connector differs"
+  let actual ← replaceApplication shared connector start count
+  require (equalValue actual (Program.format.encode expected))
+    "complete wide matrix relocation differs"
+  let transport ← Wide.AssignmentTransport.plan application
+    (Layout.Stage1.Wide.SourceOrder.totalColumns + privateCount)
   let blocks ← array manifest "assignment_blocks"
-  require (blocks.length == PerApplicationAssignmentPlan.canonicalKinds.length)
-    "manifest omits a retained assignment block"
-  for (kind, metadata) in PerApplicationAssignmentPlan.canonicalKinds.zip blocks do
-    let expected := PerApplicationAssignmentBlocks.BlockPlan.ofKind application kind
-    require ((← fieldDimension parameters metadata "slot_count") == expected.slotCount)
+  require (blocks.length == transport.blocks.length) "manifest omits a retained assignment block"
+  for (expected, metadata) in transport.blocks.zip blocks do
+    require ((← fieldDimension parameters metadata "slot_count") == expected.count)
       "manifest retained slot count differs"
     let actual ← sourceRuns parameters (← array metadata "source_runs")
-    require (equalRuns actual expected.sourceRuns)
+    require (equalRuns actual expected.sources)
       s!"assignment relocation differs at block {← natural metadata "opcode"}"
-  let actual ← sourceRuns parameters (← array manifest "phi81_value_sources")
-  require (equalRuns actual (PerApplicationAssignmentTransport.phi81ValueSources application))
-    "Phi81 native-value source relocation differs"
+  for (field, expected) in [("phi81_value_sources", transport.valueSources),
+      ("phi81_challenge_sources", transport.challengeSources)] do
+    let actual ← sourceRuns parameters (← array manifest field)
+    require (equalRuns actual expected) s!"wide source relocation differs: {field}"
+
+private def checkSelected (compiled : PiRlcWideSampler.RangePlan.Compiled)
+    (manifest : Lean.Json) (ordinary : Program) : Except String Unit := do
+  let selected ← manifest.getObjVal? "selected_reference"
+  let application := Poseidon2HashChainV1Package.application
+  let program ← programValue compiled application
+  require ((← natural selected "logical_rows") == program.rowCount &&
+    (← natural selected "logical_width") == Wide.RetainedLayout.logicalWidth application)
+    "selected reference geometry differs"
+  let child ← applicationChild manifest
+  let start ← natural child "block_start"
+  let applicationProgram ← applicationValue application
+  let selectedApplication ← codecValue (← selected.getObjVal? "application_matrix")
+  require (equalValue selectedApplication (Program.format.encode applicationProgram))
+    "selected reference application matrix differs"
+  require (equalValue selectedApplication (Program.format.encode
+    ⟨(program.blocks.drop start).take applicationProgram.blocks.length⟩))
+    "selected application child is misplaced"
+  let localIndex := Wide.AssignmentTransport.commonKinds.idxOf .applicationLocal
+  require ((← natural selected "application_local_index") == localIndex)
+    "selected application local index differs"
+  let localBlock ← Wide.AssignmentTransport.commonBlock application .applicationLocal
+  require (equalValue (← codecValue (← selected.getObjVal? "application_local")) localBlock.encode)
+    "selected reference assignment differs"
+  let template ← codecValue (← manifest.getObjVal? "application_matrix_template")
+  let replaced ← replaceApplication (Program.format.encode program) template start applicationProgram.blocks.length
+  let mut actual := replaced
+  let mut paths : List (List Nat) := []
+  for relocation in ← array selected "matrix_relocations" do
+    let path ← (← array relocation "path").mapM Lean.Json.getNat?
+    require (!path.isEmpty && !paths.contains path) "duplicate or empty selected relocation"
+    let before ← natural relocation "selected"
+    let after ← natural relocation "ordinary"
+    require ((← valueAt actual path) == before) "selected field differs before conversion"
+    actual ← updateValue actual path after
+    paths := path :: paths
+  require (equalValue actual (Program.format.encode ordinary))
+    "selected-to-ordinary conversion differs from complete wide program"
+  let mut restored := actual
+  for relocation in ← array selected "matrix_relocations" do
+    let path ← (← array relocation "path").mapM Lean.Json.getNat?
+    let before ← natural relocation "selected"
+    let after ← natural relocation "ordinary"
+    require ((← valueAt restored path) == after) "ordinary field differs before restoration"
+    restored ← updateValue restored path before
+  require (equalValue restored replaced) "selected conversion changed undeclared fields"
+
+private def checked {α : Type} (phase : String) (action : Unit → Except String α) : IO α := do
+  IO.println s!"wide shared verifier: {phase}"
+  (← IO.getStdout).flush
+  match action () with
+  | .error error => throw (IO.userError error)
+  | .ok value => return value
 
 def check : IO Unit := do
-  let result : Except String Unit := do
-    let manifest ← Export.SharedVerifier.value ()
-    let selected ← manifest.getObjVal? "selected_reference"
-    let application := Poseidon2HashChainV1Package.application
-    require ((← natural selected "logical_rows") ==
-      PerApplicationCanonicalPackage.directStructuralRowCount application)
-      "selected reference row count differs"
-    require ((← natural selected "logical_width") ==
-      PerApplicationCanonicalPackage.directLogicalWidth application)
-      "selected reference width differs"
-    require (equalValue (← codecValue (← selected.getObjVal? "application_matrix"))
-      (Program.format.encode (PerApplicationMatrixProgram.applicationProgram application)))
-      "selected reference matrix differs"
-    require (equalValue (← codecValue (← selected.getObjVal? "application_local"))
-      (PerApplicationAssignmentBlocks.BlockPlan.format.encode
-        (PerApplicationAssignmentBlocks.BlockPlan.ofKind application .applicationLocal)))
-      "selected reference assignment differs"
-    checkApplication manifest ordinaryReference
-    checkApplication manifest (PerApplicationEmitterFixture.program ())
-  match result with
-  | .error error => throw (IO.userError error)
-  | .ok () => IO.println "shared verifier manifest checks passed"
+  let compiled ← checked "range compiler" fun _ =>
+    match PiRlcWideSampler.RangePlan.compile? with
+    | some compiled => .ok compiled
+    | none => .error "wide range compilation failed"
+  let manifest ← Export.SharedVerifier.prepare
+  let ordinary ← checked "ordinary reference program" fun _ => programValue compiled ordinaryReference
+  checked "selected-to-ordinary matrix comparison" fun _ => checkSelected compiled manifest ordinary
+  checked "ordinary reference dimensions and runs" fun _ =>
+    checkApplication manifest ordinary ordinaryReference ordinary
+  let fixture := PerApplicationEmitterFixture.program ()
+  let fixtureProgram ← checked "identity application program" fun _ => programValue compiled fixture
+  checked "identity application dimensions and runs" fun _ =>
+    checkApplication manifest ordinary fixture fixtureProgram
+  IO.println "wide shared verifier manifest checks passed"
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationPackage.shiftSparseRow_holds
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationPackage.directFinalLayout_eq_finalLayout
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection.base_column
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection.pilot_column
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram.matrixProgram_blocks
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage.matrixProgram_exact
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.plan_fixedPoint
-#audit_axioms NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks.sourceRuns_expand
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource.schedule_correct
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProgram.fixedPoint_exact
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.MatrixProjection.column_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.FixedPoint.plan_fixedPoint
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport.commonBlock_source
 
 end NightstreamFPrime.Tests.SharedVerifier

@@ -146,7 +146,6 @@ pub(super) struct Run {
 pub(super) struct AssignmentBlock {
     pub opcode: usize,
     pub slot_kind: usize,
-    pub source_domain: usize,
     pub slot_count: Dimension,
     pub source_runs: Vec<Run>,
 }
@@ -192,7 +191,17 @@ pub(super) struct SelectedReference {
     pub logical_rows: usize,
     pub logical_width: usize,
     pub application_matrix: Vec<Value>,
+    pub application_local_index: usize,
     pub application_local: super::wire::AssignmentBlock,
+    pub matrix_relocations: Vec<SelectedRelocation>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SelectedRelocation {
+    pub path: Vec<usize>,
+    pub selected: usize,
+    pub ordinary: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -215,6 +224,7 @@ pub(super) struct Manifest {
     pub matrix_relocations: Vec<Relocation>,
     pub assignment_blocks: Vec<AssignmentBlock>,
     pub phi81_value_sources: Vec<Run>,
+    pub phi81_challenge_sources: Vec<Run>,
     pub source_relocation: SourceRelocation,
     recipe_contract: Value,
     required_dimension_checks: Vec<String>,
@@ -413,16 +423,32 @@ impl Manifest {
                 .checked_add(counts.witness)
                 != Some(local.source_start.eval(counts)?)
             || local.source_start.eval(counts)?.checked_add(counts.local) != Some(private)
-            || local.retained_start.eval(counts)?.checked_add(
-                counts
-                    .local
-                    .checked_mul(g.field_slot_width)
-                    .ok_or(AssemblyError::Overflow)?,
-            ) != Some(width)
             || self.port("one")?.source_start.eval(counts)? != private
             || self.port("one")?.retained_start.eval(counts)? != g.one_column
         {
             return Err(AssemblyError::Invalid("application port allocation"));
+        }
+        let mut coordinates = g.logical_public;
+        for (index, block) in self.assignment_blocks.iter().enumerate() {
+            if block.opcode != index || block.slot_kind > 2 {
+                return Err(AssemblyError::Invalid("assignment block order or encoding"));
+            }
+            if index == self.selected_reference.application_local_index {
+                if coordinates != local.retained_start.eval(counts)? || block.slot_count.eval(counts)? != counts.local {
+                    return Err(AssemblyError::Invalid("application retained allocation"));
+                }
+            }
+            let block_width = block
+                .slot_count
+                .eval(counts)?
+                .checked_mul(if block.slot_kind == 2 { g.field_slot_width } else { 1 })
+                .ok_or(AssemblyError::Overflow)?;
+            coordinates = coordinates
+                .checked_add(block_width)
+                .ok_or(AssemblyError::Overflow)?;
+        }
+        if self.selected_reference.application_local_index >= self.assignment_blocks.len() || coordinates != width {
+            return Err(AssemblyError::Invalid("complete assignment block width"));
         }
         let mut blocks = 0usize;
         let mut rows = 0usize;
@@ -464,7 +490,7 @@ impl Manifest {
             || reference
                 .assignment
                 .blocks
-                .get(selected.application_local.opcode)
+                .get(selected.application_local_index)
                 != Some(&selected.application_local)
         {
             return Err(AssemblyError::Invalid(
@@ -495,7 +521,7 @@ impl Manifest {
         let layout = &reference.source.layout;
         if reference.schema != 6
             || reference.source.schema != 8
-            || reference.assignment.schema != 3
+            || reference.assignment.schema != 4
             || layout.rows != g.source_rows.eval(counts)?
             || layout.private != g.source_private.eval(counts)?
             || layout.constant != g.source_constant.eval(counts)?

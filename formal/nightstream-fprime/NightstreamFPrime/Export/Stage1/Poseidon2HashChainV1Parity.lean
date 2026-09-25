@@ -50,32 +50,24 @@ def inputValue (computed : PiCCSNonzero.Computed) : Value :=
     PiCCSParity.fieldWordsValue computed.statement.preimageWords,
     PiCCSParity.fieldWordsValue message]
 
-def terminalLayoutValue : Value :=
-  Package.TerminalLayout.format.encode
-    (PerApplicationCanonicalPackage.directTerminalLayout
-      Poseidon2HashChainV1Package.application)
-
-def resultValue (fixture : PiDECNonzero.Fixture) (context : KeyDigest) : Value :=
+def resultValue (fixture : PiDECNonzero.Fixture) (context : KeyDigest)
+    (terminal : Package.TerminalLayout) : Value :=
   .array [
     PiCCSParity.fieldWordsValue applicationOutput,
     PiCCSParity.fieldWordsValue (finalOutputPreimageWords fixture context),
     PiCCSParity.fieldWordsValue (finalOutputDigest fixture context),
-    terminalLayoutValue]
+    Package.TerminalLayout.format.encode terminal]
 
 def parityValueForFixture (computed : PiCCSNonzero.Computed)
-    (fixture : PiDECNonzero.Fixture) : Value :=
+    (fixture : PiDECNonzero.Fixture) (terminal : Package.TerminalLayout) : Value :=
   .array [.atom 2, inputValue computed,
-    resultValue fixture computed.statement.stateKey]
+    resultValue fixture computed.statement.stateKey terminal]
 
-def parityValueIO (context : VerifierContext.Digest4) : IO Value := do
+def parityValueIO
+    (sampler : Transcript.State → Transcript.PiRlcSampler.Batch PiRLCNonzero.SourceCount)
+    (terminal : Package.TerminalLayout) (context : VerifierContext.Digest4) : IO Value := do
   let computed ← PiCCSNonzero.computeIO context.toList
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState PiRLCNonzero.SourceCount with
-  | some batch =>
-      pure (parityValueForFixture computed
-        (PiDECParity.fixtureFromComputed computed batch))
-  | none =>
-      throw (IO.userError
-        "PiRLC sampler shortfall before Poseidon2HashChainV1 fixture")
+  pure (parityValueForFixture computed
+    (PiDECParity.fixtureFromComputed computed (sampler computed.outgoingState)) terminal)
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity

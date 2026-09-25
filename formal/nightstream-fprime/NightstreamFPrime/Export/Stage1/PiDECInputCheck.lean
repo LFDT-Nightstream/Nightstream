@@ -234,13 +234,18 @@ def resultValue (values : ParentValues) (messages : Messages) : Value :=
       PiCCSParity.boolValue (!accepted (unbounded values) messages),
       if checks then .array [.atom 1, runningValue values messages] else .array [.atom 0]]
 
-def checkValueIO (input : Input) (messages : Messages)
+def checkValueIOWith (previousPhase : Input → VerifierContext.Digest4 → IO PiRLCInputCheck.Execution)
+    (input : Input) (messages : Messages)
     (packageIdentity : VerifierContext.Digest4) : IO Value := do
-  let previous ← PiRLCInputCheck.checkIO input packageIdentity
+  let previous ← previousPhase input packageIdentity
   IO.eprintln "PiCCS/PiRLC execution finished; checking PiDEC"
   match previous.parent with
   | none => return .array (previous.fields ++ [.array [], .array [.atom 0]])
   | some values => return .array (previous.fields ++
       [inputValue values messages, resultValue values messages])
+
+def checkValueIO (input : Input) (messages : Messages)
+    (packageIdentity : VerifierContext.Digest4) : IO Value :=
+  checkValueIOWith PiRLCInputCheck.checkIO input messages packageIdentity
 
 end NightstreamFPrime.Export.Stage1.PiDECInputCheck

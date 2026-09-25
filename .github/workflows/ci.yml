@@ -88,7 +88,7 @@ jobs:
         test: false
         lint: false
         use-github-cache: true
-        use-mathlib-cache: false
+        use-mathlib-cache: true
 
     - name: Run bounded assurance gates
       working-directory: formal/nightstream-fprime

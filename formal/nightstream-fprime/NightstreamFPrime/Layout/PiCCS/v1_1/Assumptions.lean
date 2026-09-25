@@ -165,7 +165,7 @@ theorem transcript
       (Formal.statementAbsorptionInterface frozen) parentOffset statementInputs
       lane
     simpa [Formal.challengeInterface, Formal.statementFinalState, frozen,
-      Formal.challengeOffset_eq] using below
+      Formal.challengeOffset_eq] using! below
   have roundAssumption : RoundTranscript.Assumptions
       (Formal.roundTranscriptInterface frozen)
       (Formal.roundTranscriptOffset interface parentOffset) env := by
@@ -175,7 +175,7 @@ theorem transcript
         (Formal.challengeInterface frozen parentOffset)
         (Formal.challengeOffset interface parentOffset) challengeAssumption lane
       simpa [Formal.roundTranscriptInterface, Formal.challengeFinalState,
-        Formal.challengeStart, frozen, Formal.roundTranscriptOffset_eq] using
+        Formal.challengeStart, frozen, Formal.roundTranscriptOffset_eq] using!
         below
     · intro roundIndex coefficient
       have sourceBelow := external.below.roundCoefficient roundIndex coefficient
@@ -312,7 +312,7 @@ theorem sumcheck
       have sourceBelow := external.below.roundCoefficient roundIndex coefficient
       have widened := KExpr.varsBelow_mono _ sourceBelow parentLeSumcheck
       simpa [Formal.sumcheckInterface, Formal.roundTranscriptRound, frozen,
-        Formal.atOffset] using widened
+        Formal.atOffset] using! widened
     · exact roundChallengeBelow roundIndex
 
 /-- The transcript point, prior point, `gamma`, and only the Pad-family output
@@ -517,7 +517,7 @@ theorem ccs
     (freshSourceIndex Formal.freshIndex) matrix
     (Formal.constantCoefficient relation)
   have widened := KExpr.varsBelow_mono _ sourceBelow parentLeCcs
-  simpa [Formal.ccsInterface, frozen, Formal.atOffset] using widened
+  simpa [Formal.ccsInterface, frozen, Formal.atOffset] using! widened
 
 /-- The transcript-derived `gamma` and the 17 strict residuals over the
 separate Pad-family outputs discharge the norm child assumption. -/

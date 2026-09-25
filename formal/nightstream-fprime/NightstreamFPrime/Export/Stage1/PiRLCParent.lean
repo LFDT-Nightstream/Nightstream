@@ -182,7 +182,7 @@ theorem computedParent_eq_combined (input : Input) (batch : Batch) (values : Val
         (evaluationPartials batch.challenges
           (fun source => (PiRLCInputCheck.evaluations input source).matrix matrix)).getLast? =
           some (values.evalA.get matrix) := by
-      simpa [List.get_eq_getElem] using paired.get (i := matrix.val)
+      simpa [List.get_eq_getElem] using! paired.get (i := matrix.val)
         (by simpa using matrix.isLt) (by simpa using matrix.isLt)
     have hm := evaluationPartials_getLast? batch.challenges
       (fun source => (PiRLCInputCheck.evaluations input source).matrix matrix)

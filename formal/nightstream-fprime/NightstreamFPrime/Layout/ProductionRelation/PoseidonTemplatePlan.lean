@@ -272,14 +272,14 @@ theorem StepPlan.holds_implies_trace (step : StepPlan) (env : Env)
       (PoseidonStepTrace.sboxProgram step.record.start step.record.step
           step.record.state).outputs.map (Expr.eval env) =
           step.sboxes.map (fun row => row.outputExpression.eval env) := by
-        simpa [StepPlan.sboxes, List.map_map] using outputExpressions.symm
+        simpa [StepPlan.sboxes, List.map_map] using! outputExpressions.symm
       _ = step.sboxes.map (fun row =>
           Layer.sboxF (row.inputExpression.eval env)) :=
         map_eq_map_of_forall_mem step.sboxes _ _ sboxes
       _ = (PoseidonStepTrace.sboxInputs step.record.step
           step.record.state).map
             (fun input => Layer.sboxF (input.eval env)) := by
-        simpa [StepPlan.sboxes, List.map_map] using inputExpressions
+        simpa [StepPlan.sboxes, List.map_map] using! inputExpressions
   · apply List.ofFn_injective
     change
       List.ofFn (fun lane =>
@@ -298,12 +298,12 @@ theorem StepPlan.holds_implies_trace (step : StepPlan) (env : Env)
             step.record.step)).map (Expr.eval env) :=
         List.ofFn_comp' _ _
       _ = step.outputs.map (fun row => row.outputExpression.eval env) := by
-        simpa [StepPlan.outputs, List.map_map] using outputExpressions.symm
+        simpa [StepPlan.outputs, List.map_map] using! outputExpressions.symm
       _ = step.outputs.map (fun row => row.linearExpression.eval env) :=
         map_eq_map_of_forall_mem step.outputs _ _ outputs
       _ = (List.ofFn (PoseidonStepTrace.outputExpressions step.record.start
           step.record.step step.record.state)).map (Expr.eval env) := by
-        simpa [StepPlan.outputs, List.map_map] using linearExpressions
+        simpa [StepPlan.outputs, List.map_map] using! linearExpressions
       _ = List.ofFn (fun lane =>
           (PoseidonStepTrace.outputExpressions step.record.start
             step.record.step step.record.state lane).eval env) :=

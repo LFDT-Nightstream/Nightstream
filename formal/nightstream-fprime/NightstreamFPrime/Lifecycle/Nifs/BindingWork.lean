@@ -143,8 +143,8 @@ theorem postMean_range (context : Context) :
       (FullShape logicalWidth publicFits).carrierWidth * (accessBound + 6) + 12 : Nat) : ℝ))
     (fun left right _ _ => (postClock_range ajtai program bounds bounded
       (sourceProgram context).access accessBound (accessBounded context) left right).2)
-  exact ⟨by simpa only [PaperCompositionAgreement.pairMean_const] using lower,
-    by simpa only [PaperCompositionAgreement.pairMean_const] using upper⟩
+  exact ⟨by simpa only [PaperCompositionAgreement.pairMean_const] using! lower,
+    by simpa only [PaperCompositionAgreement.pairMean_const] using! upper⟩
 
 include bounded accessBounded in
 theorem totalClock_nonnegative (context : Context)

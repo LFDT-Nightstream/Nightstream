@@ -66,7 +66,7 @@ theorem evalFreshPublic_eq_priorPublic
     PiCCSInputs.interface, PiCCS.v1_1.StatementAbsorption.evalFresh,
     PiCCSInputs.freshExpr, PiCCSInputs.freshPublicInput,
     ActualHashSlots.publicInput, PilotProduction.priorInterface, Expr.eval_var]
-    using (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
+    using! (PilotDecodedEnvironment.priorPublic_agrees geometry assignment column).symm
 
 /-- The selected rows bind each PiCCS fresh public input to the hash of the
 same decoded prior state that supplies its running claim. -/

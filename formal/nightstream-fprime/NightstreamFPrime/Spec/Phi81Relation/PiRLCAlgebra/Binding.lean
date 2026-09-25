@@ -72,7 +72,7 @@ def liftKernel {shape : Shape} {rows bound : Nat}
     exact (ZMod.valMinAbs_eq_zero (n := goldilocksModulus) (assignment column)).mp
       (congrFun zero column)
   bounded column := by
-    simpa only [ZMod.valMinAbs_natAbs_eq_min] using bounded column
+    simpa only [ZMod.valMinAbs_natAbs_eq_min] using! bounded column
   kernel := by
     have recovered : (fun column =>
         (ZMod.valMinAbs (n := goldilocksModulus) (assignment column) :

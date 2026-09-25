@@ -56,7 +56,7 @@ private def commitmentWords (value : PaperAlgebra.Commitment) : Vector F 1188 :=
 
 /-- Serialize the existing typed running bundle into the checker's fixed arrays. -/
 def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
-  point := ⟨value.point.coordinates.toArray, by simpa using value.point.dimension⟩
+  point := ⟨value.point.coordinates.toArray, by simpa using! value.point.dimension⟩
   commitments := Vector.ofFn fun source => commitmentWords (value.commitments source)
   publicInputs := Vector.ofFn fun source => Vector.ofFn (value.publicInputs source)
   evalK := Vector.ofFn fun source => Vector.ofFn (value.evaluations source).pad

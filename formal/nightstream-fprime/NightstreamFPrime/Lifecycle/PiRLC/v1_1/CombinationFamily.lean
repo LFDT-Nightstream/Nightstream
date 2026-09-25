@@ -280,7 +280,7 @@ theorem flatConstraints_varsBelow
   have sourceLt := List.mem_range.mp sourceMember
   apply Expr.VarsBelow.mono expression
     (childScope interface offset source sourceLt env assumptions expression (by
-      simpa [stepOp, Sequence.childOp] using expressionMember))
+      simpa [stepOp, Sequence.childOp] using! expressionMember))
   have lengthEq : localLength
       (Circuit.ops (stepCircuit interface offset source).main
         (stepOffset offset source blockCount cellCount)) =
@@ -442,7 +442,7 @@ private theorem outputAt_eq_accumulatedNat
             (0 : Expr).eval env +
               term interface offset env ⟨0, countLt⟩ block cell lane := by
         simpa [evalOutputAt, term, challengeValue, inputValue,
-          stepInterface, priorAt, challengeAt, inputAt, countLt] using step
+          stepInterface, priorAt, challengeAt, inputAt, countLt] using! step
       rw [show (0 : Expr).eval env = (0 : F) by rfl, Fin.zero_add] at normalized
       simpa [accumulated, countLt, ringFAdd, ringFZero] using normalized
   | succ count inductionHypothesis =>
@@ -458,7 +458,7 @@ private theorem outputAt_eq_accumulatedNat
               term interface offset env ⟨count + 1, countLt⟩ block cell lane := by
         simpa [evalOutputAt, term, challengeValue, inputValue,
           stepInterface, priorAt, challengeAt, inputAt, countLt,
-          previousLt] using step
+          previousLt] using! step
       rw [normalized, congrFun previous lane]
       simp [accumulated, countLt, ringFAdd]
 
@@ -470,7 +470,7 @@ theorem parentCoverage
   intro block cell
   have final := outputAt_eq_accumulatedNat interface offset env prefixHolds
     block cell finalSource.val finalSource.isLt
-  simpa [evalOutput, output, evalOutputAt, finalSource, sourceCount_eq] using final
+  simpa [evalOutput, output, evalOutputAt, finalSource, sourceCount_eq] using! final
 
 theorem rows_imply_relation
     {blockCount cellCount : Nat} [NeZero cellCount]

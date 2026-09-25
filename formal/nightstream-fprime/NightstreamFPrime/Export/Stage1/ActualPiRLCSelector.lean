@@ -138,7 +138,7 @@ private theorem position_update_of_equation
     simpa [sub_eq_add_neg, mul_add, add_mul, mul_neg, neg_mul, mul_comm,
       mul_left_comm, mul_assoc] using outputEquation
   · by_cases full : slot.val = First54Step.fullSlot
-    · simpa [priorPrevious, First54Step.update, first, full, mul_comm] using outputEquation
+    · simpa [priorPrevious, First54Step.update, first, full, mul_comm] using! outputEquation
     · simp [priorPrevious, First54Step.update, first, full] at outputEquation ⊢
       simpa [sub_eq_add_neg, mul_add, add_mul, mul_neg, neg_mul, mul_comm,
         mul_left_comm, mul_assoc, add_assoc, add_comm, add_left_comm] using outputEquation

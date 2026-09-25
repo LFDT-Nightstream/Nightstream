@@ -85,7 +85,7 @@ private theorem sumMap_first {count : Nat}
       ((canonicalFinIndices count).map Fin.succ) term) = term 0
   have tail : SignedJointIdentity.sumMap extensionOps
       ((canonicalFinIndices count).map Fin.succ) term = K.zero := by
-    simpa only [SignedJointIdentity.sumMap, List.map_map] using
+    simpa only [SignedJointIdentity.sumMap, List.map_map] using!
       sumMap_zero (canonicalFinIndices count) (fun index => term index.succ) tailZero
   rw [tail]
   exact extensionLaws.add_zero _

@@ -339,6 +339,25 @@ def canonicalTotalResidual
     (first * first * first + -first) +
     canonicalClassResidual boundClass input second output first
 
+private theorem evaluate_term (term : SelectivePolynomial.Term) (values : PortValues) :
+    evaluateMonomial baseOps (matrixCount := matrixCount) term.toMonomial values.get =
+      term.coefficient *
+        pow baseOps values.bit term.powers.bit *
+        pow baseOps values.generalSelector term.powers.generalSelector *
+        pow baseOps values.a term.powers.a *
+        pow baseOps values.b term.powers.b *
+        pow baseOps values.c term.powers.c *
+        pow baseOps values.sboxInput term.powers.sboxInput *
+        pow baseOps values.centeredUnit term.powers.centeredUnit *
+        pow baseOps values.evalSelector term.powers.evalSelector *
+        pow baseOps values.class0 term.powers.class0 *
+        pow baseOps values.class1 term.powers.class1 *
+        pow baseOps values.class2 term.powers.class2 *
+        pow baseOps values.class3 term.powers.class3 *
+        pow baseOps values.class4 term.powers.class4 := by
+  change _ * 1 = _
+  exact mul_one _
+
 /-- Compact normal form of the complete 74-term polynomial on one canonical
 class row. -/
 theorem evaluate_canonicalValues
@@ -352,25 +371,22 @@ theorem evaluate_canonicalValues
         boundClass = 3 ∨ boundClass = 4 := by
     omega
   rcases boundClassCases with rfl | rfl | rfl | rfl | rfl <;>
-    simp [polynomial, SelectivePolynomial.polynomial,
+    simp [evaluate_term, polynomial, SelectivePolynomial.polynomial,
       SelectivePolynomial.terms, SelectivePolynomial.baseTerms,
       SelectivePolynomial.borrowTerms0, SelectivePolynomial.borrowTerms1,
       SelectivePolynomial.borrowTerms2, SelectivePolynomial.borrowTerms3,
       SelectivePolynomial.borrowTerms4, SelectivePolynomial.borrowTerm,
       SelectivePolynomial.borrowPowers, SelectivePolynomial.classExponent,
-      SelectivePolynomial.sboxTerm, SelectivePolynomial.monomial,
-      SelectivePolynomial.Term.toMonomial, SelectivePolynomial.sboxTermData,
+      SelectivePolynomial.sboxTerm, SelectivePolynomial.sboxTermData,
       SelectivePolynomial.baseTermData, SelectivePolynomial.borrowTermData,
       SelectivePolynomial.borrowTermData0, SelectivePolynomial.borrowTermData1,
       SelectivePolynomial.borrowTermData2, SelectivePolynomial.borrowTermData3,
       SelectivePolynomial.borrowTermData4,
-      SelectivePolynomial.powers, SelectivePolynomial.PortExponents.get,
-      evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
-      Fin.val_cast, pow, canonicalValues, canonicalTotalResidual,
+      SelectivePolynomial.powers, evaluatePolynomial, List.foldl, pow,
+      canonicalValues, canonicalTotalResidual,
       canonicalClassResidual, canonicalHalf, canonicalQuarter,
-      SelectivePolynomial.half, SelectivePolynomial.quarter,
-      PortValues.get, baseOps]
-  all_goals simp only [add_assoc]
+      SelectivePolynomial.half, SelectivePolynomial.quarter]
+  all_goals simp [baseOps, add_assoc]
 
 /-- Intended two-trit transition before the complement transform. The finite
 indices of `first` and `second` are exactly ordinary trits `0, 1, 2`. -/

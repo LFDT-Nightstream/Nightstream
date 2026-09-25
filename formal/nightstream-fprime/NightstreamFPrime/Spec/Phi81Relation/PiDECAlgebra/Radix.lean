@@ -815,7 +815,7 @@ theorem splitScalar_eq_signedBinary_of_recompose
         have valueExact : value = 0 := by
           have equation : -(fieldOfNat magnitude) = value := by
             simpa [magnitude] using signedRecomposition.symm.trans recomposes
-          simpa [magnitudeZero] using equation.symm
+          simpa [magnitudeZero] using! equation.symm
         unfold boundedDigit signedBinaryDigit
         rw [if_pos (by simp [valueExact, isNonnegative])]
         rw [digitExact, digitZero]

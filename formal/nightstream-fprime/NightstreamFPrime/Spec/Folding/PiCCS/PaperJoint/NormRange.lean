@@ -101,13 +101,13 @@ private theorem add_one_eq_zero_implies_representedMinusOne
   have modularZero :
       (value.val + 1) % goldilocksModulus = 0 := by
     have values := congrArg Fin.val zero
-    simpa [Fin.val_add] using values
+    simpa [Fin.val_add] using! values
   have valueSuccLe : value.val + 1 ≤ goldilocksModulus := by
     omega
   rcases Nat.lt_or_eq_of_le valueSuccLe with strict | equal
   · rw [Nat.mod_eq_of_lt strict] at modularZero
     omega
-  · simpa [representedMinusOne] using congrArg (fun n => n - 1) equal
+  · simpa [representedMinusOne] using! congrArg (fun n => n - 1) equal
 
 /-- The factored cubic vanishes exactly on the three represented roots. -/
 theorem cubicResidual_eq_zero_iff_representedRoot

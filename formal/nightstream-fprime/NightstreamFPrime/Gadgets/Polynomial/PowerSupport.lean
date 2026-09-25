@@ -42,7 +42,7 @@ theorem flatConstraints_varsSatisfy (exponent : Nat)
     (by
       intro index lower upper
       apply localSupport index lower
-      simpa [circuit] using upper)
+      simpa [circuit] using! upper)
   simpa [circuit] using supported
 
 /-- The fixed-power output uses the same point support and exact Horner
@@ -63,7 +63,7 @@ theorem output_varsSatisfy (exponent : Nat) (interface : Interface)
     (by
       intro index lower upper
       apply localSupport index lower
-      simpa [circuit] using upper)
+      simpa [circuit] using! upper)
   simpa [output] using supported
 
 end NightstreamFPrime.Gadgets.Polynomial.Power

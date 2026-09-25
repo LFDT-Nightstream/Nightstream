@@ -101,7 +101,6 @@ theorem moment_eq_finSum (ops : InterpolationOps Field)
   have quotient : (2 * pair.val + bit.val) / 2 = pair.val := by
     have bounded := bit.isLt
     omega
-  dsimp only
   rw [quotient]
 
 /-- The exact ceil-division extent used by PrefixMain.foldedCount. A

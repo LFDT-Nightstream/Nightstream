@@ -28,7 +28,7 @@ private theorem collect_ofFn_map {Input Output : Type*} (decode : Input → Opti
 private theorem collect_ofFn_some {Output : Type*} (count : Nat) (values : Fin count → Output) :
     (List.ofFn (fun index => some (values index))).mapM id = some (List.ofFn values) := by
   rw [collect_ofFn_map (some : Output → Option Output) count values]
-  simpa only [List.map_id] using
+  simpa only [List.map_id] using!
     (List.mapM_pure (m := Option) (l := List.ofFn values) (f := id))
 
 /-- The independent field-window experiment is compared with uniform
@@ -84,7 +84,7 @@ theorem field_batch_output_event_error_le (event : Option (List Scalar) → Prop
       (alphabetSize ^ coefficientCount) ^ FieldBatchShortfall.batchCount := by
     rw [Nat.card_fun, Nat.card_fin, scalarCard]
   rw [fieldCount, scalarCount, FieldBatchShortfall.field_batch_cardinality, scalarBatchCard] at compared
-  simpa only [Nat.cast_pow, FieldBatchShortfall.batchCount_eq] using compared
+  simpa only [Nat.cast_pow, FieldBatchShortfall.batchCount_eq] using! compared
 
 private theorem mapM_ofFn_last {Input Output : Type*} (decode : Input → Option Output)
     (count : Nat) (inputs : Fin (count + 1) → Input) :

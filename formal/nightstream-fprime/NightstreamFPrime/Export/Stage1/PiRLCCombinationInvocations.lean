@@ -1379,14 +1379,15 @@ theorem familyBoundaries_eq :
         PiRLCStarts.outputRowStart ∧
     PiRLCStarts.evalAFreshStart + sourceCount * sourceFreshCount 14 2 =
         PiRLCStarts.outputFreshStart := by
-  norm_num [sourceCount, sourceRowCount, sourceFreshCount,
-    PiRLCStarts.commitmentRowStart, PiRLCStarts.commitmentFreshStart,
-    PiRLCStarts.publicInputRowStart, PiRLCStarts.publicInputFreshStart,
-    PiRLCStarts.evalKRowStart, PiRLCStarts.evalKFreshStart,
-    PiRLCStarts.evalARowStart, PiRLCStarts.evalAFreshStart,
-    PiRLCStarts.outputRowStart, PiRLCStarts.outputFreshStart,
-    PiRLCStarts.samplerRowStart, PiRLCStarts.samplerFreshStart,
-    PiRLCStarts.phaseRowStart, PiRLCStarts.phaseFreshStart,
-    PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset]
+  unfold sourceCount sourceRowCount sourceFreshCount
+    PiRLCStarts.outputRowStart PiRLCStarts.outputFreshStart
+    PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart
+    PiRLCStarts.evalKRowStart PiRLCStarts.evalKFreshStart
+    PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart
+    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
+    PiRLCStarts.samplerRowStart PiRLCStarts.samplerFreshStart
+    PiRLCStarts.phaseRowStart
+  rw [PiRLCStarts.phaseFreshStart_eq]
+  norm_num
 
 end NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations

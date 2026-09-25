@@ -150,7 +150,7 @@ theorem boundedSample_implies_challenge
       Sampler.coefficientWord (coefficients.getD lane.val ⟨2, by decide⟩) := by
     have selected := congrArg (fun values : List F => values.getD lane.val 0) output
     simpa [ActualPiRLCSelector.outputValues, PiRLCProductSourceBlocks.challengeValueDescriptor,
-      List.getD_eq_getElem?_getD, coefficientLt, outputLt] using selected
+      List.getD_eq_getElem?_getD, coefficientLt, outputLt] using! selected
   change ((inputs geometry).value
       (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).eval assignment - 2 = _
   rw [word, Sampler.coefficientWord_sub_two_eq_embedCoefficient]

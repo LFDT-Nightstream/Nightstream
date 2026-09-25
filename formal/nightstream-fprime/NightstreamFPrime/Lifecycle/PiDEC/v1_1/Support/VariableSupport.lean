@@ -174,7 +174,7 @@ theorem flatConstraints_varsSatisfy
       (SignedSplitScalar.operations
         (childInterface interface offset source sourceLt)
         (sourceOffset offset source)) := by
-    simpa [childOp, dif_pos sourceLt, Sequence.childOp] using expressionMember
+    simpa [childOp, dif_pos sourceLt, Sequence.childOp] using! expressionMember
   apply SignedSplitScalar.flatConstraints_varsSatisfy allowed
     (childInterface interface offset source sourceLt)
     (sourceOffset offset source)

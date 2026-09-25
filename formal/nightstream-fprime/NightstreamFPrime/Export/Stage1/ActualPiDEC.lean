@@ -113,9 +113,10 @@ private theorem pointWord_eq_piCcs
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using
         (PiCCSTranscriptOutputForms.pointInvocation coordinate component).isLt
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]
-    norm_num [PiCCSTranscriptOutputForms.transcriptSource,
-      PiCCSTranscriptOutputForms.transcriptSourceStart, PiCCSInputs.phaseOffset_eq,
-      PiRLCInputs.phaseOffset]
+    unfold PiCCSTranscriptOutputForms.transcriptSource
+      PiCCSTranscriptOutputForms.transcriptSourceStart
+    rw [PiCCSInputs.phaseOffset_eq]
+    norm_num [PiRLCInputs.phaseOffset]
     omega
   apply decodedEnv_beforePiRLC geometry assignment _ before
   apply Nat.lt_of_lt_of_le before

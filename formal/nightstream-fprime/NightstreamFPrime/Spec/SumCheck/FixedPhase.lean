@@ -342,7 +342,7 @@ private theorem chain_of_representationsFrom
           simp only [HypercubeTruth.expectedPolynomialsFrom,
             Representations] at representations
           rcases representations with ⟨represents, tailRepresentations⟩
-          simp only [HypercubeTruth.sumCompletions, Chain]
+          simp only [List.length_cons, HypercubeTruth.sumCompletions, Chain]
           constructor
           · rw [represents ops.zero, represents ops.one]
           · rw [represents challenge]

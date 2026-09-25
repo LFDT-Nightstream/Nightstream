@@ -618,7 +618,7 @@ theorem complete_of_enough (interface : Interface) (env : Env) (offset : Nat)
   have minimum : min
       (semanticAcceptedCount interface offset completedRounds.current
         candidateCount) First54Step.fullSlot = First54Step.fullSlot :=
-    Nat.min_eq_right (by simpa [outputCount, First54Step.fullSlot] using
+    Nat.min_eq_right (by simpa [outputCount, First54Step.fullSlot] using!
       currentEnough)
   have selected : fullSlot.val = min
       (semanticAcceptedCount interface offset completedRounds.current

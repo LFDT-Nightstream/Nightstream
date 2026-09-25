@@ -39,8 +39,8 @@ theorem preOutputIntervalEnd_eq :
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold PiCCSInvocations.statementWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
   have mapped :=
     (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
       PiCCSInvocations.statementWitnessStart
@@ -135,33 +135,30 @@ private theorem piCcsArithmeticLogicalEnds :
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.finalIdentityLogicalStart + 27758 ≤
         PiCCSArithmetic.initialClaimFreshStart := by
-  norm_num [PiCCSArithmetic.initialClaimFreshStart,
-    PiCCSArithmetic.initialClaimLogicalStart,
-    PiCCSArithmetic.sumcheckLogicalStart,
-    PiCCSArithmetic.evalKLogicalStart,
-    PiCCSArithmetic.evalALogicalStart,
-    PiCCSArithmetic.ccsLogicalStart,
-    PiCCSArithmetic.normLogicalStart,
-    PiCCSArithmetic.finalIdentityLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.sumcheckLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalKLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalALogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.ccsLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.normLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptFreshStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeFreshStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionFreshStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingFreshStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.proofInputColumnCount]
+  unfold PiCCSArithmetic.initialClaimFreshStart
+    PiCCSArithmetic.initialClaimLogicalStart
+    PiCCSArithmetic.sumcheckLogicalStart
+    PiCCSArithmetic.evalKLogicalStart
+    PiCCSArithmetic.evalALogicalStart
+    PiCCSArithmetic.ccsLogicalStart
+    PiCCSArithmetic.normLogicalStart
+    PiCCSArithmetic.finalIdentityLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptFreshStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeFreshStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionFreshStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingFreshStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.normLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.ccsLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalALogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalKLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.sumcheckLogicalStart
+    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimLogicalStart
+  rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq,
+    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+  norm_num
 
 /-- Every source row lowered into the ordinary PiCCS packet reads only the
 completed PiCCS logical prefix. This proof is structural in the eight opaque
@@ -272,7 +269,7 @@ theorem piCcsEmittedConstraints_varsBelow
           (Formal.sumcheckOffset parent
             NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
           (fun _ => 0) := by
-        simpa using assumptions.sumcheck
+        simpa using! assumptions.sumcheck
       have below := SumcheckChain.flatConstraints_varsBelow
         (Formal.sumcheckInterface (Formal.atOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
@@ -336,7 +333,7 @@ theorem piCcsEmittedConstraints_varsBelow
           (Formal.ccsOffset parent
             NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
           (fun _ => 0) := by
-        simpa using assumptions.ccs
+        simpa using! assumptions.ccs
       have below := CcsTerminal.flatConstraints_varsBelow relation
         (Formal.ccsInterface relation (Formal.atOffset parent
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset))
@@ -812,24 +809,7 @@ theorem pilotHashChains_of_piRlcAgreesOutside
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
         NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-    · norm_num [Data.outputChain, Data.liftPilotChain, PilotData.outputChain,
-        PilotData.outputWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.outputWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
-        NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
-        NightstreamFPrime.Layout.PilotValues.absorbCount,
-        NightstreamFPrime.Spec.Poseidon2.rate,
-        NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
+    · decide
     · intro index below
       exact agrees index (Or.inl below)
     · exact (stage1HashChainHolds_iff_pilotTemplate Data.outputChain before).mp
@@ -1347,8 +1327,8 @@ theorem complete_piCcsRows
           (by
             unfold PiCCSInvocations.statementWitnessStart
             rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-            norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-              NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq])).le
+            unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+            rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num)).le
     · rw [piCcsPrivateEnd_eq]
       exact physicalEnd
   have totalBroad := agreesOutside_trans

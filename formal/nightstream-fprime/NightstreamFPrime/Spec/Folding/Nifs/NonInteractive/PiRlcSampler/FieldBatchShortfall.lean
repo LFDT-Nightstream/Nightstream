@@ -131,6 +131,6 @@ theorem iid_field_batch_shortfall_probability_le :
   have scaled := mul_le_mul_of_nonneg_left
     iid_field_shortfall_probability_le (Nat.cast_nonneg batchCount : (0 : ℚ) ≤ batchCount)
   have bounded := iid_field_batch_shortfall_probability_le_scalar.trans scaled
-  simpa only [batchCount_eq, mul_div_assoc] using bounded
+  simpa only [batchCount_eq, mul_div_assoc] using! bounded
 
 end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldBatchShortfall

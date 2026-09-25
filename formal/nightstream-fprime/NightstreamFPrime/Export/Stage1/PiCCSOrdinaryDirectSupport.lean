@@ -111,7 +111,7 @@ private theorem sharedInputsSource
       PiCCSInputs.phaseOffset Source := by
   simpa [PiCCSArithmetic.sharedInterface, PiCCSInvocations.sharedInterface,
     PiCCSArithmetic.parentInterface, PiCCSInvocations.parentInterface,
-    Formal.atOffset] using externalInputsSource
+    Formal.atOffset] using! externalInputsSource
 
 private theorem fixedLocal_source (start length : Nat)
     (initialLe : PiCCSArithmetic.initialClaimLogicalStart ≤ start)
@@ -148,75 +148,93 @@ private theorem initial_finish_le :
     PiCCSArithmetic.initialClaimLogicalStart + 25918 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.initialClaimLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.initialClaimLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem initial_le_evalK :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.evalKLogicalStart := by
-  norm_num [PiCCSArithmetic.evalKLogicalStart, PiCCSStarts.evalKLogicalStart,
-    PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
-    PiCCSArithmetic.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.evalKLogicalStart
+    PiCCSArithmetic.initialClaimLogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem evalK_finish_le :
     PiCCSArithmetic.evalKLogicalStart + 1836 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.evalKLogicalStart, PiCCSStarts.evalKLogicalStart,
-    PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.evalKLogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem initial_le_evalA :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.evalALogicalStart := by
-  norm_num [PiCCSArithmetic.evalALogicalStart, PiCCSStarts.evalALogicalStart,
-    PiCCSStarts.evalKLogicalStart, PiCCSStarts.sumcheckLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart, PiCCSArithmetic.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.evalALogicalStart
+    PiCCSArithmetic.initialClaimLogicalStart
+    PiCCSStarts.evalALogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem evalA_finish_le :
     PiCCSArithmetic.evalALogicalStart + 24300 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.evalALogicalStart, PiCCSStarts.evalALogicalStart,
-    PiCCSStarts.evalKLogicalStart, PiCCSStarts.sumcheckLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.evalALogicalStart
+    PiCCSStarts.evalALogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem initial_le_ccs :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.ccsLogicalStart := by
-  exact Nat.le_trans initial_le_evalA (by
-    norm_num [PiCCSArithmetic.ccsLogicalStart, PiCCSStarts.ccsLogicalStart,
-      PiCCSArithmetic.evalALogicalStart, PiCCSStarts.evalALogicalStart])
+  exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
     PiCCSArithmetic.ccsLogicalStart + 2 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.ccsLogicalStart, PiCCSStarts.ccsLogicalStart,
-    PiCCSStarts.evalALogicalStart, PiCCSStarts.evalKLogicalStart,
-    PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.ccsLogicalStart
+    PiCCSStarts.ccsLogicalStart
+    PiCCSStarts.evalALogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem initial_le_norm :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.normLogicalStart := by
-  exact Nat.le_trans initial_le_ccs (by
-    norm_num [PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart,
-      PiCCSArithmetic.ccsLogicalStart, PiCCSStarts.ccsLogicalStart])
+  exact Nat.le_trans initial_le_ccs (Nat.le_add_right _ _)
 
 private theorem norm_finish_le :
     PiCCSArithmetic.normLogicalStart + 32 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart,
-    PiCCSStarts.ccsLogicalStart, PiCCSStarts.evalALogicalStart,
-    PiCCSStarts.evalKLogicalStart, PiCCSStarts.sumcheckLogicalStart,
-    PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.normLogicalStart
+    PiCCSStarts.normLogicalStart
+    PiCCSStarts.ccsLogicalStart
+    PiCCSStarts.evalALogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
 
 private theorem initial_le_final :
     PiCCSArithmetic.initialClaimLogicalStart ≤
@@ -230,12 +248,16 @@ private theorem final_finish_le :
     PiCCSArithmetic.finalIdentityLogicalStart + FinalIdentity.privateCount ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSArithmetic.finalIdentityLogicalStart,
-    PiCCSStarts.finalIdentityLogicalStart, FinalIdentity.privateCount,
-    PiCCSStarts.normLogicalStart, PiCCSStarts.ccsLogicalStart,
-    PiCCSStarts.evalALogicalStart, PiCCSStarts.evalKLogicalStart,
-    PiCCSStarts.sumcheckLogicalStart, PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold PiCCSArithmetic.finalIdentityLogicalStart
+    PiCCSStarts.finalIdentityLogicalStart
+    FinalIdentity.privateCount
+    PiCCSStarts.normLogicalStart
+    PiCCSStarts.ccsLogicalStart
+    PiCCSStarts.evalALogicalStart
+    PiCCSStarts.evalKLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
 
 /-- Every expression in the canonical eight-child ordinary packet uses only
 the selected pre-Spartan retained source families. -/
@@ -309,20 +331,20 @@ theorem emittedConstraints_varsSatisfy
     exact fixedLocal_source _ _ initial_le_initial initial_finish_le
   have gammaSupport : Horner.KSupported
       (initialInterface.gamma PiCCSArithmetic.initialClaimLogicalStart) Source := by
-    simpa [initialInterface, Formal.initialClaimInterface] using transcript.gamma
+    simpa [initialInterface, Formal.initialClaimInterface] using! transcript.gamma
   have initialEvalKSupport : ∀ coordinate,
       Horner.KSupported
         (initialInterface.eval_K PiCCSArithmetic.initialClaimLogicalStart
           coordinate) Source := by
     intro coordinate
-    simpa [initialInterface, Formal.initialClaimInterface] using
+    simpa [initialInterface, Formal.initialClaimInterface] using!
       inputs.runningEval_K coordinate.running coordinate.coefficient
   have initialEvalASupport : ∀ coordinate,
       Horner.KSupported
         (initialInterface.eval_A PiCCSArithmetic.initialClaimLogicalStart
           coordinate) Source := by
     intro coordinate
-    simpa [initialInterface, Formal.initialClaimInterface] using
+    simpa [initialInterface, Formal.initialClaimInterface] using!
       inputs.runningEval_A coordinate.running coordinate.matrix
         coordinate.coefficient
   have initialRows := InitialClaim.flatConstraints_varsSatisfy
@@ -346,11 +368,11 @@ theorem emittedConstraints_varsSatisfy
       simpa [sumcheckInterface, Formal.sumcheckInterface,
         Formal.roundTranscriptRound, RoundTranscript.round,
         RoundTranscript.Message.asRound,
-        Formal.roundTranscriptInterface] using
+        Formal.roundTranscriptInterface] using!
         inputs.roundCoefficient roundIndex coefficient
     · simpa [sumcheckInterface, Formal.sumcheckInterface,
         Formal.roundTranscriptRound, RoundTranscript.round,
-        RoundTranscript.Message.asRound] using transcript.roundPoint roundIndex
+        RoundTranscript.Message.asRound] using! transcript.roundPoint roundIndex
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
     sumInitialSupport sumRoundSupport
@@ -371,30 +393,30 @@ theorem emittedConstraints_varsSatisfy
         (evalKInterface.roundPoint PiCCSArithmetic.evalKLogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalKInterface, Formal.evalKInterface] using
+    simpa [evalKInterface, Formal.evalKInterface] using!
       transcript.roundPoint coordinate
   have evalKPriorSupport : ∀ coordinate,
       Horner.KSupported
         (evalKInterface.priorPoint PiCCSArithmetic.evalKLogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalKInterface, Formal.evalKInterface] using
+    simpa [evalKInterface, Formal.evalKInterface] using!
       inputs.runningPoint coordinate
   have evalKOutputInputSupport : ∀ coordinate,
       Horner.KSupported
         (evalKInterface.outputEval_K PiCCSArithmetic.evalKLogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalKInterface, Formal.evalKInterface] using
+    simpa [evalKInterface, Formal.evalKInterface] using!
       inputs.outputEval_K (UnifiedSources.runningSourceIndex coordinate.running)
         coordinate.coefficient
   have evalKRows := EvalKTerminal.flatConstraints_varsSatisfy evalKInterface
     PiCCSArithmetic.evalKLogicalStart Source evalKRoundSupport evalKPriorSupport
-    (by simpa [evalKInterface, Formal.evalKInterface] using transcript.gamma)
+    (by simpa [evalKInterface, Formal.evalKInterface] using! transcript.gamma)
     evalKOutputInputSupport evalKLocal
   have evalKOutput := EvalKTerminal.output_varsSatisfy evalKInterface
     PiCCSArithmetic.evalKLogicalStart Source evalKRoundSupport evalKPriorSupport
-    (by simpa [evalKInterface, Formal.evalKInterface] using transcript.gamma)
+    (by simpa [evalKInterface, Formal.evalKInterface] using! transcript.gamma)
     evalKOutputInputSupport evalKLocal
   have evalALocal : ∀ index,
       PiCCSArithmetic.evalALogicalStart ≤ index →
@@ -410,30 +432,30 @@ theorem emittedConstraints_varsSatisfy
         (evalAInterface.roundPoint PiCCSArithmetic.evalALogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalAInterface, Formal.evalAInterface] using
+    simpa [evalAInterface, Formal.evalAInterface] using!
       transcript.roundPoint coordinate
   have evalAPriorSupport : ∀ coordinate,
       Horner.KSupported
         (evalAInterface.priorPoint PiCCSArithmetic.evalALogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalAInterface, Formal.evalAInterface] using
+    simpa [evalAInterface, Formal.evalAInterface] using!
       inputs.runningPoint coordinate
   have evalAOutputInputSupport : ∀ coordinate,
       Horner.KSupported
         (evalAInterface.outputEval_A PiCCSArithmetic.evalALogicalStart coordinate)
         Source := by
     intro coordinate
-    simpa [evalAInterface, Formal.evalAInterface] using
+    simpa [evalAInterface, Formal.evalAInterface] using!
       inputs.outputEval_A (UnifiedSources.runningSourceIndex coordinate.running)
         coordinate.matrix coordinate.coefficient
   have evalARows := EvalATerminal.flatConstraints_varsSatisfy evalAInterface
     PiCCSArithmetic.evalALogicalStart Source evalARoundSupport evalAPriorSupport
-    (by simpa [evalAInterface, Formal.evalAInterface] using transcript.gamma)
+    (by simpa [evalAInterface, Formal.evalAInterface] using! transcript.gamma)
     evalAOutputInputSupport evalALocal
   have evalAOutput := EvalATerminal.output_varsSatisfy evalAInterface
     PiCCSArithmetic.evalALogicalStart Source evalARoundSupport evalAPriorSupport
-    (by simpa [evalAInterface, Formal.evalAInterface] using transcript.gamma)
+    (by simpa [evalAInterface, Formal.evalAInterface] using! transcript.gamma)
     evalAOutputInputSupport evalALocal
   have ccsLocal : ∀ index,
       PiCCSArithmetic.ccsLogicalStart ≤ index →
@@ -451,7 +473,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.ccsLogicalStart matrix) Source := by
     intro matrix
     simpa [ccsInterface, Formal.ccsRowInterface,
-      CcsTerminal.sparseInterface] using
+      CcsTerminal.sparseInterface] using!
       inputs.outputEval_A (UnifiedSources.freshSourceIndex Formal.freshIndex)
         matrix
         Formal.rowConstantCoefficient
@@ -473,15 +495,15 @@ theorem emittedConstraints_varsSatisfy
         (normInterface.sourceAssignment PiCCSArithmetic.normLogicalStart source)
         Source := by
     intro source
-    simpa [normInterface, Formal.normRowInterface] using
+    simpa [normInterface, Formal.normRowInterface] using!
       inputs.outputEval_K source Formal.rowConstantCoefficient
   have normRows := NormTerminal.flatConstraints_varsSatisfy normInterface
     PiCCSArithmetic.normLogicalStart Source
-    (by simpa [normInterface, Formal.normRowInterface] using transcript.gamma)
+    (by simpa [normInterface, Formal.normRowInterface] using! transcript.gamma)
     normSourceSupport normLocal
   have normOutput := NormTerminal.output_varsSatisfy normInterface
     PiCCSArithmetic.normLogicalStart Source
-    (by simpa [normInterface, Formal.normRowInterface] using transcript.gamma)
+    (by simpa [normInterface, Formal.normRowInterface] using! transcript.gamma)
     normSourceSupport normLocal
   have finalLocal : ∀ index,
       PiCCSArithmetic.finalIdentityLogicalStart ≤ index →
@@ -491,10 +513,10 @@ theorem emittedConstraints_varsSatisfy
   have finalRows := FinalIdentity.flatConstraints_varsSatisfy finalInterface
     PiCCSArithmetic.finalIdentityLogicalStart Source
     (by intro coordinate; simpa [finalInterface,
-      Formal.finalIdentityRowInterface] using transcript.roundPoint coordinate)
+      Formal.finalIdentityRowInterface] using! transcript.roundPoint coordinate)
     (by intro coordinate; simpa [finalInterface,
-      Formal.finalIdentityRowInterface] using transcript.alpha coordinate)
-    (by simpa [finalInterface, Formal.finalIdentityRowInterface] using
+      Formal.finalIdentityRowInterface] using! transcript.alpha coordinate)
+    (by simpa [finalInterface, Formal.finalIdentityRowInterface] using!
       transcript.gamma)
     (by
       unfold finalInterface Formal.finalIdentityRowInterface Formal.evalKOutput
@@ -526,7 +548,7 @@ theorem emittedConstraints_varsSatisfy
       Source (externalInputsSource (logicalWidth := logicalWidth)
         (publicFits := publicFits)) expression
     simpa [PiCCSArithmetic.statementBindingConstraints,
-      NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints] using
+      NightstreamFPrime.Layout.PiCCS.v1_1.childConstraints] using!
       statementMember
   · rw [PiCCSCompleteness.packetConstraints] at packetMember
     simp only [List.mem_append] at packetMember

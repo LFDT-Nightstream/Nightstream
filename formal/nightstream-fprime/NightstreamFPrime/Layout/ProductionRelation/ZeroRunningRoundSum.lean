@@ -192,7 +192,7 @@ private theorem folded_getD_eq_evaluate (values : Array K) (fixed : List K)
     (vertex.toCubePoint extensionOps) fits
   rw [SumCheckTruthPath.evaluate_toCubePoint_eq_valueAt extensionOps extensionLaws] at result
   simpa only [PrefixFold.zeroExtend, BooleanTable.valueAt_tabulate,
-    BooleanVertex.toCubePoint_coordinates] using result
+    BooleanVertex.toCubePoint_coordinates] using! result
 
 section
 
@@ -214,7 +214,7 @@ private theorem freshRead_eq (plan : Plan logicalWidth)
     exact cubeFits
   have result := folded_getD_eq_evaluate (freshPrefix assignment) fixed vertex dimension fits
   simpa only [freshPrefix_table plan cubeFits ajtai fresh assignment,
-    completionPoint] using result
+    completionPoint] using! result
 
 private theorem matrixRead_eq (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
@@ -233,7 +233,7 @@ private theorem matrixRead_eq (plan : Plan logicalWidth)
   have result := folded_getD_eq_evaluate (matrixPrefix plan assignment matrix)
     fixed vertex dimension fits
   simpa only [matrixPrefix_table plan cubeFits ajtai fresh assignment matrix,
-    completionPoint] using result
+    completionPoint] using! result
 
 private theorem weighted_add (gamma value ccs norm : K) :
     extensionOps.add (extensionOps.mul value ccs)

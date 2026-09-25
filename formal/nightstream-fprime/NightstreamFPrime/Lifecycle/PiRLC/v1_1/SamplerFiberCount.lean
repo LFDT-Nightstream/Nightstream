@@ -66,7 +66,7 @@ theorem field_success_fiber_card (scalar : Scalar) :
     (fun fields : FieldShortfall.FieldWindow => fieldDecode_eq_some_iff fields scalar))
   calc
     _ = Nat.card (FieldDecoderFiberCount.SuccessFiber FieldShortfall.fieldLaneCount
-        (List.ofFn scalar)) := by simpa only [List.length_ofFn] using same
+        (List.ofFn scalar)) := by simpa only [List.length_ofFn] using! same
     _ = _ := FieldDecoderFiberCount.success_fiber_card _ _
 
 /-- Every failed window is counted, regardless of its accepted digit values. -/

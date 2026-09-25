@@ -85,13 +85,13 @@ def childInputs
         (Logical.childInterface interface offset source sourceLt) current := by
   intro current
   refine ⟨?_, ?_, ?_⟩
-  · simpa [Logical.childInterface] using
+  · simpa [Logical.childInterface] using!
       inputs.parent_mulCount ⟨source, sourceLt⟩
   · intro child
-    simpa [Logical.childInterface] using
+    simpa [Logical.childInterface] using!
       inputs.digit_mulCount child ⟨source, sourceLt⟩
   · intro child
-    simpa [Logical.childInterface] using
+    simpa [Logical.childInterface] using!
       inputs.digit_nonconstant child ⟨source, sourceLt⟩
 
 def childConstraints

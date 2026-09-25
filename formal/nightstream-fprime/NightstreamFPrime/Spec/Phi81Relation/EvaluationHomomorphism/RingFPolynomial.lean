@@ -48,7 +48,7 @@ theorem toPolynomial_injective : Function.Injective toPolynomial := by
   intro left right equal
   funext index
   have atIndex := congrArg (fun p => p.coeff index.val) equal
-  simpa only [coeff_toPolynomial] using atIndex
+  simpa only [coeff_toPolynomial] using! atIndex
 
 theorem toPolynomial_zero : toPolynomial ringFZero = 0 := by
   ext index

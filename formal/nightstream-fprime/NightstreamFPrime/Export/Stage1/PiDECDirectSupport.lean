@@ -224,7 +224,7 @@ theorem publicConstraints_varsSatisfy
     constructor
     · simpa [PiDECStarts.phaseLogicalStart] using lower
     · rw [PiDEC.v1_1.PublicInputSplit.logicalPrivateCount_eq] at upper
-      simpa [PiDECStarts.phaseLogicalStart] using upper
+      simpa [PiDECStarts.phaseLogicalStart] using! upper
 
 theorem commitmentConstraints_varsSatisfy
     {logicalWidth : Nat}

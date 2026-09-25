@@ -1265,19 +1265,19 @@ theorem spec_implies_phaseHolds
       context (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) specification.challenge
+          using! statementState) specification.challenge
   have keyChallenges :=
     ChallengeDerivation.spec_implies_keyExecution_challenges
       relation ajtai running fresh proof (challengeInterface shared offset)
       (challengeOffset interface offset) env (by
         simpa [shared, running, fresh, context, challengeInterface,
           statementAbsorptionInterface, atOffset, evalRunning, evalFresh]
-          using statementState) specification.challenge
+          using! statementState) specification.challenge
   have roundCoverage := RoundTranscript.spec_implies_keyExecution_rounds
     relation ajtai running fresh proof (roundTranscriptInterface shared)
       (roundTranscriptOffset interface offset) env (by
         simpa [shared, context, challengeInterface,
-          roundTranscriptInterface, atOffset] using challengeCoverage.2.2)
+          roundTranscriptInterface, atOffset] using! challengeCoverage.2.2)
       (by
         intro roundIndex
         rfl)
@@ -1286,7 +1286,7 @@ theorem spec_implies_phaseHolds
     relation ajtai running fresh proof (initialClaimInterface shared)
       (initialClaimOffset interface offset) env (by
         simpa [shared, initialClaimInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -1298,10 +1298,10 @@ theorem spec_implies_phaseHolds
     relation ajtai running fresh proof (evalKInterface shared)
       (evalKOffset interface offset) env (by
         simpa [shared, evalKInterface, roundTranscriptInterface, roundPoint,
-          atOffset] using roundCoverage.1)
+          atOffset] using! roundCoverage.1)
       (by rfl) (by
         simpa [shared, evalKInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -1310,10 +1310,10 @@ theorem spec_implies_phaseHolds
     relation ajtai running fresh proof (evalAInterface shared)
       (evalAOffset interface offset) env (by
         simpa [shared, evalAInterface, roundTranscriptInterface, roundPoint,
-          atOffset] using roundCoverage.1)
+          atOffset] using! roundCoverage.1)
       (by rfl) (by
         simpa [shared, evalAInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro coordinate
         rfl)
@@ -1328,7 +1328,7 @@ theorem spec_implies_phaseHolds
     relation ajtai running fresh proof (normInterface relation shared)
       (normOffset relation interface offset) env (by
         simpa [shared, normInterface, challengeInterface, atOffset]
-          using keyChallenges.2)
+          using! keyChallenges.2)
       (by
         intro source
         rfl)
@@ -1342,7 +1342,7 @@ theorem spec_implies_phaseHolds
     apply cubePoint_eq_of_coordinates
     simpa [shared, PointEquality.Owned.evalRightPoint,
       FinalIdentity.pointInterfaceAt, finalIdentityInterface,
-      challengeAlpha, challengeInterface, atOffset] using
+      challengeAlpha, challengeInterface, atOffset] using!
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.evalAlpha_coordinates
           (challengeInterface shared offset)
             (challengeOffset interface offset) env).symm
@@ -1367,7 +1367,7 @@ theorem spec_implies_phaseHolds
     relation ajtai running fresh proof (finalIdentityInterface relation shared)
       (finalIdentityOffset relation interface offset) env (by
         simpa [shared, finalIdentityInterface, roundTranscriptInterface,
-          roundPoint, atOffset] using roundCoverage.1)
+          roundPoint, atOffset] using! roundCoverage.1)
       (by
         exact alphaInterfaceEq.trans keyChallenges.1)
       (by
@@ -1466,13 +1466,13 @@ theorem spec_implies_phaseHolds
     output_eval_A := OutputBinding.key_output_eval_A
       relation ajtai running fresh proof
     chain := by
-      simpa [ChallengeDerivation.productionContext] using chain
+      simpa [ChallengeDerivation.productionContext] using! chain
   }
   have outgoing := OutputBinding.spec_implies_keyOutgoingState
     relation ajtai running fresh proof (outputBindingInterface shared)
       (outputBindingOffset relation interface offset) env (by
         simpa [shared, outputBindingInterface, roundTranscriptInterface,
-          atOffset] using roundCoverage.2)
+          atOffset] using! roundCoverage.2)
       (by
         intro source coefficient
         rfl)
@@ -1488,6 +1488,6 @@ theorem spec_implies_phaseHolds
       simpa [shared, running, fresh, proof] using roundCoverage.1
     outgoingState := ?_ }
   simpa [shared, running, fresh, proof, evalProof, evalOutput,
-    outputBindingFinalState, outputBindingInterface, atOffset] using outgoing
+    outputBindingFinalState, outputBindingInterface, atOffset] using! outgoing
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal

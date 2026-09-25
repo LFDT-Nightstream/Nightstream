@@ -181,7 +181,7 @@ private theorem source_memberships (payload : Payload) (values : SourceValues)
   have equal : returned = values := (Option.some.inj same).symm
   subst returned
   simpa only [PiDECInputCheck.relation_eq_selected, sourceInput,
-    HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using memberships
+    HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using! memberships
 
 private theorem source_none (payload : Payload) : ¬ SourceSucceeded payload none := by
   rintro ⟨values, impossible, _⟩

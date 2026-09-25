@@ -575,7 +575,7 @@ theorem runningInputRepresents
     StateDecoder.running
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application) (priorState raw)
-  simpa [priorState] using StateDecoder.evalRunning_eq_running
+  simpa [priorState] using! StateDecoder.evalRunning_eq_running
     (PerApplicationFixedPoint.logicalWidth application)
     (PerApplicationFixedPoint.publicFits application) (commonEnv raw)
 
@@ -595,7 +595,7 @@ theorem runningOutputRepresents
     StateDecoder.running
       (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationFixedPoint.publicFits application) (outputState raw)
-  simpa [outputState] using StateDecoder.evalOutputRunning_eq_running
+  simpa [outputState] using! StateDecoder.evalOutputRunning_eq_running
     (PerApplicationFixedPoint.logicalWidth application)
     (PerApplicationFixedPoint.publicFits application) (transitionEnv raw)
 

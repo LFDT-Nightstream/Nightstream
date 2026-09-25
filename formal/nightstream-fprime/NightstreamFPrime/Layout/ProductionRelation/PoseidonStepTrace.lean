@@ -108,7 +108,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
   | initialLayer =>
       constructor
       · rfl
-      · simpa [Holds, stepOutput_eq, outputExpressions] using
+      · simpa [Holds, stepOutput_eq, outputExpressions] using!
           Permutation.stateRows_sound env start (Layer.externalE state) rows
   | initialFullRound round =>
       have splitRows :
@@ -118,7 +118,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
             (List.ofFn (outputExpressions start
               (.initialFullRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
-        simpa using (constraintsHold_append env _ _).mp rows
+        simpa using! (constraintsHold_append env _ _).mp rows
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]
@@ -130,7 +130,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
           ConstraintsHold env (recipeConstraints (start + 4)
             (List.ofFn (outputExpressions start (.partialRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
-        simpa using (constraintsHold_append env _ _).mp rows
+        simpa using! (constraintsHold_append env _ _).mp rows
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]
@@ -143,7 +143,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
             (List.ofFn (outputExpressions start
               (.terminalFullRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
-        simpa using (constraintsHold_append env _ _).mp rows
+        simpa using! (constraintsHold_append env _ _).mp rows
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]

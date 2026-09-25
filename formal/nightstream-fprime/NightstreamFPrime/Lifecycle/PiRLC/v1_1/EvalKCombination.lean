@@ -74,7 +74,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
   have selected := congrFun all block
   simpa [evalOutput, evalInputs, evalChallenges,
     RingKCombination.evalOutput, RingKCombination.evalInputs, output,
-    ringInterface, block, coefficient] using selected
+    ringInterface, block, coefficient] using! selected
 
 theorem logicalPrivateCount_eq :
     CombinationFamily.logicalPrivateCount blockCount
@@ -107,7 +107,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
       expression.VarsBelow (offset + 1836) := by
-  simpa [circuit, RingKCombination.circuit, logicalPrivateCount_eq] using
+  simpa [circuit, RingKCombination.circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow
       (RingKCombination.familyInterface (ringInterface interface))
       offset env assumptions

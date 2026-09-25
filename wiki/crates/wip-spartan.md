@@ -4,7 +4,7 @@
 accepts a direct sparse R1CS shape over Goldilocks, uses a Poseidon2
 Fiat-Shamir transcript, and opens the witness with WHIR.
 
-The terminal R1CS path in `neo-fold-clean` calls this crate. The crate does
+The terminal R1CS path in `neo-fold-legacy` calls this crate. The crate does
 not synthesize application circuits and does not implement recursive folding.
 
 ## Implemented scope
@@ -32,5 +32,5 @@ cryptographic review, performance work, and deployment integration.
 
 ```sh
 timeout 300s cargo test -p wip-spartan --release
-timeout 300s cargo test -p neo-fold-clean --release --test system_r1cs_ivc_terminal
+timeout 300s cargo test -p neo-fold-legacy --release --test system_r1cs_ivc_terminal
 ```

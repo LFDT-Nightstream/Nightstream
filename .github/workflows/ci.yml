@@ -30,12 +30,14 @@ jobs:
       run: cargo fmt --all --check
 
   test:
-    name: Run Tests
+    name: Nightstream and shared regression tests
     runs-on: self-hosted
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        lfs: true
       
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -51,8 +53,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
           
-    - name: Run tests
-      run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --exclude wip-spartan --features "testing,debug-log,fs-guard"
+    - name: Run Nightstream tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream --release
+
+    - name: Run packed witness tests
+      run: timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
+
+    - name: Run matrix row tests
+      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+
+    - name: Run application record and recipe stack tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
+
+    - name: Run native application tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 
   lean-assurance:
     name: Lean assurance

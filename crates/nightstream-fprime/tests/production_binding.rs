@@ -274,7 +274,18 @@ fn production_binding_matches_independent_lean_framing() {
     assert_eq!(independent.verification_key_digest, binding.verification_key_digest());
     let context = binding.verifier_context();
     assert_eq!(independent.components[0].as_slice(), context.relation_words());
-    assert_eq!(independent.components[1].as_slice(), context.application_words());
+    let mut application_offset = 0;
+    package
+        .visit_application_words(&mut |chunk| {
+            let end = application_offset + chunk.len();
+            assert_eq!(chunk, &independent.components[1][application_offset..end]);
+            application_offset = end;
+            Ok(())
+        })
+        .expect("application authority replay");
+    assert_eq!(application_offset, independent.components[1].len());
+    assert_eq!(context.application_word_count(), application_offset);
+    assert_eq!(context.application_digest(), independent.component_digests[1]);
     assert_eq!(independent.components[2].as_slice(), context.nifs_key_words());
     assert_eq!(independent.components[3].as_slice(), context.commitment_key_words());
     assert_eq!(

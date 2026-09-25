@@ -9,5 +9,5 @@ package=$(realpath "$1")
 cd "$(dirname "$0")/../../.."
 # The project requires a 300-second cap for each non-Lean test invocation.
 printf '%s\n%s\n' "$package" "$package.matrix.json" | timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib \
-  package::wide_physical_package_tests::wide_physical_package_passes_production_validation \
+  package::sealed::wide_physical_package_tests::wide_physical_package_passes_production_validation \
   -- --exact --ignored --nocapture

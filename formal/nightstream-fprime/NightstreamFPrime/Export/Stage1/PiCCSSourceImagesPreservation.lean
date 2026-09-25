@@ -218,7 +218,7 @@ private theorem kernelImage_constant_output (basis : Fin ringDegree) (source : R
       Phi81CoefficientKernel.phi81Kernel.weight Phi81CoefficientKernel.constant row column =
         if row = column then (1 : F) else 0 := by
     have identity := Phi81CoefficientKernel.phi81ConstantTermLaw.weight row column
-    simpa only [constant_eq] using identity
+    simpa only [constant_eq] using! identity
   rw [PiRLC.kernelImage_apply]
   let term := fun index => if live : index < ringDegree then source ⟨index, live⟩ else 0
   calc

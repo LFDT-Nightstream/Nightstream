@@ -151,7 +151,7 @@ theorem invocation_sparse_value {columns : Nat}
     (Fin.encodeProd (invocation, row)).val port
   simpa only [PiDECPoseidonNumericBlock.row?,
     PiDECPoseidonNumericBlock.loadRow?_encodeProd, loaded,
-    Option.map_some, PiDECPoseidonNumericRows.stored_value] using value
+    Option.map_some, PiDECPoseidonNumericRows.stored_value] using! value
 
 private theorem numericSum_congr (count : Nat) (left right : Nat → K) :
     (∀ index, index < count → left index = right index) →
@@ -538,7 +538,7 @@ theorem selectedIntInvocationSlice_eq_range
         ⟨firstInvocation + lo + index.val, by omega⟩ =
       some ((interfaces.extract lo hi)[index.val])
     rw [Vector.getElem_extract]
-    simpa only [Nat.add_assoc, Vector.get] using loaded ⟨lo + index.val, fullBound⟩
+    simpa only [Nat.add_assoc, Vector.get] using! loaded ⟨lo + index.val, fullBound⟩
   have sliceRangeFits :
       ((selectedProgram.blocks.take blockIndex).map MatrixProgram.Block.rowCount).sum +
         86 * (firstInvocation + lo) + 86 * (min hi count - lo) ≤
@@ -582,7 +582,7 @@ theorem selectedIntSparseSlice_eq_range
     change selectedProgram.row? selectedColumns selectedSource
         (firstRow + lo + index.val) = some ((forms.extract lo hi)[index.val])
     rw [Vector.getElem_extract]
-    simpa only [Nat.add_assoc, Vector.get] using loaded ⟨lo + index.val, fullBound⟩
+    simpa only [Nat.add_assoc, Vector.get] using! loaded ⟨lo + index.val, fullBound⟩
   have sliceRangeFits : firstRow + lo + (min hi count - lo) ≤ selectedProgram.rowCount := by
     rw [Nat.min_eq_left hi_le_count]
     omega

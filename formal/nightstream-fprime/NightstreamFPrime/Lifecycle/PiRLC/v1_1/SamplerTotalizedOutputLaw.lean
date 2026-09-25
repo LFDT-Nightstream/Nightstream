@@ -76,7 +76,7 @@ theorem batch_event_error_le (fallback : Scalar)
             ((alphabetSize : ℚ) ^ coefficientCount) ^ FieldBatchShortfall.batchCount| ≤
         17 * (32 * FieldPairLaw.pairDeviation +
           (Nat.choose candidateBound 11 : ℚ) / (chunkModulus : ℚ) ^ 11) := by
-    simpa only [totalizedFieldBatch, id_eq, Nat.cast_pow, FieldBatchShortfall.batchCount_eq] using compared
+    simpa only [totalizedFieldBatch, id_eq, Nat.cast_pow, FieldBatchShortfall.batchCount_eq] using! compared
   calc
     _ ≤ 17 * (32 * FieldPairLaw.pairDeviation +
         (Nat.choose candidateBound 11 : ℚ) / (chunkModulus : ℚ) ^ 11) := normalized
@@ -115,7 +115,7 @@ private theorem totalized_ofFn (fallback : Scalar) {count : Nat}
     (fields : Fin count → FieldShortfall.FieldWindow) :
     List.ofFn (totalizedFieldBatch fallback fields) =
       (List.ofFn fields).map (fun fields => (SamplerOutputLaw.fieldDecode fields).getD fallback) := by
-  simpa only [totalizedFieldBatch, totalizedFieldDecode, Function.comp_def] using
+  simpa only [totalizedFieldBatch, totalizedFieldDecode, Function.comp_def] using!
     (List.map_ofFn (f := fields)
       (g := fun fields : FieldShortfall.FieldWindow => (SamplerOutputLaw.fieldDecode fields).getD fallback)).symm
 

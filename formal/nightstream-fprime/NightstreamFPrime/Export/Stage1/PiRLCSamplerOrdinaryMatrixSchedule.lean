@@ -103,37 +103,38 @@ private theorem sourceRanges_valid (source minimum limit : Nat)
     minimumLe, endLe, suffixValid]
   all_goals omega
 
+private theorem sourceInterval_valid (start count minimum limit : Nat)
+    (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart start + 592)
+    (endLe : PiRLCStarts.samplerSourceRowStart (start + count) ≤ limit) :
+    validIndexRanges limit minimum
+      ((List.range' start count).flatMap sourceRanges) = true := by
+  induction count generalizing start minimum with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [List.range'_succ, List.flatMap_cons]
+      apply sourceRanges_valid start minimum limit _ minimumLe
+      · unfold PiRLCStarts.samplerSourceRowStart at endLe ⊢
+        omega
+      · apply inductionHypothesis (start := start + 1)
+        · unfold PiRLCStarts.samplerSourceRowStart
+          omega
+        · simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using endLe
+
 theorem rowSchedule_valid : rowSchedule.valid 27032494 = true := by
-  change validIndexRanges 27032494 0 ranges = true
-  rw [ranges]
-  rw [show List.range PiRLCSamplerOrdinaryRows.sourceCount =
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] by
-    decide]
-  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil]
-  repeat
-    first
-    | apply sourceRanges_valid
-    | norm_num [PiRLCStarts.samplerSourceRowStart,
-        PiRLCStarts.samplerRowStart, PiRLCStarts.phaseRowStart,
-        validIndexRanges]
+  simp only [rowSchedule, IndexSchedule.valid, ranges, List.range_eq_range']
+  apply sourceInterval_valid 0 PiRLCSamplerOrdinaryRows.sourceCount
+  all_goals norm_num [PiRLCSamplerOrdinaryRows.sourceCount,
+    PiRLCStarts.samplerSourceRowStart, PiRLCStarts.samplerRowStart,
+    PiRLCStarts.phaseRowStart]
 
 theorem rowSchedule_valid_between :
     validIndexRanges PiRLCStarts.outputRowStart PiRLCStarts.phaseRowStart
       ranges = true := by
-  have boundary : PiRLCStarts.outputRowStart = 28295335 :=
-    PiRLCStarts.finalBoundaries_eq.1
-  rw [boundary]
-  rw [ranges]
-  rw [show List.range PiRLCSamplerOrdinaryRows.sourceCount =
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] by
-    decide]
-  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil]
-  repeat
-    first
-    | apply sourceRanges_valid
-    | norm_num [PiRLCStarts.samplerSourceRowStart,
-        PiRLCStarts.samplerRowStart, PiRLCStarts.phaseRowStart,
-        PiRLCStarts.outputRowStart, validIndexRanges]
+  simp only [ranges, List.range_eq_range']
+  apply sourceInterval_valid 0 PiRLCSamplerOrdinaryRows.sourceCount
+  all_goals norm_num [PiRLCSamplerOrdinaryRows.sourceCount,
+    PiRLCStarts.samplerSourceRowStart, PiRLCStarts.samplerRowStart,
+    PiRLCStarts.phaseRowStart, PiRLCStarts.finalBoundaries_eq.1]
 
 theorem rowIndexReference_nodup : rowIndexReference.Nodup := by
   rw [← rowSchedule_indices]

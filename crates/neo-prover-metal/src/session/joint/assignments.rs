@@ -69,6 +69,30 @@ impl AssignmentTables {
         }
     }
 
+    pub(super) fn fold_allocation_bytes(&self) -> Result<usize, MetalError> {
+        if self.count == 0 {
+            return Ok(0);
+        }
+        let alphabet = match self.prefix {
+            Prefix::Masks(_) => 2 * self.magnitudes + 1,
+            Prefix::Codes { alphabet, .. } => alphabet,
+            Prefix::Dense(_) => 0,
+        };
+        let next = alphabet
+            .checked_mul(alphabet)
+            .filter(|&n| n > 0 && n <= usize::from(u16::MAX) + 1);
+        let entry_bytes = match next {
+            Some(n) if n <= usize::from(u8::MAX) + 1 => 1,
+            Some(_) => 2,
+            None => size_of::<K>(),
+        };
+        self.count
+            .checked_mul(self.len.div_ceil(2))
+            .and_then(|n| n.checked_mul(entry_bytes))
+            .and_then(|n| n.checked_add(next.unwrap_or(0) * size_of::<K>() + 10 * size_of::<u64>()))
+            .ok_or(MetalError::Shape("assignment fold allocation size overflow"))
+    }
+
     pub(super) fn fold(
         &mut self,
         session: &MetalSession,

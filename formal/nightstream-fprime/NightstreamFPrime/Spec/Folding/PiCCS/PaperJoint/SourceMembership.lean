@@ -143,7 +143,7 @@ theorem sourceHolds_iff_memberships
       exact (fresh index).2
     · intro source column
       have bounded := (openings source).2.2 column
-      simpa only [freshBound] using bounded
+      simpa only [freshBound] using! bounded
     · intro coordinate
       exact ((runningEvaluations_eq_iff extensionOps extensionLaws lift openingMaps
         statement witness coordinate.running).mp (running coordinate.running).2.2).1

@@ -126,7 +126,7 @@ theorem local_disagreement_le_binding (context : Context) :
     PaperCompositionAgreement.bindingProbability, PaperCompositionAgreement.weakSuffixLaw,
     PaperCompositionAgreement.weakConsume, oracle, checker,
     InteractiveComposition.suffixLaw, InteractiveComposition.consume,
-    WeakExtraction.endpointLaw, WeakExtraction.consume, PaperWeakAlgorithm.Algorithm.check] using bound
+    WeakExtraction.endpointLaw, WeakExtraction.consume, PaperWeakAlgorithm.Algorithm.check] using! bound
 
 include strongSet correct in
 /-- The exact global disagreement term in Main is dominated by the tagged
@@ -160,6 +160,6 @@ theorem disagreement_le_bindingProbability (contexts : PMF Context) :
           strongSet correct context)
   simpa only [StrongProbability.clockMean, base, total, StrongProbability.verifierMean_const,
     add_zero, bindingProbability, PaperCompositionProbability.disagreementProbability,
-    StrongProbability.globalDisagreementProbability, localDisagreement] using averaged.2
+    StrongProbability.globalDisagreementProbability, localDisagreement] using! averaged.2
 
 end NightstreamFPrime.Lifecycle.Nifs.InteractiveAgreement

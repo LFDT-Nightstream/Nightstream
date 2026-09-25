@@ -235,7 +235,8 @@ private theorem fieldOfNat_val_self (value : F) :
   apply Fin.eq_of_val_eq
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
-private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
+/-- Every nonzero field value times its hint inverse is one. -/
+theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     value * Hint.inverse value = 1 := by
   have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
     intro valueValZero
@@ -514,7 +515,7 @@ private theorem boolean_of_constraint
     bitValue env offset index ≤ 1 := by
   let value := env (offset + index)
   have product : value * (value - 1) = 0 := by
-    simpa [booleanConstraint, bitExpr, value] using zero
+    simpa [booleanConstraint, bitExpr, value] using! zero
   rcases baseFieldNoZeroDivisors value (value - 1) product with
     valueZero | valueMinusOneZero
   · change value.val ≤ 1
@@ -987,7 +988,7 @@ private theorem completeEnv_holdsFlat
     · have bitFieldOne :
           completeEnv interface env offset (offset + index) = 1 := by
         apply Fin.eq_of_val_eq
-        simpa [bitValue] using bitOne
+        simpa [bitValue] using! bitOne
       rw [booleanConstraint_eval, bitFieldOne, sub_self]
       exact mul_zero _
   have recomposition :
@@ -1094,7 +1095,7 @@ private theorem completeEnv_holdsFlat
             subst hint
             exact highDifference_varsBelow offset)
           0 (by simp)
-        simpa [completeInverse, inverseHint, inverseExpr] using value
+        simpa [completeInverse, inverseHint, inverseExpr] using! value
       have differencePreserved :
           (highDifferenceExpr offset).eval (completeBits interface env offset) =
             (highDifferenceExpr offset).eval

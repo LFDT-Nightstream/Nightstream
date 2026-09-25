@@ -359,13 +359,13 @@ private theorem assemble_sound (sources : PreparedPhysicalInputs.Inputs)
       have held := (StoredPhysicalRowCheck.instruction_iff _ env).mp
         (ordinaryInstructionChecks block blockMember instruction member)
       simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq,
-        PerApplicationPackage.shiftWitnessInstruction_holds] using held)
+        PerApplicationPackage.shiftWitnessInstruction_holds] using! held)
     (by
       intro block blockMember row member
       have held := (StoredPhysicalRowCheck.sparseRow_iff _ env).mp
         (ordinaryAssertionChecks block blockMember row member)
       simpa only [PerApplicationCachedShift.shiftSparseRow_eq,
-        PerApplicationPackage.shiftSparseRow_holds] using held)
+        PerApplicationPackage.shiftSparseRow_holds] using! held)
   apply PreparedPhysicalPackageRows.rowsHold env
   · intro chain member ordinal bounded
     apply (StoredPhysicalRowContext.hashInvocation_iff header templates headerEqual
@@ -397,10 +397,10 @@ private theorem assemble_sound (sources : PreparedPhysicalInputs.Inputs)
   · constructor
     · intro instruction member
       simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq,
-        PerApplicationPackage.shiftWitnessInstruction_holds] using ordinaryRows.1 instruction member
+        PerApplicationPackage.shiftWitnessInstruction_holds] using! ordinaryRows.1 instruction member
     · intro row member
       simpa only [PerApplicationCachedShift.shiftSparseRow_eq,
-        PerApplicationPackage.shiftSparseRow_holds] using ordinaryRows.2 row member
+        PerApplicationPackage.shiftSparseRow_holds] using! ordinaryRows.2 row member
   · constructor
     · intro instruction member
       exact (StoredPhysicalRowCheck.instruction_iff _ env).mp

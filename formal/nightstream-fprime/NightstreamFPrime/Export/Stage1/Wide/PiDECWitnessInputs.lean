@@ -27,7 +27,7 @@ theorem reference_value (program : Program) (env : Env)
     (by
       have upper := Layout.Stage1.Spartan.sourceToSpartan_lt _ location.sourceColumn_lt
       simpa only [PerApplicationPackage.basePackage_totalColumnCount_eq,
-        Layout.Stage1.Spartan.spartanColumnCount_eq] using upper)
+        Layout.Stage1.Spartan.spartanColumnCount_eq] using! upper)
   exact copied.trans ((SourceAssignment.targetEnv_source env location.sourceColumn location.sourceColumn_lt).trans
     (SourceAssignment.sourceEnv_piDec env location))
 

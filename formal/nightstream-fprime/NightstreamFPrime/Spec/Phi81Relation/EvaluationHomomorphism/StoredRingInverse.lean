@@ -69,7 +69,7 @@ theorem divisor_monic : (modulus ()).monic := by
   apply Polynomial.monic_X_pow_add
   have lower : (Polynomial.X ^ ringMiddleDegree + 1 : Polynomial Base).degree =
       (ringMiddleDegree : WithBot Nat) := by
-    simpa only [ringMiddleDegree] using
+    simpa only [ringMiddleDegree] using!
       (Polynomial.degree_X_pow_add_C (R := Base) (n := 27) (by decide) (1 : Base))
   rw [lower]
   decide

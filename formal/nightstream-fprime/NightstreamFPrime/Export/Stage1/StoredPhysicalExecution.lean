@@ -102,7 +102,9 @@ theorem compact_agree (allowed : Nat → Prop) (templates : Array CompactRowTemp
     ResultAgree allowed (compact templates target invocation left)
       (compact templates target invocation right) := by
   cases found : templates[invocation.templateIndex]? with
-  | none => simp [compact, found, ResultAgree]
+  | none =>
+      simp only [compact, found]
+      exact rfl
   | some template =>
       have supported := support template found
       have steps := StoredExecutionSupport.compact_agree allowed
@@ -218,7 +220,7 @@ private theorem list_loop_agree (allowed : Nat → Prop)
       | error leftError =>
           cases rightResult : loopStep runRight (previous, right) event with
           | error rightError =>
-              simpa only [leftResult, rightResult, LoopResultAgree] using next
+              simpa only [leftResult, rightResult, LoopResultAgree] using! next
           | ok after => simp only [leftResult, rightResult, LoopResultAgree] at next
       | ok afterLeft =>
           cases rightResult : loopStep runRight (previous, right) event with
@@ -250,7 +252,7 @@ theorem runWith_agree (allowed : Nat → Prop)
   | error leftError =>
       cases rightResult : events.foldlM (loopStep runRight) (none, right) with
       | error rightError =>
-          simpa only [leftResult, rightResult, LoopResultAgree, ResultAgree] using folded
+          simpa only [leftResult, rightResult, LoopResultAgree, ResultAgree] using! folded
       | ok after => simp only [leftResult, rightResult, LoopResultAgree] at folded
   | ok afterLeft =>
       cases rightResult : events.foldlM (loopStep runRight) (none, right) with

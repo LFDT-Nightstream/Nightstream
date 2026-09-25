@@ -128,10 +128,10 @@ private theorem pilotPriorPublicColumn_suffix (column : Nat)
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by
     simpa [PilotSpartan.priorPublicStart,
-      PilotProduction.priorPublicInputStart] using Nat.not_lt.mpr lower),
+      PilotProduction.priorPublicInputStart] using! Nat.not_lt.mpr lower),
     if_pos (by
       simpa [PilotSpartan.outputPreimageStart,
-        PilotProduction.outputPreimageStart] using upper)]
+        PilotProduction.outputPreimageStart] using! upper)]
   unfold Spartan.liftPilotColumn
   rw [if_neg (by
     norm_num [PilotSpartan.firstPublicStart, PilotSpartan.privateColumnCount_value,
@@ -167,7 +167,7 @@ private theorem samplerColumn_private (column : Nat)
         NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.logicalPrivateCount,
         NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount,
         NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.logicalPrivateCount]
-        using upper
+        using! upper
     omega
 
 private theorem samplerRange_compatible

@@ -78,7 +78,7 @@ theorem plan_forms
     (ApplicationOrdinaryPlan.plan fits geometry).forms index =
       (directForms fits geometry index).meaningfulForm := by
   simpa only [ApplicationOrdinaryPlan.plan, directForms,
-    ApplicationOrdinaryPlan.inputs] using
+    ApplicationOrdinaryPlan.inputs] using!
       (OrdinarySourcePlan.Program.compile_toPlan_forms
         (ApplicationDirectSource.program application fits)
         (ApplicationOrdinaryPlan.inputs fits geometry) index)

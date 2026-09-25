@@ -47,7 +47,7 @@ theorem priorInputRange_form?
   rw [Spartan.sourceToSpartan_add_of_pilotPriorPrivate
     PilotProduction.priorPreimageStart index.val upper]
   rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot]
-  simpa only [priorInputRange, Nat.zero_add] using
+  simpa only [priorInputRange, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.priorInputBlock program)
       (PiRLCPoseidonGeometry.priorInputStart program)
       (Spartan.sourceToSpartan PilotProduction.priorPreimageStart)
@@ -170,7 +170,7 @@ theorem outputInputRange_form?
         geometry) := by
   rw [sourceToSpartan_outputInput_add]
   rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot]
-  simpa only [outputInputRange, Nat.zero_add] using
+  simpa only [outputInputRange, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (PiRLCPoseidonGeometry.outputInputBlock program)
       (PiRLCPoseidonGeometry.outputInputStart program)
       (Spartan.sourceToSpartan PilotProduction.outputPreimageStart)
@@ -192,14 +192,12 @@ theorem freshRange_form?
       some ((PiCCSOrdinaryDirectPlan.Location.fresh index).form geometry) := by
   have phaseBound : Spartan.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimFreshStart := by
-    norm_num [Spartan.piCcsPhaseOffset,
-      PiCCSArithmetic.initialClaimFreshStart,
-      PiCCSStarts.initialClaimFreshStart,
-      PiCCSStarts.roundTranscriptFreshStart,
-      PiCCSStarts.challengeFreshStart,
-      PiCCSStarts.statementAbsorptionFreshStart,
-      PiCCSStarts.statementBindingFreshStart,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq]
+    unfold PiCCSArithmetic.initialClaimFreshStart
+      PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
+      PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
+      PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
+    rw [PiCCSInputs.phaseOffset_eq]
+    norm_num [Spartan.piCcsPhaseOffset]
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
   simpa [freshRange, PiCCSOrdinaryDirectPlan.Location.form] using
@@ -239,7 +237,7 @@ theorem proofInputRange_form?
   rw [Spartan.sourceToSpartan_add_of_proofInput
     PiCCSInputs.proofInputStart index.val lower upper]
   rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
-  simpa only [proofInputRange, proofInputSlot, Nat.zero_add] using
+  simpa only [proofInputRange, proofInputSlot, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
       (Spartan.sourceToSpartan PiCCSInputs.proofInputStart)
@@ -297,11 +295,11 @@ theorem ordinaryLogicalRange_form?
         (ordinaryLogicalIndex index)).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSStarts.initialClaimLogicalStart index.val (by
-      norm_num [Spartan.piCcsPhaseOffset,
-        PiCCSStarts.initialClaimLogicalStart,
-        PiCCSStarts.roundTranscriptWitnessStart_eq])]
+      unfold PiCCSStarts.initialClaimLogicalStart
+      rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+      norm_num [Spartan.piCcsPhaseOffset])]
   rw [ordinaryLogicalIndex, PiCCSOrdinaryDirectPlan.Location.form_ordinaryLogical]
-  simpa only [ordinaryLogicalRange, ordinaryLogicalSlot] using
+  simpa only [ordinaryLogicalRange, ordinaryLogicalSlot] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
       (Spartan.sourceToSpartan PiCCSStarts.initialClaimLogicalStart)
@@ -353,23 +351,38 @@ private theorem rangeValues (program : Program) :
     (freshPublicInputRange program).sourceCount = 270 ∧
     (expectedContextRange program).sourceStart = 28785015 ∧
     (expectedContextRange program).sourceCount = 4 := by
-  norm_num [priorInputRange, outputInputRange, proofInputRange,
-    ordinaryLogicalRange, freshRange, freshPublicInputRange,
-    expectedContextRange, SourceRange.ofSemantic, proofInputRangeCount,
-    proofInputCount_eq, ordinaryLogicalRangeCount, ordinaryLogicalCount_eq,
+  unfold priorInputRange outputInputRange proofInputRange ordinaryLogicalRange
+    freshRange freshPublicInputRange expectedContextRange SourceRange.ofSemantic
+    PiCCSArithmetic.initialClaimFreshStart PiCCSStarts.initialClaimFreshStart
+    PiCCSStarts.roundTranscriptFreshStart PiCCSStarts.challengeFreshStart
+    PiCCSStarts.statementAbsorptionFreshStart PiCCSStarts.statementBindingFreshStart
+    PiCCSStarts.logicalFreshBase PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSInputs.phaseOffset_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num [proofInputRangeCount,
+    proofInputCount_eq,
+    ordinaryLogicalRangeCount,
+    ordinaryLogicalCount_eq,
     PilotProduction.stateHashWords_eq,
     PilotProduction.priorPreimageStart,
     PilotProduction.priorPublicInputStart,
     PilotProduction.outputPreimageStart,
     Lifecycle.PriorStateHash.publicWidth,
-    Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree,
-    freshCount, PiCCSInputs.expectedContextWords,
-    Spartan.sourceToSpartan, Spartan.liftPilotColumn,
-    PilotSpartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
-    Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-    Spartan.piCcsLocalStart, Spartan.expectedContextPublicStart,
-    Spartan.pilotInputPrivateColumnCount, Spartan.pilotPrivateColumnCount,
-    Spartan.proofInputColumnCount, Spartan.privateColumnCount,
+    Lifecycle.PaperAlgebra.publicRingColumns,
+    Spec.ringDegree,
+    freshCount,
+    PiCCSInputs.expectedContextWords,
+    Spartan.sourceToSpartan,
+    Spartan.liftPilotColumn,
+    PilotSpartan.sourceToSpartan,
+    Spartan.pilotSourceColumnCount,
+    Spartan.proofInputSourceStart,
+    Spartan.piCcsPhaseOffset,
+    Spartan.piCcsLocalStart,
+    Spartan.expectedContextPublicStart,
+    Spartan.pilotInputPrivateColumnCount,
+    Spartan.pilotPrivateColumnCount,
+    Spartan.proofInputColumnCount,
+    Spartan.privateColumnCount_eq,
     PilotSpartan.priorPublicStart_value,
     PilotSpartan.outputPreimageStart_value,
     PilotSpartan.outputDigestStart_value,
@@ -378,16 +391,7 @@ private theorem rangeValues (program : Program) :
     PilotSpartan.witnessPrivateStart_value,
     PilotSpartan.firstPublicStart_value,
     PilotSpartan.secondPublicStart_value,
-    PiCCSInputs.proofInputStart_eq,
-    PiCCSArithmetic.initialClaimFreshStart,
-    PiCCSStarts.initialClaimFreshStart,
-    PiCCSStarts.roundTranscriptFreshStart,
-    PiCCSStarts.challengeFreshStart,
-    PiCCSStarts.statementAbsorptionFreshStart,
-    PiCCSStarts.statementBindingFreshStart,
-    PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq,
-    PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+    PiCCSInputs.proofInputStart_eq]
 
 private theorem transcriptGridValues (program : Program) :
     (transcriptOutputGrid program).sourceStart = 14752110 ∧
@@ -395,13 +399,14 @@ private theorem transcriptGridValues (program : Program) :
       (transcriptOutputGrid program).majorSourceStride = 592 ∧
       (transcriptOutputGrid program).minorCount = 1 ∧
       (transcriptOutputGrid program).minorSourceStride = 8 := by
-  norm_num [transcriptOutputGrid, PiCCSTranscriptOutputForms.transcriptGrid,
-    SourceGrid.externalOfSemantic, SourceGrid.ofSemantic,
-    PiCCSTranscriptOutputForms.transcriptSourceStart,
-    PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
+  unfold transcriptOutputGrid PiCCSTranscriptOutputForms.transcriptGrid
+    SourceGrid.externalOfSemantic SourceGrid.ofSemantic
+    PiCCSTranscriptOutputForms.transcriptSourceStart
+  rw [PiCCSInputs.phaseOffset_eq]
+  norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
     Spartan.sourceToSpartan, Spartan.pilotSourceColumnCount,
     Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset,
-    Spartan.piCcsLocalStart, PiCCSInputs.phaseOffset_eq]
+    Spartan.piCcsLocalStart]
 
 private theorem priorTarget_eq (program : Program)
     (index : Fin PilotProduction.stateHashWords) :
@@ -458,9 +463,9 @@ private theorem ordinaryLogicalTarget_eq (program : Program)
       15176582 + index.val := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSStarts.initialClaimLogicalStart index.val (by
-      norm_num [Spartan.piCcsPhaseOffset,
-        PiCCSStarts.initialClaimLogicalStart,
-        PiCCSStarts.roundTranscriptWitnessStart_eq])]
+      unfold PiCCSStarts.initialClaimLogicalStart
+      rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+      norm_num [Spartan.piCcsPhaseOffset])]
   change (ordinaryLogicalRange program).sourceStart + index.val =
     15176582 + index.val
   have values := rangeValues program
@@ -489,13 +494,16 @@ private theorem transcriptOutputTarget_eq (index : Fin transcriptOutputCount) :
       have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
         transcriptOutputSourceStart
         (decoded.1.val * 592 + decoded.2.val) (by
-          norm_num [transcriptOutputSourceStart,
-            Spartan.piCcsPhaseOffset, PiCCSInputs.phaseOffset_eq])
+          unfold transcriptOutputSourceStart
+          rw [PiCCSInputs.phaseOffset_eq]
+          norm_num [Spartan.piCcsPhaseOffset])
       simpa only [Nat.add_assoc] using mapped
     _ = _ := by
       have startEq : Spartan.sourceToSpartan transcriptOutputSourceStart =
           14752110 := by
-        norm_num [transcriptOutputSourceStart, Spartan.sourceToSpartan,
+        unfold transcriptOutputSourceStart
+        rw [PiCCSInputs.phaseOffset_eq]
+        norm_num [Spartan.sourceToSpartan,
           Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart,
           Spartan.piCcsPhaseOffset, Spartan.piCcsLocalStart,
           PiCCSInputs.phaseOffset_eq]
@@ -507,14 +515,12 @@ private theorem freshTarget_eq (program : Program) (index : Fin freshCount) :
       19305828 + index.val := by
   have phaseBound : Spartan.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimFreshStart := by
-    norm_num [Spartan.piCcsPhaseOffset,
-      PiCCSArithmetic.initialClaimFreshStart,
-      PiCCSStarts.initialClaimFreshStart,
-      PiCCSStarts.roundTranscriptFreshStart,
-      PiCCSStarts.challengeFreshStart,
-      PiCCSStarts.statementAbsorptionFreshStart,
-      PiCCSStarts.statementBindingFreshStart,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq]
+    unfold PiCCSArithmetic.initialClaimFreshStart
+      PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
+      PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
+      PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
+    rw [PiCCSInputs.phaseOffset_eq]
+    norm_num [Spartan.piCcsPhaseOffset]
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
   change (freshRange program).sourceStart + index.val =

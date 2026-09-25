@@ -129,7 +129,7 @@ private theorem drawReduction_congr (left right : Env) (leftOffset rightOffset m
     intro bit member
     simp only [fieldBit, CanonicalU64.bitExpr, Expr.eval_var]
     rw [cells lane bit (Finset.mem_range.mp member)]
-  simpa only [drawTerms, reduceTerms, List.map_append, linearValue_append] using
+  simpa only [drawTerms, reduceTerms, List.map_append, linearValue_append] using!
     congrArg₂ Nat.add (congrArg₂ Nat.add (congrArg₂ Nat.add (field 0) (field 1)) (field 2)) (field 3)
 
 private theorem resultReduction_congr (left right : Env) (leftOffset rightOffset draw modulus : Nat) :

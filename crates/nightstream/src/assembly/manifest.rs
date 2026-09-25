@@ -56,7 +56,7 @@ impl Counts {
         Self {
             witness: application.private_input_count(),
             local: application.generated_range().len(),
-            rows: application.rows().len(),
+            rows: application.row_count(),
         }
     }
 }

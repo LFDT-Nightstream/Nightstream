@@ -134,19 +134,8 @@ theorem rowSpans_starts_eq_layout :
 
 theorem rowSpans_adjacent : Adjacent rowSpans := by
   rw [rowSpans_exact]
-  norm_num [Adjacent, Span.endExclusive,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.sumcheckRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalKRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalARowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.ccsRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.normRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingRowStart]
+  simp only [Adjacent, Span.endExclusive]
+  repeat' constructor
 
 theorem rowSpans_cover_layout :
     CoversFrom NightstreamFPrime.Layout.Stage1.PiCCSStarts.rowBase
@@ -154,21 +143,8 @@ theorem rowSpans_cover_layout :
       rowSpans := by
   rw [rowSpans_exact,
     NightstreamFPrime.Layout.Stage1.PilotPiCCS.physicalRowCount_eq relation]
-  norm_num [CoversFrom, Span.endExclusive,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementAbsorptionRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.sumcheckRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalKRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.evalARowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.ccsRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.normRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingRowStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.rowBase,
-    NightstreamFPrime.Layout.PilotProduction.physicalRowCountValue_eq]
+  simp only [CoversFrom, Span.endExclusive]
+  repeat' constructor
 
 private def repeatOwners {Owner : Type} : List Owner → List Nat → List Owner
   | owner :: owners, count :: counts =>
@@ -219,7 +195,7 @@ private theorem ownersFor_childProjection
                         NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.RowOwner)))
                   (List.range (R1CS.mulCount expression)) =
                 List.replicate (R1CS.mulCount expression) child := by
-            simpa only [Function.comp_apply, List.length_range] using
+            simpa only [Function.comp_apply, List.length_range] using!
               (map_const_eq_replicate
                 (List.range (R1CS.mulCount expression)) child)
           simp [NightstreamFPrime.Layout.PiCCS.v1_1.Ownership.ownersFor,
@@ -548,8 +524,8 @@ private theorem logicalColumnCount_eq :
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 19306106 := by
   rw [← NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase_eq_layout
     relation]
-  norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+  unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+  rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
 private theorem logicalColumnCount_literal_eq :
     NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation

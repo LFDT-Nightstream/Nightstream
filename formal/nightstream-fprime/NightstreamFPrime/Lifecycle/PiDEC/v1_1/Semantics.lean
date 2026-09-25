@@ -258,11 +258,11 @@ private theorem evaluationFamily_eq
   · simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
       PaperAlgebra.recomposeEvaluationFamily, EvalKRecomposition.evalParent,
       EvalKRecomposition.evalChildren, Formal.evalKInterface, Formal.atOffset,
-      Formal.evalKOffset] using pad
+      Formal.evalKOffset] using! pad
   · simpa [NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
       PaperAlgebra.recomposeEvaluationFamily, EvalARecomposition.evalParent,
       EvalARecomposition.evalChildren, Formal.evalAInterface, Formal.atOffset,
-      Formal.evalAOffset] using matrix
+      Formal.evalAOffset] using! matrix
 
 theorem accepted
     {logicalWidth : Nat}
@@ -298,7 +298,7 @@ theorem accepted
     simpa [inputAttempt, InputBinding.evalAttempt, InputBinding.evalParent,
       Formal.inputBindingInterface, Formal.publicInputInterface,
       Formal.atOffset, Formal.inputBindingOffset, Formal.publicInputOffset,
-      PublicInputSplit.evalParent, PaperAlgebra.publicInputSplit] using bounded
+      PublicInputSplit.evalParent, PaperAlgebra.publicInputSplit] using! bounded
   · have commitment := CommitmentRecomposition.parentCoverage
       (Formal.commitmentInterface (Formal.atOffset interface offset))
       (Formal.commitmentOffset offset) env specification.commitment
@@ -306,7 +306,7 @@ theorem accepted
       InputBinding.evalMessage, Formal.inputBindingInterface,
       Formal.commitmentInterface, Formal.atOffset, Formal.inputBindingOffset,
       Formal.commitmentOffset, CommitmentRecomposition.evalParent,
-      CommitmentRecomposition.evalChildren, PaperAlgebra.piDecAlgebra] using
+      CommitmentRecomposition.evalChildren, PaperAlgebra.piDecAlgebra] using!
       commitment
   · have family := evaluationFamily_eq relation interface offset env specification
     have singleton := congrArg (fun value => #[value]) family
@@ -356,7 +356,7 @@ private theorem outputComputed
       Formal.publicInputInterface, Formal.outputBindingInterface,
       Formal.atOffset, Formal.inputBindingOffset, Formal.publicInputOffset,
       Formal.outputBindingOffset, OutputBinding.evalOutput,
-      PaperAlgebra.publicInputSplit] using (congrFun publicInputs child).symm
+      PaperAlgebra.publicInputSplit] using! (congrFun publicInputs child).symm
   · rfl
   · rfl
   · rfl
@@ -445,10 +445,10 @@ theorem phaseHolds_implies_spec
   · exact {
       parentCombined := checks.parentCombined
       parentEvaluationSize := by
-        simpa [PaperAlgebra.evaluationArity] using checks.parentEvaluationSize
+        simpa [PaperAlgebra.evaluationArity] using! checks.parentEvaluationSize
       messageEvaluationSize := by
         intro child
-        simpa [PaperAlgebra.evaluationArity] using
+        simpa [PaperAlgebra.evaluationArity] using!
           checks.messageEvaluationSize child }
   · have bounded :
         NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.parentBounded
@@ -459,7 +459,7 @@ theorem phaseHolds_implies_spec
         InputBinding.evalParent, Formal.inputBindingInterface,
         Formal.publicInputInterface, Formal.atOffset,
         Formal.inputBindingOffset, Formal.publicInputOffset,
-        PublicInputSplit.evalParent, PaperAlgebra.publicInputSplit] using
+        PublicInputSplit.evalParent, PaperAlgebra.publicInputSplit] using!
         checks.parentBounded
     have children : PublicInputSplit.evalChildren
           (Formal.publicInputInterface shared)
@@ -490,7 +490,7 @@ theorem phaseHolds_implies_spec
       Formal.atOffset, Formal.inputBindingOffset, Formal.commitmentOffset,
       CommitmentRecomposition.evalParent,
       CommitmentRecomposition.evalChildren,
-      PaperAlgebra.piDecAlgebra] using checks.commitmentEquation
+      PaperAlgebra.piDecAlgebra] using! checks.commitmentEquation
   · apply EvalKRecomposition.specHolds_of_parentCoverage
     have pad := congrArg
       NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction.EvaluationFamily.pad
@@ -499,7 +499,7 @@ theorem phaseHolds_implies_spec
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
       PaperAlgebra.recomposeEvaluationFamily, Formal.evalKInterface,
       Formal.atOffset, Formal.evalKOffset, EvalKRecomposition.evalParent,
-      EvalKRecomposition.evalChildren] using pad
+      EvalKRecomposition.evalChildren] using! pad
   · apply EvalARecomposition.specHolds_of_parentCoverage
     have matrix := congrArg
       NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction.EvaluationFamily.matrix
@@ -508,7 +508,7 @@ theorem phaseHolds_implies_spec
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption.evalEvaluation,
       PaperAlgebra.recomposeEvaluationFamily, Formal.evalAInterface,
       Formal.atOffset, Formal.evalAOffset, EvalARecomposition.evalParent,
-      EvalARecomposition.evalChildren] using matrix
+      EvalARecomposition.evalChildren] using! matrix
   · exact ⟨fun _ => rfl, fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
 
 private theorem parentEvaluation_eq_of_agree

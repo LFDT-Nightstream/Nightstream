@@ -163,7 +163,7 @@ private theorem payload_selected {logicalWidth : Nat}
   have loaded := retainedRule_form field.selected source ⟨0, by change 0 < 1; omega⟩ index
     wire fits oneColumn (base field) (stride field) 0 1 (1 : F) (by simpa using bound)
   simpa only [payloadRule, Field.selected, region, Nat.zero_add, Nat.mul_zero,
-    Nat.add_zero, Nat.mul_one, applyCoefficient, if_pos rfl] using loaded
+    Nat.add_zero, Nat.mul_one, applyCoefficient, if_pos rfl] using! loaded
 
 private def fieldAt : Fin 4 → Field :=
   ![.commitment, .publicInput, .evalK, .evalA]
@@ -293,7 +293,7 @@ private theorem output_data {program : ApplicationProgram} {logicalWidth : Nat}
   simpa only [groupsGrid, fieldAt, List.ofFn_succ, List.map_cons, List.map_nil,
     payloadRule, Field.selected, Field.start, Field.width,
     outputForm, RunningTransitionDirectPlan.Location.form, wireForm, outputWire,
-    RetainedBlock.ofSemantic, RetainedBlock.semantic] using loaded
+    RetainedBlock.ofSemantic, RetainedBlock.semantic] using! loaded
 
 private theorem data_row {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (oneColumn : Fin logicalWidth)
@@ -329,9 +329,9 @@ private theorem header_row {program : ApplicationProgram} {logicalWidth : Nat}
     (groupsGrid program oneColumn.val) oneColumn rfl source ⟨0, by change 0 < 1; omega⟩ minor _ _ _
     (by simpa only [groupsGrid, region, Nat.zero_add] using left)
     (by simpa only [groupsGrid, fieldAt, List.ofFn_succ, List.map_cons, List.map_nil,
-      payloadRule, Field.selected, Field.start, Field.width, Field.piDecBase] using right)
+      payloadRule, Field.selected, Field.start, Field.width, Field.piDecBase] using! right)
     (by simpa only [groupsGrid, fieldAt, List.ofFn_succ, List.map_cons, List.map_nil,
-      payloadRule, Field.selected, Field.start, Field.width] using output)
+      payloadRule, Field.selected, Field.start, Field.width] using! output)
   simpa only [headerForms, Fin.encodeProd, Fin.coe_mkDivMod, groups_shape, Nat.mul_one, Nat.one_mul, Nat.zero_mul, Nat.mul_zero, Nat.zero_add, Nat.mul_comm]
     using loaded
 

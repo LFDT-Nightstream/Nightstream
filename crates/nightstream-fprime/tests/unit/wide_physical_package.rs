@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use super::*;
+use super::super::*;
 
 /// The driver supplies the two Lean export paths. This exercises production
 /// row, witness, ownership and source-bound checks, then every matrix row.

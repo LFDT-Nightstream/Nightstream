@@ -8,11 +8,27 @@ fn manifest_bytes() -> &'static [u8] {
     include_bytes!("../../artifacts/shared-verifier-v1.json")
 }
 
+fn materialized_assembly(fixed: Value, application: &ApplicationCircuit, manifest: &Manifest) -> Value {
+    let mut value: wire::Envelope = serde_json::from_value(fixed).unwrap();
+    let plan = application::materialized_plan(application, manifest).unwrap();
+    let split = value
+        .source
+        .rows
+        .partition_point(|row| row.index < plan.row_start);
+    value
+        .source
+        .rows
+        .splice(split..split, plan.rows.iter().cloned());
+    value.source.batches.extend(plan.batches.iter().cloned());
+    value.application = plan;
+    serde_json::to_value(value).unwrap()
+}
+
 #[test]
 fn rust_poseidon_plan_preserves_every_raw_row_recipe_and_identity_byte() {
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     let application = poseidon2_hash_chain_v1().unwrap();
-    let plan = application::plan(&application, &manifest).unwrap();
+    let plan = application::materialized_plan(&application, &manifest).unwrap();
     let expected = include_bytes!("../fixtures/poseidon2-application-reference.json");
     let mut actual = serde_json::to_vec(&plan).unwrap();
     actual.push(b'\n');
@@ -37,7 +53,10 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
     assert!(manifest.check_reference(&reference).is_err());
     reference.assignment.schema = 4;
     let application = poseidon2_hash_chain_v1().unwrap();
-    let actual = assemble(reference, &manifest, &application).unwrap();
+    // The selected application is recognized as the proved specialization.
+    // Assembly keeps the fixed envelope; the records restore the application.
+    let fixed = assemble(reference, &manifest, &application).unwrap();
+    let actual = materialized_assembly(fixed, &application, &manifest);
 
     // Compare the entire numeric-array value: physical constraints and witness
     // recipes, every matrix block, assignment transport, layout and terminal data.
@@ -46,6 +65,72 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
         actual == expected,
         "complete assembled value differs from the selected reference"
     );
+}
+
+#[test]
+fn assembled_fixed_source_reaches_the_compiler_node_bound() {
+    fn nodes(value: &Value) -> usize {
+        match value {
+            Value::Array(values) => 1 + values.iter().map(nodes).sum::<usize>(),
+            Value::Number(number) if number.as_u64().is_some() => 1,
+            _ => panic!("fixed compiler output must contain only arrays and u64 values"),
+        }
+    }
+
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let bytes = std::fs::read(path).unwrap();
+    let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    // The selected key is sized to the selected package, so an ordinary
+    // application may use only the remaining carrier coordinates. The largest
+    // fixed envelope uses W = capacity - 1 and L = 1, because both nonempty
+    // private segments add array nodes. Count actual assembler output
+    // independently of the loader's bound.
+    let key_width = neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
+    let empty = manifest
+        .geometry
+        .logical_width
+        .eval(Counts {
+            witness: 0,
+            local: 0,
+            rows: 0,
+        })
+        .unwrap();
+    let capacity = (key_width - empty) / manifest.geometry.field_slot_width;
+    assert_eq!(capacity, 262, "application words permitted by the selected key");
+    for (witness, has_local, expected_nodes) in [(capacity - 1, true, 23_689_159), (0, false, 23_688_890)] {
+        let mut builder = ApplicationBuilder::new(witness).unwrap();
+        if has_local {
+            builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();
+        }
+        let input = builder.input_state();
+        let application = builder.finish(input.map(Affine::from)).unwrap();
+        if has_local {
+            let counts = Counts::of(&application);
+            assert_eq!((counts.witness, counts.local, counts.rows), (capacity - 1, 1, 5));
+            assert!(manifest.geometry.logical_width.eval(counts).unwrap() <= key_width);
+            assert!(
+                manifest
+                    .geometry
+                    .logical_width
+                    .eval(Counts {
+                        witness: counts.witness + 1,
+                        ..counts
+                    })
+                    .unwrap()
+                    > key_width
+            );
+        }
+        // Reuse the input bytes, while retaining only one assembled Value at a time.
+        let reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+        let fixed = assemble(reference, &manifest, &application).unwrap();
+        assert_eq!(
+            nodes(&fixed),
+            expected_nodes,
+            "W={witness}, L={}",
+            usize::from(has_local)
+        );
+    }
 }
 
 #[test]
@@ -64,7 +149,8 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     changed.push(b'\n');
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     let application = poseidon2_hash_chain_v1().unwrap();
-    let candidate = assemble(reference, &manifest, &application).unwrap();
+    let fixed = assemble(reference, &manifest, &application).unwrap();
+    let candidate = materialized_assembly(fixed, &application, &manifest);
     assert!(
         candidate[3] == expected[3],
         "the rebuilt physical application repairs the changed row"
@@ -91,7 +177,7 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
             .into();
     }
     let circuit = builder.finish(output).unwrap();
-    let plan = application::plan(&circuit, &manifest).unwrap();
+    let plan = application::materialized_plan(&circuit, &manifest).unwrap();
     assert_eq!(plan.private_count, 4);
     assert_eq!(plan.row_count, 8);
     for lane in 0..4 {

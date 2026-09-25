@@ -59,7 +59,7 @@ theorem assignment_outside {columns : Nat} (interface : Interface columns) (base
     apply FieldAssignment.outside
     right
     simpa only [PiRLCGeometry.coordinateCount, BatchPlan.coordinateCount_eq, fieldStart,
-      LowNormBlock.Block.coordinateCount, Nat.add_assoc] using after
+      LowNormBlock.Block.coordinateCount, Nat.add_assoc] using! after
 
 theorem disjoint_form {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
     (form : SparseForm columns)
@@ -197,7 +197,7 @@ theorem owned_norm {columns : Nat} (interface : Interface columns) (base : Assig
     constructor
     · exact Nat.le_of_not_gt sample
     · simpa only [PiRLCGeometry.coordinateCount, BatchPlan.coordinateCount_eq,
-        fieldStart, LowNormBlock.Block.coordinateCount, Nat.add_assoc] using owned.2
+        fieldStart, LowNormBlock.Block.coordinateCount, Nat.add_assoc] using! owned.2
 
 theorem preserves_norm {columns : Nat} (interface : Interface columns) (base : Assignment F columns)
     (bounded : ∀ column, centeredMagnitude (base column) < 2) :

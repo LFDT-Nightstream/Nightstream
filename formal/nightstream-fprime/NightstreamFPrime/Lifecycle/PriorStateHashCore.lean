@@ -476,7 +476,7 @@ theorem soundness_of_hash_and_postHash
       apply List.mem_append_right
       simp [bindingAssertions])
   have marker : (interface.publicInput offset markerIndex).eval env = 1 := by
-    exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using markerRow)
+    exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using! markerRow)
   have tail (lane : Fin 13) :
       (interface.publicInput offset (tailIndex lane)).eval env = 0 := by
     apply rows (.assertZero (interface.publicInput offset (tailIndex lane)))
@@ -498,7 +498,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (.assertZero (interface.publicInput offset markerIndex - 1))
     (markerAssertion_mem interface offset)
   have marker : (interface.publicInput offset markerIndex).eval env = 1 := by
-    exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using markerRow)
+    exact sub_eq_zero.mp (by simpa [Expr.eval_sub] using! markerRow)
   have tail (lane : Fin 13) :
       (interface.publicInput offset (tailIndex lane)).eval env = 0 :=
     rows (.assertZero (interface.publicInput offset (tailIndex lane)))
@@ -713,7 +713,7 @@ private theorem bindingRowsAt
     change (interface.publicInput offset markerIndex - 1).eval env = 0
     rw [Expr.eval_sub]
     apply sub_eq_zero.mpr
-    simpa using marker
+    simpa using! marker
   · rw [List.mem_ofFn'] at operationMember
     rcases operationMember with ⟨lane, rfl⟩
     simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
@@ -737,7 +737,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       hashEnv hashAgrees hashRows with
     ⟨afterHash, hashOps, hashEndEq, _, _⟩
   have hashPrefix : afterHash.operations = [hashOp interface offset] := by
-    simpa [empty, hashOp] using hashOps
+    simpa [empty, hashOp] using! hashOps
   have word0Start : offset + localLength afterHash.operations =
       wordOffset interface offset 0 := by
     calc

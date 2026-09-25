@@ -103,7 +103,7 @@ theorem inputShapes
 
   have challengeInitialFresh (childOffset : Nat) :
       StateFresh (challengeInterface.initialState childOffset) := by
-    simpa [challengeInterface, Formal.challengeInterface, frozen] using
+    simpa [challengeInterface, Formal.challengeInterface, frozen] using!
       statementFresh
 
   have alphaLinear (coordinate : Fin productionShape.cubeVariables) :
@@ -130,7 +130,7 @@ theorem inputShapes
       StateFresh (roundInterface.initialState childOffset) := by
     simpa [roundInterface, Formal.roundTranscriptInterface,
       Formal.challengeFinalState, challengeInterface, challengeOffset,
-      frozen] using challengeFinalFresh
+      frozen] using! challengeFinalFresh
 
   have roundChallengeLinear
       (roundIndex : Fin productionShape.cubeVariables) :
@@ -174,20 +174,20 @@ theorem inputShapes
   have gammaAt (childOffset : Nat) :
       KExprLinear (Formal.challengeGamma frozen childOffset) := by
     simpa [Formal.challengeGamma, challengeInterface, challengeOffset,
-      frozen] using gammaLinear
+      frozen] using! gammaLinear
 
   have alphaAt (childOffset : Nat)
       (coordinate : Fin productionShape.cubeVariables) :
       KExprLinear (Formal.challengeAlpha frozen childOffset coordinate) := by
     simpa [Formal.challengeAlpha, challengeInterface, challengeOffset,
-      frozen] using alphaLinear coordinate
+      frozen] using! alphaLinear coordinate
 
   have roundChallengeAt (childOffset : Nat)
       (roundIndex : Fin productionShape.cubeVariables) :
       KExprLinear
         (Formal.roundTranscriptRound frozen childOffset roundIndex).challenge := by
     simpa [Formal.roundTranscriptRound, roundInterface, roundOffset, frozen]
-      using roundChallengeLinear roundIndex
+      using! roundChallengeLinear roundIndex
 
   have roundPointAt (childOffset : Nat)
       (coordinate : Fin productionShape.cubeVariables) :
@@ -222,7 +222,7 @@ theorem inputShapes
       Leaves.SumcheckChain.InputsLinear
         (Formal.sumcheckInterface frozen) childOffset := by
     refine ⟨?_, ?_, ?_⟩
-    · simpa [Formal.sumcheckInterface] using initialOutputLinear
+    · simpa [Formal.sumcheckInterface] using! initialOutputLinear
     · intro roundIndex coefficient
       change KExprLinear
         ((interface.round parentOffset roundIndex).coefficient coefficient)

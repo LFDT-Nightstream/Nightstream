@@ -1,0 +1,7 @@
+
+running 1 test
+fixed_prefix_matrix_workspace rows=6369859 max_row=3864783 max_row_runs=370 max_run_count_row=3864783 max_runs=370 encoded_workspace_bytes=13942 minimum_workspace_bytes=4750236214 elapsed=37.361457208s
+test lifecycle::tests::matrix_workspace::fixed_prefix_rows_fit_the_minimum_matrix_workspace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 37.40s
+

@@ -75,7 +75,7 @@ private theorem recursiveRunning_eval_eq_of_piDecOutput_eq
       AssemblerInputs.recursiveRunningExpr,
       PiDEC.v1_1.Semantics.output, PiDEC.v1_1.OutputBinding.evalOutput,
       PiDEC.v1_1.Formal.outputBindingInterface,
-      PiDEC.v1_1.Formal.atOffset] using pointEq
+      PiDEC.v1_1.Formal.atOffset] using! pointEq
   · funext source row coefficient
     have childEq := congrFun outputsEq
       (AssemblerInputs.childOfRunning source)
@@ -138,7 +138,7 @@ private theorem piDecOutput_eq
       PiRLC.v1_1.Semantics.evalOutput,
       PiRLC.v1_1.OutputBinding.evalOutput,
       PiRLC.v1_1.Formal.outputBindingInterface,
-      PiRLC.v1_1.Formal.atOffset] using pointEq
+      PiRLC.v1_1.Formal.atOffset] using! pointEq
   · intro child row lane
     exact Expr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
       env completed.current (inputs.messageCommitment child row lane) agrees

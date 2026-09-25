@@ -117,7 +117,7 @@ private theorem appendStatementAbsorption
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared] using operationsEq
   · simpa [shared, challengeOffset] using nextEq
-  · simpa [shared] using afterSpec
+  · simpa [shared] using! afterSpec
 
 private theorem appendChallengeDerivation
     {logicalWidth degreeBound : Nat}

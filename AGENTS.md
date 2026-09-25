@@ -21,6 +21,15 @@
 - **30-minute Instruments cap (hard).** Every Instruments/xctrace profiling run MUST be launched with a timeout of **at most 1 800 000 ms (30 minutes)**. This includes the profiled non-Lean program and trace finalization, and replaces the five-minute test cap for that profiling run. Use `timeout: 1800000` when the tool supports it, or an outer `timeout --signal=KILL 1800` command. If profiling is still running at the cap, stop it and treat the capture as incomplete. A longer profiling run requires explicit user approval for that specific invocation.
 - **25-minute Lean cap (hard).** Every Lean-related command, including `lake build`, `lake test`, `lake exe`, `lake env lean`, and direct Lean test or executable invocations, MUST be launched with a timeout of **at most 1 500 000 ms (25 minutes)**. Pass `timeout: 1500000` to the Bash tool — do not omit it, do not raise it. If a Lean command is still running at the cap, kill it and treat it as failing this slice. The only way to exceed the cap is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
 
+## Writing
+
+Follow Zinsser's four principles of quality writing:
+
+1. Simplicity
+2. Brevity
+3. Clarity
+4. Humanity
+
 ## Operating Discipline
 - Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
 - Prefer the smallest code change that solves the stated problem. Do not add speculative features, flexibility, abstractions, flags, or helper systems for a single use case.
@@ -131,13 +140,25 @@ State the authority or derivation whenever proposing or applying a limit. If no 
 
 ## Perf & Constraint Debugging
 
-Use these commands based on what you are measuring. All perf snapshots are `--ignored` by default.
+Use the `nightstream` Poseidon2 benchmark for current performance work. Build it
+before timing with `cargo build -p nightstream --release --features metal --bin nightstream-poseidon2-bench`
+on a supported Mac; omit `--features metal` for a CPU-only build.
+Replace `PACKAGE_PATH`, `STEP_COUNT`, and `MINIMUM_SECURITY_BITS` with the caller's
+choices. Use the same saved package and step count for both engines. A step count
+includes the base step; two or more steps execute active folds. The caller must
+set the security minimum; this table supplies no default.
 
 | Question | Command |
 |---|---|
-| How expensive is lifecycle fold/IVC append work for an F′ chain? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_bits_perf_snapshot` |
-| What R1CS shape does the full-history audit circuit hand to the decider? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot` (chain length via `NEO_FOLD_FIB_DECIDER_VALUES`) |
-| How do low-norm ring-action encodings compare in committed width/rows? | `cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture` |
+| How long does one-time circuit compilation and saving take? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output PACKAGE_PATH` |
+| How long do package loading, proving, and terminal verification take on CPU? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine optimized --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+| How long does the same lifecycle take on Metal? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine metal --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+
+The five-minute cap applies to each command. A timed-out run is incomplete.
+Use the Instruments procedure above for a longer profile, within its 30-minute cap.
+See [the benchmark instructions](crates/nightstream/README.md#poseidon2-benchmark)
+for phase logs and peak RSS measurement. Legacy performance tests are reference
+checks, not the default benchmark for current prover work.
 
 ## Profiling
 

@@ -72,13 +72,13 @@ Decision: NSD-SPLIT-001.
 ### NS-COMMITMENT-PROFILE — Ajtai commitment key
 
 The v1 commitment MUST have `kappa=22` rows and exactly 4,900,509 message
-columns in `R_F`. It MUST use `c_a=sum_j A_(a,j)z_j` as a left matrix-vector
+columns in `R_F`, and use `c_a=sum_j A_(a,j)z_j` as a left matrix-vector
 product. Setup MUST use `nightstream-ajtai-chacha20-wide256-v1` with the
 verifier-owned seed
 `fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702`.
-One RFC-8439 ChaCha20 block MUST be indexed by nonce
-`row_u32_le || block_u64_le` and counter `lane_u32`. The first 256 output
-bits MUST be interpreted as one little-endian integer and reduced modulo the
+For each coefficient, the expander MUST index one RFC-8439 ChaCha20 block by nonce
+`row_u32_le || block_u64_le` and counter `lane_u32`, interpret its first 256 output
+bits as one little-endian integer, and reduce that integer modulo the
 Goldilocks prime. There is no rejection, retry, fallback, materialized full
 key, transpose, blinding column, commitment randomness, or affine term. The
 verification key MUST bind the seed, dimensions, setup ID, 256-bit reduction

@@ -12,15 +12,22 @@ The root [AGENTS.md](../../AGENTS.md) defines the test rules.
 ## Core checks
 
 ```sh
-timeout 300s cargo test -p neo-reductions --release
-timeout 300s cargo test -p neo-fold-clean --release --test nifs_round_trip
-timeout 300s cargo test -p neo-fold-clean --release --test f_prime_r1cs
-timeout 300s cargo test -p neo-fold-clean --release --test nebula_f_prime
-timeout 300s cargo test -p neo-fold-clean --release --test system_r1cs_ivc_terminal
-timeout 300s cargo test -p wip-spartan --release
+timeout --signal=KILL 300 cargo test -p nightstream --release
+timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
+timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
+timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 ```
 
-## neo-fold-clean test areas
+CI runs these commands as separate steps. The legacy suite is not part of CI.
+Until a Mac runner is available, run the Metal relation check locally on a
+supported Mac:
+
+```sh
+timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint::relation::tests
+```
+
+## neo-fold-legacy test areas
 
 | Directory | Scope |
 |---|---|

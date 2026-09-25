@@ -67,7 +67,7 @@ theorem digit_bits (interface : Interface) (base : Env) (helperOffset offset : N
         (draw := (drawIndex (drawOf interface base offset)).val)
         (check := checkQuotients base offset (drawIndex (drawOf interface base offset)).val)
         digit bit digitBelow bitBelow
-      simpa only [digitBit, Expr.eval_var, Nat.mul_comm digit digitBitCount] using value.symm
+      simpa only [digitBit, Expr.eval_var, Nat.mul_comm digit digitBitCount] using! value.symm
 
 theorem check_bits (interface : Interface) (hints : Nat → List Hint) (base : Env) (offset : Nat)
     (children : ∀ index, Range.CanonicalU64.SpecHolds (childInterface interface offset index)
@@ -98,7 +98,7 @@ theorem check_bits (interface : Interface) (hints : Nat → List Hint) (base : E
         (draw := (drawIndex (drawOf interface base offset)).val)
         (check := checkQuotients base offset (drawIndex (drawOf interface base offset)).val)
         check.val bit bitBelow check.isLt
-      simpa only [checkBit, Expr.eval_var, Nat.mul_comm check.val checkBitCount] using result.symm
+      simpa only [checkBit, Expr.eval_var, Nat.mul_comm check.val checkBitCount] using! result.symm
 
 theorem certificate (interface : Interface) (base : Env) (helperOffset offset : Nat)
     (before : helperOffset + HintProgram.helperCount ≤ offset)

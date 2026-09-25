@@ -270,11 +270,11 @@ theorem compile_causal_and_output_below
               (mulRecipes factor tail.output) causalWithFactor
             intro expression member
             have below := productAddedBelow expression member
-            simpa [productStart, factorStart] using below
+            simpa [productStart, factorStart] using! below
           refine ⟨?_, ?_⟩
           · simpa [compile, tail, factorStart, factor, productStart] using causal
           · have outputBelow := materializedAt_varsBelow productStart
-            simpa [compile, tail, factorStart, factor, productStart] using
+            simpa [compile, tail, factorStart, factor, productStart] using!
               outputBelow
 
 private theorem materializedFactor_sound (env : Env) (start : Nat)
@@ -948,7 +948,7 @@ theorem output_varsBelow {variableCount : Nat}
     (coordinateExprs interface offset) coordinatesBelow).2
   change (program interface offset).output.VarsBelow
     (offset + localLength (Circuit.ops (main interface) offset))
-  simpa [main, opsAt, localLength, Op.localLength] using below
+  simpa [main, opsAt, localLength, Op.localLength] using! below
 
 end Owned
 

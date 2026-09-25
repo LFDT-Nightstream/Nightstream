@@ -68,7 +68,7 @@ theorem rowsHold (env : Env)
       (PerApplicationPackage.shiftHashChain selectedApplication) at member
     rw [Data.circuitPackage_hashChains] at member
     rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
-    simpa only [HashChainHolds, PerApplicationCachedShift.shiftHashChain_eq] using
+    simpa only [HashChainHolds, PerApplicationCachedShift.shiftHashChain_eq] using!
       hashes source sourceMember
   · intro invocation member
     rw [PerApplicationPackage.package_permutationInvocations] at member
@@ -79,7 +79,7 @@ theorem rowsHold (env : Env)
       ← PermutationPlan.canonicalBlocks_expand] at member
     rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
     rcases List.mem_flatMap.mp sourceMember with ⟨block, blockMember, invocationMember⟩
-    simpa only [PerApplicationCachedShift.shiftPermutationInvocation_eq] using
+    simpa only [PerApplicationCachedShift.shiftPermutationInvocation_eq] using!
       permutations block blockMember source invocationMember
   · intro invocation member
     rw [PerApplicationPackage.package_compactRowInvocations] at member
@@ -89,7 +89,7 @@ theorem rowsHold (env : Env)
       ← PackagePlan.canonicalCompactBlocks_expand] at member
     rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
     rcases List.mem_flatMap.mp sourceMember with ⟨block, blockMember, invocationMember⟩
-    simpa only [PerApplicationCachedShift.shiftCompactRowInvocation_eq] using
+    simpa only [PerApplicationCachedShift.shiftCompactRowInvocation_eq] using!
       compacts block blockMember source invocationMember
   · intro instruction member
     rw [PerApplicationPackage.package_witnessInstructions] at member
@@ -101,9 +101,9 @@ theorem rowsHold (env : Env)
         Rows.witnessInstructionsTR (Data.components ()).arithmeticRows at sourceMember
       rw [Data.components_arithmeticRows] at sourceMember
       rcases List.mem_append.mp sourceMember with pilotMember | arithmeticMember
-      · simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq] using
+      · simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq] using!
           pilotRows.1 source pilotMember
-      · simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq] using
+      · simpa only [PerApplicationCachedShift.shiftWitnessInstruction_eq] using!
           arithmeticRows.1 source arithmeticMember
     · rw [← PerApplicationPackage.directApplicationPlan_eq_applicationPlan
         selectedApplication] at applicationMember
@@ -119,9 +119,9 @@ theorem rowsHold (env : Env)
           Rows.assertionRowsTR (Data.components ()).arithmeticRows at sourceMember
         rw [Data.components_arithmeticRows] at sourceMember
         rcases List.mem_append.mp sourceMember with pilotMember | arithmeticMember
-        · simpa only [PerApplicationCachedShift.shiftSparseRow_eq] using
+        · simpa only [PerApplicationCachedShift.shiftSparseRow_eq] using!
             pilotRows.2 source pilotMember
-        · simpa only [PerApplicationCachedShift.shiftSparseRow_eq] using
+        · simpa only [PerApplicationCachedShift.shiftSparseRow_eq] using!
             arithmeticRows.2 source arithmeticMember
       · rw [← PerApplicationPackage.directApplicationPlan_eq_applicationPlan
           selectedApplication] at applicationMember

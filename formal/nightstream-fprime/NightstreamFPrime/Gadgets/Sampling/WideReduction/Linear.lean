@@ -138,7 +138,7 @@ theorem bit_of_boolean (env : Env) (atom : Expr)
   · rw [zero]; exact Nat.zero_le _
   · have : atom.eval env = 1 := by
       have := sub_eq_zero.mp one
-      simpa [Expr.eval] using this
+      simpa [Expr.eval] using! this
     rw [this]
     decide
 

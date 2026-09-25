@@ -1,0 +1,11 @@
+
+running 1 test
+staged request=Sources { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/wide-reduction-baseline", step: 1, engine: Optimized }
+staged circuit preparation elapsed=34.626460292s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+fresh source commitment engine=Optimized elapsed=95.144954s
+staged phase passed elapsed=130.097224667s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 130.10s
+

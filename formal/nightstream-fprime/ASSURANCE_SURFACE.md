@@ -90,15 +90,19 @@ The constructor consumes `Export.Stage1.DirectApplicationPrefixPlan.rowsZero_iff
 
 ### Selected wide sampler
 
-The owner approved the map and transcript change on 2026-09-24. The candidate
+The owner approved the map and transcript change on 2026-09-24 and, on
+2026-09-25, confirmed that the Fiat–Shamir boundary extends to the wide key
+(recorded with a hash in the [FS boundary note](../../docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md)). The selection
 keeps Poseidon2 and the Nightstream Goldilocks profile `b=2`, `k_rho=16`,
 `B=65536`. `Export.Entrypoint` uses `Wide.Emitter` for the selected package,
 and the Rust native sampler reads the same joint four-field block.
 
 - `Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_answer`
-  proves that normalized block histories replay the exact additive Poseidon2
-  domain entry, four rate lanes and digest advance. `Lifecycle.Nifs.WideSamplerSecurity.response_history`
-  connects those values to the wide verification key.
+  proves that replaying a normalized block history from any seed reproduces
+  the additive Poseidon2 domain entry, four rate lanes and digest advance.
+  `Lifecycle.Nifs.WideSamplerSecurity.response_history` connects those values
+  to the wide verification key. No theorem identifies the verifier's PiCCS
+  output state with the replay of the complete transcript history.
 - `WideSamplerSecurity.no_sampler_abort` proves totality for every initial
   state. `any_test_le` unions only PiCCS test errors in the supplied trace law.
   It includes no old sampler-shortfall event.
@@ -108,11 +112,14 @@ and the Rust native sampler reads the same joint four-field block.
   exact sixteen returned children. The source bound keeps `g Q p_real`,
   `deltaFS Q`, interactive extraction loss, PiCCS test loss and the actual
   same-key MSIS event separate.
-- `WideSamplerSecurity.adaptive_bias_bound` applies `q*δ` to the actual-verifier
-  test of the cached block-oracle trace, including raw lanes and repeated
-  queries. `concrete_bias_bound` compares the actual verifier's success mass
-  with its balanced raw-block experiment under an explicit approximation
-  bound `modelError`. Here `δ < 2^-132`; `q` counts every block call, while
+- `WideSamplerSecurity.adaptive_bias_bound` is the general hybrid bound `q*δ`
+  for a bounded test of a cached block-oracle run, including raw lanes and
+  repeated queries. Its test runs the concrete verifier, which derives its
+  challenges with concrete Poseidon2; the oracle reaches the test only through
+  the supplied decoder, so the balanced run does not give the verifier uniform
+  challenges. `concrete_bias_bound` adds the supplied `modelError`. Neither
+  result is consumed by the extraction chain: the wide-versus-uniform challenge
+  difference stays inside the FS term `deltaFS`. Here `δ < 2^-132`; `q` counts every block call, while
   `Q` in the FS boundary counts permutation calls including replays. Neither
   count is inferred from the other. Balanced raw replies are not asserted to
   be a Fiat–Shamir extractor, and a general `g` is not assumed to preserve

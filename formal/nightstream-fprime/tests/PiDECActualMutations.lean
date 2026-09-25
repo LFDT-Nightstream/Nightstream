@@ -50,6 +50,9 @@ private def run (p0 p1 p2 p3 inputPath messagesPath badInputPath mutationsDir : 
   if publicCount = 0 || encodingCount = 0 then
     throw (IO.userError "public and encoding mutations are both required")
   let badInput ← checked (PiCCSInputCheck.parse (← IO.FS.readFile badInputPath))
+  if (PiCCSInputCheck.execute badInput).accepted then
+    throw (IO.userError "PiCCS accepted the changed first-round constant")
+  IO.println "lean_pi_ccs_mutation=invalid_first_round_constant rejected_by=pi_ccs"
   let rejectedPrefix ← Wide.PiRLCInputCheck.checkIO badInput identity
   if rejectedPrefix.parent.isSome then
     throw (IO.userError "rejected C input supplied a D parent")

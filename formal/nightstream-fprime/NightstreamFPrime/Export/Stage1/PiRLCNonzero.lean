@@ -176,6 +176,6 @@ theorem accepted
   have member := Transcript.PiRlcSampler.piRlcChallenges_member success source
   simpa [PaperAlgebra.piRlcAlgebra,
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge.challengeValid]
-    using member
+    using! member
 
 end NightstreamFPrime.Export.Stage1.PiRLCNonzero

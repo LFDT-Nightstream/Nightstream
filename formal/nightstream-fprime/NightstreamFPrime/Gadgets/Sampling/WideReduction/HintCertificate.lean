@@ -83,7 +83,7 @@ theorem execute (target env : Env) (start : Nat) (hints : List Hint)
     (before : ∀ index, index < start → env index = target index) :
     ∀ index, index < start + hints.length → executeHints env start hints index = target index := by
   induction hints generalizing env start with
-  | nil => simpa using before
+  | nil => simpa using! before
   | cons hint rest ih =>
       have same := Hint.eval_eq_of_agree_below hint start env target valid.1 before
       have agreement : ∀ index, index < start + 1 →

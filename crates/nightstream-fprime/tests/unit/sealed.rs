@@ -91,7 +91,7 @@ fn assignment_transport_accepts_schema4_and_rejects_legacy_shapes() {
             json!(PHYSICAL_WIDTH + PHI81_INVOCATIONS),
             "assignment source domain bound",
         ),
-        ("/2/0/0/1", json!(23), "wide quotient profile"),
+        ("/2/0/0/1", json!(23), "wide quotient family shape"),
         (
             "/2/1/0/2",
             json!(PHI81_INVOCATIONS - 1),

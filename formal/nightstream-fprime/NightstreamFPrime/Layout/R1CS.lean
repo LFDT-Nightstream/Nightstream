@@ -285,7 +285,7 @@ def affineRecipeRow (output : Nat) (recipe : Expr)
   complete := by
     intro env constraint
     have equation : env output = recipe.eval env :=
-      sub_eq_zero.mp (by simpa only [Expr.eval_sub] using constraint)
+      sub_eq_zero.mp (by simpa only [Expr.eval_sub] using! constraint)
     simpa [Row.Holds, lowered.sound env] using equation.symm
 
 def quadraticRecipeRow (output : Nat) (left right : Expr)
@@ -301,7 +301,7 @@ def quadraticRecipeRow (output : Nat) (left right : Expr)
   complete := by
     intro env constraint
     have equation : env output = left.eval env * right.eval env :=
-      sub_eq_zero.mp (by simpa only [Expr.eval_sub] using constraint)
+      sub_eq_zero.mp (by simpa only [Expr.eval_sub] using! constraint)
     simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using
       equation.symm
 

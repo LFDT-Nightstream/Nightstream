@@ -194,7 +194,7 @@ theorem sourcePhysicalRows_imply_packets
     NightstreamFPrime.Layout.PiRLC.v1_1.PacketProjection.physicalRows_imply_nonemptyPackets
       relation (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset env physical
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [samplerFreshStart_eq relation] using packets.sampler
+  · simpa only [samplerFreshStart_eq relation] using! packets.sampler
   · simpa only [commitmentFreshStart_eq relation, commitmentPacket_eq] using packets.commitment
   · simpa only [publicInputFreshStart_eq relation, publicInputPacket_eq] using packets.publicInput
   · simpa only [evalKFreshStart_eq relation, evalKPacket_eq] using packets.evalK

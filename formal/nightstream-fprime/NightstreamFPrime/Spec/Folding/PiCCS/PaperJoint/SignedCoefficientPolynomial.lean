@@ -366,7 +366,7 @@ theorem evaluate_append
           (SumCheck.Finite.Message.evaluateCoefficients
             ops.toOps gamma right))
   | [], right => by
-      simp only [List.nil_append,
+      simp only [List.nil_append, List.length_nil,
         SumCheck.Finite.Message.evaluateCoefficients,
         TargetPolynomial.power, laws.one_mul, laws.zero_add]
   | value :: values, right => by

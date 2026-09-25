@@ -174,7 +174,7 @@ private theorem compiledScope {degree : Nat} (interface : Interface degree)
       obtain ⟨index, rfl⟩ := member
       exact assumptions.2 index)
   simpa only [CompactChain.compile_recipes_length, FixedChain.Owned.Interface.rounds,
-    List.length_ofFn, privateCount] using scope
+    List.length_ofFn, privateCount] using! scope
 
 theorem flatConstraints_varsBelow {degree : Nat}
     (interface : Interface degree) (offset : Nat)
@@ -417,6 +417,6 @@ theorem keyChain_implies_spec_and_terminal
         ((ProductionKey.key relation ajtai).piCcsCertificate
           running fresh proof).output)).mp coreChain
   exact ⟨by simpa [SpecHolds] using split.1,
-    by simpa [output] using split.2⟩
+    by simpa [output] using! split.2⟩
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain

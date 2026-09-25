@@ -99,7 +99,7 @@ theorem firstHitTerm_hasSum (line : Line Challenge) (positive : 0 < line.rate)
       (line.weight challenge / line.rate) := by
   have geometric := hasSum_geometric_of_lt_one
     (sub_nonneg.mpr line.rate_le_one) (sub_lt_self 1 positive)
-  simpa [firstHitTerm, sub_sub_cancel, div_eq_mul_inv, mul_comm] using
+  simpa [firstHitTerm, sub_sub_cancel, div_eq_mul_inv, mul_comm] using!
     geometric.mul_right (line.weight challenge)
 
 /-- The retry loop's conditional expected call count is `1 / rate`. -/
@@ -115,7 +115,7 @@ theorem conditional_calls_hasSum (line : Line Challenge)
 rejected oracle response before the first accepted response. -/
 theorem entered_calls_hasSum (line : Line Challenge)
     (positive : 0 < line.rate) : HasSum line.queryTail 1 := by
-  simpa [queryTail, div_eq_mul_inv, positive.ne'] using
+  simpa [queryTail, div_eq_mul_inv, positive.ne'] using!
     (line.conditional_calls_hasSum positive).mul_left line.rate
 
 omit [Nonempty Challenge] in
@@ -150,7 +150,7 @@ theorem exhaustion_tendsTo_zero (line : Line Challenge) :
       (tendsto_const_nhds : Tendsto (fun _ : Nat => (0 : ℝ)) atTop (nhds 0))
   · have positive : 0 < line.rate :=
       lt_of_le_of_ne line.rate_nonnegative (Ne.symm zero)
-    simpa [exhaustionMass] using
+    simpa [exhaustionMass] using!
       (tendsto_pow_atTop_nhds_zero_of_lt_one
         (sub_nonneg.mpr line.rate_le_one) (sub_lt_self 1 positive)).const_mul line.rate
 

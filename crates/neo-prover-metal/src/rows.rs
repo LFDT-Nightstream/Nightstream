@@ -1,32 +1,26 @@
 //! Device evaluation of circuit-owned rows, without a lifecycle-crate dependency.
 
-use std::sync::Arc;
-
 use neo_ccs::{CcsStructure, Mat, V1_1Evaluations};
 use neo_math::{F, K};
 use neo_reductions::{
     optimized_engine::{PaperJointOracleBackend, PaperJointOracleInput, PaperJointRoundOracle},
-    superneo_eval::SuperneoEvalCache,
+    superneo_eval::MatrixRows,
     PiCcsError,
 };
 
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-use crate::session::{MetalJointMatrixPlan, MetalPaperJointOracle};
+use crate::session::MetalPaperJointOracle;
 use crate::{oracle_error, MetalActivity, MetalError, MetalSession};
 
-/// Retains the device session and matrix plan across folds of the same circuit.
+/// Retains the device session; each operation loads bounded original-row windows.
 pub struct MetalRowProver {
     session: MetalSession,
-    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    plan: Option<MetalJointMatrixPlan>,
 }
 
 impl MetalRowProver {
     pub fn new() -> Result<Self, MetalError> {
         Ok(Self {
             session: MetalSession::new()?,
-            #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-            plan: None,
         })
     }
 
@@ -50,37 +44,24 @@ impl MetalRowProver {
         }
     }
 
-    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-    fn prepare(&mut self, cache: Arc<SuperneoEvalCache>) -> Result<(), MetalError> {
-        if self
-            .plan
-            .as_ref()
-            .is_none_or(|plan| !plan.matches(cache.as_ref()))
-        {
-            self.plan = Some(self.session.prepare_joint_matrix_plan(cache)?);
-        }
-        Ok(())
-    }
-
     /// Compute every supplied child opening on the device. Unsupported shapes
     /// return an error; callers do not receive an implicit host fallback.
     pub fn child_openings(
         &mut self,
-        cache: Arc<SuperneoEvalCache>,
+        rows: &dyn MatrixRows,
+        workspace_bytes: usize,
         witnesses: &[Mat<F>],
         point: &[K],
         assignment_width: usize,
     ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
-            self.prepare(cache).map_err(oracle_error)?;
+            let plan = self
+                .session
+                .prepare_joint_matrix_plan(rows, workspace_bytes)
+                .map_err(oracle_error)?;
             self.session
-                .eval_joint_dec_openings(
-                    self.plan.as_ref().expect("prepared matrix plan"),
-                    witnesses,
-                    point,
-                    assignment_width,
-                )
+                .eval_joint_dec_openings(&plan, witnesses, point, assignment_width)
                 .map_err(oracle_error)?
                 .ok_or_else(|| {
                     oracle_error(MetalError::Shape(
@@ -90,7 +71,7 @@ impl MetalRowProver {
         }
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         {
-            let _ = (cache, witnesses, point, assignment_width);
+            let _ = (rows, workspace_bytes, witnesses, point, assignment_width);
             Err(oracle_error(MetalError::Unavailable))
         }
     }
@@ -99,20 +80,52 @@ impl MetalRowProver {
     /// `None` means all rows satisfy the polynomial; errors do not trigger a host fallback.
     pub fn first_unsatisfied_row(
         &mut self,
-        cache: Arc<SuperneoEvalCache>,
+        rows: &dyn MatrixRows,
+        workspace_bytes: usize,
         structure: &CcsStructure<F>,
         witness: &Mat<F>,
     ) -> Result<Option<usize>, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
-            self.prepare(cache).map_err(oracle_error)?;
+            let plan = self
+                .session
+                .prepare_joint_matrix_plan(rows, workspace_bytes)
+                .map_err(oracle_error)?;
             self.session
-                .first_unsatisfied_row(self.plan.as_ref().expect("prepared matrix plan"), structure, witness)
+                .first_unsatisfied_row(&plan, structure, witness)
                 .map_err(oracle_error)
         }
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         {
-            let _ = (cache, structure, witness);
+            let _ = (rows, workspace_bytes, structure, witness);
+            Err(oracle_error(MetalError::Unavailable))
+        }
+    }
+
+    /// Compute running openings and check the fresh relation while each
+    /// original matrix window remains loaded. Both operations run on Metal.
+    pub fn evaluate_terminal_rows(
+        &mut self,
+        rows: &dyn MatrixRows,
+        workspace_bytes: usize,
+        structure: &CcsStructure<F>,
+        running: &[Mat<F>],
+        point: &[K],
+        fresh: &Mat<F>,
+    ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, PiCcsError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            let plan = self
+                .session
+                .prepare_joint_matrix_plan(rows, workspace_bytes)
+                .map_err(oracle_error)?;
+            self.session
+                .evaluate_terminal_rows(&plan, structure, running, point, fresh)
+                .map_err(oracle_error)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (rows, workspace_bytes, structure, running, point, fresh);
             Err(oracle_error(MetalError::Unavailable))
         }
     }
@@ -125,13 +138,11 @@ impl PaperJointOracleBackend for MetalRowProver {
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
-            self.prepare(Arc::clone(&input.cache))
+            let plan = self
+                .session
+                .prepare_joint_matrix_plan(input.rows, input.workspace_bytes)
                 .map_err(oracle_error)?;
-            Ok(Box::new(MetalPaperJointOracle::new(
-                &self.session,
-                self.plan.as_ref().expect("prepared matrix plan"),
-                input,
-            )?))
+            Ok(Box::new(MetalPaperJointOracle::new(&self.session, plan, input)?))
         }
         #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         {

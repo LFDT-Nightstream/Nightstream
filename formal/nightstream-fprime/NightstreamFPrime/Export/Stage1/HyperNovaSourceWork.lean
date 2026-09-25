@@ -416,7 +416,7 @@ theorem expectedSourceWork_eq_visitedSum (initial : PMF (Statement × Envelope))
     _ = mean (visitedLaw source initial 0) (expectedAt (transition source) toll depth) := by
       rw [HyperNovaVisitedLaw.visitedLaw_zero, mean_map]
     _ = _ := by
-      simpa only [Nat.zero_add] using expectedAt_mean_eq_visitedSum source toll initial depth 0
+      simpa only [Nat.zero_add] using! expectedAt_mean_eq_visitedSum source toll initial depth 0
 
 private theorem totalMean_nonnegative (visit : Visit) :
     0 ≤ StrongProbability.verifierMean

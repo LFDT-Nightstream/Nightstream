@@ -39,17 +39,16 @@ def ordinaryLogicalCount : Nat :=
 
 @[simp] theorem transcriptInvocationCount_eq :
     transcriptInvocationCount = 718 := by
-  rw [transcriptInvocationCount, PiCCSInputs.phaseOffset_eq]
-  norm_num [PiCCSStarts.initialClaimLogicalStart,
-    PiCCSStarts.roundTranscriptWitnessStart_eq]
+  unfold transcriptInvocationCount PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
 
 @[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5744 := by
   rw [transcriptOutputCount, transcriptInvocationCount_eq]
   norm_num [NightstreamFPrime.Spec.Poseidon2.width]
 
 @[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 52734 := by
-  rw [ordinaryLogicalCount, PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [PiCCSStarts.initialClaimLogicalStart,
+  unfold ordinaryLogicalCount PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.outputBindingWitnessStart_eq,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
 
 def External (column : Nat) : Prop :=
@@ -187,8 +186,8 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart := by
               rw [ordinaryLogicalCount_eq,
                 PiCCSStarts.outputBindingWitnessStart_eq]
-              norm_num [PiCCSStarts.initialClaimLogicalStart,
-                PiCCSStarts.roundTranscriptWitnessStart_eq]
+              unfold PiCCSStarts.initialClaimLogicalStart
+              rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
             _ ≤ 28470790 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)

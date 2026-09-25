@@ -96,7 +96,7 @@ theorem recipes_causal (gamma : KExpr) (start : Nat)
   apply causal_of_get
   intro index
   have bound : index.val < 32 := by simpa [recipes] using index.isLt
-  simpa only [recipes, List.get_ofFn] using
+  simpa only [recipes, List.get_ofFn] using!
     recipe_varsBelow gamma start ⟨index.val, bound⟩ gammaBelow
 
 theorem product_sound (gamma : KExpr) (start : Nat) (env : Env)
@@ -143,7 +143,7 @@ theorem product_sound (gamma : KExpr) (start : Nat) (env : Env)
       (product gamma start step).eval env := by
     apply congrArg₂ K.mk
     · exact first
-    · simpa [Nat.add_assoc] using second
+    · simpa [Nat.add_assoc] using! second
   exact pair.trans (KExpr.eval_mul env _ _)
 
 private def powerLaws : TargetPolynomial.ShiftLaws extensionOps.toOps where

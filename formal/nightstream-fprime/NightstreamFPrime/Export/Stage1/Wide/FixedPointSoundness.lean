@@ -155,7 +155,7 @@ private theorem running_external (column : Nat)
       omega
     have value := running_state program assignment index
     change runningEnv program assignment _ = DecodedPiDEC.env program assignment (0 + (28 + index.val)) at value
-    simpa only [Nat.zero_add, ← source] using value
+    simpa only [Nat.zero_add, ← source] using! value
   · let index : Fin RunningTransitionSourceSupport.outputCount := ⟨column - 49663, by
       change 49663 ≤ column ∧ column < 49663 + 49393 at output
       change column - 49663 < 49393
@@ -166,7 +166,7 @@ private theorem running_external (column : Nat)
       omega
     have value := running_next program assignment index
     change runningEnv program assignment _ = DecodedPiDEC.env program assignment (49663 + index.val) at value
-    simpa only [← source] using value
+    simpa only [← source] using! value
   · rcases point with ⟨coordinate, left | right⟩
     · rw [← PiCCSTranscriptOutputForms.pointSource_c0 coordinate] at left
       subst column
@@ -487,7 +487,7 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
       funext lane
       simpa only [RunningTransitionInputs.interface, RunningTransitionInputs.initialStateExpr,
         RunningTransitionInputs.currentStateExpr, Expr.eval, RunningTransitionInputs.initialStateWordStart,
-        RunningTransitionInputs.currentStateWordStart, Nat.add_assoc] using runningSpec.initialState fieldZero lane
+        RunningTransitionInputs.currentStateWordStart, Nat.add_assoc] using! runningSpec.initialState fieldZero lane
     have baseOutput := RunningTransitionInputs.spec_typed_base runningSpec fieldZero
     have defaultOutput : (output program assignment width publicFits).runningNext = fun _ =>
         (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment)).defaultRunning := by

@@ -105,8 +105,8 @@ private theorem appendCcsTerminal
       (holdsFlat_implies_holds after.current _ childHolds)
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared, childStart] using operationsEq
-  · simpa [shared, childStart] using nextEq
-  · simpa [shared, childStart] using childSpec
+  · simpa [shared, childStart] using! nextEq
+  · simpa [shared, childStart] using! childSpec
 
 private theorem appendNormTerminal
     {logicalWidth degreeBound base : Nat}
@@ -147,7 +147,7 @@ private theorem appendNormTerminal
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared, childStart] using operationsEq
   · simpa [shared, childStart, finalIdentityOffset] using nextEq
-  · simpa [shared, childStart] using childSpec
+  · simpa [shared, childStart] using! childSpec
 
 private theorem appendFinalIdentity
     {logicalWidth degreeBound base : Nat}
@@ -231,7 +231,7 @@ private theorem appendOutputBinding
   refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared] using operationsEq
   · simpa [shared, finalOffset] using nextEq
-  · simpa [shared] using childSpec
+  · simpa [shared] using! childSpec
 
 private theorem roundPointEq_of_evidence
     {logicalWidth : Nat}
@@ -254,7 +254,7 @@ private theorem roundPointEq_of_evidence
       (evalRunning interface offset env) (evalFresh interface offset env)
       (evalProof relation interface offset env template)).coins.roundPoint := by
   simpa [finalIdentityInterface, roundTranscriptInterface, roundPoint,
-    atOffset] using evidence.roundPoint
+    atOffset] using! evidence.roundPoint
 
 private theorem alphaEq_of_evidence
     {logicalWidth : Nat}
@@ -286,7 +286,7 @@ private theorem alphaEq_of_evidence
     apply cubePoint_eq_of_coordinates
     simpa [shared, PointEquality.Owned.evalRightPoint,
       FinalIdentity.pointInterfaceAt, finalIdentityInterface,
-      challengeAlpha, challengeInterface, atOffset] using
+      challengeAlpha, challengeInterface, atOffset] using!
         (ChallengeDerivation.evalAlpha_coordinates
           (challengeInterface shared offset)
             (challengeOffset interface offset) env).symm

@@ -359,72 +359,72 @@ def event_contract(event: str) -> tuple[str, str, str]:
         "chunk_digest": (
             "derive",
             "NS-TRANSCRIPT-ORDER",
-            "neo_fold_clean::paper::digest::f_prime_chunk_public_digest",
+            "neo_fold_legacy::paper::digest::f_prime_chunk_public_digest",
         ),
         "dispatch": (
             "shape-check",
             "SN-FOLD-TYPE",
-            "neo_fold_clean::paper::construction2::verify_step_with_execution_receipt",
+            "neo_fold_legacy::paper::construction2::verify_step_with_execution_receipt",
         ),
         "transcript_started": (
             "absorb",
             "NS-TRANSCRIPT-FRAMING",
-            "neo_fold_clean::paper::f_prime::native::f_prime_step_transcript",
+            "neo_fold_legacy::paper::f_prime::native::f_prime_step_transcript",
         ),
         "transcript_append": (
             "absorb",
             "NS-TRANSCRIPT-FRAMING",
-            "neo_fold_clean::paper::f_prime::native::f_prime_step_transcript",
+            "neo_fold_legacy::paper::f_prime::native::f_prime_step_transcript",
         ),
         "transcript_prefix": (
             "absorb",
             "NS-TRANSCRIPT-FRAMING",
-            "neo_fold_clean::paper::f_prime::native::f_prime_step_transcript",
+            "neo_fold_legacy::paper::f_prime::native::f_prime_step_transcript",
         ),
         "nifs_verify": (
             "relation-check",
             "SN-FOLD-PROOF",
-            "neo_fold_clean::paper::nifs::verify",
+            "neo_fold_legacy::paper::nifs::verify",
         ),
         "running_digest": (
             "derive",
             "NS-AUTH-DERIVED",
-            "neo_fold_clean::paper::construction2::RunningInstance::accumulator_digest",
+            "neo_fold_legacy::paper::construction2::RunningInstance::accumulator_digest",
         ),
         "state_advanced": (
             "derive",
             "NS-AUTH-DERIVED",
-            "neo_fold_clean::paper::construction2::advance_state",
+            "neo_fold_legacy::paper::construction2::advance_state",
         ),
         "verifier_digest_read": (
             "derive",
             "NS-VERIFIER-KEY-DIGEST",
-            "neo_fold_clean::paper::construction2::VerifierKey::digest",
+            "neo_fold_legacy::paper::construction2::VerifierKey::digest",
         ),
         "pi_ccs_header_read": (
             "derive",
             "NS-PICCS-VARIANT",
-            "neo_fold_clean::lifecycle::Preprocessing::pi_ccs_header_bundle",
+            "neo_fold_legacy::lifecycle::Preprocessing::pi_ccs_header_bundle",
         ),
         "state_x_out_hash": (
             "output",
             "NS-AUTH-DERIVED",
-            "neo_fold_clean::paper::construction2::compute_x_out",
+            "neo_fold_legacy::paper::construction2::compute_x_out",
         ),
         "terminal_public_link": (
             "relation-check",
             "NS-AUTH-DERIVED",
-            "neo_fold_clean::lifecycle::validate_required_f_prime_latest_link",
+            "neo_fold_legacy::lifecycle::validate_required_f_prime_latest_link",
         ),
         "terminal_running_relation": (
             "relation-check",
             "SN-REL-CE",
-            "neo_fold_clean::lifecycle::validate_final_witness_authority",
+            "neo_fold_legacy::lifecycle::validate_final_witness_authority",
         ),
         "terminal_fresh_relation": (
             "relation-check",
             "SN-REL-CCS",
-            "neo_fold_clean::lifecycle::validate_latest_witness_authority",
+            "neo_fold_legacy::lifecycle::validate_latest_witness_authority",
         ),
     }
     require(event in entries, f"unmapped Rust event {event!r}")

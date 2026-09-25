@@ -247,14 +247,14 @@ theorem assumptions
   · refine ⟨?_⟩
     intro lane
     simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
-      PiRLC.v1_1.Formal.atOffset, PiRLCInputs.interface] using
+      PiRLC.v1_1.Formal.atOffset, PiRLCInputs.interface] using!
         samplerInitialBelow relation env lane
   · refine {
       challengeBelow := ?_
       inputBelow := ?_ }
     · intro source lane
       simpa [shared, PiRLC.v1_1.Formal.commitmentInterface,
-        PiRLC.v1_1.CommitmentCombination.familyInterface] using
+        PiRLC.v1_1.CommitmentCombination.familyInterface] using!
           samplerChallengeBelow (logicalWidth := logicalWidth)
             (publicFits := publicFits) source lane
     · intro source row lane cell

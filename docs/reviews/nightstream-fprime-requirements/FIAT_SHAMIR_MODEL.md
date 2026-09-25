@@ -67,38 +67,51 @@ events have a union bound over arbitrary `n`. This excludes FS/hash/MSIS
 attacks and the square-root extraction loss. Neither this bound nor the
 independent-field sampler law establishes a complete deployed security bound.
 
-## Wide-sampler candidate
+## Wide sampler (selected)
 
-The owner approved the whole-vector map and one-block transcript schedule on
-2026-09-24. `Lifecycle.Nifs.WideFiatShamir` applies the same parametric boundary
-to `PiRLC.Wide.Key.key`. Its success event uses that verifier and openings for
-its exact sixteen returned children; it is not old-key acceptance. Its
+Status: the owner approved the whole-vector map and one-block transcript
+schedule on 2026-09-24. On 2026-09-25 the owner confirmed in writing that
+the approval also extends this Fiat–Shamir boundary to
+`WideFiatShamir.RealSuccess` for `PiRLC.Wide.Key.key`. The approved boundary
+is the text from the next paragraph to the end of this section; its SHA-256
+is `8eada01dde88e02e67101ae1f96a962fa712504893167900ffe426600cbc5b30`. Approval selects no model instance or numerical security level.
+
+The whole-vector map and one-block transcript schedule are selected in
+production. `Lifecycle.Nifs.WideFiatShamir` applies the same parametric
+boundary to `PiRLC.Wide.Key.key`. Its success event
+`WideFiatShamir.RealSuccess` uses that verifier and openings for its exact
+sixteen returned children; it is not old-key acceptance. Its
 `returned_source_bound_with_adaptive_msis` consumes the existing interactive
-extractor without changing the profile or commitment assumptions. Production
-selection remains separate.
+extractor without changing the profile or commitment assumptions.
 
 `TranscriptHistory.queryAt_answer` and `WideSamplerSecurity.response_history`
-prove the deterministic connection from the exact additive transcript to
-normalized block-query histories. A raw reply is one joint four-field block.
-`OracleModel` preserves replies to repeated histories and counts every call.
-The candidate has no sampler-abort event, so its trace union bound contains
-only the PiCCS test event.
+prove a local replay fact: for any seed state and any normalized block
+history, replaying that history reproduces the wide key's 17 reads. No
+theorem identifies the verifier's PiCCS output state with the replay of the
+complete transcript from the initial state. That link, repeated states from
+distinct histories (capacity collisions) and inverse-permutation queries are
+not modeled by `OracleModel`; they belong to `modelError` or to the external
+FS transfer. The wide key has no sampler-abort event, so its trace union bound
+contains only the PiCCS test event.
 
 There are two distinct conditional statements:
 
 1. The FS boundary supplies `g Q p_real - deltaFS Q <= p_interactive`, followed
-   by the existing extraction, test and same-key MSIS losses.
-2. Under the explicitly supplied concrete-to-block-oracle approximation,
-   `WideSamplerSecurity.concrete_bias_bound` proves
-   `|p_real - p_balanced| <= modelError + q*δ`, where `δ < 2^-132`.
+   by the existing extraction, test and same-key MSIS losses. The interactive
+   side uses uniform challenges, so the whole difference between the wide
+   challenge law and uniform challenges is inside `deltaFS`.
+2. `WideSamplerSecurity.adaptive_bias_bound` is the general hybrid bound
+   `|p_uniform - p_balanced| <= q*δ`, with `δ < 2^-132`, for a bounded test of
+   an oracle run. Its test runs the concrete verifier, which computes its
+   challenges with concrete Poseidon2; the oracle enters only through the
+   supplied decoder. So `p_balanced` does not give the verifier uniform
+   challenges. `concrete_bias_bound` adds the supplied `modelError`.
 
-Here `p_balanced` uses a uniform scalar and a consistent raw preimage for each
-fresh block; it keeps the entire cache and raw replies visible. It is not
-identified with the interactive extractor. The statistical comparison does
-not construct the external FS adversary translation. In particular, no
+Statement 2 has no consumer in the extraction chain. It is guidance for
+whoever supplies `deltaFS`: a model that identifies the verifier's challenges
+with block-oracle replies can use `q*δ` for the law difference. No
 monotonicity or Lipschitz property is assumed for `g`, and `q*δ` cannot be
-moved across `g` by this proof. Any model that combines the two inequalities
-must justify that step under its actual success function.
+moved across `g` by these proofs.
 
 `q` is the full adaptive block-call count, including repeats and adversarial
 calls. `Q` is the existing total permutation-query count, including replay.

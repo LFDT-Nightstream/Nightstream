@@ -7,6 +7,13 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::package::{PackageError, PI_CCS_V1_1_ROUND_COUNT};
+
+mod native;
+pub(crate) use native::{
+    native_application_identity, native_application_word_count, native_relation_identifier,
+    visit_native_application_words,
+};
+
 const IDENTITY_DOMAIN: [u64; 29] = [
     78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97, 103,
     101, 47, 118, 50,
@@ -70,7 +77,7 @@ fn verifier_context_schedule() -> Result<Vec<u64>, PackageError> {
 pub struct PiCcsV1_1VerifierContext {
     package_identity: [u64; 4],
     relation_words: Vec<u64>,
-    application_words: Vec<u64>,
+    application: ApplicationIdentity,
     nifs_key_words: Vec<u64>,
     commitment_key_words: Vec<u64>,
     descriptor_words: Vec<u64>,
@@ -86,8 +93,12 @@ impl PiCcsV1_1VerifierContext {
         &self.relation_words
     }
 
-    pub fn application_words(&self) -> &[u64] {
-        &self.application_words
+    pub fn application_word_count(&self) -> usize {
+        self.application.word_count
+    }
+
+    pub fn application_digest(&self) -> [u64; 4] {
+        self.application.digest
     }
 
     pub fn nifs_key_words(&self) -> &[u64] {
@@ -107,7 +118,34 @@ impl PiCcsV1_1VerifierContext {
     }
 }
 
-/// Complete verifier-owned binding for one identity-checked Stage 1 package.
+/// Application digest and exact preimage length, computed during compilation
+/// or retained as non-authoritative prepared-package metadata.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ApplicationIdentity {
+    digest: [u64; 4],
+    word_count: usize,
+}
+
+impl ApplicationIdentity {
+    pub(crate) fn from_words(words: &[u64]) -> Result<Self, PackageError> {
+        validate_context_words(words)?;
+        Ok(Self {
+            digest: component_digest(2, words)?,
+            word_count: words.len(),
+        })
+    }
+
+    pub(crate) fn from_cached(digest: [u64; 4], word_count: usize) -> Result<Self, PackageError> {
+        validate_context_words(&digest)?;
+        Ok(Self { digest, word_count })
+    }
+
+    pub(crate) fn cached_parts(&self) -> ([u64; 4], usize) {
+        (self.digest, self.word_count)
+    }
+}
+
+/// Complete Stage 1 binding; circuit authority belongs to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stage1VerifierBinding {
     structural_identifier: [u64; 4],
@@ -153,7 +191,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     let schedule = verifier_context_schedule()?;
     validate_context_words(commitment_key_words)?;
     let relation_words = package_identity.to_vec();
-    let application_words = package_identity.to_vec();
+    let application = ApplicationIdentity::from_words(&package_identity)?;
     let commitment_digest = component_digest(4, commitment_key_words)?;
 
     let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
@@ -163,14 +201,13 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     append_framed(&mut nifs_key_words, &commitment_digest)?;
 
     let relation = component_digest(1, &relation_words)?;
-    let application = component_digest(2, &application_words)?;
     let nifs_key = component_digest(3, &nifs_key_words)?;
 
     let mut descriptor = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
     append_framed(&mut descriptor, &VERIFIER_CONTEXT_PROFILE)?;
     append_framed(&mut descriptor, &schedule)?;
     append_framed(&mut descriptor, &relation)?;
-    append_framed(&mut descriptor, &application)?;
+    append_framed(&mut descriptor, &application.digest)?;
     append_framed(&mut descriptor, &nifs_key)?;
     append_framed(&mut descriptor, &commitment_digest)?;
     let digest = poseidon_words(&descriptor);
@@ -178,7 +215,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     Ok(PiCcsV1_1VerifierContext {
         package_identity,
         relation_words,
-        application_words,
+        application,
         nifs_key_words,
         commitment_key_words: commitment_key_words.to_vec(),
         descriptor_words: descriptor,
@@ -190,14 +227,13 @@ pub(super) fn stage1_verifier_binding(
     structural_identifier: [u64; 4],
     logical_columns: usize,
     relation_value_words: &[u64],
-    application_words: &[u64],
+    application: &ApplicationIdentity,
 ) -> Result<Stage1VerifierBinding, PackageError> {
     let schedule = verifier_context_schedule()?;
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
         .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
     let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
     validate_context_words(relation_value_words)?;
-    validate_context_words(application_words)?;
     validate_context_words(&commitment_key_words)?;
 
     let mut relation_words = relation_value_words.to_vec();
@@ -211,14 +247,13 @@ pub(super) fn stage1_verifier_binding(
     append_framed(&mut nifs_key_words, &commitment_digest)?;
 
     let relation = component_digest(1, &relation_words)?;
-    let application = component_digest(2, application_words)?;
     let nifs_key = component_digest(3, &nifs_key_words)?;
 
     let mut descriptor_words = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
     append_framed(&mut descriptor_words, &VERIFIER_CONTEXT_PROFILE)?;
     append_framed(&mut descriptor_words, &schedule)?;
     append_framed(&mut descriptor_words, &relation)?;
-    append_framed(&mut descriptor_words, &application)?;
+    append_framed(&mut descriptor_words, &application.digest)?;
     append_framed(&mut descriptor_words, &nifs_key)?;
     append_framed(&mut descriptor_words, &commitment_digest)?;
     let digest = poseidon_words(&descriptor_words);
@@ -226,7 +261,7 @@ pub(super) fn stage1_verifier_binding(
     let verifier_context = PiCcsV1_1VerifierContext {
         package_identity: structural_identifier,
         relation_words,
-        application_words: application_words.to_vec(),
+        application: application.clone(),
         nifs_key_words,
         commitment_key_words,
         descriptor_words: descriptor_words.clone(),
@@ -253,10 +288,19 @@ pub(super) fn stage1_verifier_binding(
 }
 
 fn component_digest(component: u64, words: &[u64]) -> Result<[u64; 4], PackageError> {
-    let mut preimage = bytes_as_words(VERIFIER_CONTEXT_COMPONENT_DOMAIN);
-    preimage.push(component);
-    append_framed(&mut preimage, words)?;
-    Ok(poseidon_words(&preimage))
+    let mut input = component_hasher(component, words.len())?;
+    update_words(&mut input, words);
+    Ok(input.finalize().map(|value| value.as_canonical_u64()))
+}
+
+fn component_hasher(component: u64, word_count: usize) -> Result<poseidon2::Poseidon2Hasher, PackageError> {
+    let length = u64::try_from(word_count).map_err(|_| PackageError::Invalid("verifier-context word length"))?;
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    for &byte in VERIFIER_CONTEXT_COMPONENT_DOMAIN {
+        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
+    }
+    update_words(&mut input, &[component, length]);
+    Ok(input)
 }
 
 fn append_framed(target: &mut Vec<u64>, words: &[u64]) -> Result<(), PackageError> {
@@ -278,67 +322,84 @@ fn validate_context_words(words: &[u64]) -> Result<(), PackageError> {
 }
 
 fn poseidon_words(words: &[u64]) -> [u64; 4] {
-    let input = words
-        .iter()
-        .copied()
-        .map(Goldilocks::from_u64)
-        .collect::<Vec<_>>();
-    poseidon2::poseidon2_hash(&input).map(|value| value.as_canonical_u64())
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    update_words(&mut input, words);
+    input.finalize().map(|value| value.as_canonical_u64())
 }
 
-fn append_identity_node(input: &mut poseidon2::Poseidon2Hasher, tag: u64, value: u64) {
-    input.update(&[
-        Goldilocks::from_u64(tag),
-        Goldilocks::from_u64(value & 0xffff_ffff),
-        Goldilocks::from_u64(value >> 32),
-        Goldilocks::ZERO,
-    ]);
+fn update_words(input: &mut poseidon2::Poseidon2Hasher, words: &[u64]) {
+    let mut fields = [Goldilocks::ZERO; poseidon2::RATE];
+    for chunk in words.chunks(poseidon2::RATE) {
+        for (field, &word) in fields.iter_mut().zip(chunk) {
+            *field = Goldilocks::from_u64(word);
+        }
+        input.update(&fields[..chunk.len()]);
+    }
 }
 
 pub(super) fn value_preimage_words(value: &Value) -> Result<Vec<u64>, PackageError> {
     let mut words = Vec::new();
-    append_value_preimage_words(value, &mut words)?;
+    CanonicalSink {
+        emit: &mut |chunk| {
+            words.extend_from_slice(chunk);
+            Ok(())
+        },
+    }
+    .value(value)?;
     Ok(words)
 }
 
-fn append_value_preimage_words(value: &Value, words: &mut Vec<u64>) -> Result<(), PackageError> {
-    match value {
-        Value::Number(number) => {
-            let value = number
-                .as_u64()
-                .ok_or(PackageError::Invalid("non-natural package atom"))?;
-            words.extend([0, value & 0xffff_ffff, value >> 32, 0]);
-        }
-        Value::Array(values) => {
-            let length = u64::try_from(values.len()).map_err(|_| PackageError::Invalid("array length"))?;
-            words.extend([1, length & 0xffff_ffff, length >> 32, 0]);
-            for child in values {
-                append_value_preimage_words(child, words)?;
-            }
-        }
-        _ => return Err(PackageError::Invalid("nonnumeric package value")),
+struct CanonicalSink<'a> {
+    emit: &'a mut dyn FnMut(&[u64]) -> Result<(), PackageError>,
+}
+
+impl CanonicalSink<'_> {
+    fn node(&mut self, tag: u64, value: u64) -> Result<(), PackageError> {
+        (self.emit)(&[tag, value & 0xffff_ffff, value >> 32, 0])
     }
-    Ok(())
+
+    fn number(&mut self, value: u64) -> Result<(), PackageError> {
+        self.node(0, value)
+    }
+
+    fn index(&mut self, value: usize) -> Result<(), PackageError> {
+        self.number(u64::try_from(value).map_err(|_| PackageError::Invalid("package index"))?)
+    }
+
+    fn array(&mut self, length: usize) -> Result<(), PackageError> {
+        self.node(
+            1,
+            u64::try_from(length).map_err(|_| PackageError::Invalid("array length"))?,
+        )
+    }
+
+    fn value(&mut self, value: &Value) -> Result<(), PackageError> {
+        match value {
+            Value::Number(number) => self.number(
+                number
+                    .as_u64()
+                    .ok_or(PackageError::Invalid("non-natural package atom"))?,
+            ),
+            Value::Array(values) => {
+                self.array(values.len())?;
+                for child in values {
+                    self.value(child)?;
+                }
+                Ok(())
+            }
+            _ => Err(PackageError::Invalid("nonnumeric package value")),
+        }
+    }
 }
 
 fn append_value_preimage(value: &Value, input: &mut poseidon2::Poseidon2Hasher) -> Result<(), PackageError> {
-    match value {
-        Value::Number(number) => {
-            let value = number
-                .as_u64()
-                .ok_or(PackageError::Invalid("non-natural package atom"))?;
-            append_identity_node(input, 0, value);
-        }
-        Value::Array(values) => {
-            let length = u64::try_from(values.len()).map_err(|_| PackageError::Invalid("array length"))?;
-            append_identity_node(input, 1, length);
-            for child in values {
-                append_value_preimage(child, input)?;
-            }
-        }
-        _ => return Err(PackageError::Invalid("nonnumeric package value")),
+    CanonicalSink {
+        emit: &mut |words| {
+            update_words(input, words);
+            Ok(())
+        },
     }
-    Ok(())
+    .value(value)
 }
 
 #[cfg(test)]

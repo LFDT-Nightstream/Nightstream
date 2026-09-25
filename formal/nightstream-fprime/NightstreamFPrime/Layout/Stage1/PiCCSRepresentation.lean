@@ -1281,12 +1281,12 @@ theorem serializeRunning_injective
   calc
     left = decodedRunning logicalWidth publicFits leftValues := by
       symm
-      simpa [leftValues, leftPreimage] using
+      simpa [leftValues, leftPreimage] using!
         decodedRunning_protocolValues leftPreimage zeroPublicInput
           leftPreimage zeroDigest leftFixed leftFixed rfl
     _ = decodedRunning logicalWidth publicFits rightValues := decodedEqual
     _ = right := by
-      simpa [rightValues, rightPreimage] using
+      simpa [rightValues, rightPreimage] using!
         decodedRunning_protocolValues rightPreimage zeroPublicInput
           rightPreimage zeroDigest rightFixed rightFixed rfl
 

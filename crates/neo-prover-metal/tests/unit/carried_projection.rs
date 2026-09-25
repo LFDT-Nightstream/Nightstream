@@ -1,6 +1,11 @@
+use super::opening::tests::matrix_workspace;
 use super::*;
 use neo_ccs::{CcsStructure, GeometricRowRun, SparsePoly};
-use neo_reductions::{engines::pi_ccs_joint::build_joint_dims, superneo_eval::SuperneoEvalCacheBuilder, Challenges};
+use neo_reductions::{
+    engines::pi_ccs_joint::build_joint_dims,
+    superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder},
+    Challenges,
+};
 
 #[test]
 fn carried_projection_matches_cpu_with_all_production_sources_active() {
@@ -123,6 +128,8 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
         *output += matrix;
     }
     let point = vec![K::ZERO; dims.variables];
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace = matrix_workspace(&source, 0..source.shape().rows);
     let input = PaperJointOracleInput {
         structure: &structure,
         params: &params,
@@ -131,10 +138,13 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
         challenges: Challenges::new(point.clone(), gamma),
         prior_point: Some(&point),
         dims,
-        cache: Arc::clone(&cache),
+        rows: &source,
+        workspace_bytes: workspace,
     };
     let session = MetalSession::new().unwrap();
-    let plan = session.prepare_joint_matrix_plan(cache).unwrap();
+    let plan = session
+        .prepare_joint_matrix_plan(&source, workspace)
+        .unwrap();
     let masks = session
         .prepare_witness_digit_masks(&words, count + 1, blocks, 1, columns)
         .unwrap();

@@ -59,16 +59,19 @@ runs and do not establish validation of the current quotient package.
 
 Work branch: `nico/nightstream-crate`, based on
 `9787d8e77069246e3e2afc7dcfab755556fd5023`.
-The unchanged `neo-fold-clean` source is the migration reference. Its only
-dependency edge from this crate is for development comparisons.
+At the migration checkpoint, `neo-fold-clean` was the unchanged reference and
+was used only for development comparisons. It is now retained as
+`neo-fold-legacy`; `nightstream` has no dependency on it. Historical names and
+paths below describe the measured source revisions.
 
 The selected implementation goal is complete. The
 [fresh replay receipt](tests/evidence/fresh-recursive-replay.json) records all
 29 successful phases, both complete output comparisons, and the failed
 successor attempt that led to the batch commitment change.
 
-That result covers the CPU migration. The later Metal engine validation is
-incomplete; see [the M1 Max results](#engine-validation-on-the-m1-max).
+That result covers the CPU migration. The later engine work has a completed
+[prepared-package CPU/Metal comparison](#final-prepared-package-cpumetal-comparison).
+A universal process-RSS guarantee remains unproven.
 
 The selected Nightstream Goldilocks profile remains `b = 2`, `k_rho = 16`,
 `B = 65536`, one fresh claim and sixteen carried claims. The golden assembly
@@ -767,7 +770,11 @@ running witnesses. Terminal checks made 959 device dispatches and accepted the
 expected state; a changed expected state was rejected. A separate CPU phase
 changed the first claimed `Eval_K`, recomputed the state hash, changed the
 fresh public witness, and recomputed its commitment. Metal rejected this input
-with `Eval_K differs from the complete witness opening`, as required.
+with `Eval_K differs from the complete witness opening` in that recorded run.
+The current row evaluator checks the fresh relation first, so this mutation
+now fails there. Production opening-check coverage uses the `opening-k` and
+`opening-a` tests with balanced child changes and rebuilt fresh witnesses;
+see [the manual checks](../../scripts/GOLDEN_CONFORMANCE.md).
 
 [Logs, requests, and comparison records](tests/evidence/nonzero-fold-20260921)
 retain these results and the failed CPU memory attempt. Each invocation kept
@@ -945,6 +952,417 @@ exact comparisons. The CPU measurements cover production phases. They do not
 establish the full CPU lifecycle memory bound or the 5× lifecycle ratio.
 Further memory tuning below the owner's approximate limit remains a later pass.
 
+## Metal GPU profiling
+
+Instruments now has the owner's 30-minute cap in `AGENTS.md`; other non-Lean
+tests keep the five-minute cap. A native three-step capture verified in
+190.29 s under profiling and saved successfully. Its uninstrumented baseline
+took 179.51 s; these are different measurement conditions.
+
+The native GPU timeline records 119.98 s of active work. Commitment sequences
+account for 60.78 s, separately recorded opening product/bar-transform intervals
+for 22.70 s, and geometric opening forms for 13.72 s. Shader sampling attributes
+48.97 s to the primary commitment kernel and only 0.32 s to commitment reduction.
+The chunk-sum loop is not a major measured cost. Timing data can combine
+encoders, and shader samples do not account for every GPU-active interval.
+
+Encoder labels were added to identify these stages. Arithmetic and protocol
+are unchanged. The capture uses the same inputs, circuit identity, and final
+state as the saved benchmark. Limiter exports did not yield usable values;
+no occupancy, bandwidth, ALU-utilization, or spill-rate result is claimed.
+[The profile record](tests/evidence/metal-gpu-profile-20260921) contains the
+measurements, native pipeline limits, capture issues, and the Apple/CUDA
+references used to guide the next optimization. No algorithm optimization was
+made in this profiling slice.
+
+## Profiled Metal opening changes
+
+The profile led to two arithmetic-preserving changes. Geometric forms now
+compute each coefficient once for both extension components. Sparse ring
+products skip multiplication by one; other magnitudes keep their multiplication.
+Both changes use the existing buffers and support the same matrix inputs.
+
+The retained standalone three-step benchmark verifies in **167.804142542 s**
+with **16,858,628,096 bytes peak RSS** (16.86 GB; 15.70 GiB). Preparation takes
+34.55 s, base proving 7.10 s, the two extends 46.01 s and 58.27 s, and terminal
+verification 21.87 s. These times include the full lifecycle on the saved inputs.
+The saved baseline took 179.51 s; a repeated baseline with encoder labels and
+unchanged arithmetic took 193.31 s. The retained result uses 6.5% and 13.2% less
+time, respectively. These are individual runs with visible timing variation;
+the smaller measured difference is used in the summary.
+
+The two opening tests compare exact CPU results, including overlapping
+geometric runs, zero and negative ratios, both extension components, reused
+form storage, and partial blocks. A fresh nonzero-carried production fold
+matches all **945,983 CPU proof bytes**, every claim and opening, the transcript,
+and all **16 returned witness matrices**. That check takes 86.42 s, including
+preparation and file work, with 16,322,904,064 bytes peak RSS. No Lean run was
+needed. The stored CPU proof and inputs remain the reference.
+
+A center-out commitment thread order passed correctness checks but took
+171.18 s for the lifecycle. It was removed because it showed no gain.
+
+[Evidence](tests/evidence/profiled-metal-openings-20260921) contains the staged
+measurements, CPU comparisons, and rejected candidate result. These are Metal
+improvements; the full CPU timing and 5× ratio remain open. RSS stayed below the
+working 16 GiB guard in these runs. This does not establish a bound for every
+supported circuit.
+
+## CPU lifecycle and terminal profile
+
+The full Optimized Time Profiler run completed preparation, base proving, and
+both recursive folds. It reached the owner-approved 30-minute Instruments
+deadline during terminal verification. The partial trace could not be exported.
+This run does not provide a full lifecycle time or a 5× CPU/Metal comparison.
+
+A separate CPU terminal phase passed on the stored Metal step-3 envelope. It
+accepted all commitments and openings and rejected a wrong final state. All
+result fields except the engine name equal the Metal result, including all
+16 running claims. The 19 input files are byte-identical. The phase took
+448.09 s, including 34.85 s of cold preparation, JSON loading, a new CPU cache,
+and terminal checks. This is not the warm terminal time in the Metal benchmark.
+The observed kernel peak RSS was 13,893,877,760 bytes. The peak could not be
+read after exit, so the final unsampled interval is not proved.
+
+The saved trace contains 2,723,146 CPU samples. Release Rust symbols were
+stripped, and a rebuild has different code bytes; a global address mapping
+is not justified. Exact, unique function-byte matches identify 14 sampled
+functions. Random-block generation accounts for 39.46% of all self samples,
+and 128-bit division accounts for 29.85%. These are CPU weights across threads,
+not wall times. Unmatched functions remain unnamed.
+
+Maintenance Sleep occurred during both CPU captures. Keep
+the original times; do not subtract sleep intervals to estimate a corrected
+ratio. Future measurements use a command-scoped `caffeinate -is` assertion
+while on AC power.
+
+The memory review found a specific gap in the accepted row bounds. A circuit
+with 239,217,427 application rows has 245,587,286 logical rows. The current
+one-witness, 14-matrix application table would request 27,505,776,032 bytes.
+The device guard rejects that allocation. This source-derived result shows
+why bounded row evaluation is still needed; no large circuit was generated.
+Other CPU and device allocations also remain part of the total RSS requirement.
+
+[Evidence](tests/evidence/cpu-lifecycle-profile-20260921) contains run logs,
+RSS records, the exact terminal comparison, clock evidence, and the allocation
+derivation. No Lean command ran. No full CPU time or universal memory bound
+is claimed.
+
+## CPU indexed-key reduction
+
+The streamed key loader now uses the Goldilocks identities `x^2 = x - 1` and
+`x^6 = 1`, for `x = 2^32`, to replace eight 128-bit remainders per coefficient.
+The scalar setup function retains the division formula as an independent
+reference. Key bytes, addresses, and commitment semantics remain unchanged.
+
+Serial production Sources checks on identical inputs reduce the fresh
+commitment time from **95.144954 s to 58.379275583 s**, or **38.6% less time**.
+The whole phase falls from 130.10 s to 93.32 s; preparation takes 34.63 s in
+both runs. Peak process RSS is 6.07 GB before and 6.12 GB after. Each run
+recomputes all saved commitments. This phase has one fresh witness and sixteen
+zero running witnesses; it is not an active fold or full lifecycle benchmark.
+Both commands use `caffeinate -is` on AC power, the 300-second cap, and the
+current 16 GiB RSS guard.
+
+Twelve Ajtai tests, three Metal commitment tests, and all nine supported engine
+comparisons pass. The checks include stored Lean values, generated addresses,
+the maximum nonce words, independent ring products, complete small C/R/D
+proofs, and parallel PaperExact/Optimized cross-checking. CUDA remains two
+ignored comparisons. Formatting and whitespace checks pass. No Lean command
+ran, and no feature or environment variable was added.
+
+[Evidence](tests/evidence/cpu-key-reduction-20260921) contains the before/after
+logs, RSS records, exact input comparison, and test results. Full CPU lifecycle
+time, the 5× ratio, and bounded storage for all supported circuits remain open.
+
+## Bounded Metal application tables
+
+Application values now use a resident prefix when it fits the available device
+workspace, or bounded replay of original row windows through all preceding
+challenges. Window evaluation, local folds, and weighted accumulation run on
+Metal. The first F-to-K fold reuses each input pair's 16 bytes; later folds
+release the old table before proceeding. Round kernels preserve global
+equality, assignment, and carried indexes. Terminal checks also use windows
+and report global failure rows.
+
+Forced seven-, thirteen-, and seventeen-row tests match complete Optimized
+proof bytes, every round and challenge, transcript state, and all output
+openings. The derived application payload limits are 672 and 1,792 bytes.
+The tests cover multiple prior challenges, larger source windows, transition
+to resident storage, an odd last row, and a terminal failure in the last
+window. All 22 Metal library tests and nine supported engine comparisons pass;
+CUDA remains two ignored comparisons.
+
+A fresh production second fold matches all **945,983 CPU proof bytes**, all
+sixteen returned matrices, and complete claims, openings, parent, identities,
+and transcript. The check takes 85.86 s, including preparation and file work,
+with **16,384,065,536 bytes peak RSS**. The C/R/D phase takes 47.99 s. All runs
+use the ordinary 300-second cap and the current 16 GiB RSS guard where measured.
+No Lean command ran. No feature, environment variable, or production threshold
+was added.
+
+The application payload bound removes the need for the previously identified
+27.51 GB table and 55.01 GB first-fold overlap. Other host/device caches and
+indexes, witness storage, and generic seeded partials remain outside this
+bound. No total-RSS result for every circuit or 5× full lifecycle ratio is
+claimed. [Evidence](tests/evidence/bounded-application-20260921) contains tests,
+exact production comparisons, resource scope, and build records.
+
+The complete three-step Metal benchmark then passes in **164.661508625 s**,
+with **16,813,703,168 bytes peak RSS** (16.81 GB). Preparation takes 34.50 s,
+base proving 6.80 s, the two extends 45.61 s and 57.81 s, and terminal
+verification 19.94 s. Starting inputs, profile, circuit identity, and final
+state match the prior Metal run. The exact release executable retains function
+symbols and uses command-scoped sleep prevention. This is one measurement;
+no speed gain over earlier builds is inferred. The full CPU comparison must
+use this saved executable.
+
+## Matched full lifecycle profiles
+
+These results use the saved build from before bounded matrix-row generation.
+They do not establish the speed of the newer implementation below.
+
+Serial Time Profiler captures on the same saved release executable measure
+**7.62× Metal speed over Optimized** for preparation, base proving, two active
+folds, and terminal verification. Both runs finish successfully and verify the
+same final state. All starting fields except the engine and all final fields
+except elapsed time match, including profile and circuit identity.
+
+| Phase | Optimized CPU (s) | Metal (s) |
+| --- | ---: | ---: |
+| Preparation | 34.524239208 | 34.526846625 |
+| Base proving | 59.835702167 | 6.804702334 |
+| Extend 2 | 396.958310208 | 45.611830292 |
+| Extend 3 | 496.363860083 | 57.861076000 |
+| Terminal verification | 268.338163042 | 19.932587750 |
+| **Full lifecycle** | **1,256.020431625** | **164.737161375** |
+
+This exceeds the 5× target under matching Time Profiler instrumentation. It is
+not a measurement of the CPU run without Instruments. Approval for one such
+30-minute CPU invocation is pending; that command has not run. The saved
+executable has UUID `D66506D5-8D84-3D01-8EEB-E21332765BD7` and retains symbols.
+Optimization settings are unchanged. Both captures use the same one-millisecond
+CPU sampling settings, `caffeinate -is` on AC power, and the existing RSS guard.
+Instruments reports nominal thermal state throughout both captures.
+
+The observed kernel lifetime RSS peaks are **16,133,701,632 bytes on CPU** and
+**16,628,383,744 bytes on Metal**. Post-exit peak reads are unavailable, so the
+final unsampled intervals are not proved. Recorder and target cleanup completes
+normally. Including trace finalization, the controllers take 1,388.24 s and
+171.20 s, within the 1,800-second Instruments cap in `AGENTS.md`. No timeout,
+sleep interval, or preparation time is subtracted from the benchmark result.
+
+The separate production comparison above establishes complete CPU/Metal proof
+and output equality for the current implementation. These lifecycle logs
+establish matching inputs and accepted final states; they do not contain proof
+bytes. [Evidence](tests/evidence/lifecycle-time-profile-20260921) contains both
+native logs, capture controls, resource records, and the exact comparison.
+
+The complete CPU sample export assigns 54.07% of backtrace weight to random-block
+generation. In the Metal run, shared Poseidon2 and signed-column PiRLC work use
+51.89% and 22.74% of host CPU backtrace weight. These are sampled CPU weights
+across threads, not wall or GPU times. Every native address resolves against the
+saved executable's matching UUID and recorded load address. Complete compact
+function totals retain unknown frames and all self/inclusive weights. The
+separate device profile above records GPU kernel costs.
+
+The general memory bound remains unmet. Repeating a three-term equality adds
+application rows without variables and fits the current shape checks. At the
+accepted row bound, one host matrix-run vector alone requires at least
+**17,223,654,456 bytes**. Keeping its device copy doubles that payload before
+row indexes, witnesses, or other caches are counted. This source-derived case
+requires matrix windows to be generated before a full cache is built. Eager
+application rows remain another preparation-memory gap. No large circuit or
+Lean command ran for this review.
+
+## Bounded matrix row windows
+
+CPU and Metal now read original package rows into bounded local caches, with
+global columns and equality weights. Full host/device matrix caches are no
+longer a prerequisite. The initial production check reached the 300-second cap.
+A stopped Time Profiler capture identified repeated row-window construction;
+the range retry now makes geometric progress, and scalar entries retain the
+existing parallel/tiled device opening path.
+
+The corrected production second fold matches every saved CPU proof byte
+(945,983 bytes), all sixteen complete returned matrices, parent, claims,
+openings, transcript and identities. The nineteen source files also match by
+complete byte comparison. Actual C/R/D takes 102.544524166 s; the test including
+preparation and file I/O takes 139.837589042 s. Final native peak RSS is
+13,756,530,688 bytes (13.76 GB), within the owner's approximate limit. This is
+less memory and more time than the preceding saved implementation.
+
+Validation passes: 15 CPU unit tests (two existing ignored), 11 row-source tests,
+23 Metal unit tests, and nine supported engine comparisons. Two CUDA comparisons
+remain ignored. The fixed-prefix scan checks 6,369,859 rows; its maximum encoded
+one-row workspace is 13,942 bytes, below the selected minimum workspace allowance
+of 4,750,236,214 bytes. These local payload bounds do not prove total process RSS.
+Eager application/assembly storage remains open. The full Metal run completed
+preparation (34.53 s), base proving (6.79 s), and both extensions (90.05 s and
+119.10 s), then reached the 300-second cap during terminal verification. It is
+a failed complete-run check, with no final native RSS result. A subsequent
+change borrows row terms instead of allocating per-visit vectors. It passes the
+same complete production proof and output comparison: C/R/D 98.162725292 s,
+test 135.484281125 s, final native RSS 13,794,082,816 bytes (13.79 GB).
+The same final source completes a real full lifecycle Time Profiler capture in
+291.840242833 s: preparation 34.56 s, base 6.79 s, extensions 86.64 s and
+115.30 s, terminal verification 48.55 s. Final state, circuit identity, profile
+and all benchmark inputs match the prior saved run. Thermal state is Nominal
+throughout. The observed kernel lifetime RSS peak is 13,880,573,952 bytes;
+the post-exit peak is unavailable, so the last unsampled interval is not proved.
+Recording and finalization finish in 299.35 s under the 1,800-second cap.
+
+All 5,851 native sample addresses resolve against the saved executable UUID
+`5841982D-F5C1-35FA-903D-66E7053B74CB`. Matrix-window construction accounts for
+117.359 s of inclusive CPU sample weight out of 251.270 s with backtraces.
+Template substitution accounts for 47.495 s within those stacks; these inclusive
+values overlap and must not be added. Fourteen stored matrix/formula reference
+tests also pass. The matched CPU Time Profiler run completes in
+1,330.702711417 s, so the same-build full lifecycle ratio is **4.5597×**, below
+the 5× target. Both runs use the same inputs and return the same final state,
+circuit identity and profile. CPU preparation takes 34.54 s, base proving
+60.09 s, extensions 420.10 s and 530.47 s, and terminal verification 285.50 s.
+The observed CPU lifetime RSS peak is 16,790,093,824 bytes (16.79 GB); the final
+post-exit peak is unavailable. Trace recording and finalization take 1,461.62 s,
+within the approved 1,800-second Instruments cap.
+
+The same saved executable also passes without Instruments under the ordinary
+300-second cap: **290.798678833 s**, with final native peak RSS
+**13,848,379,392 bytes (13.85 GB)**. Preparation takes 34.46 s, base proving
+6.79 s, the extensions 86.07 s and 114.95 s, and terminal verification 48.52 s.
+This closes the complete-run memory measurement for this benchmark. It does
+not close the general application-storage bound or the new 5× comparison.
+[Evidence](tests/evidence/matrix-row-windows-20260921)
+contains the failure, diagnostic profile totals, corrections and completed checks.
+
+## Sealed application records and reusable row buffers
+
+The application builder writes original rows, exact recipe syntax, offsets and
+recipe links to private files. Sealing closes write handles; a partial append
+prevents sealing. The loader, witness executor and both canonical identity
+occurrences share one immutable owner. Generated columns map by checked
+arithmetic. No complete application row, recipe or hash-word vector is retained.
+
+Template execution also reuses thirteen port buffers and lends one row's run
+slices to each consumer. It no longer clones and merges each input form or
+constructs every row in an invocation before visiting the first row. This keeps
+the saved formulas, coefficients, order, and early-stop behavior.
+
+Checks pass: eight application tests, five record-owner tests, five native-loader
+tests, six identity tests, five assembler tests, two public assembly tests,
+sixteen matrix formula tests, and nine supported engine comparisons. Two CUDA
+checks remain ignored. Identity checks compare every word of the complete
+saved envelope before checking its fixed identities. Workspace release checks
+with all targets and Metal/CUDA, formatting, and whitespace checks pass.
+
+The production second Metal fold matches all 945,983 saved CPU proof bytes,
+all sixteen returned matrices, parent, claims, openings, transcript and identities.
+All nineteen input files also match by complete byte comparison. C/R/D takes
+83.36266325 s; the full test takes 120.504824708 s. Final native peak RSS is
+13,193,953,280 bytes. The full public Metal lifecycle passes without Instruments
+in 264.522361916 s with 12,748,128,256 bytes peak RSS. Preparation takes 34.38 s,
+base proving 8.46 s, extensions 76.75 s and 103.16 s, and terminal verification
+41.78 s. Complete start and finish records match the prior saved Metal run
+except for elapsed time. Matching Time Profiler runs on the same saved image
+(`8B18A367-06BA-3915-8254-40C42C9C0620`) take 1,308.784675084 s on CPU and
+276.998745834 s on Metal: **4.724875815×**, below the 5× target. Both complete
+start records match except for engine; finish records match except for time.
+Observed lifetime RSS peaks are 15,786,639,360 bytes for CPU and 12,633,473,024
+bytes for Metal. The final post-exit peaks are unavailable. Recording and trace
+finalization finish in 1,435.69 s and 284.38 s, each within the 1,800-second cap.
+Both traces report Nominal thermal state throughout. The Metal capture attributes
+97.132 s of summed CPU sample weight to matrix-window construction: counting
+59.258 s, filling 37.677 s, and other construction 0.197 s. The count/fill split
+uses full sampled stacks and the exact frozen source/image. All 5,317 native
+addresses resolve; 2,230 sentinel samples and 995 unresolved top samples remain
+unassigned. These are CPU sample weights, not elapsed or GPU time.
+
+The fixed production key bounds application variables to 7,709. A single native
+row therefore cannot retain arbitrary raw duplicate terms in memory. This is
+source-derived payload evidence, not a universal RSS result; source scratch,
+allocator and driver residency remain outside parts of the workspace accounting.
+No Lean command, new feature or environment variable was used.
+[Evidence](tests/evidence/sealed-application-records-20260921)
+contains exact comparisons, logs, the memory review and saved-image metadata.
+
+
+## Incremental matrix-row counting
+
+Matrix-window counting now keeps the accepted prefix separately from candidate
+counts. Runs add their exact encoded payload cost, and each first offset family
+charges all preceding rows. Row completion uses cumulative scalar totals instead
+of recounting every matrix. Single-input template substitution also keeps the
+existing canonical key order without sorting it again.
+
+Twelve row-storage tests, sixteen saved formula tests, twenty-three Metal tests
+and nine engine comparisons pass; two CUDA checks remain ignored. Exact-budget
+and one-byte-short tests cover empty rows and offset families that appear late.
+Workspace release checks with all targets and Metal/CUDA pass.
+
+On saved image `89776242-C7BC-32FF-8174-47B117EBFF79`, the production second
+fold matches all 945,983 CPU proof bytes and all sixteen complete child matrices,
+parent, claims, openings, transcript and identities. All nineteen source files
+also match exactly. C/R/D takes 77.438333583 s; final native peak RSS is
+13,197,393,920 bytes. The complete raw Metal lifecycle takes 250.277271958 s with
+12,681,920,512 bytes final native peak RSS. It verifies the same final state.
+These measurements do not establish a matched ratio for this image.
+[Evidence](tests/evidence/incremental-row-count-20260922) records the checks,
+complete comparisons, image metadata and profile review.
+
+
+## Recipe-stack batch reuse
+
+Native witness execution now reuses one disk-backed continuation stack per
+nonempty recipe batch. Each evaluation clears the logical stack first, including
+after a prior lookup error. Records remain immutable and resident scratch stays
+bounded. Nineteen application/native-loader checks and four saved Lean Poseidon2
+checks pass, as do workspace release checks with all targets and Metal/CUDA.
+
+Saved image `9F975E6F-3954-3D37-8C7D-97A6BBD37CDA` completes the raw Metal
+lifecycle in 244.83093 s with 12,717,260,800 bytes final native peak RSS. Matched
+Time Profiler runs take 1,300.842536625 s on CPU and 246.453710167 s on Metal:
+**5.278242862×**. Complete start records match except engine and finish records
+match except elapsed time. Device and recording settings match. Both captures
+report Nominal thermal state and finish within the 1,800-second cap, including
+trace finalization. Observed lifetime RSS peaks are 15,783,100,416 bytes on CPU
+and 12,711,673,856 bytes on Metal; final post-exit peaks are unavailable.
+
+These runs include compilation. The owner has now changed the target to package
+loading, proving and terminal verification, with compilation measured separately.
+The prepared-package image before the fixed-metadata node guard measured
+5.9191× with compilation excluded. The final guarded image is recorded below.
+[Evidence](tests/evidence/incremental-row-count-20260922)
+contains the saved image, raw records, metadata and checked comparison.
+
+## Final prepared-package CPU/Metal comparison
+
+Final image `7DCAD994-817D-33E5-95BB-666FA9543762` measures **5.933208287×**
+over package loading, proving and terminal verification. Compilation is excluded.
+Both engines load the same caller-selected package. Loading validates execution
+data without imposing authentication or repeating whole-circuit identity hashing.
+
+| Engine | Matched Time Profiler total | Observed peak RSS |
+| --- | ---: | ---: |
+| Optimized CPU | 1,262.100768458 s | 14,448,033,792 bytes |
+| Metal | 212.71809575 s | 11,474,714,624 bytes |
+
+Both completed captures were serial, with the same image, package, full inputs,
+final state and recording settings. Both reported Nominal thermal state.
+An initial Metal recorder hung during trace finalization after its target
+verified. The owned recorder was stopped; only the completed retry enters this ratio.
+
+Raw Metal passes in **212.469842375 s** with **11,374,968,832 bytes** final
+native peak RSS; loading and engine setup take 2.152479833 s. Compilation takes
+34.857374625 s and saving 0.133257583 s. The 127,306,104-byte package matches
+the prior package byte for byte. Nine prepared-package tests, one maximum/zero
+compiler-shape regression and four public cache tests pass.
+
+Both measured engines remain below the accepted 16 GiB RSS guard. The source
+and tests establish bounded native storage; these fixture measurements do not
+prove a universal process-RSS guarantee for every supported circuit. Complete
+records, the compiler-derived fixed-metadata bound, and scope are in the
+[prepared-package evidence](tests/evidence/prepared-package-20260922).
+
 ## Parallel PaperExact/Optimized cross-check
 
 On 2026-09-20, five cross-check tests and two public engine-selection tests
@@ -1014,7 +1432,7 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test per_
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::saved_proof_and_transcript_match_lean -- --exact
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle poseidon_base_step_matches_lean_and_verifies -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle rust_addition_base_step_verifies -- --exact --ignored --nocapture
-timeout --signal=KILL 300 cargo test -p nightstream --release --test lifecycle_baseline unchanged_old_poseidon_base_lifecycle -- --exact --ignored --nocapture
+timeout --signal=KILL 300 cargo test -p neo-fold-legacy --release --test nightstream_baseline unchanged_old_poseidon_base_lifecycle -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::base::base_extension_matches_full_lean_assignment_and_terminal -- --exact --ignored --nocapture
 ```
 
@@ -1080,7 +1498,8 @@ For source iterations 1 and 2, run `sources`, `ccs`, `rlc`, and `split`, each
 with `--step ITERATION`. Run `child --step ITERATION --child INDEX` for the true
 entries of `fold-ITERATION/split.json`'s `nonzero` array. Then run `nifs` and
 `successor` for that iteration. Finally run `terminal`, `mutation`, and `reject`
-without a step argument. Use the same binary and run directory throughout.
+with `--step 3`. The current driver requires the terminal iteration explicitly.
+Use the same binary and run directory throughout.
 The NIFS phase re-splits the actual parent and requires every active child's
 opening, so changing saved activity flags cannot remove a check. Sources and
 matrix caches are checked from their authoritative inputs; checkpoint digests

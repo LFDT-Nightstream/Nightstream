@@ -80,7 +80,7 @@ private theorem physicalSboxColumn_val
     PoseidonRetainedBlock.basePackage.layout.constantColumn
     PoseidonRetainedBlock.laterInvocationCount PoseidonRetainedBlock.laterWitnessStart
     PoseidonRetainedBlock.laterWitnessStart_bound (Fin.encodeProd (laterIndex current, row))
-  simpa only [Fin.decodeProd_encodeProd, ← physicalInvocation_witnessStart] using selected
+  simpa only [Fin.decodeProd_encodeProd, ← physicalInvocation_witnessStart] using! selected
 
 private theorem liftedSlice_source_val {sourceWidth middleWidth outputWidth : Nat}
     (block : LowNormBlock.Block sourceWidth) (firstFits : sourceWidth ≤ middleWidth)

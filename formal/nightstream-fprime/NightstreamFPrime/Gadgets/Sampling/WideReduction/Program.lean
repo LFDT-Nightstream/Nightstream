@@ -169,7 +169,7 @@ theorem completeEnv_correct (interface : Interface) (base : Env) (start : Nat)
   refine ⟨?_, ?_⟩
   · have first := helperAgreement.append childAgreement
     have all := first.append resultAgreement
-    simpa only [privateCount, WideReduction.privateCount, quotientStart, coreOffset, Nat.add_assoc] using all
+    simpa only [privateCount, WideReduction.privateCount, quotientStart, coreOffset, Nat.add_assoc] using! all
   · change holdsFlat (executeHints children _ _) _
     rw [resultSame]
     change ConstraintsHold _ (flatConstraints (operations interface start))

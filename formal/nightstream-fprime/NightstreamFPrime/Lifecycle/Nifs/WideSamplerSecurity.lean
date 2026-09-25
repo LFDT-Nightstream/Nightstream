@@ -26,8 +26,9 @@ theorem no_sampler_abort (state : Poseidon2.State) :
   rw [PiRLC.Wide.Key.key_response]
   simp only [ne_eq, reduceCtorEq, not_false_eq_true]
 
-/-- The normalized query history yields the exact response used by the
-wide verification key. The history contains the complete preceding input. -/
+/-- Replaying a normalized query history from `seed` yields the response used
+by the wide verification key. This holds for any seed and history; it does not
+identify the verifier's PiCCS output state with a complete-transcript replay. -/
 theorem response_history (seed : Poseidon2.State) (history : List Draw) (coordinate : Fin 17) :
     PiRLC.Wide.Key.response (TranscriptHistory.replay seed history) coordinate =
       Phi81StrongSet.embedScalar

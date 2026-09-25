@@ -427,7 +427,7 @@ private theorem remappedPacket_implies_positionSourceRows
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactPositionConstraint,
     exactPositionInterface, positionSourceStart, First54.positionConstraint]
-    using projected
+    using! projected
 
 private theorem remappedPacket_implies_valueSourceRows
     (env : Env) (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
@@ -448,7 +448,7 @@ private theorem remappedPacket_implies_valueSourceRows
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactValueConstraint,
     exactValueInterface, valueSourceStart, First54.valueConstraint]
-    using projected
+    using! projected
 
 private theorem exactPositionZeroFresh (source : Nat)
     (slot : Fin First54Step.slotCount) :
@@ -462,7 +462,7 @@ private theorem exactPositionZeroFresh (source : Nat)
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactPositionConstraint,
     exactPositionInterface, positionSourceStart, First54.positionConstraint]
-    using cost
+    using! cost
 
 private theorem exactPositionSuccFresh (source round : Nat)
     (slot : Fin First54Step.slotCount) :
@@ -477,7 +477,7 @@ private theorem exactPositionSuccFresh (source round : Nat)
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactPositionConstraint,
     exactPositionInterface, positionSourceStart, First54.positionConstraint]
-    using cost
+    using! cost
 
 private theorem exactValueZeroFresh (source : Nat)
     (slot : Fin First54ValueStep.outputCount) :
@@ -491,7 +491,7 @@ private theorem exactValueZeroFresh (source : Nat)
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactValueConstraint,
     exactValueInterface, valueSourceStart, First54.valueConstraint]
-    using cost
+    using! cost
 
 private theorem exactValueSuccFresh (source round : Nat)
     (slot : Fin First54ValueStep.outputCount) :
@@ -505,7 +505,7 @@ private theorem exactValueSuccFresh (source round : Nat)
   simpa [PiRLCFirst54Projection.sourceInterface,
     PiRLCFirst54Conformance.sourceInterface, exactValueConstraint,
     exactValueInterface, valueSourceStart, First54.valueConstraint]
-    using cost
+    using! cost
 
 private theorem remappedPacket_implies_positionZeroRows
     (env : Env) (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
@@ -541,7 +541,7 @@ private theorem remappedPacket_implies_positionZeroRows
     (compactInputColumn (positionInvocation source.val 0 slot.val).inputRanges)
     (PiRLCFirst54Templates.firstPositionRecipe slot) localBound
     (PiRLCFirst54Templates.firstPosition_constraintFreshCount slot) (by
-      simpa [compactEvalEnv, positionInvocation] using normalizedEval)
+      simpa [compactEvalEnv, positionInvocation] using! normalizedEval)
   simpa [PiRLCFirst54Templates.firstPositionTemplate] using built
 
 private theorem remappedPacket_implies_positionSuccRows
@@ -585,7 +585,7 @@ private theorem remappedPacket_implies_positionSuccRows
       (compactInputColumn
         (positionInvocation source.val (round + 1) slot.val).inputRanges)
       (PiRLCFirst54Templates.laterPositionRecipe slot) localBound compactZero
-      (by simpa [compactEvalEnv, positionInvocation] using normalizedEval)
+      (by simpa [compactEvalEnv, positionInvocation] using! normalizedEval)
     simpa [PiRLCFirst54Templates.laterPositionTemplate] using built
   · have compactPositive : 0 < R1CS.constraintFreshCount
         (Expr.var PiRLCFirst54Templates.laterPositionOutputInput -

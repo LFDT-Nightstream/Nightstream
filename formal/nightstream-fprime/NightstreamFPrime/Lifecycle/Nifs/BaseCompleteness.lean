@@ -62,7 +62,7 @@ private theorem liftedPolynomial_zero :
   have lifted := ProtocolDataRefinement.evaluatePolynomial_lift
     baseOps extensionOps K.embed protocolLift ProductionRelation.polynomial
       (fun _ => (0 : F))
-  simpa only [ProductionRelation.polynomial_zeroImages, embed_zero] using lifted
+  simpa only [ProductionRelation.polynomial_zeroImages, embed_zero] using! lifted
 
 private theorem zero_chain (challenges : List K) :
     SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero

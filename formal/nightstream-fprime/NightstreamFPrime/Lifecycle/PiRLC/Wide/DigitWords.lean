@@ -62,7 +62,7 @@ private theorem sound_ofFn {n : Nat} (source : Fin n → Expr) (offset : Nat) (e
   intro index
   have value := recipeConstraints_value env offset (List.ofFn source) checked index.val
     (by rw [List.length_ofFn]; exact index.isLt)
-  simpa only [List.get_ofFn] using value
+  simpa only [List.get_ofFn] using! value
 
 private theorem complete_ofFn {n : Nat} (source : Fin n → Expr) (offset : Nat) (env : Env)
     (below : ∀ index, (source index).VarsBelow offset) :

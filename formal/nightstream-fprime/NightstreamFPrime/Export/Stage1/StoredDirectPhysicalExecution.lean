@@ -69,7 +69,7 @@ theorem compact_agree (context : PerApplicationCachedShift.Context)
     have listEq := congrArg (fun values : List CompactRowTemplate =>
       values[descriptor.compactInvocation.templateIndex]?) canonical
     simpa only [Array.getElem?_toList,
-      PiRLCCombinationInvocationOrigin.descriptor_template] using listEq
+      PiRLCCombinationInvocationOrigin.descriptor_template] using! listEq
   have step := StoredPiRLCCombination.shifted_agree context descriptor left right agree
   have result := StoredPhysicalExecution.option_result_agree Outside target _ _ step
   change ResultAgree Outside (StoredPhysicalExecution.compact templates target invocation left)

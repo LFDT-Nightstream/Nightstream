@@ -93,7 +93,7 @@ private theorem position_ranges_before (source round : Nat) (slot : Fin First54S
       dsimp only at offsetBound ⊢ <;> simp only [Nat.mul_one]
     · exact decoder_before source round 16 offset sourceBound roundBound (by decide) offsetBound
     · simpa only [previousPositionSourceStart, Nat.add_zero, Nat.mul_one] using
-        position_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using offsetBound)
+        position_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using! offsetBound)
     · exact position_before source round slot.val offset sourceBound roundBound (by
         change offset < 1 at offsetBound
         omega)
@@ -119,9 +119,9 @@ private theorem value_ranges_before (source round : Nat) (slot : Fin First54Valu
     · exact decoder_before source round 16 offset sourceBound roundBound (by decide) offsetBound
     · exact decoder_before source round 1 offset sourceBound roundBound (by decide) offsetBound
     · simpa only [previousPositionSourceStart, Nat.add_zero, Nat.mul_one] using
-        position_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using offsetBound)
+        position_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using! offsetBound)
     · simpa only [previousValueSourceStart, Nat.add_zero, Nat.mul_one] using
-        value_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using offsetBound)
+        value_before source (round - 1) 0 offset sourceBound (by omega) (by simpa using! offsetBound)
     · exact value_before source round slot.val offset sourceBound roundBound (by
         change offset < 1 at offsetBound
         omega)

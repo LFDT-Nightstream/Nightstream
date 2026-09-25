@@ -621,7 +621,7 @@ theorem expected_work_bound (contexts : PMF Context) (coordinate : Fin PaperProf
       dsimp only [source, total]
       linarith only [actual])
   simpa only [StrongProbability.clockMean, source, total, StrongProbability.verifierMean_const,
-    mul_comm _ (2 : ℝ), _root_.add_assoc] using lifted
+    mul_comm _ (2 : ℝ), _root_.add_assoc] using! lifted
 
 include callCorrect bounded allAccessBounded in
 /-- Preparation returns the context used by this same stopped reduction.

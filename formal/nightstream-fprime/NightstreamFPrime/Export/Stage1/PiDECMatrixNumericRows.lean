@@ -94,7 +94,7 @@ theorem blockRow?_eq (block : MatrixProgram.Block) {columns : Nat}
       apply option_ports_ext
       intro port
       simpa only [blockRow?, MatrixProgram.Block.row?, Option.map_map,
-        Function.comp_def, ofFn_get, sparseValues_get] using
+        Function.comp_def, ofFn_get, sparseValues_get] using!
         PiDECPoseidonNumericBlock.row?_value block read ordinal port
 
 /-- Use the same ordered block-count selection as Program.row?. No block

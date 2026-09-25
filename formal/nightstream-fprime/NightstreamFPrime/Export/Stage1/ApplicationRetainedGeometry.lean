@@ -190,7 +190,7 @@ def poseidonGeometry {application : Lifecycle.Stage1.Application.Program} {logic
     have bound := geometry.completeFits
     simpa only [completeLogicalWidth, ApplicationSelectedBlocks.localBlock_some application certificate selected,
       localStart, ApplicationPoseidonRetainedGeometry.completeLogicalWidth,
-      ApplicationPoseidonRetainedGeometry.localStart] using bound
+      ApplicationPoseidonRetainedGeometry.localStart] using! bound
 
 theorem encodes_ordinary {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry application logicalWidth) (selected : application.compactHashChain = none)

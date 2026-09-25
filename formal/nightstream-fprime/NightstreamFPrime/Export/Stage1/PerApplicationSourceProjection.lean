@@ -313,7 +313,7 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
       (finalConstant program + offset) = some column := by
     have selected := SourceProjectionRange.column?_at
       (pilotSuffixRange program) ⟨offset, by
-        simpa [pilotSuffixRange] using offsetBound⟩
+        simpa [pilotSuffixRange] using! offsetBound⟩
     simpa [pilotSuffixRange, sourceEq] using selected
   have shifted := PerApplicationPackage.shiftColumn_constantOrPublic
     program _ baseSuffix

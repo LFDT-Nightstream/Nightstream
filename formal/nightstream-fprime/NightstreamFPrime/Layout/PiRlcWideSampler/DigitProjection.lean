@@ -36,7 +36,7 @@ theorem reconstructed_rows (offset : Nat) (env : Env)
   apply recipeConstraints_hold_of_values
   intro index below
   have bound : index < DigitWords.count := by simpa only [DigitWords.recipes_length] using below
-  simpa only [DigitWords.recipes, List.get_ofFn] using words ⟨index, bound⟩
+  simpa only [DigitWords.recipes, List.get_ofFn] using! words ⟨index, bound⟩
 
 theorem recipe_affine (offset : Nat) (index : Fin DigitWords.count) :
     R1CS.IsAffine (DigitWords.recipe offset index) := by

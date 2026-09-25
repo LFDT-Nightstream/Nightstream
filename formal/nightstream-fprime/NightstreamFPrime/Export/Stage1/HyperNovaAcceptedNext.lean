@@ -294,7 +294,7 @@ theorem base_extend_of_sampler_success
     relation productionAjtaiKey prior rho sampled
   have beforeVerified : Nifs.PaperNonInteractive.verify key
       (before.running functionIndex) before.fresh before.nifsProof = some dummyResult := by
-    simpa only [before, PiDECBaseCompleteness.canonicalInput, seeded] using verified
+    simpa only [before, PiDECBaseCompleteness.canonicalInput, seeded] using! verified
   have recursiveResult : 0 < before.iteration → dummyResult = after.runningNext functionIndex := by
     intro positive
     have beforeZero : before.iteration = 0 := zero

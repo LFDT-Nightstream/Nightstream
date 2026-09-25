@@ -122,7 +122,7 @@ private theorem input (program : Program) (descriptor : Descriptor) :
   intro lane
   rw [wire_lane]
   simpa only [PiRLCProductRingSchedule.laneInvocation, PiRLCProductRingSchedule.descriptor_invocation]
-    using ProductInputMap.form program descriptor.invocation lane
+    using! ProductInputMap.form program descriptor.invocation lane
 
 private theorem quotient (program : Program) (descriptor : Descriptor) :
     (block program).quotientState? (RetainedLayout.logicalWidth program)

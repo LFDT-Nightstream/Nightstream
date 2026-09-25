@@ -217,7 +217,7 @@ theorem row?_eq (program : MatrixProgram.Program) {columns : Nat}
           intro lane bounded
           have component := equal ⟨lane, bounded⟩
           exact Option.some.inj (by
-            simpa only [cached, original, Option.map_some] using component)
+            simpa only [cached, original, Option.map_some] using! component)
 
 /-- Retain the original optional forms for all rows of one product
 invocation. The interface is loaded by the caller only once. -/

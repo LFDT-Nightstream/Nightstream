@@ -11,6 +11,7 @@ import NightstreamFPrime.Export.Stage1.Wide.PiRLCInputCheck
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCTransportValues
 import NightstreamFPrime.Export.Stage1.Wide.SamplerSourceValues
 import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
+import NightstreamFPrime.Export.Stage1.Wide.OpeningBinding
 import NightstreamFPrime.Export.Stage1.Wide.PhysicalSourceCustody
 import NightstreamFPrime.Export.Stage1.Wide.AssignmentTransportCommon
 import NightstreamFPrime.Export.Stage1.Wide.AssignmentTransportExecution
@@ -367,6 +368,7 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.core_inputs
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.completeEnv_correct
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.completeEnv_correct
+#audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.mul_hintInverse_eq_one
 
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.flatConstraints_varsBelow
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.outputWord_eval
@@ -1387,6 +1389,11 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.SetupBinding.contextKey_recomputed
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.SetupBinding.verificationKeyBinding_context
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.SetupBinding.step_or_collision
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.programRowsZero_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.step_or_collision_of_matrix
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.publicLogicalFits
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.freshHolds_implies_rowsAndPublic
+#audit_axioms NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.terminal_implies_stepOrCollision
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.completeEnv_inverse
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.completeEnv_flag
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.completeEnv_local_congr

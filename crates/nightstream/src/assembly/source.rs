@@ -158,19 +158,15 @@ fn checked_relocation<T: Clone + PartialEq>(
     Ok(())
 }
 
-pub(super) fn replace_application(
-    reference: &mut Envelope,
-    application: ApplicationPlan,
-    manifest: &Manifest,
-    counts: Counts,
-) -> Result<(), AssemblyError> {
-    let old = manifest.reference();
+/// Remove the reference application's rows, row instructions and recipes.
+/// The sealed application records supply them to the native loader.
+pub(super) fn strip_application(reference: &mut Envelope, manifest: &Manifest) -> Result<(), AssemblyError> {
     let source = &mut reference.source;
     let start = manifest.source_relocation.application_row_start;
     let end = manifest
         .source_relocation
         .next_preimage_row_start
-        .eval(old)?;
+        .eval(manifest.reference())?;
     let private_start = manifest.source_relocation.source_private_start;
     let private_end = manifest.source_relocation.reference_constant;
     source.rows.retain(|row| !(start..end).contains(&row.index));
@@ -180,6 +176,18 @@ pub(super) fn replace_application(
     source
         .batches
         .retain(|batch| !(private_start..private_end).contains(&batch.start));
+    Ok(())
+}
+
+pub(super) fn replace_application(
+    reference: &mut Envelope,
+    application: ApplicationPlan,
+    manifest: &Manifest,
+    counts: Counts,
+) -> Result<(), AssemblyError> {
+    let old = manifest.reference();
+    strip_application(reference, manifest)?;
+    let source = &mut reference.source;
 
     let forward = Mapping {
         manifest,
@@ -254,14 +262,8 @@ pub(super) fn replace_application(
     for expression in &mut reference.assignment.digest_expressions {
         checked_relocation(expression, &forward, &inverse, |m, value| m.expression(value))?;
     }
-    let split = source.rows.partition_point(|row| row.index < start);
-    source
-        .rows
-        .splice(split..split, application.rows.iter().cloned());
-    source.batches.extend(application.batches.iter().cloned());
-    source
-        .instructions
-        .extend(application.instructions.iter().cloned());
+    // Dynamic rows and recipes come from the sealed application records.
+    // This envelope retains only the relocated fixed source entries.
     source.relation.rows = manifest.geometry.logical_rows.eval(counts)?;
     source.relation.columns = manifest.geometry.logical_width.eval(counts)?;
     source.terminal = json!([1, [0, source.relation.rows, 16, 1]]);

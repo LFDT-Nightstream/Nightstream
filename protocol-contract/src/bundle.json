@@ -138,6 +138,7 @@
     "contract_migration": "protocol-contract/contract_migration.py",
     "contract_checks": "protocol-contract/contract_checks.py",
     "contract_render": "protocol-contract/contract_render.py",
-    "refresh_derived": "protocol-contract/refresh_derived.py"
+    "refresh_derived": "protocol-contract/refresh_derived.py",
+    "contract_ajtai": "protocol-contract/contract_ajtai.py"
   }
 }

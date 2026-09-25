@@ -29,19 +29,26 @@ the meaning or correctness of the data.
 
 Nightstream v1 uses `PaddedRowIdentity`:
 
-- one 24-variable row cube;
-- exact positive logical dimensions from the verifier-key relation artifact;
-- a 54-aligned full committed assignment `z=x||w` of at most 16,777,206 fields;
+- one 28-variable row cube;
+- exactly 6,377,555 logical rows in the selected verifier-key relation artifact;
+- a 54-aligned full committed assignment `z=x||w` of 264,627,486 fields;
 - the implicit `M_0=[I_m;0]` followed by 13 artifact-owned application matrices;
-- one reviewed joint PiCCS SumCheck with 24 rounds;
+- one reviewed joint PiCCS SumCheck with 28 rounds;
 - the norm terminal from `ct(y_(i,0))` for the same committed assignment;
 - no FE/NC split, column proof, column carrier, or extra beta challenge;
 - 17 PiRLC ring challenges from one bounded Poseidon2 sampler;
 - 16 deterministic signed-binary PiDEC children.
 
-The seeded Ajtai key also has one exact ChaCha8 row-and-chunk expansion with
-checked stream and chunk-boundary vectors. Its commitment operation is the
-fixed left matrix-vector product.
+The 22-row Ajtai key uses indexed RFC 8439 ChaCha20 blocks and reduces each
+block's first 256 bits modulo Goldilocks. Its commitment operation is the fixed
+left matrix-vector product. The setup checker tests the RFC block vector and
+wide reduction; these checks do not establish the security of the public seeded
+matrix.
+
+These values follow the [recorded Stage 1 owner decision](../decisions/fprime-stage1-main-ajtai-setup.md)
+and the fixed shape entered in commit `d4d1b39a5`. They do not describe every
+current `nightstream` application package. Current circuit correspondence
+remains an open evidence obligation.
 
 The package contains 104 atomic normative rules. It also fixes the canonical
 Structure stream, verifier-key digest, encoding, Poseidon2 parameters, 12-event
@@ -61,6 +68,12 @@ When these gates are closed by current review receipts, implementation can use
 this contract as its target. This state does not permit a production security
 claim. G2 through G5 require new Lean, Rust-origin, circuit, decider, and
 security evidence.
+
+The earlier `formal/nightstream-lean` project is absent from this checkout.
+Its former paths are not available evidence. The affected artifacts are
+unresolved and the Lean proof obligations remain open; historical paths remain
+in the sealed migration record. Refreshing this package does not renew old
+review receipts or establish a production security claim.
 
 ## Editing model
 

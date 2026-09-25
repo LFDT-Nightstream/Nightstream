@@ -96,7 +96,7 @@ theorem input_form {columns : Nat} (interface : BatchPlan.Interface columns)
     _ _ _ first prior (entry interface.oneColumn current lane)
   by_cases zero : current.val = 0 <;> by_cases even : current.val % 2 = 0 <;>
     simpa [inputProgram, BatchPlan.poseidonInterface, zero, even, SparseLayer.addConstant,
-      SparseForm.add, SparseForm.empty] using folded
+      SparseForm.add, SparseForm.empty] using! folded
 
 private def schedule : PoseidonRetainedFamily.Schedule (34 * 86) 34 where
   block := BatchPlan.poseidonBlock

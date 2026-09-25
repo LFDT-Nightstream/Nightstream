@@ -102,7 +102,7 @@ theorem state_below (interface : Interface) (offset : Nat) (inputs : Assumptions
   | succ count ih =>
       have below := Scalar.outputState_below (childInterface interface offset count) count
         (sourceOffset offset count) ih
-      simpa only [stateAtExpr, sourceOffset, Nat.add_mul, Nat.one_mul, Nat.add_assoc] using below
+      simpa only [stateAtExpr, sourceOffset, Nat.add_mul, Nat.one_mul, Nat.add_assoc] using! below
 
 theorem child_inputs (interface : Interface) (offset source : Nat) (inputs : Assumptions interface offset) :
     Scalar.Assumptions (childInterface interface offset source) (sourceOffset offset source) :=

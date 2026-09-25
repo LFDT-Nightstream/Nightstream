@@ -101,7 +101,7 @@ theorem children_complete {columns : Nat} (interface : Interface columns) (base 
     | zero =>
         intro bounded
         apply child_complete interface base initial ⟨0, bounded⟩ unit
-        simpa only [priorState, dif_pos rfl, stateAt] using initial_preserved interface base initial before
+        simpa only [priorState, dif_pos rfl, stateAt] using! initial_preserved interface base initial before
     | succ index ih =>
         intro bounded
         apply child_complete interface base initial ⟨index + 1, bounded⟩ unit

@@ -65,15 +65,16 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
       change 14751804 ≤ 15229594 + (index.val - 718) * 592
       omega
   have endpointEq : sourceStart + 584 + lane.val = endpointColumn family lane := by
+    unfold sourceStart index endpointInvocation endpointColumn endpointStart
+      PiCCSInvocations.challengeWitnessStart PiCCSInvocations.roundWitnessStart
+      PiCCSInvocations.outputWitnessStart PiCCSStarts.logicalFreshBase
     fin_cases family <;>
-      norm_num [sourceStart, index, endpointInvocation, endpointColumn, endpointStart,
-        PiCCSTranscriptDirectSemantics.statementLast, PiCCSTranscriptDirectSemantics.challengeLast,
+      norm_num [PiCCSTranscriptDirectSemantics.statementLast,
+        PiCCSTranscriptDirectSemantics.challengeLast,
         PiCCSTranscriptDirectSemantics.roundLast, PiCCSTranscriptDirectSemantics.outputLast,
         PiCCSTranscriptDirectSemantics.roundCount, PiCCSInputs.phaseOffset_eq,
-        PiCCSInvocations.challengeWitnessStart, PiCCSStarts.challengeWitnessStart_eq,
-        PiCCSInvocations.roundWitnessStart, PiCCSStarts.roundTranscriptWitnessStart_eq,
-        PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq,
-        PiCCSStarts.logicalFreshBase]
+        PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
+        PiCCSStarts.outputBindingWitnessStart_eq]
   calc
     (physicalInvocation (endpointInvocation family)).witnessStart + 584 + lane.val =
         Spartan.sourceToSpartan sourceStart + (584 + lane.val) := by rw [startEq]; omega

@@ -95,7 +95,6 @@ theorem permutation_agree (allowed : Nat → Prop) (left right : Array F)
       StoredPermutationExecution.localInput invocation right := by
     apply congrArg Array.ofFn
     funext column
-    dsimp only
     split_ifs with input
     · exact (invocationInputCombination invocation column.val).toR1CS.eval_eq_of_agree
         allowed (asEnv left) (asEnv right) (support _ input) agree.2

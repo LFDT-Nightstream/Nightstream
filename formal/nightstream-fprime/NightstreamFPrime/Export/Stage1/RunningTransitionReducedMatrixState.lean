@@ -70,7 +70,7 @@ theorem stateGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
         if_pos rfl, if_neg negative, ↓reduceIte, addSelected, stateWire, wireForm,
         RetainedBlock.ofSemantic, RetainedBlock.semantic,
         RunningTransitionDirectPlan.Location.form, initialIndex, currentIndex,
-        SparseForm.add, SparseForm.empty, List.nil_append] using right) rfl
+        SparseForm.add, SparseForm.empty, List.nil_append] using! right) rfl
   simpa only [major, middle, minor, Fin.encodeProd, Fin.mkDivMod, Nat.zero_mul,
     Nat.zero_add, Nat.mul_zero, stateForms] using decoded
 

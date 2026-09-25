@@ -174,11 +174,11 @@ This design follows three existing boundaries:
   soundness. The cvc5 results are inputs to these Lean checks.
 
 The Rust exporter reads existing immutable audit views, such as the
-[`R1CS snapshot`](../../crates/neo-fold-clean/src/engine/r1cs_circuit/relation.rs),
+[`R1CS snapshot`](../../crates/neo-fold-legacy/src/engine/r1cs_circuit/relation.rs),
 the
-[`Nebula constraint-source audit`](../../crates/neo-fold-clean/src/frontends/nebula/f_prime/constraint_source_audit.rs),
+[`Nebula constraint-source audit`](../../crates/neo-fold-legacy/src/frontends/nebula/f_prime/constraint_source_audit.rs),
 and the
-[`selective projected rows`](../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/selective_projected_rows.rs).
+[`selective projected rows`](../../crates/neo-fold-legacy/src/frontends/r1cs_f_prime/selective_projected_rows.rs).
 These views do not give permission to remove constraints.
 
 ## Paper obligation review gate

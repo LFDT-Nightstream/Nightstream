@@ -1,7 +1,7 @@
 # Parameters
 
 `neo-params` owns the SuperNeo Appendix B.2 Goldilocks profile and the exact
-shape census. `neo-fold-clean::paper::params::Params` is the protocol-layer
+shape census. `neo-fold-legacy::paper::params::Params` is the protocol-layer
 wrapper.
 
 ## Appendix B.2 core

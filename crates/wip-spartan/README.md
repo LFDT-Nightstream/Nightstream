@@ -2,7 +2,7 @@
 
 This crate is Nightstream's work-in-progress terminal Spartan backend. It accepts a direct sparse R1CS shape, proves it over Goldilocks, uses a Poseidon2 transcript, and opens the witness with WHIR.
 
-Nightstream calls this crate from the terminal R1CS path in `neo-fold-clean`. The crate does not synthesize circuits and does not implement the recursive folding protocol.
+Nightstream calls this crate from the terminal R1CS path in `neo-fold-legacy`. The crate does not synthesize circuits and does not implement the recursive folding protocol.
 
 This crate is a fork of [Spartan2](https://github.com/microsoft/Spartan2) by Microsoft (MIT License). The Microsoft copyright notice stays in `LICENSE`.
 
@@ -14,7 +14,7 @@ This crate is a fork of [Spartan2](https://github.com/microsoft/Spartan2) by Mic
 - WHIR polynomial commitment scheme
 - Lockstep repetition for the Appendix B.2 statistical target
 
-The prover checks the supplied sparse R1CS assignment before it creates a proof. The verifier reconstructs the public statement from verifier-owned inputs in `neo-fold-clean`.
+The prover checks the supplied sparse R1CS assignment before it creates a proof. The verifier reconstructs the public statement from verifier-owned inputs in `neo-fold-legacy`.
 
 ## Status
 
@@ -26,5 +26,5 @@ Removed inherited paths include Bellpepper synthesis, curve engines, Hash-MLE co
 
 ```sh
 cargo test -p wip-spartan --release
-cargo test -p neo-fold-clean --release --test system_lean_native_ccs_manifest
+cargo test -p neo-fold-legacy --release --test system_lean_native_ccs_manifest
 ```

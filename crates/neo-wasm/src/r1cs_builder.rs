@@ -2,7 +2,7 @@
 //!
 //! Owned locally: the wasm tagged builder wraps this with constraint-scope
 //! tagging. The output is a CCS structure (via `r1cs_to_ccs`) ready to hand
-//! to `neo-fold-clean`'s direct-CCS frontend.
+//! to `neo-fold-legacy`'s direct-CCS frontend.
 
 use neo_ccs::{r1cs_to_ccs, CcsStructure, Mat};
 use neo_math::F;

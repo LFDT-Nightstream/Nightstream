@@ -9,55 +9,14 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Main
 
 /-! Stream the wide physical package through the existing typed writers.
-The ordinary source rows are shared with witness generation and the matrix
-consumer. This entry point does not change the production identity pins. -/
+The written parts are the result of `AuthorityStream.prepare`, so the emitted
+archive, matrix program and transport are the ones that `PackageAuthority`
+and `Wide.PackageCompleteness` describe. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.Emitter
 
 open NightstreamFPrime.Export.Codec NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Main
-
-def prepareCommon : IO CircuitPackage := do
-  let groups ← prepareWitnessGroups
-  let statement ← IO.asTask (prepareRowBlock .statementBinding)
-  let piDec ← IO.asTask (prepareRowBlockDeferred OrdinaryRowPlan.piDecBlock)
-  let running ← IO.asTask (prepareRowBlockDeferred OrdinaryRowPlan.runningTransitionBlock)
-  let permutations ← IO.asTask (pure ((PermutationPlan.piCcsBlocks ()).flatMap PermutationPlan.Block.expand))
-  let base := Data.circuitPackageOf [] [] [] []
-  progress "wide_prepared=pilot"
-  let mut batches := base.witnessBatches
-  let mut instructions := base.witnessInstructions
-  let mut assertions := base.assertionRows
-  let bound ← preparedRowBlock statement
-  instructions := instructions ++ bound.witnessInstructions
-  assertions := assertions ++ bound.assertionRows
-  for (label, task) in [("initial", groups.initialClaim), ("sumcheck", groups.sumcheck),
-      ("eval_k", groups.evalK), ("eval_a", groups.evalA), ("ccs", groups.ccs),
-      ("norm", groups.norm), ("final", groups.finalIdentity)] do
-    let packet ← preparedWitnessGroup task
-    batches := batches ++ packet.batches
-    instructions := instructions ++ packet.witnessInstructions
-    assertions := assertions ++ packet.assertionRows
-    progress s!"wide_prepared={label}"
-  for (label, task) in [("pi_dec", piDec), ("running", running)] do
-    let packet ← preparedRowBlock task
-    instructions := instructions ++ packet.witnessInstructions
-    assertions := assertions ++ packet.assertionRows
-    progress s!"wide_prepared={label}"
-  let permutationInvocations ← match permutations.get with
-    | .ok value => pure value
-    | .error error => throw error
-  progress s!"wide_prepared=permutations count={permutationInvocations.length}"
-  let piDecBatches := WitnessProgram.piDecBatches Data.logicalWidth Data.publicFits
-  progress s!"wide_prepared=pi_dec_hints count={piDecBatches.length}"
-  return { base with
-    permutationInvocations := permutationInvocations
-    compactRowTemplates := PiRLCCombinationTemplates.templates
-    compactRowInvocations := PiRLCCombinationInvocations.invocations
-    witnessBatches := batches ++ piDecBatches ++
-      WitnessProgram.directRunningTransitionBatches Data.logicalWidth Data.publicFits
-    witnessInstructions := instructions
-    assertionRows := assertions }
 
 def writeCircuit (handle : IO.FS.Handle) (value : CircuitPackage) : IO Unit := do
   writeByte handle 91
@@ -90,30 +49,14 @@ def writeCircuit (handle : IO.FS.Handle) (value : CircuitPackage) : IO Unit := d
   writeValue handle ((option TerminalLayout.format).encode value.terminal)
   writeByte handle 93
 
+/-- Emit exactly the parts built by the proved pure constructor. -/
 def prepare : IO AuthorityStream.Parts := do
-  progress "wide_stage=common"
-  let common ← prepareCommon
-  progress s!"wide_stage=relocate common_instructions={common.witnessInstructions.length}"
-  let base ← match PhysicalPackage.ofCommon common with
-    | .ok value => pure value
-    | .error message => throw (IO.userError message)
-  progress s!"wide_stage=application base_rows={base.layout.rowCount}"
-  let (package, application) ← match ApplicationPackage.ofBase Poseidon2HashChainV1Package.application base with
-    | .ok value => pure value
-    | .error message => throw (IO.userError message)
+  progress "wide_stage=prepare"
   let some compiled := Layout.PiRlcWideSampler.RangePlan.compile?
     | throw (IO.userError "wide range compiler rejected the sampler")
-  let matrix ← match PhysicalMatrixSource.program Poseidon2HashChainV1Package.application compiled with
-    | .ok value => pure value
-    | .error message => throw (IO.userError message)
-  let width := RetainedLayout.logicalWidth Poseidon2HashChainV1Package.application
-  let transport ← match AssignmentTransport.plan Poseidon2HashChainV1Package.application
-      package.layout.totalColumnCount with
-    | .ok value => pure value
-    | .error message => throw (IO.userError message)
-  unless transport.coordinateCount = width do
-    throw (IO.userError s!"transport width {transport.coordinateCount} differs from matrix width {width}")
-  return AuthorityStream.ofChildren package matrix application transport
+  match AuthorityStream.prepare compiled with
+  | .ok parts => pure parts
+  | .error message => throw (IO.userError message)
 
 def writeSealed (handle : IO.FS.Handle) (parts : AuthorityStream.Parts) : IO Unit := do
   writeByte handle 91

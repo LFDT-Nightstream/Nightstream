@@ -1,0 +1,52 @@
+{
+  "counter_sets" : [
+    {
+      "counters" : [
+        "GPUTimestamp"
+      ],
+      "name" : "timestamp"
+    }
+  ],
+  "device" : "Apple M1 Max",
+  "dispatch_boundary_sampling" : false,
+  "max_threadgroup_bytes" : 32768,
+  "pipelines" : [
+    {
+      "function" : "production_ajtai_partials",
+      "max_threads_per_threadgroup" : 1024,
+      "static_threadgroup_bytes" : 864,
+      "thread_execution_width" : 32
+    },
+    {
+      "function" : "ajtai_reduce_columns",
+      "max_threads_per_threadgroup" : 1024,
+      "static_threadgroup_bytes" : 0,
+      "thread_execution_width" : 32
+    },
+    {
+      "function" : "dec_sparse_ring_partials",
+      "max_threads_per_threadgroup" : 128,
+      "static_threadgroup_bytes" : 0,
+      "thread_execution_width" : 32
+    },
+    {
+      "function" : "dec_sparse_ring_sum_chunks",
+      "max_threads_per_threadgroup" : 1024,
+      "static_threadgroup_bytes" : 0,
+      "thread_execution_width" : 32
+    },
+    {
+      "function" : "dec_add_geometric_ring_forms",
+      "max_threads_per_threadgroup" : 1024,
+      "static_threadgroup_bytes" : 0,
+      "thread_execution_width" : 32
+    },
+    {
+      "function" : "dec_bar_ring_forms_in_place",
+      "max_threads_per_threadgroup" : 1024,
+      "static_threadgroup_bytes" : 0,
+      "thread_execution_width" : 32
+    }
+  ],
+  "stage_boundary_sampling" : true
+}

@@ -598,7 +598,7 @@ theorem check_implies_tableTruth_or_badEvent
           (terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message)
           certificate := by
       simpa only [SumCheckInitial.semanticGhosts, canonicalGhosts,
-        outputMatches] using honestAtPolynomial
+        outputMatches] using! honestAtPolynomial
     have reduced :=
       SumCheckInitial.checked_implies_tableObligations_or_mixingRoot_or_badChallenge
         ops laws zeroLaws (data.toJointData ops) alpha gamma

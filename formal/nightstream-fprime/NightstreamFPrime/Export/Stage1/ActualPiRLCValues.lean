@@ -207,7 +207,7 @@ theorem rowsZero_implies_sum
     outputValue geometry assignment descriptor =
       (Finset.range (descriptor.source.val + 1)).sum
         (contributionAt geometry assignment descriptor) := by
-  simpa only [withSource_self] using prefix_sum geometry assignment one rows
+  simpa only [withSource_self] using! prefix_sum geometry assignment one rows
     descriptor descriptor.source.val descriptor.source.isLt
 
 /-- The PiDEC commitment parent is the complete sum of the shared PiCCS values. -/

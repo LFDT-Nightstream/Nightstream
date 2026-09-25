@@ -412,9 +412,10 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
   all_goals
     try simp only [PiCCSStarts.challengeWitnessStart_eq,
       PiCCSStarts.roundTranscriptWitnessStart_eq]
+  all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq] at *
   all_goals omega
 
 def endpointTranscriptInvocation (family : Fin familyCount) :
@@ -457,9 +458,10 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
   all_goals
     try simp only [PiCCSStarts.challengeWitnessStart_eq,
       PiCCSStarts.roundTranscriptWitnessStart_eq]
+  all_goals try unfold PiCCSStarts.logicalFreshBase
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at *
+      PiCCSInputs.phaseOffset_eq] at *
   all_goals omega
 
 private theorem packageSourceColumn_congr
@@ -528,10 +530,10 @@ theorem sourceForm_eval
     exact (RunningTransitionDirectPlan.transitionEnv_of_outside program base
       (endpointColumn outputFamily lane) (endpointColumn_lt_source outputFamily lane) (by
         right
-        norm_num [endpointColumn, endpointStart, outputFamily,
-          PiCCSInputs.phaseOffset_eq,
-          PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
-          PiCCSStarts.logicalFreshBase] <;> omega)).symm
+        unfold endpointColumn endpointStart outputFamily
+          PiCCSStarts.logicalFreshBase
+        rw [PiCCSInputs.phaseOffset_eq]
+        norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] <;> omega)).symm
   · rw [sourceForm, dif_neg output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
         groupValue products encoding]
@@ -681,7 +683,7 @@ private theorem roundInitialState_eq_challengeFinalState :
     simpa [PiCCSInvocations.roundInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeFinalState,
-      PiCCSInvocations.sharedInterface] using
+      PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.challengeTrace_state_matches
         Data.logicalWidth Data.publicFits
   exact initialEq.symm.trans
@@ -715,7 +717,7 @@ private theorem outputInitialState_eq_roundFinalState :
     simpa [PiCCSInvocations.outputInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptFinalState,
-      PiCCSInvocations.sharedInterface] using
+      PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.roundTrace_state_matches Data.logicalWidth
         Data.publicFits
   exact initialEq.symm.trans
@@ -1314,7 +1316,7 @@ theorem roundInitialState_eq_challengeFinalState_of_shape
     simpa [PiCCSInvocations.roundInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.challengeFinalState,
-      PiCCSInvocations.sharedInterface] using
+      PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
         relationPublicFits
   exact initialEq.symm.trans
@@ -1340,7 +1342,7 @@ theorem outputInitialState_eq_roundFinalState_of_shape
     simpa [PiCCSInvocations.outputInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.outputBindingInterface,
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.roundTranscriptFinalState,
-      PiCCSInvocations.sharedInterface] using
+      PiCCSInvocations.sharedInterface] using!
       PiCCSInvocations.roundTrace_state_matches relationLogicalWidth
         relationPublicFits
   exact initialEq.symm.trans
@@ -1413,13 +1415,13 @@ theorem traces_and_endpoints_imply_transcriptSpecs
     rw [statementEndpoint] at trace
     rw [zeroState_eq_evalZero (Spartan.pullback env)] at trace
     simpa [PiCCSActionPayloadBlock.statementActions,
-      PiCCSInvocations.statementActions] using trace
+      PiCCSInvocations.statementActions] using! trace
   · apply ChallengeDerivation.trace_implies_specHolds
     have trace := traces.challenge
     rw [statementEndpoint, challengeEndpoint] at trace
     rw [← PiCCSInvocations.challengeInitialState_eq_statementFinalState
       relationLogicalWidth relationPublicFits] at trace
-    simpa [PiCCSActionPayloadBlock.challengeActions] using trace
+    simpa [PiCCSActionPayloadBlock.challengeActions] using! trace
   · apply (RoundTranscript.trace_iff_specHolds
       (PiCCSInvocations.roundInterface relationLogicalWidth relationPublicFits)
       PiCCSInvocations.roundWitnessStart
@@ -1428,13 +1430,13 @@ theorem traces_and_endpoints_imply_transcriptSpecs
     rw [challengeEndpoint, roundEndpoint] at trace
     rw [← roundInitialState_eq_challengeFinalState_of_shape
       relationLogicalWidth relationPublicFits] at trace
-    simpa [PiCCSActionPayloadBlock.roundActions] using trace
+    simpa [PiCCSActionPayloadBlock.roundActions] using! trace
   · apply OutputBinding.trace_implies_specHolds
     have trace := traces.output
     rw [roundEndpoint, outputEndpoint] at trace
     rw [← outputInitialState_eq_roundFinalState_of_shape
       relationLogicalWidth relationPublicFits] at trace
     simpa [PiCCSActionPayloadBlock.outputActions,
-      PiCCSInvocations.outputActions] using trace
+      PiCCSInvocations.outputActions] using! trace
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan

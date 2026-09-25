@@ -1,0 +1,1446 @@
+{
+  "schema": 1,
+  "source_base": "0c92b267bb35802479778ed3d63441905e3ba470",
+  "run_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5",
+  "archive_restoration": {
+    "schema": 1,
+    "source_commit": "0c92b267bb35802479778ed3d63441905e3ba470",
+    "archives": [
+      {
+        "file": "NATIVE_ENVELOPE_EVIDENCE-b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb.zip",
+        "bytes": 39165413,
+        "sha256": "b9ab74dc98c7d5875dcc5925d4f7be4ca42729f841f3708c24043f2096f679fb",
+        "restored_as": "envelope"
+      },
+      {
+        "file": "NATIVE_TERMINAL_CHILD_WITNESSES_EVIDENCE-933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e.zip",
+        "bytes": 162917001,
+        "sha256": "933ef4b4e31310b59abf1ff07856efe308d39513a88c4af36966a68b83d3f10e",
+        "restored_as": "children"
+      },
+      {
+        "file": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+        "bytes": 262454838,
+        "sha256": "b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1",
+        "restored_as": "reference-later"
+      },
+      {
+        "file": "PIRLC_WITNESS_REPLAY_EVIDENCE-d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4.zip",
+        "bytes": 644154701,
+        "sha256": "d213c2c91f23b022587b85f1cf9bc291c3ed3ae35f1400ab66f1128b12e089b4",
+        "restored_as": "original-sources"
+      },
+      {
+        "file": "NIGHTSTREAM_INDEPENDENT_REPLAY_EVIDENCE-a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e.tar.zst",
+        "bytes": 375680946,
+        "sha256": "a5c99c90168e303ea239bb3033ff48235e1f872bd3135a3da9d6807866912d7e",
+        "restored_as": "independent"
+      }
+    ],
+    "scope": "Archive restoration only. The restored bytes are inputs to later semantic comparisons.",
+    "protected_reproduction": "unchanged; no protected-checker acceptance is claimed"
+  },
+  "restored_nonzero_lean_verifier": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 1500,
+    "elapsed_seconds": 9.178864595945925,
+    "command": [
+      "bash",
+      "scripts/validate.sh",
+      "pi-dec-input-check",
+      "9705822157724451396",
+      "520958727644325895",
+      "9285622073986934000",
+      "874020794279380938",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs/pi_ccs_input.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs/children.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-nonzero-lean.json"
+    ],
+    "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream/formal/nightstream-fprime",
+    "evidence": "development diagnostic only"
+  },
+  "restored_nonzero_native_comparison": {
+    "outcome": "passed",
+    "exit": 0,
+    "cap_seconds": 300,
+    "elapsed_seconds": 20.15141616598703,
+    "command": [
+      "cargo",
+      "run",
+      "-p",
+      "neo-fold-clean",
+      "--release",
+      "--bin",
+      "generate_pi_ccs_fixture",
+      "--",
+      "check-owned-nifs",
+      "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-clean/reference-later/nonzero-nifs",
+      "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/restored-nonzero-lean.json"
+    ],
+    "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+    "evidence": "development diagnostic only"
+  },
+  "canonical_proof_bytes_compared": 945983,
+  "native_pidec_mutations_rejected": 55,
+  "scope": "Selected local CPU–Lean 1-to-2-to-3 conformance goal completed at 2026-09-22T14:04:47.952118Z. Archive restoration, current CPU staged execution, fresh Lean verifier checks, independent first-fold generation and full current CPU1 comparisons, independent second-fold C/R/D and successor comparisons, complete first-successor input connection, final-state-3 terminal acceptance and all three selected rejections, and current CPU/Lean handoff checks passed. Iteration-2 C remains retained computation under its source/input audit. The selected 9/10 engineering conformance target is met; no cryptographic security bound or universal soundness is claimed. Third-fold work and failures remain historical evidence; the broader registered 2-to-3-to-4 obligation remains open. CI and Metal are out of scope; protected external acceptance is not claimed.",
+  "current_native_run": {
+    "outcome": "passed",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/conformance.json",
+    "native_phase_count": 25,
+    "elapsed_phase_seconds": 2230.223458676366,
+    "longest_phase_seconds": 180.0596788560506,
+    "peak_rss_bytes": 14038003712,
+    "memory_cap_bytes": 17179869184,
+    "scope": "Current CPU staged folds 1, 2 and 3; own returned witnesses and state feed each next fold; iteration-4 terminal acceptance and rehashed false-opening rejection; complete first/later archive comparisons. This is staged execution, not a full-call performance measurement.",
+    "phases": [
+      {
+        "request": {
+          "phase": "base",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized"
+        },
+        "elapsed_seconds": 39.123110092943534,
+        "maximum_resident_bytes": 5984182272,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/base.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 36.12297290912829,
+        "maximum_resident_bytes": 5984526336,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 101.54171518189833,
+        "maximum_resident_bytes": 9895927808,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 28.423649139003828,
+        "maximum_resident_bytes": 6492618752,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 61.43147580092773,
+        "maximum_resident_bytes": 6708383744,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 140.34840226196684,
+        "maximum_resident_bytes": 10207490048,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 1
+        },
+        "elapsed_seconds": 74.93276144796982,
+        "maximum_resident_bytes": 6708486144,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 1
+        },
+        "elapsed_seconds": 66.98762228991836,
+        "maximum_resident_bytes": 5984686080,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-1.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 62.62917951005511,
+        "maximum_resident_bytes": 6017167360,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 145.04245685995556,
+        "maximum_resident_bytes": 13578027008,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 31.0722941798158,
+        "maximum_resident_bytes": 6945665024,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 69.8312488400843,
+        "maximum_resident_bytes": 6886322176,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 148.25051345606335,
+        "maximum_resident_bytes": 10263867392,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 2
+        },
+        "elapsed_seconds": 85.43635500990786,
+        "maximum_resident_bytes": 6886436864,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 2
+        },
+        "elapsed_seconds": 76.88334843888879,
+        "maximum_resident_bytes": 5983899648,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-2.json"
+      },
+      {
+        "request": {
+          "phase": "sources",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 72.18298540194519,
+        "maximum_resident_bytes": 6036287488,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/sources-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "ccs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 155.20646826480515,
+        "maximum_resident_bytes": 14038003712,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/ccs-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "rlc",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 32.274151080986485,
+        "maximum_resident_bytes": 7020490752,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/rlc-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "split",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 75.53327616606839,
+        "maximum_resident_bytes": 6908973056,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/split-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "openings",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 156.85570278018713,
+        "maximum_resident_bytes": 10315894784,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/openings-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "nifs",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 3
+        },
+        "elapsed_seconds": 90.83871912397444,
+        "maximum_resident_bytes": 6908989440,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/nifs-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "successor",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 3
+        },
+        "elapsed_seconds": 81.73448407580145,
+        "maximum_resident_bytes": 6013882368,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/successor-step-3.json"
+      },
+      {
+        "request": {
+          "phase": "terminal",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 4
+        },
+        "elapsed_seconds": 180.0596788560506,
+        "maximum_resident_bytes": 10704257024,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/terminal-step-4.json"
+      },
+      {
+        "request": {
+          "phase": "mutation",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "step": 4
+        },
+        "elapsed_seconds": 42.12376296892762,
+        "maximum_resident_bytes": 6021619712,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/mutation-step-4.json"
+      },
+      {
+        "request": {
+          "phase": "reject",
+          "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed",
+          "engine": "optimized",
+          "step": 4
+        },
+        "elapsed_seconds": 175.35712453909218,
+        "maximum_resident_bytes": 10704265216,
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current-fixed/logs/reject-step-4.json"
+      }
+    ]
+  },
+  "retained_independent_C_transition": {
+    "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/retained-c-transition.json",
+    "scope": "Actual content comparisons connect retained independent C generation to the current CPU iteration-2 fold. All 21 missing C finish rejection cases passed under the 300-second guard.",
+    "finish_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/continuation-c-finish-rejections.log",
+      "cases": [
+        {
+          "case": "missing-round",
+          "reason": "final PiCCS replay requires all 28 Lean rounds"
+        },
+        {
+          "case": "changed-causal-round",
+          "reason": "Lean round 27 differs from the causal public transcript"
+        },
+        {
+          "case": "duplicate-outputs",
+          "reason": "duplicate final PiCCS output path"
+        },
+        {
+          "case": "aliased-outputs",
+          "reason": "duplicate final PiCCS output path"
+        },
+        {
+          "case": "existing-last-output",
+          "reason": "output already exists"
+        },
+        {
+          "case": "schema",
+          "reason": "unexpected complete original evaluation schema"
+        },
+        {
+          "case": "missing-family",
+          "reason": "expected the complete original Pad and matrix families"
+        },
+        {
+          "case": "wrong-point",
+          "reason": "original evaluation point differs from the Lean transcript"
+        },
+        {
+          "case": "point-width",
+          "reason": "expected array length 28"
+        },
+        {
+          "case": "pad-sources",
+          "reason": "expected array length 17"
+        },
+        {
+          "case": "pad-lanes",
+          "reason": "expected array length 54"
+        },
+        {
+          "case": "pad-extension",
+          "reason": "expected array length 2"
+        },
+        {
+          "case": "matrix-sources",
+          "reason": "expected array length 17"
+        },
+        {
+          "case": "matrix-ports",
+          "reason": "expected array length 14"
+        },
+        {
+          "case": "matrix-lanes",
+          "reason": "expected array length 54"
+        },
+        {
+          "case": "matrix-extension",
+          "reason": "expected array length 2"
+        },
+        {
+          "case": "pad-noncanonical",
+          "reason": "noncanonical Goldilocks word"
+        },
+        {
+          "case": "matrix-noncanonical",
+          "reason": "noncanonical Goldilocks word"
+        },
+        {
+          "case": "matrix-word-type",
+          "reason": "Natural number expected"
+        },
+        {
+          "case": "changed-pad",
+          "reason": "independent final PiCCS check rejected"
+        },
+        {
+          "case": "changed-matrix",
+          "reason": "independent final PiCCS check rejected"
+        }
+      ],
+      "command": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 23.351723870029673,
+        "command": [
+          "python3",
+          "-B",
+          "formal/nightstream-fprime/tests/check_piccs_finish_rejection.py",
+          "formal/nightstream-fprime/.lake/build/bin/replayPiCCSPrefix",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/public.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/c-evaluations.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/c-finish-rejections",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-0.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-1.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-2.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-3.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-4.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-5.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-6.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-7.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-8.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-9.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-10.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-11.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-12.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-13.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-14.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-15.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-16.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-17.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-18.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-19.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-20.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-21.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-22.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-23.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-24.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-25.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-26.json",
+          "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/rounds/round-27.json"
+        ],
+        "cwd": "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+        "evidence": "development diagnostic only"
+      }
+    }
+  },
+  "independent_iteration_2_reductions": {
+    "outcome": "passed",
+    "source_iteration": 2,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3",
+    "coordinator_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/continuation-reductions.log",
+    "C_origin": "Retained independent C computation imported through retained-c-transition.json; no new C generation is claimed.",
+    "D_matrix_batches": {
+      "passed": 39,
+      "indices": "0 through 38",
+      "receipts": "independent-continuation/step-2-to-3/logs/d-matrix-batch-N.json under run_directory",
+      "per_command_cap_seconds": 1500
+    },
+    "D_finish": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish.json",
+      "cap_seconds": 1500,
+      "elapsed_seconds": 6.526663064956665,
+      "children_bytes": 446185,
+      "complete_C_R_D_result_bytes": 4722709
+    },
+    "NIFS_comparison": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/nifs-comparison.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/nifs-comparison.log",
+      "cap_seconds": 300,
+      "elapsed_seconds": 19.995953798294067,
+      "canonical_proof_bytes_compared": 945983,
+      "native_PiDEC_result_fields": 17,
+      "native_PiDEC_mutations_rejected": 55,
+      "scope": "New independent R/D results combined with retained independent C match the retained native result and every proof byte. retained-c-transition.json records the exact current CPU proof connection."
+    },
+    "D_finish_rejections": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish-rejections.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/d-finish-rejections.log",
+      "cap_seconds": 300,
+      "elapsed_seconds": 41.38497996330261,
+      "cases_rejected": 30
+    },
+    "current_CPU_parent": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-parent.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-parent.log",
+      "receipt_written_utc": "2026-09-22T01:33:25.966345Z",
+      "cap_seconds": 300,
+      "elapsed_seconds": 20.691837165039033,
+      "coefficients_compared": 253011276,
+      "tail_mutation_rejected": true,
+      "scope": "Every current CPU parent coefficient matches the new Lean parent ranges as a canonical Goldilocks field value. Shape, storage validity and full range coverage are checked; raw JSON byte equality is not claimed."
+    },
+    "current_CPU_children": {
+      "outcome": "passed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/retained-c-transition.json",
+      "independent_comparison_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/digits-comparison.json",
+      "child_files": 16,
+      "bytes_compared": 579873475,
+      "scope": "Exact current CPU child file bytes equal the retained targets checked against new independent Lean digit ranges."
+    },
+    "scope": "Completed selected iteration-2 independent R/D generation and comparison, with retained imported C and a direct current CPU parent connection. The completed selected 1-to-2-to-3 result, complete input connection and final-state-3 terminal checks are recorded under selected_1_to_2_to_3. This does not close the broader registered 2-to-3-to-4 obligation."
+  },
+  "independent_iteration_2_successor": {
+    "outcome": "passed",
+    "from_iteration": 2,
+    "to_iteration": 3,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-successor.json",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-successor.log",
+    "elapsed_seconds": 1211.0865474939346,
+    "canonical_rows": {
+      "outcome": "passed",
+      "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/canonical-rows.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/canonical-rows.json",
+      "cap_seconds": 1500,
+      "elapsed_seconds": 507.1356806755066,
+      "active_rows": 6377559,
+      "canonical_blocks": 23,
+      "matrix_count": 14,
+      "padding_rows": 262057897,
+      "carrier_coefficients": 253011276,
+      "public_coefficients": 270,
+      "zero_tail_coefficients": 45,
+      "scope": "Executed active canonical-row checks on the newly generated carrier; padding coverage uses the existing proof."
+    },
+    "canonical_row_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/canonical-row-rejections.log",
+      "cases_rejected": 8,
+      "cap_seconds": 300
+    },
+    "physical_assignment_commitment_rejections": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/physical-rejections.log",
+      "cases_rejected": 26,
+      "cap_seconds": 300
+    },
+    "fresh_claim": {
+      "outcome": "passed",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/fresh-claim-comparison.log",
+      "commitment_coefficients": 1188,
+      "public_coefficients": 270,
+      "complete_claim_bytes": 39448,
+      "changed_target_rejected": true
+    },
+    "current_CPU_NIFS_comparison": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-nifs.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-nifs.log",
+      "cap_seconds": 300,
+      "canonical_proof_bytes_compared": 945983,
+      "native_PiDEC_mutations_rejected": 55,
+      "scope": "Complete independent C/R/D fields and raw Lean-field proof encoding compared with the current CPU snapshot previously checked by Lean; iteration-2 C remains retained computation."
+    },
+    "current_CPU_output_comparisons": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-outputs.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-2-current-outputs.log",
+      "receipt_written_utc": "2026-09-22T01:53:58.362050Z",
+      "cap_seconds": 300,
+      "caller_bytes": 1446131,
+      "caller_private_words": 177326,
+      "caller_public_words": 278,
+      "caller_result_fields": 7,
+      "caller_connection": "Complete independent caller equals the fresh Lean caller already bound to every current CPU caller word and result field.",
+      "physical_bytes": 234755400,
+      "physical_comparison": "exact complete bytes",
+      "fresh_witness_bytes": 107246512,
+      "current_fresh_witness_bytes": 107246513,
+      "fresh_claim_bytes": 39448,
+      "current_fresh_claim_bytes": 39449,
+      "fresh_JSON_comparison": "Complete bodies equal; current witness and claim each add exactly one final LF.",
+      "child_files": 16,
+      "child_bytes": 579873475,
+      "child_connection": "Current CPU files equal retained native-material targets checked against independently generated Lean digit ranges."
+    },
+    "own_successor_handoff": {
+      "outcome": "passed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/handoff.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/handoff.json",
+      "next_iteration": 3,
+      "Lean_inputs": [
+        "fresh-witness.json",
+        "fresh-claim.json",
+        "children.json",
+        "digits-0.jsonl",
+        "digits-1.jsonl"
+      ],
+      "scope": "Lean and native successor requests match; the next Lean source projection consumes only the returned Lean values."
+    },
+    "iteration_3_source_preparation": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-prepare.json",
+      "projection_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/source-projection.json",
+      "receipt_written_utc": "2026-09-22T01:54:33.624030Z",
+      "mode": "feedback",
+      "public_bytes": 470997,
+      "source_bytes": 731303596,
+      "scope": "Historical preparation of iteration-3 inputs from the newly generated Lean successor. Independent 3-to-4 production is outside the selected 1-to-2-to-3 goal."
+    },
+    "scope": "Completed 2-to-3 successor generation, canonical-row and rejection checks, current CPU comparisons, and historical preparation of Lean iteration-3 input. The selected goal requires the complete input connection from independently generated 1-to-2 and final-state-3 terminal checks; it does not require a third independent fold."
+  },
+  "independent_iteration_3_C": {
+    "outcome": "passed",
+    "source_iteration": 3,
+    "source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+    "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
+    "source_projection_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/source-projection.json",
+    "C_origin": "New independent C computation from Lean's own iteration-2 successor; source preparation is recorded in independent_iteration_2_successor.iteration_3_source_preparation.",
+    "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-ccs.json",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-ccs.log",
+    "receipt_written_utc": "2026-09-22T06:21:43.460448Z",
+    "elapsed_seconds": 14146.211322538089,
+    "logs_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs",
+    "child_receipts": {
+      "scope": "Counts and maxima use only the stages in finish-step-3-ccs.log. Receipt and log names below are relative to logs_directory.",
+      "passed": 798,
+      "Lean_passed": 286,
+      "Python_passed": 512,
+      "Lean_cap_seconds": 1500,
+      "Python_cap_seconds": 300,
+      "cap_authority": "AGENTS.md per-command execution caps",
+      "longest_Lean_receipt": "c-matrix-batch-3.json",
+      "longest_Lean_seconds": 1220.8539896011353,
+      "longest_Python_receipt": "c-finish-rejections.json",
+      "longest_Python_seconds": 23.501834630966187
+    },
+    "rounds": {
+      "comparison_receipt": "c-round-comparison.json",
+      "passed": 28,
+      "matched_K_coefficients": 280,
+      "matched_field_words": 560,
+      "matched_transcript_transitions": 28,
+      "changed_targets_rejected": 28
+    },
+    "C_matrix_batches": {
+      "passed": 12,
+      "receipts": "c-matrix-batch-0.json through c-matrix-batch-11.json"
+    },
+    "terminal_prefix": {
+      "comparison_receipt": "c-terminal-prefix-comparison.json",
+      "norm_sources": 17,
+      "fresh_matrices": 14,
+      "compared_K_values": 31,
+      "compared_field_words": 62,
+      "canonical_field_bytes": 496,
+      "norm_and_fresh_target_mutations_rejected": true,
+      "scope": "Coefficient-zero fields only; complete evaluations are checked separately below."
+    },
+    "complete_evaluations": {
+      "comparison_receipt": "c-evaluation-comparison.json",
+      "sources": 17,
+      "Pad_K_values": 918,
+      "matrix_K_values": 12852,
+      "compared_K_values": 13770,
+      "compared_field_words": 27540,
+      "point_K_values": 28,
+      "fresh_source_nonconstant_K_values": 795,
+      "pad_and_matrix_target_mutations_rejected": true
+    },
+    "complete_C_encoding": {
+      "comparison_receipt": "c-complete-bytes.json",
+      "phase_fields": 15,
+      "proof_input_field_words": 29288,
+      "outgoing_state_words": 8,
+      "Lean_input_bytes": 754531,
+      "native_input_bytes": 754532,
+      "input_comparison": "Complete canonical bodies equal; native input adds exactly one optional final LF.",
+      "exact_phase_bytes": 510404,
+      "consistent_changed_target_and_changed_proof_word_rejected": true,
+      "scope": "Complete canonical PiCCS input, phase encoding and package proof-input words; full NIFS encoding remains separate."
+    },
+    "finish_rejections": {
+      "receipt": "c-finish-rejections.json",
+      "cases_rejected": 21,
+      "scope": "Finish-original input and output rejection."
+    },
+    "comparison_target": {
+      "native_generation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-native.json",
+      "scope": "Freshly generated native iteration-3 target in this continuation. Direct complete comparisons with cpu-current-fixed/fold-3 were not completed and are outside the selected goal."
+    },
+    "scope": "Historical completed independent iteration-3 C generation and comparison. Remaining 3-to-4 production and comparison are outside the owner-selected 1-to-2-to-3 goal. The broader registered 2-to-3-to-4 obligation is not closed."
+  },
+  "independent_iteration_3_reductions": {
+    "outcome": "running",
+    "source_iteration": 3,
+    "source_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/producer-sources.json",
+    "previous_attempt": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/finish-step-3-reductions.log",
+      "outcome": "failed",
+      "exit": 1,
+      "elapsed_seconds": 912.1048575739842
+    },
+    "continuation_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.log",
+    "continuation_events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-events.jsonl",
+    "logs_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs",
+    "receipt_paths": "Child receipt and log names below are relative to logs_directory; generated range files are in its parent directory.",
+    "R_generation": {
+      "outcome": "passed",
+      "receipts": "rlc-0.json and rlc-1.json",
+      "outputs": "parent-0.jsonl and parent-1.jsonl",
+      "block_ranges": "[0,74272) and [74272,4685394)",
+      "covered_coefficients": 253011276,
+      "output_bytes": 2053841062,
+      "per_command_cap_seconds": 1500,
+      "scope": "Generated from the new independent C input and Lean successor sources, with compact zero ranges."
+    },
+    "digit_generation": {
+      "outcome": "passed",
+      "receipts": "digits-0.json and digits-1.json",
+      "outputs": "digits-0.jsonl and digits-1.jsonl",
+      "block_ranges": "[0,74272) and [74272,4685394)",
+      "output_bytes": 705969659,
+      "per_command_cap_seconds": 1500,
+      "scope": "Generated from the two new Lean parent ranges; the native digit comparison passed after the queue guard cleared."
+    },
+    "R_comparison": {
+      "outcome": "passed",
+      "receipt": "rlc-comparison.json",
+      "log": "rlc-comparison.log",
+      "elapsed_seconds": 22.758196353912354,
+      "cap_seconds": 300,
+      "coefficients_compared": 253011276,
+      "tail_mutation_rejected": true,
+      "scope": "Complete typed field comparison with this continuation native-parent/parent-witness.json. Direct current CPU3 comparison was not completed and is outside the selected goal."
+    },
+    "digit_comparison": {
+      "outcome": "passed",
+      "receipt": "digits-comparison-after-queue.json",
+      "log": "digits-comparison-after-queue.log",
+      "receipt_written_utc": "2026-09-22T06:46:59.712404Z",
+      "exit": 0,
+      "elapsed_seconds": 3.0180883407592773,
+      "cap_seconds": 300,
+      "children_compared": 16,
+      "blocks_compared": 4685394,
+      "coefficients_compared": 4048180416,
+      "tail_mutation_rejected": true,
+      "scope": "The same original command and cap compare all typed child coefficients against this continuation native-material target. Direct current CPU3 comparison was not completed and is outside the selected goal.",
+      "previous_attempt": {
+        "outcome": "guard_rejected_before_checker_launch",
+        "receipt": "digits-comparison.json",
+        "log": "digits-comparison.log",
+        "receipt_written_utc": "2026-09-22T06:36:55.514646Z",
+        "exit": 1,
+        "elapsed_seconds": 0.0513453483581543,
+        "cap_seconds": 300,
+        "reason": "Guard found one unmanaged lake process and three unmanaged lean processes before subprocess launch.",
+        "scope": "No digit comparison or data mismatch was observed. The failed receipt and earlier passed generation receipts are preserved."
+      }
+    },
+    "scope": "Historical independent iteration-3 R and digit generation and both comparisons with continuation native targets. D generation resumed under the per-worktree source transition, then the owner stopped third-fold work. Remaining D3, successor, terminal-state-4 and current CPU3 comparisons are outside the selected goal; completed receipts remain unchanged.",
+    "continuation_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/resume-after-queue-step-3-reductions.json",
+    "D_generation": {
+      "outcome": "interrupted",
+      "passed_commitment_batches": 16,
+      "passed_commitment_receipts": "d-commitment-0.json through d-commitment-15.json",
+      "passed_pad_batches": 15,
+      "passed_pad_receipts": "d-pad-0.json through d-pad-14.json, using d-pad-3-after-queue.json for batch 3",
+      "per_command_cap_seconds": 1500,
+      "pad_3_retry": {
+        "receipt": "d-pad-3-after-queue.json",
+        "outcome": "passed",
+        "elapsed_seconds": 43.399091482162476
+      },
+      "stopped_stage": "d-pad-15",
+      "stopped_receipt": "d-pad-15.json",
+      "stopped_log": "d-pad-15.log",
+      "guard_outcome": "rejected_before_producer_launch",
+      "guard_reason": "An unmanaged lake process was active: PID 2593122.",
+      "guard_elapsed_seconds": 0.048145294189453125,
+      "continuation_exit": 1,
+      "continuation_failed_utc": "2026-09-22T07:19:31.669662Z",
+      "queued_attempt": {
+        "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued_resume.py",
+        "driver_sha256": "c4d4c2f3dbbbe4f814c1c9012e99f538dc7c63c803c537142dd12bb8d5dfd7dc",
+        "digest_scope": "External script custody only; not comparison authority.",
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-step-3-reductions.json",
+        "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-step-3-reductions.log",
+        "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-events.jsonl",
+        "failed_result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/queued-resume-failed-20260922T071931.680119Z.json",
+        "elapsed_seconds": 967.488341890974,
+        "scope": "The external driver waited on observed build processes before each new guarded child; the third shared-host guard rejection still occurred."
+      },
+      "continuation_requirement": "None for the selected goal: the owner stopped the third independent fold and selected 1-to-2-to-3 with the complete input connection and final-state-3 terminal checks.",
+      "scope": "The 31 listed Lean stages passed. The guard stopped pad batch 15 before producer launch. Remaining D proof generation is incomplete; no mathematical mismatch is recorded.",
+      "previous_attempt": {
+        "outcome": "interrupted",
+        "passed_commitment_batches": 4,
+        "passed_commitment_receipts": "d-commitment-0.json through d-commitment-3.json",
+        "passed_pad_batches": 3,
+        "passed_pad_receipts": "d-pad-0.json through d-pad-2.json",
+        "per_command_cap_seconds": 1500,
+        "stopped_stage": "d-pad-3",
+        "stopped_receipt": "d-pad-3.json",
+        "stopped_log": "d-pad-3.log",
+        "guard_outcome": "rejected_before_producer_launch",
+        "guard_reason": "Unmanaged Lean processes were active.",
+        "guard_elapsed_seconds": 0.10614919662475586,
+        "continuation_exit": 1,
+        "continuation_failed_utc": "2026-09-22T06:50:30.684049Z",
+        "scope": "The seven listed Lean stages passed. The guard stopped the next stage before launch; remaining D generation is incomplete."
+      },
+      "historical_stop_policy": "The third guard rejection stopped continuation under the then-current three-round stop-and-report rule. All three failed child receipts remain unchanged.",
+      "snapshot_utc": "2026-09-22T07:19:31.669662Z"
+    }
+  },
+  "preserved_failures": [
+    {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-current/conformance.json",
+      "scope": "Native base passed; old RSS monitor misread process exit. Driver fixed in c2414a4c; the new complete run passed."
+    },
+    {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/lean-step-1/result.json",
+      "scope": "Fresh Lean C/R/D acceptance and proof-byte comparison passed. Caller generation passed, then the receipt filename collided with the caller output filename. Full fresh-check result remains failed."
+    }
+  ],
+  "fresh_Lean_checks": {
+    "outcome": "passed",
+    "folds": [
+      {
+        "step": 1,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-1/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 90.82111358409747,
+        "independent_proof_generation": false
+      },
+      {
+        "step": 2,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-2/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 88.44224387849681,
+        "independent_proof_generation": false
+      },
+      {
+        "step": 3,
+        "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current/lean-step-3/result.json",
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 234755400,
+        "elapsed_command_seconds": 129.83300024317577,
+        "independent_proof_generation": false
+      }
+    ],
+    "rejection_classes": {
+      "Lean": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ]
+    },
+    "scope": "Fresh verifier conformance on native C proof messages, full caller/physical equality, and explicit rejection owners. Independent proof generation remains separate."
+  },
+  "current_CPU_Lean_handoff": {
+    "outcome": "passed",
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/checked-current",
+    "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/cpu-lean-handoff.log",
+    "scope": "Actual proof, source, caller and physical bytes compared with the fresh Lean snapshots and results. Digests are not acceptance authority."
+  },
+  "owner_scope": {
+    "CI_enforcement": "out_of_scope",
+    "reason": "Owner excluded CI enforcement because of its execution cost and separately excluded Metal validation. Actual CI, required workflows and other-engine execution are not acceptance criteria or pending blockers.",
+    "retained_requirements": "Local/manual reproducible current CPU–Lean checks, source/input custody, archive restoration, independent 1-to-2 and completed 2-to-3 with their complete input connection, and final-state-3 terminal acceptance and rejections.",
+    "Metal_validation": "out_of_scope",
+    "confidence_target": "At least 9/10 conformance confidence for the selected CPU–Lean 1-to-2-to-3 sequence; not a cryptographic security bound.",
+    "third_independent_fold": "out_of_scope",
+    "broader_registered_obligation": "fresh-recursive-loop remains open; this selected goal does not close its 2-to-3-to-4 execution requirement."
+  },
+  "execution_policy_update": {
+    "owner_clarification": "One Lean or Rust build process at a time per worktree. The earlier host-wide interpretation was wrong.",
+    "formal_policy_commit": "3ddf6eb9",
+    "formal_stop_and_report_rounds": 5,
+    "guard_commit": "48da0896",
+    "guard_scope": "Lock identity uses the canonical checkout root. The process check rejects active Lean or Rust processes whose resolved working directory is within that worktree.",
+    "focused_validation": {
+      "outcome": "passed",
+      "tests": 13,
+      "elapsed_seconds": 0.195,
+      "outer_cap_seconds": 300,
+      "scope": "Same-worktree lock exclusion and process rejection; different-worktree lock and process independence; symlink scope; process cwd lookup; unchanged caps and command restrictions."
+    },
+    "caps_and_command_restrictions": "unchanged",
+    "private_Rust_target": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-target.json",
+      "source_release_directory": "/home/nicoarq/develop/Nightstream/target/release",
+      "private_release_directory": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target/release",
+      "regular_files_checked": 5532,
+      "shared_file_inodes": false,
+      "symlinks_into_source_target": false,
+      "checker_bytes_equal": true,
+      "checker_sha256": "501b86f1dcdc7e78dfbef4280a3e8265599ad92ae40ecff7ce0023df538d2657",
+      "digest_scope": "file custody only; no protocol authority",
+      "reason": "Owner clarified builds are serial within each worktree; this task uses independent writable Rust build files."
+    },
+    "private_Rust_build": {
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-build.json",
+      "argv": [
+        "timeout",
+        "--signal=TERM",
+        "300s",
+        "python3",
+        "-B",
+        "/home/nicoarq/.codex/worktrees/8421/Nightstream/scripts/lean_graph/guard.py",
+        "--kind",
+        "rust",
+        "--cwd",
+        "/home/nicoarq/.codex/worktrees/8421/Nightstream",
+        "--",
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.21336851106025279,
+      "cap_seconds": 300,
+      "target_directory": "/home/nicoarq/.codex/worktrees/8421/Nightstream/target",
+      "guard_source_commit": "48da0896",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/private-rust-build.log"
+    },
+    "source_transition": {
+      "outcome": "sealed",
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-source-transition.json",
+      "recorded_utc": "2026-09-22T07:40:10.214012+00:00",
+      "source_commit": "48da089692ba2905feab6fc53c5742056932cdf1",
+      "changed_paths": [
+        "scripts/lean_graph/guard.py",
+        "scripts/lean_graph/tests/test_guard.py"
+      ],
+      "change_scope": "Exactly the reviewed guard and focused test; all other pinned source/input fields remain equal. Prover arguments, caps and validate.sh are unchanged.",
+      "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree_resume.py",
+      "driver_identity": {
+        "kind": "file",
+        "bytes": 16490,
+        "sha256": "3fadf51e6b334f1aa9e651fd3059e090a6b1b3388473c74e44033bb5d94a6c01"
+      },
+      "continuation_pin_unchanged": true,
+      "continuation_pin_sha256": "7022c3f31c6f676598652e2e84db4530eebb02f4f9361f1f0425552d79df6e86",
+      "first_pin_previously_present": false,
+      "first_pin_creation": "Existing pin_sources function after exact comparison of original inputs with current CPU step 1.",
+      "first_original_current_CPU_files": 19,
+      "first_original_current_CPU_bytes": 89980008,
+      "old_selected_runtime_pin_present": false,
+      "runtime_scope": "New default-runtime custody baseline; no original runtime pin is claimed.",
+      "revalidation": "Each replay initialization checks its full source/input map, immutable source pin, imported coordinators, default runtime and private checker. Existing saved-output validation remains active.",
+      "stub_tests_passed": 6,
+      "digest_scope": "File custody only; no mathematical comparison authority."
+    },
+    "new_resume": {
+      "outcome": "stopped_by_owner",
+      "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-events.jsonl",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-step-3-reductions.log",
+      "started_utc": "2026-09-22T07:42:53.320314Z",
+      "snapshot_utc": "2026-09-22T07:45:27.168506Z",
+      "pad_15_retry": {
+        "outcome": "passed",
+        "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-3-to-4/logs/d-pad-15-worktree.json",
+        "elapsed_seconds": 30.946044445037842,
+        "cap_seconds": 1500,
+        "scope": "Exact original command under the corrected per-worktree guard; the failed d-pad-15.json receipt remains unchanged."
+      },
+      "passed_commitment_batches_at_snapshot": 17,
+      "passed_pad_batches_at_snapshot": 17,
+      "snapshot_receipts": "Commitment and pad indices 0 through 16; pad 3 uses d-pad-3-after-queue.json and pad 15 uses d-pad-15-worktree.json. All receipts are under the existing iteration-3 logs directory.",
+      "scope": "Historical continuation after the source transition, intentionally stopped by owner instruction at 07:53:12 UTC on 2026-09-22. Snapshot counts remain unchanged; no complete D3 result or mathematical failure is claimed.",
+      "owner_stop_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/third-fold-owner-stop.json"
+    },
+    "scope": "Per-worktree execution-policy correction, private Rust build validation and sealed source transition remain in effect. Resumed third-fold generation was stopped by owner instruction. All dated counts and failed receipts are preserved. CI and Metal remain out of scope."
+  },
+  "selected_1_to_2_to_3": {
+    "outcome": "passed",
+    "completed_utc": "2026-09-22T14:04:47.952118Z",
+    "confidence_target": "Selected 9/10 engineering conformance target met; not a cryptographic security bound or universal soundness claim.",
+    "selected_iterations": [
+      1,
+      2,
+      3
+    ],
+    "independent_folds": [
+      "1-to-2",
+      "2-to-3"
+    ],
+    "driver": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected_123.py",
+    "driver_status": "Started 2026-09-22T08:18:51.042027Z; all nine selected commands passed with exit 0. Source, driver and bridge checks passed at completion.",
+    "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-1-2-3-result.json",
+    "first_fold_generation": {
+      "outcome": "passed",
+      "started_utc": "2026-09-22T08:18:51.042027Z",
+      "completed_utc": "2026-09-22T14:02:17.500496Z",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.json",
+      "elapsed_seconds": 20606.455368600786,
+      "events": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-events.jsonl",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-fold.log",
+      "standalone_first_checkpoint_reused": false,
+      "scope": "The selected driver owns the completed first-fold checkpoint. Independent C/R/D and successor generation passed; direct current CPU1 comparisons and the complete first-to-second input connection also passed, as recorded below.",
+      "C": {
+        "outcome": "passed",
+        "started_utc": "2026-09-22T08:43:30.987032Z",
+        "completed_utc": "2026-09-22T11:12:28.676482Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "comparison_receipts": [
+          "c-round-comparison.json",
+          "c-terminal-prefix-comparison.json",
+          "c-evaluation-comparison.json",
+          "c-complete-bytes.json",
+          "c-finish-rejections.json"
+        ],
+        "children": 798,
+        "lean_children": 286,
+        "python_children": 512,
+        "sum_child_elapsed_seconds": 8923.393733263016,
+        "longest_child": "q0-fresh",
+        "longest_child_seconds": 598.21803855896,
+        "all_children_within_existing_caps": true,
+        "rounds": 28,
+        "matched_round_field_words": 560,
+        "matched_transcript_transitions": 28,
+        "matched_evaluation_field_words": 27540,
+        "matched_proof_input_field_words": 29288,
+        "matched_phase_fields": 15,
+        "matched_outgoing_state_words": 8,
+        "lean_input_bytes": 271058,
+        "native_input_bytes": 271059,
+        "input_comparison": "Complete canonical input equality after removing one optional final LF.",
+        "exact_phase_bytes": 190581,
+        "finish_input_and_output_rejections": 21,
+        "scope": "Independent first-fold C against its fresh native target. Changed comparison targets and proof words were rejected. Full NIFS encoding, current CPU1 outputs and the first-to-second input bridge remain separate."
+      },
+      "R_D": {
+        "outcome": "passed",
+        "started_utc": "2026-09-22T11:12:28.679320Z",
+        "completed_utc": "2026-09-22T13:43:10.438767Z",
+        "nifs_comparison_completed_utc": "2026-09-22T13:42:27.472618Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "generation_receipts": "rlc-0/1, digits-0/1, parent-partition, d-commitment-0..63, d-pad-0..63, d-commitment-merge, d-pad-merge, d-matrix-batch-0..38, d-evaluations; each has a .json receipt and .log.",
+        "comparison_receipts": [
+          "rlc-comparison.json",
+          "digits-comparison.json",
+          "d-finish.json",
+          "nifs-comparison.json",
+          "d-finish-rejections.json"
+        ],
+        "children": 180,
+        "lean_children": 175,
+        "rust_children": 3,
+        "python_children": 2,
+        "sum_child_elapsed_seconds": 9040.659472942352,
+        "wall_span_seconds": 9041.759447574615,
+        "longest_child": "d-matrix-batch-6",
+        "longest_child_seconds": 419.64299273490906,
+        "cap_seconds": {
+          "lean": 1500,
+          "rust": 300,
+          "python": 300
+        },
+        "all_children_exit_zero": true,
+        "all_children_within_existing_caps": true,
+        "runtime_scope": "Top-level R, digits, parent-partition, D and nifs-comparison receipts only. Nested rejection calls are included in their Python receipt. C, builds, caller and successor are excluded.",
+        "carrier_blocks": 4685394,
+        "matched_parent_coefficients": 253011276,
+        "digit_children": 16,
+        "matched_digit_coefficients": 4048180416,
+        "commitment_ranges": 64,
+        "matched_commitment_field_words": 19008,
+        "pad_ranges": 64,
+        "matrix_ranges": 53,
+        "matrix_batches": 39,
+        "matrix_blocks": 23,
+        "matrix_rows": 6377559,
+        "matched_evaluation_field_words": 25920,
+        "evaluation_point_field_words": 56,
+        "complete_native_nifs_proof_bytes": 945983,
+        "native_pidec_result_fields": 17,
+        "normal_native_pidec_wrapper_accepted": true,
+        "rejections": {
+          "comparison_tails": {
+            "cases": 2,
+            "owners": "R compare_range and D compare_block coefficient comparisons; not protocol verifier rejection.",
+            "coordinates": "R: block 4685393, lane 53. D: child 15, block 4685393, lane 53."
+          },
+          "lean_from_replay": {
+            "cases": 30,
+            "owner": "Lean checkPiDECInput from-replay",
+            "classes": "3 output-path checks; 23 framing, shape or canonical-word checks; 1 derived-point check; 2 D recomposition checks; 1 changed C-round check.",
+            "output_safety": "Rejected calls create no outputs and preserve existing outputs and source inputs."
+          },
+          "native_pidec": {
+            "cases": 55,
+            "owner": "Rust pi_dec::verify",
+            "classes": {
+              "VerifyRejected": 34,
+              "ChildCount": 1,
+              "RShape": 1,
+              "EvaluationShape": 2,
+              "EvaluationPadding": 15,
+              "FoldDigest": 1,
+              "ChildXLowNorm": 1
+            },
+            "separate_parent_bound_check": "split_b and pi_dec::verify reject parent X[0,0] = 65536; this is a D result field, not one of the 55 named mutations.",
+            "scope": "PiDEC mutation checks only. The full NIFS mutation suite is not run by nifs-comparison."
+          }
+        },
+        "scope": "Independent first-fold R/D against this replay's fresh native targets. All parent and child digit coefficients, including omitted zero entries and tails, match. Complete public C/R/D outputs and all native NIFS proof bytes match the Lean result; all 17 D fields also match the normal native PiDEC wrapper. Selected-case conformance only. Successor, direct current CPU1 and complete input-connection results are recorded separately below."
+      },
+      "successor": {
+        "outcome": "passed",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/logs",
+        "receipts": "caller, native-successor, physical, physical-witness-bytes, assignment, assignment-comparison, assignment-assemble, canonical-rows, canonical-row-rejections, fresh-witness-bytes, fresh-commitment-0..2, fresh-commitment-merge, fresh-claim-comparison, physical-rejections; each has a .json receipt and .log.",
+        "children": 16,
+        "sum_child_elapsed_seconds": 1145.589899778366,
+        "longest_child": "canonical-rows",
+        "longest_child_seconds": 495.8832268714905,
+        "caps_seconds": "Lean 1500; Rust, Python and static 300; all 16 children passed within their caps.",
+        "assignment_coefficients": 253011276,
+        "assignment_tail_coefficients": 45,
+        "changed_assignment_target_rejected": true,
+        "active_canonical_rows": 6377559,
+        "canonical_blocks": 23,
+        "canonical_row_rejection_cases": 8,
+        "physical_assignment_commitment_rejection_cases": 26,
+        "row_scope": "Executed active canonical rows on the new carrier; padding coverage uses the existing proof."
+      },
+      "current_CPU1_comparisons": {
+        "outcome": "passed",
+        "completed_utc": "2026-09-22T14:02:58.548409Z",
+        "receipt_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5",
+        "receipts": "selected-123-first-current-parent.json, selected-123-first-current-nifs.json and selected-123-first-current-outputs.json; each has a corresponding .log.",
+        "parent_elapsed_seconds": 19.242081084055826,
+        "nifs_elapsed_seconds": 19.841162463882938,
+        "outputs_elapsed_seconds": 1.9617384460289031,
+        "parent_coefficients": 253011276,
+        "nifs_proof_bytes": 945983,
+        "caller_bytes_each": 940444,
+        "physical_bytes_equal": 234755400,
+        "fresh_witness_Lean_bytes": 96258853,
+        "fresh_claim_Lean_bytes": 39388,
+        "fresh_result_comparison": "Complete bytes; the CPU witness and claim each add one final LF.",
+        "child_witnesses": 16,
+        "child_witness_bytes_each_side": 444373866,
+        "scope": "Complete parent, public C/R/D result, NIFS proof, caller, physical witness, fresh witness/claim and all child witnesses compared with current CPU1. Parent comparison is canonical field equality, not raw JSON byte equality. Text comparisons exclude final CR/LF."
+      }
+    },
+    "second_fold": "Complete retained independent generation and current CPU comparisons; C remains retained computation under its explicit source/input audit.",
+    "complete_input_connection": {
+      "outcome": "passed",
+      "completed_utc": "2026-09-22T14:03:46.952671Z",
+      "helper": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/bridge_first_second.py",
+      "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/first-second-input-bridge/result.json",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-first-second-input-bridge.json",
+      "projection_logs": "selected-123-first-feedback-projection.log and selected-123-retained-original-projection.log in the run directory.",
+      "sources": 17,
+      "blocks_per_source": 4685394,
+      "public_bytes_per_projection": 410910,
+      "source_bytes_per_projection": 562056218,
+      "projection_scope": "Both feedback and original projections match the retained second-fold public.json and sources.jsonl in complete bytes.",
+      "state_words": 4,
+      "message_words": 4,
+      "caller_derived_frames": 17,
+      "frame_bytes_each": 32,
+      "retained_C_public_fields": [1, 2, 6],
+      "passed_checks": [
+        "Exact complete public.json and sources.jsonl projections from all 17 first-successor witnesses match both original retained inputs and the sources consumed by iteration 2.",
+        "Complete package bytes and selected verifier context.",
+        "Full state, message and next-input request.",
+        "Complete carried R parent and all 17 successor digest frames.",
+        "Caller links to C/R/D acceptance, point, public values and outgoing transcript states.",
+        "Exact public input consumed by the retained C replay."
+      ],
+      "digest_scope": "File custody only; digest agreement does not replace complete value comparisons."
+    },
+    "final_terminal": {
+      "iteration": 3,
+      "outcome": "passed",
+      "recorded_utc": "2026-09-22T08:15:56.100338Z",
+      "passed_checks": [
+        {
+          "case": "accepted",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-accepted.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-accepted.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 245.67641282081604,
+          "verifier_result": "Ok(())"
+        },
+        {
+          "case": "ce-evaluation",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-evaluation.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-evaluation.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 245.80553460121155,
+          "verifier_result": "Err(Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" })"
+        },
+        {
+          "case": "ce-matrix-evaluation",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-ce-matrix-evaluation.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-ce-matrix-evaluation.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 243.7867259979248,
+          "verifier_result": "Err(Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" })"
+        },
+        {
+          "case": "fresh-private",
+          "outcome": "passed",
+          "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/logs/terminal-check-fresh-private.json",
+          "result": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/terminal-fresh-private.json",
+          "cap_seconds": 300,
+          "elapsed_seconds": 246.75113320350647,
+          "verifier_result": "Err(FreshRelation(UnsatisfiedRow { row: 0 }))"
+        }
+      ],
+      "remaining_rejections": [],
+      "scope": "The existing native terminal predicate accepts the completed independent 2-to-3 result and rejects each selected CE-evaluation, CE-matrix-evaluation and fresh-private mutation on the actual retained witnesses. The final selected driver checked and reused these completed receipts; no new proof backend is claimed.",
+      "final_driver_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-terminal-three.json",
+      "coordinator_receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.json",
+      "coordinator_log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/two-fold-terminal.log",
+      "coordinator_elapsed_seconds": 1129.1774398849811,
+      "child_commands_passed": 7,
+      "mutation_preparations_passed": 3,
+      "max_child_seconds": 246.75113320350647,
+      "per_child_cap_seconds": 300,
+      "preparation_receipts": "terminal-prepare-ce-evaluation.json, terminal-prepare-ce-matrix-evaluation.json and terminal-prepare-fresh-private.json in the same logs directory."
+    },
+    "third_fold_owner_stop": {
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/third-fold-owner-stop.json",
+      "at_utc": "2026-09-22T07:53:12.715641+00:00",
+      "failed_driver_record": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/worktree-resume-failed-20260922T075312.788702Z.json",
+      "signal": "SIGTERM",
+      "stopped_stage": "d-commitment-25",
+      "classification": "Intentional stop after owner scope change, not a proof or data failure.",
+      "scope": "Only the owned third-fold guard was stopped. Completed outputs and historical failures remain unchanged."
+    },
+    "broader_registered_obligation": "fresh-recursive-loop remains open and retains its 2-to-3-to-4 requirement.",
+    "CI_execution": "out_of_scope_by_owner",
+    "Metal_execution": "out_of_scope_by_owner",
+    "protected_acceptance": "not claimed",
+    "final_current_cpu_handoff": {
+      "outcome": "passed",
+      "receipt": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-current-cpu-handoff.json",
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/selected-123-current-cpu-handoff.log",
+      "elapsed_seconds": 2.4130181539803743
+    },
+    "driver_preparation": {
+      "stub_tests_passed": 10,
+      "driver_sha256": "76f1745cceac6610a76dcccc40204361a069844bfdea2aa209305bac57b68101",
+      "helper_sha256": "5d22182e30e768e35e7229fe9f2469fc699709625e9e4d6ad77e0ea51b7a1fed",
+      "digest_scope": "File custody only; no execution or comparison completion is implied."
+    }
+  }
+}

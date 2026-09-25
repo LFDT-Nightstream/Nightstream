@@ -528,43 +528,19 @@ theorem canonicalHashChain_private (chain : HashChain)
   rw [show basePackage.hashChains = [Data.priorChain, Data.outputChain] by
     exact Data.circuitPackage_hashChains] at member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+  have boundary : basePackage.layout.constantColumn =
+      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+    unfold basePackage
+    rw [Data.circuitPackage_layout]
+    rfl
   rcases member with rfl | rfl
-  · constructor <;>
-      norm_num [basePackage, Data.priorChain, Data.liftPilotChain,
-        Data.circuitPackage_layout, Data.physicalLayout,
-        PilotData.priorChain, NightstreamFPrime.Layout.PilotValues.stateHashWords,
-        NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
-        NightstreamFPrime.Layout.PilotValues.absorbCount,
-        NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
-        PilotData.priorWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.priorWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
-        NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.constantColumn,
-        NightstreamFPrime.Spec.Poseidon2.rate]
-  · constructor <;>
-      norm_num [basePackage, Data.outputChain, Data.liftPilotChain,
-        Data.circuitPackage_layout, Data.physicalLayout,
-        PilotData.outputChain, NightstreamFPrime.Layout.PilotValues.stateHashWords,
-        NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
-        NightstreamFPrime.Layout.PilotValues.secondPrivateStart,
-        NightstreamFPrime.Layout.PilotValues.absorbCount,
-        NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
-        PilotData.outputWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.outputWitnessStart,
-        NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
-        NightstreamFPrime.Layout.PilotValues.priorCanonicalPrivateCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.constantColumn,
-        NightstreamFPrime.Spec.Poseidon2.rate]
+  all_goals
+    constructor
+    · rw [boundary, NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+      decide
+    · rw [boundary, NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+      decide
+    · rfl
 
 /-- Every canonical hash-chain invocation owns one complete 592-column local
 interval below the private boundary. -/

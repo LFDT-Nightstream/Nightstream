@@ -18,6 +18,7 @@ from contract_checks import (
     check_global_id_uniqueness,
     check_package_manifest,
     check_profile_consistency,
+    check_profile_rule_alignment,
     check_security_census,
     check_source_derivation,
     check_sources,
@@ -119,6 +120,7 @@ def main() -> int:
         check_evidence_schema(config)
         check_auxiliary_schemas(config)
         check_profile_consistency(config)
+        check_profile_rule_alignment(model, config)
         check_security_census(config)
         check_protocol_profile_alignment(model, config)
         rule_ids, _coverage_tiers = check_coverage(

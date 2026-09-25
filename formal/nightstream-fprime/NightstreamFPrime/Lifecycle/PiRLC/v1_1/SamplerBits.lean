@@ -84,7 +84,7 @@ theorem retainedBits_of_rows
           (candidatePosition candidate)).eval env).val =
             Candidate16Five.rejectionBucket then 1 else 0 := by
       simpa only [DigestWindow.reject, DigestWindow.candidate, DigestLane.reject,
-        DigestLane.candidate] using rejectEq
+        DigestLane.candidate] using! rejectEq
     rw [actual]
     split <;> simp
   · intro round slot

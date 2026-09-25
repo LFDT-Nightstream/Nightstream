@@ -424,7 +424,7 @@ private theorem boolean_of_constraint (env : Env) (offset index : Nat)
     bitValue env (quotientBitExpr offset) index < 2 := by
   let value := env (offset + 2 + index)
   have product : value * (value - 1) = 0 := by
-    simpa [quotientBooleanConstraint, quotientBitExpr, bitValue, value] using zero
+    simpa [quotientBooleanConstraint, quotientBitExpr, bitValue, value] using! zero
   rcases baseFieldNoZeroDivisors value (value - 1) product with
     valueZero | valueOne
   · change value.val < 2
@@ -500,7 +500,7 @@ private theorem remainder_lt_five (env : Env) (offset : Nat)
   have product :
       remainder * (remainder - 1) * (remainder - 2) *
         (remainder - 3) * (remainder - 4) = 0 := by
-    simpa [remainderConstraint, remainder] using zero
+    simpa [remainderConstraint, remainder] using! zero
   have roots : remainder = 0 ∨ remainder = 1 ∨ remainder = 2 ∨
       remainder = 3 ∨ remainder = 4 := by
     rcases baseFieldNoZeroDivisors
@@ -822,7 +822,7 @@ private theorem completeEnv_quotientValue
       have weightedBound := weightedValue_lt_twoPow env
         (interface.candidateBit offset) candidateBitCount assumptions.2.2.2
       rw [assumptions.2.2.1]
-      simpa [candidateBitCount] using weightedBound
+      simpa [candidateBitCount] using! weightedBound
     simp only [quotient, quotientBitCount]
     omega
   have pointwise : ∀ index ∈ List.range quotientBitCount,
@@ -1021,7 +1021,7 @@ theorem flatConstraints_varsSatisfy
       have bounded := List.mem_range.mp indexMember
       simp only [quotientBitCount] at bounded
       have bitSupported : (quotientBitExpr offset index).VarsSatisfy allowed := by
-        simpa [quotientBitExpr, Nat.add_assoc] using
+        simpa [quotientBitExpr, Nat.add_assoc] using!
           localSupported (2 + index) (by
             norm_num [auxiliaryCount] at bounded ⊢
             omega)
@@ -1035,7 +1035,7 @@ theorem flatConstraints_varsSatisfy
         · exact localSupported 0 (by norm_num [auxiliaryCount])
         · apply weightedExpr_varsSatisfy
           intro index bounded
-          simpa [quotientBitExpr, Nat.add_assoc] using
+          simpa [quotientBitExpr, Nat.add_assoc] using!
             localSupported (2 + index) (by
               norm_num [quotientBitCount, auxiliaryCount] at bounded ⊢
               omega)
@@ -1139,7 +1139,7 @@ private theorem completeEnv_holdsFlat
       simpa [fieldOfNat,
         NightstreamFPrime.Gadgets.Range.CanonicalU64.fieldOfNat,
         Nat.mod_eq_of_lt rhsBound] using reordered.symm
-    simpa only [divisionConstraint, Expr.eval_sub] using
+    simpa only [divisionConstraint, Expr.eval_sub] using!
       sub_eq_zero.mpr equality
   have remainderRoot : (remainderConstraint offset).eval completed = 0 := by
     simp only [remainderConstraint, Expr.eval_hmul, Expr.eval_sub]

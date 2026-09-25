@@ -283,11 +283,22 @@ impl Candidate {
             &relation_words,
             "production raw relation authority",
         );
-        require_words(
-            context.application_words(),
-            &application_words,
-            "production raw application authority",
-        );
+        let mut application_offset = 0;
+        package
+            .visit_application_words(&mut |chunk| {
+                let end = application_offset + chunk.len();
+                require_words(
+                    chunk,
+                    &application_words[application_offset..end],
+                    "production raw application authority",
+                );
+                application_offset = end;
+                Ok(())
+            })
+            .expect("production raw application replay");
+        assert_eq!(application_offset, application_words.len());
+        assert_eq!(context.application_word_count(), application_offset);
+        assert_eq!(context.application_digest(), component(2, &application_words));
         require_words(context.nifs_key_words(), &nifs_words, "production raw NIFS authority");
         require_words(
             context.commitment_key_words(),

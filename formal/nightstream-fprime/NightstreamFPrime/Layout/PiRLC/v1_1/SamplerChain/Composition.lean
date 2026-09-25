@@ -74,10 +74,10 @@ def childInputs (interface : Logical.Interface) (offset : Nat)
   refine ⟨?_⟩
   cases source with
   | zero =>
-      simpa [Logical.childInterface, Logical.stateAtExpr] using
+      simpa [Logical.childInterface, Logical.stateAtExpr] using!
         inputs.initialState
   | succ previous =>
-      simpa [Logical.childInterface, Logical.stateAtExpr] using
+      simpa [Logical.childInterface, Logical.stateAtExpr] using!
         (Sampler.outputState_fresh
           (Logical.childInterface interface offset previous) previous
           (Logical.sourceOffset offset previous)).affine

@@ -131,7 +131,8 @@ theorem outputState_below (interface : Interface) (coordinate : Nat) (offset : N
     ∀ lane, (outputState interface coordinate offset lane).VarsBelow (offset + privateCount) := by
   have scope := Permutation.Owned.output_varsBelow (advanceInterface interface coordinate offset)
     (advanceOffset offset) (advance_inputs interface coordinate offset inputs (fun _ => 0))
-  simpa only [advanceOffset, rangeOffset, privateCount, Nat.add_assoc] using scope
+  intro lane
+  exact Expr.VarsBelow.mono _ (scope lane) (by unfold advanceOffset rangeOffset privateCount; omega)
 
 theorem outputChallenge_below (offset : Nat) (position : Fin ringDegree) :
     (outputChallenge offset position).VarsBelow (offset + privateCount) :=

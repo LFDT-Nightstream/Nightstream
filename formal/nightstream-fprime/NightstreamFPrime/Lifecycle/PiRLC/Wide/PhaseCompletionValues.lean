@@ -54,7 +54,7 @@ theorem completePrefix_constructive_with_values
     exact ProjectedBatch.scope _ _ assumptions.sampler
   obtain ⟨p2, o2, n2, _, v2⟩ := Sequence.appendBuiltAt_current p1 "pirlc.wide.sampler"
     (samplerCircuit shared) (samplerOffset offset) s1 sampleScope sampled
-    (by simpa only [v1] using sampleAgreement) sampleRows
+    (by simpa only [v1] using! sampleAgreement) sampleRows
   have s2 : offset + localLength p2.operations = commitmentOffset offset := by
     rw [n2]
     change samplerOffset offset + localLength (ProjectedBatch.operations _ _) = _

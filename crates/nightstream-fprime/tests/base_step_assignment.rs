@@ -741,6 +741,33 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
+/// Split a checked column-map wrapper `[5, width, projection, inner]`.
+fn unwrap_mapped_block(block: &serde_json::Value) -> (&serde_json::Value, Option<&serde_json::Value>) {
+    match block.as_array().map(Vec::as_slice) {
+        Some([tag, _, projection, inner]) if tag.as_u64() == Some(5) => (inner, Some(projection)),
+        _ => (block, None),
+    }
+}
+
+/// Map one column through `[1, [[from, to, count], ...]]`; exactly one range must own it.
+fn project_column(projection: Option<&serde_json::Value>, column: u64) -> Option<u64> {
+    let Some(projection) = projection else {
+        return Some(column);
+    };
+    let targets = projection[1]
+        .as_array()?
+        .iter()
+        .filter_map(|range| {
+            let (from, to, count) = (range[0].as_u64()?, range[1].as_u64()?, range[2].as_u64()?);
+            (from <= column && column < from.checked_add(count)?).then(|| to + (column - from))
+        })
+        .collect::<Vec<_>>();
+    match targets.as_slice() {
+        [target] => Some(*target),
+        _ => None,
+    }
+}
+
 /// Replace only the application witness/local suffix with another valid
 /// execution. The independent rows must reject the detached state binding.
 pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
@@ -802,12 +829,19 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("independent canonical matrix program");
     // Find the compact Poseidon block by its retained application-local range,
     // then include its following digest pins. Row offsets come from the decoder.
+    // A checked column map (tag 5) wraps a reused block; its retained start is
+    // stated in reference coordinates and projected to the logical layout.
     let blocks = artifact.matrix_program.as_array().expect("matrix blocks");
     let application_blocks = blocks
         .iter()
         .enumerate()
         .filter(|(_, block)| {
-            block[0].as_u64() == Some(2) && block[1][2][2].as_u64() == Some(application_local.start as u64)
+            let (inner, projection) = unwrap_mapped_block(block);
+            inner[0].as_u64() == Some(2)
+                && inner[1][2][2]
+                    .as_u64()
+                    .and_then(|start| project_column(projection, start))
+                    == Some(application_local.start as u64)
         })
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
@@ -816,7 +850,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     };
     let ends = program.block_ends().collect::<Vec<_>>();
     assert_eq!(
-        blocks[application_block + 1][0].as_u64(),
+        unwrap_mapped_block(&blocks[application_block + 1]).0[0].as_u64(),
         Some(1),
         "application digest pins"
     );

@@ -5,15 +5,15 @@
 
 use std::collections::BTreeSet;
 
-use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
+use neo_fold_legacy::frontends::r1cs_f_prime::terminal_r1cs::{
     STREAMING_TERMINAL_R1CS_FAMILY_NAMES, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES,
     TERMINAL_R1CS_FAMILY_NAMES, TERMINAL_STATEMENT_GUARD_NAMES,
 };
-use neo_fold_clean::paper::construction2::TRIVIAL_PC;
-use neo_fold_clean::paper::f_prime::stage as fprime_stage;
-use neo_fold_clean::paper::nifs::circuit::stage as nifs_stage;
-use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
-use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
+use neo_fold_legacy::paper::construction2::TRIVIAL_PC;
+use neo_fold_legacy::paper::f_prime::stage as fprime_stage;
+use neo_fold_legacy::paper::nifs::circuit::stage as nifs_stage;
+use neo_fold_legacy::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
+use neo_fold_legacy::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 
 use super::ExportError;
 

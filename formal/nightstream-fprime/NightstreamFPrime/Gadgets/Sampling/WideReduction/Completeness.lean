@@ -459,7 +459,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
         rw [Expr.eval_sub]
         rcases newVariable_bit (base := base) (offset := offset) (draw := draw)
           (check := quotients) position with zero | outside
-        · simpa [Expr.eval] using zero
+        · simpa [Expr.eval] using! zero
         · exact absurd below outside
       · -- Digit range.
         have below := List.mem_range.mp digitMember

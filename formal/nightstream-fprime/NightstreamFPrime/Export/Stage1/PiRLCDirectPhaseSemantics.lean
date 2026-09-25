@@ -85,7 +85,7 @@ theorem directSampler_imply_specHolds_of_combinationRows
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
       PiRLCStarts.samplerLogicalStart sourceEnv := by
     simpa [sourceEnv, targetEnv, PiRLCSamplerOrdinaryRows.chainInterface,
-      PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using
+      PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using!
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
@@ -107,7 +107,7 @@ theorem directSampler_imply_specHolds_of_combinationRows
   · simpa [sourceEnv, targetEnv,
       PiRLCSamplerOrdinaryRows.chainInterface,
       PiRLCSamplerRows.samplerInterface,
-      PiRLCSamplerRows.sharedInterface] using samplerChain
+      PiRLCSamplerRows.sharedInterface] using! samplerChain
   · simpa [sourceEnv, targetEnv,
       PiRLCCombinationInvocations.productionCommitmentFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
@@ -209,7 +209,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
       PiRLCStarts.samplerLogicalStart sourceEnv := by
     simpa [sourceEnv, targetEnv, PiRLCSamplerOrdinaryRows.chainInterface,
-      PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using
+      PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using!
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
@@ -231,7 +231,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
   · simpa [sourceEnv, targetEnv,
       PiRLCSamplerOrdinaryRows.chainInterface,
       PiRLCSamplerRows.samplerInterface,
-      PiRLCSamplerRows.sharedInterface] using samplerChain
+      PiRLCSamplerRows.sharedInterface] using! samplerChain
   · simpa [sourceEnv, targetEnv,
       PiRLCCombinationInvocations.productionCommitmentFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,

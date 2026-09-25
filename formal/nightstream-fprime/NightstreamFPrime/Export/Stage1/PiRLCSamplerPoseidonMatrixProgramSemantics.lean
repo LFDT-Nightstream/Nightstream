@@ -109,7 +109,7 @@ private theorem samplerPreviousRule_succ
             (PiRLCSamplerPoseidonPlan.retainedFits geometry)
             ⟨78 + invocationOffset.val * 86 + selected.val,
               slotBound selected⟩) lane)) by
-    simpa [samplerPreviousRule] using
+    simpa [samplerPreviousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
         (region := PoseidonInput.Region.mk 1 152 0 8)
         invocationOffset lane lane.isLt

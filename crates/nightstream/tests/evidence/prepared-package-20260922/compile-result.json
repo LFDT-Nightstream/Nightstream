@@ -1,0 +1,61 @@
+{
+  "outcome": "passed",
+  "events": [
+    {
+      "benchmark": "poseidon2_hash_chain_v1",
+      "event": "package_compile_started",
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/prepared-poseidon2.nsc",
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 2
+    },
+    {
+      "event": "phase_started",
+      "phase": "compile",
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "compile",
+      "seconds": 34.775985292,
+      "step": null
+    },
+    {
+      "event": "phase_started",
+      "phase": "save",
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "save",
+      "seconds": 0.134325333,
+      "step": null
+    },
+    {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "package_compile_finished",
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/prepared-poseidon2.nsc",
+      "saved": true,
+      "schema": 2,
+      "seconds": 34.910455625
+    }
+  ],
+  "package": {
+    "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/prepared-poseidon2.nsc",
+    "bytes": 127306104,
+    "inode": 369062838,
+    "mtime_ns": 1790062725471305562
+  },
+  "time_cap_seconds": 300,
+  "process_tree_maximum_resident_bytes": 5179392000,
+  "rss_scope": "macOS /usr/bin/time -l around GNU timeout --foreground; maximum resident size includes the child. Hardware counter and footprint fields in that wrapper output are not claimed as native target measurements.",
+  "same_circuit_identity_as_recipe_batch": true
+}

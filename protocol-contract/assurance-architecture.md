@@ -43,7 +43,8 @@ contract model. `contract_protocol.py` checks the state machine.
 `contract_assurance.py` derives assurance and freshness. `contract_checks.py`
 checks sources, profile arithmetic, schemas, and repository anchors.
 `contract_render.py` creates all generated views. `contract_migration.py`
-checks the sealed, lossless import.
+checks the sealed, lossless import. `contract_ajtai.py` checks the selected
+indexed setup against its RFC block and reduction vectors.
 
 ## 3. Authored ownership
 
@@ -119,8 +120,8 @@ challenge families, and five bounded repetitions. Its separate recursive
 schedule fixes every frame, squeeze, payload count, tag, and loop nesting. The
 selected profile fixes:
 
-- 24 PiCCS SumCheck rounds;
-- 15 PiRLC sources;
+- 28 PiCCS SumCheck rounds;
+- 17 PiRLC sources;
 - 54 coefficients per source;
 - one to three sampler attempts per coefficient;
 - one to 64 fold steps.

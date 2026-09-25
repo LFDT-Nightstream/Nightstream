@@ -105,7 +105,7 @@ private theorem children_fresh (interface : Interface) (offset : Nat)
           R1CS.totalFreshCount (flatConstraints _) = _
         rw [head, ih]
         omega
-  simpa only [childOps, List.length_finRange] using all (List.finRange fieldCount)
+  simpa only [childOps, List.length_finRange] using! all (List.finRange fieldCount)
 
 theorem counts (interface : Interface) (hints : Nat → List Hint) (offset : Nat)
     (inputs : ∀ lane, R1CS.IsAffine (interface.source lane offset)) :

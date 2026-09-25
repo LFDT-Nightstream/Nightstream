@@ -282,7 +282,7 @@ theorem runningWord_publicInput (running : RunningExpr logicalWidth publicFits)
     (blockExpr (serializeCommitmentExpr (running.commitment source)))
     (serializePublicInputExpr (running.publicInput source))
     (blockExpr (serializeEvaluationExpr (running.evaluation source)))
-    column.val (by simpa only [public_length] using column.isLt)
+    column.val (by simpa only [public_length] using! column.isLt)
   have leaf : (serializePublicInputExpr (running.publicInput source)).getD column.val 0 =
       running.publicInput source column := finRange_map_getD _ column
   simpa only [group, publicPosition, PiCCSInputs.runningPublicStart,

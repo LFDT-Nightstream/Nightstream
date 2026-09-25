@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Run an ordinary development command under the shared build lock and optional deadline."""
+"""Run a development command under its worktree build lock and optional deadline."""
 
 from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import signal
@@ -21,24 +22,27 @@ if __package__ in (None, ""):
 from .policy import CAPS
 from .snapshot import EvidenceError
 
-_LOCK_PATH = Path("/tmp/lean-graph-build.lock")
+_WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+# The digest names a local lock; it is not a protocol or evidence commitment.
+_LOCK_PATH = Path("/tmp") / ("lean-graph-build-" +
+                           hashlib.sha256(os.fsencode(_WORKTREE_ROOT)).hexdigest() + ".lock")
 
 
 @contextmanager
 def build_lock(store=None):
-    # TMPDIR can differ between agent clients. All clients must use this path.
+    # Stores and TMPDIR can differ. Clients in this checkout share one lock.
     descriptor = os.open(_LOCK_PATH, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, "r+") as handle:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             owner = handle.read().strip()
-            raise EvidenceError("another command holds the shared build lock" +
+            raise EvidenceError("another command holds the shared build lock for this worktree" +
                                 (": " + owner if owner else "")) from error
         try:
             handle.seek(0)
             handle.truncate()
-            json.dump({"pid": os.getpid()}, handle)
+            json.dump({"pid": os.getpid(), "worktree": str(_WORKTREE_ROOT)}, handle)
             handle.flush()
             yield
         finally:
@@ -47,13 +51,39 @@ def build_lock(store=None):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+def process_cwd(pid):
+    if sys.platform == "linux":
+        try:
+            return Path(os.readlink(f"/proc/{pid}/cwd")).resolve()
+        except FileNotFoundError:
+            return None  # The process exited after the process-list snapshot.
+    if sys.platform == "darwin":
+        result = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+                                capture_output=True, text=True)
+        paths = [line[1:] for line in result.stdout.splitlines() if line.startswith("n")]
+        if result.returncode == 0 and len(paths) == 1:
+            return Path(paths[0]).resolve()
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return None
+        raise EvidenceError(f"cannot determine the worktree of build process {pid}")
+    raise EvidenceError(f"cannot inspect build working directories on {sys.platform}")
+
+
 def check_build_processes():
     active = subprocess.run(["ps", "-axo", "pid=,comm="], capture_output=True,
                             text=True, check=True).stdout.splitlines()
-    found = [line.strip() for line in active if len(line.split(None, 1)) == 2
-             and Path(line.split(None, 1)[1]).name in ("lake", "lean", "cargo", "rustc")]
+    found = []
+    for line in active:
+        words = line.split(None, 1)
+        if len(words) != 2 or Path(words[1]).name not in ("lake", "lean", "cargo", "rustc"):
+            continue
+        cwd = process_cwd(int(words[0]))
+        if cwd is not None and cwd.is_relative_to(_WORKTREE_ROOT):
+            found.append(line.strip())
     if found:
-        raise EvidenceError("an unmanaged Lean or Rust process is active: " + "; ".join(found))
+        raise EvidenceError("an unmanaged Lean or Rust process is active in this worktree: " + "; ".join(found))
 
 
 def run(command, kind, cwd, no_timeout=False):

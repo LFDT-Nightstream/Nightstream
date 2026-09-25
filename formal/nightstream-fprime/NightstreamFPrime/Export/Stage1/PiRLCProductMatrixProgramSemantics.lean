@@ -592,7 +592,7 @@ theorem block_row?
     (block geometry) logicalWidth ordinal bound (wireRingDescriptor descriptor)
       selected (semanticInterface geometry descriptor)
       (block_interface? geometry descriptor) semanticRow rowSelected
-  simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using loaded
+  simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using! loaded
 
 /-- The singleton program selects the canonical row at every ring and point. -/
 theorem matrixProgram_invocation_row?

@@ -57,7 +57,7 @@ theorem completeStage1
     apply congrArg List.ofFn
     funext index
     exact Expr.eval_eq_of_agree_below _ (AssemblerInputs.rootOffset program)
-      env p6.current (by simpa [appInterface, appOffset] using
+      env p6.current (by simpa [appInterface, appOffset] using!
         (inputsRoot.input index)) rootAgrees
   have witnessEq : Lifecycle.Stage1.Application.witnessValue appInterface
       appOffset env = Lifecycle.Stage1.Application.witnessValue appInterface
@@ -66,7 +66,7 @@ theorem completeStage1
     apply congrArg List.ofFn
     funext index
     exact Expr.eval_eq_of_agree_below _ (AssemblerInputs.rootOffset program)
-      env p6.current (by simpa [appInterface, appOffset] using
+      env p6.current (by simpa [appInterface, appOffset] using!
         (inputsRoot.witness index)) rootAgrees
   have outputEq : Lifecycle.Stage1.Application.outputState appInterface
       appOffset env = Lifecycle.Stage1.Application.outputState appInterface
@@ -75,7 +75,7 @@ theorem completeStage1
     apply congrArg List.ofFn
     funext index
     exact Expr.eval_eq_of_agree_below _ (AssemblerInputs.rootOffset program)
-      env p6.current (by simpa [appInterface, appOffset] using
+      env p6.current (by simpa [appInterface, appOffset] using!
         (inputsRoot.output index)) rootAgrees
   have applicationInitialSpec := specification.application
   change (program.circuit appInterface).spec

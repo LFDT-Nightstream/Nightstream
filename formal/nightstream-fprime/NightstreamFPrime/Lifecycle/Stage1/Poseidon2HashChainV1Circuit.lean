@@ -232,7 +232,7 @@ theorem constraintsSupported
     inputs.output (by
       intro index lower upper
       apply localSupport index lower
-      simpa [circuit] using upper)
-  simpa [circuit] using supported
+      simpa [circuit] using! upper)
+  simpa [circuit] using! supported
 
 end NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1

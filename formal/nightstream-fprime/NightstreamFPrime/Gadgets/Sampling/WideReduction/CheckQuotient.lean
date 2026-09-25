@@ -44,7 +44,7 @@ theorem integer_bounds (env : Env) (offset : Nat) (check : Fin checkCount)
   have leftCongruence : left env offset check ≡ linearValue env (drawTerms offset) [MOD m] := by
     have biasZero : m * checkBias ≡ 0 [MOD m] :=
       (Nat.modEq_zero_iff_dvd).mpr (Dvd.intro _ rfl)
-    simpa only [Nat.add_zero] using
+    simpa only [Nat.add_zero] using!
       (linearValue_reduce_modEq env m (drawTerms offset)).add biasZero
   have rightCongruence : right env offset check ≡ linearValue env (drawTerms offset) [MOD m] := by
     rw [sameInteger]
@@ -59,8 +59,8 @@ theorem integer_bounds (env : Env) (offset : Nat) (check : Fin checkCount)
     omega
 
 theorem modulus_inverse (check : Fin checkCount) :
-    fieldOfNat (modulus check) * Hint.inverse (fieldOfNat (modulus check)) = 1 := by
-  fin_cases check <;> decide
+    fieldOfNat (modulus check) * Hint.inverse (fieldOfNat (modulus check)) = 1 :=
+  Range.CanonicalU64.mul_hintInverse_eq_one _ (by fin_cases check <;> decide)
 
 theorem field_value (env : Env) (offset : Nat) (check : Fin checkCount)
     (ordered : right env offset check ≤ left env offset check)

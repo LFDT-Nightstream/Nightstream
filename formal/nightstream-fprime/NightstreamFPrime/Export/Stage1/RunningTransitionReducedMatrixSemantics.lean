@@ -190,7 +190,7 @@ theorem flagProgram_form {program : ApplicationProgram} {logicalWidth : Nat}
   apply AffineGrid.Program.singleton_form?_of_selected
   have loaded := retainedRule_form selected major middle minor
     (flagWire program) (flagFits geometry) oneColumn 0 0 0 0 (1 : F) (by simp only [Nat.mul_zero, Nat.zero_add]; change 0 < 1; decide)
-  simpa only [Nat.mul_zero, Nat.zero_add, applyCoefficient, if_pos rfl, flagForm] using loaded
+  simpa only [Nat.mul_zero, Nat.zero_add, applyCoefficient, if_pos rfl, flagForm] using! loaded
 
 theorem baseProgram_form {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (selected : Region)
@@ -248,10 +248,10 @@ theorem flagGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
   · apply AffineGrid.Program.singleton_form?_of_selected
     simpa only [selected, Nat.mul_zero, Nat.zero_add, applyCoefficient, if_pos rfl,
       stateWire, wireForm, RetainedBlock.ofSemantic, RetainedBlock.semantic,
-      RunningTransitionDirectPlan.Location.form] using left
+      RunningTransitionDirectPlan.Location.form] using! left
   · apply AffineGrid.Program.singleton_form?_of_selected
     simpa only [selected, Nat.mul_zero, Nat.zero_add, applyCoefficient, if_pos rfl,
-      inverseForm] using right
+      inverseForm] using! right
   · exact flagProgram_form geometry selected ⟨0, by change 0 < 1; omega⟩ ⟨0, by change 0 < 1; omega⟩ ⟨0, by change 0 < 1; omega⟩ oneColumn.val
 
 theorem bindingGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
@@ -271,7 +271,7 @@ theorem bindingGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
   · apply AffineGrid.Program.singleton_form?_of_selected
     simpa only [selected, Nat.mul_zero, Nat.zero_add, applyCoefficient, if_pos rfl,
       stateWire, wireForm, RetainedBlock.ofSemantic, RetainedBlock.semantic,
-      RunningTransitionDirectPlan.Location.form] using left
+      RunningTransitionDirectPlan.Location.form] using! left
   · exact baseProgram_form geometry selected ⟨0, by change 0 < 1; omega⟩ ⟨0, by change 0 < 1; omega⟩ ⟨0, by change 0 < 1; omega⟩ oneColumn
   · rfl
 

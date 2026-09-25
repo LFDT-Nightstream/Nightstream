@@ -25,39 +25,37 @@ private theorem output_not_source (lane : Fin laneCount) :
       (endpointColumn outputFamily lane) := by
   have laneBound : lane.val < 8 := lane.isLt
   intro support
+  change PiCCSOrdinarySourceSupport.Source
+    (PiCCSStarts.logicalFreshBase - 8 + lane.val) at support
+  unfold PiCCSStarts.logicalFreshBase at support
+  rw [PiCCSInputs.phaseOffset_eq] at support
   rcases support with (external | transcript | ordinary) | fresh
   · norm_num [PiCCSOrdinarySourceSupport.External,
-      PiCCSOrdinarySourceSupport.InRange, endpointColumn, endpointStart,
-      outputFamily, PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq,
+      PiCCSOrdinarySourceSupport.InRange,
       PilotProduction.priorPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.outputPreimageStart, PilotProduction.stateHashWords_eq,
       Lifecycle.PriorStateHash.publicWidth,
       Lifecycle.PaperAlgebra.publicRingColumns, ringDegree,
       PiCCSInputs.expectedContextStart_eq, PiCCSInputs.expectedContextWords,
-      PiCCSInputs.proofInputStart_eq] at external
+      PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq] at external
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
     have invocationBound : invocation.val < 718 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using invocation.isLt
     have outputLaneBound : outputLane.val < 8 := outputLane.isLt
-    norm_num [endpointColumn, endpointStart, outputFamily,
-      PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq] at equality
+    rw [PiCCSInputs.phaseOffset_eq] at equality
     omega
-  · norm_num [PiCCSOrdinarySourceSupport.OrdinaryLogical,
-      PiCCSOrdinarySourceSupport.InRange,
-      PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq,
-      PiCCSStarts.initialClaimLogicalStart,
-      PiCCSStarts.roundTranscriptWitnessStart_eq, endpointColumn,
-      endpointStart, outputFamily, PiCCSStarts.logicalFreshBase,
-      PiCCSInputs.phaseOffset_eq] at ordinary
+  · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
+      PiCCSOrdinarySourceSupport.InRange PiCCSStarts.initialClaimLogicalStart at ordinary
+    rw [PiCCSStarts.roundTranscriptWitnessStart_eq,
+      PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq] at ordinary
     omega
-  · norm_num [PiCCSStarts.initialClaimFreshStart,
-      PiCCSStarts.roundTranscriptFreshStart, PiCCSStarts.challengeFreshStart,
-      PiCCSStarts.statementAbsorptionFreshStart,
-      PiCCSStarts.statementBindingFreshStart, PiCCSStarts.logicalFreshBase,
-      PiCCSInputs.phaseOffset_eq, endpointColumn, endpointStart,
-      outputFamily] at fresh
+  · unfold PiCCSStarts.initialClaimFreshStart
+      PiCCSStarts.roundTranscriptFreshStart PiCCSStarts.challengeFreshStart
+      PiCCSStarts.statementAbsorptionFreshStart PiCCSStarts.statementBindingFreshStart
+      PiCCSStarts.logicalFreshBase at fresh
+    rw [PiCCSInputs.phaseOffset_eq] at fresh
     omega
 
 private theorem output_classify_none (lane : Fin laneCount) :

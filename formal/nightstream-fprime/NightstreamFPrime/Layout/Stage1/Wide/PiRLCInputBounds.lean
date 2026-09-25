@@ -227,14 +227,14 @@ theorem assumptions
     eval_A := ?_ }
   · intro lane
     simpa [shared, PiRLC.Wide.Formal.samplerInterface,
-      PiRLC.Wide.Formal.atOffset, PiRLCInputs.interface] using
+      PiRLC.Wide.Formal.atOffset, PiRLCInputs.interface] using!
         samplerInitialBelow relation env lane
   · refine {
       challengeBelow := ?_
       inputBelow := ?_ }
     · intro source lane
       simpa [shared, PiRLC.Wide.Formal.commitmentInterface,
-        PiRLC.v1_1.CommitmentCombination.familyInterface] using
+        PiRLC.v1_1.CommitmentCombination.familyInterface] using!
           samplerChallengeBelow source lane
     · intro source row lane cell
       apply Expr.VarsBelow.mono _

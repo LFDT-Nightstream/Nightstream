@@ -73,7 +73,7 @@ fn inspect_sealed(arguments: &mut impl Iterator<Item = std::ffi::OsString>) -> R
         "authority_lengths={:?}",
         [
             binding.verifier_context().relation_words().len(),
-            binding.verifier_context().application_words().len(),
+            binding.verifier_context().application_word_count(),
             binding.verifier_context().nifs_key_words().len(),
             binding.verifier_context().commitment_key_words().len(),
         ]

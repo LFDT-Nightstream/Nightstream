@@ -118,7 +118,7 @@ theorem pointRule_form {program : ApplicationProgram} {logicalWidth : Nat}
     poseidonWire, wireForm_ofSemantic,
     PiCCSTranscriptOutputForms.pointGrid, SourceGrid.externalOfSemantic,
     SourceGrid.ofSemantic, Fin.val_zero, Fin.val_one, Nat.zero_mul, Nat.one_mul,
-    Nat.add_zero, show 40670 + 86 - 40670 = 86 by decide, pointLane, reorder] using loaded
+    Nat.add_zero, show 40670 + 86 - 40670 = 86 by decide, pointLane, reorder] using! loaded
 
 theorem pointRight_form {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -161,7 +161,7 @@ theorem pointGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
     PiCCSInputs.runningPointStart 2 1 0 (1 : F) (by
       have bound := (pointOutputIndex coordinate part).isLt
       simpa only [pointOutputIndex, minor, Nat.mul_one, Nat.zero_mul, Nat.add_zero,
-        outputWire, RetainedBlock.ofSemantic] using bound)
+        outputWire, RetainedBlock.ofSemantic] using! bound)
   have decoded := MultiplicationGrid.Block.row?_of_results
     (RunningTransitionReducedMatrixProgram.pointGrid program oneColumn.val)
     oneColumn rfl coordinate part minor
@@ -178,7 +178,7 @@ theorem pointGrid_row {program : ApplicationProgram} {logicalWidth : Nat}
       simpa only [selected, region, minor, Nat.zero_add, Nat.mul_one, Nat.zero_mul,
         Nat.add_zero, applyCoefficient, if_pos rfl, pointForms, pointOutputIndex,
         outputWire, wireForm_ofSemantic,
-        RunningTransitionDirectPlan.Location.form] using output)
+        RunningTransitionDirectPlan.Location.form] using! output)
   have shape : (RunningTransitionReducedMatrixProgram.pointGrid program oneColumn.val).shape =
       ⟨productionShape.cubeVariables, 2, 1⟩ := rfl
   have address :

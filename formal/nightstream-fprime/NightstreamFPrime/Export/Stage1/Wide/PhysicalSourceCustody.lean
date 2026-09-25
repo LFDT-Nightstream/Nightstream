@@ -185,7 +185,7 @@ private theorem base_source (program : ApplicationPackage.Program)
   have recovered := PhysicalMatrixRecovery.ordinary_row_recovered_inserted program original moved result mapped inserted
   rw [valueEq] at recovered
   simpa only [PhysicalMatrixSemantics.referenceSource, rowMap, Except.toOption,
-    Bind.bind, Option.bind_some, sourceRead] using recovered
+    Bind.bind, Option.bind_some, sourceRead] using! recovered
 
 private theorem next_source (program : ApplicationPackage.Program)
     (package : CircuitPackage) (archive : BuilderRows program (PhysicalPackage.common ()) package)

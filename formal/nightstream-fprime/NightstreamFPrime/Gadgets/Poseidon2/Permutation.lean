@@ -578,7 +578,7 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
               Spec.Poseidon2.initialConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
         have separated := (constraintsHold_append env _ _).mp rows
-        simpa [inputs, sboxes] using separated
+        simpa [inputs, sboxes] using! separated
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.initialConstants round state splitRows.1
       calc
@@ -605,7 +605,7 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
               Spec.Poseidon2.terminalConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
         have separated := (constraintsHold_append env _ _).mp rows
-        simpa [inputs, sboxes] using separated
+        simpa [inputs, sboxes] using! separated
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.terminalConstants round state splitRows.1
       calc

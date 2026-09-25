@@ -76,7 +76,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
     (ringInterface interface) offset env specification
   have selected := congrFun all block
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
-    RingKRecomposition.evalChildren, ringInterface, block] using selected
+    RingKRecomposition.evalChildren, ringInterface, block] using! selected
 
 theorem specHolds_of_parentCoverage
     (interface : Interface) (offset : Nat) (env : Env)
@@ -96,7 +96,7 @@ theorem specHolds_of_parentCoverage
     omega
   subst selected
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
-    RingKRecomposition.evalChildren, ringInterface, block] using equation
+    RingKRecomposition.evalChildren, ringInterface, block] using! equation
 
 theorem coordinateCount_eq :
     RingKRecomposition.coordinateCount blockCount = 108 := by

@@ -324,6 +324,17 @@ fn expand_matrix(
                 push_witness_instruction(instruction, package.layout.constant_column, side, &mut builder);
                 row_cursor += 1;
             }
+            ScheduledWitness::Application(application) => {
+                for row in 0..application.records().row_count() {
+                    push_assertion(
+                        &application.assertion(row)?,
+                        package.layout.constant_column,
+                        side,
+                        &mut builder,
+                    );
+                    row_cursor += 1;
+                }
+            }
         }
     }
     while assertion_cursor < package.assertion_rows.len() {
@@ -386,12 +397,26 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
         .try_fold(0usize, |sum, count| sum.checked_add(count))
         .and_then(|count| count.checked_add(package.permutation_invocations.len()))
         .ok_or(PackageError::Invalid("invocation count overflow"))?;
-    let assertion_entries = package
+    let mut assertion_entries = package
         .assertion_rows
         .iter()
         .map(|row| sparse_entry_bound(sparse_side(row, side)))
         .try_fold(0usize, |sum, count| sum.checked_add(count))
         .ok_or(PackageError::Invalid("assertion entry bound overflow"))?;
+    if let Some(application) = &package.native_application {
+        let side = match side {
+            MatrixSide::A => 0,
+            MatrixSide::B => 1,
+            MatrixSide::C => 2,
+        };
+        for row in 0..application.records().row_count() {
+            let header = application.records().row_header(row)?;
+            assertion_entries = assertion_entries
+                .checked_add(header.term_counts[side])
+                .and_then(|count| count.checked_add(usize::from(header.constants[side] != 0)))
+                .ok_or(PackageError::Invalid("assertion entry bound overflow"))?;
+        }
+    }
     let witness_entries = package
         .witness_instructions
         .iter()

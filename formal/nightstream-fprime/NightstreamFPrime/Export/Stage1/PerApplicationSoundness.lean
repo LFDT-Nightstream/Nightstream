@@ -177,7 +177,7 @@ theorem packageRows_imply_stepHoldsFor
     relation ajtai vk program.step input output represents.priorFixed
       represents.outputFixed represents.digestFixed
       (PerApplicationPackage.baseEnv program env) (by
-        simpa [pilotEnv] using represents.pilot) baseRows
+        simpa [pilotEnv] using! represents.pilot) baseRows
   have application : output.zNext = program.step input.zi input.witness :=
     application_eq relation ajtai vk program env input output represents rows
   have accumulator :=
@@ -221,7 +221,7 @@ theorem packageRows_imply_stepHoldsFor
             have runningSpec :=
               RunningTransitionPackage.circuitPackage_implies_specHolds relation
                 (PerApplicationPackage.baseEnv program env) baseRows
-            simpa [sourceEnv] using
+            simpa [sourceEnv] using!
               runningSpec.initialState fieldZero ⟨index, bounded⟩
         _ = input.zi := represents.currentState
     have runningBase :=

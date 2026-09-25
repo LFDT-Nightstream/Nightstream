@@ -183,7 +183,7 @@ theorem flatConstraints_varsBelow
     ∀ constraint ∈ flatConstraints
       (Circuit.ops (circuit relation interface).main offset),
       constraint.VarsBelow (offset + privateCount) := by
-  simpa [privateCount] using
+  simpa [privateCount] using!
     Sparse.Owned.flatConstraints_varsBelow (polynomial relation)
       (sparseInterface interface) offset _assumptions
 

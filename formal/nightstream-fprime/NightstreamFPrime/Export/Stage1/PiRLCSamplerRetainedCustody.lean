@@ -568,7 +568,7 @@ theorem semanticEnv_state
     ⟨location.source.val, by
       have sourceLt := location.source.isLt
       change location.source.val < 17 at sourceLt
-      simpa [PiRLCSamplerOrdinaryRetainedBlocks.sourceCount] using sourceLt⟩
+      simpa [PiRLCSamplerOrdinaryRetainedBlocks.sourceCount] using! sourceLt⟩
   by_cases missing : location.step.val = 8 ∨ 4 ≤ location.lane.val
   · have sourceNone :=
       PiRLCSamplerOrdinaryDirectPlan.classifySource_samplerState_missing

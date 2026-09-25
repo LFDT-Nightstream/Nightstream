@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one fresh recursive replay phase under the repository's native-test cap."""
+"""Run one fresh recursive phase under the native-test and RSS acceptance caps."""
 
 from __future__ import annotations
 
@@ -18,6 +18,131 @@ from lean_graph.guard import build_lock  # noqa: E402
 from lean_graph.policy import CAPS  # noqa: E402
 
 TEST = "lifecycle::tests::staged::run_phase"
+OPENING_TESTS = {
+    "opening-k": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+    "opening-a": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
+}
+# NIGHTSTREAM_CRATE_GOAL.md, current owner-approved RSS guard.
+RSS_CAP_BYTES = 16 * 1024**3
+# Same cadence as tests/evidence/nonzero-fold-20260921/run_rss_test.py.
+RSS_POLL_SECONDS = 1
+
+
+def resident_bytes(pid: int, remaining: float) -> int | None:
+    """Read current RSS; None means the process exited during observation."""
+    if sys.platform == "linux":
+        try:
+            status = Path(f"/proc/{pid}/status").read_text()
+        except FileNotFoundError:
+            return None
+        for line in status.splitlines():
+            if line.startswith("VmRSS:"):
+                _, value, unit = line.split()
+                if unit != "kB":
+                    raise ValueError(f"unexpected Linux RSS unit: {unit}")
+                return int(value) * 1024
+        return None  # A zombie has no resident address space.
+    if sys.platform == "darwin":
+        observed = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)],
+                                  capture_output=True, text=True, timeout=remaining)
+        if observed.returncode == 1 and not observed.stdout.strip():
+            return None
+        observed.check_returncode()
+        return int(observed.stdout.strip()) * 1024
+    raise ValueError(f"RSS guard does not support {sys.platform}")
+
+
+def run_test(command: list[str], request: dict, output) -> dict:
+    """Kill on sampled excess and also reject a peak detected after exit."""
+    if sys.platform not in ("linux", "darwin"):
+        raise ValueError(f"RSS guard does not support {sys.platform}")
+    started = time.monotonic()
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    # Keep the inherited process group so an outer timeout also stops the test.
+    # The Rust phase starts no children.
+    process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
+                               stdout=output, stderr=subprocess.STDOUT)
+    previous, sampled_peak = {}, 0
+    code, outcome, stopped_for_memory, observation_error = 1, "failed", False, None
+
+    def interrupted(signum, _frame):
+        process.kill()
+        raise InterruptedError(f"signal {signum}")
+
+    try:
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous[signum] = signal.signal(signum, interrupted)
+        data = json.dumps(request).encode()
+        try:
+            while True:
+                remaining = CAPS["rust"] - (time.monotonic() - started)
+                if remaining <= 0:
+                    code, outcome = 124, "timed-out"
+                    break
+                try:
+                    process.communicate(data, timeout=min(RSS_POLL_SECONDS, remaining))
+                    code = process.returncode
+                    outcome = "passed" if code == 0 else "failed"
+                    break
+                except subprocess.TimeoutExpired:
+                    data = None  # communicate retains any unwritten request bytes.
+                remaining = CAPS["rust"] - (time.monotonic() - started)
+                if remaining <= 0:
+                    code, outcome = 124, "timed-out"
+                    break
+                try:
+                    rss = resident_bytes(process.pid, remaining)
+                    if rss is None:
+                        # The kernel can remove the address space before wait
+                        # reports exit. Use only the existing deadline to reap;
+                        # the mandatory final peak check still applies below.
+                        remaining = CAPS["rust"] - (time.monotonic() - started)
+                        if remaining <= 0:
+                            code, outcome = 124, "timed-out"
+                            break
+                        process.communicate(timeout=remaining)
+                        code = process.returncode
+                        outcome = "passed" if code == 0 else "failed"
+                        break
+                    sampled_peak = max(sampled_peak, rss or 0)
+                    if sampled_peak > RSS_CAP_BYTES:
+                        code, outcome, stopped_for_memory = 1, "memory-cap", True
+                        break
+                except subprocess.TimeoutExpired:
+                    code, outcome = 124, "timed-out"
+                    break
+                except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                    code, outcome, observation_error = 1, "memory-observation-failed", str(error)
+                    break
+        except InterruptedError:
+            code, outcome = 130, "interrupted"
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate()
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    # RUSAGE_CHILDREN retains short-lived peaks missed between live samples.
+    # It is an upper bound for the test, since it also includes this driver's
+    # short git/ps helper processes. A low helper peak cannot hide a high test.
+    peak = max(sampled_peak, after.ru_maxrss * (1 if sys.platform == "darwin" else 1024))
+    if peak > RSS_CAP_BYTES and code == 0:
+        code, outcome = 1, "memory-cap"
+    return {
+        "elapsed_seconds": time.monotonic() - started, "exit": code, "outcome": outcome,
+        "process_exit": process.returncode,
+        "user_seconds": after.ru_utime - before.ru_utime,
+        "system_seconds": after.ru_stime - before.ru_stime,
+        "maximum_resident_bytes": peak, "sampled_maximum_resident_bytes": sampled_peak,
+        "memory_cap_bytes": RSS_CAP_BYTES, "memory_cap_metric": "RSS",
+        "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+        "memory_cap_exceeded": peak > RSS_CAP_BYTES,
+        "memory_enforcement": "killed on observed RSS excess" if stopped_for_memory
+                              else "peak RSS acceptance check after exit",
+        "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+        "memory_observation_error": observation_error,
+    }
 
 
 def main() -> int:
@@ -67,52 +192,15 @@ def main() -> int:
     record_path = logs / f"{name}.json"
     if record_path.exists():
         parser.error(f"phase record already exists: {record_path}")
-    command = [str(args.binary.resolve()), TEST, "--ignored", "--exact", "--nocapture"]
+    command = [str(args.binary.resolve()), OPENING_TESTS.get(args.phase, TEST), "--ignored", "--exact", "--nocapture"]
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     changes = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).splitlines()
     record = {"schema": 1, "source_commit": commit, "source_changes": changes,
               "command": command, "request": request, "cap_seconds": CAPS["rust"]}
 
     with build_lock(), log_path.open("xb") as output:
-        started = time.monotonic()
-        before = resource.getrusage(resource.RUSAGE_CHILDREN)
-        # Keep the inherited process group. An outer timeout must also stop
-        # this test; the Rust phase itself starts no child processes.
-        process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
-                                   stdout=output, stderr=subprocess.STDOUT)
-        previous = {}
-
-        def interrupted(signum, _frame):
-            process.kill()
-            raise InterruptedError(f"signal {signum}")
-
-        try:
-            for signum in (signal.SIGINT, signal.SIGTERM):
-                previous[signum] = signal.signal(signum, interrupted)
-            remaining = max(0.0, CAPS["rust"] - (time.monotonic() - started))
-            try:
-                process.communicate(json.dumps(request).encode(), timeout=remaining)
-                code = process.returncode
-                outcome = "passed" if code == 0 else "failed"
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.communicate()
-                code, outcome = 124, "timed-out"
-            except InterruptedError:
-                process.kill()
-                process.communicate()
-                code, outcome = 130, "interrupted"
-        finally:
-            if process.poll() is None:
-                process.kill()
-            process.wait()
-            for signum, handler in previous.items():
-                signal.signal(signum, handler)
-        after = resource.getrusage(resource.RUSAGE_CHILDREN)
-        record.update(elapsed_seconds=time.monotonic() - started, exit=code, outcome=outcome,
-                      user_seconds=after.ru_utime - before.ru_utime,
-                      system_seconds=after.ru_stime - before.ru_stime,
-                      maximum_resident_bytes=after.ru_maxrss * (1 if sys.platform == "darwin" else 1024))
+        record.update(run_test(command, request, output))
+    code = record["exit"]
 
     # An unmatched libtest filter exits successfully without running a test.
     if code == 0 and "test result: ok. 1 passed; 0 failed; 0 ignored;" not in log_path.read_text():

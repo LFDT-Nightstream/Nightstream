@@ -2,7 +2,7 @@
 
 The folding engines: Π_CCS as a sum-check protocol, plus the RLC/DEC operations, in
 optimized and paper-exact variants. This crate owns the protocol *math*;
-`neo-fold-clean`'s paper layer owns the protocol *sequencing*.
+`neo-fold-legacy`'s paper layer owns the protocol *sequencing*.
 
 ## Owns
 

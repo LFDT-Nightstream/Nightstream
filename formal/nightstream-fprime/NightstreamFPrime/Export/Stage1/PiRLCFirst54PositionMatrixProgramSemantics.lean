@@ -539,7 +539,7 @@ private theorem positionRight_later_zero
       0 3520 55 0 (-1) prior inside
       (by simpa [prior, PiRLCFirst54DirectPlan.priorPositionForm,
         candidate, notFirst, previousCandidate_eq, priorRound,
-        positionDescriptor, inputs, zero] using raw)
+        positionDescriptor, inputs, zero] using! raw)
     simpa [applyCoefficient, negOne_ne_one_position] using selected
   have rule3 :
       (retainedRule laterPositionMiddle (positionWire program)
@@ -931,15 +931,15 @@ theorem positionGrid_row?
   have direct := MultiplicationGrid.Block.row?_of_results
     (positionGrid geometry) (PiRLCRetainedGeometry.oneColumn geometry) rfl
     source round slot left right output
-    (by simpa [left, inputs] using
+    (by simpa [left, inputs] using!
       positionLeftProgram_form? geometry source round slot)
-    (by simpa [right, inputs] using
+    (by simpa [right, inputs] using!
       positionRightProgram_form? geometry source round slot)
-    (by simpa [output, inputs] using
+    (by simpa [output, inputs] using!
       positionOutputProgram_form? geometry source round slot)
   simpa [MultiplicationFamilyPlan.forms,
     PiRLCFirst54DirectPlan.positionInterface,
     PiRLCFirst54DirectSchedule.position_positionIndex,
-    left, right, output, inputs] using direct
+    left, right, output, inputs] using! direct
 
 end NightstreamFPrime.Export.Stage1.PiRLCFirst54MatrixProgram

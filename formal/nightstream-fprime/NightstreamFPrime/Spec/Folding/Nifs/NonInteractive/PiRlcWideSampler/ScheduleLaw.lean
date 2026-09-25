@@ -36,7 +36,6 @@ theorem queryAt_length (initial : List Draw) (coordinate : Fin 17) :
 theorem queryAt_injective (initial : List Draw) : Function.Injective (queryAt initial) := by
   intro left right same
   have lengths := congrArg (fun query : Query => query.val.length) same
-  dsimp only at lengths
   rw [queryAt_length, queryAt_length] at lengths
   exact Fin.ext (by omega)
 
@@ -89,7 +88,7 @@ theorem fresh_folds_bias_bound (folds : Nat) (test : (Fin (17 * folds) → Scala
     (nonnegative : ∀ vector, 0 ≤ test vector) (atMostOne : ∀ vector, test vector ≤ 1) :
     |average (fun blocks : Fin (17 * folds) → Draw => test (sampleVector blocks)) - average test| ≤
       (17 * folds : Nat) * distance := by
-  simpa only [Fintype.card_fin] using vector_average_difference_abs_le test nonnegative atMostOne
+  simpa only [Fintype.card_fin] using! vector_average_difference_abs_le test nonnegative atMostOne
 
 open NightstreamFPrime.Spec.Folding.PiRLC
 open CoordinateRetry CoordinateOracle CoordinateOracleStar CoordinateTerminalLaw
@@ -106,7 +105,7 @@ theorem fresh_blocks_extractor_lower_bound {Assignment : Type*} [Fintype Assignm
     average (fun blocks => (line oracle check).acceptance (readScalars initial cache fresh blocks)) -
         17 * distance - (17 : ℝ) / Fintype.card Scalar ≤ returningProbability oracle check returns := by
   rw [fresh_batch_law]
-  simpa only [sampledRate, sampleVector, Fintype.card_fin] using
+  simpa only [sampledRate, sampleVector, Fintype.card_fin] using!
     returningProbability_sampled_lower_bound oracle check returns returnsOnFork
 
 end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.ScheduleLaw

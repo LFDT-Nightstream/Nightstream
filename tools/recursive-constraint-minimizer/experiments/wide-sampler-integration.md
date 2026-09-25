@@ -1,7 +1,8 @@
 # Wide sampler integration checkpoint
 
 Base: `be5b7fcdc`. Worktree branch: `nico/pirlc-wide-sampler-integration`.
-Production selection and generated packages remain unchanged at this checkpoint.
+The wide package is selected in production since `c65a8605a`. The sections
+below are dated checkpoints; later sections supersede earlier limits.
 
 The candidate implements the merged whole-vector sampler with the existing
 hint vocabulary. Its deterministic schedule enters `[4, i]`, reads one joint
@@ -101,9 +102,12 @@ bound. Any application of an established cryptographic reduction must state
 its model and applicability conditions. The concrete-to-ideal error remains
 an explicit, separate premise in `under_block_oracle_assumption`.
 
-`TranscriptHistory.lean` proves that replaying those normalized histories
-with additive Poseidon2 gives exactly `Transcript.drawAt`. The wide key's
-`response_history` theorem connects this result to the actual verifier.
+`TranscriptHistory.lean` proves that replaying a normalized history from any
+seed with additive Poseidon2 gives exactly `Transcript.drawAt`. The wide key's
+`response_history` theorem states the same fact for the key's response. No
+theorem identifies the verifier's PiCCS output state with the replay of the
+complete transcript history, so the block-oracle bound is not consumed by
+the extraction chain; see the FS boundary note.
 `WideSamplerSecurity.no_sampler_abort` holds for every concrete initial state.
 `any_test_le` unions only the PiCCS test events; it has no old shortfall term.
 
@@ -361,7 +365,8 @@ proof uses pointwise public-coordinate equalities; it does not normalize the
 complete concrete layout. There is no canonical-witness premise.
 
 The context digest is decoded from the constrained state; its identification
-with the verifier-owned package context remains part of production binding.
+with the verifier-owned package context is closed later by
+`ContextBinding.step_or_collision` and `SetupBinding`.
 
 `Wide.DecodedPrefix` recovers the pilot and PiCCS contracts. The direct PiRLC
 inputs use the checked PiCCS transcript endpoint and values. `DecodedPiDEC`
@@ -918,7 +923,7 @@ part of the production switch.
 
 The local production entrypoint and Rust sampler now select the proved wide
 package. The saved proof checkpoint is `a0f4b5b41`; this native integration
-batch is not yet committed. The fixed profile and approved indexed setup seed
+batch is committed in `c65a8605a`. The fixed profile and approved indexed setup seed
 are unchanged. The selected key uses 2,543,368 ring columns and 22 rows.
 
 | Measure | Previous selected package | Wide selection |
@@ -1001,8 +1006,10 @@ independent fixtures are installed in their published paths.
   and `SetupBinding.step_or_collision` for the verifier-owned context. The
   production selector and native binding must use those same children.
 - Use the wide-key security consumers when selecting the production package.
-  Their exact transcript link, adaptive query accounting, and explicit
-  Fiat–Shamir boundary are proved and recorded above. Numerical cryptographic
+  Their key response, adaptive query accounting, and explicit Fiat–Shamir
+  boundary are recorded above; the complete-transcript link to the block
+  oracle is not proved, and the wide-versus-uniform challenge difference
+  stays inside `deltaFS`. Numerical cryptographic
   advantages and any external adversary translation remain external, as for
   the selected baseline.
 - Switch native Rust rho derivation and assignment transport to the checked
@@ -1014,3 +1021,36 @@ independent fixtures are installed in their published paths.
 At `a0f4b5b41`, the selected baseline remained 3,588,191 rows, 149,293,044
 committed coordinates, and 2,857,409,270 normalized matrix nonzeros. The
 native-selection section above records the subsequent working-tree changes.
+
+## Lean 4.32.2 base and review fixes
+
+The branch now merges `nico/f-prime-constraints-cuda-formal` (Lean 4.32.2 and
+its Mathlib). Lean conflicts kept this branch's layouts; the upgrade repairs
+follow the base commit's patterns (`using!`, explicit `unfold`/`rw` for large
+layout constants, removed no-progress `dsimp`). Rust conflicts combine the
+base's streamed row visitors and application records with the wide blocks.
+
+Review fixes in the same merge:
+
+- `Wide.Emitter` writes the parts of the proved pure `AuthorityStream.prepare`.
+  A fresh selected emission is byte-identical to the committed package, and the
+  identity pins match.
+- `Wide.OpeningBinding` adds the verifier-side links: rows read from the sealed
+  matrix program imply the step (`step_or_collision_of_matrix`), a fresh CCS
+  opening gives the rows and public input, and an accepted recursive terminal
+  gives the step or the named state-hash collision
+  (`terminal_implies_stepOrCollision`).
+- The FS boundary note, assurance surface and security docstring no longer
+  claim a complete-transcript link or a consumed `q*δ` term. The owner's
+  2026-09-25 confirmation of the Fiat–Shamir extension is recorded with a hash.
+- The Rust wide transport pins the exact Phi81 family order and has regular
+  unit tests for bit, digit, profile and quotient handling. The detached
+  application regression now finds the mapped application block and rejects
+  the detached output at row 3,248,943. The pilot parity fixture is
+  regenerated for the wide verifier context.
+- The selected key permits ordinary applications with at most 262 private
+  words; the assembly node test derives this capacity from the manifest.
+  Widening the key is an owner decision.
+
+The wide-key security port of the baseline NIFS and HyperNova history chain
+remains open; its scoped plan is recorded in the review.

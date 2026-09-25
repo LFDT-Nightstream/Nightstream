@@ -48,7 +48,7 @@ theorem evaluateCoefficients_mulCounts
         exact coefficientsNoMul current (by simp [member])
       have tailCounts := inductionHypothesis tailNoMul
       simp only [NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients,
-        KExpr.add, KExpr.mul, R1CS.mulCount, evaluationCounts,
+        KExpr.add, KExpr.mul, R1CS.mulCount, List.length_cons, evaluationCounts,
         headNoMul.1, headNoMul.2, pointNoMul.1,
         pointNoMul.2, tailCounts.1, tailCounts.2]
       omega

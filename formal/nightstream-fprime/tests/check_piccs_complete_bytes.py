@@ -42,9 +42,13 @@ def proof_words(value):
 
 
 def compare(lean_input_bytes, lean_phase_bytes, lean_words_bytes, rust_input_bytes, rust_phase_bytes):
-    require(lean_input_bytes == rust_input_bytes, "complete PiCCS input bytes differ")
+    # PiCCSInputCheck.parse permits exactly one optional final LF.
+    lean_input = lean_input_bytes.removesuffix(b"\n")
+    rust_input = rust_input_bytes.removesuffix(b"\n")
+    require(lean_input == rust_input, "complete PiCCS input bytes differ")
     require(lean_phase_bytes == rust_phase_bytes, "complete PiCCS phase bytes differ")
     value, phase = json.loads(lean_input_bytes), json.loads(lean_phase_bytes)
+    require(lean_input == canonical(value), "noncanonical PiCCS input encoding")
     require(len(phase) == 15 and phase[0] == 1, "PiCCS was not accepted")
     require(len(phase[14]) == 8, "wrong outgoing transcript state width")
     require(phase[12] == value[4] and phase[13] == value[5], "phase output families differ")
@@ -80,8 +84,9 @@ def main():
                       "rounds": 28, "phase_fields": 15, "output_field_words": 27540,
                       "proof_input_field_words": len(words), "outgoing_state_words": 8,
                       "input_bytes": len(raw[0]), "phase_bytes": len(raw[1]),
+                      "rust_input_bytes": len(raw[3]),
                       "consistent_changed_target": "rejected", "changed_proof_word": "rejected",
-                      "scope": "complete PiCCS input and phase encoding plus package proof-input words; full NIFS encoding is separate"}))
+                      "scope": "complete canonical PiCCS input with an optional final LF, exact phase encoding and package proof-input words; full NIFS encoding is separate"}))
 
 
 if __name__ == "__main__":

@@ -76,7 +76,7 @@ private theorem bits_loaded {columns start : Nat} (fits : Retained.Fits columns 
   have bounded : 0 + child.val * 64 + (0 : Fin 1).val * 0 + bit.val < Retained.canonicalBits.slotCount := by
     change 0 + child.val * 64 + 0 * 0 + bit.val < 256
     omega
-  simpa only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.mul_comm] using
+  simpa only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.mul_comm] using!
     SourceGrid.form?_ofSemantic Retained.canonicalBits start 1408 4 66 1 66 64 0 64 0
       (by change start + 256 ≤ columns; exact le_trans (by omega) fits)
       (by decide) (by decide) child (0 : Fin 1) bit (by have h := bit.isLt; change 0 * 66 + bit.val < 66; omega)
@@ -91,7 +91,7 @@ private theorem fields_loaded {columns start : Nat} (fits : Retained.Fits column
   have bounded : 0 + child.val * 2 + (0 : Fin 1).val * 0 + cell.val < Retained.canonicalFields.slotCount := by
     change 0 + child.val * 2 + 0 * 0 + cell.val < 8
     omega
-  simpa only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.mul_comm] using
+  simpa only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.mul_comm] using!
     SourceGrid.form?_ofSemantic Retained.canonicalFields (start + 256) 1472 4 66 1 66 2 0 2 0
       (by change (start + 256) + 328 ≤ columns; exact le_trans (by omega) fits)
       (by decide) (by decide) child (0 : Fin 1) cell (by have h := cell.isLt; change 0 * 66 + cell.val < 66; omega)
@@ -102,7 +102,7 @@ private theorem results_loaded {columns start : Nat} (fits : Retained.Fits colum
     (resultRange start).form? columns (1672 + index.val) =
       some (Retained.resultBits.form (start + 584)
         (by change (start + 584) + 353 ≤ columns; exact fits) index) := by
-  simpa only [Nat.zero_add, Fin.eta] using SourceRange.form?_ofSemantic Retained.resultBits (start + 584) 1672 353 0
+  simpa only [Nat.zero_add, Fin.eta] using! SourceRange.form?_ofSemantic Retained.resultBits (start + 584) 1672 353 0
     (by change (start + 584) + 353 ≤ columns; exact fits) (by decide) index
 
 /-- Each retained source resolves to the same form as the certified range

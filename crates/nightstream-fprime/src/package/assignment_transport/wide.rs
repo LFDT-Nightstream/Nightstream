@@ -3,6 +3,9 @@
 
 use super::*;
 
+/// Lean `PiRLCProductSchedule` family order: commitment, public input, Eval_K, Eval_A.
+const FAMILY_SHAPES: [[usize; 3]; 4] = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Values {
     kind: SlotKind,
@@ -107,13 +110,10 @@ pub(super) fn decode(
 ) -> Result<Plan, PackageError> {
     let fields = exact_array(value, 4, "wide assignment transport plan")?;
     let recipe = exact_array(&fields[2], 3, "wide quotient recipe")?;
-    let shapes = recipe[0]
-        .as_array()
-        .ok_or(PackageError::Invalid("wide quotient families"))?;
+    let shapes = exact_array(&recipe[0], FAMILY_SHAPES.len(), "wide quotient families")?;
     let mut families = Vec::with_capacity(shapes.len());
     let mut invocation_count = 0usize;
-    let mut source_count = None;
-    for shape in shapes {
+    for (shape, expected) in shapes.iter().zip(FAMILY_SHAPES) {
         let words = exact_array(shape, 3, "wide quotient family")?;
         let family = Phi81FamilyShape {
             source_count: word(&words[0], "wide quotient sources")?,
@@ -121,14 +121,9 @@ pub(super) fn decode(
             cell_count: word(&words[2], "wide quotient cells")?,
             first_invocation: invocation_count,
         };
-        if family.source_count == 0
-            || family.block_count == 0
-            || family.cell_count == 0
-            || source_count.is_some_and(|count| count != family.source_count)
-        {
+        if [family.source_count, family.block_count, family.cell_count] != expected {
             return Err(PackageError::Invalid("wide quotient family shape"));
         }
-        source_count = Some(family.source_count);
         invocation_count = invocation_count
             .checked_add(
                 family
@@ -141,7 +136,7 @@ pub(super) fn decode(
             .ok_or(PackageError::Invalid("wide quotient count overflow"))?;
         families.push(family);
     }
-    if invocation_count != PHI81_INVOCATIONS || source_count != Some(17) {
+    if invocation_count != PHI81_INVOCATIONS {
         return Err(PackageError::Invalid("wide quotient profile"));
     }
     let values = decode_source_runs(&recipe[1], invocation_count, physical_width)?;
@@ -183,3 +178,7 @@ pub(super) fn decode(
         logical_width,
     })
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/wide_transport.rs"]
+mod tests;

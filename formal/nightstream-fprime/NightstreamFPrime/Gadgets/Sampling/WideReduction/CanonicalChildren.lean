@@ -41,6 +41,8 @@ theorem correct (interface : Interface) (base : Env) (offset : Nat)
       refine ⟨?_, ?_⟩
       · have agreement := previous.1.append child.1
         convert agreement using 1
+        rw [Nat.mul_succ]
+        rfl
       · intro index earlier
         by_cases last : index.val = count
         · have same : index = ⟨count, inside⟩ := Fin.ext last

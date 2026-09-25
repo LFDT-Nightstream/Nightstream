@@ -21,7 +21,8 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (prepared, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(prepared, binding, crate::engine::Prover::Optimized).unwrap();
+    let package =
+        PreparedLifecycle::from_package(prepared.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
     eprintln!("recursive preparation elapsed={:?}", started.elapsed());
 
     let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
@@ -40,6 +41,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
             Stage1Envelope::initial(initial),
             &message.map(|value| value.as_canonical_u64()),
             base_output,
+            None,
         )
         .unwrap();
     assert_eq!(base_proof.state(), &Stage1State::new(1, initial, base_output));
@@ -68,6 +70,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),
+        114,
     )
     .unwrap();
     let mut transcript = Transcript::session();
@@ -122,7 +125,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     assert_eq!(encoded.private_values(), expected_private);
     assert_eq!(encoded.public_values(), expected_public);
     assert_eq!(json!(packet.output_digest()), expected_packet[4][1]);
-    let successor = package.complete_step(packet, next.witnesses).unwrap();
+    let successor = package.complete_step(packet, next.witnesses, None).unwrap();
     assert_eq!(successor.state().iteration(), request[0].as_u64().unwrap());
     assert_eq!(successor.state().z0().as_slice(), fields(&request[1]));
     assert_eq!(successor.state().current().as_slice(), fields(&request[2]));
@@ -136,7 +139,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let second_fold = Instant::now();
     eprintln!("second full fold started elapsed={:?}", started.elapsed());
     let final_proof = package
-        .extend_with_output(successor, &recursive_words, final_output)
+        .extend_with_output(successor, &recursive_words, final_output, None)
         .unwrap();
     eprintln!("second full fold and successor elapsed={:?}", second_fold.elapsed());
     let expected_state = Stage1State::new(3, initial, final_output);
@@ -163,13 +166,19 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         "rehashed running-opening rejection started elapsed={:?}",
         started.elapsed()
     );
-    assert!(matches!(
-        package.verify(&expected_state, &changed),
-        Err(VerifyError::Running {
-            index: 0,
-            reason: "Eval_K differs from the complete witness opening"
-        })
-    ));
+    let error = package
+        .verify(&expected_state, &changed)
+        .expect_err("a rehashed false opening must be rejected");
+    // The combined row evaluator checks the fresh relation first.
+    assert!(
+        matches!(
+            error,
+            VerifyError::FreshRelation(
+                neo_reductions::superneo_eval::SuperneoCachedRelationError::UnsatisfiedRow { .. }
+            )
+        ),
+        "unexpected rejection: {error:?}"
+    );
     eprintln!("complete recursive gate elapsed={:?}", started.elapsed());
 }
 

@@ -97,7 +97,7 @@ theorem source_expansion (draw : Draw) (lane : Fin 4) :
     lt_trans (draw lane).isLt (by decide)
   have expansion := digit_sum base (draw lane).val 4
   rw [Nat.mod_eq_of_lt bound] at expansion
-  simpa only [sourceLimb, Fin.sum_univ_eq_sum_range] using expansion.symm
+  simpa only [sourceLimb, Fin.sum_univ_eq_sum_range] using! expansion.symm
 
 private theorem weighted_matrix (words : Fin 4 → Fin 4 → Nat) :
     (∑ position ∈ range 16, base ^ position *
@@ -136,7 +136,7 @@ theorem limb_exact (draw : Draw) (position : Fin 16) :
     ⟨accumulator draw index.val % base, Nat.mod_lt _ (by decide)⟩
   have encoded : (finFunctionFinEquiv limbs).val = (drawIndex draw).val := by
     rw [finFunctionFinEquiv_apply]
-    simpa only [limbs, Fin.sum_univ_eq_sum_range, Nat.mul_comm] using lowValue_exact draw
+    simpa only [limbs, Fin.sum_univ_eq_sum_range, Nat.mul_comm] using! lowValue_exact draw
   have decoded := congrArg (fun values : Fin 16 → Fin base => (values position).val)
     (finFunctionFinEquiv.symm_apply_apply limbs)
   change (finFunctionFinEquiv limbs).val / base ^ position.val % base =

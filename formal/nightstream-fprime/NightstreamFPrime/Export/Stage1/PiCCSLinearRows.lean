@@ -101,7 +101,7 @@ theorem invocation_loaded_value (block : Poseidon.Block) {columns : Nat}
     have value := PiDECPoseidonNumericBlock.row?_value block values
       (Fin.encodeProd (invocationIndex, row)).val port
     simpa only [PiDECPoseidonNumericBlock.row?, PiDECPoseidonNumericBlock.loadRow?_encodeProd,
-      loaded, Option.map_some, PiDECPoseidonNumericRows.stored_value] using value
+      loaded, Option.map_some, PiDECPoseidonNumericRows.stored_value] using! value
   rw [invocation_value]
   have first := scalar (fun column => (read column).c0)
   have second := scalar (fun column => (read column).c1)

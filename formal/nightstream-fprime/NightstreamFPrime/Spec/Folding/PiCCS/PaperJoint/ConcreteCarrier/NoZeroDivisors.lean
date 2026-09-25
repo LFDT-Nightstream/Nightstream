@@ -69,7 +69,7 @@ theorem conjugate_mul_self (value : K) :
         ConcreteCarrier.baseLaws.neg_mul _ _
       _ = -(7 * imaginary * imaginary) := by congr 1 <;> ac_rfl
   · have negMul : -imaginary * real = -(imaginary * real) := by
-      simpa [ConcreteCarrier.baseOps] using
+      simpa [ConcreteCarrier.baseOps] using!
         (ConcreteCarrier.baseLaws.neg_mul imaginary real)
     have commute : imaginary * real = real * imaginary := by
       simpa [ConcreteCarrier.baseOps] using

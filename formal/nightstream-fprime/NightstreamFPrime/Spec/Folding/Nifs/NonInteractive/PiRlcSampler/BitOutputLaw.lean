@@ -239,7 +239,6 @@ private def successFiberEquiv (left right : Scalar) :
       (fun rank candidate => chunkPerm_accepts (between left right rank) candidate)
       candidateBound) (by
     intro window
-    dsimp only
     rw [ofFn_windowPerm, boundedSample_scan]
     constructor
     · intro success

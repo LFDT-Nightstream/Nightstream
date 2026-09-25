@@ -37,7 +37,7 @@ private theorem cachedDigit_as_field (value : Int) (child : Radix.ChildIndex) :
 private theorem centered_natAbs (value : F) :
     (ZMod.valMinAbs (n := goldilocksModulus) value).natAbs =
       centeredMagnitude value := by
-  simpa only [centeredMagnitude] using
+  simpa only [centeredMagnitude] using!
     ZMod.valMinAbs_natAbs_eq_min (n := goldilocksModulus) value
 
 private theorem centered_nonneg (value : F) :

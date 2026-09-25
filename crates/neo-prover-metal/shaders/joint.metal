@@ -47,7 +47,7 @@ kernel void joint_build_application_tables(
     device const ulong *shape [[buffer(8)]],
     device ulong *output [[buffer(9)]],
     device const uint2 *dense_row_blocks [[buffer(10)]],
-    uint row [[thread_position_in_grid]]) {
+    uint local_row [[thread_position_in_grid]]) {
     ulong rows = shape[0];
     ulong blocks = shape[1];
     ulong n_eff = shape[2];
@@ -58,7 +58,8 @@ kernel void joint_build_application_tables(
     bool identity = shape[7] != 0;
     ulong magnitudes = shape[8];
     ulong geometric_offset_width = shape[9];
-    if ((ulong)row >= table_len) {
+    ulong row = shape[10] + (ulong)local_row;
+    if ((ulong)local_row >= rows) {
         return;
     }
     ulong value = 0;
@@ -66,8 +67,8 @@ kernel void joint_build_application_tables(
         if (identity) {
             value = joint_mask_value(masks, blocks, witness, row, magnitudes);
         } else {
-            ulong start = compact_row_offset(row_offsets, row, offset_width);
-            ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
+            ulong start = compact_row_offset(row_offsets, local_row, offset_width);
+            ulong end = compact_row_offset(row_offsets, (ulong)local_row + 1, offset_width);
             for (ulong entry = start; entry < end; ++entry) {
                 uint reference = row_blocks[entry];
                 if ((reference & COMPACT_DENSE_BLOCK_TAG) == 0) {
@@ -92,8 +93,8 @@ kernel void joint_build_application_tables(
                 }
             }
             if (geometric_offset_width != 0) {
-                ulong geometric_start = compact_row_offset(geometric_row_offsets, row, geometric_offset_width);
-                ulong geometric_end = compact_row_offset(geometric_row_offsets, row + 1, geometric_offset_width);
+                ulong geometric_start = compact_row_offset(geometric_row_offsets, local_row, geometric_offset_width);
+                ulong geometric_end = compact_row_offset(geometric_row_offsets, (ulong)local_row + 1, geometric_offset_width);
                 for (ulong run = geometric_start; run < geometric_end; ++run) {
                     ulong packed = geometric_runs[3 * run];
                     ulong column = packed & 0xfffffffful;
@@ -118,31 +119,7 @@ kernel void joint_build_application_tables(
             }
         }
     }
-    output[output_table * table_len + row] = value;
-}
-
-// Canonical selective F-prime lowers each seeded Phi81 map as the R1CS row
-// A(z) * 1 = C(z). For an honest satisfying witness, the expensive seeded
-// A-table entry is therefore exactly the already-built C-table entry. Rows
-// from inactive selective arms are gated by a zero selector, so the same
-// substitution is harmless there.
-kernel void joint_copy_seeded_satisfied_rows(
-    device const ulong *group_headers [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *tables [[buffer(2)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong group = (ulong)index / RING_DEGREE;
-    ulong coordinate = (ulong)index % RING_DEGREE;
-    device const ulong *header = group_headers + 4 * group;
-    ulong table_len = shape[0];
-    ulong row = header[1] + coordinate;
-    if (row >= table_len) {
-        return;
-    }
-    ulong table_base = shape[1];
-    ulong target = table_base + header[0];
-    ulong source = table_base + shape[2];
-    tables[target * table_len + row] = tables[source * table_len + row];
+    output[output_table * table_len + shape[11] + local_row] = value;
 }
 
 kernel void joint_zero_words(
@@ -199,16 +176,33 @@ kernel void joint_fold_k_tables(
     output[2 * index + 1] = folded.c1;
 }
 
+kernel void joint_accumulate_application(
+    device const ulong *input [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *output [[buffer(2)]],
+    uint table [[thread_position_in_grid]]) {
+    if ((ulong)table >= shape[0]) {
+        return;
+    }
+    ulong destination = (ulong)table * shape[1] + shape[2];
+    Kx weight = Kx{gl_from_word(shape[3]), gl_from_word(shape[4])};
+    Kx value = kx_add(load_k(output, destination), kx_mul(load_k(input, table), weight));
+    output[2 * destination] = value.c0;
+    output[2 * destination + 1] = value.c1;
+}
+
 inline Kx joint_load_table(
     device const ulong *tables,
     ulong table_len,
     ulong table,
     ulong index,
-    bool base_field) {
-    if (index >= table_len) {
+    bool base_field,
+    ulong row_offset,
+    ulong local_len) {
+    if (index >= table_len || index < row_offset || index - row_offset >= local_len) {
         return Kx{0, 0};
     }
-    ulong position = table * table_len + index;
+    ulong position = table * local_len + index - row_offset;
     return base_field ? Kx{gl_from_word(tables[position]), 0} : load_k(tables, position);
 }
 
@@ -388,7 +382,7 @@ kernel void joint_selective_round_partials(
     device const ulong *prior_equality_chunks [[buffer(9)]],
     device const ulong *assignment_sources [[buffer(10)]],
     device const ulong *assignment_values [[buffer(11)]],
-    uint pair [[thread_position_in_grid]],
+    uint local_pair [[thread_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]],
     uint group [[threadgroup_position_in_grid]]) {
     ulong table_len = shape[0];
@@ -411,6 +405,10 @@ kernel void joint_selective_round_partials(
     Kx prior_low_factor = Kx{gl_from_word(shape[20]), gl_from_word(shape[21])};
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
     uint range_base = (uint)shape[24];
+    ulong pair = shape[27] + (ulong)local_pair;
+    ulong pair_count = shape[28];
+    ulong application_row_offset = shape[29];
+    ulong application_local_len = shape[30];
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx values[SUMCHECK_MAX_COEFFS];
     for (uint point = 0; point < SUMCHECK_MAX_COEFFS; ++point) {
@@ -418,8 +416,8 @@ kernel void joint_selective_round_partials(
     }
 
     ulong pairs = (active_len + 1) / 2;
-    if ((ulong)pair < pairs) {
-        ulong low_index = 2 * (ulong)pair;
+    if ((ulong)local_pair < pair_count && pair < pairs) {
+        ulong low_index = 2 * pair;
         ulong high_index = low_index + 1;
         for (ulong source = 0; source < fresh_count; ++source) {
             Kx source_weight = load_k(weights, source);
@@ -428,13 +426,12 @@ kernel void joint_selective_round_partials(
                 ulong slope[13];
                 for (ulong matrix = 0; matrix < matrix_count; ++matrix) {
                     ulong table = source * matrix_count + matrix;
-                    ulong offset = table * application_len;
-                    x[matrix] = low_index < application_len
-                        ? gl_from_word(application_tables[offset + low_index])
-                        : 0;
-                    ulong high = high_index < application_len
-                        ? gl_from_word(application_tables[offset + high_index])
-                        : 0;
+                    x[matrix] = joint_load_table(
+                        application_tables, application_len, table, low_index, true,
+                        application_row_offset, application_local_len).c0;
+                    ulong high = joint_load_table(
+                        application_tables, application_len, table, high_index, true,
+                        application_row_offset, application_local_len).c0;
                     slope[matrix] = gl_sub(high, x[matrix]);
                 }
                 for (uint point = 0; point < coefficient_count; ++point) {
@@ -450,12 +447,12 @@ kernel void joint_selective_round_partials(
                 Kx slope[13];
                 for (ulong matrix = 0; matrix < matrix_count; ++matrix) {
                     ulong table = source * matrix_count + matrix;
-                    x[matrix] = low_index < application_len
-                        ? load_k(application_tables, table * application_len + low_index)
-                        : Kx{0, 0};
-                    Kx high = high_index < application_len
-                        ? load_k(application_tables, table * application_len + high_index)
-                        : Kx{0, 0};
+                    x[matrix] = joint_load_table(
+                        application_tables, application_len, table, low_index, false,
+                        application_row_offset, application_local_len);
+                    Kx high = joint_load_table(
+                        application_tables, application_len, table, high_index, false,
+                        application_row_offset, application_local_len);
                     slope[matrix] = kx_sub(high, x[matrix]);
                 }
                 for (uint point = 0; point < coefficient_count; ++point) {
@@ -572,7 +569,7 @@ kernel void joint_round_partials(
     device const ulong *prior_equality_chunks [[buffer(9)]],
     device const ulong *assignment_sources [[buffer(10)]],
     device const ulong *assignment_values [[buffer(11)]],
-    uint pair [[thread_position_in_grid]],
+    uint local_pair [[thread_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]],
     uint group [[threadgroup_position_in_grid]]) {
     ulong table_len = shape[0];
@@ -597,6 +594,10 @@ kernel void joint_round_partials(
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
     uint range_base = (uint)shape[24];
     bool zero_application_padding = shape[25] != 0;
+    ulong pair = shape[27] + (ulong)local_pair;
+    ulong pair_count = shape[28];
+    ulong application_row_offset = shape[29];
+    ulong application_local_len = shape[30];
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
@@ -604,8 +605,8 @@ kernel void joint_round_partials(
     }
 
     ulong pairs = (active_len + 1) / 2;
-    if ((ulong)pair < pairs) {
-        ulong low_index = 2 * (ulong)pair;
+    if ((ulong)local_pair < pair_count && pair < pairs) {
+        ulong low_index = 2 * pair;
         ulong high_index = low_index + 1;
         Kx inner[SUMCHECK_MAX_COEFFS];
         for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
@@ -634,9 +635,11 @@ kernel void joint_round_partials(
                     uint exponent = (uint)term_variables[variable_header + 1];
                     ulong table = source * matrix_count + matrix;
                     Kx low = joint_load_table(
-                        application_tables, application_len, table, low_index, base_round);
+                        application_tables, application_len, table, low_index, base_round,
+                        application_row_offset, application_local_len);
                     Kx high = joint_load_table(
-                        application_tables, application_len, table, high_index, base_round);
+                        application_tables, application_len, table, high_index, base_round,
+                        application_row_offset, application_local_len);
                     Kx slope = kx_sub(high, low);
                     for (uint power = 0; power < exponent; ++power) {
                         joint_poly_mul_affine(polynomial, low, slope, degree);
@@ -738,212 +741,4 @@ kernel void joint_round_partials(
             partials[2 * output + 1] = shared[coefficient].c1;
         }
     }
-}
-
-constant ulong JOINT_SEEDED_OUTPUT_HEADER_WORDS = 9;
-constant ulong JOINT_SEEDED_WORK_HEADER_WORDS = 3;
-
-inline ulong joint_seeded_column(
-    device const ulong *header,
-    device const uint *word_starts,
-    ulong message_row,
-    ulong message_col) {
-    ulong message_cols = header[2];
-    ulong word_width = header[3];
-    ulong word_count = header[4];
-    ulong bit_index = message_row * message_cols + message_col;
-    if (bit_index >= word_count * word_width) {
-        return ~0ul;
-    }
-    ulong word = bit_index / word_width;
-    return (ulong)word_starts[header[5] + word] + bit_index % word_width;
-}
-
-kernel void joint_seeded_base_partials(
-    device const ulong *output_headers [[buffer(0)]],
-    device const ulong *work_headers [[buffer(1)]],
-    device const uint *word_starts [[buffer(2)]],
-    device const ulong *rotations [[buffer(3)]],
-    device const ulong *masks [[buffer(4)]],
-    device const ulong *shape [[buffer(5)]],
-    device ulong *partials [[buffer(6)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong work = (ulong)index / RING_PRODUCT_COEFFICIENTS;
-    ulong coefficient = (ulong)index % RING_PRODUCT_COEFFICIENTS;
-    device const ulong *work_header = work_headers + work * JOINT_SEEDED_WORK_HEADER_WORDS;
-    ulong output_index = work_header[0];
-    device const ulong *header = output_headers + output_index * JOINT_SEEDED_OUTPUT_HEADER_WORDS;
-    if (header[1] >= shape[2]) {
-        partials[index] = 0;
-        return;
-    }
-    ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
-    ulong term_end = min(coefficient, RING_DEGREE - 1);
-    ulong value = 0;
-    for (ulong message_col = work_header[1]; message_col < work_header[2]; ++message_col) {
-        for (ulong message_row = term_start; message_row <= term_end; ++message_row) {
-            ulong column = joint_seeded_column(header, word_starts, message_row, message_col);
-            if (column == ~0ul || column >= shape[0] * RING_DEGREE) {
-                continue;
-            }
-            ulong input = joint_mask_value(masks, shape[0], shape[1], column, shape[5]);
-            if (input != 0) {
-                ulong rotation = gl_from_word(
-                    rotations[header[6] + message_col * RING_DEGREE + coefficient - message_row]);
-                value = gl_add(value, gl_mul(input, rotation));
-            }
-        }
-    }
-    partials[index] = value;
-}
-
-inline ulong joint_seeded_base_polynomial_sum(
-    device const ulong *header,
-    device const ulong *partials,
-    ulong coefficient) {
-    ulong value = 0;
-    ulong work_end = header[7] + header[8];
-    for (ulong work = header[7]; work < work_end; ++work) {
-        value = gl_add(value, gl_from_word(partials[work * RING_PRODUCT_COEFFICIENTS + coefficient]));
-    }
-    return value;
-}
-
-inline ulong joint_seeded_base_phi81(
-    device const ulong *header,
-    device const ulong *partials,
-    ulong coefficient) {
-    ulong value = joint_seeded_base_polynomial_sum(header, partials, coefficient);
-    if (coefficient <= 26) {
-        value = gl_sub(value, joint_seeded_base_polynomial_sum(header, partials, coefficient + 54));
-        if (coefficient <= 25) {
-            value = gl_add(value, joint_seeded_base_polynomial_sum(header, partials, coefficient + 81));
-        }
-    } else {
-        value = gl_sub(value, joint_seeded_base_polynomial_sum(header, partials, coefficient + 27));
-    }
-    return value;
-}
-
-kernel void joint_seeded_base_reduce(
-    device const ulong *output_headers [[buffer(0)]],
-    device const ulong *group_headers [[buffer(1)]],
-    device const uint *group_outputs [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    device const ulong *partials [[buffer(4)]],
-    device ulong *tables [[buffer(5)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong group = (ulong)index / RING_DEGREE;
-    ulong coordinate = (ulong)index % RING_DEGREE;
-    device const ulong *group_header = group_headers + 4 * group;
-    ulong row = group_header[1] + coordinate;
-    if (row >= shape[2]) {
-        return;
-    }
-    ulong value = 0;
-    ulong output_end = group_header[2] + group_header[3];
-    for (ulong position = group_header[2]; position < output_end; ++position) {
-        ulong output_index = group_outputs[position];
-        device const ulong *header = output_headers + output_index * JOINT_SEEDED_OUTPUT_HEADER_WORDS;
-        value = gl_add(value, joint_seeded_base_phi81(header, partials, coordinate));
-    }
-    ulong table = shape[4] + group_header[0];
-    ulong destination = table * shape[3] + row;
-    tables[destination] = gl_add(gl_from_word(tables[destination]), value);
-}
-
-kernel void joint_seeded_k_partials(
-    device const ulong *output_headers [[buffer(0)]],
-    device const ulong *work_headers [[buffer(1)]],
-    device const uint *word_starts [[buffer(2)]],
-    device const ulong *rotations [[buffer(3)]],
-    device const ulong *qk [[buffer(4)]],
-    device const ulong *mat_coeffs [[buffer(5)]],
-    device const ulong *shape [[buffer(6)]],
-    device ulong *partials [[buffer(7)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong work = (ulong)index / RING_PRODUCT_COEFFICIENTS;
-    ulong coefficient = (ulong)index % RING_PRODUCT_COEFFICIENTS;
-    device const ulong *work_header = work_headers + work * JOINT_SEEDED_WORK_HEADER_WORDS;
-    ulong output_index = work_header[0];
-    device const ulong *header = output_headers + output_index * JOINT_SEEDED_OUTPUT_HEADER_WORDS;
-    if (header[1] >= shape[4]) {
-        partials[2 * index] = 0;
-        partials[2 * index + 1] = 0;
-        return;
-    }
-    ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
-    ulong term_end = min(coefficient, RING_DEGREE - 1);
-    Kx value = Kx{0, 0};
-    for (ulong message_col = work_header[1]; message_col < work_header[2]; ++message_col) {
-        for (ulong message_row = term_start; message_row <= term_end; ++message_row) {
-            ulong column = joint_seeded_column(header, word_starts, message_row, message_col);
-            if (column == ~0ul || column >= shape[1] * RING_DEGREE) {
-                continue;
-            }
-            ulong rotation = gl_from_word(
-                rotations[header[6] + message_col * RING_DEGREE + coefficient - message_row]);
-            Kx input = load_k(qk, column);
-            value = kx_add(value, Kx{gl_mul(input.c0, rotation), gl_mul(input.c1, rotation)});
-        }
-    }
-    value = kx_mul(load_k(mat_coeffs, header[0]), value);
-    partials[2 * index] = value.c0;
-    partials[2 * index + 1] = value.c1;
-}
-
-inline Kx joint_seeded_k_polynomial_sum(
-    device const ulong *header,
-    device const ulong *partials,
-    ulong coefficient) {
-    Kx value = Kx{0, 0};
-    ulong work_end = header[7] + header[8];
-    for (ulong work = header[7]; work < work_end; ++work) {
-        value = kx_add(value, load_k(partials, work * RING_PRODUCT_COEFFICIENTS + coefficient));
-    }
-    return value;
-}
-
-inline Kx joint_seeded_k_phi81(
-    device const ulong *header,
-    device const ulong *partials,
-    ulong coefficient) {
-    Kx value = joint_seeded_k_polynomial_sum(header, partials, coefficient);
-    if (coefficient <= 26) {
-        value = kx_sub(value, joint_seeded_k_polynomial_sum(header, partials, coefficient + 54));
-        if (coefficient <= 25) {
-            value = kx_add(value, joint_seeded_k_polynomial_sum(header, partials, coefficient + 81));
-        }
-    } else {
-        value = kx_sub(value, joint_seeded_k_polynomial_sum(header, partials, coefficient + 27));
-    }
-    return value;
-}
-
-kernel void joint_seeded_k_reduce(
-    device const ulong *output_headers [[buffer(0)]],
-    device const ulong *group_headers [[buffer(1)]],
-    device const uint *group_outputs [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    device const ulong *partials [[buffer(4)]],
-    device ulong *table [[buffer(5)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong group = (ulong)index / RING_DEGREE;
-    ulong coordinate = (ulong)index % RING_DEGREE;
-    device const ulong *group_header = group_headers + 3 * group;
-    ulong row = group_header[0] + coordinate;
-    if (row >= shape[4]) {
-        return;
-    }
-    Kx value = Kx{0, 0};
-    ulong output_end = group_header[1] + group_header[2];
-    for (ulong position = group_header[1]; position < output_end; ++position) {
-        ulong output_index = group_outputs[position];
-        device const ulong *header = output_headers + output_index * JOINT_SEEDED_OUTPUT_HEADER_WORDS;
-        value = kx_add(value, joint_seeded_k_phi81(header, partials, coordinate));
-    }
-    Kx previous = load_k(table, row);
-    value = kx_add(previous, value);
-    table[2 * row] = value.c0;
-    table[2 * row + 1] = value.c1;
 }

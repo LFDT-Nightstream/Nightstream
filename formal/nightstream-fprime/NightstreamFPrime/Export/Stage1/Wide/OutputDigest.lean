@@ -144,7 +144,7 @@ theorem value (program : Program) (env : Env)
       rw [PerApplicationAssignmentTransport.outputDigestExpressions, List.map_ofFn]
       apply congrArg List.ofFn
       funext lane
-      simpa only [PerApplicationAssignmentTransportExpressions.outputDigestExpressions_getD] using
+      simpa only [PerApplicationAssignmentTransportExpressions.outputDigestExpressions_getD] using!
         PerApplicationAssignmentTransportExpressions.outputDigestExpression_eval program raw lane
     _ = raw.outputDigest := by
       unfold PerApplicationCanonicalAssignment.RawValues.outputDigest

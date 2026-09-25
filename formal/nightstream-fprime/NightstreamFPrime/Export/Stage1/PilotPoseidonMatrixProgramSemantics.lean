@@ -199,7 +199,7 @@ private theorem paddingRule_result {logicalWidth : Nat}
     have ruleSelected := PoseidonInput.Rule.constant_form?
       (region := PoseidonInput.Region.mk 12349 1 0 1)
       (0 : Fin 1) (0 : Fin 1) oneColumn (1 : F)
-    simpa [paddingRule, selected.1, selected.2] using ruleSelected
+    simpa [paddingRule, selected.1, selected.2] using! ruleSelected
   · rw [dif_neg selected]
     apply PoseidonInput.Rule.form?_eq_some_none
     simp [paddingRule, PoseidonInput.Region.offsets?]
@@ -307,7 +307,7 @@ theorem priorInputProgram_form?
   simpa [priorInputProgram, PilotPoseidonPlan.priorInputState,
     Data.priorChain, Data.liftPilotChain, PilotData.priorChain,
     PilotValues.absorbCount, PilotValues.stateHashWords, Spec.Poseidon2.rate]
-    using chainInputProgram_form?
+    using! chainInputProgram_form?
       (PilotPoseidonPlan.priorSchedule program)
       (PiRLCRetainedGeometry.priorPoseidonStart program)
       (PiRLCRetainedGeometry.priorPoseidonFits
@@ -330,7 +330,7 @@ theorem outputInputProgram_form?
   simpa [outputInputProgram, PilotPoseidonPlan.outputInputState,
     Data.outputChain, Data.liftPilotChain, PilotData.outputChain,
     PilotValues.absorbCount, PilotValues.stateHashWords, Spec.Poseidon2.rate]
-    using chainInputProgram_form?
+    using! chainInputProgram_form?
       (PilotPoseidonPlan.outputSchedule program)
       (PiRLCRetainedGeometry.outputPoseidonStart program)
       (PiRLCRetainedGeometry.outputPoseidonFits

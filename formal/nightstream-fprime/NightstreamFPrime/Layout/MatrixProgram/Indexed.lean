@@ -38,7 +38,7 @@ private theorem uniform_row {columns : Nat} (blocks : List Block) (rows : Nat)
     · simp only [Fin.val_succ, Nat.mul_add, Nat.mul_one]
       rw [show rows * i.val + rows + row.val = block.rowCount + (rows * i.val + row.val) by omega]
       rw [Program.cons_rest_row?]
-      · simpa only [Nat.add_sub_cancel_left, List.get_cons_succ] using ih tail i
+      · simpa only [Nat.add_sub_cancel_left, List.get_cons_succ] using! ih tail i
       · omega
 
 theorem Program.indexed_count {count : Nat} (block : Fin count → Block) (rows : Nat)
@@ -48,7 +48,7 @@ theorem Program.indexed_count {count : Nat} (block : Fin count → Block) (rows 
     intro child member
     obtain ⟨index, rfl⟩ := List.mem_ofFn.mp member
     exact counts index
-  simpa only [List.length_ofFn] using uniform_count (List.ofFn block) rows bounded
+  simpa only [List.length_ofFn] using! uniform_count (List.ofFn block) rows bounded
 
 theorem Program.indexed_row {columns count rows : Nat} (block : Fin count → Block)
     (counts : ∀ index, (block index).rowCount = rows)

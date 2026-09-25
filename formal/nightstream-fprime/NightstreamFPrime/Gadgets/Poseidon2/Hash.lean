@@ -292,7 +292,7 @@ theorem compileAbsorptions_sound (env : Env) (start : Nat) (state : EState)
         rw [compileAbsorptions, Permutation.recipeConstraints_append] at hrows
         have separated :=
           (Permutation.constraintsHold_append env _ _).mp hrows
-        simpa [permutation] using separated
+        simpa [permutation] using! separated
       have headSound := Permutation.compile_sound env start
         (absorbE state block) Permutation.schedule splitRows.1
       have tailSound := ih (start + 592) permutation.output splitRows.2

@@ -473,7 +473,7 @@ private theorem run_lengths
   have lengths := compileRow_lengths geometry (⟨0, positive⟩ : Fin columns)
     (PiDECOrdinarySourceWork.commitmentRow index).value (source_bounded index) (row_supported index)
   rcases PiDECOrdinarySourceWork.commitmentRow_lengths index with ⟨a, b, c⟩
-  simpa only [a, b, c] using lengths
+  simpa only [a, b, c] using! lengths
 
 /-- 17 terms include one retained lookup, scale, append and loop step each.
 Three affine wrappers and the selector/row wrapper supply the remaining 154.
@@ -488,10 +488,10 @@ private theorem run_work_le (columns : Nat) (positive : 0 < columns) (index : Fi
     rfl rfl (⟨0, positive⟩ : Fin columns) (PiDECOrdinarySourceWork.commitmentRow index).value
   rcases PiDECOrdinarySourceWork.commitmentRow_lengths index with ⟨a, b, c⟩
   simp only [a, b, c] at compiledWork
-  simp only [run, commitmentFormsWork]
   change (PiDECOrdinarySourceWork.commitmentRow index).work + 10 +
     (compileRow columns (blocks ()).value.1 (blocks ()).value.2 ⟨0, positive⟩
-      (PiDECOrdinarySourceWork.commitmentRow index).value).work + 12 + 4 ≤ _
+      (PiDECOrdinarySourceWork.commitmentRow index).value).work + 12 + 4 ≤
+    PiDECOrdinarySourceWork.commitmentRowWork + 10 + 17 * 14843 + 154 + 12 + 4
   omega
 
 /-- Execute with the proved selected width literal. Literal/call/value/Result

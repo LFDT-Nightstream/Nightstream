@@ -94,7 +94,7 @@ private theorem accepted_run
         program correct kPositive call vector tape assignment returned
       have checked := (check_spec (response rlc vector assignment)).mpr valid
       simpa only [accepted, Option.map_some, Option.getD_some, Option.isSome_some]
-        using checked
+        using! checked
 
 omit [Fintype (Challenge rlc)] [Nonempty (Challenge rlc)] in
 /-- At each public vector, accepted parent mass equals the actual original

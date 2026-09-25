@@ -133,7 +133,7 @@ theorem equations_iff_identity (left right output quotient : RingF) :
     have evaluated := congrArg (fun polynomial : Polynomial Base =>
       polynomial.eval (show Base from node index)) identity
     simp only [evaluate_eq_polynomial, modulusValue_eq_polynomial]
-    simpa only [eval_mul, eval_add] using evaluated
+    simpa only [eval_mul, eval_add] using! evaluated
 
 /-- Every accepted quotient assignment gives the unchanged ring product. -/
 theorem sound (left right output quotient : RingF)
@@ -142,7 +142,7 @@ theorem sound (left right output quotient : RingF)
   have identity := (equations_iff_identity left right output quotient).mp equations
   have remainder := (div_modByMonic_unique (toPolynomial quotient)
     (toPolynomial output) modulus_monic
-    ⟨identity.symm, by simpa only [degree_modulus] using polynomial_degree output⟩).2
+    ⟨identity.symm, by simpa only [degree_modulus] using! polynomial_degree output⟩).2
   apply toPolynomial_injective
   exact remainder.symm.trans (toPolynomial_ringFMul_mod left right).symm
 
@@ -265,7 +265,6 @@ private theorem high_coefficient (left right : RingF) (index : Nat)
     dsimp only [product]
     omega
   have middle : 27 ≤ index := by omega
-  dsimp only at identity
   rw [coeff_add, remainderZero, zero_add] at identity
   nth_rw 1 [modulus] at identity
   simp only [add_mul, one_mul, coeff_add, coeff_X_pow_mul',

@@ -54,6 +54,6 @@ theorem ordinary_row_recovered_inserted
     Layout.Stage1.Wide.SourceOrder.privateColumns_eq, Except.toOption, Option.getD_some,
     ← PerApplicationPackage.directShiftColumn_eq_shiftColumn,
     PerApplicationPackage.directShiftColumn, Data.physicalLayout,
-    Layout.Stage1.Spartan.privateColumnCount_eq] using recover
+    Layout.Stage1.Spartan.privateColumnCount_eq] using! recover
 
 end NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixRecovery

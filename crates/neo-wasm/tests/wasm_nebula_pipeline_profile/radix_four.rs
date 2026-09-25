@@ -1,6 +1,6 @@
 //! Radix-four candidate census and lifecycle profiles.
 
-#[path = "../../../neo-fold-clean/tests/support/selective_selector_coverage_lean.rs"]
+#[path = "../../../neo-fold-legacy/tests/support/selective_selector_coverage_lean.rs"]
 mod selector_coverage_lean;
 
 use std::collections::BTreeMap;
@@ -9,14 +9,14 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::time::Instant;
 
-use neo_fold_clean::config;
-use neo_fold_clean::frontends::r1cs_f_prime::{
+use neo_fold_legacy::config;
+use neo_fold_legacy::frontends::r1cs_f_prime::{
     SelectiveArmWidthAudit, SelectiveEmittedRowFamily, SelectiveEmittedRowRunAudit,
     SelectiveFirstAcceptedSelectionAudit, SelectiveLinearDefinitionAudit, SelectiveSelectorGateCoverage,
 };
-use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
-use neo_fold_clean::paper::f_prime::public_input_link::F_PRIME_PUBLIC_INPUT_LEN;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_legacy::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
+use neo_fold_legacy::paper::f_prime::public_input_link::F_PRIME_PUBLIC_INPUT_LEN;
+use neo_fold_legacy::paper::params::Params;
 use neo_math::D;
 #[cfg(all(feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
@@ -1304,7 +1304,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
         shape.1.div_ceil(D) * D,
         shape.2,
     );
-    let encoder_limits = neo_fold_clean::frontends::r1cs_f_prime::LowNormEncoderArtifactLimits::new(
+    let encoder_limits = neo_fold_legacy::frontends::r1cs_f_prime::LowNormEncoderArtifactLimits::new(
         encoder_receipt.encoder().artifact_bytes(),
         shape.0,
         shape.1,
@@ -1336,7 +1336,7 @@ fn wasm_nebula_radix_four_artifact_restore_profile() {
             .expect("load radix-four cache artifact")
         });
         let encoder = scope.spawn(|| {
-            neo_fold_clean::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
+            neo_fold_legacy::frontends::nebula::VerifiedNebulaFPrimeEncoderArtifact::read(
                 BufReader::new(File::open(&encoder_path).expect("open radix-four encoder artifact")),
                 &encoder_receipt,
                 encoder_limits,
@@ -1422,7 +1422,7 @@ fn wasm_nebula_radix_four_all_branch_metal_profile() {
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
-    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 1024, 16)
+    let memory = neo_fold_legacy::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 1024, 16)
         .expect("four-fold reduced Nebula scan");
     let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, 3);
     assert_eq!(profile.memory().steps_per_segment(), 4);

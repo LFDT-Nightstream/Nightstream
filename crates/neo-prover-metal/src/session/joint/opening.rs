@@ -1,4 +1,4 @@
-//! Structure-static transpose and point-specific SuperNeo ring openings.
+//! Local matrix transposes and device ring openings with global equality weights.
 
 use std::mem::size_of;
 
@@ -6,10 +6,12 @@ use neo_ccs::V1_1Evaluations;
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 use objc2_foundation::NSString;
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{Buffer, DeviceSeededRows, MetalCompactMatrix, MetalSession, MetalWitnessMasks};
+use super::{
+    matrix_window::smaller_window, Buffer, MetalCompactMatrix, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks,
+};
 use crate::MetalError;
 
 #[path = "transpose.rs"]
@@ -18,7 +20,7 @@ use transpose::BlockTranspose;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/joint_openings.rs"]
-mod tests;
+pub(super) mod tests;
 
 const FORM_REDUCTION_THREADS: usize = 256;
 const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
@@ -44,24 +46,14 @@ pub(super) struct MetalJointOpeningPlan {
     tiled_form_tile_offsets: Buffer,
     tiled_form_tiles: Buffer,
     tiled_form_partials: Buffer,
-    seeded: Option<DeviceSeededOpeningPlan>,
     geometric: Vec<DeviceGeometricOpeningPlan>,
     parallel_form_list_count: usize,
     tiled_form_list_count: usize,
     tiled_form_tile_count: usize,
     matrix_count: usize,
     rows: usize,
+    row_start: usize,
     blocks: usize,
-}
-
-struct DeviceSeededOpeningPlan {
-    output_headers: Buffer,
-    word_starts: Buffer,
-    rotations: Buffer,
-    active_indices: Buffer,
-    segment_offsets: Buffer,
-    segments: Buffer,
-    group_count: usize,
 }
 
 struct DeviceGeometricOpeningPlan {
@@ -72,13 +64,309 @@ struct DeviceGeometricOpeningPlan {
     group_count: usize,
 }
 
+#[derive(Default)]
+struct OpeningLayout {
+    active: usize,
+    chunks: usize,
+    entries: usize,
+    patterns: usize,
+    coefficients: usize,
+    parallel: usize,
+    tiled: usize,
+    tiles: usize,
+    max_blocks: usize,
+    max_chunks: usize,
+    metadata_bytes: usize,
+}
+
+impl OpeningLayout {
+    fn measure(matrices: &[SuperneoMatrixCache], blocks: usize, include_pad: bool) -> Result<Self, MetalError> {
+        let pad = if include_pad { blocks } else { 0 };
+        let mut layout = Self {
+            active: pad,
+            chunks: pad.div_ceil(CHUNK_BLOCKS),
+            max_blocks: pad,
+            max_chunks: pad.div_ceil(CHUNK_BLOCKS),
+            ..Self::default()
+        };
+        let mut active = vec![false; blocks];
+        let mut segments = 0usize;
+        let mut geometric_groups = 0usize;
+        let mut geometric_matrices = 0usize;
+        let mut geometric_scratch = 0usize;
+        let mut transpose_scratch = 0usize;
+        for matrix in matrices {
+            active.fill(false);
+            let parts = matrix
+                .compact_device_parts()
+                .ok_or(MetalError::Shape("unfinished opening matrix"))?;
+            let (rows, _, identity) = matrix.compact_explicit_shape();
+            if matrix.has_compact_seeded_phi81_blocks() {
+                return Err(MetalError::Shape("opening windows require original matrix rows"));
+            }
+            if identity {
+                active[..rows.min(blocks * D).div_ceil(D)].fill(true);
+            }
+            for &reference in parts.row_blocks {
+                let block = if reference & (1 << 31) == 0 {
+                    reference & ((1 << 24) - 1)
+                } else {
+                    parts.dense_row_blocks[(reference & !(1 << 31)) as usize][0]
+                } as usize;
+                if block >= blocks {
+                    return Err(MetalError::Shape("opening block exceeds the carrier"));
+                }
+                active[block] = true;
+            }
+            let mut matrix_segments = 0usize;
+            for run in parts.geometric_runs {
+                let start = (run[0] & u64::from(u32::MAX)) as usize;
+                let end = start
+                    .checked_add((run[0] >> 32) as usize)
+                    .filter(|&end| end <= blocks * D)
+                    .ok_or(MetalError::Shape("opening run exceeds the carrier"))?;
+                let first = start / D;
+                let last = end.div_ceil(D);
+                active[first..last].fill(true);
+                matrix_segments = checked_sum(&[matrix_segments, last - first])?;
+            }
+            let count = active.iter().filter(|&&value| value).count();
+            layout.active = checked_sum(&[layout.active, count])?;
+            layout.chunks = checked_sum(&[layout.chunks, count.div_ceil(CHUNK_BLOCKS)])?;
+            layout.max_blocks = layout.max_blocks.max(count);
+            layout.max_chunks = layout.max_chunks.max(count.div_ceil(CHUNK_BLOCKS));
+            let entries = parts.row_blocks.len();
+            let patterns = parts.dense_offsets.len().saturating_sub(1);
+            layout.entries = checked_sum(&[layout.entries, entries])?;
+            layout.patterns = checked_sum(&[layout.patterns, patterns])?;
+            layout.coefficients = checked_sum(&[layout.coefficients, parts.dense_locals.len()])?;
+            let parallel = blocks.min(entries / PARALLEL_FORM_LIST_THRESHOLD);
+            let tiled = blocks.min(entries / (FORM_TILE_ENTRIES + 1));
+            layout.parallel = checked_sum(&[
+                layout.parallel,
+                checked_product(&[D, parallel], "opening lists overflow")?,
+            ])?;
+            layout.tiled = checked_sum(&[layout.tiled, checked_product(&[D, tiled], "opening lists overflow")?])?;
+            if tiled != 0 {
+                layout.tiles = checked_sum(&[
+                    layout.tiles,
+                    checked_product(
+                        &[D, entries.div_ceil(FORM_TILE_ENTRIES) + tiled],
+                        "opening tiles overflow",
+                    )?,
+                ])?;
+            }
+            transpose_scratch = transpose_scratch.max(checked_sum(&[
+                checked_product(&[blocks, 17], "opening transpose size overflow")?,
+                size_of::<u32>(),
+                checked_product(&[entries + patterns, 8], "opening transpose size overflow")?,
+            ])?);
+            if !parts.geometric_runs.is_empty() {
+                segments = checked_sum(&[segments, matrix_segments])?;
+                geometric_groups = checked_sum(&[geometric_groups, count + 1])?;
+                geometric_matrices += 1;
+                geometric_scratch = geometric_scratch.max(checked_sum(&[
+                    checked_product(&[blocks, 12], "geometric transpose size overflow")?,
+                    size_of::<u32>(),
+                    checked_product(&[matrix_segments + count + 1, 8], "geometric transpose size overflow")?,
+                ])?);
+            }
+        }
+        let matrices = matrices.len() + 1;
+        // These capacities cover all original-row paths.
+        let arrays = [
+            (layout.active + 1, 8),
+            (layout.active, 8),
+            (layout.active, 4),
+            (matrices + 1, 4),
+            (matrices, 4),
+            (layout.entries, 8),
+            (layout.patterns + 1, 4),
+            (layout.coefficients, 1),
+            (layout.coefficients, 8),
+            (layout.parallel, 4),
+            (layout.tiled, 4),
+            (layout.tiled + 1, 4),
+            (layout.tiles, 12),
+            (layout.chunks, 4),
+        ];
+        let mut host = checked_product(&[matrices + 1, 4], "opening index size overflow")?;
+        let mut device = checked_product(&[layout.tiles.max(1), 16], "opening tile scratch overflow")?;
+        for (count, width) in arrays {
+            host = checked_sum(&[host, checked_product(&[count, width], "opening index size overflow")?])?;
+            device = checked_sum(&[
+                device,
+                checked_product(&[count.max(1), width], "opening index size overflow")?,
+            ])?;
+        }
+        let geometric_device = checked_product(&[segments + geometric_groups, 8], "geometric index size overflow")?;
+        let descriptors = checked_product(
+            &[geometric_matrices, size_of::<DeviceGeometricOpeningPlan>()],
+            "geometric descriptors overflow",
+        )?;
+        layout.metadata_bytes = checked_sum(&[
+            host,
+            device,
+            geometric_device,
+            descriptors,
+            geometric_scratch.max(transpose_scratch).max(blocks),
+        ])?;
+        Ok(layout)
+    }
+
+    fn evaluation_bytes(&self, rows: usize, point_len: usize, active_witnesses: usize) -> Result<usize, MetalError> {
+        let low_bits = point_len / 2;
+        let tensor_values = (1usize << low_bits) + (1usize << (point_len - low_bits));
+        checked_sum(&[
+            checked_product(&[tensor_values + rows, size_of::<K>()], "opening weights overflow")?,
+            checked_product(&[point_len, 3, size_of::<u64>()], "opening tensor metadata overflow")?,
+            checked_product(
+                &[active_witnesses, size_of::<u32>()],
+                "opening witness indices overflow",
+            )?,
+            checked_product(&[self.max_blocks, D, size_of::<K>()], "opening forms overflow")?,
+            checked_product(
+                &[active_witnesses, self.max_chunks, PRODUCT_COEFFICIENTS, size_of::<K>()],
+                "opening partials overflow",
+            )?,
+            checked_product(
+                &[active_witnesses, PRODUCT_COEFFICIENTS + 2 * D, size_of::<K>()],
+                "opening outputs overflow",
+            )?,
+            checked_product(&[self.max_chunks, size_of::<u32>()], "opening chunk indices overflow")?,
+            26 * size_of::<u64>() + 2 * size_of::<u32>(),
+        ])
+    }
+}
+
 impl MetalSession {
-    pub(super) fn prepare_joint_opening_plan(
+    pub(super) fn eval_streamed_joint_openings(
+        &self,
+        plan: &MetalJointMatrixPlan<'_>,
+        masks: &MetalWitnessMasks,
+        point: &[K],
+        witness_count: usize,
+        assignment_width: usize,
+    ) -> Result<Vec<V1_1Evaluations<K>>, MetalError> {
+        Ok(self
+            .eval_streamed_rows(plan, masks, point, witness_count, assignment_width, None)?
+            .openings)
+    }
+
+    pub(super) fn eval_streamed_rows(
+        &self,
+        plan: &MetalJointMatrixPlan<'_>,
+        masks: &MetalWitnessMasks,
+        point: &[K],
+        witness_count: usize,
+        assignment_width: usize,
+        terminal: Option<&super::relation::TerminalRowCheck<'_>>,
+    ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
+        let domain = 1usize
+            .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
+            .ok_or(MetalError::Shape("opening point domain overflow"))?;
+        if point.is_empty()
+            || witness_count == 0
+            || assignment_width > plan.blocks * D
+            || domain < plan.rows.max(plan.blocks * D)
+            || !masks.matches_joint(witness_count, plan.blocks)
+        {
+            return Err(MetalError::Shape("streamed opening dimensions are invalid"));
+        }
+        let mut result = to_evaluations(vec![vec![vec![K::ZERO; D]; plan.matrix_count + 1]; witness_count]);
+        if masks.active_witnesses().is_empty() && terminal.is_none() {
+            return Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+                openings: result,
+                first_unsatisfied_row: None,
+            });
+        }
+        let mut next_row = 0;
+        while next_row < plan.rows {
+            let include_pad = next_row == 0;
+            let pad = if include_pad { plan.blocks } else { 0 };
+            let floor = OpeningLayout {
+                max_blocks: pad,
+                max_chunks: pad.div_ceil(CHUNK_BLOCKS),
+                ..OpeningLayout::default()
+            }
+            .evaluation_bytes(0, point.len(), masks.active_witnesses().len())?;
+            let reserved = checked_sum(&[floor, plan.blocks])?;
+            let mut requested_end = plan.rows;
+            loop {
+                let window = self.load_matrix_window(plan, next_row..requested_end, reserved)?;
+                let count = window.rows.end - window.rows.start;
+                let count_peak = checked_sum(&[window.workspace_peak_bytes, plan.blocks])?;
+                if count_peak > plan.workspace_bytes {
+                    requested_end = next_row + smaller_window(count, count_peak, plan.workspace_bytes)?;
+                    continue;
+                }
+                let layout = OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad)?;
+                let evaluation = layout
+                    .evaluation_bytes(count, point.len(), masks.active_witnesses().len())?
+                    .max(
+                        terminal
+                            .map(|check| check.workspace_bytes(count))
+                            .transpose()?
+                            .unwrap_or(0),
+                    );
+                let available = checked_sum(&[super::application::available_workspace(self, 0), window.upload_bytes])?;
+                let budget = plan
+                    .workspace_bytes
+                    .min(available.saturating_sub(evaluation));
+                let metadata = checked_sum(&[window.workspace_peak_bytes, layout.metadata_bytes])?;
+                if metadata > budget {
+                    requested_end = next_row + smaller_window(count, metadata, budget)?;
+                    continue;
+                }
+                if !masks.active_witnesses().is_empty() {
+                    let opening = self.prepare_joint_opening_plan(
+                        window.cache.matrix_caches(),
+                        &window.matrices,
+                        plan.blocks * D,
+                        window.rows.start,
+                        include_pad,
+                        &layout,
+                    )?;
+                    let values = self.eval_joint_openings(&opening, masks, point, witness_count, assignment_width)?;
+                    for (result, value) in result.iter_mut().zip(values) {
+                        if include_pad {
+                            result.eval_k = value.eval_k;
+                        }
+                        for (matrix, contribution) in result.eval_a.iter_mut().zip(value.eval_a) {
+                            for (coefficient, value) in matrix.iter_mut().zip(contribution) {
+                                *coefficient += value;
+                            }
+                        }
+                    }
+                    drop(opening);
+                }
+                if let Some(check) = terminal {
+                    if let Some(row) = check.check_window(self, plan, &window)? {
+                        return Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+                            openings: result,
+                            first_unsatisfied_row: Some(row),
+                        });
+                    }
+                }
+                next_row = window.rows.end;
+                drop(window);
+                break;
+            }
+        }
+        Ok(neo_reductions::superneo_eval::TerminalEvaluations {
+            openings: result,
+            first_unsatisfied_row: None,
+        })
+    }
+
+    fn prepare_joint_opening_plan(
         &self,
         matrices: &[SuperneoMatrixCache],
         device_matrices: &[MetalCompactMatrix],
         scalar_columns: usize,
-        seeded_rows: Option<&DeviceSeededRows>,
+        row_start: usize,
+        include_pad: bool,
+        layout: &OpeningLayout,
     ) -> Result<MetalJointOpeningPlan, MetalError> {
         let first = matrices
             .first()
@@ -89,21 +377,29 @@ impl MetalSession {
             return Err(MetalError::Shape("opening matrix shape is invalid"));
         }
         let matrix_count = matrices.len() + 1;
-        let mut active_offsets = vec![0u64; blocks + 1];
-        let mut active_local_masks = vec![0u64; blocks];
-        let mut active_blocks_host = (0..blocks)
-            .map(|block| encoded_block(0, blocks, block))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut matrix_active_offsets_host = vec![0u32, active_count_u32(&active_blocks_host)?];
-        let mut matrix_identity = vec![1u32];
-        let mut entries = Vec::<[u32; 2]>::new();
-        let mut pattern_offsets = vec![0u32];
-        let mut pattern_locals = Vec::new();
-        let mut pattern_coefficients = Vec::new();
-        let mut parallel_form_lists = Vec::new();
-        let mut tiled_form_lists = Vec::new();
-        let mut tiled_form_tile_offsets = vec![0u32];
-        let mut tiled_form_tiles = Vec::new();
+        let pad_blocks = if include_pad { blocks } else { 0 };
+        let mut active_offsets = Vec::with_capacity(layout.active + 1);
+        active_offsets.resize(pad_blocks + 1, 0u64);
+        let mut active_local_masks = Vec::with_capacity(layout.active);
+        active_local_masks.resize(pad_blocks, 0u64);
+        let mut active_blocks_host = Vec::with_capacity(layout.active);
+        for block in 0..pad_blocks {
+            active_blocks_host.push(encoded_block(0, blocks, block)?);
+        }
+        let mut matrix_active_offsets_host = Vec::with_capacity(matrix_count + 1);
+        matrix_active_offsets_host.extend([0u32, active_count_u32(&active_blocks_host)?]);
+        let mut matrix_identity = Vec::with_capacity(matrix_count);
+        matrix_identity.push(1u32);
+        let mut entries = Vec::<[u32; 2]>::with_capacity(layout.entries);
+        let mut pattern_offsets = Vec::with_capacity(layout.patterns + 1);
+        pattern_offsets.push(0u32);
+        let mut pattern_locals = Vec::with_capacity(layout.coefficients);
+        let mut pattern_coefficients = Vec::with_capacity(layout.coefficients);
+        let mut parallel_form_lists = Vec::with_capacity(layout.parallel);
+        let mut tiled_form_lists = Vec::with_capacity(layout.tiled);
+        let mut tiled_form_tile_offsets = Vec::with_capacity(layout.tiled + 1);
+        tiled_form_tile_offsets.push(0u32);
+        let mut tiled_form_tiles = Vec::with_capacity(layout.tiles * 3);
         for (application, matrix) in matrices.iter().enumerate() {
             let matrix_index = application + 1;
             let pattern_base = u32::try_from(pattern_offsets.len() - 1)
@@ -167,8 +463,9 @@ impl MetalSession {
         let parallel_form_list_count = parallel_form_lists.len();
         let tiled_form_list_count = tiled_form_lists.len();
         let tiled_form_tile_count = tiled_form_tiles.len() / 3;
-        let mut active_chunk_bases = Vec::new();
-        let mut matrix_chunk_offsets = vec![0u32];
+        let mut active_chunk_bases = Vec::with_capacity(layout.chunks);
+        let mut matrix_chunk_offsets = Vec::with_capacity(matrix_count + 1);
+        matrix_chunk_offsets.push(0u32);
         for matrix in 0..matrix_count {
             let start = matrix_active_offsets_host[matrix] as usize;
             let end = matrix_active_offsets_host[matrix + 1] as usize;
@@ -180,13 +477,20 @@ impl MetalSession {
                     .map_err(|_| MetalError::Shape("opening chunk count exceeds u32"))?,
             );
         }
-        let seeded = self.prepare_seeded_opening_plan(matrices, seeded_rows, &active_blocks_host, blocks)?;
         let geometric = self.prepare_geometric_opening_plans(matrices, device_matrices, &active_blocks_host, blocks)?;
         Ok(MetalJointOpeningPlan {
             active_offsets: self.buffer_from_slice(&active_offsets)?,
-            active_local_masks: self.buffer_from_slice(&active_local_masks)?,
-            active_blocks: self.buffer_from_slice(&active_blocks_host)?,
-            active_chunk_bases: self.buffer_from_slice(&active_chunk_bases)?,
+            active_local_masks: self.buffer_from_slice(super::nonempty(&active_local_masks))?,
+            active_blocks: self.buffer_from_slice(if active_blocks_host.is_empty() {
+                &[0u32]
+            } else {
+                &active_blocks_host
+            })?,
+            active_chunk_bases: self.buffer_from_slice(if active_chunk_bases.is_empty() {
+                &[0u32]
+            } else {
+                &active_chunk_bases
+            })?,
             matrix_active_offsets: self.buffer_from_slice(&matrix_active_offsets_host)?,
             matrix_active_offsets_host,
             matrix_chunk_offsets,
@@ -220,13 +524,13 @@ impl MetalSession {
                 &tiled_form_tiles
             })?,
             tiled_form_partials: self.buffer(tiled_form_tile_count.max(1) * 2 * size_of::<u64>())?,
-            seeded,
             geometric,
             parallel_form_list_count,
             tiled_form_list_count,
             tiled_form_tile_count,
             matrix_count,
             rows,
+            row_start,
             blocks,
         })
     }
@@ -241,7 +545,11 @@ impl MetalSession {
         if matrices.len() != device_matrices.len() {
             return Err(MetalError::Shape("one-joint geometric device matrix count mismatch"));
         }
-        let mut plans = Vec::new();
+        let plan_count = matrices
+            .iter()
+            .filter(|matrix| matrix.compact_geometric_run_count() != 0)
+            .count();
+        let mut plans = Vec::with_capacity(plan_count);
         for (application, (matrix, device)) in matrices.iter().zip(device_matrices).enumerate() {
             if matrix.compact_geometric_run_count() == 0 {
                 continue;
@@ -304,7 +612,8 @@ impl MetalSession {
 
             // The shared active-block table already owns the column block.
             // Consecutive starts also provide each group's segment end.
-            let mut groups = Vec::<[u32; 2]>::new();
+            let group_capacity = counts.iter().filter(|&&count| count != 0).count();
+            let mut groups = Vec::<[u32; 2]>::with_capacity(group_capacity + 1);
             for block in 0..blocks {
                 if offsets[block] == offsets[block + 1] {
                     continue;
@@ -332,90 +641,9 @@ impl MetalSession {
         Ok(plans)
     }
 
-    fn prepare_seeded_opening_plan(
-        &self,
-        matrices: &[SuperneoMatrixCache],
-        device: Option<&DeviceSeededRows>,
-        active_blocks: &[u32],
-        blocks: usize,
-    ) -> Result<Option<DeviceSeededOpeningPlan>, MetalError> {
-        let has_seeded = matrices
-            .iter()
-            .any(SuperneoMatrixCache::has_compact_seeded_phi81_blocks);
-        if !has_seeded {
-            return Ok(None);
-        }
-        let Some(device) = device else {
-            return Err(MetalError::Shape(
-                "one-joint seeded openings are unsupported for this matrix form",
-            ));
-        };
-        let mut by_active = vec![Vec::<[u32; 2]>::new(); active_blocks.len()];
-        let mut output_index = 0usize;
-        let mut word_base = 0usize;
-        for (application, matrix) in matrices.iter().enumerate() {
-            for seeded in matrix.compact_seeded_phi81_blocks() {
-                for _ in 0..seeded.kappa() {
-                    let output = u32::try_from(output_index)
-                        .map_err(|_| MetalError::Shape("one-joint seeded opening output exceeds u32"))?;
-                    for (word, &start) in seeded.word_starts().iter().enumerate() {
-                        let global_word = u32::try_from(word_base + word)
-                            .map_err(|_| MetalError::Shape("one-joint seeded opening word exceeds u32"))?;
-                        let end = start
-                            .checked_add(seeded.word_width())
-                            .ok_or(MetalError::Shape("one-joint seeded opening range overflow"))?;
-                        for column_block in start / D..end.div_ceil(D) {
-                            let encoded = encoded_block(application + 1, blocks, column_block)?;
-                            let active = active_blocks.binary_search(&encoded).map_err(|_| {
-                                MetalError::Shape("one-joint seeded opening block is absent from the transpose")
-                            })?;
-                            by_active[active].push([output, global_word]);
-                        }
-                    }
-                    output_index += 1;
-                }
-                word_base += seeded.word_starts().len();
-            }
-        }
-        let expected_outputs = device.output_headers.length() as usize / (9 * size_of::<u64>());
-        if output_index != expected_outputs {
-            return Err(MetalError::Shape("one-joint seeded opening metadata is inconsistent"));
-        }
-
-        let mut active_indices = Vec::new();
-        let mut offsets = vec![0u32];
-        let mut segments = Vec::new();
-        for (active, entries) in by_active.into_iter().enumerate() {
-            if entries.is_empty() {
-                continue;
-            }
-            active_indices.push(
-                u32::try_from(active).map_err(|_| MetalError::Shape("one-joint seeded active block exceeds u32"))?,
-            );
-            segments.extend(entries.into_iter().flatten());
-            offsets.push(
-                u32::try_from(segments.len() / 2)
-                    .map_err(|_| MetalError::Shape("one-joint seeded segment count exceeds u32"))?,
-            );
-        }
-        if active_indices.is_empty() || segments.is_empty() {
-            return Err(MetalError::Shape("one-joint seeded opening plan is empty"));
-        }
-        Ok(Some(DeviceSeededOpeningPlan {
-            output_headers: device.output_headers.clone(),
-            word_starts: device.word_starts.clone(),
-            rotations: device.rotations.clone(),
-            active_indices: self.buffer_from_slice(&active_indices)?,
-            segment_offsets: self.buffer_from_slice(&offsets)?,
-            segments: self.buffer_from_slice(&segments)?,
-            group_count: active_indices.len(),
-        }))
-    }
-
     pub(super) fn eval_joint_openings(
         &self,
         plan: &MetalJointOpeningPlan,
-        _seeded_rows: Option<&DeviceSeededRows>,
         masks: &MetalWitnessMasks,
         point: &[K],
         witness_count: usize,
@@ -432,7 +660,10 @@ impl MetalSession {
             || witness_count == 0
             || assignment_width > carrier_width
             || carrier_width > chi_len
-            || plan.rows > chi_len
+            || plan
+                .row_start
+                .checked_add(plan.rows)
+                .is_none_or(|end| end > chi_len)
             || !masks.matches_joint(witness_count, plan.blocks)
         {
             return Err(MetalError::Shape("one-joint opening dimensions are invalid"));
@@ -441,6 +672,23 @@ impl MetalSession {
         let active_witness_ids = masks.active_witnesses();
         let active_count = active_witness_ids.len();
         if active_count == 0 {
+            return Ok(to_evaluations(openings));
+        }
+        // A matrix opening is an independent sum. Reuse one matrix's storage
+        // instead of keeping every matrix form live at the same point.
+        let max_blocks = plan
+            .matrix_active_offsets_host
+            .windows(2)
+            .map(|range| (range[1] - range[0]) as usize)
+            .max()
+            .unwrap_or(0);
+        let max_chunks = plan
+            .matrix_chunk_offsets
+            .windows(2)
+            .map(|range| (range[1] - range[0]) as usize)
+            .max()
+            .unwrap_or(0);
+        if max_blocks == 0 {
             return Ok(to_evaluations(openings));
         }
         let active_witnesses = self.buffer_from_slice(active_witness_ids)?;
@@ -464,6 +712,7 @@ impl MetalSession {
             0,
             0,
             low_bits as u64,
+            plan.row_start as u64,
         ];
         let weight_shape = self.buffer_from_slice(&shape)?;
         let command = self.command_buffer("nightstream.pi_ccs.opening.weights")?;
@@ -483,22 +732,10 @@ impl MetalSession {
         self.dispatch(&encoder, &self.dec_build_row_weights, plan.rows);
         encoder.endEncoding();
         self.finish(&command)?;
+        drop(encoder);
+        drop(command);
         drop(tensor_resources);
 
-        // A matrix opening is an independent sum. Reuse one matrix's storage
-        // instead of keeping every matrix form live at the same point.
-        let max_blocks = plan
-            .matrix_active_offsets_host
-            .windows(2)
-            .map(|range| (range[1] - range[0]) as usize)
-            .max()
-            .unwrap_or(0);
-        let max_chunks = plan
-            .matrix_chunk_offsets
-            .windows(2)
-            .map(|range| (range[1] - range[0]) as usize)
-            .max()
-            .unwrap_or(0);
         let forms = self.buffer(checked_product(
             &[max_blocks, 2, D, size_of::<u64>()],
             "opening form size overflow",
@@ -538,6 +775,12 @@ impl MetalSession {
                 active_start as u64,
             ])?;
             let command = self.command_buffer("nightstream.pi_ccs.joint.openings")?;
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setComputePipelineState(&self.joint_zero_words);
+            unsafe { encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0) };
+            self.dispatch(&encoder, &self.joint_zero_words, form_words);
+            encoder.endEncoding();
+            drop(encoder);
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.opening.forms")));
             encoder.setComputePipelineState(&self.dec_build_ring_forms);
@@ -629,6 +872,7 @@ impl MetalSession {
                 .filter(|geometric| geometric.matrix == matrix)
             {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+                encoder.setLabel(Some(&NSString::from_str("dec_add_geometric_ring_forms")));
                 encoder.setComputePipelineState(&self.dec_add_geometric_ring_forms);
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(&geometric.groups), 0, 0);
@@ -639,15 +883,12 @@ impl MetalSession {
                     encoder.setBuffer_offset_atIndex(Some(&forms), 0, 5);
                     encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 6);
                 }
-                self.dispatch(
-                    &encoder,
-                    &self.dec_add_geometric_ring_forms,
-                    geometric.group_count * 2 * D,
-                );
+                self.dispatch(&encoder, &self.dec_add_geometric_ring_forms, geometric.group_count * D);
                 encoder.endEncoding();
             }
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("dec_bar_ring_forms_in_place")));
             encoder.setComputePipelineState(&self.dec_bar_ring_forms_in_place);
             unsafe { encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0) };
             self.dispatch(
@@ -657,42 +898,8 @@ impl MetalSession {
             );
             encoder.endEncoding();
 
-            let seeded_scratch = if let Some(seeded) = &plan.seeded {
-                let words = checked_product(&[seeded.group_count, 2, D], "seeded opening size overflow")?;
-                let scratch = self.buffer(words * size_of::<u64>())?;
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.dec_build_seeded_ring_forms);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.output_headers), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.word_starts), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.rotations), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.segment_offsets), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.segments), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&chi), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&scratch), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 8);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.active_indices), 0, 9);
-                }
-                self.dispatch(&encoder, &self.dec_build_seeded_ring_forms, words);
-                encoder.endEncoding();
-
-                let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.dec_add_bar_seeded_ring_forms);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&scratch), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&seeded.active_indices), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 3);
-                }
-                self.dispatch(&encoder, &self.dec_add_bar_seeded_ring_forms, words);
-                encoder.endEncoding();
-                Some(scratch)
-            } else {
-                None
-            };
-
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_partials")));
             encoder.setComputePipelineState(&self.dec_sparse_ring_partials);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0);
@@ -710,6 +917,7 @@ impl MetalSession {
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_sum_chunks")));
             encoder.setComputePipelineState(&self.dec_sparse_ring_sum_chunks);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
@@ -721,6 +929,7 @@ impl MetalSession {
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("dec_ring_reduce_phi81")));
             encoder.setComputePipelineState(&self.dec_ring_reduce_phi81);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&sums), 0, 0);
@@ -730,7 +939,6 @@ impl MetalSession {
             self.dispatch(&encoder, &self.dec_ring_reduce_phi81, output_words);
             encoder.endEncoding();
             self.finish(&command)?;
-            drop(seeded_scratch);
 
             let words = self.read_buffer::<u64>(&output, output_words);
             for (active, &witness) in active_witness_ids.iter().enumerate() {
@@ -754,6 +962,13 @@ fn checked_product(values: &[usize], message: &'static str) -> Result<usize, Met
         .iter()
         .try_fold(1usize, |product, &value| product.checked_mul(value))
         .ok_or(MetalError::Shape(message))
+}
+
+fn checked_sum(values: &[usize]) -> Result<usize, MetalError> {
+    values
+        .iter()
+        .try_fold(0usize, |sum, &value| sum.checked_add(value))
+        .ok_or(MetalError::Shape("opening workspace size overflow"))
 }
 
 fn encoded_block(matrix: usize, blocks: usize, block: usize) -> Result<u32, MetalError> {

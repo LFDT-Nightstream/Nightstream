@@ -345,7 +345,7 @@ theorem commitmentEquation
     (Formal.commitmentOffset offset) env specification.commitment
   rw [commitmentChallenges_eq interface offset env,
     commitmentInputs_eq relation interface offset env] at coverage
-  simpa [PaperAlgebra.piRlcAlgebra] using
+  simpa [PaperAlgebra.piRlcAlgebra] using!
     (commitmentOutput_eq relation interface offset env).trans coverage
 
 theorem publicInputEquation
@@ -504,7 +504,7 @@ theorem PhaseHolds.outgoingState
         (Formal.samplerInterface (Formal.atOffset interface offset)) (Formal.samplerOffset offset)) =
       Nifs.NonInteractive.PiRlcWideSampler.Transcript.stateAt
         (Scalar.evalState env (interface.initialState offset)) Nifs.PaperProfile.arity.total := by
-  simpa only [arityTotal_eq_sourceCount] using phase.sampler.state
+  simpa only [arityTotal_eq_sourceCount] using! phase.sampler.state
 
 theorem challengesValid
     {logicalWidth : Nat}
@@ -523,7 +523,7 @@ theorem challengesValid
   have member := ProjectedBatch.outputChallenge_member
     (Formal.samplerInterface (Formal.atOffset interface offset)) env offset specification.sampler (sourceIndex source)
   simpa only [PaperAlgebra.piRlcAlgebra, Phi81Relation.PiRLCAlgebra.Challenge.challengeValid,
-    evalChallenges] using member
+    evalChallenges] using! member
 
 /-- Mechanical coverage of the exact production PiRLC relation and its
 transcript transition. No challenge or outgoing state is supplied as a

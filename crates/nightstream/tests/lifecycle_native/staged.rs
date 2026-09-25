@@ -29,6 +29,8 @@ use std::{
 
 #[path = "staged_fold.rs"]
 mod fold;
+#[path = "staged_opening_tests.rs"]
+mod opening_tests;
 #[path = "staged_terminal.rs"]
 mod terminal;
 
@@ -99,14 +101,17 @@ enum Request {
     },
     Terminal {
         directory: PathBuf,
+        step: u64,
         #[serde(default)]
         engine: EvaluationEngine,
     },
     Mutation {
         directory: PathBuf,
+        step: u64,
     },
     Reject {
         directory: PathBuf,
+        step: u64,
         #[serde(default)]
         engine: EvaluationEngine,
     },
@@ -152,9 +157,17 @@ fn run_phase() {
             step,
             engine,
         } => terminal::successor(&directory, step, engine),
-        Request::Terminal { directory, engine } => terminal::accept(&directory, engine),
-        Request::Mutation { directory } => terminal::mutation(&directory),
-        Request::Reject { directory, engine } => terminal::reject(&directory, engine),
+        Request::Terminal {
+            directory,
+            step,
+            engine,
+        } => terminal::accept(&directory, step, engine),
+        Request::Mutation { directory, step } => terminal::mutation(&directory, step),
+        Request::Reject {
+            directory,
+            step,
+            engine,
+        } => terminal::reject(&directory, step, engine),
     }
     eprintln!("staged phase passed elapsed={:?}", started.elapsed());
 }
@@ -183,7 +196,7 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
     serde_json::from_reader(BufReader::new(File::open(path).expect("checkpoint input"))).expect("typed checkpoint data")
 }
 fn fold_dir(root: &Path, step: u64) -> PathBuf {
-    assert!(matches!(step, 1 | 2), "this test covers the two requested fresh folds");
+    assert!(matches!(step, 1 | 2), "selected folds are 1-to-2 and 2-to-3");
     root.join(format!("fold-{step}"))
 }
 fn step_dir(root: &Path, step: u64) -> PathBuf {
@@ -195,14 +208,14 @@ fn prepare() -> PreparedLifecycle {
 fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
     let started = Instant::now();
     let prover = match engine {
-        EvaluationEngine::Optimized => crate::engine::Prover::Optimized,
+        EvaluationEngine::Optimized => crate::engine::Backend::Optimized,
         #[cfg(feature = "metal")]
-        EvaluationEngine::Metal => crate::engine::Prover::new(crate::Engine::Metal).unwrap(),
+        EvaluationEngine::Metal => crate::engine::Backend::new(crate::Engine::Metal).unwrap(),
     };
     let application = crate::application::poseidon2_hash_chain_v1().unwrap();
     let reference = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let (package, binding) = crate::assembly::prepare(&reference, &application).unwrap();
-    let package = PreparedLifecycle::from_package(package, binding, prover).unwrap();
+    let package = PreparedLifecycle::from_package(package.into(), binding, prover, 114).unwrap();
     eprintln!("staged circuit preparation elapsed={:?}", started.elapsed());
     package
 }
@@ -212,6 +225,7 @@ fn params(package: &PreparedLifecycle) -> Params {
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),
+        114,
     )
     .unwrap()
 }
@@ -234,7 +248,7 @@ fn expected_state(step: u64) -> Stage1State {
         }
         2 => second,
         3 => output(second, message()),
-        _ => panic!("expected base and two recursive outputs"),
+        _ => panic!("expected a state in the selected 1-to-2-to-3 chain"),
     };
     Stage1State::new(step, initial, current)
 }
@@ -356,6 +370,7 @@ fn base(root: &Path, engine: EvaluationEngine) {
             Stage1Envelope::initial(expected.z0()),
             &message.map(|value| value.as_canonical_u64()),
             output,
+            None,
         )
         .unwrap();
     assert_eq!(envelope.state(), &expected);
@@ -369,7 +384,7 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
     let started = Instant::now();
     assert_eq!(
         package
-            .prover
+            .backend
             .commit(std::slice::from_ref(&source.fresh.witness.Z))
             .unwrap()
             .remove(0),
@@ -379,12 +394,12 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
         "fresh source commitment engine={engine:?} elapsed={:?}",
         started.elapsed()
     );
-    let commitments = package.prover.commit(&source.running.witnesses).unwrap();
+    let commitments = package.backend.commit(&source.running.witnesses).unwrap();
     for (claim, commitment) in source.running.claims.iter().zip(commitments) {
         assert_eq!(commitment, claim.c);
     }
     #[cfg(feature = "metal")]
-    if let crate::engine::Prover::Metal(device) = &package.prover {
+    if let crate::engine::Backend::Metal(device) = &package.backend {
         eprintln!(
             "source commitment device activity={:?}",
             device.lock().unwrap().activity()

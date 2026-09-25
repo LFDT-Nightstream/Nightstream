@@ -36,21 +36,21 @@ private theorem constraints_transport
   · have valid := holds (RunningTransition.bindingConstraint afterInterface afterOffset) List.mem_cons_self
     simpa only [RunningTransition.bindingConstraint, RunningTransition.baseFlag,
       RunningTransition.recursiveFlag, RunningTransition.inverseExpr,
-      Expr.eval_sub, Expr.eval_hmul, Expr.eval_const, Expr.eval_var, iteration, inverse] using valid
+      Expr.eval_sub, Expr.eval_hmul, Expr.eval_const, Expr.eval_var, iteration, inverse] using! valid
   · have valid := holds (RunningTransition.muxConstraint afterInterface afterOffset index)
       (by simp only [RunningTransition.constraints, RunningTransition.muxConstraints,
         List.mem_cons, List.mem_append, List.mem_ofFn]; exact Or.inr (Or.inl ⟨index, rfl⟩))
     simpa only [RunningTransition.muxConstraint, RunningTransition.baseFlag,
       RunningTransition.recursiveFlag, RunningTransition.inverseExpr,
       Expr.eval_sub, Expr.eval_hmul, Expr.eval_hadd, Expr.eval_const, Expr.eval_var,
-      iteration, inverse, recursive, output] using valid
+      iteration, inverse, recursive, output] using! valid
   · have valid := holds (RunningTransition.baseStateConstraint afterInterface afterOffset index)
       (by simp only [RunningTransition.constraints, RunningTransition.baseStateConstraints,
         List.mem_cons, List.mem_append, List.mem_ofFn]; exact Or.inr (Or.inr ⟨index, rfl⟩))
     simpa only [RunningTransition.baseStateConstraint, RunningTransition.baseFlag,
       RunningTransition.recursiveFlag, RunningTransition.inverseExpr,
       Expr.eval_sub, Expr.eval_hmul, Expr.eval_const, Expr.eval_var,
-      iteration, inverse, initial, current] using valid
+      iteration, inverse, initial, current] using! valid
 
 theorem inverse (env : Env) :
     SourceAssignment.sourceEnv env Layout.Stage1.RunningTransitionInputs.phaseOffset =
@@ -81,7 +81,7 @@ theorem physical_flag (env : Env)
     exact List.mem_cons_self)
   symm
   simpa only [row, R1CS.Row.Holds, R1CS.LinearCombination.eval_ofVar,
-    Layout.Stage1.Wide.RunningTransitionInputs.iterationExpr, Expr.eval_var] using valid
+    Layout.Stage1.Wide.RunningTransitionInputs.iterationExpr, Expr.eval_var] using! valid
 
 /-- The reference source view satisfies the same 49,359 reduced equations. -/
 theorem reduced_rows (relation : ProductionKey.LogicalRelation width fits) (env : Env)

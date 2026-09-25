@@ -208,10 +208,12 @@ private theorem row_ok_iff (source target : Nat) :
     PhysicalRelabel.row source = .ok target ↔
       (source < 19385261 ∧ target = source) ∨
       (20394109 ≤ source ∧ target = source - 949909) := by
-  simp only [PhysicalRelabel.row, Layout.Stage1.PiRLCStarts.phaseRowStart,
-    Layout.Stage1.PiRLCStarts.commitmentRowStart, Layout.Stage1.PiRLCStarts.samplerRowStart,
-    Layout.Stage1.Wide.PiRLCStarts.commitmentRowStart, Layout.Stage1.Wide.PiRLCStarts.samplerRowStart,
-    Layout.Stage1.Wide.PiRLCStarts.phaseRowStart, Nat.reduceAdd, Nat.reduceSub]
+  have phase : Layout.Stage1.PiRLCStarts.phaseRowStart = 19385261 := rfl
+  have phaseWide : Layout.Stage1.Wide.PiRLCStarts.phaseRowStart = 19385261 := rfl
+  have old : Layout.Stage1.PiRLCStarts.commitmentRowStart = 20394109 := rfl
+  have wide : Layout.Stage1.Wide.PiRLCStarts.commitmentRowStart = 19444200 := rfl
+  unfold PhysicalRelabel.row
+  simp only [phase, phaseWide, old, wide, Nat.reduceSub]
   by_cases before : source < 19385261
   · rw [if_pos before, Except.ok.injEq]
     omega

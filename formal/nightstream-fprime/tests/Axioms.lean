@@ -7,6 +7,7 @@ import tests.AxiomsStage1Application
 import tests.AxiomsStage1Assembler
 import tests.AxiomsAjtaiSetupV1
 import tests.AxiomsFoundations
+import tests.AxiomsPermutationOutputs
 /-! Axiom gate. Explicit audits reject axioms outside the allowed set. -/
 /-! ## Spec -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
@@ -641,7 +642,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Circuit.flatConstraints_length_eq_rowCount
 #audit_axioms NightstreamFPrime.Circuit.recipeConstraints_eq_recipeConstraintsTR
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Hash.compileAbsorptions_eq_compileAbsorptionsTR
-#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.scheduleOutput_eq_compile
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compileWiring_matches
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compileWiringLazy_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation.layoutWiring_samples_eq

@@ -344,6 +344,27 @@ def partialSboxState (start : Nat) (round : Nat) (state : EState) : EState :=
     (compileSboxes start [partialInput round state]).outputs.getD 0 0
   else state lane
 
+/-- The output wire of each S-box is independent of its input recipes. -/
+def fullSboxStateDirect (start : Nat) (_rows : List (List Nat)) (_round : Nat)
+    (_state : EState) : EState :=
+  fun lane => sboxOutput (start + 4 * lane.val)
+
+@[csimp] theorem fullSboxState_eq_fullSboxStateDirect :
+    @fullSboxState = @fullSboxStateDirect := by
+  funext start rows round state lane
+  fin_cases lane <;>
+    simp [fullSboxState, fullSboxStateDirect, fullInputs, List.ofFn_succ,
+      compileSboxes, sboxOutput, Nat.add_assoc]
+
+/-- Read the single staged S-box output without rebuilding its recipes. -/
+def partialSboxStateDirect (start : Nat) (_round : Nat) (state : EState) : EState :=
+  fun lane => if lane.val = 0 then sboxOutput start else state lane
+
+@[csimp] theorem partialSboxState_eq_partialSboxStateDirect :
+    @partialSboxState = @partialSboxStateDirect := by
+  funext start round state lane
+  simp [partialSboxState, partialSboxStateDirect, compileSboxes]
+
 def stepSize : Step → Nat
   | .initialLayer => 8
   | .initialFullRound _ | .terminalFullRound _ => 40

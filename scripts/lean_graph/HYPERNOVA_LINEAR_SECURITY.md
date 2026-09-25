@@ -10,7 +10,7 @@ The final declaration is
 The literal criterion is `LeanGraph.Targets.HyperNovaLinearSecurity` in
 `tests/EvidenceTargets.lean`; `hyperNovaLinearSecurity` proves that criterion.
 It quantifies state and tape types in `Type`; the production theorem also
-supports higher universes. The existing square-root theorem remains available.
+supports higher universes.
 
 The required conclusion is
 
@@ -33,8 +33,8 @@ Required premises:
   operational source and all visit laws. Existing storage and primitive clock
   bounds, correctness facts, summability and low-norm invertibility stay visible.
 - Every guarded real experiment satisfies the already approved classical
-  additive-Poseidon2 `WideFiatShamir.FiatShamirModel` for the selected wide key,
-  with shared `g` and `deltaFS` and its own total permutation-query count `Q_j`. This registration
+  additive-Poseidon2 `WideFiatShamir.FiatShamirModel` for the target's relation
+  and wide key, with shared `g` and `deltaFS` and its own total permutation-query count `Q_j`. This registration
   does not construct or strengthen that external model.
 - The public fixed-seed MSIS assumption can bound the computed reduction only
   after its adaptive calls, termination, expected work, preprocessing and query
@@ -57,7 +57,6 @@ Dependencies retained from checked commit `0b42eed2`:
 | `Lifecycle.Nifs.BindingProbability.supported_binding_le_success` | Bound a supported selected-pair collision by the actual emitted vector's success. |
 | `Spec.Folding.PiCCS.PaperJoint.AcceptedRetryLaw.entered_expectedWork_tendsto` | Sum entered retry work, including rejected calls. |
 | `Export.Stage1.HyperNovaFirstFailure.accepted_probability_le_first_failures` | Compose losses at actual history visits. |
-| `Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound` | Reference for the unchanged final event, premises and history law. |
 
 All namespaces in the table have prefix `NightstreamFPrime`. The new
 `AdaptiveBindingProbability.retryDisagreement_le_success` connects the gated

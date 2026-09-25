@@ -1,9 +1,9 @@
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
 
-/-! HyperNova's fixed augmented step with the candidate wide-sampler NIFS key.
-The application, state hashing, public encoding and default accumulator are
-the existing ones. This relation is not selected by the production package. -/
+/-! HyperNova's fixed augmented step with the wide-sampler NIFS key, which the
+selected production package uses. The application, state hashing, public
+encoding and default accumulator are the existing ones. -/
 
 namespace NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
 

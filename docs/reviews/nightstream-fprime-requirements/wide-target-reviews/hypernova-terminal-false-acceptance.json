@@ -1,0 +1,62 @@
+{
+  "obligation": "hypernova-terminal-false-acceptance",
+  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+  "commit": "9e9cd23d140952c68889092b4d2bfea70b1b6880",
+  "review": "decomposition",
+  "reviewer": "independent review agent (Claude), fresh context",
+  "reviewed_at": "2026-09-25T16:49:30-05:00",
+  "outcome": "pass",
+  "target_meaning": {
+    "outcome": "pass",
+    "reason": "FalseAcceptance (NightstreamFPrime/Export/Stage1/HyperNovaFalseAcceptance.lean:42-46) is target.Holds statement envelope and no advice list of length statement.iteration folds target.program.step from z0 to zi. target.Holds (Export/Stage1/Wide/TerminalSecurity.lean:73-75) is Lifecycle.Stage1.Terminal.HoldsFor for the wide relation, key, context and program. HoldsFor (Lifecycle/Stage1/Terminal.lean:71-81) requires StatementValid and OuterTerminalTransition with relations (Terminal.lean:44-59). These check CE.Holds for all 16 running witnesses and CCS.Holds for the fresh witness (full openings, not bare public or NIFS Boolean acceptance; Spec/HyperNova/Construction2/Paper.lean:557-595). The left side is initial.toOuterMeasure {FalseAcceptance} on the caller's original PMF (tests/EvidenceTargets.lean:384); nothing is conditioned. The right side has no AdviceReturned term (EvidenceTargets.lean:385-396). The statement is universal over Wide.Target (EvidenceTargets.lean:315). Therefore it applies to Wide.selected compiled parts (Wide/TerminalSecurity.lean:41-48): application Poseidon2HashChainV1, wide compiled plan, SetupBinding.productionAjtaiKey and the prepared-stream context of length 4. Relative to the old target (982538618, PerApplicationTerminal.Holds for the baseline narrow package), only the verifier instance changed: the wide relation FixedPoint.relation program compiled fits. The event shape is identical. Nothing is vacuous: the FS premise is satisfiable (for example, g = 0 and deltaFS = 0), the depth bound only restricts support, and the conclusion is a finite real inequality over the actual laws."
+  },
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pass",
+      "reason": "The target is a real probability bound on the literal false-acceptance event. It is not an extraction-success restatement. It requires the proved event inclusion FalseAcceptance -> not AdviceReturned (HyperNovaFalseAcceptance.lean:50-54), the checked reverse-history correctness (HyperNovaHistory.lean:309-319) and the per-visit linear bound. The per-visit bound uses realSuccessProbability_eq_goodActive (HyperNovaVisitedAcceptance.lean:206-222), which derives the wide-key RealSuccess from terminal acceptance (HyperNovaRealInput.lean:70-91). The loss terms stay symbolic and explicit, as the N.security.error_budget disposition requires: marked hash-collision mass, good-active mass minus g, deltaFS, weakLoss, testError and 17 * actual AdaptiveBindingProbability.successProbability (PaperProfile.lean:67 gives arity.total = 17)."
+    },
+    "premises": {
+      "outcome": "pass",
+      "reason": "Compared with git show 982538618:tests/EvidenceTargets.lean, the premise list is identical up to parameterization by target (tapes, rawCall, check/storage/parent clocks, storageBound, storageBounded, baseSummable, DecidableEq/Fintype/Nonempty Challenge, initial, depth, _depthBound, originalFirstPhase, abortTape, g, deltaFS, queries, the four primitive clocks, sourceCheckClock, accessClock, _lowNorm, bounds, _bounded; EvidenceTargets.lean:316-363). No premise is added or dropped. The single semantic swap is FiatShamirTransfer.FiatShamirModel -> WideFiatShamir.FiatShamirModel (EvidenceTargets.lean:381-383). It uses the same arguments: realLaw target (visits j), firstPhase = guardedPrefix target originalFirstPhase, abortTape, provider j built on contexts j = contextLaw (realLaw (visits j)), g, deltaFS and queries j. WideFiatShamir.FiatShamirModel (Lifecycle/Nifs/WideFiatShamir.lean:108-112) has the same single successTransfer field as the retired model (removed from FiatShamirTransfer.lean in bab9b858). The only change is that RealSuccess uses PiRLC.Wide.Key.key (WideFiatShamir.lean:44-55), which is exactly the event that the approved boundary names (docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md:79-97). I recomputed the SHA-256 of FIAT_SHAMIR_MODEL.md lines 88-131. It matches the recorded 8eada01d...5b30. The Challenge instances stay on ProductionKey.key. This is correct because Wide.Key.key only replaces piRlcResponse (PiRLC/Wide/Key.lean:34-38, 144-150)."
+    },
+    "argument": {
+      "outcome": "pass",
+      "reason": "probability_linear_bound (HyperNovaFalseAcceptance.lean:202-271) composes two parts. The first is probability_le_first_failures (:134-165). It lifts the event through HyperNovaHistoryLaw.initial_marginal (HyperNovaHistoryLaw.lean:220-228) without conditioning. It then applies accepted_failure_exists_first (HyperNovaFirstFailure.lean:143-161) to every supported sample. That lemma is proved from run_correct and predecessor_accepted, not assumed. The finite union bound and visitedDraw_marginal (HyperNovaVisitedLaw.lean:267-274) follow, and marked_hash_mass moves the hash term to the visited law. The second part is HyperNovaVisitedSecurity.source_failure_probability_linear_le (HyperNovaVisitedSecurity.lean:109-190). It rewrites the wide real success as good-active mass, identifies the guarded NIFS law with the guarded draw (HyperNovaGuardedSourceLaw.lean:248-262), partitions the good-active mass (:294-345) and applies NifsProviderLaw.source_probability_linear_bound (NifsProviderLaw.lean:128-190) under the wide model. The final step is Finset.sum_le_sum with add_le_add. The PMF finiteness facts justify the ENNReal-to-real conversions. The closure is the direct term @HyperNovaFalseAcceptance.probability_linear_bound (EvidenceTargets.lean:398-399). The coordinator states that the build and axiom audit pass."
+    },
+    "correspondence": {
+      "outcome": "pass",
+      "reason": "Acceptance is the wide target's terminal. The wide NIFS key enters through the relation rows: terminal_implies_matchingStepOrCollision (Wide/TerminalSecurity.lean:161-172) produces Lifecycle.Stage1.Wide.Relation.StepHoldsFor, whose NIFS verifier is PiRLC.Wide.Key.key (Lifecycle/Stage1/Wide/Relation.lean:18-32). terminal_implies_nifsOrBaseOrCollision (:177-210) then yields Nifs.PaperNonInteractive.verify (Wide.Key.key ...) = some running. HyperNovaRealInput.realSuccess_of_terminal consumes this to build the exact WideFiatShamir.RealSuccess that the FS model transfers. The real output is the decoded nifsProof and the terminal's 16 running witnesses (HyperNovaRealInput.lean:63-65). The interactive side (originalSuccessProbability, weakLoss, testError, AdaptiveBindingProbability, SupportedContinuation) is on ProductionKey.key with uniform challenges. This is the same experiment as before because the wide key changes only piRlcResponse. No interactive Lifecycle/Nifs file reads piRlcResponse (grep: only WideSamplerSecurity, BaseVerifierCompleteness and TotalizedComparison). FIAT_SHAMIR_MODEL.md:109-112 puts the difference between the wide challenge law and uniform challenges inside deltaFS. The source check and predecessor reconstruction are key-independent (TerminalHolds on relation and ajtai; HyperNovaHistory.lean:155-167, 187-205). MarkedHashCollision is the real StateHashCollision on decodedNext versus the terminal preimage (Wide/TerminalSecurity.lean:99-101; HyperNovaFirstFailure.lean:30-34)."
+    },
+    "parent_use": {
+      "outcome": "pass",
+      "reason": "The target meets the N.security.error_budget disposition (scripts/lean_graph/STAGE1_BASELINE.md:555). It connects terminal acceptance with no valid application history to the first-failure and linear visited bounds. Depth, queries, g, FS loss, marked hash collisions and actual adaptive MSIS stay explicit, and no extraction-success bound replaces false acceptance. It also matches the registered gap and argument (scripts/lean_graph/obligations.json:374): the original mixed law, no positive AdviceReturned mass, the checked event-to-first-failures bridge and the existing guarded visited linear source bounds. Because the target is universal over Wide.Target, the selected wide package (Wide.selected) and any other wide target can use it directly. Numerical choices, fixed-key/FS applicability and the Rust-to-Lean verifier identification remain external, as the registration states."
+    }
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:4-6; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:3-5; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:6-9",
+      "detail": "Stale ownership headers. They say the wide relation and key are candidates that the production package does not select. FIAT_SHAMIR_MODEL.md:88 and this port say that they are selected. The proof is not affected, but the headers mislead an auditor about which verifier the target covers."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Terminal.lean:80; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Relation.lean:41-49",
+      "detail": "target.Holds builds the narrow Lifecycle.setup, whose nifs field uses ProductionKey.key. RecursiveTerminalTransition reads only setup.verifierKeys (Spec/HyperNova/Construction2/Paper.lean:557-595), so the narrow NIFS field has no effect. The wide key enters only through the relation rows and OpeningBinding.terminal_implies_stepOrCollision (Wide/TerminalSecurity.lean:168). No soundness effect."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:41-48; formal/nightstream-fprime/NightstreamFPrime/Layout/PiRlcWideSampler/RangePlan.lean:47",
+      "detail": "No theorem references Wide.selected. The target covers it only through universal quantification over Wide.Target. Only executables obtain a Compiled value (compile? has no Lean proof that it returns some), and parts is a free argument. The claim that the Rust package's verifier is target.Holds for Wide.selected belongs to P.binding.context and P.delivery.terminal, not to this obligation."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Types.lean:44; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Poseidon2HashChainV1Circuit.lean:47-48",
+      "detail": "The history witnesses are arbitrary-length List F, and the approved hash-chain step accepts any message length. Thus 'no valid history' also counts histories with messages that are not circuit width as valid. This follows the HyperNova IVC definition relative to F = program.step. It is unchanged from the old target."
+    },
+    {
+      "severity": "note",
+      "location": "scripts/lean_graph/STAGE1_BASELINE.md:500-501; docs/reviews/nightstream-fprime-requirements/STAGE1_BASELINE_STATUS.md:13; docs/reviews/nightstream-fprime-requirements/FALSE_ACCEPTANCE_REVIEW.json",
+      "detail": "The status records cite 8084c256 and the review of the narrow-package event (PerApplicationTerminal.Holds). The target statement changed at bab9b858, so update these records to cite this commit and the wide-key FS premise."
+    }
+  ]
+}

@@ -1090,3 +1090,24 @@ Poseidon2 hash-chain application, its compiled sampler plan and fit, the
 production Ajtai key and the context digest of the prepared descriptor. The
 statements stay general over the target; no numerical security level is
 claimed.
+
+## Key capacity and generic hash-chain vector
+
+On 2026-09-25 the owner approved 22 × 4,708,530 ring columns, the approved
+public-seed MSIS matrix, as the supported key capacity. Each package still
+binds its exact key prefix, so the selected package keeps 2,543,368 columns
+and all its identities.
+
+- `neo_ajtai::nightstream_fprime_setup::MAX_MESSAGE_COLUMNS` is the upper
+  bound for the prefix commitment, PiDEC, fresh-carrier and key-prefix
+  checks. Ordinary applications may use 2,851,939 witness and local words,
+  up from 262. The largest fixed envelope has 26,540,836 nodes, below the
+  loader's 32,045,229-node bound.
+- `poseidon2_hash_chain(links)` generalizes the hash chain;
+  `poseidon2_hash_chain_v1` is its one-link case and stays byte-identical.
+- The generic vector is `poseidon2_hash_chain(2)`: 15,392 private words on the
+  ordinary route with its own wider key prefix. Its structural identifier,
+  package identity and verification-key digest are pinned. Its base proof
+  verifies; a changed endpoint, initial state or counter, a changed witness
+  with the old or a recomputed commitment, and a changed commitment are each
+  rejected for their exact reason (219 s of test time).

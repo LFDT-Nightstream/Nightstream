@@ -3,10 +3,10 @@ import NightstreamFPrime.Export.Stage1.Wide.ContextBinding
 import NightstreamFPrime.Export.Stage1.Wide.HashChainCounts
 import NightstreamFPrime.Export.Stage1.SetupBinding
 
-/-! Candidate verifier authority for the wide package: its self-derived
+/-! Verifier authority for the selected wide package: its self-derived
 relation, unchanged application, exact transcript schedule and same-seed Ajtai
-setup. Candidate serializers bind the wide schedule without changing baseline
-serialization or identity pins. The sealed children remain authoritative. -/
+setup. Its serializers bind the wide schedule; the baseline package keeps its
+own serialization and identity pins. The sealed children remain authoritative. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.SetupBinding
 

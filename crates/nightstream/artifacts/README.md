@@ -45,12 +45,13 @@ Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-For an ordinary application, the current Rust `Circuit` supports at most 263
-witness and local words together. This bound follows from the
-[selected key's](../../neo-ajtai/src/nightstream_fprime_setup.rs)
-149,293,044-coordinate carrier and the exported width
-`149282257 + 41 * (witness_words + local_words)`. The selected hash-chain
-application uses its proved compact suffix instead of this ordinary allocation.
+For an ordinary application, the current Rust `Circuit` supports at most
+2,851,939 witness and local words together. This bound follows from the
+[approved key capacity](../../neo-ajtai/src/nightstream_fprime_setup.rs) of
+22 × 4,708,530 ring columns and the exported width
+`137331104 + 41 * (witness_words + local_words)`. Each package binds its exact
+key prefix. The selected hash-chain application uses its proved compact suffix
+instead of this ordinary allocation.
 Assembly-only dimension checks
 also require the source rows, source columns, and padded retained carrier to fit
 the declared domain.

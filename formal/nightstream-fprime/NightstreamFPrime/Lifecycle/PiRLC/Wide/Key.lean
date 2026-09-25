@@ -1,8 +1,8 @@
 import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 
-/-! Candidate NIFS key using the proved one-window PiRLC transcript.
-This definition does not select a production package or assert a concrete
-Fiat–Shamir security bound. All other verifier fields are unchanged. -/
+/-! The selected NIFS key, using the proved one-window PiRLC transcript.
+This definition asserts no concrete Fiat–Shamir security bound. All other
+verifier fields are unchanged. -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
 

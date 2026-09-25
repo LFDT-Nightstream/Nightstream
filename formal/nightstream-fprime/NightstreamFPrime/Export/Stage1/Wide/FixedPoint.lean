@@ -1,9 +1,9 @@
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
 import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
 
-/-! Derive the candidate recursive relation from its own matrices and width.
+/-! Derive the wide recursive relation from its own matrices and width.
 The seed has no semantic authority. Reassembly with the derived relation
-produces the same plan. This does not select the production package. -/
+produces the same plan. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.FixedPoint
 

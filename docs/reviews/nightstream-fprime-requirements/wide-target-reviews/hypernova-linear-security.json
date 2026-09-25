@@ -1,0 +1,82 @@
+{
+  "obligation": "hypernova-linear-security",
+  "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
+  "commit": "9e9cd23d140952c68889092b4d2bfea70b1b6880",
+  "review": "decomposition",
+  "reviewer": "independent review agent (Claude), fresh context",
+  "reviewed_at": "2026-09-25T16:49:17-05:00",
+  "outcome": "pass",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pass",
+      "reason": "The target is a real conditional bound. Its conclusion (formal/nightstream-fprime/tests/EvidenceTargets.lean:290-304) bounds the actual accepted-terminal mass by returned-advice mass plus, per visit, marked-collision mass + goodActive - g(Q_j, goodActive) + deltaFS(Q_j) + weakLoss + testError + 17 * actual adaptive MSIS success. With g(Q,p)=p the conclusion is a knowledge-soundness bound that is not provable without the FS premise. The premise is satisfiable and not vacuous: WideFiatShamir.FiatShamirModel (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Nifs/WideFiatShamir.lean:108-112) is one inequality on real numbers; the other premises (depth bound, storage bound, summability, LowNormInvertibility, Bounded, instances) are the same satisfiable premises as the old target. The accepted event target.Holds (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:73-75) is not empty (the bottom envelope at iteration 0 is accepted, formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Terminal.lean:84-92). The real-success event is not empty or free: it is proved equal to the goodActive mass (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaVisitedAcceptance.lean:206-222). The MSIS term is the computed reduction's success, not a free parameter (EvidenceTargets.lean:301-304)."
+    },
+    "premises": {
+      "outcome": "pass",
+      "reason": "A textual diff of the old target (git show 982538618:formal/nightstream-fprime/tests/EvidenceTargets.lean, def HyperNovaLinearSecurity) and the new target (formal/nightstream-fprime/tests/EvidenceTargets.lean:220-304) shows only three changes: (1) a new leading binder target : Wide.Target and target-indexed types for every existing binder; (2) the FS premise FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey ... became WideFiatShamir.FiatShamirModel target.relation target.ajtai running fresh (realLaw target (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j) (EvidenceTargets.lean:287-289); (3) the accepted event changed from the retired narrow PerApplicationTerminal.Holds to target.Holds (EvidenceTargets.lean:290-291). No premise was dropped: depth bound, clocks, storage bound, base summability, DecidableEq/Fintype/Nonempty instances, LowNormInvertibility, PrimitiveBounds and Bounded remain (EvidenceTargets.lean:221-266). No premise was added except the Wide.Target parameter, whose only invariant (contextLength, Wide/TerminalSecurity.lean:35-36) is a structure field that Wide.selected discharges (Wide/TerminalSecurity.lean:48). The FS premise is exactly the approved model: law = realLaw target (visits j); originalFirstPhase = guardedPrefix target originalFirstPhase; provider = supportedProvider over contexts j = contextLaw (realLaw (visits j)) and checked = InteractiveComposition.firstPhase firstPhase (publicCheck running) (EvidenceTargets.lean:276-286); relation and key are target.relation and target.ajtai. Its real event is WideFiatShamir.RealSuccess with PiRLC.Wide.Key.key (WideFiatShamir.lean:44-55), as the approved text names (docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md:83-92). The approved section (FIAT_SHAMIR_MODEL.md:88-131) hashes to 8eada01dde88e02e67101ae1f96a962fa712504893167900ffe426600cbc5b30, which equals the recorded SHA-256 (FIAT_SHAMIR_MODEL.md:86); git diff 982538618..9e9cd23d1 shows only a new preamble (lines 13-20) outside that section. The port changed only the RHS name of successTransfer from the local WideFiatShamir.originalSuccessProbability to FiatShamirTransfer.originalSuccessProbability (WideFiatShamir.lean:111-112); both bodies are the same clockMean over the same contextLaw (FiatShamirTransfer.lean:73-79 against the deleted lines in the port diff), so the model is unchanged."
+    },
+    "argument": {
+      "outcome": "pass",
+      "reason": "theorem hyperNovaLinearSecurity := @HyperNovaVisitedSecurity.history_probability_linear_bound (EvidenceTargets.lean:308-309); its statement (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaVisitedSecurity.lean:197-251) matches the def binder for binder (Type* specializes to Type). The proof composes first_failure_real_bound (HyperNovaVisitedSecurity.lean:41-72, from HyperNovaFirstFailure.accepted_probability_le_first_failures, formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaFirstFailure.lean:203-258) with source_failure_probability_linear_le (HyperNovaVisitedSecurity.lean:109-190). Per visit: NifsProviderLaw.source_probability_linear_bound (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/NifsProviderLaw.lean:128-189) rewrites the operational source law to the supported extension and calls NifsClosure.source_probability_linear_bound (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/NifsClosure.lean:134-182), which consumes the model through WideFiatShamir.returned_source_bound_with_adaptive_msis (NifsClosure.lean:169-176); that theorem passes realSuccess := WideFiatShamir.realSuccessProbability ... law and transfer := model.successTransfer to FiatShamirTransfer.returned_source_bound_with_adaptive_msis (WideFiatShamir.lean:134-150), which subtracts weakLoss, testError and arity.total * adaptive MSIS success in the correct order (FiatShamirTransfer.lean:146-162). The real-success probability is then rewritten to the goodActive mass by realSuccessProbability_eq_goodActive (HyperNovaVisitedSecurity.lean:176). That identity rests on realSuccess_iff_goodActive (HyperNovaVisitedAcceptance.lean:142-175): off goodActive the real output is none (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaGuardedSourceLaw.lean:117-119); on goodActive, marked_accepted gives terminal acceptance and HyperNovaRealInput.realSuccess_of_terminal (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaRealInput.lean:70-91) gives RealSuccess from Wide.Target.terminal_implies_nifsOrBaseOrCollision, which returns verify (PiRLC.Wide.Key.key target.relation target.ajtai) ... = some (payload.running functionIndex) (Wide/TerminalSecurity.lean:177-210), plus the terminal's running witness validity. realLaw_context_marginal collapses contexts j to visits j (HyperNovaGuardedSourceLaw.lean:128-131); law_eq_guardedDraw and first_source_failure_mass_eq (HyperNovaGuardedSourceLaw.lean:248-262, 294-345) give MarkedSourceFailure mass = goodActive mass - SourceReturned mass, so linarith yields source failure <= active - g(active) + deltaFS + weakLoss + testError + 17 * MSIS. MarkedSourceFailure (HyperNovaFirstFailure.lean:38-43) is definitionally the partition event, as the change at HyperNovaVisitedSecurity.lean:186-187 requires. The task statement records a passing build and axiom audit (#audit_axioms at EvidenceTargets.lean:311)."
+    },
+    "correspondence": {
+      "outcome": "pass",
+      "reason": "Wide verifier: RealSuccess runs PaperNonInteractive.verify and piDecAttempt with PiRLC.Wide.Key.key and requires CE openings of the exact sixteen verifier-computed children (WideFiatShamir.lean:44-55, 59-76). The terminal side reaches the same wide verifier: target.Holds (Wide/TerminalSecurity.lean:73-75) accepts a fresh CCS opening of FixedPoint.relation program compiled fits; OpeningBinding.terminal_implies_stepOrCollision converts it to Stage1.Wide.Relation.StepHoldsFor, whose nifs verifier is verify (PiRLC.Wide.Key.key ...) (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:19-33, 45-47). The outer terminal transition reads only setup.verifierKeys (formal/nightstream-fprime/NightstreamFPrime/Spec/HyperNova/Construction2/Paper.lean:576-582), so the narrow Lifecycle.setup used in Stage1.Terminal.HoldsFor (Terminal.lean:71-82) does not inject the narrow NIFS verifier. Interactive experiment: PiRLC.Wide.Key.key is { ProductionKey.key relation ajtai with piRlcResponse, piRlcResponseValid } (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:34-38), so piRlcAlgebra, challenge set, arity, statement, piRlcSemantics and params are shared; response_valid proves the wide map lands in the same challengeValid set (Wide/Key.lean:19-21). The interactive chain (SupportedExtraction, InteractiveComposition, SupportedContinuation, NifsExtractionProvider, AdaptiveBindingProbability) never reads piRlcResponse or calls the non-interactive verify (grep over Lifecycle/Nifs and Export/Stage1/Nifs*). weakLoss is arity.total / |Challenge| of that shared set (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Nifs/InteractiveComposition.lean:77-79). So the key mixing is sound as stated: ProductionKey.key on the interactive side names only fields that the wide key shares, and the approved text puts the whole wide-map-versus-uniform difference inside deltaFS (FIAT_SHAMIR_MODEL.md:108-111). The source statement is key-independent: SourceReturned maps to Lifecycle.TerminalHolds target.relation target.ajtai (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaHistory.lean:155-167). MSIS is over the same target.ajtai used by both keys."
+    },
+    "parent_use": {
+      "outcome": "pass",
+      "reason": "The target quantifies over every target : Wide.Target (EvidenceTargets.lean:221), so it specializes to Wide.selected compiled parts (Wide/TerminalSecurity.lean:41-48: SetupBinding.application, SetupBinding.fits, SetupBinding.productionAjtaiKey, SetupBinding.contextKey) and to any other wide target. Every term is target-indexed, including the accepted event, the history law, the FS premise with the target's relation and key, weakLoss and the MSIS term (EvidenceTargets.lean:267-304). No registered obligation in scripts/lean_graph/obligations.json names hypernova-linear-security as a dependency, and no Lean theorem instantiates it at Wide.selected; it is the terminal registered history criterion, which matches its role. Numerical FS, fixed-seed MSIS hardness, query applicability and the terminal-to-circuit link (Stage1TerminalAssignment, EvidenceTargets.lean:166-176) are separate obligations, as the proposal states."
+    }
+  },
+  "target_meaning": {
+    "outcome": "pass",
+    "reason": "After the port the Lean proposition still states the registered criterion of scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md:15-20 and the gap in obligations.json:373: Pr[accepted terminal] <= Pr[returned advice] + sum over j < depth of (hash collision_j + active_j - g(Q_j)(active_j) + deltaFS(Q_j) + weakLoss + testError + 17 * adaptive MSIS success_j), at the same guarded visited laws, with the factor PaperProfile.arity.total = 17 (formal/nightstream-fprime/NightstreamFPrime/Spec/Folding/Nifs/PaperProfile.lean:67). The required FS premise is now WideFiatShamir.FiatShamirModel for the wide key (HYPERNOVA_LINEAR_SECURITY.md:35-38), which the target uses exactly. The only semantic change is intended: the retired narrow Poseidon2HashChainV1 terminal and narrow real event are replaced by the wide terminal and the wide real event, for every wide target."
+  },
+  "findings": [
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/tests/EvidenceTargets.lean:249-250,299-302; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:34-38",
+      "text": "The instance binders and the interactive terms name ProductionKey.key, not the wide key. This is sound because the wide key overrides only piRlcResponse and piRlcResponseValid and the interactive chain reads neither. A reader can mistake this for use of the retired narrow sampler. FIAT_SHAMIR_MODEL.md:108-111 explains it."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/tests/EvidenceTargets.lean:287-304",
+      "text": "The bound is parametric in g and deltaFS. With g = 0 and deltaFS = 0 the premise can hold and the conclusion is weak. This is inherent to the approved parametric FS boundary (FIAT_SHAMIR_MODEL.md:60-65), not a defect of the target."
+    },
+    {
+      "severity": "minor",
+      "location": "scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md:13,60",
+      "text": "The owner document says 'The existing square-root theorem remains available' and lists Export.Stage1.HyperNovaVisitedSecurity.history_probability_bound as a dependency. That declaration exists neither at 982538618 nor at 9e9cd23d1. This is stale text from before the port; it does not affect the target."
+    },
+    {
+      "severity": "note",
+      "location": "scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md:4",
+      "text": "The document names the branch nico/f-prime-constraints-cuda-formal. The work is on nico/pirlc-wide-sampler-integration."
+    },
+    {
+      "severity": "note",
+      "location": "scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md:36",
+      "text": "The text says the FS model is 'for the selected wide key'. The Lean target is stronger: it quantifies over every Wide.Target and its key."
+    },
+    {
+      "severity": "note",
+      "location": "scripts/lean_graph/obligations.json:373",
+      "text": "The obligation argument lists the chain SupportedExtraction, FiatShamirTransfer, NifsClosure and NifsProviderLaw and omits WideFiatShamir. WideFiatShamir now owns the FS model and the real event. HYPERNOVA_LINEAR_SECURITY.md:65-68 is correct."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:4-6; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:3-5; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:6-9",
+      "text": "These headers still call the wide key and relation 'candidate' or 'not selected by the production package'. FIAT_SHAMIR_MODEL.md:88-89 and the port call the wide sampler selected. The headers are stale; the proposition is not affected."
+    },
+    {
+      "severity": "note",
+      "location": "docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md:22-58",
+      "text": "The general section still names the deleted FiatShamirTransfer.RealSuccess and FiatShamirModel. The new preamble (lines 13-20) marks them retired. The approved wide section (lines 88-131) is unchanged; its SHA-256 matches line 86."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:41-48",
+      "text": "Wide.selected takes compiled and parts as free parameters. No Lean theorem instantiates the target at it. Parent use is only through the universal target quantifier, which is sufficient for this criterion."
+    }
+  ]
+}

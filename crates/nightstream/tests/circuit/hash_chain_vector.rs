@@ -1,6 +1,7 @@
 //! Generic hash-chain vector: two Poseidon2HashChainV1 links per step take the
 //! ordinary assembly route and a key prefix wider than the selected package.
-//! The proof verifies; a changed statement, witness or commitment is rejected.
+//! The base proof and one recursive fold verify; a changed statement, witness
+//! or commitment is rejected.
 
 use super::*;
 use crate::application::{poseidon2_hash_chain, poseidon2_hash_chain_step};
@@ -17,6 +18,12 @@ fn reference() -> Vec<u8> {
     .unwrap()
 }
 
+/// The native result of one application step: two links of the chain.
+fn chain(state: [F; 4], message: &[F]) -> [F; 4] {
+    let first = poseidon2_hash_chain_step(state, message[..4].try_into().unwrap());
+    poseidon2_hash_chain_step(first, message[4..].try_into().unwrap())
+}
+
 #[test]
 #[ignore = "Full production-profile check; run this test separately under the 300-second cap."]
 fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
@@ -25,8 +32,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     let verifier = Verifier::from_package(&circuit, Engine::Optimized, 114).unwrap();
     let initial = [1, 2, 3, 4].map(F::from_u64);
     let message = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
-    let first = poseidon2_hash_chain_step(initial, message[..4].try_into().unwrap());
-    let output = poseidon2_hash_chain_step(first, message[4..].try_into().unwrap());
+    let output = chain(initial, &message);
     let expected = Stage1State::new(1, initial, output);
 
     assert!(matches!(
@@ -97,4 +103,51 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
             "fixed-key commitment differs from the witness"
         )))
     ));
+}
+
+/// One recursive fold above the old key limit: PiDEC commits the children
+/// under the wider prefix, and the terminal verifier accepts the extension.
+fn two_link_hash_chain_folds(engine: Engine) {
+    let circuit = Circuit::compile(&reference(), poseidon2_hash_chain(2).unwrap()).unwrap();
+    let prover = circuit.prover(engine, 114).unwrap();
+    let verifier = Verifier::from_package(&circuit, engine, 114).unwrap();
+    let initial = [1, 2, 3, 4].map(F::from_u64);
+    let first = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
+    let second = [13, 14, 15, 16, 17, 18, 19, 20].map(F::from_u64);
+    let base = prover.prove(initial, &first).unwrap();
+    let proof = prover.extend(&base, &second).unwrap();
+    let expected = Stage1State::new(2, initial, chain(chain(initial, &first), &second));
+    assert_eq!(proof.state(), &expected);
+    verifier.verify(&expected, &proof).unwrap();
+
+    // The recursive openings do not prove another endpoint.
+    let mut changed = expected.current();
+    changed[0] += F::ONE;
+    let state = Stage1State::new(2, initial, changed);
+    let envelope = Stage1Envelope::from_parts(
+        state.clone(),
+        proof.running().unwrap().clone(),
+        proof.fresh().unwrap().clone(),
+    );
+    assert!(matches!(
+        verifier.verify(&state, &envelope),
+        Err(Error::Verify(VerifyError::Fresh(
+            "public input differs from the recomputed terminal state hash"
+        )))
+    ));
+}
+
+#[test]
+// This covers the CPU PiDEC capacity check. It exceeded the 300-second cap on
+// the development Mac (2026-09-25); run it only with owner approval for that run.
+#[ignore = "Full production-profile CPU fold; exceeds the 300-second cap on this host."]
+fn two_link_hash_chain_folds_on_cpu() {
+    two_link_hash_chain_folds(Engine::Optimized);
+}
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production Metal fold; run this test separately under the 300-second cap."]
+fn two_link_hash_chain_folds_on_metal() {
+    two_link_hash_chain_folds(Engine::Metal);
 }

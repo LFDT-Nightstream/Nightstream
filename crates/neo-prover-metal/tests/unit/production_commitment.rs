@@ -1,6 +1,6 @@
 use super::*;
 use neo_ajtai::nightstream_fprime_setup::{
-    coefficient, commit_production_signed_unit_prefix_matrices, PRODUCTION_MESSAGE_COLUMNS,
+    coefficient, commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_MESSAGE_COLUMNS,
 };
 use p3_field::PrimeField64;
 
@@ -100,7 +100,7 @@ fn production_commitment_checks_all_inputs_before_device_work() {
         invalid,
         Mat::virtual_constant(D - 1, 1, F::ZERO),
         Mat::virtual_constant(D, 0, F::ZERO),
-        Mat::virtual_constant(D, PRODUCTION_MESSAGE_COLUMNS as usize + 1, F::ZERO),
+        Mat::virtual_constant(D, MAX_MESSAGE_COLUMNS as usize + 1, F::ZERO),
     ] {
         let expected = signed_unit_prefix_blocks(&invalid).err().unwrap();
         let error = session

@@ -1,7 +1,7 @@
 use neo_ajtai::{
     nightstream_fprime_setup::{
         coefficient, commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
-        PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+        MAX_MESSAGE_COLUMNS, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
     },
     AjtaiError, Commitment,
 };
@@ -128,7 +128,7 @@ fn batch_rejects_dimensions_and_nonunit_values_at_their_input_index() {
     let mut malformed = vec![
         Mat::virtual_constant(D - 1, 1, F::ZERO),
         Mat::virtual_constant(D, 0, F::ZERO),
-        Mat::virtual_constant(D, columns + 1, F::ZERO),
+        Mat::virtual_constant(D, MAX_MESSAGE_COLUMNS as usize + 1, F::ZERO),
         Mat::virtual_constant(D, 1, F::from_u64(2)),
         Mat::virtual_constant(D, 1, -F::from_u64(2)),
     ];

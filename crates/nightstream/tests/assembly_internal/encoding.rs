@@ -81,12 +81,11 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
-    // The selected key is sized to the selected package, so an ordinary
-    // application may use only the remaining carrier coordinates. The largest
-    // fixed envelope uses W = capacity - 1 and L = 1, because both nonempty
-    // private segments add array nodes. Count actual assembler output
-    // independently of the loader's bound.
-    let key_width = neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
+    // An ordinary application may use every carrier coordinate of the approved
+    // key. The largest fixed envelope uses W = capacity - 1 and L = 1, because
+    // both nonempty private segments add array nodes. Count actual assembler
+    // output independently of the loader's bound.
+    let key_width = neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
     let empty = manifest
         .geometry
         .logical_width
@@ -97,8 +96,9 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         })
         .unwrap();
     let capacity = (key_width - empty) / manifest.geometry.field_slot_width;
-    assert_eq!(capacity, 262, "application words permitted by the selected key");
-    for (witness, has_local, expected_nodes) in [(capacity - 1, true, 23_689_159), (0, false, 23_688_890)] {
+    assert_eq!(capacity, 2_851_939, "application words permitted by the approved key");
+    // Both counts stay below the loader's fixed-source bound of 32,045,229 nodes.
+    for (witness, has_local, expected_nodes) in [(capacity - 1, true, 26_540_836), (0, false, 23_688_890)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();

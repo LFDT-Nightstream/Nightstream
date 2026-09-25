@@ -1,7 +1,7 @@
 use neo_ajtai::{
     nightstream_fprime_setup::{
         coefficient, commit_production_signed_unit_matrix, commit_production_signed_unit_prefix_matrix,
-        PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+        MAX_MESSAGE_COLUMNS, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
     },
     AjtaiError, Commitment,
 };
@@ -76,14 +76,16 @@ fn prefix_commitment_equals_exact_suffix_zero_extension() {
 #[test]
 fn prefix_commitment_checks_bounds_before_zero_or_key_expansion() {
     let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
-    for (rows, width) in [(D - 1, 1), (D, 0), (D, columns + 1)] {
+    let capacity = MAX_MESSAGE_COLUMNS as usize;
+    for (rows, width) in [(D - 1, 1), (D, 0), (D, capacity + 1)] {
         let invalid = Mat::virtual_constant(rows, width, Goldilocks::ZERO);
         assert!(matches!(
             commit_production_signed_unit_prefix_matrix(&invalid),
             Err(AjtaiError::InvalidDimensions(_))
         ));
     }
-    for width in [1, columns] {
+    // Prefixes wider than the selected package remain valid up to the approved matrix.
+    for width in [1, columns, columns + 1, capacity] {
         let zero = Mat::virtual_constant(D, width, Goldilocks::ZERO);
         assert_eq!(
             commit_production_signed_unit_prefix_matrix(&zero).unwrap(),

@@ -23,24 +23,53 @@ pub fn poseidon2_hash_chain_step(current: [Goldilocks; 4], message: [Goldilocks;
 
 /// Hashes the domain tag, four-word prior state, and four-word private message.
 pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError> {
-    let mut builder = ApplicationBuilder::new(4)?;
+    poseidon2_hash_chain(1)
+}
+
+/// Applies `links` Poseidon2HashChainV1 steps in one application step. Link
+/// `i` hashes the prior link's output with private words `4i..4i + 4`.
+pub fn poseidon2_hash_chain(links: usize) -> Result<ApplicationCircuit, ApplicationError> {
+    let mut builder = ApplicationBuilder::new(
+        links
+            .checked_mul(4)
+            .ok_or(ApplicationError::DimensionOverflow)?,
+    )?;
     let constants = round_constants();
+    let messages: Vec<Affine> = builder
+        .private_inputs()
+        .iter()
+        .copied()
+        .map(Affine::from)
+        .collect();
+    let mut current = builder.input_state().map(Affine::from);
+    for message in messages.chunks(4) {
+        current = link(&mut builder, current, message, &constants)?;
+    }
+    builder.finish(current)
+}
+
+fn link(
+    builder: &mut ApplicationBuilder,
+    current: [Affine; 4],
+    message: &[Affine],
+    constants: &Poseidon2RoundConstants,
+) -> Result<[Affine; 4], ApplicationError> {
     let mut preimage: Vec<Affine> = DOMAIN_TAG
         .iter()
         .map(|byte| scalar(u64::from(*byte)))
         .collect();
-    preimage.extend(builder.input_state().map(Affine::from));
-    preimage.extend(builder.private_inputs().iter().copied().map(Affine::from));
+    preimage.extend(current);
+    preimage.extend(message.iter().cloned());
     let mut state = std::array::from_fn(|_| scalar(0));
     for block in preimage.chunks(4) {
         for (lane, value) in state.iter_mut().enumerate() {
             *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
         }
-        state = permutation(&mut builder, state, &constants)?;
+        state = permutation(builder, state, constants)?;
     }
     state[0] = state[0].clone() + scalar(1);
-    state = permutation(&mut builder, state, &constants)?;
-    builder.finish(std::array::from_fn(|lane| state[lane].clone()))
+    state = permutation(builder, state, constants)?;
+    Ok(std::array::from_fn(|lane| state[lane].clone()))
 }
 
 fn scalar(value: u64) -> Affine {

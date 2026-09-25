@@ -5,7 +5,7 @@
 use crate::engine::{Backend, Engine};
 use crate::folding::{CcsInstance, RunningInstance, Structure};
 use neo_ajtai::nightstream_fprime_setup::{
-    authority_words, PRODUCTION_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+    authority_words, MAX_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_math::D;
 use nightstream_fprime::{LoadedPerApplicationPackage, PackageError, Stage1VerifierBinding};
@@ -89,9 +89,10 @@ impl PreparedLifecycle {
     }
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
+/// The prefix cannot exceed the approved MSIS matrix.
 pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
-    if logical_width == 0 || logical_width > PRODUCTION_CARRIER_WIDTH {
-        return Err(PackageError::Invalid("logical width exceeds the selected key prefix"));
+    if logical_width == 0 || logical_width > MAX_CARRIER_WIDTH {
+        return Err(PackageError::Invalid("logical width exceeds the approved key capacity"));
     }
     let columns = logical_width.div_ceil(D) as u64;
     let expected = authority_words(PRODUCTION_VERIFIER_ROWS, columns, &PRODUCTION_SEED);

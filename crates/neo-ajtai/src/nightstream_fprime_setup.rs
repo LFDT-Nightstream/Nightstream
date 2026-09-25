@@ -22,18 +22,23 @@ const WORD_RADIX: u128 = 1_u128 << 32;
 
 pub const SETUP_ID: &[u8] = b"nightstream-ajtai-chacha20-wide256-v1";
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
-// Lean authority: Wide.SetupBinding.messageColumns_eq.
+// The selected package's key prefix. Lean authority: Wide.SetupBinding.messageColumns_eq.
 pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 2_543_368;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
+// The largest supported key prefix: the approved public-seed MSIS matrix.
+// Lean authority: Poseidon2HashChainV1Setup.approvedMsis_carrierWidth.
+pub const MAX_MESSAGE_COLUMNS: u64 = 4_708_530;
+pub const MAX_CARRIER_WIDTH: usize = MAX_MESSAGE_COLUMNS as usize * D;
 pub const PRODUCTION_SEED: [u8; 32] = [
     252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146, 215, 215, 171, 68, 216, 26, 193, 123, 69, 168, 231,
     189, 76, 31, 30, 55, 23, 2,
 ];
 
 const _: () = assert!(D == 54);
+const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 // A raw convolution degree has at most 54 terms from each message column.
 // Each sign partition therefore fits in 92 bits, before any field reduction.
-const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS as u128 * D as u128 * (GOLDILOCKS_MODULUS - 1) < (1_u128 << 92));
+const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (GOLDILOCKS_MODULUS - 1) < (1_u128 << 92));
 
 fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
     state[a] = state[a].wrapping_add(state[b]);
@@ -245,8 +250,8 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiR
 /// Commit a complete signed-unit carrier under a prefix of the production key.
 ///
 /// The seed, row count and every retained key address stay unchanged. The
-/// carrier must contain whole degree-54 blocks and cannot exceed the selected
-/// key. Its exact block count must be bound by the caller's verifier context.
+/// carrier must contain whole degree-54 blocks and cannot exceed the approved
+/// matrix. Its exact block count must be bound by the caller's verifier context.
 /// No coordinates are inserted, and no larger witness is allocated.
 ///
 /// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
@@ -260,10 +265,10 @@ pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) ->
 /// Device backends use the same shape and norm checks as the CPU commitment.
 pub fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<SignedBlock>> {
     let columns = witness.cols();
-    if witness.rows() != D || columns == 0 || columns > PRODUCTION_MESSAGE_COLUMNS as usize {
+    if witness.rows() != D || columns == 0 || columns > MAX_MESSAGE_COLUMNS as usize {
         return Err(AjtaiError::InvalidDimensions(format!(
             "production key prefix requires {D} rows and 1..={} columns, got {}x{}",
-            PRODUCTION_MESSAGE_COLUMNS,
+            MAX_MESSAGE_COLUMNS,
             witness.rows(),
             columns
         )));

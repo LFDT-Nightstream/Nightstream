@@ -18,7 +18,8 @@ const MAGIC: &[u8; 8] = b"NSFPREP1";
 
 // Upper bound derived for the earlier 4,685,394-column key: the native
 // reference had 32,037,533 array/u64 nodes and W+L <= 7,701. It still bounds
-// the current selected package, whose smaller key permits only W+L <= 262.
+// the wide package at the approved 4,708,530-column capacity: the largest
+// ordinary envelope (W+L = 2,851,939) has 26,540,836 nodes (assembly node test).
 // Derivation: nightstream/tests/evidence/prepared-package-20260922/fixed-source-bound.md.
 const NATIVE_REFERENCE_NODES: usize = 32_037_533;
 const MAX_FIXED_SOURCE_NODES: usize = NATIVE_REFERENCE_NODES + 7_696;

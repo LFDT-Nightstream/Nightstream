@@ -4,7 +4,7 @@ use super::{
     Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
-    commit_production_signed_unit_prefix_matrices, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
+    commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F, K};
@@ -60,7 +60,7 @@ pub(crate) fn prove_with_production_key(
         || pp.big_b() != production.big_b()
         || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
         || blocks == 0
-        || blocks > PRODUCTION_MESSAGE_COLUMNS as usize
+        || blocks > MAX_MESSAGE_COLUMNS as usize
         || rows.shape()
             != (MatrixShape {
                 rows: s.n,

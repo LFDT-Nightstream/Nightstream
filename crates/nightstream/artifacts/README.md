@@ -30,7 +30,7 @@ The selected blueprint is retained from repository snapshot
 `dd38a22f9e213538966bf0d5c867e477b3bc016d`. The manifest source is
 `formal/nightstream-fprime/NightstreamFPrime/Export/SharedVerifier.lean`.
 Its definitions and contract names are recorded in the JSON. The maintainer
-toolchain is `leanprover/lean4:v4.30.0`, as set by the formal project's
+toolchain is `leanprover/lean4:v4.32.2`, as set by the formal project's
 `lean-toolchain` file. All artifacts use the selected Nightstream Goldilocks
 profile with `b = 2`, `k_rho = 16`, and `B = 2^16`.
 

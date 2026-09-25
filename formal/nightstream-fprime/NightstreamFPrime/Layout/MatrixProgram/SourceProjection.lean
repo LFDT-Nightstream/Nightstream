@@ -1,6 +1,7 @@
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 import NightstreamFPrime.Layout.R1CS.Completeness
+import NightstreamFPrime.Layout.R1CS.Support
 
 /-!
 Owns the Lean-authored column projection applied to one package source row
@@ -155,21 +156,73 @@ private theorem projectTerms?_identity (terms : List (Nat × Spec.F)) :
 
 private theorem projectTerms?_mapColumns
     (projection : SourceProjection) (column : Nat → Nat)
-    (sourceWidth : Nat) (terms : List (Nat × Spec.F))
-    (bounded : ∀ term ∈ terms, term.1 < sourceWidth)
-    (leftInverse : ∀ source : Fin sourceWidth,
-      projection.column? (column source.val) = some source.val) :
+    (terms : List (Nat × Spec.F))
+    (leftInverse : ∀ term ∈ terms,
+      projection.column? (column term.1) = some term.1) :
     projectTerms? projection
         (terms.map fun term => (column term.1, term.2)) = some terms := by
   induction terms with
   | nil => rfl
   | cons term rest inductionHypothesis =>
-      have headBound : term.1 < sourceWidth := bounded term (by simp)
-      have tailBound : ∀ candidate ∈ rest, candidate.1 < sourceWidth := by
-        intro candidate member
-        exact bounded candidate (by simp [member])
-      simp [projectTerms?, leftInverse ⟨term.1, headBound⟩,
-        inductionHypothesis tailBound]
+      simp [projectTerms?, leftInverse term (by simp),
+        inductionHypothesis (fun candidate member => leftInverse candidate (by simp [member]))]
+
+theorem SourceProjection.combination?_mapColumns_supported
+    (projection : SourceProjection) (column : Nat → Nat) (combination : R1CS.LinearCombination)
+    (supported : combination.VarsSatisfy (fun source => projection.column? (column source) = some source)) :
+    projection.combination? (mapCombinationColumns column combination) = some combination := by
+  cases combination
+  simp [SourceProjection.combination?, mapCombinationColumns,
+    projectTerms?_mapColumns projection column _ supported]
+
+theorem SourceProjection.row?_mapColumns_supported
+    (projection : SourceProjection) (column : Nat → Nat) (row : R1CS.Row)
+    (supported : row.VarsSatisfy (fun source => projection.column? (column source) = some source)) :
+    projection.row? (mapRowColumns column row) = some row := by
+  rcases row with ⟨a, b, c⟩
+  rcases supported with ⟨aSupport, bSupport, cSupport⟩
+  unfold SourceProjection.row? mapRowColumns
+  rw [SourceProjection.combination?_mapColumns_supported projection column a aSupport,
+    SourceProjection.combination?_mapColumns_supported projection column b bSupport,
+    SourceProjection.combination?_mapColumns_supported projection column c cSupport]
+  rfl
+
+private theorem projectTerms?_mapColumns_to
+    (projection : SourceProjection) (column reference : Nat → Nat)
+    (terms : List (Nat × Spec.F))
+    (corresponds : ∀ term ∈ terms,
+      projection.column? (column term.1) = some (reference term.1)) :
+    projectTerms? projection (terms.map fun term => (column term.1, term.2)) =
+      some (terms.map fun term => (reference term.1, term.2)) := by
+  induction terms with
+  | nil => rfl
+  | cons term rest ih =>
+    simp [projectTerms?, corresponds term (by simp),
+      ih (fun candidate member => corresponds candidate (by simp [member]))]
+
+theorem SourceProjection.combination?_mapColumns_to
+    (projection : SourceProjection) (column reference : Nat → Nat)
+    (combination : R1CS.LinearCombination)
+    (supported : combination.VarsSatisfy
+      (fun source => projection.column? (column source) = some (reference source))) :
+    projection.combination? (mapCombinationColumns column combination) =
+      some (mapCombinationColumns reference combination) := by
+  cases combination
+  simp [SourceProjection.combination?, mapCombinationColumns,
+    projectTerms?_mapColumns_to projection column reference _ supported]
+
+theorem SourceProjection.row?_mapColumns_to
+    (projection : SourceProjection) (column reference : Nat → Nat) (row : R1CS.Row)
+    (supported : row.VarsSatisfy
+      (fun source => projection.column? (column source) = some (reference source))) :
+    projection.row? (mapRowColumns column row) = some (mapRowColumns reference row) := by
+  rcases row with ⟨a, b, c⟩
+  rcases supported with ⟨aSupport, bSupport, cSupport⟩
+  unfold SourceProjection.row? mapRowColumns
+  rw [projection.combination?_mapColumns_to column reference a aSupport,
+    projection.combination?_mapColumns_to column reference b bSupport,
+    projection.combination?_mapColumns_to column reference c cSupport]
+  rfl
 
 /-- A projection that is a left inverse of a column renaming recovers the
 exact original affine combination. -/
@@ -181,9 +234,8 @@ theorem SourceProjection.combination?_mapColumns
       projection.column? (column source.val) = some source.val) :
     projection.combination? (mapCombinationColumns column combination) =
       some combination := by
-  cases combination
-  simp [SourceProjection.combination?, mapCombinationColumns,
-    projectTerms?_mapColumns projection column sourceWidth _ bounded leftInverse]
+  exact projection.combination?_mapColumns_supported column combination
+    (fun term member => leftInverse ⟨term.1, bounded term member⟩)
 
 /-- Row projection exactly cancels a proved package-column renaming. -/
 theorem SourceProjection.row?_mapColumns
@@ -202,5 +254,38 @@ theorem SourceProjection.row?_mapColumns
     SourceProjection.combination?_mapColumns projection column sourceWidth c
       cBounded leftInverse]
   rfl
+
+private theorem projectTerms?_compose (left right composed : SourceProjection)
+    (columns : ∀ source, composed.column? source = (left.column? source).bind right.column?)
+    (terms : List (Nat × Spec.F)) :
+    projectTerms? composed terms = (projectTerms? left terms).bind (projectTerms? right) := by
+  induction terms with
+  | nil => rfl
+  | cons term rest ih =>
+    cases first : left.column? term.1 with
+    | none => simp [projectTerms?, columns, first]
+    | some intermediate =>
+      cases tail : projectTerms? left rest <;>
+        cases second : right.column? intermediate <;>
+        simp [projectTerms?, columns, ih, first, tail, second]
+
+private theorem combination?_compose (left right composed : SourceProjection)
+    (columns : ∀ source, composed.column? source = (left.column? source).bind right.column?)
+    (combination : R1CS.LinearCombination) :
+    composed.combination? combination = (left.combination? combination).bind right.combination? := by
+  unfold SourceProjection.combination?
+  rw [projectTerms?_compose left right composed columns]
+  cases projectTerms? left combination.terms <;> simp
+
+/-- Composition at the column boundary also composes the complete source
+row interpreter. Missing columns remain a decoding failure. -/
+theorem SourceProjection.row?_compose_of_columns (left right composed : SourceProjection)
+    (columns : ∀ source, composed.column? source = (left.column? source).bind right.column?)
+    (row : R1CS.Row) :
+    composed.row? row = (left.row? row).bind right.row? := by
+  simp only [SourceProjection.row?, combination?_compose left right composed columns]
+  cases left.combination? row.a <;>
+    cases left.combination? row.b <;>
+    cases left.combination? row.c <;> simp
 
 end NightstreamFPrime.Layout.MatrixProgram

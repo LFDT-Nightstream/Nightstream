@@ -67,4 +67,10 @@ theorem SourceProjection.compose_column (left right : SourceProjection) (unique 
         subst rest
         simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, Option.bind_some]
 
+theorem SourceProjection.compose_row (left right : SourceProjection) (unique : left.Unique)
+    (row : R1CS.Row) :
+    (left.compose right).row? row = (left.row? row).bind right.row? :=
+  SourceProjection.row?_compose_of_columns left right (left.compose right)
+    (compose_column left right unique) row
+
 end NightstreamFPrime.Layout.MatrixProgram

@@ -31,7 +31,7 @@ def ofBase (program : Program) (base : CircuitPackage) :
   let insert := insertApplication count
   let nextStart := base.layout.rowCount + application.rowCount
   let nextRows ← (NextPreimagePackage.assertionRows (PerApplicationPackage.nextPreimageRowStart program)).mapM
-    PhysicalRelabel.prefixMap.assertion
+    PhysicalRelabel.ordinaryMap.assertion
   let layout : PhysicalLayout := {
     base.layout with
     rowCount := nextStart + 5

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Wide.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.Wide.RetainedLayout
+import NightstreamFPrime.Export.Stage1.Wide.SourceAssignment
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Layout.PiRlcWideSampler.Retained
 
@@ -39,7 +40,16 @@ theorem Values.ofSource_source {count : Nat} (kind : LowNormSlot.Kind)
 def finalColumn (source : Nat) : Except String Nat :=
   if Layout.Stage1.Spartan.privateColumnCount ≤ source then
     .ok (SourceOrder.privateColumns + (source - Layout.Stage1.Spartan.privateColumnCount))
-  else PhysicalRelabel.column source
+  else
+    match Layout.Stage1.Spartan.spartanToSource source with
+    | none => .error s!"missing retained source column {source}"
+    | some original =>
+      match SourceAssignment.source? original with
+      | none => .error s!"discarded retained source column {source}"
+      | some current =>
+        let target := SourceOrder.column current
+        if target < SourceOrder.privateColumns then .ok target
+        else .error s!"retained private source maps outside its region: {source}"
 
 def finalMap : PhysicalRelabel.Map := ⟨finalColumn, PhysicalRelabel.row⟩
 
@@ -169,13 +179,46 @@ theorem commonLimit_le (program : Program) (kind : BlockKind) :
     exact LaterPoseidonRetainedBlocks.piCcsFits program
   · exact Nat.le_refl _
 
-def commonBlock (program : Program) (kind : BlockKind) : Except String Values := do
+def sourcesBounded (width : Nat) (runs : List AffineRuns.Run) : Bool :=
+  runs.all fun run => decide (run.count = 0 ∨ run.first + run.step * (run.count - 1) < width)
+
+theorem sourcesBounded_source (width : Nat) (runs : List AffineRuns.Run)
+    (bounded : sourcesBounded width runs = true) (index : Nat)
+    (inside : index < (runs.map AffineRuns.Run.count).sum) : AffineRuns.sourceAt runs index < width := by
+  induction runs generalizing index with
+  | nil => simp at inside
+  | cons run rest ih =>
+    simp only [sourcesBounded, List.all_cons, Bool.and_eq_true, decide_eq_true_eq] at bounded
+    simp only [List.map_cons, List.sum_cons] at inside
+    rw [AffineRuns.sourceAt]
+    split
+    · rename_i within
+      have maximum := Nat.mul_le_mul_left run.step (show index ≤ run.count - 1 by omega)
+      rcases bounded.1 with empty | bound
+      · omega
+      · omega
+    · apply ih bounded.2 (index - run.count)
+      omega
+
+def commonBlock (program : Program) (kind : BlockKind) : Except String Values :=
   let original := BlockPlan.ofKind program kind
   let count := commonLimit program kind
-  return {
-    kind := original.slotKind
-    count := count
-    sources := ← moveRuns (takeRuns count original.sourceRuns) }
+  let runs := takeRuns count original.sourceRuns
+  if sourcesBounded (PiRLCProductPlan.baseSourceWidth program) runs then
+    Values.mk original.slotKind count <$> moveRuns runs
+  else .error "common retained source exceeds the physical base"
+
+theorem commonBlock_checks (program : Program) (kind : BlockKind) (block : Values)
+    (emitted : commonBlock program kind = .ok block) :
+    sourcesBounded (PiRLCProductPlan.baseSourceWidth program)
+      (takeRuns (commonLimit program kind) (BlockPlan.ofKind program kind).sourceRuns) = true ∧
+    (Values.mk (BlockPlan.ofKind program kind).slotKind (commonLimit program kind) <$>
+      moveRuns (takeRuns (commonLimit program kind) (BlockPlan.ofKind program kind).sourceRuns)) = .ok block := by
+  unfold commonBlock at emitted
+  dsimp only at emitted
+  split at emitted
+  · exact ⟨by assumption, emitted⟩
+  · cases emitted
 
 /-- An emitted common block selects exactly the reference block's source
 slot after checked relocation, including the shortened PiCCS hash prefix. -/
@@ -192,6 +235,7 @@ theorem commonBlock_source (program : Program) (kind : BlockKind) (block : Value
     dsimp only [runs]
     rw [takeRuns_count, originalCount, Nat.min_eq_left (commonLimit_le program kind)]
     exact index.isLt
+  have emitted := (commonBlock_checks program kind block emitted).2
   change (Values.mk original.slotKind (commonLimit program kind) <$> moveRuns runs) = .ok block at emitted
   cases result : moveRuns runs with
   | error message => simp [result] at emitted
@@ -211,6 +255,25 @@ theorem commonBlock_source (program : Program) (kind : BlockKind) (block : Value
         ⟨index.val, lt_of_lt_of_le index.isLt (commonLimit_le program kind)⟩ 0
     rw [selected] at mapped
     exact mapped
+
+theorem commonBlock_source_lt (program : Program) (kind : BlockKind) (block : Values)
+    (emitted : commonBlock program kind = .ok block) (index : Fin (commonLimit program kind)) :
+    sourceIndex program kind ⟨index.val, lt_of_lt_of_le index.isLt (commonLimit_le program kind)⟩ <
+      PiRLCProductPlan.baseSourceWidth program := by
+  let original := BlockPlan.ofKind program kind
+  have count := BlockPlan.ofKind_sourceRuns_count program kind
+  have read := sourcesBounded_source _ _ (commonBlock_checks program kind block emitted).1 index.val (by
+    rw [takeRuns_count, count, Nat.min_eq_left (commonLimit_le program kind)]
+    exact index.isLt)
+  rw [takeRuns_source original.sourceRuns _ index.val index.isLt
+    (by rw [count]; exact lt_of_lt_of_le index.isLt (commonLimit_le program kind)),
+    AffineRuns.sourceAt_eq_expand_getD] at read
+  change (AffineRuns.expand (sourceRunsFor program kind)).getD index.val 0 < _ at read
+  rw [sourceRuns_expand] at read
+  change (List.ofFn (sourceIndex program kind)).getD index.val 0 < _ at read
+  rw [Lifecycle.PriorStateHash.ofFn_getD (sourceIndex program kind)
+    ⟨index.val, lt_of_lt_of_le index.isLt (commonLimit_le program kind)⟩ 0] at read
+  exact read
 
 def samplerPoseidonSource (index : Fin (34 * 86)) : Nat :=
     let invocation := index.val / 86

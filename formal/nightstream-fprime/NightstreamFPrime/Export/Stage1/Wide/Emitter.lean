@@ -1,6 +1,8 @@
 import NightstreamFPrime.Export.Stage1.Wide.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.Wide.PhysicalMatrixSource
 import NightstreamFPrime.Export.Stage1.Wide.AssignmentTransport
+import NightstreamFPrime.Export.Stage1.Wide.AuthorityStream
+import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
 import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
@@ -113,21 +115,21 @@ def run (arguments : List String) : IO UInt32 := do
     | .ok value => pure value
     | .error message => throw (IO.userError message)
   let width := RetainedLayout.logicalWidth Poseidon2HashChainV1Package.application
-  let package := TerminalPackage.install { package with
-    relation := productionCcsRelation matrix.rowCount width Lifecycle.cubeVariables }
   let transport ← match AssignmentTransport.plan Poseidon2HashChainV1Package.application
       package.layout.totalColumnCount with
     | .ok value => pure value
     | .error message => throw (IO.userError message)
   unless transport.coordinateCount = width do
     throw (IO.userError s!"transport width {transport.coordinateCount} differs from matrix width {width}")
+  let parts := AuthorityStream.ofChildren package matrix application transport
+  let package := parts.package
   progress s!"wide_physical_rows={package.layout.rowCount} columns={package.layout.totalColumnCount}"
   let handle ← IO.FS.Handle.mk ⟨path⟩ .write
   writeCircuit handle package
   writeByte handle 10
   handle.flush
   let matrixHandle ← IO.FS.Handle.mk ⟨path ++ ".matrix.json"⟩ .write
-  writeValue matrixHandle (Layout.MatrixProgram.Program.format.encode matrix)
+  writeValue matrixHandle (Layout.MatrixProgram.Program.format.encode parts.matrix)
   writeByte matrixHandle 10
   matrixHandle.flush
   let sealedHandle ← IO.FS.Handle.mk ⟨path ++ ".sealed.json"⟩ .write
@@ -136,21 +138,25 @@ def run (arguments : List String) : IO UInt32 := do
   comma sealedHandle
   writeCircuit sealedHandle package
   comma sealedHandle
-  writeValue sealedHandle (Layout.MatrixProgram.Program.format.encode matrix)
+  writeValue sealedHandle (Layout.MatrixProgram.Program.format.encode parts.matrix)
   comma sealedHandle
-  writeApplicationPackagePlan sealedHandle application
+  writeApplicationPackagePlan sealedHandle parts.application
   comma sealedHandle
-  writeValue sealedHandle transport.encode
+  writeValue sealedHandle parts.transport.encode
   comma sealedHandle
   writeValue sealedHandle (Layout.MatrixProgram.IndexRange.format.encode
-    ⟨application.rowStart + application.rowCount, 5⟩)
+    (AuthorityStream.nextPreimageRange parts))
   comma sealedHandle
   writeValue sealedHandle (.atom PerApplicationCanonicalPackage.logicalPublicInputCount)
   writeByte sealedHandle 93
   writeByte sealedHandle 10
   sealedHandle.flush
-  if let some value := context then
-    ParityEmitter.emit "wide_base_fixture" (← BaseStepFixture.valueIO value) ⟨path ++ ".base.json"⟩
+  progress "wide_stage=binding"
+  let binding := SetupBinding.bindingValues parts
+  ParityEmitter.emit "wide_binding_fixture" (SetupBinding.bindingFixtureValue binding)
+    ⟨path ++ ".binding.json"⟩
+  let fixtureContext := context.getD (SetupBinding.contextDigest binding.2.context)
+  ParityEmitter.emit "wide_base_fixture" (← BaseStepFixture.valueIO fixtureContext) ⟨path ++ ".base.json"⟩
   progress s!"wide_logical_rows={matrix.rowCount} logical_coordinates={width}"
   let stop ← IO.monoMsNow
   progress s!"wide_physical_package={path} elapsed_ms={stop - start}"

@@ -31,10 +31,10 @@ def ofCommon (base : CircuitPackage) : Except String CircuitPackage := do
   let batches ← base.witnessBatches.mapM PhysicalRelabel.prefixMap.batch
   let (earlierBatches, laterBatches) := batches.span (fun item =>
     item.start < Layout.Stage1.Wide.SourceOrder.column Layout.Stage1.Wide.PiRLCStarts.samplerLogicalStart)
-  let instructions ← base.witnessInstructions.mapM PhysicalRelabel.prefixMap.instruction
+  let instructions ← base.witnessInstructions.mapM PhysicalRelabel.ordinaryMap.instruction
   let (earlierInstructions, laterInstructions) := instructions.span
     (fun item => item.rowIndex < Layout.Stage1.Wide.PiRLCStarts.samplerRowStart)
-  let assertions ← base.assertionRows.mapM PhysicalRelabel.prefixMap.assertion
+  let assertions ← base.assertionRows.mapM PhysicalRelabel.ordinaryMap.assertion
   let (earlierAssertions, laterAssertions) := assertions.span
     (fun item => item.rowIndex < Layout.Stage1.Wide.PiRLCStarts.samplerRowStart)
   return { base with

@@ -1,3 +1,4 @@
+import Mathlib.Data.List.Forall2
 import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Layout.Stage1.Wide.SourceOrder
@@ -27,6 +28,15 @@ def columnRanges : List MatrixProgram.SourceProjectionRange :=
 
 def projection : MatrixProgram.SourceProjection := .mapped columnRanges
 
+/-- Ordinary archived rows use only the common source regions. The final
+digit-word bridge is reserved for compact ring-product invocations. -/
+def ordinaryProjection : MatrixProgram.SourceProjection := .mapped (columnRanges.take 3)
+
+def ordinaryColumn (value : Nat) : Except String Nat :=
+  match ordinaryProjection.column? value with
+  | some mapped => .ok mapped
+  | none => .error s!"removed ordinary source column {value}"
+
 def column (value : Nat) : Except String Nat :=
   match projection.column? value with
   | some mapped => .ok mapped
@@ -43,6 +53,23 @@ structure Map where
   row : Nat → Except String Nat
 
 def prefixMap : Map := ⟨column, row⟩
+def ordinaryMap : Map := ⟨ordinaryColumn, row⟩
+
+theorem mapM_pairs {α β : Type} (f : α → Except String β)
+    (before : List α) (after : List β) (mapped : before.mapM f = .ok after) :
+    List.Forall₂ (fun a b => f a = .ok b) before after := by
+  induction before generalizing after with
+  | nil => simp only [List.mapM_nil] at mapped; cases mapped; exact .nil
+  | cons head tail ih =>
+    cases first : f head with
+    | error message => simp [List.mapM_cons, first, Bind.bind, Except.bind] at mapped
+    | ok value =>
+      cases rest : tail.mapM f with
+      | error message => simp [List.mapM_cons, first, rest, Bind.bind, Except.bind] at mapped
+      | ok suffix =>
+        simp [List.mapM_cons, first, rest, Bind.bind, Except.bind, Pure.pure, Except.pure] at mapped
+        subst after
+        exact .cons first (ih suffix rest)
 
 namespace Map
 
@@ -140,9 +167,77 @@ def batch (value : WitnessBatch) : Except String WitnessBatch := do
     recipes := ← value.recipes.mapM (expression mapping)
     hints := ← value.hints.mapM (hint mapping) }
 
+def term (value : SparseTerm) : Except String SparseTerm := do
+  return { value with column := ← mapping.column value.column }
+
 def combination (value : SparseCombination) : Except String SparseCombination := do
-  return { value with terms := ← value.terms.mapM fun term => do
-    return { term with column := ← mapping.column term.column } }
+  return { value with terms := ← value.terms.mapM (term mapping) }
+
+/-- Total notation for semantic equations after successful emission. The
+emitter itself always uses the checked `column` and `row` functions. -/
+def columnValue (source : Nat) : Nat := (mapping.column source).toOption.getD 0
+
+private theorem term_pair (before after : SparseTerm) (emitted : term mapping before = .ok after) :
+    (after.column, fieldValue after.coefficient) =
+      (columnValue mapping before.column, fieldValue before.coefficient) := by
+  cases mapped : mapping.column before.column with
+  | error message => simp [term, mapped] at emitted
+  | ok target =>
+    simp [term, mapped] at emitted
+    subst after
+    simp [columnValue, mapped, Except.toOption]
+
+theorem combination_toR1CS (before after : SparseCombination)
+    (emitted : combination mapping before = .ok after) :
+    after.toR1CS = R1CS.mapCombinationColumns (columnValue mapping) before.toR1CS := by
+  cases mapped : before.terms.mapM (term mapping) with
+  | error message => simp [combination, mapped] at emitted
+  | ok terms =>
+    simp [combination, mapped] at emitted
+    subst after
+    have pairs := mapM_pairs (term mapping) before.terms terms mapped
+    have same : terms.map (fun item => (item.column, fieldValue item.coefficient)) =
+        before.terms.map (fun item => (columnValue mapping item.column, fieldValue item.coefficient)) := by
+      clear mapped
+      generalize before.terms = original at pairs ⊢
+      induction pairs with
+      | nil => rfl
+      | @cons a b before after emitted pairs ih =>
+        simp only [List.map_cons, term_pair mapping a b emitted, ih]
+    simp only [SparseCombination.toR1CS, R1CS.mapCombinationColumns, List.map_map,
+      Function.comp_def, same]
+
+def Mapped (source : Nat) : Prop := ∃ target, mapping.column source = .ok target
+
+private theorem term_supported (before after : SparseTerm) (emitted : term mapping before = .ok after) :
+    Mapped mapping before.column := by
+  cases read : mapping.column before.column with
+  | error message => simp [term, read] at emitted
+  | ok target => exact ⟨target, read⟩
+
+theorem combination_supported (before after : SparseCombination)
+    (emitted : combination mapping before = .ok after) :
+    before.toR1CS.VarsSatisfy (Mapped mapping) := by
+  cases mapped : before.terms.mapM (term mapping) with
+  | error message => simp [combination, mapped] at emitted
+  | ok terms =>
+    have pairs := mapM_pairs (term mapping) before.terms terms mapped
+    have support : ∀ item ∈ before.terms, Mapped mapping item.column := by
+      clear mapped emitted
+      generalize before.terms = original at pairs ⊢
+      induction pairs with
+      | nil => simp
+      | @cons a b before after pair pairs ih =>
+        intro item member
+        rcases List.mem_cons.mp member with equal | member
+        · subst item
+          exact term_supported mapping a b pair
+        · exact ih item member
+    intro item member
+    change item ∈ before.terms.map (fun term => (term.column, fieldValue term.coefficient)) at member
+    obtain ⟨original, sourceMember, same⟩ := List.mem_map.mp member
+    rw [← same]
+    exact support original sourceMember
 
 def instruction (value : WitnessInstruction) : Except String WitnessInstruction := do
   return {
@@ -157,6 +252,92 @@ def assertion (value : SparseRow) : Except String SparseRow := do
     a := ← combination mapping value.a
     b := ← combination mapping value.b
     c := ← combination mapping value.c }
+
+theorem instruction_correct (before after : WitnessInstruction)
+    (emitted : instruction mapping before = .ok after) :
+    mapping.row before.rowIndex = .ok after.rowIndex ∧
+      after.toR1CS = R1CS.mapRowColumns (columnValue mapping) before.toR1CS ∧
+      before.toR1CS.VarsSatisfy (Mapped mapping) := by
+  cases rowResult : mapping.row before.rowIndex with
+  | error message => simp [instruction, rowResult, Bind.bind, Except.bind] at emitted
+  | ok row =>
+    cases targetResult : mapping.column before.target with
+    | error message => simp [instruction, rowResult, targetResult, Bind.bind, Except.bind] at emitted
+    | ok target =>
+      cases aResult : combination mapping before.a with
+      | error message => simp [instruction, rowResult, targetResult, aResult, Bind.bind, Except.bind] at emitted
+      | ok a =>
+        cases bResult : combination mapping before.b with
+        | error message => simp [instruction, rowResult, targetResult, aResult, bResult, Bind.bind, Except.bind] at emitted
+        | ok b =>
+          simp [instruction, rowResult, targetResult, aResult, bResult, Bind.bind, Except.bind,
+            Pure.pure, Except.pure] at emitted
+          subst after
+          refine ⟨rfl, ?_, ?_⟩
+          · simp only [WitnessInstruction.toR1CS, R1CS.mapRowColumns,
+              combination_toR1CS mapping before.a a aResult,
+              combination_toR1CS mapping before.b b bResult,
+              R1CS.mapCombinationColumns_ofVar]
+            simp only [columnValue, targetResult, Except.toOption, Option.getD_some]
+          · refine ⟨combination_supported mapping before.a a aResult,
+              combination_supported mapping before.b b bResult, ?_⟩
+            intro item member
+            change item ∈ [(before.target, 1)] at member
+            rcases List.mem_singleton.mp member with rfl
+            exact ⟨target, targetResult⟩
+
+theorem assertion_correct (before after : SparseRow)
+    (emitted : assertion mapping before = .ok after) :
+    mapping.row before.rowIndex = .ok after.rowIndex ∧
+      after.toR1CS = R1CS.mapRowColumns (columnValue mapping) before.toR1CS ∧
+      before.toR1CS.VarsSatisfy (Mapped mapping) := by
+  cases rowResult : mapping.row before.rowIndex with
+  | error message => simp [assertion, rowResult, Bind.bind, Except.bind] at emitted
+  | ok row =>
+    cases aResult : combination mapping before.a with
+    | error message => simp [assertion, rowResult, aResult, Bind.bind, Except.bind] at emitted
+    | ok a =>
+      cases bResult : combination mapping before.b with
+      | error message => simp [assertion, rowResult, aResult, bResult, Bind.bind, Except.bind] at emitted
+      | ok b =>
+        cases cResult : combination mapping before.c with
+        | error message => simp [assertion, rowResult, aResult, bResult, cResult, Bind.bind, Except.bind] at emitted
+        | ok c =>
+          simp [assertion, rowResult, aResult, bResult, cResult, Bind.bind, Except.bind,
+            Pure.pure, Except.pure] at emitted
+          subst after
+          refine ⟨rfl, ?_, combination_supported mapping before.a a aResult,
+            combination_supported mapping before.b b bResult,
+            combination_supported mapping before.c c cResult⟩
+          simp only [SparseRow.toR1CS, R1CS.mapRowColumns,
+            combination_toR1CS mapping before.a a aResult,
+            combination_toR1CS mapping before.b b bResult,
+            combination_toR1CS mapping before.c c cResult]
+
+def compiledRow : Rows.CompiledRow → Except String Rows.CompiledRow
+  | .witness value => return .witness (← instruction mapping value)
+  | .assertion value => return .assertion (← assertion mapping value)
+
+theorem compiledRow_correct (before after : Rows.CompiledRow)
+    (emitted : compiledRow mapping before = .ok after) :
+    mapping.row before.rowIndex = .ok after.rowIndex ∧
+      after.toR1CS = R1CS.mapRowColumns (columnValue mapping) before.toR1CS ∧
+      before.toR1CS.VarsSatisfy (Mapped mapping) := by
+  cases before with
+  | witness value =>
+    cases moved : instruction mapping value with
+    | error message => simp [compiledRow, moved] at emitted
+    | ok result =>
+      simp [compiledRow, moved] at emitted
+      subst after
+      exact instruction_correct mapping value result moved
+  | assertion value =>
+    cases moved : assertion mapping value with
+    | error message => simp [compiledRow, moved] at emitted
+    | ok result =>
+      simp [compiledRow, moved] at emitted
+      subst after
+      exact assertion_correct mapping value result moved
 
 def permutation (value : PermutationInvocation) : Except String PermutationInvocation := do
   return { value with

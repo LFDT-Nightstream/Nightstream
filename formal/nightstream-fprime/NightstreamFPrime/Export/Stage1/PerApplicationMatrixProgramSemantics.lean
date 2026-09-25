@@ -365,7 +365,7 @@ theorem applicationExact (application : ApplicationProgram)
     DirectApplicationPrefixPlan.applicationPlan] using
       ApplicationMatrixProgram.matrixProgram_row? fits.package
         (PerApplicationMatrixProgram.applicationGeometry application)
-        sourceRow custody.applicationRows row
+        sourceRow (fun _ => custody.applicationRows) row
 
 theorem nextPreimageExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

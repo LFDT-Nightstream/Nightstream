@@ -13,7 +13,8 @@ open ApplicationRetainedGeometry
 theorem matrixProgram_row? {application : Stage1.Application.Program} {columns : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application) (geometry : Geometry application columns)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin (ApplicationDirectSource.program application fits).rowCount,
+    (loaded : application.compactHashChain = none →
+      ∀ index : Fin (ApplicationDirectSource.program application fits).rowCount,
       sourceRow (PerApplicationPackage.basePackage.layout.rowCount + index.val) =
         some ((ApplicationDirectSource.program application fits).row index))
     (global : Fin (ApplicationDirectPlan.plan fits geometry).rowCount) :
@@ -24,7 +25,7 @@ theorem matrixProgram_row? {application : Stage1.Application.Program} {columns :
   | none =>
     rw [matrixProgram_none geometry selected, ApplicationDirectPlan.plan_none fits geometry selected]
     exact ApplicationOrdinaryMatrixProgram.matrixProgram_row? fits (ordinaryGeometry geometry selected)
-      sourceRow loaded
+      sourceRow (loaded selected)
   | some certificate =>
     rw [matrixProgram_some geometry certificate selected,
       ApplicationDirectPlan.plan_some fits geometry certificate selected]

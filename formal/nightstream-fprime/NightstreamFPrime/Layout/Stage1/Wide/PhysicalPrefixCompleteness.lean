@@ -37,7 +37,7 @@ private theorem d_end_before_running (relation : ProductionKey.LogicalRelation l
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation] at bound
   exact bound
 
-theorem complete
+theorem complete_with_values
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (prior advertised : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -63,7 +63,9 @@ theorem complete
       RunningTransitionInputs.piDecRunningOutput relation completed = result ∧
       (∀ index, index < PilotProduction.witnessOffset ∨ PiCCSOrdinarySourceSupport.External index →
         completed index = PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) advertised digest
-          priorFixed advertisedFixed digestFixed values context index) := by
+          priorFixed advertisedFixed digestFixed values context index) ∧
+      PiRLC.Wide.Formal.RangesCompleted
+        (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset completed := by
   let initial := PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) advertised digest
     priorFixed advertisedFixed digestFixed values context
   let proof := PiCCSProofInputs.relationProof relation values template
@@ -114,7 +116,7 @@ theorem complete
   have cBefore : ∀ index, index < PiCCSInputs.phaseOffset → cPhysical index = pPhysical index := by
     intro index below
     exact (cAfter index (by rw [cFirst]; omega)).trans (c.agrees index (Or.inl below))
-  obtain ⟨r, rOperations, _, _, rSampled, rParent⟩ := PiRLCProtocolCompleteness.completePrefix_after_c
+  obtain ⟨r, rOperations, _, _, rSampled, rParent, rangeValues⟩ := PiRLCProtocolCompleteness.completePrefix_after_c_with_values
     relation ajtai prior (encHash (stateHash prior)) advertised digest priorFixed advertisedFixed digestFixed
     values context template pPhysical (fun index support => pAgrees index (Or.inr support))
     c cOperations cPhysical (by simpa only [cFirst] using cAfter)
@@ -169,7 +171,7 @@ theorem complete
   have rAtFinal := R1CS.rowsHold_of_agree_below _ _ rPhysical dPhysical rScope (by
     intro index below
     exact dBefore index (below.trans_le (r_end_before_d relation))) rRows
-  refine ⟨dPhysical, ?_, ?_, ?_, ?_⟩
+  refine ⟨dPhysical, ?_, ?_, ?_, ?_, ?_⟩
   · apply (PilotPiCCSPiRLCPiDEC.physicalHolds_iff relation dPhysical).2
     refine ⟨(PilotPiCCSPiRLC.physicalHolds_iff relation dPhysical).2
       ⟨(PilotPiCCS.physicalHolds_iff relation dPhysical).2 ⟨pAtFinal, cAtFinal⟩, rAtFinal⟩, dRows⟩
@@ -193,5 +195,47 @@ theorem complete
       · exact external_before_c index external
     exact (dBefore index (beforeC.trans_le (cLeR.trans rLeD))).trans
       ((rBefore index (beforeC.trans_le cLeR)).trans ((cBefore index beforeC).trans (pAgrees index support)))
+  · apply PiRLC.Wide.Formal.rangesCompleted_of_agree relation PiRLCInputs.interface PiRLCInputs.phaseOffset
+      r.current dPhysical (PiRLCInputBounds.assumptions relation r.current) rangeValues
+    intro index below
+    have beforeD : index < PiDECInputs.proofInputStart := below.trans_le (by decide)
+    have beforeFresh : index < rPlan.firstFresh := by
+      rw [rFirst, rOperations, ← PiRLC.Wide.Formal.main_ops, PiRLC.Wide.Formal.localLength_eq]
+      change index < 19513117 + 107729
+      change index < 19568520 at below
+      omega
+    exact (dBefore index beforeD).trans (rAfter index beforeFresh)
+
+theorem complete
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (prior advertised : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (digest : Digest)
+    (priorFixed : PilotProduction.FixedPreimage prior)
+    (advertisedFixed : PilotProduction.FixedPreimage advertised)
+    (digestFixed : digest.length = PilotProduction.digestWords)
+    (values : PiCCSProofInputs.ProofValues) (context : VerifierContext.Digest4)
+    (template : Proof 9)
+    (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (priorPc : prior.pc = 1) (advertisedPc : advertised.pc = 1)
+    (priorContext : prior.verifierKeys functionIndex = context.toList)
+    (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
+    (outputHash : digest = stateHash advertised)
+    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+      (prior.running functionIndex)
+      (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
+      (PiCCSProofInputs.relationProof relation values template) = some result) :
+    ∃ completed,
+      PilotPiCCSPiRLCPiDEC.PhysicalHolds relation completed ∧
+      (∀ row ∈ PilotPiCCSPiRLCPiDEC.physicalRows relation,
+        row.VarsBelow RunningTransitionInputs.phaseOffset) ∧
+      RunningTransitionInputs.piDecRunningOutput relation completed = result ∧
+      (∀ index, index < PilotProduction.witnessOffset ∨ PiCCSOrdinarySourceSupport.External index →
+        completed index = PiCCSProtocolCompleteness.environment prior (encHash (stateHash prior)) advertised digest
+          priorFixed advertisedFixed digestFixed values context index) := by
+  obtain ⟨completed, rows, scope, resultValue, sources, _⟩ := complete_with_values relation ajtai prior advertised digest
+    priorFixed advertisedFixed digestFixed values context template result priorPc advertisedPc priorContext
+    advertisedContext outputHash accepted
+  exact ⟨completed, rows, scope, resultValue, sources⟩
 
 end NightstreamFPrime.Layout.Stage1.Wide.PhysicalPrefixCompleteness

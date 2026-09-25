@@ -51,7 +51,7 @@ structure SourceCustody (application : ApplicationProgram)
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalAProgramRow
           relation index))
-  applicationRows : ∀ index :
+  applicationRows : application.compactHashChain = none → ∀ index :
       Fin (ApplicationDirectSource.program application fits).rowCount,
     sourceRow (PerApplicationPackage.basePackage.layout.rowCount + index.val) =
       some ((ApplicationDirectSource.program application fits).row
@@ -201,7 +201,8 @@ theorem source_custody :
     exact PerApplicationPackageSourceRows.piDecEvalKPackageSourceRow?_eq_some application relation index
   · intro index
     exact PerApplicationPackageSourceRows.piDecEvalAPackageSourceRow?_eq_some application relation index
-  · exact PerApplicationPackageSourceCustody.applicationSourceRow?_eq_some application fits
+  · intro _
+    exact PerApplicationPackageSourceCustody.applicationSourceRow?_eq_some application fits
   · exact PerApplicationPackageSourceCustody.nextPreimageSourceRow?_eq_some application
 
 end NightstreamFPrime.Export.Stage1.Wide.ReusedMatrixPrograms

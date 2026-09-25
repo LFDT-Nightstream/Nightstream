@@ -779,17 +779,85 @@ constructed a complete source-run plan again just to read its slot count.
 Reading that count from the block geometry removed the duplicate work; the
 next run took 57.6 seconds and all four output files were byte-identical.
 
+## Complete archive and emitted witness proofs
+
+The candidate now has the two full package connections that were open at
+`daf5575c4`:
+
+- `PackageAuthority.matrix_exact` derives the complete matrix correspondence
+  from `AuthorityStream.prepare = .ok parts`. The actual stored physical rows
+  supply source custody; there is no caller-supplied row-equality certificate.
+- `AssignmentTransportCorrectness.canonical_execute_eq_assignment` proves
+  that the exact emitted schema-4 plan returns the direct logical assignment.
+  `canonical_carrier_eq` includes all padding coordinates.
+- `PackageCompleteness.complete` applies that execution result to the same
+  constructive completion used by the full candidate relation. It proves
+  successful transport, row satisfaction, strict norm below 2, the exact public
+  output, and unchanged application advice. The semantic caller supplies no
+  physical-row, sampler-success, or witness-transport premise.
+
+The common source map now rejects removed columns before emission. Its source
+bounds are checked on compact affine-run endpoints. The proofs then follow
+the block structure, without expanding retained coordinates. Exact range
+readback is preserved from the canonical input children through the scalar,
+batch, PiRLC phase and complete physical witness. The product output and
+quotient values follow the proved direct ring construction.
+
+`SetupBinding` derives authority from the same sealed children as the emitter.
+The application component hashes the emitted relocated application plan.
+The setup keeps the approved seed and uses 22 rows and 2,543,368 message
+columns. Both the NIFS key component and the outer context bind the wide
+sampler schedule. The native structural identity stream has a proof that it
+is the canonical Poseidon2 hash of the sealed envelope.
+
+The emitter shares `AuthorityStream.ofChildren` with the proved constructor.
+It also emits a binding fixture, computing the structural stream once. With
+no fixture-context argument, it derives the base fixture context from this
+binding. The baseline identity serializers and selected pins are unchanged
+in this proof checkpoint.
+
+The focused highest-target check passed:
+
+```text
+timeout --signal=KILL 1500 scripts/validate.sh build NightstreamFPrime.Export.Stage1.Wide.PackageCompleteness
+```
+
+Before adding the binding sidecar, a fresh export of the four package and
+base-fixture files was byte-identical to the `daf5575c4` checkpoint. The full
+Rust assignment check passed all 3,248,956 rows, temporary-value independence,
+and checked-bit mutation rejection. Export took 60.6 seconds; the Rust test
+took 12.6 seconds. These are conformance runs, not proving benchmarks.
+
+This batch does not change the candidate's 3,248,956 rows, 137,341,872 committed
+coordinates, or 2,607,606,765 normalized matrix entries. Production selection
+remains open.
+
+Checkpoint validation, based on `daf5575c4`:
+
+```text
+timeout --signal=KILL 1500 scripts/validate.sh static
+timeout --signal=KILL 1500 scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests emitWidePhysicalPackage
+timeout --signal=KILL 1500 scripts/validate.sh axioms
+timeout --signal=KILL 1500 scripts/validate.sh identity
+timeout --signal=KILL 1500 scripts/validate.sh lean-executable .lake/build/bin/emitWidePhysicalPackage /tmp/nightstream-wide-proved-package.json
+tools/recursive-constraint-minimizer/experiments/check_wide_assignment.sh /tmp/nightstream-wide-proved-package.json
+```
+
+All checks passed. The full gate covered 8,360 jobs in 102 seconds; all 191
+added axiom entries pass. The selected baseline binding and three identity
+pins are unchanged. The fresh exporter, including the binding sidecar and
+base fixture with its derived context, took 92.9 seconds. The physical,
+matrix and sealed package bytes are unchanged. The full Rust assignment and
+mutation check on this new-context fixture passed in 12.4 seconds. This check
+does not establish native parity for the new binding serializer; that remains
+part of the production switch.
+
 ## Still required for the production switch
 
-- Connect the verifier-selected package to `ContextBinding.step_or_collision`.
-  This theorem now binds an arbitrary accepted assignment to the context in
-  the verifier's checked state preimage, or produces the existing named
-  Poseidon2 state-hash collision. It assumes no honest witness or context equality.
-- Finish source custody and committed-witness transport for the new physical
-  archive. The physical archive and companion matrix program now emit and
-  pass Rust conformance, including the complete sealed base-witness check.
-  Finish the universal emitted-transport and source-archive proof connections,
-  then bind them to the selected production authority.
+- Select the candidate authority, archive and transport together. The candidate
+  now has full matrix correspondence, constructive emitted-witness transport,
+  and `SetupBinding.step_or_collision` for the verifier-owned context. The
+  production selector and native binding must use those same children.
 - Use the wide-key security consumers when selecting the production package.
   Their exact transcript link, adaptive query accounting, and explicit
   Fiat–Shamir boundary are proved and recorded above. Numerical cryptographic

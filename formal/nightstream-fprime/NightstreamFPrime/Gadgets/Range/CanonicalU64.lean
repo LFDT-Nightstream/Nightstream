@@ -271,7 +271,7 @@ private theorem weightedValue_succ (env : Env) (offset bitStart count : Nat) :
         2 ^ count * bitValue env offset (bitStart + count) := by
   simp [weightedValue, List.range_succ, List.foldl_append]
 
-private theorem weightedExpr_eval (env : Env) (offset bitStart : Nat) :
+theorem weightedExpr_eval (env : Env) (offset bitStart : Nat) :
     ∀ count,
       (weightedExpr offset bitStart count).eval env =
         fieldOfNat (weightedValue env offset bitStart count)
@@ -329,7 +329,7 @@ theorem weightedExpr_varsBelow (offset bitStart count bound : Nat)
         · apply bitExpr_varsBelow
           omega
 
-private theorem highDifference_varsBelow (offset : Nat) :
+theorem highDifference_varsBelow (offset : Nat) :
     (highDifferenceExpr offset).VarsBelow (offset + bitCount) := by
   apply Expr.VarsBelow.sub
   · apply weightedExpr_varsBelow
@@ -815,7 +815,7 @@ def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
   executeRecipes (completeInverse interface env offset)
     (offset + bitCount + 1) [flagRecipe offset]
 
-private theorem completeBits_value
+theorem completeBits_value
     (interface : Interface) (env : Env) (offset index : Nat)
     (assumptions : Assumptions interface offset env)
     (bounded : index < bitCount) :
@@ -840,7 +840,7 @@ private theorem completeBits_bitValue
   rw [bit]
   exact hintBit_value interface env offset index
 
-private theorem completeEnv_bitValue
+theorem completeEnv_bitValue
     (interface : Interface) (env : Env) (offset index : Nat)
     (assumptions : Assumptions interface offset env)
     (bounded : index < bitCount) :
@@ -864,7 +864,7 @@ private theorem completeEnv_bitValue
         exact afterInverse]
   exact bit
 
-private theorem completeBits_weightedValue
+theorem completeBits_weightedValue
     (interface : Interface) (env : Env) (offset start count : Nat)
     (assumptions : Assumptions interface offset env)
     (within : start + count ≤ bitCount) :

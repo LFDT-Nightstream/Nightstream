@@ -36,7 +36,7 @@ def assumptionsAt
     challengeBelow := assumptions.eval_A.challengeBelow
     inputBelow := assumptions.eval_A.inputBelow }
 
-private theorem completeInputPrefix
+theorem completeInputPrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -149,7 +149,7 @@ private theorem appendSampler
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
-private theorem appendCommitment
+theorem appendCommitment
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -199,7 +199,7 @@ private theorem appendCommitment
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
-private theorem appendPublicInput
+theorem appendPublicInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -249,7 +249,7 @@ private theorem appendPublicInput
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
-private theorem appendEvalK
+theorem appendEvalK
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -293,7 +293,7 @@ private theorem appendEvalK
         rfl
   exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
 
-private theorem appendEvalA
+theorem appendEvalA
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -429,7 +429,7 @@ theorem completeCombinationPrefix
     (ProjectedBatch.complete (samplerInterface (atOffset interface offset))
       env (samplerOffset offset) assumptions.sampler)
 
-private theorem appendOutputBinding
+theorem appendOutputBinding
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

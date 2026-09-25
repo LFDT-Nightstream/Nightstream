@@ -116,9 +116,43 @@ sampler until the package switch.
   accepted candidate rows and their actual public projection to the context
   in a verifier-checked state hash, or exhibits the existing state-hash
   collision event. No honest assignment or context-equality premise is used.
+- `Export.Stage1.Wide.PackageAuthority.matrix_exact`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/PackageAuthority.lean)) proves
+  that the matrix program in a successfully prepared package has the exact
+  structural-plan rows, using that package's actual physical source archive.
+  The constructor supplies source custody; no source-row equality is assumed.
+- `Export.Stage1.Wide.AssignmentTransportCorrectness.canonical_execute_eq_assignment`
+  and `canonical_carrier_eq`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/AssignmentTransportCorrectness.lean))
+  identify execution of the emitted schema-4 transport with the direct wide
+  assignment and its complete padded carrier. These theorems require the
+  stated PiCCS/PiRLC physical conditions and completed range values. The
+  package completeness theorem below constructs those conditions.
+- `Export.Stage1.Wide.PackageCompleteness.complete`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/PackageCompleteness.lean))
+  constructs physical values that the actual prepared transport accepts. The
+  resulting assignment satisfies the complete structural plan, has strict
+  carrier norm below two, and carries the exact public output digest and
+  application advice. Its premises are successful package preparation, the
+  typed semantic step, well-formed prior and next preimages, the fresh public
+  link, actual wide-key NIFS acceptance, agreement of the recursive result,
+  and four-word advice. It assumes no physical rows, transport equality or
+  source-read equality.
+- `Export.Stage1.Wide.SetupBinding.descriptor_recomputed` and
+  `step_or_collision`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean)) bind the
+  relation and exact application child from the sealed package, the wide
+  transcript schedule, and the indexed Ajtai setup with the approved seed
+  and dimensions 22 × 2,543,368. The setup dimensions follow from the
+  137,341,872-coordinate carrier. The context and verification-key
+  serializers both use the wide schedule. The key uses the same sampler as
+  `WideSamplerSecurity`; the explicit Fiat–Shamir and block-oracle model
+  boundaries above remain in force. `shortKernel_to_approvedMsis` reduces the
+  smaller same-seed key to the existing approved MSIS instance by zero
+  extension.
 
-The complete matrix program is proved exact and all three candidate costs
-are recorded in [the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
-The package, native sampler, transport, identities and conformance still
-require production selection. No numerical security level or performance
-claim follows from these candidate theorems.
+All three candidate costs are recorded in
+[the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
+Production still selects the baseline package. Native parity for the new
+binding and production selection remain separate from these candidate
+proofs. No numerical security level or performance claim follows from them.

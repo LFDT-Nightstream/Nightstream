@@ -690,7 +690,7 @@ theorem stateEqualities_hold_iff (env : Env) (left right : EState) :
     have row := rows (left lane - right lane) (by
       rw [stateEqualities, List.mem_ofFn']
       exact Set.mem_range_self lane)
-    exact sub_eq_zero.mp (by simpa using row)
+    exact sub_eq_zero.mp (by simpa using! row)
   · intro equals expression member
     rw [stateEqualities, List.mem_ofFn'] at member
     rcases member with ⟨lane, rfl⟩
@@ -959,7 +959,7 @@ theorem compile_scope (start : Nat) (state : EState) (actions : List Action)
                         squeezed.output actions).recipes).length)
               · have sampleBelow : squeezed.sample.VarsBelow
                     (start + squeezed.recipes.length) := by
-                  simpa [squeezed] using
+                  simpa [squeezed] using!
                     Squeeze.compile_sample_below start state stateBelow
                 constructor <;> apply Expr.VarsBelow.mono _
                 · exact sampleBelow.1

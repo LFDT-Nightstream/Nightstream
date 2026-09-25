@@ -1,7 +1,7 @@
 import Std
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Sampling/FirstAccepted.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed; simplification proofs updated for Lean 4.32. -/
 
 /-!
 Generic first-accepted rejection-selection semantics.
@@ -206,7 +206,7 @@ theorem firstAccepted_append_of_enough
   unfold firstAccepted
   rw [acceptedSymbols_append]
   apply List.take_append_of_le_length
-  simpa [acceptedSymbols, acceptedCount] using enough
+  simpa [acceptedSymbols, acceptedCount] using! enough
 
 theorem boundedSample_eq_some_iff
     {Candidate : Type uCandidate} {Symbol : Type uSymbol}

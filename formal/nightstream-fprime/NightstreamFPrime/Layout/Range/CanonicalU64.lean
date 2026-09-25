@@ -229,6 +229,6 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
   refine ⟨completed, ?_, rows⟩
   have combined := logicalAgreesFixed.append physicalAgrees
   rw [totalFreshCount_eq interface offset inputs] at combined
-  simpa [Logical.auxiliaryCount] using combined
+  simpa [Logical.auxiliaryCount] using! combined
 
 end NightstreamFPrime.Layout.Range.CanonicalU64

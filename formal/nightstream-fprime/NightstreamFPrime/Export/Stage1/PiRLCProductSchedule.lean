@@ -325,7 +325,7 @@ theorem commitmentCompactInvocations_eq :
   simp only [Family.invocationCount, Family.privateCount, Family.blockCount,
     Family.cellCount]
   simp only [familyDescriptor, Descriptor.compactInvocation]
-  simpa only using
+  simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
       (CombinationStep.privateCount 22 1)
       (fun source index =>
@@ -342,7 +342,7 @@ theorem publicInputCompactInvocations_eq :
   simp only [Family.invocationCount, Family.privateCount, Family.blockCount,
     Family.cellCount]
   simp only [familyDescriptor, Descriptor.compactInvocation]
-  simpa only using
+  simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
       (CombinationStep.privateCount 5 1)
       (fun source index =>
@@ -359,7 +359,7 @@ theorem evalKCompactInvocations_eq :
   simp only [Family.invocationCount, Family.privateCount, Family.blockCount,
     Family.cellCount]
   simp only [familyDescriptor, Descriptor.compactInvocation]
-  simpa only using
+  simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
       (CombinationStep.privateCount 1 2)
       (fun source index =>
@@ -375,7 +375,7 @@ theorem evalACompactInvocations_eq :
   simp only [Family.invocationCount, Family.privateCount, Family.blockCount,
     Family.cellCount]
   simp only [familyDescriptor, Descriptor.compactInvocation]
-  simpa only using
+  simpa only using!
     (ofFn_decodeProd_eq_range_flatMap sourceCount
       (CombinationStep.privateCount 14 2)
       (fun source index =>

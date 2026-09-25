@@ -66,7 +66,7 @@ theorem invocation_holds (env : NightstreamFPrime.Circuit.Env)
   change ∀ row ∈ (Data.circuitPackage ()).permutation.rows,
     (instantiateInvocationRow invocation row).Holds env at selected
   rw [Data.circuitPackage_permutation] at selected
-  simpa only [PilotData.circuitPackage] using selected
+  simpa only [PilotData.circuitPackage] using! selected
 
 @[simp] theorem data_permutationInvocations_length :
     (Data.permutationInvocations ()).length = laterInvocationCount := by
@@ -102,7 +102,7 @@ theorem priorWitnessStart_bound (invocation : Fin priorInvocationCount) :
     priorWitnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
       basePackage.layout.constantColumn := by
   simpa [priorWitnessStart, priorInvocationCount,
-    PoseidonScheduleTrace.localColumnCount] using
+    PoseidonScheduleTrace.localColumnCount] using!
       PerApplicationPreservation.canonicalHashInvocation_witnessBound
         Data.priorChain priorChain_mem invocation
 
@@ -115,7 +115,7 @@ theorem outputWitnessStart_bound (invocation : Fin outputInvocationCount) :
     outputWitnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
       basePackage.layout.constantColumn := by
   simpa [outputWitnessStart, outputInvocationCount,
-    PoseidonScheduleTrace.localColumnCount] using
+    PoseidonScheduleTrace.localColumnCount] using!
       PerApplicationPreservation.canonicalHashInvocation_witnessBound
         Data.outputChain outputChain_mem invocation
 

@@ -90,7 +90,7 @@ private theorem oneChallenge_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
-    if_false, if_true] using value
+    if_false, if_true] using! value
 
 -- Symbolic data keeps all coefficient tactics outside the selected 2^28 table.
 private theorem inner_pair_of_endpoints
@@ -206,7 +206,7 @@ theorem selected_eq_normTerm_sum
       cases bit
       · change (firstValues challenge (code masks source) groups).getD
           (0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-        simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using endpoint
+        simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using! endpoint
       · change (firstValues challenge (code masks source) groups).getD
           (1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
         simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, if_true] using endpoint)

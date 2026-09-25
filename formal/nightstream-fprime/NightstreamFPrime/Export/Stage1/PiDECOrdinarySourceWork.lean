@@ -344,7 +344,7 @@ theorem commitmentRow_data (coordinate : Fin 1188) :
          (PiDECSourceSupport.parentCommitmentStart + coordinate.val), 1)]⟩⟩ := by
   simpa only [rawRow, sourceTerms, Spartan.remapRow, Spartan.remapCombination,
     List.map_ofFn, List.map_nil, List.map_cons, R1CS.LinearCombination.one,
-    R1CS.LinearCombination.ofVar] using commitmentRow_mapped coordinate
+    R1CS.LinearCombination.ofVar] using! commitmentRow_mapped coordinate
 
 theorem commitmentRow_lengths (coordinate : Fin 1188) :
     (commitmentRow coordinate).value.a.terms.length = 16 ∧

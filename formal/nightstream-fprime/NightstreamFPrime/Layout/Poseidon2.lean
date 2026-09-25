@@ -334,7 +334,7 @@ theorem compileAbsorptions_direct (start : Nat) (state : Layer.EState)
       unfold Hash.compileAbsorptions
       apply R1CS.recipesDirect_append
       · exact headDirect
-      · simpa using tailDirect
+      · simpa using! tailDirect
 
 theorem compileAbsorptions_output_affine (start : Nat) (state : Layer.EState)
     (blocks : List (List Expr)) (stateAffine : StateAffine state)

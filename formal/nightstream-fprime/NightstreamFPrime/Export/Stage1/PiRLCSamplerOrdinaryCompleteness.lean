@@ -78,7 +78,7 @@ private theorem poseidonOutputColumn (descriptor : Lane) (lane : Fin 4) :
         PiRLCSamplerOrdinaryDirectSource.poseidonSource,
         PiRLCStarts.digestPermutationLogicalStart, PiRLCStarts.windowLogicalStart,
         PiRLCStarts.samplerSourceLogicalStart, DigestWindow.permutationOffset,
-        Sampler.windowOffset, Sampler.windowBase, SamplerChain.sourceOffset] using
+        Sampler.windowOffset, Sampler.windowBase, SamplerChain.sourceOffset] using!
           mapped (PiRLCStarts.digestPermutationLogicalStart descriptor.source.val previous) localStart
 
 section Sources

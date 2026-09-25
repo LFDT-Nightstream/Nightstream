@@ -391,7 +391,7 @@ private theorem substitution_form?_descriptor
         rw [PiCCSOrdinaryDirectPlan.Location.form_proofInput]
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, ringDegree,
-          Nat.zero_add, Nat.add_assoc] using freshCommitmentRange_lookup geometry operand
+          Nat.zero_add, Nat.add_assoc] using! freshCommitmentRange_lookup geometry operand
       · let index : Fin PilotProduction.stateHashWords :=
           ⟨97 + (source.val - 1) * 3081 + block.val * ringDegree + lane.val, by
             have sourceBound := source.isLt
@@ -437,7 +437,7 @@ private theorem substitution_form?_descriptor
         rw [key]
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, priorSource, ringDegree,
-          Nat.zero_add, Nat.add_assoc] using runningCommitmentGrid_lookup geometry priorSource operand
+          Nat.zero_add, Nat.add_assoc] using! runningCommitmentGrid_lookup geometry priorSource operand
   | publicInput =>
       by_cases first : source.val = 0
       · have sourceZero : source = ⟨0, by
@@ -481,7 +481,7 @@ private theorem substitution_form?_descriptor
         rw [key]
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, ringDegree,
-          Nat.zero_add, Nat.add_assoc] using freshPublicRange_lookup geometry operand
+          Nat.zero_add, Nat.add_assoc] using! freshPublicRange_lookup geometry operand
       · let index : Fin PilotProduction.stateHashWords :=
           ⟨1286 + (source.val - 1) * 3081 + block.val * ringDegree + lane.val, by
             have sourceBound := source.isLt
@@ -527,7 +527,7 @@ private theorem substitution_form?_descriptor
         rw [key]
         simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
           operand, index, proofInputSlot, priorSource, ringDegree,
-          Nat.zero_add, Nat.add_assoc] using runningPublicGrid_lookup geometry priorSource operand
+          Nat.zero_add, Nat.add_assoc] using! runningPublicGrid_lookup geometry priorSource operand
   | evalK =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
         ⟨1748 + source.val * 1620 + lane.val * 2 + cell.val, by
@@ -573,7 +573,7 @@ private theorem substitution_form?_descriptor
       rw [PiCCSOrdinaryDirectPlan.Location.form_proofInput]
       simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
         operand, index, proofInputSlot, ringDegree,
-        Nat.zero_add, Nat.add_assoc] using evalKGrid_lookup geometry source operand
+        Nat.zero_add, Nat.add_assoc] using! evalKGrid_lookup geometry source operand
   | evalA =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
         ⟨1856 + source.val * 1620 + block.val * 108 + lane.val * 2 + cell.val, by
@@ -621,7 +621,7 @@ private theorem substitution_form?_descriptor
       rw [PiCCSOrdinaryDirectPlan.Location.form_proofInput]
       simpa only [location, PiCCSOrdinaryDirectPlan.Location.form,
         operand, index, proofInputSlot, ringDegree,
-        Nat.zero_add, Nat.add_assoc] using evalAGrid_lookup geometry source operand
+        Nat.zero_add, Nat.add_assoc] using! evalAGrid_lookup geometry source operand
 
 /-- Every compact input key resolves to its existing authoritative PiCCS
 form. The proof is symbolic in the descriptor and does not expand the table. -/

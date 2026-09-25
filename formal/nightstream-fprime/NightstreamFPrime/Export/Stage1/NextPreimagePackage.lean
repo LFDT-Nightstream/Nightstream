@@ -104,7 +104,7 @@ theorem sourceRows_imply_spec (env : Env)
   have logical : ConstraintsHold env constraints :=
     R1CS.lowerConstraints_sound env constraints privateStart loweredRows
   have flat : holdsFlat env operations := by
-    simpa [constraints] using logical
+    simpa [constraints] using! logical
   exact NextPreimage.soundness NextPreimageInputs.spartanInterface env
     privateStart (holdsFlat_implies_holds env operations flat)
 

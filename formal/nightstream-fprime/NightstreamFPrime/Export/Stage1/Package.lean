@@ -622,7 +622,7 @@ theorem circuitPackage_implies_piRlcDigestWindow
       PiRLCSamplerInvocations.sourceInterface,
       PiRLCSamplerOrdinaryRows.chainInterface,
       PiRLCSamplerInvocations.chainInterface,
-      PiRLCSamplerInvocations.sourceLogicalStart] using
+      PiRLCSamplerInvocations.sourceLogicalStart] using!
       circuitPackage_implies_piRlcWindowPermutation env holds source round
         sourceLt roundLt
 
@@ -659,7 +659,7 @@ theorem circuitPackage_implies_piRlcSamplerPrefix
       PiRLCSamplerInvocations.sourceInterface,
       PiRLCSamplerOrdinaryRows.chainInterface,
       PiRLCSamplerInvocations.chainInterface,
-      PiRLCSamplerInvocations.sourceLogicalStart] using
+      PiRLCSamplerInvocations.sourceLogicalStart] using!
       circuitPackage_implies_piRlcDigestWindow env holds source round.val
         sourceLt round.isLt windowAssumptions
 
@@ -938,7 +938,7 @@ theorem circuitPackage_implies_piRlcSpecHolds_of_combinationRows
     intro operation member
     cases member
   · simpa [PiRLCSamplerRows.samplerInterface,
-      PiRLCSamplerRows.sharedInterface] using
+      PiRLCSamplerRows.sharedInterface] using!
       circuitPackage_implies_piRlcSamplerChain env holds assumptions.sampler
   · simpa [PiRLCCombinationInvocations.productionCommitmentFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
@@ -1093,29 +1093,8 @@ theorem circuitPackage_implies_pilotHashFacts
       NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
       Spec.Poseidon2.rate,
       NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount])
-  have outputState := chainOutputState_lift PilotData.outputChain env (by
-    norm_num [PilotData.outputChain, PilotData.outputWitnessStart,
-      NightstreamFPrime.Layout.PilotValues.outputWitnessStart,
-      NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
-      NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
-      NightstreamFPrime.Layout.PilotValues.absorbCount,
-      NightstreamFPrime.Layout.PilotValues.permutationRecipeCount,
-      NightstreamFPrime.Layout.PilotValues.stateHashWords,
-      NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
-      Spec.Poseidon2.rate,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount]) (by
-    norm_num [PilotData.outputChain, PilotData.outputWitnessStart,
-      PilotData.priorWitnessStart,
-      NightstreamFPrime.Layout.PilotValues.outputWitnessStart,
-      NightstreamFPrime.Layout.PilotValues.priorWitnessStart,
-      NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
-      NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
-      NightstreamFPrime.Layout.PilotValues.absorbCount,
-      NightstreamFPrime.Layout.PilotValues.permutationRecipeCount,
-      NightstreamFPrime.Layout.PilotValues.stateHashWords,
-      NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
-      Spec.Poseidon2.rate,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount])
+  have outputState := chainOutputState_lift PilotData.outputChain env
+    (by decide) (by decide)
   have pilotPriorHash :
       List.ofFn (fun lane : Fin 4 =>
         NightstreamFPrime.Export.Pilot.chainOutputState
@@ -1135,7 +1114,7 @@ theorem circuitPackage_implies_pilotHashFacts
       _ = Spec.Poseidon2.hash
           (NightstreamFPrime.Export.Pilot.chainInputValues
             (Data.liftPilotChain PilotData.priorChain) env) := by
-        simpa [Data.priorChain] using priorHash
+        simpa [Data.priorChain] using! priorHash
       _ = Spec.Poseidon2.hash
           (NightstreamFPrime.Export.Pilot.chainInputValues
             PilotData.priorChain (pilotEnv env)) := by
@@ -1182,7 +1161,7 @@ theorem circuitPackage_implies_pilotHashFacts
       _ = Spec.Poseidon2.hash
           (NightstreamFPrime.Export.Pilot.chainInputValues
             (Data.liftPilotChain PilotData.outputChain) env) := by
-        simpa [Data.outputChain] using outputHash
+        simpa [Data.outputChain] using! outputHash
       _ = Spec.Poseidon2.hash
           (NightstreamFPrime.Export.Pilot.chainInputValues
             PilotData.outputChain (pilotEnv env)) := by

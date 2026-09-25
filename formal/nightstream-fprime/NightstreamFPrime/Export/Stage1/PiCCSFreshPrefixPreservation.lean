@@ -71,7 +71,7 @@ private theorem embedded_vector (action : Option (Vector F Spec.ProductionRelati
       intro index inside
       have equal := ports ⟨index, inside⟩
       simp only [returned, Option.map_some] at equal
-      simpa only [Vector.getElem_map, Vector.getElem_ofFn] using Option.some.inj equal
+      simpa only [Vector.getElem_map, Vector.getElem_ofFn] using! Option.some.inj equal
 
 private def reference {arity ports : Nat} (tables : Fin ports → BooleanTable K arity)
     (count : Nat) (fits : count ≤ 2 ^ arity) : Array (Vector K ports) :=

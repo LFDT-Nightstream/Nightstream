@@ -569,7 +569,7 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
       (NightstreamFPrime.Gadgets.Sampling.First54.opsAt
         (selectorInterface interface coordinate parentOffset) offset) =
       Logical.logicalPrivateCount := by
-    simpa using NightstreamFPrime.Gadgets.Sampling.First54.localLength_eq
+    simpa using! NightstreamFPrime.Gadgets.Sampling.First54.localLength_eq
       (selectorInterface interface coordinate parentOffset) offset
   rw [lengthEq, totalFreshCount_eq]
   rfl
@@ -709,6 +709,6 @@ theorem physical_complete (interface : Logical.Interface)
   rw [← logicalConstraints_eq_segments_flatten interface coordinate
       parentOffset offset,
     totalFreshCount_eq interface coordinate parentOffset offset] at combined
-  simpa [Logical.logicalPrivateCount] using combined
+  simpa [Logical.logicalPrivateCount] using! combined
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54

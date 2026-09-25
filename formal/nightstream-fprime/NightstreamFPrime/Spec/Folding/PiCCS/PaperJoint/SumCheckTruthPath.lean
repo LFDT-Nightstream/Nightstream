@@ -278,7 +278,7 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
                   (VertexEncoding.fieldCoordinates ops tail) rights =
                 BooleanVertex.equalityWeightCoordinates ops tail rights := by
             simpa only [pointEquality, VertexEncoding.toCubePoint,
-              BooleanVertex.equalityWeight] using
+              BooleanVertex.equalityWeight] using!
               inductionHypothesis rights tailDimension
           cases coordinate
           · simp only [pointEquality, VertexEncoding.toCubePoint,

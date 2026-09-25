@@ -71,21 +71,24 @@ def finalIdentityLogicalStart : Nat := normLogicalStart + 32
 def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 27758
 
 theorem statementWitnessStart_eq : statementWitnessStart = 14751804 := by
+  unfold statementWitnessStart
   exact PiCCSInputs.phaseOffset_eq
 
 theorem challengeWitnessStart_eq : challengeWitnessStart = 14976172 := by
-  rw [challengeWitnessStart, statementWitnessStart_eq]
+  unfold challengeWitnessStart
+  rw [statementWitnessStart_eq]
 
 theorem roundTranscriptWitnessStart_eq :
     roundTranscriptWitnessStart = 15027676 := by
-  rw [roundTranscriptWitnessStart, challengeWitnessStart_eq]
+  unfold roundTranscriptWitnessStart
+  rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
     outputBindingWitnessStart = 15256706 := by
-  norm_num [outputBindingWitnessStart, finalIdentityLogicalStart,
-    normLogicalStart, ccsLogicalStart, evalALogicalStart, evalKLogicalStart,
-    sumcheckLogicalStart, initialClaimLogicalStart,
-    roundTranscriptWitnessStart_eq]
+  unfold outputBindingWitnessStart finalIdentityLogicalStart
+    normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
+    sumcheckLogicalStart initialClaimLogicalStart
+  rw [roundTranscriptWitnessStart_eq]
 
 /-- The materialized output-child start is the exact start selected by the
 canonical PiCCS parent for every production relation. -/

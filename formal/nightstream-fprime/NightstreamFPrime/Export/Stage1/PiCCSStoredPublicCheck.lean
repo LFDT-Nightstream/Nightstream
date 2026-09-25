@@ -265,7 +265,7 @@ private theorem powerLoop_value (value : K) (count : Nat) : ∀ exponent work,
 
 private theorem power_value (value : K) (count : Nat) :
     (power value count).value = TargetPolynomial.power extensionOps.toOps value count := by
-  simpa only [power, TargetPolynomial.power, Nat.add_zero] using powerLoop_value value count 0 2
+  simpa only [power, TargetPolynomial.power, Nat.add_zero] using! powerLoop_value value count 0 2
 
 private theorem powerLoop_work (value : K) (count : Nat) (initial : Result K) :
     (powerLoop value count initial).work = initial.work + count * 16 + 2 := by

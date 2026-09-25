@@ -135,7 +135,7 @@ private theorem entryFreshCount (source : Nat) :
     (fun current =>
       { initialState := by
           simpa [Sampler.Logical.entryInterface,
-            Sampler.Logical.entryOffset] using
+            Sampler.Logical.entryOffset] using!
             (sourceInputs source current).initialState })
     (Sampler.Logical.entryOffset (sourceOffset source))
 
@@ -532,7 +532,7 @@ theorem remappedPacket_implies_laneSourceRows (env : Env)
   rw [PiRLCSamplerOrdinaryRows.laneConstraints_eq_fromCircuit]
   simpa [PiRLCStarts.digestLaneFreshStart,
     PiRLCStarts.windowFreshStart, PiRLCStarts.samplerSourceFreshStart]
-    using laneRows
+    using! laneRows
 
 /-- Exact source-column digest-lane rows construct the canonical compiled
 ordinary-row packet after the Stage 1 column remap. -/
@@ -567,7 +567,7 @@ theorem remappedPacket_implies_selectorSourceRows (env : Env)
     (entryFreshCount source.val) (windowFreshCount source.val) segments
   simpa [sourceOffset, PiRLCStarts.samplerSourceLogicalStart,
     PiRLCStarts.selectorLogicalStart, PiRLCStarts.selectorFreshStart,
-    PiRLCStarts.samplerSourceFreshStart] using selectorRows
+    PiRLCStarts.samplerSourceFreshStart] using! selectorRows
 
 /-- The exact selector child lowering projects to its final fail-closed
 assertion after the complete 64-round fresh prefix. -/
@@ -620,7 +620,7 @@ theorem remappedPacket_implies_selectorFinalSourceRows (env : Env)
   rw [prefixFresh] at finalRows
   simpa [PiRLCStarts.selectorFreshStart,
     PiRLCStarts.samplerSourceFreshStart]
-    using finalRows
+    using! finalRows
 
 /-- The source selector assertion constructs its exact canonical compiled
 ordinary row after the Stage 1 column remap. -/

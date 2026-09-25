@@ -184,7 +184,7 @@ theorem spec_implies_keyNormAtMessage
           ((canonicalFinIndices productionShape.sourceCount).map fun source =>
             ProtocolPolynomial.strictNormResidual extensionOps
               (message.sourceAssignment source)) := by
-      simpa [gamma, message] using specification
+      simpa [gamma, message] using! specification
     _ = FiniteSumAlgebra.sumMap extensionOps
         (canonicalFinIndices productionShape.sourceCount) fun source =>
           SignedJointIdentity.gammaTerm extensionOps gamma source.val

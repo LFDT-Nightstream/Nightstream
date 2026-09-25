@@ -192,7 +192,7 @@ theorem semantics_imply_contextKey
         (PerApplicationCanonicalPackage.verifierContextDescriptor fits
           commitmentSetup)).symm
   · intro index leftBound rightBound
-    let lane : Fin 4 := ⟨index, by simpa using leftBound⟩
+    let lane : Fin 4 := ⟨index, by simpa using! leftBound⟩
     have row := context lane
     have custody :=
       PerApplicationDecodedIO.commonEnv_eq_transitionEnv_of_source bound
@@ -217,7 +217,7 @@ theorem semantics_imply_contextKey
             Lifecycle.PiCCS.v1_1.Formal.atOffset,
             PiCCSInputs.priorStateWord,
             Lifecycle.PiCCS.v1_1.StateBinding.contextWordStart,
-            PiCCSInputs.expectedContext] using row
+            PiCCSInputs.expectedContext] using! row
         _ = (verifierContextDigest fits commitmentSetup).getD lane.val 0 :=
           expected
     have rightGet := List.getD_eq_get

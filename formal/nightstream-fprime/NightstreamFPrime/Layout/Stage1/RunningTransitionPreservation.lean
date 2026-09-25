@@ -37,7 +37,7 @@ theorem physical_implies_holdsFlat
   have logicalRows :=
     R1CS.LoweringPlan.sound (plan logicalWidth publicFits) env physical
   rw [plan_constraints] at logicalRows
-  simpa only [logicalConstraints] using logicalRows
+  simpa only [logicalConstraints] using! logicalRows
 
 theorem physical_implies_specHolds
     {logicalWidth : Nat}
@@ -111,7 +111,7 @@ theorem physicalRows_varsBelow
   have rowScope := R1CS.lowerConstraints_rows_varsBelow
     (plan logicalWidth publicFits).constraints
     (plan logicalWidth publicFits).firstFresh planScope row member
-  simpa [physicalColumnCount, R1CS.LoweringPlan.next_eq] using rowScope
+  simpa [physicalColumnCount, R1CS.LoweringPlan.next_eq] using! rowScope
 
 theorem physical_complete
     {logicalWidth : Nat}

@@ -66,7 +66,7 @@ theorem parentBounded_project {shape : Shape}
     (bounded : assignmentNormBounded productionGlobalParams.bigB assignment) :
     parentBounded (projectPublicInput assignment) := by
   intro column
-  simpa [parentBounded, Radix.combinedBound] using
+  simpa [parentBounded, Radix.combinedBound] using!
     bounded (shape.publicColumn column)
 
 /-- Coordinatewise public split computed by the Section-7.5 verifier. -/

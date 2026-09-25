@@ -35,8 +35,9 @@ def phaseOffset : Nat := 20064823
 that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
 theorem piCcsLogicalFreshBase_le_phaseOffset :
     PiCCSStarts.logicalFreshBase ≤ phaseOffset := by
-  norm_num [PiCCSStarts.logicalFreshBase, PiCCSInputs.phaseOffset_eq,
-    phaseOffset]
+  unfold PiCCSStarts.logicalFreshBase phaseOffset
+  rw [PiCCSInputs.phaseOffset_eq]
+  norm_num
 
 theorem phaseOffset_matches_piCcs
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

@@ -273,7 +273,7 @@ theorem combinedOutput_holds
   · exact algebra.norm_growth arity.total_le challenges assignments
       challengesValid (fun i => by
         have inputNorm := (inputValid i).1.2.2
-        simpa [inputFresh i] using inputNorm)
+        simpa [inputFresh i] using! inputNorm)
   · exact (algebra.evaluations_hom system point challenges assignments).trans
       (congrArg (algebra.combineEvaluations challenges) evaluationsAgree)
 

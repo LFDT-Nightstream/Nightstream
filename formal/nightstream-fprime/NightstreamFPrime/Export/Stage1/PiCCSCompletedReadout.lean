@@ -136,7 +136,7 @@ theorem transitionEnv_of_completed
       RunningTransitionDirectPlan.packageEnv application
         (PerApplicationSourceAssignment.ofCompleted application target suffix) column = target column := by
     apply PerApplicationSourceAssignment.packageEnv_ofCompleted
-    simpa only [Spartan.spartanColumnCount_eq, PerApplicationPackage.basePackage_totalColumnCount_eq] using columnBound
+    simpa only [Spartan.spartanColumnCount_eq, PerApplicationPackage.basePackage_totalColumnCount_eq] using! columnBound
   have same := PermutationOutput.Readout.env_congr_at PiCCSTranscriptReadout.phaseStart
     PiCCSOrdinarySourceSupport.transcriptInvocationCount
     (RunningTransitionDirectPlan.packageEnv application

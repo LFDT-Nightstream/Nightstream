@@ -31,7 +31,7 @@ theorem physical_implies_relation (interface : Logical.Interface)
   rw [plan_constraints] at logicalRows
   apply Logical.soundness interface offset env assumptions
   apply holdsFlat_implies_holds
-  simpa only [logicalConstraints] using logicalRows
+  simpa only [logicalConstraints] using! logicalRows
 
 set_option maxRecDepth 100000 in -- fixed-size: 17 scalar samplers
 theorem physical_complete (interface : Logical.Interface) (offset : Nat)
@@ -61,7 +61,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
   have planLogical : ConstraintsHold logicalEnv
       (plan interface offset).constraints := by
     rw [plan_constraints]
-    simpa only [logicalConstraints] using logicalRows
+    simpa only [logicalConstraints] using! logicalRows
   rcases R1CS.LoweringPlan.complete (plan interface offset) logicalEnv
       planScope planLogical with
     ⟨completed, physicalAgrees, rows⟩

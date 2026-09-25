@@ -321,12 +321,12 @@ def piRlcAssumptions
   · refine ⟨?_⟩
     intro lane
     simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
-      PiRLC.v1_1.Formal.atOffset, AssemblerInputs.piRlcInterface] using
+      PiRLC.v1_1.Formal.atOffset, AssemblerInputs.piRlcInterface] using!
         piCcsOutputStateBelow relation program env lane
   · refine { challengeBelow := ?_, inputBelow := ?_ }
     · intro source lane
       simpa [shared, PiRLC.v1_1.Formal.commitmentInterface,
-        PiRLC.v1_1.CommitmentCombination.familyInterface] using
+        PiRLC.v1_1.CommitmentCombination.familyInterface] using!
           samplerChallengeBelow relation program source lane
     · intro source row lane cell
       apply Expr.VarsBelow.mono _
@@ -745,7 +745,7 @@ def piDecInputsBelow
         PiRLC.v1_1.SamplerChain.sourceCount_eq,
         PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
   · intro child row lane
-    simpa [AssemblerInputs.piDecInterface] using
+    simpa [AssemblerInputs.piDecInterface] using!
       Expr.VarsBelow.mono _ (source.messageCommitment child row lane) sourceLe
   · intro child coefficient
     exact ⟨
@@ -758,7 +758,7 @@ def piDecInputsBelow
       Expr.VarsBelow.mono _
         (source.messageEval_A child matrix coefficient).2 sourceLe⟩
   · intro child coordinate
-    simpa [AssemblerInputs.piDecInterface] using
+    simpa [AssemblerInputs.piDecInterface] using!
       Expr.VarsBelow.mono _ (source.digit child coordinate) sourceLe
 
 /-- The compact PiDEC child has every causal assumption required by its sole
@@ -856,13 +856,13 @@ def runningAssumptions
     currentState := ?_
     recursive := ?_
     output := ?_ }
-  · simpa [AssemblerInputs.runningInterface] using
+  · simpa [AssemblerInputs.runningInterface] using!
       Expr.VarsBelow.mono _ source.iteration sourceLe
   · intro index
-    simpa [AssemblerInputs.runningInterface] using
+    simpa [AssemblerInputs.runningInterface] using!
       Expr.VarsBelow.mono _ (source.initialState index) sourceLe
   · intro index
-    simpa [AssemblerInputs.runningInterface] using
+    simpa [AssemblerInputs.runningInterface] using!
       Expr.VarsBelow.mono _ (source.currentState index) sourceLe
   · intro index
     exact Lifecycle.Stage1.RunningTransition.runningWord_varsBelow _

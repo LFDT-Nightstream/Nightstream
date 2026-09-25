@@ -357,7 +357,7 @@ theorem commitmentEquation
     (Formal.commitmentOffset offset) env specification.commitment
   rw [commitmentChallenges_eq interface offset env,
     commitmentInputs_eq relation interface offset env] at coverage
-  simpa [PaperAlgebra.piRlcAlgebra] using
+  simpa [PaperAlgebra.piRlcAlgebra] using!
     (commitmentOutput_eq relation interface offset env).trans coverage
 
 theorem publicInputEquation
@@ -500,7 +500,7 @@ theorem PhaseHolds.response
           (Formal.samplerOffset offset) env)
         Nifs.PaperProfile.arity.total =
       some (evalChallenges interface offset env) := by
-  simpa [evalChallenges, sourceIndex, arityTotal_eq_sourceCount] using
+  simpa [evalChallenges, sourceIndex, arityTotal_eq_sourceCount] using!
     phase.sampler.response
 
 theorem PhaseHolds.outgoingState
@@ -522,7 +522,7 @@ theorem PhaseHolds.outgoingState
           (Formal.samplerInterface (Formal.atOffset interface offset))
           (Formal.samplerOffset offset) env)
         Nifs.PaperProfile.arity.total := by
-  simpa [arityTotal_eq_sourceCount] using phase.sampler.finalState
+  simpa [arityTotal_eq_sourceCount] using! phase.sampler.finalState
 
 theorem challengesValid
     {logicalWidth : Nat}
@@ -544,7 +544,7 @@ theorem challengesValid
     (sourceIndex source)
   simpa [PaperAlgebra.piRlcAlgebra,
     Phi81Relation.PiRLCAlgebra.Challenge.challengeValid,
-    evalChallenges] using
+    evalChallenges] using!
       NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.sampleRingChallenge_member
         success
 

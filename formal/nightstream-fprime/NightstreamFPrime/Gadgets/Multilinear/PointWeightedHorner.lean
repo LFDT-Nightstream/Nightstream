@@ -147,7 +147,7 @@ theorem specHolds_at_iff_of_fields_eq {variableCount : Nat}
   · rintro ⟨point, horner, product⟩
     refine ⟨?_, ?_, ?_⟩
     · simpa [PointEquality.SpecHolds, pointInterfaceAt, leftEq, rightEq,
-        pointEqualityEq] using point
+        pointEqualityEq] using! point
     · simpa [Horner.SpecHolds, hornerInterfaceAt, hornerPointEq,
         coefficientsEq, weightedSumEq] using horner
     · simpa [productExpr, expectedEq, pointEqualityEq, weightedSumEq]
@@ -155,7 +155,7 @@ theorem specHolds_at_iff_of_fields_eq {variableCount : Nat}
   · rintro ⟨point, horner, product⟩
     refine ⟨?_, ?_, ?_⟩
     · simpa [PointEquality.SpecHolds, pointInterfaceAt, leftEq, rightEq,
-        pointEqualityEq] using point
+        pointEqualityEq] using! point
     · simpa [Horner.SpecHolds, hornerInterfaceAt, hornerPointEq,
         coefficientsEq, weightedSumEq] using horner
     · simpa [productExpr, expectedEq, pointEqualityEq, weightedSumEq]
@@ -408,7 +408,7 @@ theorem completeness {variableCount : Nat} (interface : Interface variableCount)
     ⟨completed, hornerAgrees, hornerRows⟩
   have combinedAgrees : AgreesOutside env completed offset
       (pointLength interface offset + hornerLength interface offset) := by
-    simpa [hornerOffset] using pointAgrees.append hornerAgrees
+    simpa [hornerOffset] using! pointAgrees.append hornerAgrees
   have pointRowsAfter := pointRows_preserved interface offset env middle
     completed assumptions positive pointRows hornerAgrees
   have productRows := productRows_complete interface offset env completed
@@ -777,7 +777,7 @@ theorem build {variableCount : Nat} (interface : Interface variableCount)
     ⟨completed, hornerAgrees, hornerRows⟩
   have combinedAgrees : AgreesOutside env completed offset
       (pointLength interface offset + hornerLength interface offset) := by
-    simpa [hornerOffset] using pointAgrees.append hornerAgrees
+    simpa [hornerOffset] using! pointAgrees.append hornerAgrees
   have pointRowsAfter := pointRows_preserved interface offset env middle
     completed assumptions positive pointRows hornerAgrees
   refine ⟨completed, ?_, ?_⟩

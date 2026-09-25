@@ -253,7 +253,7 @@ theorem acceptedLeftProgram_form?
         { major := source.val, middle := round.val, minor := 0 } =
       some (some oneForm) := by
     simpa [allAccepted, region, sourceCount, roundCount, oneForm,
-      PiRLCFirst54DirectPlan.oneForm, inputs] using
+      PiRLCFirst54DirectPlan.oneForm, inputs] using!
         constantRule_form? allAccepted source round (0 : Fin 1)
           (PiRLCRetainedGeometry.oneColumn geometry) (1 : F)
   have rejectLoaded :
@@ -401,16 +401,16 @@ theorem acceptedGrid_row?
   have direct := MultiplicationGrid.Block.row?_of_results
     (acceptedGrid geometry) (PiRLCRetainedGeometry.oneColumn geometry) rfl
     source round (0 : Fin 1) accepted symbol product
-    (by simpa [accepted, inputs] using
+    (by simpa [accepted, inputs] using!
       acceptedLeftProgram_form? geometry source round)
-    (by simpa [symbol, inputs] using
+    (by simpa [symbol, inputs] using!
       acceptedRightProgram_form? geometry source round)
-    (by simpa [product, inputs] using
+    (by simpa [product, inputs] using!
       acceptedOutputProgram_form? geometry source round)
   simpa [MultiplicationFamilyPlan.forms,
     PiRLCFirst54DirectPlan.acceptedProductInterface,
     PiRLCFirst54DirectSchedule.candidate_candidateIndex,
-    accepted, symbol, product, inputs] using direct
+    accepted, symbol, product, inputs] using! direct
 
 theorem valueRightProgram_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -573,7 +573,7 @@ theorem valueOutputProgram_form?
         0 3456 54 1 (-1) prior laterInside
         (by simpa [prior, PiRLCFirst54DirectPlan.priorValueForm,
           valueDescriptor, candidate, first, previousCandidate_eq,
-          priorRound, inputs] using priorRaw)
+          priorRound, inputs] using! priorRaw)
       simpa [applyCoefficient, negOne_ne_one] using selected
     change (Program.mk [
         retainedRule allValue (valueWire program) 0 3456 54 1 1,
@@ -642,7 +642,7 @@ theorem valueLeftProgram_form?
           (0 : Fin 1) (0 : Fin 1)
           (PiRLCRetainedGeometry.oneColumn geometry) (1 : F)
         simpa [firstSlotZero, region, first, firstSlot, oneForm,
-          PiRLCFirst54DirectPlan.oneForm, inputs] using selected
+          PiRLCFirst54DirectPlan.oneForm, inputs] using! selected
       change (Program.mk [
           constantRule firstSlotZero 1,
           retainedRule laterValueAll (positionWire program) 0 3520 55 1 1]).form?
@@ -744,7 +744,7 @@ theorem valueLeftProgram_form?
         0 3520 55 1 1 prior laterInside
         (by simpa [prior, PiRLCFirst54DirectPlan.priorPositionForm,
           candidate, first, previousCandidate_eq, priorRound, positionSlot,
-          positionDescriptor, inputs] using raw)
+          positionDescriptor, inputs] using! raw)
       simpa [applyCoefficient] using selected
     change (Program.mk [
         constantRule firstSlotZero 1,
@@ -787,16 +787,16 @@ theorem valueGrid_row?
   have direct := MultiplicationGrid.Block.row?_of_results
     (valueGrid geometry) (PiRLCRetainedGeometry.oneColumn geometry) rfl
     source round slot left right output
-    (by simpa [left, inputs] using
+    (by simpa [left, inputs] using!
       valueLeftProgram_form? geometry source round slot)
-    (by simpa [right, inputs] using
+    (by simpa [right, inputs] using!
       valueRightProgram_form? geometry source round slot)
-    (by simpa [output, inputs] using
+    (by simpa [output, inputs] using!
       valueOutputProgram_form? geometry source round slot)
   simpa [MultiplicationFamilyPlan.forms,
     PiRLCFirst54DirectPlan.valueInterface,
     PiRLCFirst54DirectSchedule.value_valueIndex,
-    left, right, output, inputs] using direct
+    left, right, output, inputs] using! direct
 
 theorem positionLeftProgram_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -826,7 +826,7 @@ theorem positionLeftProgram_form?
     have selected := constantRule_form? allPosition source round slot
       (PiRLCRetainedGeometry.oneColumn geometry) (1 : F)
     simpa [allPosition, region, oneForm,
-      PiRLCFirst54DirectPlan.oneForm, inputs] using selected
+      PiRLCFirst54DirectPlan.oneForm, inputs] using! selected
   have raw := rejectWire_form? geometry source round
   have rejectLoaded :
       (retainedRule allPosition (rejectWire program) 0 64 1 0 (-1)).form?
@@ -1070,7 +1070,7 @@ theorem positionOutputProgram_form?
         0 3520 55 1 (-1) prior laterInside
         (by simpa [prior, PiRLCFirst54DirectPlan.priorPositionForm,
           candidate, first, previousCandidate_eq, priorRound,
-          positionDescriptor, inputs] using priorRaw)
+          positionDescriptor, inputs] using! priorRaw)
       simpa [applyCoefficient, negOne_ne_one] using selected
     change (Program.mk [
         retainedRule allPosition (positionWire program) 0 3520 55 1 1,

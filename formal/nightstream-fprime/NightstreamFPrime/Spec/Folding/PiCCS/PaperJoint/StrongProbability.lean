@@ -1016,11 +1016,6 @@ theorem jointTapeLaw_apply {Context Tape : Type*}
     by_cases same : context = chosen
     · subst chosen
       simp [PMF.map_apply, Prod.mk.injEq, eq_comm]
-      symm
-      calc
-        _ = (if tape = tape then tapes context tape else 0) :=
-          tsum_eq_single tape (fun other different => if_neg (Ne.symm different))
-        _ = _ := if_pos rfl
     · simp only [PMF.map_apply, Prod.mk.injEq, same, false_and, ite_false, tsum_zero]
   rw [jointTapeLaw, PMF.bind_apply]
   simp_rw [mapped]

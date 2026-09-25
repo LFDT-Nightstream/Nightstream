@@ -209,7 +209,7 @@ private theorem canonical_first54Value_read
           ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
             slotBound⟩ =
         (PiRLCFirst54DirectPlan.retainedValueColumn program descriptor).val := by
-    simpa only using first54Value_sourceIndex program descriptor
+    simpa only using! first54Value_sourceIndex program descriptor
   have sourceBound :
       PerApplicationAssignmentBlocks.sourceIndex program .first54Value
           ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
@@ -263,7 +263,7 @@ private theorem canonical_first54Value_read
         PerApplicationAssignmentBlocks.zeroRaw,
         PerApplicationAssignmentPlan.BlockKind.expand,
         PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using
+        CanonicalBlockAssignment.ofBlock] using!
           (LowNormBlock.Block.form_eval
             (PiRLCFirst54RetainedBlocks.valueBlock program)
             (PiRLCRetainedGeometry.valueStart program)
@@ -293,7 +293,7 @@ private theorem canonical_first54Reject_read
           ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
             slotBound⟩ =
         (PiRLCFirst54DirectPlan.retainedRejectColumn program candidate).val := by
-    simpa only using first54Reject_sourceIndex program candidate
+    simpa only using! first54Reject_sourceIndex program candidate
   have sourceBound :
       PerApplicationAssignmentBlocks.sourceIndex program .first54Reject
           ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
@@ -347,7 +347,7 @@ private theorem canonical_first54Reject_read
         PerApplicationAssignmentBlocks.zeroRaw,
         PerApplicationAssignmentPlan.BlockKind.expand,
         PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using
+        CanonicalBlockAssignment.ofBlock] using!
           (LowNormBlock.Block.form_eval
             (PiRLCFirst54RetainedBlocks.rejectBlock program)
             (PiRLCRetainedGeometry.rejectStart program)
@@ -377,7 +377,7 @@ private theorem canonical_first54Symbol_read
           ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
             slotBound⟩ =
         (PiRLCFirst54DirectPlan.retainedSymbolColumn program candidate).val := by
-    simpa only using first54Symbol_sourceIndex program candidate
+    simpa only using! first54Symbol_sourceIndex program candidate
   have sourceBound :
       PerApplicationAssignmentBlocks.sourceIndex program .first54Symbol
           ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
@@ -431,7 +431,7 @@ private theorem canonical_first54Symbol_read
         PerApplicationAssignmentBlocks.zeroRaw,
         PerApplicationAssignmentPlan.BlockKind.expand,
         PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using
+        CanonicalBlockAssignment.ofBlock] using!
           (LowNormBlock.Block.form_eval
             (PiRLCFirst54RetainedBlocks.symbolBlock program)
             (PiRLCRetainedGeometry.symbolStart program)
@@ -709,7 +709,7 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
   simpa [PiRLCProductPlan.honestGroupValue,
     PiRLCProductPlan.groupIndex, ProductSumPlan.groupAt,
     Phi81ProductFamilyPlan.laneInterface, PiRLCProductPlan.interface,
-    inputs, descriptor, geometry] using
+    inputs, descriptor, geometry] using!
       (canonical_ringGroupValue_eq_groupTotal
         (PiRLCProductPlan.challengeState inputs invocation)
         (PiRLCProductPlan.valueState inputs invocation) descriptor.lane

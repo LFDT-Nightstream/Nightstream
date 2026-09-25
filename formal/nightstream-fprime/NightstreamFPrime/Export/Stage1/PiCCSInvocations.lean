@@ -341,7 +341,7 @@ theorem challengeInitialState_eq_statementFinalState
       statementInterface logicalWidth publicFits := by
     rfl
   have offsetEq : phaseOffset = statementWitnessStart := by
-    simpa [statementWitnessStart] using
+    simpa [statementWitnessStart] using!
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq
   have finalStateEq :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.statementFinalState
@@ -496,7 +496,7 @@ theorem roundTrace_eq_semantic
       (roundInterface logicalWidth publicFits).initialState
         roundWitnessStart := by
     simpa [roundInterface, Formal.roundTranscriptInterface,
-      Formal.challengeFinalState, sharedInterface] using
+      Formal.challengeFinalState, sharedInterface] using!
       challengeTrace_state_matches logicalWidth publicFits
   unfold roundTrace roundSemanticTrace
   rw [initialEq]
@@ -598,7 +598,7 @@ theorem outputTrace_eq_semantic
       (outputInterface logicalWidth publicFits).initialState
         outputWitnessStart := by
     simpa [outputInterface, Formal.outputBindingInterface,
-      Formal.roundTranscriptFinalState, sharedInterface] using
+      Formal.roundTranscriptFinalState, sharedInterface] using!
       roundTrace_state_matches logicalWidth publicFits
   unfold outputTrace outputSemanticTrace
   rw [initialEq]
@@ -929,14 +929,13 @@ def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
 theorem invocationCeiling_eq : invocationCeiling = 19332940 := by
-  norm_num [invocationCeiling,
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
+  unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+  rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+  norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
     NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
     NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
     NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-    NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart]
 theorem invocationCeiling_le_private :
     invocationCeiling ≤
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
@@ -1011,8 +1010,8 @@ theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
   rw [outputInvocationCount_eq]
   unfold outputWitnessStart
   rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-  norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-    NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+  unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+  rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
 
 /-- The exact production output-binding state is wholly below the first
 PiRLC sampler column. Downstream semantic views can therefore transport this
@@ -1133,8 +1132,8 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
       (statementWitnessStart +
         invocationCount (statementActions logicalWidth publicFits) * 592) ≤
@@ -1192,7 +1191,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
       (interface.initialState challengeWitnessStart lane).VarsBelow
         challengeWitnessStart := by
     have startMatch := challengeWitnessStart_matches logicalWidth publicFits
-    simpa [interface, challengeInterface, startMatch] using stateBelowAtFormal
+    simpa [interface, challengeInterface, startMatch] using! stateBelowAtFormal
   have stateBelow : ∀ lane,
       ((statementTrace logicalWidth publicFits).state lane).VarsBelow
         challengeWitnessStart := by
@@ -1223,8 +1222,8 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
       (challengeWitnessStart +
         invocationCount (challengeActions logicalWidth publicFits) * 592) ≤
@@ -1271,7 +1270,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   have initialEq : (challengeTrace logicalWidth publicFits).state =
       interface.initialState roundWitnessStart := by
     simpa [interface, roundInterface, Formal.roundTranscriptInterface,
-      Formal.challengeFinalState, sharedInterface] using
+      Formal.challengeFinalState, sharedInterface] using!
       challengeTrace_state_matches logicalWidth publicFits
   have stateAffine : NightstreamFPrime.Layout.Poseidon2.StateAffine
       (challengeTrace logicalWidth publicFits).state := by
@@ -1283,7 +1282,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
         roundWitnessStart := by
     have startMatch := roundWitnessStart_matches logicalWidth publicFits
     have below := transcript.roundTranscript.1
-    simpa [interface, roundInterface, startMatch] using below
+    simpa [interface, roundInterface, startMatch] using! below
   have stateBelow : ∀ lane,
       ((challengeTrace logicalWidth publicFits).state lane).VarsBelow
         roundWitnessStart := by
@@ -1303,7 +1302,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   have roundAssumptions : RoundTranscript.Assumptions interface
       roundWitnessStart (fun _ => 0) := by
     have startMatch := roundWitnessStart_matches logicalWidth publicFits
-    simpa [interface, roundInterface, startMatch] using
+    simpa [interface, roundInterface, startMatch] using!
       transcript.roundTranscript
   have strongBelow := RoundTranscript.layoutActions_below interface
     roundWitnessStart roundAssumptions
@@ -1324,8 +1323,8 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     unfold outputWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+    unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+    rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] <;> norm_num
   have endStrict : roundWitnessStart +
       invocationCount (roundActions logicalWidth publicFits) * 592 <
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=
@@ -1366,7 +1365,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
   have initialEq : (roundTrace logicalWidth publicFits).state =
       interface.initialState outputWitnessStart := by
     simpa [interface, outputInterface, Formal.outputBindingInterface,
-      Formal.roundTranscriptFinalState, sharedInterface] using
+      Formal.roundTranscriptFinalState, sharedInterface] using!
       roundTrace_state_matches logicalWidth publicFits
   have stateAffine : NightstreamFPrime.Layout.Poseidon2.StateAffine
       (roundTrace logicalWidth publicFits).state := by
@@ -1410,7 +1409,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
       (outputActions logicalWidth publicFits) := by
     have startMatch := outputWitnessStart_matches logicalWidth publicFits
       relation
-    simpa [interface, outputInterface, outputActions, startMatch] using
+    simpa [interface, outputInterface, outputActions, startMatch] using!
       strongBelowAtFormal
   have actionsBelow := actionsInvocationInputsBelow_of_actionsBelow
     outputWitnessStart (outputActions logicalWidth publicFits) strongBelow
@@ -1431,5 +1430,5 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     invocationCeiling_le_private endWithin stateAffine stateBelow actionsAffine
     actionsBelow
   rw [outputEnd_eq_logicalFreshBase] at scheduled
-  simpa [invocationCeiling] using scheduled
+  simpa [invocationCeiling] using! scheduled
 end NightstreamFPrime.Export.Stage1.PiCCSInvocations

@@ -192,7 +192,7 @@ theorem selectedIteration_eq_prior
   simpa only [Lifecycle.Stage1.RunningTransition.iterationValue,
     RunningTransitionInputs.interface, RunningTransitionInputs.iterationExpr,
     RunningTransitionInputs.iterationWordIndex, Expr.eval, Nat.add_zero,
-    RunningTransitionSourceSupport.stateStart_eq] using
+    RunningTransitionSourceSupport.stateStart_eq] using!
     selectedStateWord_eq_prior application assignment ⟨0, by decide⟩
 
 /-- The full typed running output is the output preimage used by the pilot.
@@ -292,7 +292,7 @@ theorem selectedRowsAndPublic_imply_baseState
   have specification := selectedRowsZero_implies_specHolds application fits
     assignment one rows
   have fieldZero : prior 28 = 0 := by
-    simpa only [StateDecoder.iteration, StateDecoder.natWord_val] using
+    simpa only [StateDecoder.iteration, StateDecoder.natWord_val] using!
       congrArg natWord iterationZero
   have iterationRead := selectedIteration_eq_prior application assignment
   have transitionZero := iterationRead.trans fieldZero

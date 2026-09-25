@@ -349,8 +349,9 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           right
           rw [proofLogicalSource, dif_neg proof, dif_neg transcript,
             PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
-          norm_num [PiCCSInputs.phaseOffset_eq, PiCCSStarts.initialClaimLogicalStart,
-            PiCCSStarts.roundTranscriptWitnessStart_eq] <;> omega
+          unfold PiCCSStarts.initialClaimLogicalStart
+          rw [PiCCSInputs.phaseOffset_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
+          omega
 
 end Location
 

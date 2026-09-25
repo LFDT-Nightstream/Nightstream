@@ -793,7 +793,7 @@ private theorem compactPiRlcPoint_eq
     Lifecycle.PiCCS.v1_1.StatementAbsorption.evalPoint,
     PiRLCInputs.interface, PiRLCInputs.piCcsInterface,
     AssemblerInputs.piRlcInterface, AssemblerInputs.piCcsRoundPoint,
-    Lifecycle.PiCCS.v1_1.Formal.atOffset] using
+    Lifecycle.PiCCS.v1_1.Formal.atOffset] using!
       compactPiCcsRoundPointCoordinate_eq program env coordinate
 
 private theorem sourceEnv_eq_compactEnv_belowPiRlc

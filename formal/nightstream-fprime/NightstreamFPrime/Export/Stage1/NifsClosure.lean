@@ -248,7 +248,7 @@ theorem finishValue_probability_and_expected_work
   intro baseSummable basePPT primitivePPT accessPPT preparationPPT
   have preparedContexts : FiatShamirTransfer.contextLaw relation law =
       ContextPreparation.contexts (FiatShamirTransfer.contextLaw relation law) (prepare preparationClock) := by
-    simpa only [ContextPreparation.contexts, prepare] using
+    simpa only [ContextPreparation.contexts, prepare] using!
       (PMF.map_id (FiatShamirTransfer.contextLaw relation law)).symm
   have checked := NifsFiatShamir.finishValue_probability_and_expected_work
     inputs law originalFirstPhase abortTape

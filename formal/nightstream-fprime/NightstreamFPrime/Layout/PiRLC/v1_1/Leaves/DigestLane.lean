@@ -59,7 +59,7 @@ private def canonicalInputs (interface : Logical.Interface) (offset : Nat)
       (Logical.canonicalInterface interface offset)
       (Logical.canonicalOffset offset) where
   source := by
-    simpa [Logical.canonicalInterface, Logical.canonicalOffset] using inputs.source
+    simpa [Logical.canonicalInterface, Logical.canonicalOffset] using! inputs.source
 
 def logicalConstraints (interface : Logical.Interface) (offset : Nat) :
     List Expr :=
@@ -136,7 +136,7 @@ theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
   have lengthEq : localLength
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.opsAt
         interface offset) = Logical.logicalPrivateCount := by
-    simpa using Logical.localLength_eq interface offset
+    simpa using! Logical.localLength_eq interface offset
   change localLength
       (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.opsAt
         interface offset) +
@@ -184,6 +184,6 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
   refine ⟨completed, ?_, rows⟩
   have combined := logicalAgreesFixed.append physicalAgrees
   rw [totalFreshCount_eq interface offset inputs] at combined
-  simpa [Logical.logicalPrivateCount] using combined
+  simpa [Logical.logicalPrivateCount] using! combined
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane

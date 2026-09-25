@@ -294,7 +294,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     expression.VarsBelow (offset + localLength (opsAt interface offset))
   rw [flatConstraints_opsAt]
   have lengthEq : localLength (opsAt interface offset) = logicalPrivateCount := by
-    simpa using localLength_eq interface offset
+    simpa using! localLength_eq interface offset
   rw [lengthEq]
   intro expression member
   rcases List.mem_append.mp member with beforePermutation | permutationMember
@@ -330,7 +330,7 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
     (permutationInterface interface offset) (permutationOffset offset)
       (permutationAssumptions interface offset assumptions)
   intro lane
-  simpa [output, permutationOffset, logicalPrivateCount] using outputScope lane
+  simpa [output, permutationOffset, logicalPrivateCount] using! outputScope lane
 
 private theorem appendLane
     {initial : Env} {offset : Nat}
@@ -369,7 +369,7 @@ theorem complete (interface : Interface) (env : Env) (offset : Nat)
       rfl) assumptions with
     ⟨after0, ops0, end0, _⟩
   have prefix0 : after0.operations = [laneOp interface offset 0] := by
-    simpa [empty] using ops0
+    simpa [empty] using! ops0
   rcases appendLane after0 interface 1 (by
       rw [end0]
       norm_num [laneOffset, DigestLane.logicalPrivateCount]) assumptions with
@@ -420,10 +420,10 @@ theorem complete (interface : Interface) (env : Env) (offset : Nat)
     rw [operationsEq] at agrees
     have lengthEq : localLength (opsAt interface offset) =
         logicalPrivateCount := by
-      simpa using localLength_eq interface offset
+      simpa using! localLength_eq interface offset
     rw [lengthEq] at agrees
     exact agrees
-  · simpa [operationsEq] using completed.rows
+  · simpa [operationsEq] using! completed.rows
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -449,7 +449,7 @@ theorem candidateValue_eq_digestChunks (interface : Interface) (offset : Nat)
       (evalState env (interface.initialState offset)).getD
           (position.val / 2) 0 =
         (interface.initialState offset (rateLane (laneOf position))).eval env := by
-    simpa [evalState, rateLane, laneOf] using
+    simpa [evalState, rateLane, laneOf] using!
       (ofFn_getD (Layer.evalState env (interface.initialState offset))
         (rateLane (laneOf position)) 0)
   calc

@@ -75,7 +75,7 @@ private theorem completeInputPrefix
   have operations : completed.operations =
       [childOp "pirlc.v1_1.input_binding"
         (inputBindingCircuit relation shared) (inputBindingOffset offset)] := by
-    simpa [empty, Sequence.empty] using operationsEq
+    simpa [empty, Sequence.empty] using! operationsEq
   have endEq : offset + localLength completed.operations =
       samplerOffset offset := by
     calc
@@ -150,7 +150,7 @@ private theorem appendSampler
         unfold samplerCircuit SamplerChain.circuit
         rw [SamplerChain.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem appendCommitment
     {logicalWidth : Nat}
@@ -200,7 +200,7 @@ private theorem appendCommitment
         unfold commitmentCircuit
         rw [CommitmentCombination.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem appendPublicInput
     {logicalWidth : Nat}
@@ -250,7 +250,7 @@ private theorem appendPublicInput
         unfold publicInputCircuit
         rw [PublicInputCombination.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem appendEvalK
     {logicalWidth : Nat}
@@ -294,7 +294,7 @@ private theorem appendEvalK
         unfold evalKCircuit
         rw [EvalKCombination.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem appendEvalA
     {logicalWidth : Nat}
@@ -338,7 +338,7 @@ private theorem appendEvalA
         unfold evalACircuit
         rw [EvalACombination.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem completeSamplerPrefixFromSampler
     {logicalWidth : Nat}
@@ -487,7 +487,7 @@ private theorem appendOutputBinding
         unfold outputBindingCircuit
         rw [OutputBinding.localLength_eq]
         rfl
-  exact ⟨after, by simpa [shared] using operationsEq, endEq, preserves⟩
+  exact ⟨after, by simpa [shared] using! operationsEq, endEq, preserves⟩
 
 private theorem completePrefixFromSampler
     {logicalWidth : Nat}

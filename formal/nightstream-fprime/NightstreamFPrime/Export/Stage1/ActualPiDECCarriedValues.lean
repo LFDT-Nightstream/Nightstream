@@ -82,11 +82,13 @@ theorem piCcsTranscriptWord_eq_form
       (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot
         (Fin.encodeProd (invocation, lane)))).sourceColumn =
       PiCCSTranscriptOutputForms.transcriptSource invocation lane := by
-    simp only [PiCCSOrdinaryDirectPlan.Location.sourceColumn,
-      PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput,
-      PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_encodeProd,
-      PiCCSTranscriptOutputForms.transcriptSource,
-      PiCCSTranscriptOutputForms.transcriptSourceStart]
+    change PiCCSOrdinaryRetainedBlocks.proofLogicalSource
+      (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot
+        (Fin.encodeProd (invocation, lane))) = _
+    rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput,
+      PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_encodeProd]
+    unfold PiCCSTranscriptOutputForms.transcriptSource
+      PiCCSTranscriptOutputForms.transcriptSourceStart
     omega
   have value := PiCCSAssignmentSoundness.decodedEnv_location geometry assignment
     (.proofLogical (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot

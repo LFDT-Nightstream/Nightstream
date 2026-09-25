@@ -158,7 +158,7 @@ theorem semanticGhosts_honest
     (semanticGhosts ops polynomial challenges).Honest ops maxDegree
       challengeSetSize initial challenges (polynomial challenges)
       certificate := by
-  simpa [semanticGhosts, expectedPolynomials] using
+  simpa [semanticGhosts, expectedPolynomials] using!
     expectedChainFrom ops polynomial [] challenges certificate.rounds sameLength
 
 end NightstreamFPrime.Spec.SumCheck.Finite.HypercubeTruth

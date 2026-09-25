@@ -338,7 +338,7 @@ private theorem rowPrefix_value (program : Fin rowWidth → Result Cell)
   | succ count ih =>
       by_cases earlier : position.val < count
       · simpa only [rowPrefix, Vector.get, Fin.coe_cast, Array.getElem_push, Vector.size_toArray,
-          dif_pos earlier, Fin.val_castLE] using
+          dif_pos earlier, Fin.val_castLE] using!
           ih (by omega) ⟨position.val, earlier⟩
       · have last : position.val = count := by have := position.isLt; omega
         simp only [rowPrefix, Vector.get, Fin.coe_cast, Array.getElem_push, Vector.size_toArray, dif_neg earlier]

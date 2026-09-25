@@ -463,9 +463,8 @@ theorem physicalSource_lt (source : Nat)
 theorem target_lt (column : Nat) (support : Target column) :
     column < PilotSpartan.spartanColumnCount := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  apply PilotSpartan.sourceToSpartan_lt source
-  simpa [PilotSpartan.SourceColumnCount] using
-    physicalSource_lt source sourceSupport
+  exact PilotSpartan.sourceToSpartan_lt source
+    (physicalSource_lt source sourceSupport)
 
 def programRow (index : Fin 1330) : R1CS.Row :=
   sourceRows.get (Fin.cast sourceRows_length.symm index)

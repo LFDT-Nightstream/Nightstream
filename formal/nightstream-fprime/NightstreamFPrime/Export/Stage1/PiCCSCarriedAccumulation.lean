@@ -119,12 +119,10 @@ theorem moment_of_exact_row_callbacks (ops : InterpolationOps Field)
   have padSum := numericSum_prefix_parity_eq_finSum ops laws remaining padCount bit
     (fun row => ops.mul (weight (row / 2)) (pad row)) padFits (by
       intro row lower upper
-      dsimp only
       rw [padZero row lower upper, laws.mul_zero])
   have matrixSum := numericSum_prefix_parity_eq_finSum ops laws remaining matrixCount bit
     (fun row => ops.mul (weight (row / 2)) (matrix row)) matrixFits (by
       intro row lower upper
-      dsimp only
       rw [matrixZero row lower upper, laws.mul_zero])
   change ops.add
     (numericSum ops padCount (fun row => if row % 2 = bit.val then

@@ -268,7 +268,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     (machineFor (PerApplicationFixedPoint.publicFits application) application)
     functionIndex input output
   refine ⟨represents.pcNext, applicationStep, ?_, ?_⟩
-  · simpa [machineFor] using hashSlots.2
+  · simpa [machineFor] using! hashSlots.2
   · rcases Nat.eq_zero_or_pos input.iteration with iterationZero |
       iterationPositive
     · have fieldZero : Lifecycle.Stage1.RunningTransition.iterationValue
@@ -292,7 +292,7 @@ private theorem representedSemantics_imply_stepHoldsFor
               have bounded : index <
                   Lifecycle.Stage1.RunningTransition.stateWordCount := by
                 simpa using leftBound
-              simpa using runningSpec.initialState fieldZero ⟨index, bounded⟩
+              simpa using! runningSpec.initialState fieldZero ⟨index, bounded⟩
           _ = input.zi := represents.currentState
       have runningBase := RunningTransitionLayout.physical_implies_typed_base
         (relation application fits) (transitionEnv application base)
@@ -435,15 +435,15 @@ theorem rowsZero_implies_stepHoldsFor
       runningOutput := ?_
       priorPc := ?_
       pcNext := ?_ }
-    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using!
         PerApplicationDecodedIO.priorHashPreimageRepresents application fits
           ajtai raw canonical.1
     · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
         PerApplicationDecodedIO.priorPublicInputRepresents application fits raw
-    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using!
         PerApplicationDecodedIO.nextHashPreimageRepresents application fits
           ajtai raw canonical.2 semantics
-    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using
+    · simpa [pilotEnv, PerApplicationDecodedIO.pilotEnv] using!
         PerApplicationDecodedIO.outputDigestRepresents raw
     · simpa [applicationEnv, PerApplicationDecodedIO.applicationEnv] using
         PerApplicationDecodedIO.applicationInputRepresents application fits raw
@@ -461,7 +461,7 @@ theorem rowsZero_implies_stepHoldsFor
     · rfl
     · rfl
     · simpa [commonEnv, transitionEnv, PerApplicationDecodedIO.commonEnv,
-        PerApplicationDecodedIO.transitionEnv] using
+        PerApplicationDecodedIO.transitionEnv] using!
         PerApplicationDecodedIO.accumulatorOutputEnvRepresents application fits
           raw
     · simpa [transitionEnv, PerApplicationDecodedIO.transitionEnv] using

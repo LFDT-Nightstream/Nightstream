@@ -131,7 +131,7 @@ theorem operations_length {degree : Nat} (interface : Interface degree)
   change (Circuit.ops
     (FixedChain.Owned.main
       (coreInterface interface offset)) offset).length = 56
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
+  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using!
     FixedChain.Owned.operations_length (coreInterface interface offset) offset
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
@@ -141,7 +141,7 @@ theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
   change (flatConstraints (Circuit.ops
     (FixedChain.Owned.main
       (coreInterface interface offset)) offset)).length = 56
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
+  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using!
     FixedChain.Owned.flatConstraints_length
       (coreInterface interface offset) offset
 

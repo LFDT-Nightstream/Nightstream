@@ -242,7 +242,7 @@ theorem decoded_event_frequency_error_le {Output : Type*}
     (Nat.card_congr pairWindowEquiv).trans ShortfallBound.window_cardinality
   have bound := compared.trans disagreement_ratio_le
   simpa only [fieldDecodedFrequency, bitDecodedFrequency, field_window_cardinality,
-    rightCount, rightCard, Nat.cast_pow, fieldLaneCount_eq] using bound
+    rightCount, rightCard, Nat.cast_pow, fieldLaneCount_eq] using! bound
 
 /-- The actual bounded coefficient decoder is compared with abort retained. -/
 theorem boundedSample_event_frequency_error_le (event : Option (List Coefficient) → Prop) :

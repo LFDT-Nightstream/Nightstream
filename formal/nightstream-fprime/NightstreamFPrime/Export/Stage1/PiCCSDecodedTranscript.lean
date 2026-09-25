@@ -57,7 +57,7 @@ private theorem payload_eval
       cases found : PiCCSActionPayloadBlock.kindAt current with
       | absorb block =>
           simpa [PiCCSActionPayloadBlock.selectedBlock,
-            PiCCSActionPayloadBlock.selectedBlockForKind, found] using wellFormed
+            PiCCSActionPayloadBlock.selectedBlockForKind, found] using! wellFormed
       | squeezeFirst expected =>
           simp [PiCCSActionPayloadBlock.selectedBlock,
             PiCCSActionPayloadBlock.selectedBlockForKind, found,

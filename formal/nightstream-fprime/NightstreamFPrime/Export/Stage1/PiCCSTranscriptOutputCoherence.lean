@@ -93,7 +93,7 @@ theorem pointForm_of_packageRows {application : Program}
         ((physicalInvocation (PiCCSTranscriptOutputForms.invocation
           (PiCCSTranscriptOutputForms.pointInvocation coordinate component))).witnessStart +
           584) := by
-  simpa only [Nat.add_zero] using transcriptForm_of_packageRows raw rows
+  simpa only [Nat.add_zero] using! transcriptForm_of_packageRows raw rows
     (PiCCSTranscriptOutputForms.pointInvocation coordinate component) (0 : Fin 8)
 
 /-- The selected physical invocation and the ordinary transcript source

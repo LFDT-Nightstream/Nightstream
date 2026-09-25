@@ -128,6 +128,6 @@ theorem rows_imply_relation (env : Env)
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) assumptions
   exact holdsFlat_implies_holds _ _ (by
     simpa only [NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.logicalConstraints]
-      using logical)
+      using! logical)
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerRows

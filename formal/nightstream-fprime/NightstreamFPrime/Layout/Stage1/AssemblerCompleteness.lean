@@ -273,7 +273,7 @@ private theorem piCcsPhase_after_pilot
     ((piCcsExternalSupport program).mono (fun _ external => Or.inl external))
     (piCcsSupport_agrees program completed endEq)
     (piCcsRoundPoint_eval_eq program completed endEq)
-  · simpa [AssemblerInputs.piCcsOutputState] using
+  · simpa [AssemblerInputs.piCcsOutputState] using!
       piCcsOutputState_eval_eq relation program completed endEq
   · exact phase
 

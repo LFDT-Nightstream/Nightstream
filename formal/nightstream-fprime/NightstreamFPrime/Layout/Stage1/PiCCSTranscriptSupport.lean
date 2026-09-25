@@ -392,7 +392,7 @@ theorem roundOutputs_outputPrefix_supported
       (Duplex.Formal.OutputPrefix External offset 466) := by
     simpa [roundInterface, Formal.roundTranscriptInterface,
       Formal.challengeFinalState, challengeInterface, shared, Formal.atOffset]
-      using challengeFinalSupport
+      using! challengeFinalSupport
   have roundStartEq : roundStart = offset + 466 * 592 := by
     dsimp [roundStart, shared]
     rw [Formal.roundTranscriptStart_atOffset,

@@ -428,7 +428,7 @@ theorem flatConstraints_varsBelow
   have sourceLt := List.mem_range.mp sourceMember
   apply Expr.VarsBelow.mono expression
     (childScope interface offset source sourceLt env assumptions expression (by
-      simpa [childOp, dif_pos sourceLt, Sequence.childOp] using expressionMember))
+      simpa [childOp, dif_pos sourceLt, Sequence.childOp] using! expressionMember))
   have scaled := Nat.mul_le_mul_right SignedSplitScalar.exactPrivateCount
     (Nat.succ_le_iff.mpr sourceLt)
   simpa [sourceOffset, logicalPrivateCount, Nat.succ_mul, Nat.add_assoc] using

@@ -237,7 +237,7 @@ theorem compactPiRlcInputs_eq_keyOutputs
           (nifsProofValue (AssemblerInputs.interface relation program) template
             (AssemblerInputs.piCcsOffset program)
             (AssemblerInputs.piDecOffset program) env)).coins.roundPoint := by
-    simpa [nifsProofValue] using piCcsPhase.roundPoint
+    simpa [nifsProofValue] using! piCcsPhase.roundPoint
   have pointEq := (compactPoint_eq_roundTranscript program env).trans phasePoint
   change (fun source =>
       PiRLC.v1_1.InputBinding.evalInput relation
@@ -427,7 +427,7 @@ theorem compactPiRlcInitialState_eq_key
     PiRLC.v1_1.Formal.samplerInterface, PiRLC.v1_1.Formal.atOffset,
     PiRLC.v1_1.Formal.samplerOffset, AssemblerInputs.piRlcInterface,
     AssemblerInputs.piCcsOutputState, nifsProofValue,
-    PiCCS.v1_1.StatementAbsorption.evalState] using outgoing
+    PiCCS.v1_1.StatementAbsorption.evalState] using! outgoing
 
 private theorem compactPiDecAttempt_eq_key
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -781,7 +781,7 @@ theorem spec_implies_stepHoldsFor
     interface template offset
   have runningSpec : RunningTransition.SpecHolds interface.running
       runningAt env := by
-    simpa [Lifecycle.Stage1.runningChild, runningAt] using
+    simpa [Lifecycle.Stage1.runningChild, runningAt] using!
       specification.running
   have application : output.zNext = program.step input.zi input.witness :=
     application_eq relation ajtai vk program interface template offset env
@@ -791,7 +791,7 @@ theorem spec_implies_stepHoldsFor
     have childSpec : OutputHash.SpecHolds interface.pilot.output
         (Lifecycle.Stage1.outputHashOffset relation program interface offset)
         env := by
-      simpa [Lifecycle.Stage1.outputHashChild, Pilot.outputCircuit] using
+      simpa [Lifecycle.Stage1.outputHashChild, Pilot.outputCircuit] using!
         specification.outputHash
     simpa [machineFor] using
       OutputHash.builder_implies_output_slot interface.pilot.output
@@ -805,7 +805,7 @@ theorem spec_implies_stepHoldsFor
             (priorHashPreimage (setup relation ajtai vk) input)) := by
     have childSpec : PriorStateHash.SpecHolds interface.pilot.prior
         (Lifecycle.Stage1.priorOffset offset) env := by
-      simpa [Lifecycle.Stage1.priorChild, Pilot.priorCircuit] using
+      simpa [Lifecycle.Stage1.priorChild, Pilot.priorCircuit] using!
         specification.prior
     simpa [machineFor] using
       PriorStateHash.builder_implies_recursive_slot interface.pilot.prior

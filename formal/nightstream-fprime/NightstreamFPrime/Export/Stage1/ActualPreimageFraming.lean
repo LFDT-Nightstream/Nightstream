@@ -56,7 +56,7 @@ theorem priorWord_eq
     (PiCCSOrdinaryDirectPlan.Location.priorInput word)
   rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot] at mapped
   simpa only [Spartan.pullback, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
-    priorState, dif_pos word.isLt] using mapped
+    priorState, dif_pos word.isLt] using! mapped
 
 theorem outputWord_eq
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -69,7 +69,7 @@ theorem outputWord_eq
     (PiCCSOrdinaryDirectPlan.Location.outputInput word)
   rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot] at mapped
   simpa only [Spartan.pullback, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
-    outputState, dif_pos word.isLt] using mapped
+    outputState, dif_pos word.isLt] using! mapped
 
 /-- Accepted ordinary rows enforce canonical framing on the preimages that
 the pilot hashes, for every logical assignment. -/
@@ -165,6 +165,6 @@ theorem rowsZero_implies_contextKeys
   simpa only [PiCCSArithmetic.sharedInterface, PiCCSArithmetic.parentInterface,
     PiCCS.v1_1.Formal.statementBindingInterface, PiCCS.v1_1.Formal.atOffset,
     PiCCSInputs.interface, PiCCSInputs.priorStateWord, PiCCSInputs.outputStateWord,
-    Expr.eval] using arithmetic.statementBinding.state.contextPreserved lane
+    Expr.eval] using! arithmetic.statementBinding.state.contextPreserved lane
 
 end NightstreamFPrime.Export.Stage1.ActualPreimageFraming

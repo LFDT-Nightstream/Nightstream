@@ -282,7 +282,7 @@ private theorem positionScope (interface : Interface) (offset round : Nat)
   have scope := First54Step.flatConstraints_varsBelow
     (positionInterface interface offset round) (positionOffset offset round)
       env (positionAssumptions interface offset round env assumptions)
-  simpa [positionCircuit, First54Step.circuit] using scope
+  simpa [positionCircuit, First54Step.circuit] using! scope
 
 private theorem valueScope (interface : Interface) (offset round : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
@@ -294,7 +294,7 @@ private theorem valueScope (interface : Interface) (offset round : Nat)
   have scope := First54ValueStep.flatConstraints_varsBelow
     (valueInterface interface offset round) (valueOffset offset round)
       env (valueAssumptions interface offset round env assumptions)
-  simpa [valueCircuit, First54ValueStep.circuit] using scope
+  simpa [valueCircuit, First54ValueStep.circuit] using! scope
 
 private theorem round_lt_of_member {round count : Nat}
     (member : round ∈ List.range count) : round < count :=
@@ -339,7 +339,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     have assertionHolds := rows (finalAssertion offset) assertionMember
     change (finalFull offset - 1).eval env = 0 at assertionHolds
     apply sub_eq_zero.mp
-    simpa only [Expr.eval_sub] using assertionHolds
+    simpa only [Expr.eval_sub] using! assertionHolds
 
 set_option maxRecDepth 100000 in -- fixed-size: one 64-candidate selector, not artifact data
 private theorem holdsFlat_of_spec (interface : Interface) (env : Env)
@@ -361,12 +361,12 @@ private theorem holdsFlat_of_spec (interface : Interface) (env : Env)
         (positionInterface interface offset round) env
           (positionOffset offset round) (specification.position roundFin)
       apply childRows expression
-      simpa [positionOp, Sequence.childOp] using expressionMember
+      simpa [positionOp, Sequence.childOp] using! expressionMember
     · have childRows := First54ValueStep.holdsFlat_of_spec
         (valueInterface interface offset round) env
           (valueOffset offset round) (specification.value roundFin)
       apply childRows expression
-      simpa [valueOp, Sequence.childOp] using expressionMember
+      simpa [valueOp, Sequence.childOp] using! expressionMember
   · simp only [List.mem_singleton] at finalMember
     subst operation
     simp only [finalAssertion, Op.flatConstraints, List.mem_singleton] at expressionMember
@@ -397,7 +397,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     expression.VarsBelow (offset + localLength (opsAt interface offset))
   have lengthEq : localLength (opsAt interface offset) =
       logicalPrivateCount := by
-    simpa using localLength_eq interface offset
+    simpa using! localLength_eq interface offset
   rw [lengthEq]
   intro expression member
   rcases List.mem_flatMap.mp member with ⟨operation, operationMember,
@@ -412,14 +412,14 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     rcases operationInRound with rfl | rfl
     · apply Expr.VarsBelow.mono expression
         (positionScope interface offset round env assumptions expression (by
-          simpa [positionOp, Sequence.childOp] using expressionMember))
+          simpa [positionOp, Sequence.childOp] using! expressionMember))
       simp [positionOffset, logicalPrivateCount, candidateCount,
         roundPrivateCount, First54Step.slotCount,
         First54ValueStep.outputCount]
       omega
     · apply Expr.VarsBelow.mono expression
         (valueScope interface offset round env assumptions expression (by
-          simpa [valueOp, Sequence.childOp] using expressionMember))
+          simpa [valueOp, Sequence.childOp] using! expressionMember))
       simp [valueOffset, positionOffset, logicalPrivateCount, candidateCount,
         roundPrivateCount, First54Step.slotCount,
         First54ValueStep.outputCount]

@@ -459,9 +459,10 @@ theorem arithmeticMappedEnd_le_invocationCeiling :
         rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
         norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]) (by
           unfold PiCCSInvocations.outputWitnessStart
-          rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-          norm_num [NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase,
-            NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq])).le
+            NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
+          rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq,
+            NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
+          norm_num)).le
 
 private theorem schedule_inputsOutside
     {bound ceiling : Nat} {invocations : List PermutationInvocation}

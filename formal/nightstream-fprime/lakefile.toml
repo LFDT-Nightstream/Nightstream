@@ -4,12 +4,12 @@ defaultTargets = ["NightstreamFPrime", "NightstreamFPrimeTests"]
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-rev = "v4.30.0"
+rev = "v4.32.2"
 
 [[require]]
 name = "CompPoly"
 git = "https://github.com/Verified-zkEVM/CompPoly"
-rev = "050f0bc7e9780703beb8d178ec533e52bd87d649"
+rev = "6133f9f796707c438d0a614f97dc218ae976ab8f"
 
 [[lean_lib]]
 name = "NightstreamFPrime"

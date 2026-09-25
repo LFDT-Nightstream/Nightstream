@@ -226,6 +226,6 @@ theorem callClock_eq (context : Context)
         (InteractiveWork.law relation ajtai runningOf freshOf continuation context receipt)
         (InteractiveWork.parentChecker relation ajtai runningOf freshOf continuation context receipt) receipt
       have lifted := congrArg (fun work : ℝ => ((call context alpha gamma point).work : ℝ) + work + 1) suffix
-      simpa only [_root_.add_assoc] using lifted
+      simpa only [_root_.add_assoc] using! lifted
 
 end NightstreamFPrime.Lifecycle.Nifs.AdaptiveBinding

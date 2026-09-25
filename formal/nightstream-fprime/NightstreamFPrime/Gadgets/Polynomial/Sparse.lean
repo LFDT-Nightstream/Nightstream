@@ -496,7 +496,7 @@ def circuit {matrixCount : Nat}
     have recipeRows := executeRecipes_holds_recipeConstraints env offset
       (recipes polynomial interface offset) causal
     refine ⟨completed, ?_, ?_⟩
-    · simpa [completed] using executeRecipes_agreesOutside env offset
+    · simpa [completed] using! executeRecipes_agreesOutside env offset
         (recipes polynomial interface offset)
     · change ConstraintsHold completed
         (recipeConstraints offset (recipes polynomial interface offset))
@@ -528,7 +528,7 @@ theorem build {matrixCount : Nat}
   have recipeRows := executeRecipes_holds_recipeConstraints env offset
     (recipes polynomial interface offset) causal
   refine ⟨completed, ?_, ?_⟩
-  · simpa [completed] using executeRecipes_agreesOutside env offset
+  · simpa [completed] using! executeRecipes_agreesOutside env offset
       (recipes polynomial interface offset)
   · change ConstraintsHold completed
       (recipeConstraints offset (recipes polynomial interface offset))

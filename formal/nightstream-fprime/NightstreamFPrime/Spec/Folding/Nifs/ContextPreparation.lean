@@ -42,7 +42,7 @@ theorem contexts_toReal (context : Context) :
   have fiber : contexts tapes prepare context =
       ∑' tape : {tape // (prepare tape).value = context}, tapes tape.val := by
     rw [contexts, PMF.map_apply]
-    simpa only [Set.indicator, Set.mem_setOf_eq, eq_comm] using
+    simpa only [Set.indicator, Set.mem_setOf_eq, eq_comm] using!
       (tsum_subtype {tape : Tape | (prepare tape).value = context}
         (fun tape : Tape => tapes tape)).symm
   rw [fiber]

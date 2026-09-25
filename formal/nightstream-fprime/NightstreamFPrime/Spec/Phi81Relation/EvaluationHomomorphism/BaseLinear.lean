@@ -619,7 +619,7 @@ theorem matrixEvaluation_zero
   unfold matrixEvaluation Phi81Evaluation.evaluate Phi81Evaluation.table
     assignmentZero Raw.assignmentZero evaluationZero ringKZero
   unfold BooleanTable.evaluate
-  simpa only [matrixVectorAt_zero] using
+  simpa only [matrixVectorAt_zero] using!
     (evaluateCoordinates_tabulate_zero
       (variables := shape.rowVariables) point.coordinates)
 
@@ -638,7 +638,7 @@ theorem matrixEvaluation_add
   unfold matrixEvaluation Phi81Evaluation.evaluate Phi81Evaluation.table
     assignmentAdd Raw.assignmentAdd evaluationAdd
   unfold BooleanTable.evaluate
-  simpa only [matrixVectorAt_add, ConcreteCarrier.embed_add] using
+  simpa only [matrixVectorAt_add, ConcreteCarrier.embed_add] using!
     (evaluateCoordinates_tabulate_add
       (fun vertex => K.embed (matrixVectorAt ConcreteCarrier.baseOps
         (system.matrixSource.coefficientMatrix ConcreteCarrier.baseOps matrix lane)
@@ -665,7 +665,7 @@ theorem matrixEvaluation_scale
       K.embed (scalar * value) = K.mul (K.embed scalar) (K.embed value) := by
     simpa only [ConcreteCarrier.baseOps, ConcreteCarrier.extensionOps] using
       (ConcreteCarrier.embed_mul scalar value)
-  simpa only [matrixVectorAt_scale, embedScale] using
+  simpa only [matrixVectorAt_scale, embedScale] using!
     (evaluateCoordinates_tabulate_scale (K.embed scalar)
       (fun vertex => K.embed (matrixVectorAt ConcreteCarrier.baseOps
         (system.matrixSource.coefficientMatrix ConcreteCarrier.baseOps matrix lane)

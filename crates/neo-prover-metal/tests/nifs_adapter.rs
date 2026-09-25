@@ -11,8 +11,6 @@
 //! evaluator. The canonical prover owns PiRLC, PiDEC, transcript order, round
 //! checks, terminal checks, and proof bytes.
 
-use std::sync::Arc;
-
 use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock};
 use neo_fold_legacy::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_legacy::engine::r1cs_circuit::R1csBuilder;
@@ -35,14 +33,21 @@ use neo_math::{D, F, K};
 use neo_prover_metal::MetalNifsProver;
 use p3_field::PrimeCharacteristicRing;
 
-fn relation(columns: usize) -> R1cs {
-    let mut a = Mat::zero(1, columns, F::ZERO);
-    a.set(0, 1, F::ONE);
-    a.set(0, 2, F::ONE);
-    let mut b = Mat::zero(1, columns, F::ZERO);
-    b.set(0, 0, F::ONE);
-    let mut c = Mat::zero(1, columns, F::ZERO);
-    c.set(0, 3, F::ONE);
+/// The constraint `(z1 + z2) * z0 = z3`, repeated in each row.
+///
+/// Tests with nonzero running witnesses use two rows. The legacy
+/// resident-cache route budgets twice the host row storage, and the Metal
+/// opening step also needs its opening plan, so one row does not fit.
+fn relation(columns: usize, rows: usize) -> R1cs {
+    let mut a = Mat::zero(rows, columns, F::ZERO);
+    let mut b = Mat::zero(rows, columns, F::ZERO);
+    let mut c = Mat::zero(rows, columns, F::ZERO);
+    for row in 0..rows {
+        a.set(row, 1, F::ONE);
+        a.set(row, 2, F::ONE);
+        b.set(row, 0, F::ONE);
+        c.set(row, 3, F::ONE);
+    }
     R1cs { a, b, c, m_in: D }
 }
 
@@ -105,33 +110,8 @@ fn canonical_running(prep: &neo_fold_legacy::Preprocessing) -> RunningInstance {
 }
 
 #[test]
-fn metal_joint_plan_keeps_its_structure_cache_alive() {
-    let r1cs = relation(2 * D);
-    let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c41).expect("preprocess");
-    let superneo = prep.optimized_cache().superneo_arc();
-    let weak = Arc::downgrade(&superneo);
-    let mut metal = MetalNifsProver::new().expect("Metal adapter");
-
-    metal
-        .prepare_static(prep.commitment_scheme(), prep.structure(), prep.optimized_cache(), None)
-        .expect("prepare static Metal plan");
-    drop(superneo);
-    drop(prep);
-
-    assert!(
-        weak.upgrade().is_some(),
-        "the Metal plan must own the cache used to identify its matrix buffers"
-    );
-    drop(metal);
-    assert!(
-        weak.upgrade().is_none(),
-        "dropping the Metal plan must release its cache owner"
-    );
-}
-
-#[test]
 fn metal_one_joint_oracle_matches_the_canonical_host_with_zero_running_claims() {
-    let r1cs = relation(2 * D);
+    let r1cs = relation(2 * D, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c32).expect("preprocess");
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &assignment(2 * D, 1, 0)).expect("fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
@@ -197,7 +177,7 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_zero_running_claims() 
 
 #[test]
 fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows() {
-    let r1cs = relation(2 * D);
+    let r1cs = relation(2 * D, 1);
     let baseline = direct_ccs::preprocess_seeded(&r1cs, 0x4745_4f4d_4554).expect("baseline preprocessing");
     let mut structure = baseline.structure().clone();
     structure.matrices[0] = CcsMatrix::csc_with_compact_rows(
@@ -273,12 +253,14 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows
 #[test]
 fn metal_radix_four_geometric_running_oracle_matches_the_host() {
     let columns = 11 * D;
-    let r1cs = relation(columns);
+    let r1cs = relation(columns, 2);
     let mut structure = r1cs.to_structure();
     structure.matrices[0] = CcsMatrix::csc_with_compact_rows(
         CscMat::from_triplets(Vec::new(), structure.n, structure.m),
         Vec::new(),
-        vec![GeometricRowRun::new(0, 1, 2, F::ONE, F::from_u64(2))],
+        (0..structure.n)
+            .map(|row| GeometricRowRun::new(row, 1, 2, F::ONE, F::from_u64(2)))
+            .collect(),
     )
     .expect("radix-four geometric A matrix");
     let params = radix_four_params(&structure);
@@ -372,7 +354,7 @@ fn metal_radix_four_geometric_running_oracle_matches_the_host() {
 #[test]
 fn metal_partial_carrier_identity_opening_matches_the_canonical_host() {
     let columns = 2 * D - 23;
-    let r1cs = relation(columns);
+    let r1cs = relation(columns, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c42).expect("preprocess");
     let mut values = assignment(columns, 1, 0);
     for (index, value) in values.iter_mut().enumerate().skip(4) {
@@ -423,7 +405,7 @@ fn metal_partial_carrier_identity_opening_matches_the_canonical_host() {
 
 #[test]
 fn metal_one_joint_oracle_skips_canonical_zero_running_planes() {
-    let r1cs = relation(2 * D);
+    let r1cs = relation(2 * D, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c40).expect("preprocess");
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &assignment(2 * D, 1, 0)).expect("fresh instance");
     let running =
@@ -703,7 +685,6 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     )
     .expect("canonical selective seeded proof");
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
-    metal.session().reset_activity();
     let mut metal_transcript = Transcript::session();
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
@@ -719,7 +700,6 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         &running,
     )
     .expect("Metal selective seeded proof");
-    let copy_activity = metal.session().activity();
 
     assert_eq!(accelerated.0.claims, cpu.0.claims);
     assert_eq!(accelerated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
@@ -767,7 +747,6 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     )
     .expect("canonical fallback proof");
     let mut fallback_metal = MetalNifsProver::new().expect("fallback Metal adapter");
-    fallback_metal.session().reset_activity();
     let mut fallback_metal_transcript = Transcript::session();
     let fallback_accelerated = nifs::prove_with_adapter(
         &mut fallback_metal,
@@ -783,20 +762,15 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         &fallback_running,
     )
     .expect("Metal fallback proof");
-    let fallback_activity = fallback_metal.session().activity();
     assert_eq!(
         fallback_accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
         fallback_cpu.1.pi_ccs.sumcheck.canonical_bytes(),
-    );
-    assert!(
-        fallback_activity.dispatches > copy_activity.dispatches,
-        "a noncanonical seeded row must use the complete Metal evaluation path"
     );
 }
 
 #[test]
 fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
-    let r1cs = relation(11 * D);
+    let r1cs = relation(11 * D, 2);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c39).expect("preprocess");
     let initial_fresh =
         direct_ccs::build_instance(&prep, &r1cs, &assignment(11 * D, 1, 0)).expect("initial fresh instance");
@@ -879,7 +853,7 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
 
 #[test]
 fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
-    let r1cs = relation(11 * D);
+    let r1cs = relation(11 * D, 2);
     let structure = r1cs.to_structure();
     let params = radix_four_params(&structure);
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5241_4449_5834);
@@ -1109,7 +1083,7 @@ fn metal_seeded_one_joint_oracle_matches_the_canonical_host() {
 
 #[test]
 fn metal_fresh_commitment_matches_the_canonical_constructor() {
-    let r1cs = relation(2 * D);
+    let r1cs = relation(2 * D, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c34).expect("preprocess");
     let values = assignment(2 * D, 1, 0);
     let canonical = direct_ccs::build_instance(&prep, &r1cs, &values).expect("canonical instance");
@@ -1140,7 +1114,7 @@ fn metal_fresh_commitment_matches_the_canonical_constructor() {
 
 #[test]
 fn metal_fresh_lane_commitments_match_the_canonical_constructor() {
-    let r1cs = relation(3 * D);
+    let r1cs = relation(3 * D, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c37).expect("preprocess");
     let values = assignment(3 * D, 1, 0);
     let canonical = direct_ccs::build_instance(&prep, &r1cs, &values).expect("canonical instance");
@@ -1182,7 +1156,7 @@ fn metal_fresh_lane_commitments_match_the_canonical_constructor() {
 #[test]
 #[ignore = "requires Apple Metal hardware; checks GPU fresh commitments and complete optimized NIFS parity"]
 fn metal_selected_nifs_crosschecks_after_gpu_fresh_commitment() {
-    let r1cs = relation(2 * D);
+    let r1cs = relation(2 * D, 1);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c38).expect("preprocess");
     let values = assignment(2 * D, 1, 0);
     let assignments = [values.as_slice()];

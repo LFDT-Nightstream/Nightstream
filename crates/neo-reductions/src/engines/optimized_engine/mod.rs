@@ -260,10 +260,6 @@ impl OptimizedStructureCache {
         self.sparse.clone()
     }
 
-    pub fn superneo_arc(&self) -> Arc<SuperneoEvalCache> {
-        self.superneo.clone()
-    }
-
     pub fn matrix_digest(&self) -> &[Goldilocks; 4] {
         &self.matrix_digest
     }

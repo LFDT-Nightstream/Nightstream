@@ -10,26 +10,24 @@ Goldilocks/Phi81 instantiation of the production `Pi_RLC` strong sampling set.
 Assurance tier: paper-level concrete semantics. This module proves the exact
 centered embedding of the five-symbol sampler alphabet, injectivity of the
 54-coordinate embedding, nonzero and pointwise norm bounds for pairwise
-differences, and the Goldilocks arithmetic hypotheses used by SuperNeo
-Theorem 8.
+differences, and pairwise invertibility of those differences.
 
 Owns: the semantic coefficient-to-Goldilocks map; the production challenge
 set as the image of all 54-coordinate five-symbol vectors; pointwise
-difference bounds; exact `eta = 81`, `z = 3`, and order-27 parameter facts;
-and the derivation of pairwise invertibility from an explicit Theorem-8
-corollary.
+difference bounds; the `LowNormInvertibility` statement (the `z = 3` case of
+SuperNeo Theorem 4); and the derivation of pairwise invertibility from it.
 
-Does not own: a formal proof of the external low-norm invertibility theorem
-of Lyubashevsky-Seiler; quotient-ring multiplication refinement to Rust;
-Fiat-Shamir sampling; R1CS rows; row removal; or cost totals.
+Does not own: the proof of `LowNormInvertibility`
+(`Phi81StrongSet/LowNormInvertibility.lean`, which needs Mathlib and is kept
+out of this Mathlib-free module); quotient-ring multiplication refinement to
+Rust; Fiat-Shamir sampling; R1CS rows; row removal; or cost totals.
 
 Emits constraints: no.
 
 Authority boundary: strong-set membership is the image of the independently
-defined five-symbol coefficient vector. The only imported mathematical trust
-boundary is `LowNormInvertibility`, which states the concrete `z = 3`,
-`phi(z) = 2` corollary of SuperNeo Theorem 8. All hypotheses needed to apply
-that boundary are proved here.
+defined five-symbol coefficient vector. Pairwise invertibility needs only
+the proved `LowNormInvertibility` statement: every difference is nonzero, has
+centered coefficients at most 4, and `3 * 4^2 < q`.
 
 | Protocol | Phase | Mathematical object | Exact guarantee or premise |
 |---|---|---|---|
@@ -38,9 +36,8 @@ that boundary are proved here.
 | `Pi_RLC` | unary exclusion | `outsideChallenge_not_member` | exhibits one concrete ring value outside the production set |
 | `Pi_RLC` | separation | `embeddedDifference_nonzero` | proves distinct embedded challenges have nonzero difference |
 | `Pi_RLC` | norm | `embeddedDifference_normAtMostFour` | proves every difference coefficient has centered magnitude at most 4 |
-| Theorem 8 | parameters | `theorem8Conditions_exact` | proves `3 divides 81`, `q = 1 mod 3`, and `ord_81(q) = 27` |
-| Theorem 8 | numeric bound | `differenceBound_below_goldilocks` | proves `3 * 4^2 < q` |
-| Definition 17 | strong set | `productionSet_strong` | derives pairwise invertibility from the explicit `LowNormInvertibility` premise |
+| Theorem 4 | numeric bound | `differenceBound_below_goldilocks` | proves `3 * 4^2 < q` |
+| Definition 6 | strong set | `productionSet_strong` | derives pairwise invertibility from `LowNormInvertibility` (proved by `lowNormInvertibility`) |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
@@ -164,60 +161,21 @@ theorem embeddedDifference_nonzero
   apply embedScalar_injective
   exact (ringFSub_eq_zero_iff _ _).mp differenceZero
 
-/-! ## Goldilocks instantiation of SuperNeo Theorem 8 -/
-
-def cyclotomicIndex : Nat := 81
-def theorem8Divisor : Nat := 3
-def theorem8Order : Nat := 27
-
-/-- Finite exact multiplicative-order predicate used by the paper theorem's
-parameter side conditions. -/
-def HasExactMultiplicativeOrder
-    (base modulus order : Nat) : Prop :=
-  base ^ order % modulus = 1 /\
-    forall exponent, exponent ∈ List.range order ->
-      exponent = 0 \/ base ^ exponent % modulus ≠ 1
-
-def Theorem8Conditions : Prop :=
-  theorem8Divisor ∣ cyclotomicIndex /\
-    goldilocksModulus % theorem8Divisor = 1 /\
-    HasExactMultiplicativeOrder
-      goldilocksModulus cyclotomicIndex theorem8Order /\
-    theorem8Order = cyclotomicIndex / theorem8Divisor
-
-/-- Kernel-checked concrete side conditions: for Goldilocks, `z = 3` and the
-multiplicative order modulo 81 is exactly 27. -/
-theorem theorem8Conditions_exact : Theorem8Conditions := by
-  refine ⟨by decide, by decide, ?_, by decide⟩
-  constructor
-  · decide
-  · intro exponent member
-    have exponentLt : exponent < theorem8Order :=
-      List.mem_range.mp member
-    have finiteOrder :
-        forall item : Fin theorem8Order,
-          item.val = 0 \/
-            goldilocksModulus ^ item.val % cyclotomicIndex ≠ 1 := by
-      decide
-    exact finiteOrder ⟨exponent, exponentLt⟩
-
-/-- Exact rational inequality corresponding to `4 < sqrt(q / 3)`. -/
-theorem differenceBound_below_goldilocks :
-    theorem8Divisor * 4 ^ 2 < goldilocksModulus := by
+/-- Exact integer form of `4 < b_inv = sqrt(q / 3)` (SuperNeo Theorem 4, `z = 3`). -/
+theorem differenceBound_below_goldilocks : 3 * 4 ^ 2 < goldilocksModulus := by
   decide
 
-/-- Explicit external mathematical boundary. For `z = 3`, `tau(z) = 3` and
-`phi(z) = 2`, so SuperNeo Theorem 8 reduces to the squared integer inequality
-below. A future analytic formalization should construct this structure; this
-module keeps it as an explicit theorem parameter. -/
+/-- SuperNeo Theorem 4 for `z = 3`: nonzero values with centered coefficients
+at most `bound`, where `3 * bound^2 < q`, are invertible. It is a structure so
+that this module stays free of Mathlib; `lowNormInvertibility` in
+`Phi81StrongSet/LowNormInvertibility.lean` proves it. -/
 structure LowNormInvertibility : Prop where
   invertible_of_bound :
-    Theorem8Conditions ->
-      forall (value : RingF) (bound : Nat),
-        value ≠ ringFZero ->
-        PointwiseNormAtMost bound value ->
-        theorem8Divisor * bound ^ 2 < goldilocksModulus ->
-        RingFInvertible value
+    forall (value : RingF) (bound : Nat),
+      value ≠ ringFZero ->
+      PointwiseNormAtMost bound value ->
+      3 * bound ^ 2 < goldilocksModulus ->
+      RingFInvertible value
 
 /-! ## Strong-set theorem -/
 
@@ -248,7 +206,7 @@ theorem outsideChallenge_not_member :
     (scalar (scalarPosition position)) (by
       simpa [outsideChallenge, embedScalar] using atPosition.symm)
 
-/-- Pairwise Definition-17 consequence needed by extraction: distinct valid
+/-- Pairwise Definition-6 consequence needed by extraction: distinct valid
 challenges have an invertible difference. -/
 def StrongSamplingSet : Prop :=
   forall {left right : RingF},
@@ -257,14 +215,13 @@ def StrongSamplingSet : Prop :=
     left ≠ right ->
     RingFInvertible (ringFSub left right)
 
-/-- All implementation-independent obligations are discharged. The only
-remaining premise is the explicitly isolated external low-norm theorem. -/
+/-- Distinct production challenges have an invertible difference. -/
 theorem productionSet_strong
     (theorem8 : LowNormInvertibility) : StrongSamplingSet := by
   intro left right leftMember rightMember different
   obtain ⟨leftScalar, rfl⟩ := leftMember
   obtain ⟨rightScalar, rfl⟩ := rightMember
-  apply theorem8.invertible_of_bound theorem8Conditions_exact _ 4
+  apply theorem8.invertible_of_bound _ 4
   · intro differenceZero
     exact different ((ringFSub_eq_zero_iff _ _).mp differenceZero)
   · exact embeddedDifference_normAtMostFour leftScalar rightScalar

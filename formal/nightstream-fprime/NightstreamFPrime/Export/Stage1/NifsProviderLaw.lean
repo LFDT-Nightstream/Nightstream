@@ -140,7 +140,6 @@ theorem source_probability_linear_bound
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Context → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
-    (lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -182,6 +181,6 @@ theorem source_probability_linear_bound
     (fun context coins output state _ => storageBounded context coins output state)
     (fun context coins output state _ => baseSummable context coins output state)
     g deltaFS Q model scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock
-    sourceCheckClock accessClock lowNorm bounds bounded
+    sourceCheckClock accessClock bounds bounded
 
 end NightstreamFPrime.Export.Stage1.NifsProviderLaw

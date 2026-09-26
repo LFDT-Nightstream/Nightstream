@@ -9,8 +9,8 @@ It is distinct from bare NIFS Boolean acceptance and from extractor failure.
 The same original mixed terminal law and its actual visited laws are retained.
 No conditioning on invalid inputs or new cryptographic premise is used. The
 linear bound keeps the guarded FS models, symbolic depth/queries, declared
-clock bounds and moments, low-norm invertibility, hash-collision mass and the
-actual adaptive MSIS probability explicit. Honest rejection is separate.
+clock bounds and moments, hash-collision mass and the actual adaptive MSIS
+probability explicit. Honest rejection is separate.
 -/
 
 set_option autoImplicit false
@@ -188,8 +188,7 @@ independent verifier test error and the actual adaptive MSIS probability.
 
 The hypotheses are the support depth bound; the exact guarded FS models with
 shared g/deltaFS and symbolic query counts; the existing raw-call/tape laws,
-storage bound and base-work moments; low-norm invertibility; and the declared
-primitive bounds. No invalid-source support, conditional experiment, honest
+storage bound and base-work moments; and the declared primitive bounds. No invalid-source support, conditional experiment, honest
 sampler success, output-soundness premise or numerical advantage is supplied.
 Fixed-seed hardness, useful transfer bounds and total-query applicability
 remain external. This is not a bound on bare NIFS Boolean acceptance. -/
@@ -203,7 +202,6 @@ theorem probability_linear_bound
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
     (sourceCheckClock : Visit → PiCCSStoredSourceProbability.CheckClock)
     (accessClock : Visit → PiCCSStoredSourceProbability.AccessClock)
-    (lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -252,7 +250,7 @@ theorem probability_linear_bound
   have each := HyperNovaVisitedSecurity.source_failure_probability_linear_le tapes rawCall checkClock storageClock parentClock
     storageBound storageBounded baseSummable initial depth originalFirstPhase abortTape g deltaFS queries
     scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock accessClock
-    lowNorm bounds bounded models
+    bounds bounded models
   apply first.trans
   apply Finset.sum_le_sum
   intro j _member

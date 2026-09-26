@@ -159,7 +159,6 @@ theorem terminal_implies_securityOrCollision
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
-    (lowNorm : Spec.Phi81StrongSet.LowNormInvertibility)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
       (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
       (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
@@ -176,7 +175,7 @@ theorem terminal_implies_securityOrCollision
             (PerApplicationSecurity.canonicalKey fits commitmentSetup)
             (input.running functionIndex) input.fresh input.nifsProof
             (PerApplicationSecurity.productionExtractionAlgebra fits commitmentSetup)
-            (PerApplicationSecurity.productionStrongSet fits commitmentSetup lowNorm)))) ∨
+            (PerApplicationSecurity.productionStrongSet fits commitmentSetup)))) ∨
       PiCCSSecurity.StateHashCollision (decodedNext application assignment)
         (terminalPreimage application fits commitmentSetup statement payload) := by
   rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
@@ -188,7 +187,7 @@ theorem terminal_implies_securityOrCollision
         (PerApplicationSecurity.canonicalKey fits commitmentSetup) _ _ _
         (payload.running functionIndex)
         (PerApplicationSecurity.productionExtractionAlgebra fits commitmentSetup)
-        (PerApplicationSecurity.productionStrongSet fits commitmentSetup lowNorm) accepted⟩⟩
+        (PerApplicationSecurity.productionStrongSet fits commitmentSetup) accepted⟩⟩
   · exact Or.inr collision
 
 end NightstreamFPrime.Export.Stage1.ActualTerminalSecurity

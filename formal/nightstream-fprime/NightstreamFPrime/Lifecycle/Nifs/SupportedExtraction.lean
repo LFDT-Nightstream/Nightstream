@@ -5,12 +5,13 @@ import NightstreamFPrime.Lifecycle.Nifs.AdaptiveBindingProbability
 import NightstreamFPrime.Lifecycle.Nifs.BindingWork
 import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveWork
+import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
 /-!
 Selected interactive extraction from the actual checked prefix and its
 reachable continuations. The ring algebra is fixed by the production key;
-the public checker is fixed to its existing verifier. Low-norm invertibility
-and correctness of costed witness operations remain explicit.
+the public checker is fixed to its existing verifier. Correctness of costed
+witness operations remains explicit.
 -/
 
 set_option autoImplicit false
@@ -80,7 +81,6 @@ variable
     (PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)))
   (sourceProgram : Context → CheckedWitnessExtraction.Program productionShape
     (FullShape logicalWidth publicFits))
-  (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (correct : Correct (PaperExtractionAlgebra.extractionAlgebra ajtai).ring
     (PaperExtractionAlgebra.extractionAlgebra ajtai).assignmentModule program)
   (bounds : PrimitiveBounds)
@@ -89,7 +89,7 @@ variable
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- Every probability term uses the same reachable continuation. The right
 side counts the source values that the checked projection actually returns.
 There is no finite-work requirement on an impossible private state. -/
@@ -115,10 +115,10 @@ theorem returned_source_success_bound :
   exact InteractiveComposition.source_success_bound relation ajtai running fresh
     originalFirstPhase (publicCheck running) _ program (publicCheck_correct relation ajtai running fresh)
     (PaperExtractionAlgebra.extractionAlgebra ajtai)
-    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm)
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility)
     correct bounds bounded contexts
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- The selected interactive loss is the weak retry loss plus the strong
 test loss and the measured binding event of two actual executions. A bound
 on that event from public-seed MSIS hardness remains a separate contract. -/
@@ -135,17 +135,17 @@ theorem returned_source_bound_with_binding :
         (publicCheck running) continuation program sourceProgram contexts := by
   dsimp only
   have source := returned_source_success_bound relation ajtai running fresh contexts
-    originalFirstPhase abortTape provider program sourceProgram lowNorm
+    originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect
   have agreement := InteractiveAgreement.disagreement_le_bindingProbability relation ajtai running fresh
     originalFirstPhase (publicCheck running)
     (SupportedContinuation.extension relation ajtai running fresh contexts
       (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider)
-    program (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct contexts
+    program (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
     (_root_.add_le_add agreement (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- The existing source-success theorem now consumes the actual same-key
 short-kernel output probability. Its arity loss comes from the reduction's
 uniform coordinate choice. No numerical MSIS or Fiat-Shamir premise is added. -/
@@ -162,18 +162,18 @@ theorem returned_source_bound_with_msis :
         (publicCheck running) continuation program sourceProgram contexts := by
   dsimp only
   have source := returned_source_bound_with_binding relation ajtai running fresh contexts
-    originalFirstPhase abortTape provider program sourceProgram lowNorm
+    originalFirstPhase abortTape provider program sourceProgram
     correct bounds bounded sourceCorrect
   have reduction := BindingProbability.binding_le_success ajtai program relation running fresh
     originalFirstPhase (publicCheck running)
     (SupportedContinuation.extension relation ajtai running fresh contexts
       (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider)
-    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct
     (fun context => (sourceProgram context).access) (fun context => (sourceCorrect context).access) contexts
   exact (sub_le_sub_left (Real.sqrt_le_sqrt
     (_root_.add_le_add reduction (le_refl (IndependentExecution.testError productionShape 9)))) _).trans source
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- The v1.2 additive source bound uses the actual adaptive MSIS reduction
 under the original context law. Both selected calls pass the executable
 relaxed check; zero-success contexts remain in the experiment. Hardness and
@@ -197,14 +197,14 @@ theorem returned_source_bound_with_adaptive_msis :
   have source := InteractiveComposition.source_success_retry_bound relation ajtai running fresh
     originalFirstPhase (publicCheck running) continuation program (publicCheck_correct relation ajtai running fresh)
     (PaperExtractionAlgebra.extractionAlgebra ajtai)
-    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct bounds bounded contexts
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct bounds bounded contexts
   have reduction := AdaptiveBindingProbability.retryDisagreement_le_success relation ajtai program running fresh
     originalFirstPhase (publicCheck running) continuation sourceProgram
-    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct contexts
+    (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct contexts
     (fun context => (sourceCorrect context).access) sourceCorrect
   exact (sub_le_sub_left reduction _).trans source
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- The same checked execution has both the selected source-return bound
 and polynomial expected work. The first conjunct connects its actual prefix
 clock to the receipt used by the probability law. All moments are global;
@@ -271,14 +271,14 @@ theorem probability_and_expected_work
     cases InteractivePrefix.run
       (InteractivePrefix.checked (originalFirstPhase context) ((publicCheck running) context)) alpha gamma point <;> rfl
   · exact returned_source_bound_with_binding relation ajtai running fresh contexts originalFirstPhase
-      abortTape provider program sourceProgram lowNorm correct bounds bounded sourceCorrect
+      abortTape provider program sourceProgram correct bounds bounded sourceCorrect
   · exact InteractiveWork.expected_work_polynomial_bound relation ajtai running fresh continuation call program
       sourceProgram (PaperExtractionAlgebra.extractionAlgebra ajtai)
-      (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm) correct bounds bounded
+      (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility) correct bounds bounded
       accessBound accessBounded contexts baseSummable securityParameter basePolynomial primitivePolynomial
       accessPolynomial basePPT primitivePPT accessPPT
 
-include lowNorm correct bounded sourceCorrect in
+include correct bounded sourceCorrect in
 /-- The original preparation call generates the context once for both
 source runs. Probability uses its actual returned context, and work includes
 its full preparation/preprocessing clock. The checked prefix and reachable
@@ -352,12 +352,12 @@ theorem msis_probability_and_expected_work {SetupTape : Type*}
   let continuation := SupportedContinuation.extension relation ajtai running fresh contexts
     (InteractiveComposition.firstPhase originalFirstPhase (publicCheck running)) abortTape provider
   have source := probability_and_expected_work relation ajtai running fresh contexts originalFirstPhase
-    abortTape provider program sourceProgram lowNorm correct bounds bounded sourceCorrect
+    abortTape provider program sourceProgram correct bounds bounded sourceCorrect
     call callCorrect accessBound accessBounded securityParameter basePolynomial primitivePolynomial accessPolynomial
     baseSummable basePPT primitivePPT accessPPT
   refine ⟨source.1, ?_, ?_⟩
   · have success := returned_source_bound_with_msis relation ajtai running fresh contexts originalFirstPhase
-      abortTape provider program sourceProgram lowNorm correct bounds bounded sourceCorrect
+      abortTape provider program sourceProgram correct bounds bounded sourceCorrect
     dsimp only [contexts] at success
     rw [BindingProbability.prepared_successProbability_eq] at success
     exact success

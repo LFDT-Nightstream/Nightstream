@@ -120,13 +120,12 @@ variable {Context State Tape : Type*}
   (preparationClock : Context → Nat)
   (prefixClock : Context → CubePoint K productionShape.cubeVariables → K →
     CubePoint K productionShape.cubeVariables → Nat)
-  (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (bounds : PrimitiveBounds)
   (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
     (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds)
 
-include model lowNorm bounded in
+include model bounded in
 /-- The same selected source PMF satisfies the additive retry bound. The
 MSIS term measures the actual adaptive reduction with this source program. -/
 theorem source_probability_linear_bound :
@@ -167,7 +166,7 @@ theorem source_probability_linear_bound :
   have lower := FiatShamirTransfer.returned_source_bound_with_adaptive_msis relation productionAjtaiKey
     running fresh law originalFirstPhase abortTape provider g deltaFS Q model program
     (fun context => PiCCSStoredSourceProbability.sourceProgram (inputs context)
-      (checkClock context) (accessClock context)) lowNorm
+      (checkClock context) (accessClock context))
     (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds bounded
     (fun context => PiCCSStoredSourceProbability.sourceProgram_correct
@@ -178,10 +177,10 @@ theorem source_probability_linear_bound :
   exact lower.trans (le_of_eq (storedEvent.trans
     (HyperNovaSourceLaw.source_event_mass_eq inputs contexts originalFirstPhase continuation program).symm))
 
-include model lowNorm bounded in
+include model bounded in
 /-- The actual stored source event and the prepared reduction use the same
 constructed provider and exact checked prefix. The remaining premises are
-external transfer/invertibility and explicit declared-clock moment bounds.
+external transfer and explicit declared-clock moment bounds.
 The constructed source PMF realizes the exact existing sequential event law.
 No efficient translation, runtime bound, or numerical MSIS estimate follows. -/
 theorem finishValue_probability_and_expected_work
@@ -258,7 +257,7 @@ theorem finishValue_probability_and_expected_work
       tapes rawCall suffixCheckClock
       storageClock parentClock storageBound storageBounded suffixSummable) g deltaFS Q model
     scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock checkClock accessClock
-    lowNorm bounds bounded (FiatShamirTransfer.contextLaw relation law) (prepare preparationClock) preparedContexts
+    bounds bounded (FiatShamirTransfer.contextLaw relation law) (prepare preparationClock) preparedContexts
     preparationSummable
     (prefixCall (InteractiveComposition.firstPhase originalFirstPhase
       (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))) prefixClock)

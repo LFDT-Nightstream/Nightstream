@@ -14,21 +14,22 @@ Owns: the exact unary algebra-field predicate and its connection to the
 independently defined 54-coordinate five-symbol production set.
 
 Does not own: Poseidon2 transcript derivation, rejection sampling, decoded
-Rust/R1CS challenge membership, the external low-norm invertibility theorem,
-norm growth of folded witnesses, row removal, or constraint counts.
+Rust/R1CS challenge membership, the low-norm invertibility proof, norm
+growth of folded witnesses, row removal, or constraint counts.
 
 Emits constraints: no.
 
 Authority boundary: valid challenges are exactly images of complete sampled
 coefficient vectors. Coefficient range checks, list length, or a digest alone
-do not establish this predicate. Pairwise security remains conditional on the
-explicit `LowNormInvertibility` mathematical boundary.
+do not establish this predicate. Pairwise security takes `LowNormInvertibility`
+as a parameter so that this module does not load Mathlib;
+`Phi81StrongSet.lowNormInvertibility` proves it.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.pi_rlc.verify.challenge.membership` | one challenge is the exact embedded 54-coordinate production scalar | checked predicate | `challengeValid` |
 | `nifs.pi_rlc.verify.challenge.honest` | every semantic sampler scalar embeds to a valid challenge | derived | `embedScalar_valid` |
-| `nifs.pi_rlc.verify.challenge.pairwise_security` | distinct valid challenges have invertible difference | security boundary | `pairwiseSecure_of_lowNormInvertibility` |
+| `nifs.pi_rlc.verify.challenge.pairwise_security` | distinct valid challenges have invertible difference | proved premise | `pairwiseSecure_of_lowNormInvertibility` |
 | `nifs.pi_rlc.verify.challenge.transcript_refinement` | decoded Poseidon2/rejection-sampler output satisfies membership | missing implementation bridge | not owned here |
 -/
 
@@ -50,8 +51,8 @@ theorem embedScalar_valid (scalar : Scalar) :
     challengeValid (embedScalar scalar) :=
   embedScalar_member scalar
 
-/-- Pairwise security of the chosen unary predicate, conditional only on the
-isolated analytic theorem boundary. -/
+/-- Pairwise security of the chosen unary predicate, given the proved
+`LowNormInvertibility` premise. -/
 theorem pairwiseSecure_of_lowNormInvertibility
     (theorem8 : LowNormInvertibility) :
     forall {left right : RingF},

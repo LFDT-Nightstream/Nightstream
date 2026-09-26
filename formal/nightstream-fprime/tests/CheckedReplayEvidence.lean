@@ -47,8 +47,8 @@ end LeanGraph.Targets
 
 #audit_axioms NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor.output_unique
 #audit_axioms NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor.accepted_of_checked_rows
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.freshHolds_of_rows
-#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext.terminal_of_memberships
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaMembership.freshHolds_of_rows
+#audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaMembership.terminal_of_memberships
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECComputedChildren.child_openings
 #audit_axioms NightstreamFPrime.Export.Stage1.FreshCommitmentFold.fold_value
 #audit_axioms NightstreamFPrime.Export.Stage1.FreshCommitmentFold.completeRow_value

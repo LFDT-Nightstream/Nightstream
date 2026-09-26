@@ -10,6 +10,12 @@ four-field block, and advances Poseidon2 once for each of the 17 scalars.
 The map is the specified reduction modulo `5^54`, followed by centered digits.
 There is no rejection, retry, or shortfall.
 
+The September 26 repair removes the selected compact application layout and
+uses the same general layout for every application. The current counts, proof
+status, and executed checks are in [the PR #123 update](../../../PR123_DEEP_REVIEW.md)
+and the [constraint tree](../../../formal/nightstream-fprime/CONSTRAINT_TREE.md).
+The checkpoints below retain the counts and evidence from their named cuts.
+
 ## Implemented and proved
 
 - The exact helper program, including integer bounds before field operations,

@@ -68,7 +68,7 @@ engine returns an error without a CPU fallback.
 Metal retains its device session and matrix plan across folds. PiRLC, witness
 generation, and verifier control flow use the shared host code. Fixed-key
 commitments, terminal row arithmetic, and nonzero running openings use Metal.
-The GPU dependencies do not add `neo-fold-legacy` to the production graph.
+The GPU engines use the maintained lifecycle and the same verifier relation.
 
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
@@ -291,8 +291,8 @@ contract is `NIGHTSTREAM_CRATE_GOAL.md` in the repository root. See the
 and the separate maintainer workflow.
 
 The Cargo package includes the saved test inputs. Tests use package-local data
-and do not run Lean. The crate has no production or development dependency on
-`neo-fold-legacy`. The old timing baseline lives in the legacy crate.
+and do not run Lean. Current reproduction commands use the maintained library
+test executable. Earlier timing records retain their original source scope.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.

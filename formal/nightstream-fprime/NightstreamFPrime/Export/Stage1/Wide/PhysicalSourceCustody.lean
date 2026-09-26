@@ -32,6 +32,10 @@ private structure BuilderRows (program : ApplicationPackage.Program) (commonPack
   baseRows : (stored base).Perm (common ++ PhysicalSampler.rows ())
   insertPairs : List.Forall₂ (fun a b => (ApplicationPackage.insertApplication (extra program)).compiledRow a = .ok b)
     (stored base) inserted
+  applicationPairs : List.Forall₂ (fun a b => (ApplicationRelocation.mapping 27716409).compiledRow a = .ok b)
+    (PackageSourceRows.decodedRows
+      (PerApplicationPackage.applicationPlan program).witnessInstructions
+      (PerApplicationPackage.applicationPlan program).assertionRows) applicationRows
   nextPairs : List.Forall₂ (fun a b => ordinaryMap.compiledRow a = .ok b) (nextRows program) next
   applicationBounds : ∀ row ∈ applicationRows,
     27716409 ≤ row.rowIndex ∧
@@ -77,14 +81,17 @@ private theorem builder_rows_of_base (program : ApplicationPackage.Program)
     commonPairs := decoded_pairs ordinaryMap _ _ _ _ commonInstructionMap commonAssertionMap
     baseRows := baseRows
     insertPairs := decoded_pairs (ApplicationPackage.insertApplication (extra program)) _ _ _ _ instructionMap assertionMap
+    applicationPairs := ?_
     nextPairs := decoded_pairs ordinaryMap [] [] _ _ rfl nextMap
     applicationBounds := ?_
     finalRows := finalRows }⟩
-  intro row member
-  rw [planEq] at member
-  have bounds := application_bounds program base.layout.rowCount row member
-  rw [(counts _).2, baseCount] at bounds
-  exact bounds
+  · rw [planEq, baseCount]
+    exact application_pairs program 27716409
+  · intro row member
+    rw [planEq] at member
+    have bounds := application_bounds program base.layout.rowCount row member
+    rw [(counts _).2, baseCount] at bounds
+    exact bounds
 
 private theorem bind_result {α β : Type} (input : Except String α)
     (next : α → Except String β) (result : β) (built : (input >>= next) = .ok result) :
@@ -186,6 +193,67 @@ private theorem base_source (program : ApplicationPackage.Program)
   rw [valueEq] at recovered
   simpa only [PhysicalMatrixSemantics.referenceSource, rowMap, Except.toOption,
     Bind.bind, Option.bind_some, sourceRead] using! recovered
+
+private theorem application_source (program : ApplicationPackage.Program)
+    (package : CircuitPackage) (archive : BuilderRows program (PhysicalPackage.common ()) package)
+    (index : Nat) (value : R1CS.Row)
+    (read : PackageSourceRows.packageSourceRow? (PerApplicationPackage.package program) index = some value)
+    (inApplication : PerApplicationPackage.basePackage.layout.rowCount ≤ index ∧
+      index < PerApplicationPackage.nextPreimageRowStart program) :
+    PhysicalMatrixSemantics.referenceSource (extra program) (PackageSourceRows.packageSourceRow? package) index = some value := by
+  obtain ⟨original, originalSingle, valueEq⟩ := application_of_reference program index value read inApplication
+  have lower : 28666318 ≤ index := by
+    simpa only [PerApplicationPackage.basePackage_rowCount_eq] using inApplication.1
+  have rowMap : PhysicalRelabel.row index = .ok (index - 949909) := by
+    change (if index < 19385261 then Except.ok index else if 20394109 ≤ index then
+      Except.ok (index - 949909) else Except.error _) = .ok _
+    rw [if_neg (by omega), if_pos (by omega)]
+  have applicationMap : (ApplicationRelocation.mapping 27716409).row index = .ok (index - 949909) := by
+    change (if 28666318 ≤ index then Except.ok (27716409 + (index - 28666318)) else Except.error _) = .ok _
+    rw [if_pos lower]
+    have same : 27716409 + (index - 28666318) = index - 949909 := by omega
+    exact congrArg (Except.ok (ε := String)) same
+  obtain ⟨result, applicationSingle, mapped⟩ := mapped_single _ _ _ archive.applicationPairs
+    index (index - 949909) applicationMap (ApplicationRelocation.row_injective 27716409) original originalSingle
+  have commonEmpty : selected archive.common (index - 949909) = [] := by
+    apply mapped_empty ordinaryMap _ _ archive.commonPairs index (index - 949909) rowMap row_injective
+    apply selected_nil
+    intro row member equal
+    have commonMember := common_stored.mem_iff.mp member
+    have bound := PerApplicationPackageSourceRows.baseRows_rowIndex_lt row (commonRows_sublist.subset commonMember)
+    omega
+  have baseEmpty : selected (stored archive.base) (index - 949909) = [] := by
+    have permutation := selected_perm archive.baseRows (index - 949909)
+    rw [selected_append, commonEmpty, sampler_empty (index - 949909) (Or.inr (by omega)), List.nil_append] at permutation
+    exact List.perm_nil.mp permutation
+  have insertedEmpty := mapped_empty (ApplicationPackage.insertApplication (extra program)) _ _ archive.insertPairs
+    (index - 949909) (index - 949909) rfl (insertion_injective program) baseEmpty
+  have nextEmpty : selected archive.next (index - 949909) = [] := by
+    apply mapped_empty ordinaryMap _ _ archive.nextPairs index (index - 949909) rowMap row_injective
+    apply selected_nil
+    intro row member equal
+    have bound := next_bounds program row member
+    omega
+  have finalSingle : selected (stored package) (index - 949909) = [result] := by
+    apply selected_eq_of_perm archive.finalRows.symm (index - 949909) result
+    simp only [selected_append, insertedEmpty, applicationSingle, nextEmpty, List.nil_append, List.append_nil]
+  have originalMember : original ∈ PackageSourceRows.decodedRows
+      (PerApplicationPackage.applicationPlan program).witnessInstructions
+      (PerApplicationPackage.applicationPlan program).assertionRows := by
+    have found : original ∈ selected (PackageSourceRows.decodedRows
+        (PerApplicationPackage.applicationPlan program).witnessInstructions
+        (PerApplicationPackage.applicationPlan program).assertionRows) index := by
+      rw [originalSingle]
+      exact List.mem_singleton_self _
+    exact (List.mem_filter.mp found).1
+  have supported := ApplicationDirectSource.sourceRows_varsSatisfy program original.toR1CS
+    (List.mem_map_of_mem
+      ((PerApplicationPackageSourceRows.applicationPlan_decodedRows_perm program).mem_iff.mp originalMember))
+  have recovered := PhysicalMatrixRecovery.application_row_recovered program 27716409 original result supported mapped
+  rw [valueEq] at recovered
+  have sourceRead := source_eq_of_selected package (index - 949909) result finalSingle
+  simpa only [extra, PhysicalMatrixSemantics.referenceSource, rowMap, Except.toOption,
+    Bind.bind, Option.bind_some, sourceRead] using recovered
 
 private theorem next_source (program : ApplicationPackage.Program)
     (package : CircuitPackage) (archive : BuilderRows program (PhysicalPackage.common ()) package)
@@ -307,8 +375,12 @@ theorem custody (compiled : PiRlcWideSampler.RangePlan.Compiled)
       have bound := index.isLt
       omega
     · right; change 28295335 ≤ 28319311 + index.val; omega
-  · intro absent
-    cases absent
+  · intro index
+    apply application_source application package archive _ _ (old.applicationRows index)
+    have bound : index.val < (PerApplicationPackage.applicationPlan application).rowCount :=
+      Eq.mp (congrArg (fun count : Nat => index.val < count)
+        (ApplicationDirectSource.program_rowCount application fits.package)) index.isLt
+    exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left bound _⟩
   · intro index
     apply next_source application package archive _ _ (old.nextPreimage index)
     omega

@@ -90,7 +90,7 @@ class GoldenCITests(unittest.TestCase):
         output = self.root / "new-cpu"
         with patch.object(ci, "run") as run, patch.object(ci, "build", return_value=Path("current-binary")) as build, \
                 patch.object(ci, "cpu_handoff") as handoff:
-            ci.execute("cpu", None, output)
+            ci.execute(None, output)
         calls = [call.args[0] for call in run.call_args_list]
         native = [call for call in calls if Path(call[2]).name == "run_golden_conformance.py"]
         self.assertEqual(len(native), 1)
@@ -107,39 +107,8 @@ class GoldenCITests(unittest.TestCase):
         output = self.root / "new-cpu"
         with patch.object(ci, "run", side_effect=ValueError("required check failed")), \
                 self.assertRaisesRegex(ValueError, "required check failed"):
-            ci.execute("cpu", self.root / "archives", output)
+            ci.execute(self.root / "archives", output)
         self.assertFalse((output / "cpu-result.json").exists())
-
-    def test_independent_mode_requires_real_generator_and_comparison_completion(self):
-        output = self.root / "independent"
-        with patch.object(ci, "run"), patch.object(ci, "build", return_value=Path("checker")), \
-                patch.object(ci, "cpu_handoff"), \
-                patch.object(ci, "independent_expectations", side_effect=ValueError("generation incomplete")) as replay, \
-                self.assertRaisesRegex(ValueError, "generation incomplete"):
-            ci.execute("independent", self.root / "archives", output, self.root / "handoff")
-        replay.assert_called_once()
-        self.assertFalse((output / "independent-result.json").exists())
-
-    def test_independent_mode_still_requires_its_source_archives(self):
-        with self.assertRaisesRegex(ValueError, "independent requires.*archives"):
-            ci.execute("independent", None, self.root / "independent", self.root / "handoff")
-
-    def test_independent_generation_stops_at_state_three_and_checks_connection(self):
-        output, handoff = self.root / "independent", self.root / "handoff"
-        output.mkdir()
-        self.write(handoff / "cpu/fold-1/nifs.json", {"parent": {}})
-        self.write(handoff / "cpu/step-1/envelope.json", {"iteration": 1, "z0": [], "current": []})
-        with patch.object(ci, "run") as run, patch.object(ci, "compare_json"), \
-                patch.object(ci, "compare_envelope"), patch.object(ci.shutil, "copyfile"), \
-                patch.object(ci.shutil, "copytree", side_effect=lambda source, target: target.mkdir(parents=True)):
-            ci.independent_expectations(output, self.root / "references", handoff)
-        commands = [call.args[0] for call in run.call_args_list]
-        replay = [command for command in commands if Path(command[2]).name == "replay_recursive_loop.py"]
-        self.assertEqual([(command[-2], command[-1]) for command in replay],
-                         [("1", "first-fold")] + [("2", phase) for phase in
-                          ("build", "prepare", "native", "ccs", "reductions", "successor", "terminal")])
-        self.assertEqual(Path(commands[-1][2]).name, "check_selected_replay.py")
-        self.assertIn(handoff, commands[-1])
 
     def test_build_rejects_success_without_the_requested_executable(self):
         def fake_run(command, **options):

@@ -6,13 +6,17 @@ import unittest
 
 from scripts.lean_graph.policy import gate_order, gate_scope, load_policy, validate, verify_checker_sources
 from scripts.lean_graph.runner import completion
-from scripts.lean_graph.snapshot import EvidenceError
+from scripts.lean_graph.snapshot import EvidenceError, inspect
 
 
 class ConformanceRegistrationTests(unittest.TestCase):
     def setUp(self):
         self.policy = load_policy()
         self.gates = self.policy["gates"]
+
+    def test_current_rust_sources_can_be_captured(self):
+        root = Path(__file__).resolve().parents[3]
+        inspect(root, self.policy, {}, {"sources": ["rust"], "inputs": []})
 
     def selected(self, obligation):
         return gate_order(self.policy, self.policy["obligations"][obligation]["gates"])
@@ -45,26 +49,17 @@ class ConformanceRegistrationTests(unittest.TestCase):
         with self.assertRaises(EvidenceError):
             completion(rejected.replace("round=1", "round=0"), negative["completion"])
 
-    def test_pidec_saved_comparison_requires_complete_values_and_mutation(self):
-        name = "pidec-evaluation-comparison"
-        gate = self.gates[name]
-        self.assertEqual(gate["inputs"], ["pidec_saved_lean_evaluations", "pidec_saved_native_children"])
-        self.assertFalse(gate.get("identity_bound", False))
-        self.assertEqual(gate["requires"], ["pidec-evaluation-kernel"])
-        command, = gate["commands"]
-        self.assertEqual(command["argv"][-3:], ["compare-pidec-evaluations",
-                         "{input:pidec_saved_native_children}", "{input:pidec_saved_lean_evaluations}"])
-        passed = ("pidec_evaluation_replay=passed children=16 matrices=14 lanes=54 "
-                  "evaluation_words=25920 point_words=56 blocks=4685394 "
-                  "target_mutation=rejected child=15 family=matrix matrix=13 lane=53 component=1 elapsed=1ms")
-        completion(passed, command["completion"])
-        for incomplete in (passed.replace("25920", "1728"), passed.replace("56", "54"),
-                           passed.replace("target_mutation=rejected", "target_mutation=unchecked")):
-            with self.assertRaises(EvidenceError):
-                completion(incomplete, command["completion"])
-        obligation = self.policy["obligations"]["pidec-evaluation-replay"]
-        self.assertIn(name, obligation["gates"])
-        self.assertEqual(obligation["status"], "Compiler-closed")
+    def test_retired_producer_has_no_current_registration(self):
+        for name in ("fresh-recursive-loop", "fresh-witness-replay", "pirlc-witness-replay",
+                     "pidec-witness-replay", "pidec-commitment-replay", "pidec-evaluation-replay"):
+            self.assertNotIn(name, self.policy["obligations"])
+        for gate in self.gates.values():
+            for command in gate["commands"]:
+                self.assertNotIn("neo-fold-legacy", command["argv"])
+                self.assertFalse(any("replay_recursive_loop" in str(arg) for arg in command["argv"]))
+        for name in ("candidate-physical", "candidate-logical", "candidate-base", "candidate-detached",
+                     "candidate-recursive", "candidate-recursive-mutations"):
+            self.assertIn(name, self.selected("piccs-conformance"))
 
     def test_pilot_uses_regenerated_current_inputs(self):
         order = self.selected("pilot-conformance")
@@ -107,8 +102,12 @@ class ConformanceRegistrationTests(unittest.TestCase):
         for mode in ("accept", "proof-mutations", "statement-mutations", "output-mutations", "point-mutations"):
             name = "recursive-piccs-" + mode
             self.assertIn(name, order)
-            argv = self.gates[name]["commands"][0]["argv"]
-            self.assertEqual(argv[-3:], ["{input:recursive_phase_input}", "{input:recursive_lean_result}", mode])
+            command = self.gates[name]["commands"][0]
+            self.assertIn("nightstream", command["argv"])
+            data = command["stdin_json"]
+            self.assertEqual([data["input"], data["lean"], data["check"]],
+                             ["{input:recursive_phase_input}", "{input:recursive_lean_result}", mode])
+            self.assertEqual(data["operation"], "ccs")
             self.assertLess(order.index("recursive-lean-input"), order.index(name))
         for family in ["k", *[f"a{index}" for index in range(14)], "ccs", "commitment"]:
             command = self.gates["recursive-fresh-" + family]["commands"][0]
@@ -185,10 +184,10 @@ class ConformanceRegistrationTests(unittest.TestCase):
         self.assertIn("stage1-test-build", self.selected("stage1-baseline"))
         command = self.gates["stage1-test-build"]["commands"][0]
         self.assertEqual(command["argv"],
-                         ["cargo", "test", "-p", "neo-fold-legacy", "--release", "--no-run"])
+                         ["cargo", "test", "-p", "nightstream", "--release", "--no-run"])
         lines = ["Finished `release` profile",
-                 "Executable unittests src/bin/generate_pi_ccs_fixture.rs",
-                 "Executable tests/nifs/stage1_nifs_execution.rs"]
+                 "Executable unittests src/lib.rs",
+                 "Executable tests/circuit_lifecycle.rs"]
         completion("\n".join(lines), command["completion"])
         for omitted in range(len(lines)):
             with self.subTest(omitted=omitted), self.assertRaises(EvidenceError):
@@ -247,8 +246,10 @@ class ConformanceRegistrationTests(unittest.TestCase):
             ("output", "output-mutations", 17 * (17 + 28 + 4) + 10),
         ):
             check = self.gates[f"piccs-{name}-mutations"]["commands"][-1]["completion"]
-            prefix = "pi_ccs_complete_phase_values=passed accepted=true elapsed=1\n"
-            suffix = " engines=paper_exact,optimized\n"
+            prefix = "pi_ccs_complete_phase_values=passed accepted=true engine=optimized\n"
+            suffix = (" engine=optimized\n"
+                      "test lifecycle::tests::staged::fold::lean::golden::native_checker ... ok\n"
+                      "test result: ok. 1 passed; 0 failed;\n")
             complete = f"positive_pi_ccs_{label}_rejected={count}"
             completion(prefix + complete + suffix, check)
             with self.subTest(group=name), self.assertRaises(EvidenceError):

@@ -1,23 +1,18 @@
-The application reference is extracted from the selected Lean package at
-`41aa5ef63`. The execution vector retains its original bytes from Lean source
-`9787d8e77069246e3e2afc7dcfab755556fd5023` and still matches the current parity.
-The Rust application builder does not read these files. Ordinary Rust tests
-need no Lean installation.
+The application reference and execution vector come from the selected Lean
+package and parity output. The Rust application builder does not read these
+files. Ordinary Rust tests need no Lean installation.
 
-The linked base/NIFS/recursive outputs below refer to the compact selected
-layout at `41aa5ef63`. Their native staged
-C → R → D result, full proof comparison, and independent Lean base and
-recursive caller outputs have passed and are published. Final Nightstream
-consumer checks pass. Proving benchmarks remain paused.
-The state/message-only `nonzero-running.json`
-request is unchanged.
+The base, NIFS, and recursive fixtures belong to the same package and verifier
+context. Update them together after candidate conformance passes. Saved results
+from an earlier source or package do not establish acceptance of a changed one.
+The state/message request in `nonzero-running.json` is independent of the package.
 
 `poseidon2-application-reference.json` is the exact application plan at index
 3 of `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
 It contains the four input state columns, four private message columns, four
 output state columns, all 7,700 application rows, and all 7,696 arithmetic
-witness recipes. These are physical source dimensions; the selected logical
-application uses 262 rows and 10,742 private coordinates.
+witness recipes. The logical application uses the same 7,700 rows and allocates 41 retained
+coordinates per witness or local word.
 
 `poseidon2-application-execution.json` contains `[prior_state, message, output]`
 from `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json`.
@@ -61,27 +56,22 @@ The assembly test also compares the complete raw application plan, including
 duplicate sparse terms and witness expression order. A separate test compares
 the complete assembled package value with the selected saved reference.
 
-The Lean entries below are links to retained exports. The three Stage 1 Rust
-fixtures are independent copies, so tests do not need the legacy crate. Their
-recorded source paths retain the historical name at the source commit:
+The Lean entries below link to current exports. The native results are stored
+in the maintained crate so tests do not need a deprecated crate.
 
-| Package path | Recorded source |
+| Package path | Source |
 | --- | --- |
 | `lean/nightstream-fprime-stage1-base-step-fixture-v1.json` | Same filename under `formal/nightstream-fprime/artifacts`. |
 | `lean/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json` | Same filename under `formal/nightstream-fprime/artifacts`. |
 | `lean/nightstream-fprime-stage1-base-nifs-result-v1.json` | Same filename under `formal/nightstream-fprime/artifacts`. |
-| `stage1_actual_nifs/actual_result.json` | Same filename under `crates/neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs`. |
-| `stage1_actual_nifs/proof.native` | `proof.bin` under `crates/neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs`. |
-| `stage1_recursive_states/nonzero-running.json` | Same filename under `crates/neo-fold-clean/tests/nifs/fixtures/stage1_recursive_states`. |
+| `stage1_actual_nifs/actual_result.json` | Current maintained native fold output. |
+| `stage1_actual_nifs/proof.native` | Complete native proof bytes for that output. |
+| `stage1_recursive_states/nonzero-running.json` | Nonzero application state and message request. |
 
-Cargo packaging stores the linked file contents. The links add no second copy
-of the recorded data to Git. The native proof has a different package filename
-because the repository ignores new files named `proof.bin`; the link exposes
-the exact native bytes without re-encoding. Current source, stage results and
-file hashes are recorded in
-[the selected NIFS fixture README](../../../neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs/README.md).
-The repository's `docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md`
-and archive describe the older 2026-09-12 fixture, not these new outputs.
+Cargo packaging stores linked file contents. The links avoid a second stored
+copy of the Lean data. Current reproduction commands are in
+[the golden conformance workflow](../../../../scripts/GOLDEN_CONFORMANCE.md).
+Historical archives retain their recorded source and package identities.
 
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read

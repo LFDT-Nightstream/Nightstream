@@ -19,7 +19,9 @@ from lean_graph.policy import CAPS  # noqa: E402
 
 TEST = "lifecycle::tests::staged::run_phase"
 OPENING_TESTS = {
+    "opening-k-prepare": "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_k_witness",
     "opening-k": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+    "opening-a-prepare": "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_a_witness",
     "opening-a": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
 }
 # NIGHTSTREAM_CRATE_GOAL.md, current owner-approved RSS guard.

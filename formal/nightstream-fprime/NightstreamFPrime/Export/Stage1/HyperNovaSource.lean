@@ -178,7 +178,7 @@ private theorem runningInstance_eq (input : PiCCSInputCheck.Input)
   · change Fin.addCases (inst.fresh input).publicInputs
         (inst.running input).publicInputs (runningSourceIndex index) =
       (inst.running input).publicInputs index
-    exact addCases_running (shape := productionShape) (Value := PiCCSInputCheck.PublicInput)
+    exact addCases_running (shape := productionShape) (Value := Phi81Relation.PublicInput (carrier inst))
       (inst.fresh input).publicInputs (inst.running input).publicInputs index
   · rfl
   · rfl

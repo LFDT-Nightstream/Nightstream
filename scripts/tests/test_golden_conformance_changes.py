@@ -28,8 +28,8 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "crates/neo-transcript/src/lib.rs", "crates/neo-math/src/lib.rs",
             "crates/neo-params/src/lib.rs", "crates/neo-ccs/src/lib.rs",
             "crates/neo-ajtai/src/lib.rs", "crates/wip-spartan/src/lib.rs",
-            "crates/neo-fold-legacy/src/bin/generate_pi_ccs_fixture.rs",
-            "crates/neo-fold-legacy/tests/nifs/nifs_actual_mutations.rs",
+            "crates/nightstream/tests/lifecycle_native/golden.rs",
+            "crates/nightstream/tests/lifecycle_native/golden_dec.rs",
             "crates/nightstream/tests/run_recursive_phase.py",
             "crates/nightstream/Cargo.toml", "Cargo.toml", "Cargo.lock",
             "rust-toolchain.toml", ".cargo/config.toml", ".gitattributes",
@@ -37,10 +37,10 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ("native", "metal"))
 
-    def test_lean_and_original_inputs_require_independent_regeneration(self):
+    def test_lean_and_original_inputs_require_reference_regeneration(self):
         for path in (
             "formal/nightstream-fprime/NightstreamFPrime/Spec/PiCCS.lean",
-            "formal/nightstream-fprime/scripts/replay_recursive_loop.py",
+            "formal/nightstream-fprime/scripts/validate.sh",
             "formal/nightstream-fprime/lean-toolchain",
             "formal/nightstream-fprime/lake-manifest.json",
             "formal/nightstream-fprime/lakefile.toml",
@@ -48,15 +48,12 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "crates/nightstream-fprime/artifacts/shared-formulas-v1.json",
             "crates/nightstream/tests/fixtures/stage1_actual_nifs/proof.native",
             "scripts/lean_graph/obligations.json",
-            "docs/reviews/nightstream-fprime-requirements/INDEPENDENT_REPLAY_ASSET.json",
             "docs/reviews/nightstream-fprime-requirements/EVIDENCE_RELEASE.json",
             "docs/reviews/nightstream-fprime-requirements/TERMINAL_REPLAY_INPUTS.json",
             "docs/reviews/nightstream-fprime-requirements/NONZERO_EXECUTION_RELEASE.json",
             "crates/nightstream/tests/restore_golden_inputs.py",
-            "crates/neo-fold-legacy/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json",
+            "crates/nightstream/tests/fixtures/stage1_recursive_states/nonzero-running.json",
             ".github/workflows/ci.yml", "scripts/golden_conformance_changes.py",
-            "scripts/bridge_first_second.py", "scripts/check_selected_replay.py",
-            "scripts/tests/test_bridge_first_second.py", "scripts/tests/test_check_selected_replay.py",
         ):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ("native", "lean_reference", "metal"))
@@ -83,9 +80,12 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ())
 
-    def test_embedded_documentation_is_a_build_input(self):
-        self.assertEqual(checks_for_path(
-            "crates/neo-fold-legacy/tests/preprocessing_read_only.md"), ("native", "metal"))
+    def test_removed_legacy_paths_do_not_select_supported_checks(self):
+        for path in ("crates/neo-fold-legacy/src/lib.rs",
+                     "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
+                     "scripts/check_selected_replay.py", "scripts/bridge_first_second.py"):
+            with self.subTest(path=path):
+                self.assertEqual(checks_for_path(path), ())
 
     def test_mutation_archive_selects_native_regression_without_regeneration(self):
         path = "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"

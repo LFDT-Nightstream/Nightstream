@@ -219,7 +219,7 @@ impl Manifest {
     pub fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
         let manifest: Self = serde_json::from_slice(bytes)?;
         if manifest.format != "nightstream.shared-verifier"
-            || manifest.version != 2
+            || manifest.version != 3
             || manifest.id != "shared-recursive-verifier-v1"
             || manifest.profile != PROFILE
             || manifest.parameters != ["witness_words", "local_words", "application_rows"]

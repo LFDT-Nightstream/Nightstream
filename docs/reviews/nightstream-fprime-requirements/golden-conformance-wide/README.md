@@ -80,11 +80,7 @@ For the complete native golden run and Lean fold replay:
 From the repository root, with Homebrew `bash` and `python3` first on `PATH`:
 
 ```sh
-timeout --signal=KILL 300 cargo test -p nightstream --release --lib --no-run
-python3 -B crates/nightstream/tests/run_golden_conformance.py --binary target/release/deps/nightstream-<hash> --directory RUN
-timeout --signal=KILL 300 cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
-python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 1 --output OUT1 --native-checker target/release/generate_pi_ccs_fixture
-python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 2 --output OUT2 --native-checker target/release/generate_pi_ccs_fixture
+python3 -B scripts/golden_conformance_ci.py --directory RUN
 ./scripts/check_lean.sh
 ```
 
@@ -100,8 +96,8 @@ existing versioned locations.
 Replay the retained vector without reconstructing the native witnesses:
 
 ```sh
-timeout --signal=KILL 300 cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
-python3 -B crates/nightstream/tests/check_golden_vectors.py --output CHECK --native-checker target/release/generate_pi_ccs_fixture
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib --no-run
+python3 -B crates/nightstream/tests/check_golden_vectors.py --output CHECK --native-checker target/release/deps/nightstream-<hash>
 ```
 
 The replay runs the current Lean verifier and caller emitter, compares every

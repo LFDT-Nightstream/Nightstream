@@ -1,39 +1,36 @@
 # Nightstream
 
 Nightstream is a research proving system that combines SuperNeo folding for
-CCS with HyperNova Construction 2 and Nebula memory checking. The active field
+CCS with HyperNova Construction 2. The active field
 is Goldilocks with a degree-two extension. Ajtai commitments bind witnesses,
 and protocol transcripts use Poseidon2 only.
 
 Nightstream is not production-ready and has not had an independent audit.
 
-New application integrations use [`nightstream`](crates/nightstream/README.md).
-The previous lifecycle remains in [`neo-fold-legacy`](crates/neo-fold-legacy/README.md)
-for existing consumers and reference. Rust CI tests the maintained `nightstream` crate.
+Applications use [`nightstream`](crates/nightstream/README.md). It compiles
+application circuits into the Lean-exported F′ relation and provides the
+public proving and verification lifecycle. Rust CI tests this crate.
 
 ## Implemented paths
 
 - SuperNeo NIFS: PiCCS, PiRLC, and PiDEC
 - Optimized and PaperExact reduction engines
 - HyperNova-style recursive R1CS F' induction
-- Nebula offline memory checking
-- Direct CCS folding with full-history audit verification
 - Terminal R1CS compilation and a WIP Spartan proof over WHIR
 - Metal acceleration for the canonical one-joint prover on supported Apple builds
 - A required CUDA backend target that fails explicitly until its canonical
   device kernel is implemented
 
-The recursive R1CS and Nebula frontends compile the authoritative F' relation.
-Their terminal verifier checks the Construction 2 induction. The direct CCS
-frontend proves the supplied CCS instances and NIFS continuity; multi-chunk
-direct CCS proofs still require the audit replay path.
+The application compiler and terminal verifier use the same exported relation.
+The selected Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`,
+`B = 65536`, and the wide PiRLC sampler.
 
 ## Main crates
 
 | Crate | Ownership |
 |---|---|
 | `nightstream` | Application circuits, prepared packages, CPU/Metal proving, and terminal verification |
-| `neo-fold-legacy` | Deprecated lifecycle and frontends retained for existing consumers |
+| `nightstream-fprime` | Exported package loading, witness execution, and matrix interpretation |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
@@ -42,7 +39,6 @@ direct CCS proofs still require the audit replay path.
 | `wip-spartan` | Direct sparse-R1CS Spartan proof with WHIR |
 | `neo-prover-metal` | Apple Metal prover work |
 | `neo-prover-cuda` | Required CUDA backend target |
-| `neo-wasm` | WASM relation and Nebula integration |
 
 ## Prover choices
 
@@ -73,7 +69,7 @@ queries. Its current configuration covers the Nightstream F′ pilot/PiCCS chain
 
 ## Papers and implementation notes
 
-- [SuperNeo paper](docs/superneo-paper/)
+- [SuperNeo v1.2 paper](docs/superneo-paper-v1_2/)
 - [HyperNova paper](docs/hypernova-paper/)
 - [Nebula paper](docs/nebula-paper/)
 - [Wiki](wiki/index.md)

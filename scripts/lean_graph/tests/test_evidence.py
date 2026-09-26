@@ -338,7 +338,8 @@ class EvidenceTests(EvidenceFixture):
         command = {"kind": "python", "cwd": "src", "argv": [sys.executable, "-c", "pass"],
                    "completion": {"patterns": ["done"]}}
         # Simulate expiry at the project cap; do not wait five minutes for a harness test.
-        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, patch("os.killpg") as kill:
+        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, \
+                patch("scripts.lean_graph.runner.kill_process_groups") as kill:
             child = process.return_value
             child.pid = os.getpid()
             child.communicate.side_effect = subprocess.TimeoutExpired(command["argv"], 300)
@@ -346,20 +347,21 @@ class EvidenceTests(EvidenceFixture):
             result = execute(command, work, self.root / "timeout.log")
             self.assertEqual(result["outcome"], "timed-out")
             child.communicate.assert_called_once_with(None, timeout=300)
-            kill.assert_called_with(child.pid, signal.SIGKILL)
+            kill.assert_called_with(child.pid)
 
     def test_interrupt_kills_process_group_and_records_failure(self):
         work = self.root / "work"
         (work / "source/src").mkdir(parents=True)
         command = {"kind": "python", "cwd": "src", "argv": [sys.executable, "-c", "pass"],
                    "completion": {"patterns": ["done"]}}
-        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, patch("os.killpg") as kill:
+        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, \
+                patch("scripts.lean_graph.runner.kill_process_groups") as kill:
             child = process.return_value
             child.pid, child.returncode = os.getpid(), -signal.SIGKILL
             child.communicate.side_effect = InterruptedError("signal 15")
             result = execute(command, work, self.root / "interrupt.log")
             self.assertEqual(result["outcome"], "interrupted")
-            kill.assert_called_with(child.pid, signal.SIGKILL)
+            kill.assert_called_with(child.pid)
 
     def test_incomplete_record_never_counts_as_pass(self):
         _, manifest = self.run_validity()

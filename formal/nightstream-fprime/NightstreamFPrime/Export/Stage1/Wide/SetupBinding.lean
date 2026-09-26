@@ -25,7 +25,7 @@ def messageColumns : Nat :=
 
 theorem verifierRows_eq : verifierRows = 22 := rfl
 
-theorem messageColumns_eq : messageColumns = 2543368 := by
+theorem messageColumns_eq : messageColumns = 2549015 := by
   unfold messageColumns
   rw [HashChainCounts.committedCoordinates]
   norm_num [Phi81ColumnLayout.blockCount, ringDegree]

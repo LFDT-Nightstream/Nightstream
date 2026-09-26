@@ -10,6 +10,11 @@ production conformance remain separate. The approved owner goal and phase order 
 apply. The graph contains existing Lean declarations; the tool does not write
 proofs or infer new owner criteria from the paper.
 
+The legacy independent-producer registrations are retired. Current native and
+fresh Lean comparisons use the [maintained golden workflow](../GOLDEN_CONFORMANCE.md).
+The exact matrix, opening, and raw-assignment gates remain registered here.
+Historical replay receipts do not certify current artifacts.
+
 The implementation uses Python 3.10 or later and POSIX process groups and
 file locks. It introduces no Python package dependency or Rust feature.
 
@@ -365,9 +370,9 @@ This consistency check does not decide whether the branch set is sufficient;
 the independent formula review must make that decision.
 
 Base mutation completion requires the same exact counts as the recursive
-case: 562 proof, 282 statement, and 843 output mutations, each in both Rust
-engines. These counts come from the fixed-profile loops and assertions in
-`pi_ccs_positive_mutations.rs`. The common-point case requires 56 limb
+case: 562 proof, 282 statement, and 843 output mutations in the optimized Rust
+verifier. These counts come from the fixed-profile loops and assertions in
+`crates/nightstream/tests/lifecycle_native/golden_ccs_mutations.rs`. The common-point case requires 56 limb
 mutations with nonzero running openings. For zero running openings, the
 parent hash owns rejection with the old public digest. No direct point
 rejection check is claimed for that zero-running relation.

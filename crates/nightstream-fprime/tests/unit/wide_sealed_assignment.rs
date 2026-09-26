@@ -67,7 +67,7 @@ fn wide_sealed_package_constructs_a_complete_assignment() {
     let logical = package
         .execute_logical_assignment(&physical)
         .expect("wide committed witness");
-    assert_eq!(logical.len(), 137_341_846);
+    assert_eq!(logical.len(), 137_646_804);
     let expected_public: Vec<u64> = serde_json::from_value(fixture[1][4][2].clone()).unwrap();
     for (column, expected) in expected_public.into_iter().enumerate() {
         assert_eq!(logical.value(column).unwrap(), expected, "public column {column}");

@@ -621,7 +621,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 26);
+    assert_eq!(alignment, 6);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
@@ -741,33 +741,6 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
-/// Split a checked column-map wrapper `[5, width, projection, inner]`.
-fn unwrap_mapped_block(block: &serde_json::Value) -> (&serde_json::Value, Option<&serde_json::Value>) {
-    match block.as_array().map(Vec::as_slice) {
-        Some([tag, _, projection, inner]) if tag.as_u64() == Some(5) => (inner, Some(projection)),
-        _ => (block, None),
-    }
-}
-
-/// Map one column through `[1, [[from, to, count], ...]]`; exactly one range must own it.
-fn project_column(projection: Option<&serde_json::Value>, column: u64) -> Option<u64> {
-    let Some(projection) = projection else {
-        return Some(column);
-    };
-    let targets = projection[1]
-        .as_array()?
-        .iter()
-        .filter_map(|range| {
-            let (from, to, count) = (range[0].as_u64()?, range[1].as_u64()?, range[2].as_u64()?);
-            (from <= column && column < from.checked_add(count)?).then(|| to + (column - from))
-        })
-        .collect::<Vec<_>>();
-    match targets.as_slice() {
-        [target] => Some(*target),
-        _ => None,
-    }
-}
-
 /// Replace only the application witness/local suffix with another valid
 /// execution. The independent rows must reject the detached state binding.
 pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
@@ -779,7 +752,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     assert_eq!(ranges[20].end, application_local.start);
     assert_eq!(application_local.end, ranges[22].start);
     let application_range = application_start..application_local.end;
-    let output_words = package.application().output_columns().len();
+    let source_rows = package.application().row_range();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
         .execute_witness(&private, &public)
@@ -827,38 +800,28 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         artifact.logical_rows,
     )
     .expect("independent canonical matrix program");
-    // Find the compact Poseidon block by its retained application-local range,
-    // then include its following digest pins. Row offsets come from the decoder.
-    // A checked column map (tag 5) wraps a reused block; its retained start is
-    // stated in reference coordinates and projected to the logical layout.
+    // Match the exact ordinary application-row interval exported by Lean.
+    // This is the same application block used for every application shape.
     let blocks = artifact.matrix_program.as_array().expect("matrix blocks");
+    let schedule = serde_json::json!([0, [[source_rows.start, source_rows.len()]]]);
     let application_blocks = blocks
         .iter()
         .enumerate()
         .filter(|(_, block)| {
-            let (inner, projection) = unwrap_mapped_block(block);
-            inner[0].as_u64() == Some(2)
-                && inner[1][2][2]
-                    .as_u64()
-                    .and_then(|start| project_column(projection, start))
-                    == Some(application_local.start as u64)
+            let inner = if block[0].as_u64() == Some(5) { &block[3] } else { block };
+            inner[0].as_u64() == Some(0) && inner[1][0] == schedule
         })
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
     let [application_block] = application_blocks.as_slice() else {
-        panic!("one Poseidon block owns the application-local coordinates");
+        panic!("one ordinary block owns the complete application-row interval");
     };
     let ends = program.block_ends().collect::<Vec<_>>();
-    assert_eq!(
-        unwrap_mapped_block(&blocks[application_block + 1]).0[0].as_u64(),
-        Some(1),
-        "application digest pins"
-    );
     let application_row_start = application_block
         .checked_sub(1)
         .map_or(0, |index| ends[index]);
-    let application_row_end = ends[application_block + 1];
-    assert_eq!(application_row_end - ends[*application_block], output_words);
+    let application_row_end = ends[*application_block];
+    assert_eq!(application_row_end - application_row_start, source_rows.len());
     let checked = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,
         &artifact.sources,

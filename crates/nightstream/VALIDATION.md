@@ -2,16 +2,16 @@
 
 ## Wide-sampler selection
 
-The local production package now selects the proved wide sampler from
-`a0f4b5b41`. It has 137,341,872 committed coordinates, 3,248,956 logical rows,
-and 2,607,606,765 normalized matrix entries. The native sampler, setup prefix,
-binding, full matrix and assignment comparisons, and shared assembly checks
-pass. Fresh recursive fixtures and final consumer checks are in progress.
-The [integration record](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md)
-contains the current proof and execution scope.
+The current repair uses the wide sampler and one general application layout.
+The candidate has 137,646,810 committed coordinates and 3,256,394 logical rows.
+Its exact physical and logical matrix comparisons have passed. The remaining
+assignment, saved-artifact, and lifecycle checks are recorded in
+[the PR #123 implementation update](../../PR123_DEEP_REVIEW.md).
 
-The records below describe their named historical package versions. Their
-counts and saved proof bytes do not describe the wide-sampler selection.
+The records below describe their named historical source and package versions.
+Their counts, commands, and saved proof bytes do not certify the current repair.
+Use the [current golden workflow](../../scripts/GOLDEN_CONFORMANCE.md) and the
+artifact READMEs for maintained reproduction commands.
 
 ## Historical quotient integration
 
@@ -60,8 +60,8 @@ runs and do not establish validation of the current quotient package.
 Work branch: `nico/nightstream-crate`, based on
 `9787d8e77069246e3e2afc7dcfab755556fd5023`.
 At the migration checkpoint, `neo-fold-clean` was the unchanged reference and
-was used only for development comparisons. It is now retained as
-`neo-fold-legacy`; `nightstream` has no dependency on it. Historical names and
+was used only for development comparisons. It was later renamed to
+`neo-fold-legacy` and is now removed. Historical names and
 paths below describe the measured source revisions.
 
 The selected implementation goal is complete. The
@@ -1409,7 +1409,7 @@ verification or an active-fold timing. Logs are in
 The release build with Metal and the argument/error checks passed. The
 benchmark has no default step count and does not run as part of `cargo test`.
 
-## Reproduction
+## Historical reproduction
 
 Run Nightstream build and test commands sequentially. The five-minute limit
 for native tests and the twenty-five-minute limit for Lean commands come from

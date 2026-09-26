@@ -1,6 +1,6 @@
 //! Metal device, pipeline, queue, and shared-buffer ownership.
 //!
-//! Protocol phase ordering stays in the adapter. This layer owns command
+//! Protocol phase ordering stays in the lifecycle. This layer owns command
 //! encoding and accounts for online-path CPU reads, writes, and waits.
 
 use std::sync::atomic::{AtomicU64, Ordering};

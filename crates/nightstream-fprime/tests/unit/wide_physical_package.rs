@@ -23,8 +23,8 @@ fn wide_physical_package_passes_production_validation() {
         .validate(package.row_count())
         .expect("new source-row bounds");
     assert_eq!(matrix.row_count().unwrap(), package.ccs_relation().row_count());
-    assert_eq!(package.ccs_relation().row_count(), 3_248_956);
-    assert_eq!(package.ccs_relation().column_count(), 137_341_846);
+    assert_eq!(package.ccs_relation().row_count(), 3_256_394);
+    assert_eq!(package.ccs_relation().column_count(), 137_646_804);
     let nonzeros = matrix
         .validate_all_rows(package.ccs_relation().column_count(), &|row| package.source_row(row))
         .expect("all matrix rows use the new physical source archive");
@@ -32,11 +32,11 @@ fn wide_physical_package_passes_production_validation() {
         nonzeros,
         [
             16_904_205,
-            3_144_304,
-            264_072_386,
-            25_752_159,
-            800_725_610,
-            1_496_903_449,
+            3_151_742,
+            265_314_580,
+            25_940_975,
+            801_029_256,
+            1_496_768_506,
             0,
             104_652,
             0,

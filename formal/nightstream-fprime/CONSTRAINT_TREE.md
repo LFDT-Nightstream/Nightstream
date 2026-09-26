@@ -1,29 +1,31 @@
 # Nightstream F′ Stage 1 constraint tree
 
-The current Lean research checkpoint selects the compact SumCheck and shared
-γ-power circuits. It has **3,595,629 logical CCS rows** and **149,597,982
-committed coordinates**. The published artifacts still select `c9aa75b04`.
-Matrix nonzeros have not been recounted for the new layout. Full Lean,
-axiom, and static gates pass; artifact regeneration and Rust checks remain open.
+The current repair selects the wide PiRLC sampler and one general application
+layout. It has **3,256,394 logical CCS rows**, **137,646,804 logical
+coordinates**, and **137,646,810 committed coordinates**. The independent
+matrix comparison counted **2,609,213,916 normalized entries** across all 14 matrices.
 
 | Phase | Logical CCS rows | Committed coordinates before global alignment |
 |---|---:|---:|
 | Pilot state hashes and framing | 2,125,538 | 91,185,722 |
 | PiCCS | 929,147 | 38,957,667 |
-| PiRLC | 458,388 | 16,377,698 |
+| PiRLC | 119,153 | 4,426,545 |
 | Running transition | 49,359 | 2,019,210 |
 | PiDEC | 25,488 | 741,690 |
 | Application | 7,700 | 315,700 |
 | Public binding / prefix | 9 | 270 |
-| Global alignment | 0 | 25 |
-| **Total** | **3,595,629** | **149,597,982** |
+| Global alignment | 0 | 6 |
+| **Total** | **3,256,394** | **137,646,810** |
 
-The group split is arithmetic from the unchanged phase counts and the new
-PiCCS ledger; the total is checked by the selected package theorems. The
-262-row application candidate is proved but is not selected in this table.
-See [batch evidence](../../tools/recursive-constraint-minimizer/experiments/piccs-lowering-batch.md)
-for the exact scope. The sections below retain older conformance snapshots
-and their recorded identities. They do not validate the changed Lean layout.
+`Wide.Stage1Plan.plan_rows`, `Wide.PiRLCGeometry.coordinateCount_eq`, and
+`Wide.HashChainCounts` prove the selected totals. The selected application and
+other applications use the same layout. The full Lean production library and
+axiom targets pass. The new physical and logical matrix comparisons and base
+raw-assignment check pass. Artifact and lifecycle integration is still in
+progress; see [the current repair report](../../PR123_DEEP_REVIEW.md).
+
+The later sections retain historical conformance snapshots and their recorded
+identities. Their former current-state statements do not certify this repair.
 
 The audit path is:
 
@@ -37,7 +39,7 @@ paper formula
   → exact Rust matrices and independent assignment check
 ```
 
-## Current candidate and evidence
+## Historical candidate and evidence
 
 The conformance fixes build on `9e49e7fb`. The exact pre-pin source patch,
 inputs and all command logs are in the

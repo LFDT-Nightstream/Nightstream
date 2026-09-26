@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CheckedReplayStep
-import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
+import NightstreamFPrime.Export.Stage1.HyperNovaMembership
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 
 /-! Accept the exact canonical successor packet after a checked local replay.
@@ -156,9 +156,9 @@ theorem accepted_of_checked_rows
     statement (CheckedReplayStep.prior input runningWitness freshWitness)).mp accepted).1
   have valid : Stage1.Terminal.StatementValid (nextStatement statement advice) :=
     ⟨nonwrap, priorValid.2.1, Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice⟩
-  exact HyperNovaAcceptedNext.terminal_of_memberships application fits productionSetup
+  exact HyperNovaMembership.terminal_of_memberships application fits productionSetup
     (nextStatement statement advice) (PiCCSInputCheck.runningFromInput messages) children raw
     valid (Nat.zero_lt_succ _) digest childOpenings
-    (HyperNovaAcceptedNext.freshHolds_of_rows application fits productionAjtaiKey raw rows bounded)
+    (HyperNovaMembership.freshHolds_of_rows application fits productionAjtaiKey raw rows bounded)
 
 end NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor

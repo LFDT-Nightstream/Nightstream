@@ -79,7 +79,7 @@ class GoldenConformanceTests(unittest.TestCase):
 
     def test_no_archives_preserves_all_native_checks_and_reports_the_scope(self):
         self.assertEqual(self.invoke(references=False), 0)
-        self.assertEqual(len(self.calls), 20)
+        self.assertEqual(len(self.calls), 22)
         record = runner.read(self.directory / "conformance.json")
         self.assertIsNone(record["references"])
         self.assertNotIn("with archive output comparisons", record["scope"])
@@ -90,7 +90,7 @@ class GoldenConformanceTests(unittest.TestCase):
         expected = ["base"]
         for step in (1, 2):
             expected += ["sources", "ccs", "rlc", "split", "openings", "nifs", "successor"]
-        expected += ["terminal", "mutation", "reject", "opening-k", "opening-a"]
+        expected += ["terminal", "mutation", "reject", "opening-k-prepare", "opening-k", "opening-a-prepare", "opening-a"]
         self.assertEqual([call["--phase"] for call in phases], expected)
         self.assertEqual([call["--step"] for call in phases if call["--phase"] == "openings"],
                          ["1", "2"])
@@ -129,6 +129,13 @@ class GoldenConformanceTests(unittest.TestCase):
         self.assertEqual(self.invoke(), 1)
         self.assertEqual(self.phase_calls()[-1]["--phase"], "opening-k")
         self.assertFalse((self.directory / "comparison-fold-2.json").exists())
+        self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
+
+    def test_failed_opening_preparation_stops_before_verification(self):
+        self.failed_phase = "opening-k-prepare"
+        self.assertEqual(self.invoke(), 1)
+        self.assertEqual(self.phase_calls()[-1]["--phase"], "opening-k-prepare")
+        self.assertNotIn("opening-k", [call["--phase"] for call in self.phase_calls()])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
 
 

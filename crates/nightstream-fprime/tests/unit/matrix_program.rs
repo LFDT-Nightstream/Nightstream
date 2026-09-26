@@ -68,13 +68,15 @@ fn encoded_program() -> Value {
         ]
     ]);
     let poseidon = json!([2, [1, one_column, [2, 86, 100], []]]);
+    let challenges = (0..54)
+        .map(|lane| json!([[4_000 + lane, 1], [one_column, GOLDILOCKS_MODULUS - 2]]))
+        .collect::<Vec<_>>();
     let phi81 = json!([
         3,
         [
             [[1, 1, 1]],
             one_column,
-            [0, 54, 4_000],
-            0,
+            challenges,
             54,
             [[[0, 54, [0, 54, 4_054], 0]], []],
             [0, 54, 4_108],
@@ -412,15 +414,54 @@ fn direct_phi81_challenges_preserve_centering_and_source_order() {
         .map(|index| json!([[4_000 + index, 1], [one, GOLDILOCKS_MODULUS - 2]]))
         .collect::<Vec<_>>();
     let direct = json!([[3, [families, one, forms, 54, input, output, quotient]]]);
-    let before = MatrixProgram::decode(&retained).unwrap();
+    assert!(
+        MatrixProgram::decode(&retained).is_err(),
+        "retired eight-field challenge encoding"
+    );
     let after = MatrixProgram::decode(&direct).unwrap();
-    assert_eq!(before.row_count().unwrap(), 216);
     assert_eq!(after.row_count().unwrap(), 216);
-    for row in 0..216 {
-        let before = before.row(6_000, row, &source_row).unwrap();
-        let after = after.row(6_000, row, &source_row).unwrap();
-        for port in 0..MEANINGFUL_PORTS {
-            assert_eq!(before[port].entries(), after[port].entries(), "row {row}, port {port}");
+    for ordinal in 0..216 {
+        let source = ordinal / 108;
+        let point = Goldilocks::from_u64((ordinal % 108) as u64);
+        let powers = std::iter::successors(Some(Goldilocks::ONE), |power| Some(*power * point))
+            .take(55)
+            .collect::<Vec<_>>();
+        let phi = powers[54] + powers[27] + Goldilocks::ONE;
+        let row = after.row(6_000, ordinal, &source_row).unwrap();
+        // Check every port against polynomial evaluation, independently of the
+        // saved formula template and the matrix-program interpreter.
+        for (port, form) in row.iter().enumerate() {
+            let mut expected = Vec::new();
+            for (lane, &power) in powers[..54].iter().enumerate() {
+                match port {
+                    0 => expected.push((4_000 + source * 54 + lane, power)),
+                    2 => expected.push((4_216 + source * 54 + lane, power)),
+                    4 => {
+                        expected.push((4_450 + source * 54 + lane, power));
+                        expected.push((4_600 + source * 54 + lane, phi * power));
+                        if source > 0 {
+                            expected.push((4_450 + (source - 1) * 54 + lane, -power));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if port == 0 {
+                expected.push((
+                    one,
+                    -Goldilocks::from_u64(2) * powers[..54].iter().copied().sum::<Goldilocks>(),
+                ));
+            } else if port == 7 {
+                expected.push((one, Goldilocks::ONE));
+            }
+            expected.retain(|(_, value)| *value != Goldilocks::ZERO);
+            expected.sort_by_key(|(column, _)| *column);
+            let actual = form
+                .entries()
+                .iter()
+                .map(|entry| (entry.column, entry.coefficient))
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "row {ordinal}, port {port}");
         }
     }
     let mut outside = direct.clone();

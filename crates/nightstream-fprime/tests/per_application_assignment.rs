@@ -424,7 +424,7 @@ fn check_logical_assignment(
     let production_logical_assignment = package
         .execute_ccs_assignment(&private_inputs, &public_inputs)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 137_341_846);
+    assert_eq!(production_logical_assignment.len(), 137_646_804);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -451,7 +451,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 137_341_846);
+    assert_eq!(logical_assignment.len(), 137_646_804);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -487,9 +487,9 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 3_248_956);
+    assert_eq!(result.active_rows, 3_256_394);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 26);
+    assert_eq!(result.carrier_padding_columns, 6);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()

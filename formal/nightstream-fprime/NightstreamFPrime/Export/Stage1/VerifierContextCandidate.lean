@@ -2,12 +2,10 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
-Owns the small verifier-context recipe for the current Stage 1 package cut.
-
-This module contains no package rows or layout imports. The package-bound
-module separately proves that these candidate identity words equal the
-canonical package identity. The final Stage 1 integration must replace this
-prefix width and rerun every applicable gate on the final package identity.
+Owns a small context fixture for reference-prefix proofs and verifier tests.
+These fixture words do not select the production package or key. The selected
+wide package derives its binding through `PerApplicationCanonicalPackage`;
+maintainer parity emitters take that context as an explicit input.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.VerifierContext
@@ -27,8 +25,7 @@ def candidatePublicFits : ringDegree * publicRingColumns ≤
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth
       candidateLogicalWidth
 
-/-- Last validated verifier-owned package identity. Do not change this pin
-until the current candidate passes every identity-change gate. -/
+/-- Reference-prefix identity used by the context fixture. -/
 def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
   c0 := ⟨5326948389888638380, by norm_num [F, goldilocksModulus]⟩
   c1 := ⟨15945253772729055182, by norm_num [F, goldilocksModulus]⟩
@@ -38,8 +35,7 @@ def expectedPackageIdentity : Lifecycle.VerifierContext.Digest4 where
 def packageIdentityWords : List F :=
   expectedPackageIdentity.toList
 
-/-- Unpinned identity candidate recomputed from the current canonical package.
-It is used only to produce pre-pin conformance fixtures. -/
+/-- Reference identity used by the nonzero verifier fixture. -/
 def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
   c0 := ⟨5326948389888638380, by norm_num [F, goldilocksModulus]⟩
   c1 := ⟨15945253772729055182, by norm_num [F, goldilocksModulus]⟩
@@ -48,29 +44,6 @@ def candidatePackageIdentity : Lifecycle.VerifierContext.Digest4 where
 
 def candidatePackageIdentityWords : List F :=
   candidatePackageIdentity.toList
-
-/-- Final verifier-owned identity of the canonical
-`Poseidon2HashChainV1` package under the approved indexed Ajtai setup. -/
-def productionPackageIdentity : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨9705822157724451396, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨520958727644325895, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨9285622073986934000, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨874020794279380938, by norm_num [F, goldilocksModulus]⟩
-
-def productionPackageIdentityWords : List F :=
-  productionPackageIdentity.toList
-
-/-- Final verifier-context digest recomputed from the canonical relation,
-application, NIFS key description, and approved indexed Ajtai setup. This is
-fixture input; `PerApplicationCanonicalPackage` owns its authority recipe. -/
-def productionContextDigest : Lifecycle.VerifierContext.Digest4 where
-  c0 := ⟨18363630987318625048, by norm_num [F, goldilocksModulus]⟩
-  c1 := ⟨9406776669274472459, by norm_num [F, goldilocksModulus]⟩
-  c2 := ⟨1104198490699942438, by norm_num [F, goldilocksModulus]⟩
-  c3 := ⟨1757792822492309855, by norm_num [F, goldilocksModulus]⟩
-
-def productionContextWords : List F :=
-  productionContextDigest.toList
 
 /-- Domain of the compact NIFS-key authority description. -/
 def nifsKeyDomain : List F :=

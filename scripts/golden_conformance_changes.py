@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Select golden checks from changed repository paths.
 
-``lean_reference`` selects an independent-source/input audit. Changed Lean
-computation or inputs require regeneration. Fresh Lean verification is part
+``lean_reference`` selects regeneration of Lean results and package artifacts
+after their source or inputs change. Fresh Lean verification is part
 of ``native`` even when this flag is false. These flags do not prove success.
 """
 
@@ -28,10 +28,8 @@ NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")
 BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", ".gitattributes"}
 # These records locate the original witnesses/reference archive or supply the
-# replay coordinator's measured partitions. Other review reports are receipts.
+# current input records. Other review reports are receipts.
 REPLAY_INPUTS = {
-    "INDEPENDENT_REPLAY_ASSET.json", "PIRLC_WITNESS_REPLAY_ASSET.json",
-    "PICCS_FIRST_ROUND_REPLAY.json", "PIDEC_MATRIX_RANGES.json",
     "EVIDENCE_RELEASE.json", "TERMINAL_REPLAY_INPUTS.json", "NONZERO_EXECUTION_RELEASE.json",
 }
 
@@ -77,8 +75,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     if name.startswith(("formal/nightstream-fprime/", "scripts/lean_graph/")):
         return ALL
     if (name.startswith(("scripts/golden_conformance", "scripts/tests/test_golden_conformance"))
-            or name in {"scripts/bridge_first_second.py", "scripts/check_selected_replay.py",
-                        "scripts/tests/test_bridge_first_second.py", "scripts/tests/test_check_selected_replay.py"}
             or name == "scripts/package_nightstream_fprime_bundle.py"
             or name == "scripts/fprime_stage1_review_manifest.py"
             or name.startswith(".github/workflows/")):

@@ -84,8 +84,7 @@ fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
     let encoded = json!([
         [[2, 2, 2], [1, 1, 1]],
         0,
-        [0, 108, 20],
-        0,
+        centered_challenges(20, 108),
         54,
         [[[0, 486, [0, 486, 128], 0]], []],
         [0, 486, 614],
@@ -124,14 +123,19 @@ fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
         .is_err());
 }
 
+fn centered_challenges(start: usize, count: usize) -> Vec<serde_json::Value> {
+    (0..count)
+        .map(|lane| json!([[start + lane, 1], [0, GOLDILOCKS_MODULUS - 2]]))
+        .collect()
+}
+
 #[test]
 fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
     let logical_width = 217;
     let block = phi81::Block::decode(&json!([
         [[1, 1, 1]],
         0,
-        [0, 54, 1],
-        0,
+        centered_challenges(1, 54),
         54,
         [[[0, 54, [0, 54, 55], 0]], []],
         [0, 54, 109],
@@ -359,8 +363,7 @@ fn template_visitors_stop_before_invalid_later_invocations() {
         [
             [[1, 2, 1]],
             0,
-            [0, 54, 20],
-            0,
+            centered_challenges(20, 54),
             54,
             [[[0, 54, [0, 54, 74], 0]], []],
             [0, 54, 128],
@@ -400,7 +403,7 @@ fn shared_templates_preserve_empty_invocation_ranges() {
         .unwrap();
     assert_eq!(flow, ControlFlow::Continue(()));
     assert!(poseidon.row(0, 0).is_err());
-    let phi81 = phi81::Block::decode(&json!([[], 0, [0, 0, 0], 0, 54, [[], []], [0, 0, 0], [0, 0, 0]])).unwrap();
+    let phi81 = phi81::Block::decode(&json!([[], 0, [], 54, [[], []], [0, 0, 0], [0, 0, 0]])).unwrap();
     let flow = phi81
         .visit_rows_until(0, 0, 0, |_| panic!("no rows"))
         .unwrap();

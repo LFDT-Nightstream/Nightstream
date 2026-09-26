@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use super::ColumnProjection;
 use super::{
-    array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, owned_row, template,
+    checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, owned_row, template,
     usize_atom, Entry, Form, PackageError, RetainedBlock, RowForms, RowView, SourceSubstitution,
 };
 
@@ -94,19 +94,10 @@ impl Descriptor {
 }
 
 #[derive(Clone, Debug)]
-enum Challenge {
-    Retained {
-        block: RetainedBlock,
-        slot_start: usize,
-    },
-    Direct(Vec<Vec<Entry>>),
-}
-
-#[derive(Clone, Debug)]
 pub(super) struct Block {
     families: Vec<Family>,
     one_column: usize,
-    challenge: Challenge,
+    challenge: Vec<Vec<Entry>>,
     challenge_source_stride: usize,
     input: SourceSubstitution,
     output: RetainedBlock,
@@ -115,47 +106,22 @@ pub(super) struct Block {
 
 impl Block {
     pub(super) fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = array(value, "Phi81 product block")?;
-        let (challenge, stride, input, output, quotient) = match fields {
-            [_, _, block, start, stride, input, output, quotient] => (
-                Challenge::Retained {
-                    block: RetainedBlock::decode(block)?,
-                    slot_start: usize_atom(start, "Phi81 challenge slot start")?,
-                },
-                stride,
-                input,
-                output,
-                quotient,
-            ),
-            [_, _, forms, stride, input, output, quotient] => (
-                Challenge::Direct(decode_list(forms, decode_entries)?),
-                stride,
-                input,
-                output,
-                quotient,
-            ),
-            _ => return Err(PackageError::Invalid("Phi81 product block")),
-        };
+        let fields = exact_array(value, 7, "Phi81 product block")?;
         Ok(Self {
             families: decode_list(&fields[0], Family::decode)?,
             one_column: usize_atom(&fields[1], "Phi81 one column")?,
-            challenge,
-            challenge_source_stride: usize_atom(stride, "Phi81 challenge source stride")?,
-            input: SourceSubstitution::decode(input)?,
-            output: RetainedBlock::decode(output)?,
-            quotient: RetainedBlock::decode(quotient)?,
+            challenge: decode_list(&fields[2], decode_entries)?,
+            challenge_source_stride: usize_atom(&fields[3], "Phi81 challenge source stride")?,
+            input: SourceSubstitution::decode(&fields[4])?,
+            output: RetainedBlock::decode(&fields[5])?,
+            quotient: RetainedBlock::decode(&fields[6])?,
         })
     }
 
     pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
         self.one_column = projection.column(self.one_column)?;
-        match &mut self.challenge {
-            Challenge::Retained { block, .. } => projection.retained(block)?,
-            Challenge::Direct(forms) => {
-                for form in forms {
-                    projection.entries(form)?;
-                }
-            }
+        for form in &mut self.challenge {
+            projection.entries(form)?;
         }
         self.input.map_columns(projection)?;
         projection.retained(&mut self.output)?;
@@ -261,20 +227,14 @@ impl Block {
         let source_base = checked_mul(descriptor.source, self.challenge_source_stride, "Phi81 challenge slot")?;
         fixed_ring_state(|lane| {
             let index = checked_add(source_base, lane, "Phi81 challenge slot")?;
-            match &self.challenge {
-                Challenge::Retained { block, slot_start } => {
-                    block.form(logical_width, checked_add(*slot_start, index, "Phi81 challenge slot")?)
-                }
-                Challenge::Direct(forms) => {
-                    let entries = forms
-                        .get(index)
-                        .ok_or(PackageError::Invalid("Phi81 direct challenge table"))?;
-                    let centered = checked_wire_form(entries, logical_width)?;
-                    // The saved Lean template takes an uncentered digit and subtracts two.
-                    // The new wire form is already centered; cancel that template offset.
-                    Ok(centered.append(Form::singleton(self.one_column, Goldilocks::from_u64(2))))
-                }
-            }
+            let entries = self
+                .challenge
+                .get(index)
+                .ok_or(PackageError::Invalid("Phi81 direct challenge table"))?;
+            let centered = checked_wire_form(entries, logical_width)?;
+            // The shared Lean formula subtracts two from each challenge input.
+            // Cancel that offset because the wire form is already centered.
+            Ok(centered.append(Form::singleton(self.one_column, Goldilocks::from_u64(2))))
         })
     }
 

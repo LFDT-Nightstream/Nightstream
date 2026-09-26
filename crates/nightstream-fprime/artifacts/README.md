@@ -9,12 +9,12 @@ external linear layer, and one Phi81 quotient variant with 108 rows and
 271 inputs.
 
 From `formal/nightstream-fprime`, run the maintainer commands one at a time.
-The outer 1,500-second cap follows that project's `AGENTS.md`.
+`validate.sh` applies the 1,500-second cap required by that project's `AGENTS.md`.
 
 ```sh
-timeout --signal=KILL 1500 bash scripts/validate.sh build emitSharedFormulas
-timeout --signal=KILL 1500 bash scripts/validate.sh file tests/SharedFormulas.lean
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedFormulas ../../crates/nightstream-fprime/artifacts/shared-formulas-v1.json
+elan run leanprover/lean4:v4.32.2 bash scripts/validate.sh build emitSharedFormulas
+elan run leanprover/lean4:v4.32.2 bash scripts/validate.sh file tests/SharedFormulas.lean
+elan run leanprover/lean4:v4.32.2 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedFormulas ../../crates/nightstream-fprime/artifacts/shared-formulas-v1.json
 ```
 
 The export contains local sparse formulas, named ports and references to their

@@ -4,12 +4,31 @@ use super::*;
 use serde::Deserialize;
 use std::io::{Read, Write};
 
+#[path = "golden_ccs.rs"]
+mod ccs;
+#[path = "golden_children.rs"]
+mod children;
 #[path = "golden_dec.rs"]
 mod dec;
 
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 enum Request {
+    ChildHandoff {
+        package: PathBuf,
+        identity: [u64; 4],
+        input: PathBuf,
+        lean: PathBuf,
+        children: PathBuf,
+        output: PathBuf,
+    },
+    Ccs {
+        package: PathBuf,
+        identity: [u64; 4],
+        input: PathBuf,
+        lean: PathBuf,
+        check: ccs::Check,
+    },
     Compare {
         package: PathBuf,
         directory: PathBuf,
@@ -28,6 +47,26 @@ fn native_checker() {
     std::io::stdin().read_to_string(&mut input).unwrap();
     let request: Request = serde_json::from_str(&input).unwrap();
     match request {
+        Request::ChildHandoff {
+            package,
+            identity,
+            input,
+            lean,
+            children,
+            output,
+        } => {
+            ccs::check(&package, identity, &input, &lean, ccs::Check::Accept);
+            children::check(&package, identity, &input, &lean, &children, &output);
+        }
+        Request::Ccs {
+            package,
+            identity,
+            input,
+            lean,
+            check,
+        } => {
+            ccs::check(&package, identity, &input, &lean, check);
+        }
         Request::Compare {
             package,
             directory,

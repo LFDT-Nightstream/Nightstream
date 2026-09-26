@@ -196,7 +196,7 @@ def check : IO Unit := do
   let manifest ← Export.SharedVerifier.prepare
   let ordinary ← checked "reference program" fun _ => programValue compiled referenceApplication
   checked "reference dimensions and runs" fun _ =>
-    checkApplication manifest referenceApplication ordinary
+    checkApplication manifest ordinary referenceApplication ordinary
   let fixture := PerApplicationEmitterFixture.program ()
   let fixtureProgram ← checked "identity application program" fun _ => programValue compiled fixture
   checked "identity application dimensions and runs" fun _ =>

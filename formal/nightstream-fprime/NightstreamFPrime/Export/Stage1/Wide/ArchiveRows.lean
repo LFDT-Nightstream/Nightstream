@@ -341,25 +341,97 @@ theorem sampler_bounds (row : Rows.CompiledRow) (member : row ∈ PhysicalSample
     change 19385261 + 17 * 3413 ≤ row.rowIndex ∧ row.rowIndex < 19385261 + 17 * 3413 + 918 at bound
     omega
 
+private theorem reference_application_bounds (application : ApplicationPackage.Program)
+    (row : Rows.CompiledRow)
+    (member : row ∈ PackageSourceRows.decodedRows
+      (PerApplicationPackage.applicationPlan application).witnessInstructions
+      (PerApplicationPackage.applicationPlan application).assertionRows) :
+    Data.physicalLayout.rowCount ≤ row.rowIndex ∧
+      row.rowIndex < Data.physicalLayout.rowCount + (PerApplicationPackage.applicationPlan application).rowCount := by
+  have actual := (PerApplicationPackageSourceRows.applicationPlan_decodedRows_perm application).mem_iff.mp member
+  have found := List.mem_map_of_mem (f := Rows.CompiledRow.rowIndex) actual
+  rw [PerApplicationPackageSourceRows.applicationRows_rowIndices, List.mem_range'_1] at found
+  have lengthEq : (PerApplicationPackageSourceRows.applicationRows application).length =
+      (PerApplicationPackage.applicationPlan application).rowCount := by
+    have count := ApplicationDirectSource.sourceRows_length_eq_plan application
+    unfold ApplicationDirectSource.sourceRows at count
+    rw [List.length_map] at count
+    exact count
+  rw [lengthEq] at found
+  exact found
+
+private theorem application_rows (application : ApplicationPackage.Program) (rowStart : Nat) :
+    PackageSourceRows.decodedRows
+      (ApplicationPackage.plan application rowStart).witnessInstructions
+      (ApplicationPackage.plan application rowStart).assertionRows =
+    (PackageSourceRows.decodedRows
+      (PerApplicationPackage.applicationPlan application).witnessInstructions
+      (PerApplicationPackage.applicationPlan application).assertionRows).map
+        (ApplicationRelocation.compiledRow rowStart) := by
+  simp only [ApplicationPackage.plan, ApplicationRelocation.plan,
+    PerApplicationPackage.directApplicationPlan_eq_applicationPlan, PackageSourceRows.decodedRows,
+    List.map_append, List.map_map, Function.comp_def, ApplicationRelocation.compiledRow]
+
+theorem application_pairs (application : ApplicationPackage.Program) (rowStart : Nat) :
+    List.Forall₂ (fun a b => (ApplicationRelocation.mapping rowStart).compiledRow a = .ok b)
+      (PackageSourceRows.decodedRows
+        (PerApplicationPackage.applicationPlan application).witnessInstructions
+        (PerApplicationPackage.applicationPlan application).assertionRows)
+      (PackageSourceRows.decodedRows
+        (ApplicationPackage.plan application rowStart).witnessInstructions
+        (ApplicationPackage.plan application rowStart).assertionRows) := by
+  rw [application_rows, List.forall₂_map_right_iff, List.forall₂_same]
+  intro value member
+  exact ApplicationRelocation.compiledRow_map rowStart value (reference_application_bounds application value member).1
+
 theorem application_bounds (application : ApplicationPackage.Program) (rowStart : Nat)
     (row : Rows.CompiledRow)
     (member : row ∈ PackageSourceRows.decodedRows
       (ApplicationPackage.plan application rowStart).witnessInstructions
       (ApplicationPackage.plan application rowStart).assertionRows) :
     rowStart ≤ row.rowIndex ∧ row.rowIndex < rowStart + (ApplicationPackage.plan application rowStart).rowCount := by
-  let rows := Stage1.ApplicationPackage.compiledRows application (ApplicationPackage.columns application)
-    (Layout.Stage1.Wide.SourceOrder.privateColumns + application.witnessWordCount) rowStart
-  have actual : row ∈ rows := by
-    apply (PackageSourceRows.classifiedRows_perm rows).mem_iff.mp
-    change row ∈ PackageSourceRows.decodedRows (Rows.witnessInstructionsTR rows) (Rows.assertionRowsTR rows) at member
-    simpa only [PackageSourceRows.classifiedRows, Rows.witnessInstructionsTR_eq, Rows.assertionRowsTR_eq]
-      using member
-  have found := List.mem_map_of_mem (f := Rows.CompiledRow.rowIndex) actual
-  have indices : rows.map Rows.CompiledRow.rowIndex = List.range' rowStart rows.length := by
-    unfold rows Stage1.ApplicationPackage.compiledRows
-    rw [Rows.compileRowsTR_rowIndices, Rows.compileRowsTR_length]
-  rw [indices, List.mem_range'_1] at found
-  exact found
+  have countEq : (ApplicationPackage.plan application rowStart).rowCount =
+      (PerApplicationPackage.applicationPlan application).rowCount :=
+    (ApplicationRelocation.plan_counts application rowStart).2
+  rw [countEq]
+  rw [application_rows] at member
+  obtain ⟨source, sourceMember, rfl⟩ := List.mem_map.mp member
+  have bounds := reference_application_bounds application source sourceMember
+  rw [ApplicationRelocation.compiledRow_index rowStart source bounds.1, ApplicationRelocation.row]
+  exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left
+    ((Nat.sub_lt_iff_lt_add' bounds.1).mpr bounds.2) _⟩
+
+theorem application_of_reference (application : ApplicationPackage.Program) (index : Nat) (value : R1CS.Row)
+    (read : PackageSourceRows.packageSourceRow? (PerApplicationPackage.package application) index = some value)
+    (inApplication : PerApplicationPackage.basePackage.layout.rowCount ≤ index ∧
+      index < PerApplicationPackage.nextPreimageRowStart application) :
+    ∃ row, selected (PackageSourceRows.decodedRows
+      (PerApplicationPackage.applicationPlan application).witnessInstructions
+      (PerApplicationPackage.applicationPlan application).assertionRows) index = [row] ∧
+      row.toR1CS = value := by
+  obtain ⟨target, single, valueEq⟩ := selected_of_source _ index value read
+  have canonicalSingle := selected_eq_of_perm
+    (PerApplicationPackageSourceRows.package_decodedRows_perm_canonical application) index target single
+  have member : target ∈ PerApplicationPackageSourceRows.canonicalRows application ∧ target.rowIndex = index := by
+    have found : target ∈ selected (PerApplicationPackageSourceRows.canonicalRows application) index := by
+      rw [canonicalSingle]
+      exact List.mem_singleton_self _
+    simpa only [selected, List.mem_filter, beq_iff_eq] using found
+  rcases member with ⟨member, indexEq⟩
+  simp only [PerApplicationPackageSourceRows.canonicalRows, List.mem_append] at member
+  rcases member with (baseMember | applicationMember) | nextMember
+  · obtain ⟨original, originalMember, rfl⟩ := List.mem_map.mp baseMember
+    rw [PerApplicationPackageSourceRows.shiftCompiledRow_rowIndex] at indexEq
+    have bound := PerApplicationPackageSourceRows.baseRows_rowIndex_lt original originalMember
+    omega
+  · refine ⟨target, ?_, valueEq⟩
+    apply selected_eq_of_perm (PerApplicationPackageSourceRows.applicationPlan_decodedRows_perm application).symm
+    rw [← indexEq]
+    exact selected_unique _
+      (PerApplicationPackageSourceRows.applicationRows_rowIndices_nodup application) target applicationMember
+  · have found := List.mem_map_of_mem (f := Rows.CompiledRow.rowIndex) nextMember
+    rw [PerApplicationPackageSourceRows.nextPreimageRows_rowIndices, List.mem_range'_1] at found
+    omega
 
 theorem next_bounds (application : ApplicationPackage.Program) (row : Rows.CompiledRow)
     (member : row ∈ PackageSourceRows.decodedRows []

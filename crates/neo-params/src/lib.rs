@@ -77,12 +77,6 @@ pub mod goldilocks_paper_b2 {
     pub const MAX_FRESH_K: u32 = 61;
     pub const B_INV_FLOOR: u64 = 2_500_000_000;
     pub const CHALLENGE_SET_CARDINALITY: u128 = 55_511_151_231_257_827_021_181_583_404_541_015_625;
-    /// Minimum whole-digest schedule whose exact sampler shortfall is below
-    /// `2^-LAMBDA`. See [`crate::pi_rlc_sampler_completeness_summary`].
-    pub const PI_RLC_SAMPLER_DIGEST_ROUNDS: usize = 8;
-    pub const PI_RLC_SAMPLER_LANES_PER_DIGEST: usize = 4;
-    pub const PI_RLC_SAMPLER_CANDIDATES_PER_LANE: usize = 2;
-
     pub static PHI_COEFFS: [i32; D] = {
         let mut coeffs = [0i32; D];
         coeffs[0] = 1;
@@ -140,70 +134,6 @@ pub struct PaddedRowSecuritySummary {
     pub security_bits: u32,
     /// `security_bits - lambda` for the selected parameter set.
     pub slack_bits: i32,
-}
-
-/// Exact completeness census for the fixed Π_RLC alphabet sampler.
-///
-/// This is an abort bound, not a soundness term. Conditional on no abort, the
-/// sampler output is exactly uniform over the selected strong set.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PiRlcSamplerCompletenessSummary {
-    pub digest_rounds: usize,
-    pub field_lanes: usize,
-    pub candidates: usize,
-    pub required: usize,
-    /// Floor of `-log2(Pr[fewer than required candidates accept])`.
-    pub completeness_bits: u32,
-    pub slack_bits: i32,
-}
-
-/// Return the fixed sampler's exact shortfall census under uniform Poseidon2
-/// field lanes.
-///
-/// One lane has two candidate words. For `B=2^16` and
-/// `q=B^2(B^2-1)+1`, the counts for zero, one, or two rejected raw-zero words
-/// are `(B-1)^2(B^2-1)`, `2(B-1)(B^2-1)`, and `B^2`. Convolution across all
-/// lanes gives the exact shortfall numerator.
-pub fn pi_rlc_sampler_completeness_summary() -> PiRlcSamplerCompletenessSummary {
-    use goldilocks_paper_b2::{
-        D, LAMBDA, PI_RLC_SAMPLER_CANDIDATES_PER_LANE, PI_RLC_SAMPLER_DIGEST_ROUNDS, PI_RLC_SAMPLER_LANES_PER_DIGEST, Q,
-    };
-
-    let radix = 1u128 << 16;
-    let regular_preimages = radix * radix - 1;
-    let rejection_counts = [
-        (radix - 1) * (radix - 1) * regular_preimages,
-        2 * (radix - 1) * regular_preimages,
-        regular_preimages + 1,
-    ];
-    let field_lanes = PI_RLC_SAMPLER_DIGEST_ROUNDS * PI_RLC_SAMPLER_LANES_PER_DIGEST;
-    let candidates = field_lanes * PI_RLC_SAMPLER_CANDIDATES_PER_LANE;
-    let first_failure = candidates - D + 1;
-
-    let mut counts = vec![BigUint::from(1u8)];
-    for _ in 0..field_lanes {
-        let mut next = vec![BigUint::from(0u8); counts.len() + 2];
-        for (seen, count) in counts.iter().enumerate() {
-            for (added, ways) in rejection_counts.iter().enumerate() {
-                next[seen + added] += count * BigUint::from(*ways);
-            }
-        }
-        counts = next;
-    }
-
-    let failure_numerator = counts[first_failure..]
-        .iter()
-        .fold(BigUint::from(0u8), |sum, count| sum + count);
-    let total = BigUint::from(Q).pow(field_lanes as u32);
-    let completeness_bits = floor_log2_ratio(&total, &failure_numerator);
-    PiRlcSamplerCompletenessSummary {
-        digest_rounds: PI_RLC_SAMPLER_DIGEST_ROUNDS,
-        field_lanes,
-        candidates,
-        required: D,
-        completeness_bits,
-        slack_bits: signed_difference(completeness_bits, LAMBDA),
-    }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]

@@ -584,35 +584,16 @@ correctness repairs must retain the appropriate preservation and package
 checks. External production approval remains separate from local evidence.
 
 
-## Fresh two-fold recursive replay
+## Historical independent replay criterion
 
-The stronger selected run regenerates every C/R/D intermediate from the original
-17 openings, produces the complete fresh assignment and commitment, and repeats
-the fold with the first Lean result as its source. The final iteration-4 carrier
-must pass the scalar canonical-row checker before terminal acceptance.
+The earlier independent producer was required to regenerate C/R/D values and
+both successors from original openings, then check the final raw carrier and
+terminal result. That executable and its graph registrations were retired with
+`neo-fold-legacy`. Earlier receipts keep their original source and input scope;
+they do not establish conformance for the current package.
 
-`fresh-recursive-loop` registers the literal accepted-successor/next-prior target
-and the source-adapter/coordinator contract tests. Exact source, evaluation,
-returned-block, carrier and ABI custody remain explicit in the target. Neither a
-receipt digest nor an old comparison artifact supplies those semantic values.
-
-Full two-fold execution evidence is pending. The active owner goal is to finish
-both fresh successors, feed the exact first result into the second fold, and
-run terminal acceptance and rejection checks on iteration 4. Complete independent
-Lean/Rust outputs, checked composition with its explicit premises, and retrievable
-pinned evidence are required. The narrower staged result remains separate.
-
-The native dot-product equality and Lean fork `a6f4723408` are measured
-optimizations already in the run. Keep the protocol, constraints, package and
-all output bytes fixed. If measured work is slow, address the specific cost
-before extending that work: prove changed Lean kernels equal to their existing
-specifications, compare complete baseline/candidate outputs, and record time
-and memory. Do not turn a timing example into a target or security parameter.
-
-The current replay uses the project caps (1,500 seconds per Lean invocation,
-300 seconds per native test), the existing guard and one command queue.
-Earlier deadline-free receipts retain their original scope. The coordinator
-runs outside the graph lock; graph unit tests do not establish a completed
-production trace. Source transitions preserve and verify completed outputs.
-Reports and identities belong in Git; evidence archives use this repository's
-GitHub release assets. Protected production-backend acceptance stays separate.
+The maintained command is documented in [GOLDEN_CONFORMANCE.md](../GOLDEN_CONFORMANCE.md).
+It checks current native folds with fresh Lean verifier and caller results.
+Independent matrix and raw-assignment checks remain separate required gates.
+The compiler theorems for checked replay remain in the Lean axiom audit; they
+are not a claim that the retired producer still runs.

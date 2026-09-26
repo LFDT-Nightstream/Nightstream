@@ -248,9 +248,28 @@ fn manifest_rejects_missing_children_changed_roles_profile_and_dimensions() {
     profile["profile"][2] = json!(18);
     let mut width = original.clone();
     width["geometry"]["logical_width"] = json!([usize::MAX, 1, 1, 0]);
+    let mut retired_version = original.clone();
+    retired_version["version"] = json!(2);
+    let mut paired_reference = original.clone();
+    paired_reference["selected_reference"] = original["reference"].clone();
+    let mut missing_application_port = original.clone();
+    missing_application_port
+        .as_object_mut()
+        .unwrap()
+        .remove("application_local_index");
     let mut public = original;
     public["recursive_public"]["digest_port"] = json!("prior_public_input");
-    for value in [missing, reordered, role, profile, width, public] {
+    for value in [
+        missing,
+        reordered,
+        role,
+        profile,
+        width,
+        retired_version,
+        paired_reference,
+        missing_application_port,
+        public,
+    ] {
         assert!(Manifest::parse(&serde_json::to_vec(&value).unwrap()).is_err());
     }
     let manifest = Manifest::parse(manifest_bytes()).unwrap();

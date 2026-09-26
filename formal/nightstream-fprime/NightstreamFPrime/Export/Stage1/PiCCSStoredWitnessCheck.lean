@@ -62,11 +62,14 @@ def statement (input : PiCCSInputCheck.Input) :
       (Phi81ColumnLayout.blockCount (carrier inst).carrierWidth) baseOps where
   cubeLayout := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource inst.relation).cubeLayout
   matrixSource := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource inst.relation).matrixSource
-  commitments := PiCCSInputCheck.outputCommitments input
-  publicInputs := PiCCSInputCheck.outputPublicInputs input
+  commitments := Fin.addCases (inst.fresh input).commitments (inst.running input).commitments
+  publicInputs := Fin.addCases (inst.fresh input).publicInputs (inst.running input).publicInputs
   priorPoint := (inst.running input).point
-  claimedPadCoefficient := (PiCCSInputCheck.verifierInput input).claimedPadCoefficient
-  claimedMatrixCoefficient := (PiCCSInputCheck.verifierInput input).claimedMatrixCoefficient
+  claimedPadCoefficient := fun coordinate =>
+    ((inst.running input).evaluations coordinate.running).pad coordinate.coefficient
+  claimedMatrixCoefficient := fun coordinate =>
+    ((inst.running input).evaluations coordinate.running).matrix coordinate.matrix
+      coordinate.coefficient
 
 /-- The executable statement is the literal selected NIFS statement. -/
 theorem statement_eq_key (input : PiCCSInputCheck.Input) :

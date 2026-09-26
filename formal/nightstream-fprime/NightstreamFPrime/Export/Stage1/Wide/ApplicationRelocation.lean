@@ -62,14 +62,38 @@ private theorem combination_map (start : Nat) (value : SparseCombination) :
 theorem instruction_map (start : Nat) (value : WitnessInstruction)
     (bound : Data.physicalLayout.rowCount ≤ value.rowIndex) :
     (mapping start).instruction value = .ok (instruction start value) := by
-  simp only [PhysicalRelabel.Map.instruction, combination_map, mapping, if_pos bound]
+  have mappedRow : (mapping start).row value.rowIndex = .ok (row start value.rowIndex) := by
+    simp only [mapping, if_pos bound]
+  simp only [PhysicalRelabel.Map.instruction, mappedRow, combination_map]
   rfl
 
 theorem assertion_map (start : Nat) (value : SparseRow)
     (bound : Data.physicalLayout.rowCount ≤ value.rowIndex) :
     (mapping start).assertion value = .ok (assertion start value) := by
-  simp only [PhysicalRelabel.Map.assertion, combination_map, mapping, if_pos bound]
+  have mappedRow : (mapping start).row value.rowIndex = .ok (row start value.rowIndex) := by
+    simp only [mapping, if_pos bound]
+  simp only [PhysicalRelabel.Map.assertion, mappedRow, combination_map]
   rfl
+
+def compiledRow (start : Nat) : Rows.CompiledRow → Rows.CompiledRow
+  | .witness value => .witness (instruction start value)
+  | .assertion value => .assertion (assertion start value)
+
+theorem compiledRow_map (start : Nat) (value : Rows.CompiledRow)
+    (bound : Data.physicalLayout.rowCount ≤ value.rowIndex) :
+    (mapping start).compiledRow value = .ok (compiledRow start value) := by
+  cases value with
+  | witness value => simp [PhysicalRelabel.Map.compiledRow, instruction_map start value bound, compiledRow]
+  | assertion value => simp [PhysicalRelabel.Map.compiledRow, assertion_map start value bound, compiledRow]
+
+theorem compiledRow_index (start : Nat) (value : Rows.CompiledRow)
+    (bound : Data.physicalLayout.rowCount ≤ value.rowIndex) :
+    (compiledRow start value).rowIndex = row start value.rowIndex := by
+  have mapped := (mapping start).compiledRow_correct value (compiledRow start value)
+    (compiledRow_map start value bound)
+  have rowMap : (mapping start).row value.rowIndex = .ok (row start value.rowIndex) := by
+    simp only [mapping, if_pos bound]
+  exact Except.ok.inj (mapped.1.symm.trans rowMap)
 
 /-- No application-specific compiler case or second lowering is selected here. -/
 def plan (program : Lifecycle.Stage1.Application.Program) (start : Nat) : Stage1.ApplicationPackage.Plan :=

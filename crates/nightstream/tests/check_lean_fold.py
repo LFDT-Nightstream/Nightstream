@@ -26,7 +26,7 @@ sys.path[:0] = [str(TESTS), str(ROOT / "scripts"), str(FORMAL / "scripts")]
 from compare_recursive_outputs import equal, load  # noqa: E402
 from check_identity import rust_code  # noqa: E402
 from generate_lean_mutations import CHILDREN, MATRICES, numeric_json  # noqa: E402
-from lean_graph.guard import build_lock, check_build_processes  # noqa: E402
+from lean_graph.guard import build_lock, check_build_processes, kill_process_groups  # noqa: E402
 from lean_graph.policy import CAPS  # noqa: E402
 from project_replay_sources import commitment, field, original_running, vector, wrapped_field  # noqa: E402
 
@@ -159,10 +159,7 @@ class Check:
                 except InterruptedError:
                     record.update(exit=130, outcome="interrupted")
                 finally:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    kill_process_groups(process.pid)
                     process.wait()
         except Exception as error:
             record.update(exit=1, error=str(error))

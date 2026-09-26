@@ -342,7 +342,7 @@ pub fn run(
     assert_eq!(
         inputs.len(),
         input_count,
-        "mode paths: physical=expanded; logical/mutations=none; assignment/assignment-*=PiCCS,PiDEC,application-parities; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,folded-metadata; commitment=fixture,output; detached=fixture"
+        "mode paths: physical=expanded; logical/mutations=none; assignment/assignment-*=PiCCS,PiDEC,application-parities; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,complete-NIFS-result; commitment=fixture,output; detached=fixture"
     );
     let started = Instant::now();
     let Candidate { package, bytes } = Candidate::load(candidate_path, binding_path, setup_path, expected);
@@ -391,8 +391,8 @@ pub fn run(
             let input = fs::read(&inputs[3]).expect("preceding PiCCS input");
             let children = fs::read(&inputs[4]).expect("checked child claims");
             let result = fs::read(&inputs[5]).expect("preceding PiCCS result");
-            let folded = fs::read(&inputs[6]).expect("checked folded metadata");
-            super::recursive_checks::check_fixture(&fixture, &base, &input, &children, &result, &folded);
+            let handoff = fs::read(&inputs[6]).expect("complete checked NIFS result");
+            super::recursive_checks::check_fixture(&fixture, &base, &input, &children, &result, &handoff);
             if mode == "recursive-mutations" {
                 super::base_checks::check_caller_mutations(package, bytes, fixture, expanded);
             } else {

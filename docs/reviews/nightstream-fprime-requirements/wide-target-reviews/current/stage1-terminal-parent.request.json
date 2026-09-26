@@ -1,6 +1,6 @@
 {
-  "request": "95fe9e5407111d7a0ec69d5c45b65bf8ba96f78601da5189384ab95545728b9d",
-  "path": "/private/tmp/nightstream-review-ce0159538.cHjmiI/review-requests/95fe9e5407111d7a0ec69d5c45b65bf8ba96f78601da5189384ab95545728b9d.json",
+  "request": "b2b1b762a16cc806c4c6c91a3b67e6dec6aea1d61c80ec0b617e679d96d93224",
+  "path": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/review-store-00226950e/review-requests/b2b1b762a16cc806c4c6c91a3b67e6dec6aea1d61c80ec0b617e679d96d93224.json",
   "content": {
     "schema": 1,
     "obligation": "stage1-terminal-parent",
@@ -8,7 +8,7 @@
     "owner": "FPRIME_LEAN_ARCHITECTURE_SPEC.md#security-composition",
     "gap": "The actual terminal openings must supply the exact decoded PiDEC parent without an extra output-match or child-opening premise. Interior extraction and quantitative security remain separate.",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86",
+    "snapshot": "ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "proposal": {
@@ -31,11 +31,11 @@
     "obligation": "stage1-terminal-parent",
     "target": "LeanGraph.Targets.Stage1TerminalParent",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86",
+    "snapshot": "ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "review": "decomposition",
-    "request": "95fe9e5407111d7a0ec69d5c45b65bf8ba96f78601da5189384ab95545728b9d",
+    "request": "b2b1b762a16cc806c4c6c91a3b67e6dec6aea1d61c80ec0b617e679d96d93224",
     "reviewer": "",
     "reviewed_at": "",
     "outcome": "pending",

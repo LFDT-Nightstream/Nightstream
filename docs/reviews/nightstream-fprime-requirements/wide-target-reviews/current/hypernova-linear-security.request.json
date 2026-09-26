@@ -1,6 +1,6 @@
 {
-  "request": "b06476363a187ae6ce029461cf7bafd04ea4e1963d5ab813ce23391459549c79",
-  "path": "/private/tmp/nightstream-review-ce0159538.cHjmiI/review-requests/b06476363a187ae6ce029461cf7bafd04ea4e1963d5ab813ce23391459549c79.json",
+  "request": "d20b51575af8cd33add756ddceb28140906ab7cfcd7541ea1084535a9129e4cf",
+  "path": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/review-store-00226950e/review-requests/d20b51575af8cd33add756ddceb28140906ab7cfcd7541ea1084535a9129e4cf.json",
   "content": {
     "schema": 1,
     "obligation": "hypernova-linear-security",
@@ -8,7 +8,7 @@
     "owner": "scripts/lean_graph/HYPERNOVA_LINEAR_SECURITY.md",
     "gap": "The literal final criterion is discharged by hyperNovaLinearSecurity through HyperNovaVisitedSecurity.history_probability_linear_bound: additive test loss plus 17 times actual adaptive MSIS success at the same guarded history visits. Complete work and actual-step clock correspondence are checked separately under the declared mean model.",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3",
+    "snapshot": "b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "proposal": {
@@ -36,11 +36,11 @@
     "obligation": "hypernova-linear-security",
     "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3",
+    "snapshot": "b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "review": "decomposition",
-    "request": "b06476363a187ae6ce029461cf7bafd04ea4e1963d5ab813ce23391459549c79",
+    "request": "d20b51575af8cd33add756ddceb28140906ab7cfcd7541ea1084535a9129e4cf",
     "reviewer": "",
     "reviewed_at": "",
     "outcome": "pending",

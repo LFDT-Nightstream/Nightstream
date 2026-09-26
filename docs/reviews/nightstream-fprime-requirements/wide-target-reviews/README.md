@@ -6,26 +6,30 @@ No controlled checker or signing process has been supplied to this task.
 
 ## Current source and requests
 
-Captured source commit: `ce0159538534579f3459adacecfca325b5b9692b`.
-The requests remain valid at `31148bcce`: its CI workflow, local check scripts
-and saved primitive archive are outside these four declared review scopes.
-Both terminal request IDs were recomputed and are unchanged; the security
-scopes add only the unchanged security reference documents.
-Later changes only to this review directory do not change the captured source.
-The source capture excludes Python bytecode caches.
+Captured source commit: `00226950e51f389e09ecb4cfdadb845d14b36908`.
+The capture equals that committed tree: the working tree had no other
+changes, and the source capture excludes Python bytecode caches. Later
+changes only to this review directory do not change the captured source.
+
+These requests replace the ones captured at `ce0159538`. Two changes since
+then are inside the review scopes. The `AGENTS.md` rule for the removed Lean
+project changed (`owner` group, all four requests). The security requests
+also capture `crates/neo-math/tests/fixtures/lean-foundation.zip` (`rust`
+group); the earlier security capture held an uncommitted copy of that file,
+so no commit reproduced it. No review existed for the replaced requests.
 
 | Obligation | Snapshot | Request | Review |
 |---|---|---|---|
-| `stage1-terminal-assignment` | `f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86` | `4fe5a5fc3ead7e00d687c2173059e448c8811dee36e473ce460a72fe9cf389d4` | pending |
-| `stage1-terminal-parent` | `f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86` | `95fe9e5407111d7a0ec69d5c45b65bf8ba96f78601da5189384ab95545728b9d` | pending |
-| `hypernova-linear-security` | `531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3` | `b06476363a187ae6ce029461cf7bafd04ea4e1963d5ab813ce23391459549c79` | pending |
-| `hypernova-terminal-false-acceptance` | `531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3` | `fb6cb1592b282bdfc424dd78cf1b2a6c8a3f205393ee122856b7073f37686911` | pending |
+| `stage1-terminal-assignment` | `ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e` | `c7b046303e0497de7248356768e3111e8479bfba52cdb9f43bf26691bcd8995b` | pending |
+| `stage1-terminal-parent` | `ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e` | `b2b1b762a16cc806c4c6c91a3b67e6dec6aea1d61c80ec0b617e679d96d93224` | pending |
+| `hypernova-linear-security` | `b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611` | `d20b51575af8cd33add756ddceb28140906ab7cfcd7541ea1084535a9129e4cf` | pending |
+| `hypernova-terminal-false-acceptance` | `b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611` | `e48c6d7063f9ed66a223df0fe9963c45df91ad865bb7625798d1309495293d58` | pending |
 
 `current/<obligation>.proposal.json` is the proposal.
 `current/<obligation>.request.json` contains the exact request, its binding,
 and the blank response template. No template is a passing review record.
-The local captured store is `/tmp/nightstream-review-ce0159538.cHjmiI`;
-retain or transfer that store when arranging the controlled review.
+The requests were captured in a temporary local store. The controlled
+review process recaptures them from the source commit above with its own checker.
 
 ## Changes since the previous reviews
 

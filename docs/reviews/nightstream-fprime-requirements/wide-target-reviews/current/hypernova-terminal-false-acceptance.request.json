@@ -1,6 +1,6 @@
 {
-  "request": "fb6cb1592b282bdfc424dd78cf1b2a6c8a3f205393ee122856b7073f37686911",
-  "path": "/private/tmp/nightstream-review-ce0159538.cHjmiI/review-requests/fb6cb1592b282bdfc424dd78cf1b2a6c8a3f205393ee122856b7073f37686911.json",
+  "request": "e48c6d7063f9ed66a223df0fe9963c45df91ad865bb7625798d1309495293d58",
+  "path": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/review-store-00226950e/review-requests/e48c6d7063f9ed66a223df0fe9963c45df91ad865bb7625798d1309495293d58.json",
   "content": {
     "schema": 1,
     "obligation": "hypernova-terminal-false-acceptance",
@@ -8,7 +8,7 @@
     "owner": "scripts/lean_graph/STAGE1_BASELINE.md#named-map-dispositions",
     "gap": "The literal selected full-opening false-acceptance event is bounded on the original mixed law, without a positive AdviceReturned mass. The checked event-to-first-failures bridge consumes the existing guarded visited linear source bounds.",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3",
+    "snapshot": "b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "proposal": {
@@ -32,11 +32,11 @@
     "obligation": "hypernova-terminal-false-acceptance",
     "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
     "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-    "snapshot": "531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3",
+    "snapshot": "b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611",
     "policy": "8664da276c085d1cae232b64d86f28aac44db7d08899b32d619d9bdc7fd02b70",
     "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
     "review": "decomposition",
-    "request": "fb6cb1592b282bdfc424dd78cf1b2a6c8a3f205393ee122856b7073f37686911",
+    "request": "e48c6d7063f9ed66a223df0fe9963c45df91ad865bb7625798d1309495293d58",
     "reviewer": "",
     "reviewed_at": "",
     "outcome": "pending",

@@ -1,76 +1,74 @@
 # Wide-key target reviews
 
-Status: **pending independent review and signed acceptance.** Current requests
-are captured below. The older passing responses do not approve this source.
-No controlled checker or signing process has been supplied to this task.
+Status: **pending independent review and signed acceptance.** The requests below
+cover the completed PR #123 source. Historical passing responses do not approve
+this source. No controlled checker or signing process has been supplied to this
+task, and the implementation author has not created acceptance records.
 
 ## Current source and requests
 
-Captured source commit: `00226950e51f389e09ecb4cfdadb845d14b36908`.
-The capture equals that committed tree: the working tree had no other
-changes, and the source capture excludes Python bytecode caches. Later
-changes only to this review directory do not change the captured source.
+Captured source commit: `65d14abb27ff20a1c87ddade4b77982cc9864995`.
 
-These requests replace the ones captured at `ce0159538`. Two changes since
-then are inside the review scopes. The `AGENTS.md` rule for the removed Lean
-project changed (`owner` group, all four requests). The security requests
-also capture `crates/neo-math/tests/fixtures/lean-foundation.zip` (`rust`
-group); the earlier security capture held an uncommitted copy of that file,
-so no commit reproduced it. No review existed for the replaced requests.
+The source includes the single application and witness paths, actual application
+row custody, the current wide package and manifest, fresh two-fold fixtures,
+legacy-consumer removal, and the completed validation fixes. The source capture
+excludes Python bytecode caches and this review directory. This follow-up commit
+changes review metadata only; the captured implementation and artifacts remain
+those of the source commit above.
 
 | Obligation | Snapshot | Request | Review |
 |---|---|---|---|
-| `stage1-terminal-assignment` | `ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e` | `c7b046303e0497de7248356768e3111e8479bfba52cdb9f43bf26691bcd8995b` | pending |
-| `stage1-terminal-parent` | `ec3c2a7ab788ba5b6e5f2bfc36d2b68b54cc86883af784695ba5c6887f84b62e` | `b2b1b762a16cc806c4c6c91a3b67e6dec6aea1d61c80ec0b617e679d96d93224` | pending |
-| `hypernova-linear-security` | `b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611` | `d20b51575af8cd33add756ddceb28140906ab7cfcd7541ea1084535a9129e4cf` | pending |
-| `hypernova-terminal-false-acceptance` | `b6c02cf5a635fcd85769b95245fe22776f962a7c3e070d44c9dc8d75125a7611` | `e48c6d7063f9ed66a223df0fe9963c45df91ad865bb7625798d1309495293d58` | pending |
+| `stage1-terminal-assignment` | `2bfc7b5ff9fe4c03976fcf70ffbdcd154890f97f576352779a040a12c0595030` | `e5317552cbc45b2f1a177c7cd33a5be0e5869310e80da8345f036dff4129864d` | pending |
+| `stage1-terminal-parent` | `2bfc7b5ff9fe4c03976fcf70ffbdcd154890f97f576352779a040a12c0595030` | `15d16aa09826ae41f7ecc4c91f56a7d7168d8a4ce22f114c963cdf88e067c3a5` | pending |
+| `hypernova-linear-security` | `f972cc527645a739d247c1691c9a1956e764b20eb5b4e83f30fe8ede1b7c6b6d` | `d6c3c382e0529f6385371a4cd41a4830ec88324265bfa018270f6c0778496fee` | pending |
+| `hypernova-terminal-false-acceptance` | `f972cc527645a739d247c1691c9a1956e764b20eb5b4e83f30fe8ede1b7c6b6d` | `bbc525c824a7b1ca8b5aadd36c5c4c293be734b4f4e444d3c3373005a5814ef7` | pending |
 
-`current/<obligation>.proposal.json` is the proposal.
-`current/<obligation>.request.json` contains the exact request, its binding,
-and the blank response template. No template is a passing review record.
-The requests were captured in a temporary local store. The controlled
-review process recaptures them from the source commit above with its own checker.
+`current/<obligation>.proposal.json` contains the proposed argument.
+`current/<obligation>.request.json` contains the exact source binding and blank
+response template. Every response remains pending. The local snapshot store
+also freezes the pinned Lean library seed; it is not a build tree.
 
-## Changes since the previous reviews
+## Changes since the previous requests
 
-The only changed Lean source since `eb3f78599` is
-`Export/FoundationParityMain.lean`, which emits the new arithmetic test
-vectors. The four target definitions and their security proofs are unchanged.
-The Rust and Python changes repair golden checks, retain the test inputs,
-and add parity tests. Local static and axiom gates pass.
+The preceding requests covered `00226950e`. This source consolidates the default
+emitter and application assembly, removes the alternate witness executor and
+legacy Rust consumers, proves the general application's physical-row custody,
+and uses matching version-3 manifests and selected artifacts. It also removes
+unused sampler support, stale evidence consumers and unreachable Metal code.
 
-The current false-acceptance proposal names
-`HyperNovaFirstFailure.accepted_failure_exists_first`, correcting the old
-proposal's dependency list. That correction deliberately changes its request.
+Fresh checks cover two native folds, Lean verifier acceptance, complete proof
+bytes and caller values, terminal rejection of balanced false K/A openings,
+PiCCS and PiDEC mutations, 17-source child handoffs, and independent recursive
+row/assignment evaluation. The final production and axiom builds, identity
+checks, Rust release suites and Metal public flows pass. See
+[the completion record](../../../../PR123_FIX_HANDOFF.md) for exact scope and
+remaining assurance limits. These tests do not replace independent assessment
+of the four mathematical targets.
+
+The proposals retain the target meanings and explicit cryptographic assumptions.
+They have new source bindings. The false-acceptance proposal continues to name
+`HyperNovaFirstFailure.accepted_failure_exists_first`.
 
 ## Handoff to the controlled review process
 
-1. Use a checkout containing these `current/` files and the captured source
-   above. Do not check out the earlier commit that predates the review files.
-2. Give the captured source, proposal and request to the independent reviewer.
-   The reviewer must fill the response template, including all five
-   assessments and the target-meaning assessment. Do not relabel an earlier
+1. Use a checkout containing these request files and the captured source commit.
+2. Give each request, proposal and captured source to an independent reviewer.
+   Assess the target meaning, premises, argument, correspondence and parent use
+   through the required decomposition questions. Do not relabel an older
    response as a review of the current snapshot.
-3. The authorized process must use its independently provisioned checker,
-   policy and library seed. If those produce different request identifiers,
-   prepare new requests under that checker and review their matching source.
+3. Use the independently provisioned checker, policy and protected library seed.
+   If those produce different request identifiers, create matching requests and
+   review their exact source.
 4. Import the signed response with
    `python3 -B scripts/lean_graph/evidence.py --authority APPROVED_CHECKER --store STORE record-review REQUEST SIGNED_ENVELOPE`.
-5. Use the same `--authority`, store and source when running
-   `explain OBLIGATION`. Accepted closure also requires the current proof gates
-   and the other reviews required by the policy.
+5. Use that authority, store and source for `explain OBLIGATION`. Accepted closure
+   also requires the proof gates and every review named by the policy.
 
-A local import without `--authority` remains diagnostic. This task cannot
-create an accepted record by signing its own findings.
+A local import without `--authority` is diagnostic. The implementation author
+cannot create independent acceptance by signing their own findings.
 
-## Previous review records
+## Historical records
 
-- `final/` retains the proposals and passing responses for source
-  `eb3f78599`. They are historical context, not current source approval.
-- `initial/` retains the earlier reviews of `9e9cd23d1`.
-- The stale headers and the nonexistent theorem reference reported in the
-  initial reviews were fixed before `eb3f78599`.
-- The source-capture exclusions for the four Lean-artifact symlinks remain
-  unchanged. Artifact inputs are separate from captured Rust sources.
-- The existing cryptographic assumptions and unproved compiler-success and
-  recursive-terminal existence claims are unchanged by these test-tool fixes.
+`final/` retains the reviews of `eb3f78599`; `initial/` retains those of
+`9e9cd23d1`. Both remain historical records. Their response files and the
+protected owner files were not changed by this completion.

@@ -127,7 +127,8 @@ child assignments and actual canonical fresh carrier occur in that envelope.
 No accepted local proof, child validity, physical rows, or assignment-correctness
 callback is a caller premise. This is deterministic completeness only. -/
 theorem recursive_extend_of_sampler_success
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+    (statement : PerApplicationTerminal.Statement)
+        (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
     (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup
       statement (.recursive payload))
@@ -192,7 +193,7 @@ theorem recursive_extend_of_sampler_success
   have freshMember := freshHolds_of_rows application fits productionAjtaiKey raw rows bounded
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff
     application fits productionSetup statement payload).mp accepted).1
-  let next : HyperNovaHistory.Statement :=
+  let next : PerApplicationTerminal.Statement :=
     { iteration := statement.iteration + 1, z0 := statement.z0,
       zi := application.step statement.zi advice }
   have nextValid : Stage1.Terminal.StatementValid next :=
@@ -209,7 +210,7 @@ result is used by the physical constructor. The new terminal envelope keeps
 the default running claims and their proved zero openings. No opening of the
 dummy fresh claim or its verifier-produced children is assumed or claimed. -/
 theorem base_extend_of_sampler_success
-    (statement : HyperNovaHistory.Statement) (advice : AppWitness)
+    (statement : PerApplicationTerminal.Statement) (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup statement .bottom)
     (adviceWidth : advice.length = Stage1.Poseidon2HashChainV1.messageWordCount) :
     let relation := PerApplicationFixedPoint.relation application fits
@@ -303,7 +304,7 @@ theorem base_extend_of_sampler_success
     SelectedAssignmentCompleteness.complete productionAjtaiKey context before after dummyResult
       step priorWellFormed nextWellFormed freshPublic beforeVerified recursiveResult adviceWidth
   have freshMember := freshHolds_of_rows application fits productionAjtaiKey raw rows bounded
-  let next : HyperNovaHistory.Statement := {
+  let next : PerApplicationTerminal.Statement := {
     iteration := statement.iteration + 1
     z0 := statement.z0
     zi := application.step statement.zi advice }

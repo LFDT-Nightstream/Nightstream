@@ -1,0 +1,133 @@
+{
+  "baseline_commit": "c9aa75b04a8a55f1f357ed414c72825fda2bbb6b",
+  "scope": "Selected Lean layout, emitted package, and Rust fixture/consumer conformance. Proving benchmarks remain paused.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "hash": "Poseidon2",
+    "cube_variables": 28
+  },
+  "baseline": {
+    "logical_coordinates": 172217903,
+    "committed_coordinates": 172217934,
+    "logical_rows": 4147335,
+    "matrix_nonzeros": 2968490185
+  },
+  "selected_lean": {
+    "logical_coordinates": 149292999,
+    "alignment_coordinates": 45,
+    "committed_coordinates": 149293044,
+    "logical_rows": 3588191,
+    "physical_rows": 28674023,
+    "physical_columns": 28792719,
+    "matrix_nonzeros": 2857409270,
+    "matrix_nonzeros_by_port": [
+      229698543,
+      3483539,
+      272967007,
+      35832394,
+      813066947,
+      1502256188,
+      0,
+      104652,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "physical_matrix_nonzeros_by_port": [
+      93238030,
+      38665934,
+      28343420
+    ]
+  },
+  "reduction": {
+    "logical_coordinates": 22924904,
+    "committed_coordinates": 22924890,
+    "logical_rows": 559144,
+    "matrix_nonzeros": 111080915
+  },
+  "piccs_ordinary": {
+    "logical_rows": 259963,
+    "owned_fields": 52734,
+    "r1cs_scratch_fields": 207011
+  },
+  "application_candidate": {
+    "selected": true,
+    "logical_rows": 262,
+    "sbox_fields": 258,
+    "message_fields": 4,
+    "private_coordinates": 10742,
+    "additional_committed_coordinate_reduction": 304938,
+    "proofs": "Selected row plan, matrix correspondence, arbitrary-assignment soundness, direct three-permutation witness, and selected-assignment completeness pass focused Lean checks.",
+    "matrix_nonzeros": 147259,
+    "baseline_matrix_nonzeros": 1754410,
+    "matrix_nonzero_reduction": 1607151
+  },
+  "checks": {
+    "production_and_axioms": "Final scripts/validate.sh build NightstreamFPrime NightstreamFPrimeTests passed (4262 jobs), after shared-manifest updates.",
+    "static": "Final scripts/validate.sh static passed after all Lean changes.",
+    "cvc5": "Five recorded gadget controls passed; no solver result substitutes for Lean.",
+    "application_completion": "Direct three-permutation construction and full selected-assignment completion pass; all five constructor theorem axiom audits pass.",
+    "application_matrix_cost": "Exact Lean matrix operands; independent normalized sparse counter; 262 rows, 147259 entries.",
+    "logical_matrices": "All 14 matrices equal independent sealed-package interpretation; candidate_logical_conformance=passed.",
+    "matrix_mutations": "Changed block order, in-range column, and nonzero coefficient: all rejected under the selected identity.",
+    "physical_matrices": "Independent comparison passed; A/B/C nonzeros [93238030, 38665934, 28343420].",
+    "complete_assignment": "Passed: every logical coordinate, all 3588191 rows, all 45 alignment zeros, and 305 mutation controls; direct CCS and full source witnesses agree.",
+    "derived_recipe_rejections": "Phi81, First54, and output-digest recipe mutations all reject after valid controls.",
+    "base_fixture": "Fresh caller inputs pass full physical and logical assignment checks.",
+    "sparse_commitment": "All 1188 selected-key commitment coefficients match Lean, including a nonzero final carrier coordinate.",
+    "actual_nifs": "Recomputed source commitment, parent split, six active child openings, and native C/R/D acceptance; all 43 NIFS mutation controls reject.",
+    "lean_nifs": "Independent Lean C/R/D result and recursive caller fixture emitted from source proof inputs and child claims; complete native comparison and all 55 PiDEC rejection cases pass.",
+    "published_nifs": "selected_nifs_saved_actual_result_matches_lean passed against the newly installed fixtures.",
+    "recursive_assignment": "Passed: prior/output binding, all 28674023 physical rows, every logical coordinate, all 3588191 logical rows, and 45 alignment zeros.",
+    "recursive_mutations": "Commitment, Eval_K and Eval_A child-assignment mutations rejected by independent canonical rows.",
+    "shared_manifest": "Lean manifest comparison passed for selected compact and ordinary application paths; both Rust assembly integration tests and all five internal equality/rejection tests passed.",
+    "rust_consumers": "19 focused tests passed: published NIFS (1), application assembly (2), complete assembly/rejection controls (5), lifecycle handoff/key-prefix/rejections (6), application rows/witness/step vectors (4), and Ajtai setup parity (1).",
+    "ignored_assignment_regression": "Current physical nonzero pin passes; the generated-value, four message-word, and six output-state mutation checks all execute and reject.",
+    "ignored_detached_application": "Application coordinates and logical rows are derived from the package; honest replacement application rows pass, and detached output rejects at row 3588178.",
+    "ignored_pirlc_wiring": "Self-contained saved recursive fixture; all 3588191 control rows pass through the existing parallel evaluator. Cleared product values reject at row 3288724; cleared running-child values reject at row 3513156.",
+    "ignored_physical_matrix_regression": "final_matrices_equal_the_separate_lean_expansion passes with exact physical A/B/C nonzeros [93238030, 38665934, 28343420]. All four repaired ignored tests pass under separate 300-second caps."
+  },
+  "remaining": [],
+  "benchmarks": "Paused by owner instruction; no overall performance gain claimed.",
+  "wide_sampler": {
+    "source_commit": "919cd12b481a7c3d9335be8df94ac08718857e70",
+    "merge_commit": "b2c5a8cfd",
+    "selected": false,
+    "counted_coordinate_reduction": 0,
+    "reason": "Component proofs are merged. The deterministic sampler map, executable witness hint, selected retained layout, transcript lifecycle, and package identity are not integrated."
+  },
+  "candidate_package": {
+    "source_checkpoint": "49c54577c595b5cff0867ee9b5de1a7aa2fa0029",
+    "structural": [
+      10450558883330280427,
+      4372877323243167089,
+      17627407427612007025,
+      18192136968784746237
+    ],
+    "package": [
+      10236859257084328720,
+      2333344895175328281,
+      11662339516011578647,
+      12470290288965558271
+    ],
+    "verifier_key": [
+      4346185384512578771,
+      8345379008614788180,
+      6673817677899302970,
+      3453068408352147297
+    ],
+    "package_sha256": "f648cb69b41f47616105c13b6666b3954ece21f85e21c52dae24cea16b494f42",
+    "package_bytes": 95161747,
+    "status": "Selected package, binding, setup, component parities, base, actual NIFS and recursive fixtures installed and checked. Complete matrix, witness, recursive assignment, mutation and final Rust consumer checks pass.",
+    "evidence_directory": "/tmp/nightstream-selected-batch-iUMnNY"
+  },
+  "execution_limitations": [
+    "Rust application witness execution still computes the thirteen physical source permutations; the direct Lean completion computes only the three variable permutations. No runtime saving for that difference is claimed.",
+    "The 92179782-coordinate research target is not achieved. Wide sampler selection and full transcript/security integration remain separate work."
+  ]
+}

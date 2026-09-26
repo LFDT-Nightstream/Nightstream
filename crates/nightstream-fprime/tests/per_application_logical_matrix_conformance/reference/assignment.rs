@@ -11,19 +11,23 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
-const TRANSPORT_SCHEMA: usize = 2;
-pub(super) const BLOCK_COUNT: usize = 30;
-const PHYSICAL_COLUMNS: usize = 29_344_425;
+const TRANSPORT_SCHEMA: usize = 4;
+pub(super) const BLOCK_COUNT: usize = 76;
+const PHYSICAL_ROWS: usize = 27_724_114;
+const PHYSICAL_COLUMNS: usize = 27_867_239;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 253_011_231;
-const CARRIER_WIDTH: usize = 253_011_276;
+const LOGICAL_WIDTH: usize = 137_341_846;
+const CARRIER_WIDTH: usize = 137_341_872;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
-const PHI81_GROUPS: usize = 33;
-const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
-const FIRST54_PRODUCTS: usize = 1_088;
+const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
+const CHALLENGE_SOURCES: usize = 17;
+const CHALLENGE_COEFFICIENTS: usize = 54;
+const CHALLENGE_BITS: usize = 3;
+const OUTPUT_DIGEST_BLOCK: usize = 17;
+const PHI81_QUOTIENT_BLOCK: usize = 75;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
 #[derive(Deserialize)]
@@ -75,22 +79,6 @@ impl SlotKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SourceDomain {
-    Retained,
-    Physical,
-}
-
-impl SourceDomain {
-    fn decode(value: &Value) -> Result<Self> {
-        match word(value, "assignment source domain")? {
-            0 => Ok(Self::Retained),
-            1 => Ok(Self::Physical),
-            _ => Err("unknown assignment source domain".into()),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Run {
     first: usize,
@@ -101,10 +89,9 @@ struct Run {
 
 #[derive(Clone, Debug)]
 struct BlockPlan {
-    opcode: usize,
+    index: usize,
     kind: SlotKind,
     slot_count: usize,
-    domain: SourceDomain,
     runs: Vec<Run>,
 }
 
@@ -161,37 +148,28 @@ fn source_at(runs: &[Run], slot: usize) -> Result<usize> {
 }
 
 impl BlockPlan {
-    fn decode(value: &Value, expected_opcode: usize) -> Result<Self> {
-        let fields = exact_array(value, 5, "assignment block plan")?;
-        let opcode = word(&fields[0], "assignment block opcode")?;
-        if opcode != expected_opcode {
-            return Err(format!(
-                "assignment block opcode {opcode} is out of order; expected {expected_opcode}"
-            ));
+    fn decode(value: &Value, index: usize) -> Result<Self> {
+        let fields = exact_array(value, 3, "assignment block plan")?;
+        let kind = SlotKind::decode(&fields[0])?;
+        let slot_count = word(&fields[1], "assignment block slot count")?;
+        let runs = decode_runs(&fields[2], slot_count)?;
+        if runs
+            .iter()
+            .any(|run| run.first + run.step * (run.count - 1) >= PHYSICAL_COLUMNS + PHI81_QUOTIENT_VALUES)
+        {
+            return Err(format!("assignment block {index} source is out of range"));
         }
-        let kind = SlotKind::decode(&fields[1])?;
-        let slot_count = word(&fields[2], "assignment block slot count")?;
-        let domain = SourceDomain::decode(&fields[3])?;
-        let expected_domain = match opcode {
-            28..=29 => SourceDomain::Physical,
-            _ => SourceDomain::Retained,
-        };
-        if domain != expected_domain {
-            return Err(format!("assignment block {opcode} uses the wrong source domain"));
-        }
-        let runs = decode_runs(&fields[4], slot_count)?;
         Ok(Self {
-            opcode,
+            index,
             kind,
             slot_count,
-            domain,
             runs,
         })
     }
 
     fn source(&self, slot: usize) -> Result<usize> {
         if slot >= self.slot_count {
-            return Err(format!("assignment block {} slot {slot} is out of range", self.opcode));
+            return Err(format!("assignment block {} slot {slot} is out of range", self.index));
         }
         source_at(&self.runs, slot)
     }
@@ -244,27 +222,15 @@ impl Family {
 #[derive(Clone, Debug)]
 struct Phi81Plan {
     families: Vec<Family>,
-    challenge_opcode: usize,
-    challenge_slot_base: usize,
-    challenge_source_stride: usize,
-    challenge_shift: u64,
     value_sources: Vec<Run>,
-    group_opcode: usize,
+    challenge_bit_sources: Vec<Run>,
 }
 
 impl Phi81Plan {
     fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 15, "Phi81 assignment plan")?;
-        let constants = fields[..8]
-            .iter()
-            .enumerate()
-            .map(|(index, value)| word(value, &format!("Phi81 constant {index}")))
-            .collect::<Result<Vec<_>>>()?;
-        if constants != [54, 27, 81, 106, 3, 162, 5, 33] {
-            return Err("unexpected Phi81 assignment constants".into());
-        }
+        let fields = exact_array(value, 3, "Phi81 assignment plan")?;
         let expected_shapes = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]];
-        let shape_values = exact_array(&fields[8], expected_shapes.len(), "Phi81 family shapes")?;
+        let shape_values = exact_array(&fields[0], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;
         let mut families = Vec::with_capacity(expected_shapes.len());
         for (value, expected) in shape_values.iter().zip(expected_shapes) {
@@ -289,57 +255,20 @@ impl Phi81Plan {
         if first_invocation != PHI81_INVOCATIONS {
             return Err("unexpected Phi81 invocation count".into());
         }
-        let tail = fields[9..13]
-            .iter()
-            .chain([&fields[14]])
-            .enumerate()
-            .map(|(index, value)| word(value, &format!("Phi81 selector {index}")))
-            .collect::<Result<Vec<_>>>()?;
-        if tail != [7, 3402, 3456, 2, 3] {
-            return Err("unexpected Phi81 assignment selectors".into());
-        }
-        let value_sources = decode_runs(&fields[13], PHI81_INVOCATIONS)?;
+        let value_sources = decode_runs(&fields[1], PHI81_INVOCATIONS)?;
+        let challenge_bit_sources =
+            decode_runs(&fields[2], CHALLENGE_SOURCES * CHALLENGE_COEFFICIENTS * CHALLENGE_BITS)?;
         if value_sources
             .iter()
+            .chain(&challenge_bit_sources)
             .any(|run| run.first + run.step * (run.count - 1) >= PHYSICAL_COLUMNS)
         {
             return Err("Phi81 operand source is outside the physical assignment".into());
         }
         Ok(Self {
             families,
-            challenge_opcode: tail[0],
-            challenge_slot_base: tail[1],
-            challenge_source_stride: tail[2],
-            challenge_shift: tail[3] as u64,
             value_sources,
-            group_opcode: tail[4],
-        })
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct First54Plan {
-    candidate_count: usize,
-    reject_opcode: usize,
-    symbol_opcode: usize,
-    output_opcode: usize,
-}
-
-impl First54Plan {
-    fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 4, "first54 assignment plan")?;
-        let values = fields
-            .iter()
-            .map(|value| word(value, "first54 assignment selector"))
-            .collect::<Result<Vec<_>>>()?;
-        if values != [FIRST54_PRODUCTS, 4, 5, 8] {
-            return Err("unexpected first54 assignment plan".into());
-        }
-        Ok(Self {
-            candidate_count: values[0],
-            reject_opcode: values[1],
-            symbol_opcode: values[2],
-            output_opcode: values[3],
+            challenge_bit_sources,
         })
     }
 }
@@ -347,13 +276,12 @@ impl First54Plan {
 struct Transport {
     blocks: Vec<BlockPlan>,
     phi81: Phi81Plan,
-    first54: First54Plan,
     output_digest_expressions: Vec<Value>,
 }
 
 impl Transport {
     fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 6, "assignment transport plan")?;
+        let fields = exact_array(value, 4, "assignment transport plan")?;
         if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
             return Err("unexpected assignment transport schema".into());
         }
@@ -361,28 +289,22 @@ impl Transport {
         let blocks = block_values
             .iter()
             .enumerate()
-            .map(|(opcode, value)| BlockPlan::decode(value, opcode))
+            .map(|(index, value)| BlockPlan::decode(value, index))
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
-        let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "output-digest block opcode")? != 23 {
-            return Err("unexpected derived assignment block selector".into());
-        }
         let output_digest_expressions =
-            exact_array(&fields[5], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
+            exact_array(&fields[3], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
         Ok(Self {
             blocks,
             phi81,
-            first54,
             output_digest_expressions,
         })
     }
 
-    fn block(&self, opcode: usize) -> Result<&BlockPlan> {
+    fn block(&self, index: usize) -> Result<&BlockPlan> {
         self.blocks
-            .get(opcode)
-            .filter(|block| block.opcode == opcode)
-            .ok_or_else(|| format!("missing assignment block opcode {opcode}"))
+            .get(index)
+            .ok_or_else(|| format!("missing assignment block {index}"))
     }
 }
 
@@ -429,8 +351,7 @@ impl Physical<'_> {
 
 struct Domains<'a> {
     physical: Physical<'a>,
-    groups: Vec<u64>,
-    products: Vec<u64>,
+    quotients: Vec<u64>,
 }
 
 impl Domains<'_> {
@@ -439,21 +360,10 @@ impl Domains<'_> {
             return self.physical.value(index);
         }
         let index = index - PHYSICAL_COLUMNS;
-        if index < self.groups.len() {
-            return Ok(self.groups[index]);
-        }
-        let index = index - self.groups.len();
-        self.products
+        self.quotients
             .get(index)
             .copied()
             .ok_or_else(|| "retained assignment source is out of range".into())
-    }
-
-    fn value(&self, domain: SourceDomain, index: usize) -> Result<u64> {
-        match domain {
-            SourceDomain::Retained => self.retained(index),
-            SourceDomain::Physical => self.physical.value(index),
-        }
     }
 }
 
@@ -480,7 +390,7 @@ impl LogicalAssignment {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(29_225_729)
+            || usize::try_from(rows).ok() != Some(PHYSICAL_ROWS)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -508,8 +418,7 @@ impl LogicalAssignment {
         }
 
         let transport = Transport::decode(&raw_transport)?;
-        let groups = derive_phi81_groups(&transport, &physical)?;
-        let products = derive_first54_products(&transport, &physical)?;
+        let quotients = derive_phi81_quotients(&transport, &physical)?;
         let output_digest = transport
             .output_digest_expressions
             .iter()
@@ -518,11 +427,7 @@ impl LogicalAssignment {
         let output_digest: [u64; OUTPUT_DIGEST_WORDS] = output_digest
             .try_into()
             .map_err(|_| "output digest word count".to_string())?;
-        let domains = Domains {
-            physical,
-            groups,
-            products,
-        };
+        let domains = Domains { physical, quotients };
         validate_derived_block_sources(&transport, &domains, output_digest)?;
 
         let mut values = Vec::with_capacity(LOGICAL_WIDTH);
@@ -531,7 +436,7 @@ impl LogicalAssignment {
         for block in &transport.blocks {
             let start = values.len();
             for source in block.sources() {
-                encode_slot(block.kind, domains.value(block.domain, source?)?, &mut values)?;
+                encode_slot(block.kind, domains.retained(source?)?, &mut values)?;
             }
             block_ranges.push(start..values.len());
         }
@@ -616,14 +521,13 @@ impl LogicalAssignment {
 
 /// A fail-closed logical view over an available physical-assignment prefix.
 ///
-/// Values are decoded from the raw schema-6 transport only when a logical
+/// Values are decoded from the raw schema-4 transport only when a logical
 /// row requests them. No value is invented for an unavailable private suffix.
 pub struct PartialLogicalAssignment<'a> {
     transport: Transport,
     physical: Physical<'a>,
     block_ranges: Vec<Range<usize>>,
-    groups: OnceLock<Result<Vec<u64>>>,
-    products: OnceLock<Result<Vec<u64>>>,
+    quotients: OnceLock<Result<Vec<u64>>>,
     output_digest: OnceLock<Result<[u64; OUTPUT_DIGEST_WORDS]>>,
 }
 
@@ -645,7 +549,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(29_225_729)
+            || usize::try_from(rows).ok() != Some(PHYSICAL_ROWS)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -699,8 +603,7 @@ impl<'a> PartialLogicalAssignment<'a> {
                 unavailable_private: None,
             },
             block_ranges,
-            groups: OnceLock::new(),
-            products: OnceLock::new(),
+            quotients: OnceLock::new(),
             output_digest: OnceLock::new(),
         })
     }
@@ -710,7 +613,7 @@ impl<'a> PartialLogicalAssignment<'a> {
     }
 
     /// Keep the sealed pilot's proof-input gap and non-pilot public context
-    /// unavailable. This uses the same independent schema-6 transport.
+    /// unavailable. This uses the same independent schema-4 transport.
     pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
         if private_prefix.len() != 14_751_526 {
             return Err("pilot physical-assignment prefix has the wrong length".into());
@@ -757,10 +660,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         let slot = coordinate / width;
         let digit = coordinate % width;
         let source = block.source(slot)?;
-        let value = match block.domain {
-            SourceDomain::Retained => self.retained(source)?,
-            SourceDomain::Physical => self.physical.value(source)?,
-        };
+        let value = self.retained(source)?;
         encode_slot_coordinate(block.kind, value, digit)
     }
 
@@ -769,31 +669,20 @@ impl<'a> PartialLogicalAssignment<'a> {
             return self.physical.value(index);
         }
         let index = index - PHYSICAL_COLUMNS;
-        if index < PHI81_GROUP_VALUES {
-            let groups = match self
-                .groups
-                .get_or_init(|| derive_phi81_groups(&self.transport, &self.physical))
-            {
-                Ok(values) => values,
-                Err(error) => return Err(error.clone()),
-            };
-            return groups
-                .get(index)
-                .copied()
-                .ok_or_else(|| "retained Phi81 group source is out of range".into());
+        if index >= PHI81_QUOTIENT_VALUES {
+            return Err("retained assignment source is out of range".into());
         }
-        let index = index - PHI81_GROUP_VALUES;
-        let products = match self
-            .products
-            .get_or_init(|| derive_first54_products(&self.transport, &self.physical))
+        let quotients = match self
+            .quotients
+            .get_or_init(|| derive_phi81_quotients(&self.transport, &self.physical))
         {
             Ok(values) => values,
             Err(error) => return Err(error.clone()),
         };
-        products
+        quotients
             .get(index)
             .copied()
-            .ok_or_else(|| "retained first54 product source is out of range".into())
+            .ok_or_else(|| "retained Phi81 quotient source is out of range".into())
     }
 
     fn output_digest(&self) -> Result<[u64; OUTPUT_DIGEST_WORDS]> {
@@ -854,98 +743,69 @@ fn encode_slot_coordinate(kind: SlotKind, value: u64, coordinate: usize) -> Resu
     }
 }
 
-fn raw_block_value(block: &BlockPlan, slot: usize, physical: &Physical<'_>) -> Result<u64> {
-    if block.domain != SourceDomain::Retained {
-        return Err(format!(
-            "derived assignment block {} does not use retained sources",
-            block.opcode
-        ));
+fn derive_challenges(
+    plan: &Phi81Plan,
+    physical: &Physical<'_>,
+) -> Result<[[u64; CHALLENGE_COEFFICIENTS]; CHALLENGE_SOURCES]> {
+    let mut challenges = [[0; CHALLENGE_COEFFICIENTS]; CHALLENGE_SOURCES];
+    for (source, coefficients) in challenges.iter_mut().enumerate() {
+        for (lane, coefficient) in coefficients.iter_mut().enumerate() {
+            let mut digit = 0;
+            for bit in 0..CHALLENGE_BITS {
+                let slot = (source * CHALLENGE_COEFFICIENTS + lane) * CHALLENGE_BITS + bit;
+                let value = physical.value(source_at(&plan.challenge_bit_sources, slot)?)?;
+                if value > 1 {
+                    return Err(format!("challenge bit {source}/{lane}/{bit} is not zero or one"));
+                }
+                digit += value << bit;
+            }
+            if digit > 4 {
+                return Err(format!("challenge digit {source}/{lane} is outside 0..=4"));
+            }
+            *coefficient = sub_mod(digit, 2);
+        }
     }
-    let source = block.source(slot)?;
-    if source >= PHYSICAL_COLUMNS {
-        return Err(format!(
-            "derived assignment block {} source is not in the physical base",
-            block.opcode
-        ));
-    }
-    physical.value(source)
+    Ok(challenges)
 }
 
-fn derive_phi81_groups(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
+fn derive_phi81_quotients(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
     let plan = &transport.phi81;
-    let challenge = transport.block(plan.challenge_opcode)?;
-    let output = transport.block(plan.group_opcode)?;
-    if output.slot_count != PHI81_GROUP_VALUES {
-        return Err("Phi81 group-output block has the wrong slot count".into());
+    let challenges = derive_challenges(plan, physical)?;
+    let output = transport.block(PHI81_QUOTIENT_BLOCK)?;
+    if output.kind != SlotKind::Field || output.slot_count != PHI81_QUOTIENT_VALUES {
+        return Err("Phi81 quotient-output block has the wrong slot count".into());
     }
-    let mut groups = Vec::with_capacity(PHI81_GROUP_VALUES);
+    let mut quotients = vec![0; PHI81_QUOTIENT_VALUES];
     for family in &plan.families {
         for source in 0..family.source_count {
+            let left = &challenges[source];
             for block in 0..family.block_count {
-                for lane in 0..54 {
-                    for cell in 0..family.cell_count {
-                        let invocation = family.invocation(source, block, lane, cell)?;
-                        if invocation != groups.len() / PHI81_GROUPS {
-                            return Err("Phi81 invocation order mismatch".into());
+                for cell in 0..family.cell_count {
+                    let mut right = [0u64; 54];
+                    for (degree, coefficient) in right.iter_mut().enumerate() {
+                        let slot = family.invocation(source, block, degree, cell)?;
+                        *coefficient = physical.value(source_at(&plan.value_sources, slot)?)?;
+                    }
+                    // Independent monic long division, not the consumer's closed coefficient formula.
+                    let mut product = [0u64; 108];
+                    for (i, &a) in left.iter().enumerate() {
+                        for (j, &b) in right.iter().enumerate() {
+                            product[i + j] = add_mod(product[i + j], mul_mod(a, b));
                         }
-                        for group in 0..PHI81_GROUPS {
-                            let mut sum = 0u64;
-                            for raw_term in group * 5..((group + 1) * 5).min(162) {
-                                let section = raw_term / 54;
-                                let convolution_source = raw_term % 54;
-                                let (degree, sign) = match section {
-                                    0 => (lane, 1i8),
-                                    1 => (lane + if lane < 27 { 54 } else { 27 }, -1i8),
-                                    2 if lane + 81 <= 106 => (lane + 81, 1i8),
-                                    2 => continue,
-                                    _ => return Err("Phi81 raw term is out of range".into()),
-                                };
-                                if convolution_source > degree || degree - convolution_source >= 54 {
-                                    continue;
-                                }
-                                let challenge_slot = plan
-                                    .challenge_slot_base
-                                    .checked_add(source * plan.challenge_source_stride)
-                                    .and_then(|slot| slot.checked_add(convolution_source))
-                                    .ok_or_else(|| "Phi81 challenge slot overflow".to_string())?;
-                                let challenge_value = raw_block_value(challenge, challenge_slot, physical)?;
-                                let shifted_challenge = sub_mod(challenge_value, plan.challenge_shift);
-                                let value_lane = degree - convolution_source;
-                                let value_slot = family.invocation(source, block, value_lane, cell)?;
-                                let product = mul_mod(
-                                    shifted_challenge,
-                                    physical.value(source_at(&plan.value_sources, value_slot)?)?,
-                                );
-                                sum = add_mod(sum, if sign < 0 { neg_mod(product) } else { product });
-                            }
-                            groups.push(sum);
+                    }
+                    for degree in (54..108).rev() {
+                        let coefficient = product[degree];
+                        let lane = degree - 54;
+                        quotients[family.invocation(source, block, lane, cell)?] = coefficient;
+                        for shift in [0, 27, 54] {
+                            product[lane + shift] = sub_mod(product[lane + shift], coefficient);
                         }
                     }
                 }
             }
         }
     }
-    if groups.len() != PHI81_GROUP_VALUES {
-        return Err("Phi81 derived group count mismatch".into());
-    }
-    Ok(groups)
-}
-
-fn derive_first54_products(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
-    let plan = transport.first54;
-    let reject = transport.block(plan.reject_opcode)?;
-    let symbol = transport.block(plan.symbol_opcode)?;
-    let output = transport.block(plan.output_opcode)?;
-    if output.slot_count != plan.candidate_count {
-        return Err("first54 output block has the wrong slot count".into());
-    }
-    (0..plan.candidate_count)
-        .map(|candidate| {
-            let reject = raw_block_value(reject, candidate, physical)?;
-            let symbol = raw_block_value(symbol, candidate, physical)?;
-            Ok(mul_mod(sub_mod(1, reject), symbol))
-        })
-        .collect()
+    Ok(quotients)
 }
 
 fn validate_derived_block_sources(
@@ -953,24 +813,18 @@ fn validate_derived_block_sources(
     domains: &Domains<'_>,
     output_digest: [u64; OUTPUT_DIGEST_WORDS],
 ) -> Result<()> {
-    let group = transport.block(transport.phi81.group_opcode)?;
-    for slot in 0..group.slot_count {
-        if domains.value(group.domain, group.source(slot)?)? != domains.groups[slot] {
-            return Err("Phi81 group source map does not select the derived value".into());
+    let quotient = transport.block(PHI81_QUOTIENT_BLOCK)?;
+    for slot in 0..quotient.slot_count {
+        if domains.retained(quotient.source(slot)?)? != domains.quotients[slot] {
+            return Err("Phi81 quotient source map does not select the derived value".into());
         }
     }
-    let product = transport.block(transport.first54.output_opcode)?;
-    for slot in 0..product.slot_count {
-        if domains.value(product.domain, product.source(slot)?)? != domains.products[slot] {
-            return Err("first54 product source map does not select the derived value".into());
-        }
-    }
-    let digest = transport.block(23)?;
-    if digest.slot_count != OUTPUT_DIGEST_WORDS {
+    let digest = transport.block(OUTPUT_DIGEST_BLOCK)?;
+    if digest.kind != SlotKind::Field || digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }
     for (slot, expected) in output_digest.into_iter().enumerate() {
-        if domains.value(digest.domain, digest.source(slot)?)? != expected {
+        if domains.retained(digest.source(slot)?)? != expected {
             return Err("output-digest source map disagrees with its expression".into());
         }
     }

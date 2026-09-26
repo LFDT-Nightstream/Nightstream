@@ -72,7 +72,7 @@ theorem selectedRowsZero_implies_phaseHolds
     (template : Proof (ProductionKey.degreeBound
       (PerApplicationFixedPoint.relation application fits)))
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
-    (one : assignment (ApplicationRetainedGeometry.oneColumn
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :

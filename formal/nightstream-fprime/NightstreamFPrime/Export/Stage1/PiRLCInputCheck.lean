@@ -163,13 +163,14 @@ structure Execution where
 /-- The complete C prefix remains in fields 0..5. Fields 6 and 7 are the
 actual R input and result. Parallel work only materializes independent
 families; all prefix values remain in their original source order. -/
-def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Execution := do
+def checkIOWith (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch SourceCount))
+    (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Execution := do
   let ccsResult := PiCCSInputCheck.execute input
   let fields := PiCCSInputCheck.checkFields input ccsResult
   let rlcInput := inputValue input ccsResult packageIdentity
   if !ccsResult.accepted then
     return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
-  match Transcript.PiRlcSampler.piRlcChallengesWithState ccsResult.outgoing SourceCount with
+  match sampler ccsResult.outgoing with
   | none => return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
   | some batch =>
       let commitmentTask ← IO.asTask (PiRLCParity.prepare fun _ =>
@@ -192,6 +193,10 @@ def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Exe
           | some parent => return ⟨fields ++ [rlcInput, result], some parent⟩
           | none => throw (IO.userError "incomplete actual PiRLC parent")
       | none => throw (IO.userError "incomplete actual PiRLC indexed trace")
+
+def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Execution :=
+  checkIOWith (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state SourceCount)
+    input packageIdentity
 
 def checkValueIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Value := do
   let execution ← checkIO input packageIdentity

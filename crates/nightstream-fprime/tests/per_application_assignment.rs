@@ -7,7 +7,8 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_value,
+    LoadedPerApplicationPackage, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -20,10 +21,12 @@ mod conformance_support;
 #[path = "per_application_logical_matrix_conformance/reference/mod.rs"]
 mod logical_reference;
 
+pub use logical_reference::mutation::RecipeFamily;
+
 const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PRIVATE_INPUT_COUNT: usize = 177_326;
 const PUBLIC_INPUT_COUNT: usize = 278;
-const TOTAL_COLUMN_COUNT: usize = 29_344_425;
+const TOTAL_COLUMN_COUNT: usize = 27_867_239;
 const FIRST_GENERATED_COLUMN: usize = 128_074;
 const STATE_PREIMAGE_WORDS: usize = 49_393;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
@@ -240,7 +243,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         assignment.public_values(),
     )
     .expect("independent canonical assignment evaluation");
-    assert_eq!(evaluated_rows, 29_225_729);
+    assert_eq!(evaluated_rows, 27_724_114);
     assert_eq!(evaluated_rows, package.physical_row_count());
     let mut changed_assignment = assignment.private_values().to_vec();
     changed_assignment[FIRST_GENERATED_COLUMN] = (changed_assignment[FIRST_GENERATED_COLUMN] + 1) % GOLDILOCKS_MODULUS;
@@ -255,7 +258,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .r1cs_matrices()
         .expect("intermediate physical R1CS A/B/C matrices");
     let r1cs_matrix_nonzeros = conformance_support::compare_sealed_matrices(&bytes, &matrices);
-    assert_eq!(r1cs_matrix_nonzeros, [93_701_820, 39_358_148, 28_868_018]);
+    assert_eq!(r1cs_matrix_nonzeros, [91_935_932, 37_291_416, 27_552_988]);
     drop(matrices);
     eprintln!("intermediate_r1cs_matrix_nonzeros={r1cs_matrix_nonzeros:?}");
 
@@ -277,11 +280,95 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
             .execute_witness(&changed_private, &changed_public)
             .is_err());
     }
+    eprintln!("nonzero_assignment_rejections=passed generated=1 message=4 output_state=6");
 }
 
 #[test]
 #[ignore = "full independent final logical assignment evaluation; run this target explicitly under the 300-second cap"]
 fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
+    check_selected_assignment(None);
+}
+
+#[test]
+#[ignore = "complete assignment control and Phi81 recipe rejection; run this target explicitly under the 300-second cap"]
+fn phi81_recipe_mutation_fails_the_original_logical_relation() {
+    check_selected_assignment(Some(RecipeFamily::Phi81));
+}
+
+#[test]
+#[ignore = "complete assignment control and challenge-bit recipe rejection; run this target explicitly under the 300-second cap"]
+fn challenge_bits_recipe_mutation_fails_the_original_logical_relation() {
+    check_selected_assignment(Some(RecipeFamily::ChallengeBits));
+}
+
+#[test]
+#[ignore = "complete assignment control and output-digest recipe rejection; run this target explicitly under the 300-second cap"]
+fn output_digest_recipe_mutation_fails_the_original_logical_relation() {
+    check_selected_assignment(Some(RecipeFamily::OutputDigest));
+}
+
+#[test]
+#[ignore = "complete assignment input rejection; run explicitly under the 300-second cap"]
+fn ccs_assignment_rejects_invalid_inputs() {
+    let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+    let package = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+    let binding = package.production_verifier_binding().unwrap();
+    let (private_inputs, public_inputs, _, _) =
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    for changed in [
+        private_inputs[..private_inputs.len() - 1].to_vec(),
+        {
+            let mut changed = private_inputs.clone();
+            changed[0] = GOLDILOCKS_MODULUS;
+            changed
+        },
+        {
+            let mut changed = private_inputs.clone();
+            *changed.last_mut().unwrap() += 1;
+            changed
+        },
+    ] {
+        assert!(package
+            .execute_ccs_assignment(&changed, &public_inputs)
+            .is_err());
+    }
+}
+
+#[test]
+#[ignore = "complete package row mutation rejection; run explicitly under the 300-second cap"]
+fn ccs_assignment_checks_rows_after_a_package_mutation() {
+    let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+    let selected = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+    let binding = selected.production_verifier_binding().unwrap();
+    let (private_inputs, public_inputs, _, _) =
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    let selected_identity = selected.structural_identifier();
+    drop(selected);
+    let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+    // Change the final assertion of a product template. It remains well formed
+    // but cannot hold; a selector based only on template index would skip it.
+    let assertion = value[1][8][0][4]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap();
+    let constant = assertion[3][0].as_u64().unwrap();
+    assertion[3][0] = Value::from((constant + 1) % GOLDILOCKS_MODULUS);
+    let mut changed_bytes = serde_json::to_vec(&value).unwrap();
+    changed_bytes.push(b'\n');
+    assert!(matches!(
+        load_poseidon2_hash_chain_v1_package(&changed_bytes),
+        Err(PackageError::ExpectedIdentityMismatch { .. })
+    ));
+    let changed = load_prepared_application_value(value).unwrap();
+    assert_ne!(changed.structural_identifier(), selected_identity);
+    assert!(matches!(
+        changed.execute_ccs_assignment(&private_inputs, &public_inputs),
+        Err(PackageError::Invalid("unsatisfied compact row"))
+    ));
+}
+
+fn check_selected_assignment(recipe: Option<RecipeFamily>) {
     let sealed_bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"))
         .expect("Lean-emitted concrete package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("verifier-owned production package");
@@ -290,17 +377,19 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         .expect("fixed production verifier binding");
     let (private_inputs, public_inputs, _, _) =
         concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
-    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
+    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs, recipe);
 }
 
-/// Run the same complete assignment and strict mutation gate before replacing
-/// production pins. The external parity inputs must match the loaded candidate.
+/// Check the complete assignment and, when selected, one derived recipe.
+/// All three recipe cases are required in separate capped invocations.
+/// The external parity inputs must match the loaded candidate.
 pub fn check_candidate_assignment(
     package: LoadedPerApplicationPackage,
     sealed_bytes: Vec<u8>,
     pi_ccs: &[u8],
     pi_dec: &[u8],
     application: &[u8],
+    recipe: Option<RecipeFamily>,
 ) {
     let binding = package
         .production_verifier_binding()
@@ -317,7 +406,7 @@ pub fn check_candidate_assignment(
         application,
         application_result,
     );
-    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
+    check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs, recipe);
 }
 
 fn check_logical_assignment(
@@ -325,6 +414,7 @@ fn check_logical_assignment(
     sealed_bytes: Vec<u8>,
     private_inputs: Vec<u64>,
     public_inputs: Vec<u64>,
+    recipe: Option<RecipeFamily>,
 ) {
     let started = std::time::Instant::now();
     let expected_identity = package.structural_identifier();
@@ -332,9 +422,9 @@ fn check_logical_assignment(
         .execute_witness(&private_inputs, &public_inputs)
         .expect("Rust-produced complete physical assignment");
     let production_logical_assignment = package
-        .execute_logical_assignment(&physical_assignment)
+        .execute_ccs_assignment(&private_inputs, &public_inputs)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 253_011_231);
+    assert_eq!(production_logical_assignment.len(), 137_341_846);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -361,7 +451,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 253_011_231);
+    assert_eq!(logical_assignment.len(), 137_341_846);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -397,9 +487,9 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 6_377_559);
+    assert_eq!(result.active_rows, 3_248_956);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 45);
+    assert_eq!(result.carrier_padding_columns, 26);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()
@@ -414,7 +504,7 @@ fn check_logical_assignment(
     );
     drop(logical_assignment);
 
-    for family in logical_reference::mutation::RecipeFamily::ALL {
+    if let Some(family) = recipe {
         let changed_bytes = logical_reference::mutation::self_consistent_bytes(&sealed_bytes, family)
             .expect("self-consistent derived-recipe mutation");
         match load_per_application_package(&changed_bytes, expected_identity) {

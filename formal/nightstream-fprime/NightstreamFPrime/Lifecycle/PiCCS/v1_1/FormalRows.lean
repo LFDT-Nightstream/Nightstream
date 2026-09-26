@@ -219,7 +219,7 @@ theorem sumcheckOffset_eq_sumcheckRowOffset
 
 /-- Relation-free executable start of the `Eval_K` child. -/
 def evalKRowOffset (degreeBound offset : Nat) : Nat :=
-  sumcheckRowOffset degreeBound offset
+  sumcheckRowOffset degreeBound offset + SumcheckChain.privateCount degreeBound
 
 theorem evalKOffset_eq_evalKRowOffset
     {logicalWidth degreeBound : Nat}
@@ -231,7 +231,6 @@ theorem evalKOffset_eq_evalKRowOffset
   unfold evalKOffset evalKRowOffset nextOffset childLength sumcheckCircuit
   rw [FormalCircuit.withConstantFootprint_main, SumcheckChain.localLength_eq,
     sumcheckOffset_eq_sumcheckRowOffset]
-  omega
 
 /-- Relation-free executable start of the `Eval_A` child. -/
 def evalARowOffset (degreeBound offset : Nat) : Nat :=
@@ -364,8 +363,8 @@ theorem finalRowOffset_eq_add
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     finalRowOffset interface offset =
-      offset + (4432230 + productionShape.cubeVariables *
-        RoundTranscript.perRoundRecipeCount degreeBound) := by
+      offset + (4404614 + productionShape.cubeVariables *
+        RoundTranscript.perRoundRecipeCount degreeBound + SumcheckChain.privateCount degreeBound) := by
   unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
     normRowOffset ccsRowOffset evalARowOffset evalKRowOffset
     sumcheckRowOffset initialClaimRowOffset
@@ -374,7 +373,7 @@ theorem finalRowOffset_eq_add
     EvalKTerminal.privateCount, InitialClaim.privateCount]
   omega
 
-/-- The production degree-nine PiCCS endpoint advances by exactly 4,581,414
+/-- The production degree-nine PiCCS endpoint advances by exactly 4,554,302
 private variables. -/
 theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
     {logicalWidth degreeBound : Nat}
@@ -382,9 +381,9 @@ theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    finalRowOffset interface offset = offset + 4581414 := by
+    finalRowOffset interface offset = offset + 4554302 := by
   rw [finalRowOffset_eq_add, degreeEq]
-  norm_num [RoundTranscript.perRoundRecipeCount, productionShape,
+  norm_num [RoundTranscript.perRoundRecipeCount, SumcheckChain.privateCount, productionShape,
     Phi81MatrixSource.phi81Shape, cubeVariables]
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal

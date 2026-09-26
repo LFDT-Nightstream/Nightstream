@@ -1,0 +1,71 @@
+{
+  "obligation": "stage1-terminal-parent",
+  "target": "LeanGraph.Targets.Stage1TerminalParent",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "6805907ae523156661fa17e1c325f71d0814da7243ba9f550c57c49890350395",
+  "policy": "2b27bc790d1765322d96a23ad5255f64fc1c7cc9553eb27d6eba98665a6ce574",
+  "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
+  "review": "decomposition",
+  "request": "6257629a05f3c6393406e9e8ffe74c13ff5973479243ed70afc9e8b18e84890d",
+  "reviewer": "independent review agent (Claude), fresh context",
+  "reviewed_at": "2026-09-25T16:50:27-05:00",
+  "outcome": "pass",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pass",
+      "reason": "The only premise is terminal acceptance (tests/EvidenceTargets.lean:186-187). The conclusion is a full CE(B) opening of the verifier-computed PiRLC output: commitment, public projection, norm under stage .combined (Spec/Folding/PiRLC.lean:198, Spec/Relation.lean:60-63,151-159), point validity and evaluations. The proof composes four real steps. (1) Serialization injectivity for well-formed preimages, with the natural counter recovered below the modulus (Export/Stage1/Wide/TerminalSecurity.lean:105-158). (2) Circuit-rows-to-wide-step soundness (OpeningBinding.lean:141-168 -> ContextBinding.lean:34-63). (3) Decomposition of NIFS acceptance (TerminalSecurity.lean:177-210,231-236). (4) PiDEC reduce_knowledge through accepted_outputWitness_extracts_parent (Spec/Folding/PiDEC/OutputWitnessConsumer.lean:136-153). No disjunct is trivially true. The collision is a genuine Poseidon2 collision: unequal serializations with equal stateHash (Layout/Stage1/PiCCSSecurity.lean:62-71; Lifecycle/XOut.lean:144-145)."
+    },
+    "premises": {
+      "outcome": "pass",
+      "reason": "The premises are exactly the Wide.Target fields (TerminalSecurity.lean:29-36) and target.Holds statement (.recursive payload) (EvidenceTargets.lean:184-187). The proposal lists them correctly. No output-match, child-opening, honest-witness or source-opening premise is present. The payload's running output match is derived (TerminalSecurity.lean:206-209). The Ajtai key and the context are arbitrary. This generalizes the baseline, which fixed them from commitmentSetup and verifierContextDigest (982538618 EvidenceTargets.lean:197-210). contextLength = 4 is a structural fact of the selected digest (Wide/SetupBinding.lean:182). It is consumed by the key-length step of the injectivity argument (TerminalSecurity.lean:127-131)."
+    },
+    "argument": {
+      "outcome": "pass",
+      "reason": "The Lean proof follows the proposal step by step. terminal_implies_nifsOrBaseOrCollision (TerminalSecurity.lean:177-210) opens the wide StepHoldsFor branch: base gives input.iteration = 0. In the recursive branch, selectedIndex = functionIndex because slotCount = 1, the call is Accepts of Wide.Relation.nifsVerifier = verify (PiRLC.Wide.Key.key ...) (Lifecycle/Stage1/Wide/Relation.lean:19-33), and the next-preimage equality identifies runningNext with payload.running. verify_eq_some_iff and piDecCheck_eq_true_iff (Spec/Folding/Nifs/PaperNonInteractive/Verifier.lean:107-120,239-250) give the verifier's own attempt. runningValid from holdsFor_recursive_iff (Lifecycle/Stage1/Terminal.lean:152-168, relations at 55-57) has the type of outputValid for the wide key. This holds by definitional equality: the wide key inherits relationSource, piRlcSemantics = semantics ajtai and params = productionGlobalParams (Lifecycle/ProductionKey.lean:173,186; PiRLC/Wide/Key.lean:34-38,144-146). The consumer then yields the parent opening (TerminalSecurity.lean:240-244). The base and named-collision alternatives are carried through unchanged."
+    },
+    "correspondence": {
+      "outcome": "pass",
+      "reason": "stage1TerminalParent is literally `fun target => target.terminal_implies_parentOrBaseOrCollision` (EvidenceTargets.lean:197-198). The Prop at EvidenceTargets.lean:183-195 is syntactically the theorem's statement (TerminalSecurity.lean:215-225). The three named dependencies exist and are the ones used (TerminalSecurity.lean:177,215,241; OutputWitnessConsumer.lean:136). #audit_axioms is present (EvidenceTargets.lean:200), and the target is closed in tests/EvidenceAcceptance.lean:16. On the verifier side, the modelled NIFS verifier is Nifs.PaperNonInteractive.verify with the wide key. Its challenge response is the wide sampler challengeAt (Key.lean:13-17). The selected package's nifsKey is exactly this key (Wide/SetupBinding.lean:75-83). The production manifest and emitter use RangePlan.compile? (Export/SharedVerifier.lean:444; Export/Stage1/Wide/Emitter.lean:55). This target makes no Lean claim of Rust verifier conformance. That link is a stated trusted boundary (FPRIME_LEAN_ARCHITECTURE_SPEC.md:236-253) and belongs to production-binding obligations."
+    },
+    "parent_use": {
+      "outcome": "pass",
+      "reason": "The registered parent is FPRIME_LEAN_ARCHITECTURE_SPEC.md#security-composition (lines 226-234): acceptance gives validity unless a named failure occurs, including the PiDEC knowledge reduction. This target supplies the terminal-level PiDEC reduction: it opens the exact decoded parent from the terminal's own child witnesses, and the only failure event is the named Poseidon2 state-hash collision. The proposal's parent_use correctly leaves interior extraction and probability bounds to the history layer (TerminalSecurity.lean:12-13; HyperNovaHistory.lean:5-15). No Lean declaration consumes this theorem. The history route re-derives the same child-opening event in HyperNovaRealInput.realSuccess_of_terminal (HyperNovaRealInput.lean:67-97). The baseline was the same (982538618). The target is registered evidence, not a proof dependency."
+    }
+  },
+  "target_meaning": {
+    "outcome": "pass",
+    "reason": "(a) The attempt is the one the wide verifier uses. The wide F' step calls verify with PiRLC.Wide.Key.key (Lifecycle/Stage1/Wide/Relation.lean:19-33,45-47), and piDecCheck and output both read key.piDecAttempt (Verifier.lean:66-101; Types.lean:733-748). The wide key differs from ProductionKey.key only in piRlcResponse (Key.lean:34-38). piDecAttempt still depends on it through piRlcChallenges -> parent (Types.lean:588-603,626-640,687-701). The piDecAttemptForParent_unchanged lemma is per fixed parent only (Key.lean:109-117). So the wide key is required, and the target uses it (EvidenceTargets.lean:189-191). (b) CE.Holds (semantics target.ajtai) productionGlobalParams attempt.parent is the full CE(B) relation of the verifier-computed PiRLC output with stage .combined (PiRLC.lean:198). It uses the same Ajtai key as the terminal's running and fresh checks (Terminal.lean:55-60). (c) The recomposition is correct. accepted_outputWitness_extracts_parent concludes recompose (fun child => w (Fin.cast key.outputCount_eq child)) (OutputWitnessConsumer.lean:144-146). outputCount_eq := rfl (ProductionKey.lean:177, inherited by the wide key), so the cast is the identity: child i is running index i. This is the verifier's own order: outputForAttempt maps running index i to message i (Types.lean:704-728), and runningStatement_eq_child proves the statements agree (OutputWitnessConsumer.lean:71-99). (d) The alternatives are the named ones. The base alternative is input.iteration = 0, which is exactly when F' cannot take the recursive branch (Paper.lean:344). The collision is StateHashCollision (decodedNext, terminal preimage) (TerminalSecurity.lean:99-101). (e) Nothing is vacuous. The ∀ over Wide.Target covers Wide.selected (TerminalSecurity.lean:41-48) by instantiation. The program is Poseidon2HashChainV1Package.application, and the approved-seed Ajtai key and descriptor context come from Wide/SetupBinding.lean:18-44,180-182."
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:4-6; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/FixedPoint.lean:4-6; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:3-5; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:6-9",
+      "text": "Stale module docs call the wide relation, key and authority 'candidate'. One says 'This relation is not selected by the production package'. This contradicts commit c65a8605a, which selected the wide package in production, and the target docstring (EvidenceTargets.lean:179-181; TerminalSecurity.lean:10-11). The docs mislead a reader about which package the target covers. The proposition is not affected."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/tests/EvidenceTargets.lean:190; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:219",
+      "text": "The base disjunct is only 'decoded input.iteration = 0'. It does not state the base step or statement.iteration = 1. For statement.iteration >= 2, a consumer must add Stage1TerminalAssignment (EvidenceTargets.lean:168-173) or terminal_one_implies_baseOrCollision (TerminalSecurity.lean:360-394) to rule it out. This is sound: in this case no decoded PiDEC parent exists, because the recursive F' branch requires 0 < iteration (Paper.lean:344). The form is unchanged from the baseline."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:41-48",
+      "text": "No declaration references Wide.selected. The target applies to the selected package only through instantiation of the universal statement. selected does not require AuthorityStream.prepare compiled = .ok parts, and it does not tie Target.relation to the sealed matrix program. That link (OpeningBinding.lean:66-92; PackageAuthority) and Rust conformance remain production-binding obligations."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Layout/PiRlcWideSampler/RangePlan.lean:36-54",
+      "text": "Only execution of compile? shows that PiRlcWideSampler.RangePlan.Compiled is inhabited (SharedVerifier.lean:444; Wide/Emitter.lean:55). No Lean theorem proves it. If compile? returned none, Wide.Target would be empty and the target would hold vacuously. The production emitter succeeds, so this is not a current defect."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:73-75; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Relation.lean:41-49",
+      "text": "Target.Holds uses Lifecycle.Stage1.Terminal.HoldsFor, which builds the narrow Lifecycle.setup whose nifs field is the ProductionKey verifier. This is harmless: RecursiveTerminalTransition reads only setup.verifierKeys and never calls NIFS.V (Spec/HyperNova/Construction2/Paper.lean:557-590). The wide key enters only through Wide.Relation.StepHoldsFor."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaRealInput.lean:67-97",
+      "text": "No Lean declaration consumes terminal_implies_parentOrBaseOrCollision or stage1TerminalParent. The history layer re-derives the same wide-key child-opening event from terminal_implies_nifsOrBaseOrCollision and recomposes the parent inside extraction. The target is standalone registered evidence, as at the baseline."
+    }
+  ]
+}

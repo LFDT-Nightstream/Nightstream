@@ -90,21 +90,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--references", type=Path, required=True)
+    # Reference archives hold earlier native outputs for one package version.
+    # Omit them for a package that has none; the Lean checks do not use them.
+    parser.add_argument("--references", type=Path)
     args = parser.parse_args()
-    binary, directory, references = args.binary.resolve(), args.directory.resolve(), args.references.resolve()
+    binary, directory = args.binary.resolve(), args.directory.resolve()
+    references = args.references.resolve() if args.references else None
     require(binary.is_file(), f"missing test binary: {binary}")
-    for name in ("reference-first", "reference-later"):
+    for name in ("reference-first", "reference-later") if references else ():
         require((references / name).is_dir(), f"missing restored reference: {references / name}")
     require(not directory.exists(), f"run directory already exists: {directory}")
     # Capture custody before creating any run outputs. These hashes identify
     # files; they do not prove build correctness or protocol semantics.
     record = {"schema": 1, "outcome": "running", "engine": "optimized",
               "binary": file_identity(binary), "source": source_identity(), "commands": [],
-              "references": str(references),
-              "identity_scope": "file custody only; not proof of binary/source correspondence",
-              "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, "
-                       "with archive output comparisons. No fresh Lean execution or universal correctness claim."}
+              "references": str(references) if references else None,
+               "identity_scope": "file custody only; not proof of binary/source correspondence",
+               "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, "
+                       + ("with archive output comparisons. " if references else "without archive comparisons. ")
+                       + "No fresh Lean execution or universal correctness claim."}
     directory.mkdir(parents=True)
     try:
         phase(binary, directory, "base", record["commands"], engine="optimized")
@@ -121,7 +125,7 @@ def main():
         phase(binary, directory, "reject", record["commands"], step=3, engine="optimized")
         phase(binary, directory, "opening-k", record["commands"])
         phase(binary, directory, "opening-a", record["commands"])
-        for fold, name in ((1, "reference-first"), (2, "reference-later")):
+        for fold, name in ((1, "reference-first"), (2, "reference-later")) if references else ():
             compare_fold(directory, fold, references / name, record["commands"])
         record["outcome"] = "passed"
         print(f"native golden conformance passed: {directory}", flush=True)

@@ -4,6 +4,8 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use super::ColumnProjection;
+
 use super::{
     checked_add, checked_mul, decode_list, exact_array, field_atom, usize_atom, Form, PackageError, RetainedBlock,
 };
@@ -146,6 +148,15 @@ impl AffineProgram {
         Ok(Self {
             rules: decode_list(value, Rule::decode)?,
         })
+    }
+
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        for rule in &mut self.rules {
+            if let Term::Retained { block, .. } = &mut rule.term {
+                projection.retained(block)?;
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn form(

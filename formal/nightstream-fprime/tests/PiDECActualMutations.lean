@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.Wide.PiRLCInputCheck
 
 /-! Check supplied PiDEC mutations after one actual accepted C/R execution.
 The canonical decoder owns encoding failures; the paper verifier and exact
@@ -19,7 +20,7 @@ private def run (p0 p1 p2 p3 inputPath messagesPath badInputPath mutationsDir : 
   let identity ← checked (Export.ParityEmitter.parseVerifierKey p0 p1 p2 p3)
   let input ← checked (PiCCSInputCheck.parse (← IO.FS.readFile inputPath))
   let messages ← checked (PiCCSInputCheck.parseRunning (← IO.FS.readFile messagesPath))
-  let execution ← PiRLCInputCheck.checkIO input identity
+  let execution ← Wide.PiRLCInputCheck.checkIO input identity
   let some parent := execution.parent
     | throw (IO.userError "honest C/R execution rejected")
   if !PiDECInputCheck.accepted parent messages then
@@ -52,7 +53,7 @@ private def run (p0 p1 p2 p3 inputPath messagesPath badInputPath mutationsDir : 
   if (PiCCSInputCheck.execute badInput).accepted then
     throw (IO.userError "PiCCS accepted the changed first-round constant")
   IO.println "lean_pi_ccs_mutation=invalid_first_round_constant rejected_by=pi_ccs"
-  let rejectedPrefix ← PiRLCInputCheck.checkIO badInput identity
+  let rejectedPrefix ← Wide.PiRLCInputCheck.checkIO badInput identity
   if rejectedPrefix.parent.isSome then
     throw (IO.userError "rejected C input supplied a D parent")
   IO.println s!"lean_pi_dec_mutations=passed public={publicCount} encoding={encodingCount} unbounded=1 rejected_C_stops_D=1"

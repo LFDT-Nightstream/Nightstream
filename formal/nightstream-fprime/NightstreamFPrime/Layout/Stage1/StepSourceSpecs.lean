@@ -25,7 +25,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-private theorem initial_word
+theorem initial_word
     (state : Nat → F)
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (decoded : StateDecoder.preimage logicalWidth publicFits state = value)
@@ -36,7 +36,7 @@ private theorem initial_word
     Lifecycle.Stage1.Application.stateWordCount index.val index.isLt).symm.trans
       (congrArg (fun words => words.getD index.val 0) initial)
 
-private theorem current_word
+theorem current_word
     (state : Nat → F)
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (decoded : StateDecoder.preimage logicalWidth publicFits state = value)

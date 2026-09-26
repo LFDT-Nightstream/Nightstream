@@ -88,13 +88,13 @@ private theorem freshCommitmentRange_lookup {program : Program} {logicalWidth : 
     (substitution program).form? logicalWidth (0 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
         (proofLogicalFits geometry) ⟨0 + index.val, by
-          change 0 + index.val < 114878
+          change 0 + index.val < 87766
           have bound := index.isLt
           omega⟩) := by
   have bound := index.isLt
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program) 0 1188 0 (proofLogicalFits geometry)
-    (by change 0 + 1188 ≤ 114878; decide) index
+    (by change 0 + 1188 ≤ 87766; decide) index
   change (freshCommitmentRange program).form? logicalWidth (0 + index.val) = _ at selected
   have none_freshPublicRange := SourceRange.form?_eq_none_of_before
     (freshPublicRange program) logicalWidth (0 + index.val) (by
@@ -251,7 +251,7 @@ private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
     (substitution program).form? logicalWidth (24786 + source.val * 108 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
         (proofLogicalFits geometry) ⟨1748 + source.val * 1620 + index.val, by
-          change 1748 + source.val * 1620 + index.val < 114878
+          change 1748 + source.val * 1620 + index.val < 87766
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
@@ -261,7 +261,7 @@ private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
     (proofLogicalStart program) 24786 17 108 1 108 108
     1748 1620 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 1748 + source.val * 1620 + index.val < 114878; omega)
+    index.isLt (by change 1748 + source.val * 1620 + index.val < 87766; omega)
   change (evalKGrid program).form? logicalWidth
     (24786 + source.val * 108 + 0 * 108 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -295,7 +295,7 @@ private theorem evalAGrid_lookup {program : Program} {logicalWidth : Nat}
     (substitution program).form? logicalWidth (26622 + source.val * 1512 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
         (proofLogicalFits geometry) ⟨1856 + source.val * 1620 + index.val, by
-          change 1856 + source.val * 1620 + index.val < 114878
+          change 1856 + source.val * 1620 + index.val < 87766
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
@@ -305,7 +305,7 @@ private theorem evalAGrid_lookup {program : Program} {logicalWidth : Nat}
     (proofLogicalStart program) 26622 17 1512 1 1512 1512
     1856 1620 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simpa using index.isLt)
-    index.isLt (by change 1856 + source.val * 1620 + index.val < 114878; omega)
+    index.isLt (by change 1856 + source.val * 1620 + index.val < 87766; omega)
   change (evalAGrid program).form? logicalWidth
     (26622 + source.val * 1512 + 0 * 1512 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected

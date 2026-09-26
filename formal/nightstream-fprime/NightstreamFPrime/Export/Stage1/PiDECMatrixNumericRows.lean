@@ -83,6 +83,8 @@ theorem blockRow?_eq (block : MatrixProgram.Block) {columns : Nat}
     blockRow? block sourceRow read ordinal =
       (block.row? columns sourceRow ordinal).map (sparseValues read) := by
   cases block with
+  | mapped _ _ _ => rfl
+  | ordinaryTemplate _ _ => rfl
   | ordinary block => rfl
   | multiplicationGrid block => rfl
   | phi81Product block =>

@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    canonical_field, word_to_usize, Layout, PackageError, MAX_JOINT_DOMAIN, PI_CCS_V1_1_MATRIX_COUNT,
-    PI_CCS_V1_1_ROUND_COUNT,
+    canonical_field, word_to_usize, PackageError, MAX_JOINT_DOMAIN, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -84,33 +83,20 @@ impl PackageCcsRelation {
     }
 }
 
-pub(super) fn validate(raw: RawCcsRelation, layout: &Layout, schema: u64) -> Result<PackageCcsRelation, PackageError> {
+pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, PackageError> {
     let RawCcsRelation(rows, columns, cube_variables, matrix_sources, degree_bound, terms) = raw;
     let row_count = word_to_usize(rows, "CCS relation row count")?;
     let column_count = word_to_usize(columns, "CCS relation column count")?;
     let cube_variables = word_to_usize(cube_variables, "CCS relation cube variables")?;
     let degree_bound = word_to_usize(degree_bound, "CCS relation degree bound")?;
 
-    match schema {
-        7 => {
-            if row_count != layout.row_count {
-                return Err(PackageError::Invalid("CCS relation row count"));
-            }
-            if column_count != layout.total_column_count {
-                return Err(PackageError::Invalid("CCS relation column count"));
-            }
-        }
-        8 => {
-            let carrier_width = column_count
-                .checked_add(53)
-                .map(|rounded| rounded / 54)
-                .and_then(|blocks| blocks.checked_mul(54))
-                .ok_or(PackageError::Invalid("CCS relation carrier width"))?;
-            if row_count > MAX_JOINT_DOMAIN || carrier_width > MAX_JOINT_DOMAIN {
-                return Err(PackageError::Invalid("CCS relation 2^28 domain"));
-            }
-        }
-        _ => return Err(PackageError::Invalid("schema version")),
+    let carrier_width = column_count
+        .checked_add(53)
+        .map(|rounded| rounded / 54)
+        .and_then(|blocks| blocks.checked_mul(54))
+        .ok_or(PackageError::Invalid("CCS relation carrier width"))?;
+    if row_count > MAX_JOINT_DOMAIN || carrier_width > MAX_JOINT_DOMAIN {
+        return Err(PackageError::Invalid("CCS relation 2^28 domain"));
     }
     if cube_variables != PI_CCS_V1_1_ROUND_COUNT {
         return Err(PackageError::Invalid("CCS relation cube variables"));

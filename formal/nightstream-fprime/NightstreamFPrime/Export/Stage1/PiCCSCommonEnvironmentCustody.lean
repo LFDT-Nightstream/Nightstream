@@ -25,27 +25,27 @@ private theorem source_beforeSampler {source : Nat}
   · rcases external with priorRange | publicRange | outputRange |
       contextRange | proofRange
     · exact Nat.lt_of_lt_of_le priorRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl]
         norm_num [PilotProduction.priorPreimageStart,
           PilotProduction.stateHashWords_eq])
     · exact Nat.lt_of_lt_of_le publicRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl]
         norm_num [PilotProduction.priorPublicInputStart,
           PilotProduction.priorPreimageStart,
           PilotProduction.stateHashWords_eq])
     · exact Nat.lt_of_lt_of_le outputRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl]
+        rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl]
         norm_num [PilotProduction.outputPreimageStart,
           PilotProduction.priorPublicInputStart,
           PilotProduction.priorPreimageStart,
           PriorStateHash.publicWidth, PilotProduction.stateHashWords_eq,
           ringDegree, PaperAlgebra.publicRingColumns])
     · exact Nat.lt_of_lt_of_le contextRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+        rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl,
           PiCCSInputs.expectedContextStart_eq]
         norm_num [PiCCSInputs.expectedContextWords])
     · exact Nat.lt_of_lt_of_le proofRange.2 (by
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+        rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl,
           PiCCSInputs.phaseOffset_eq, PiCCSInputs.proofInputStart_eq]
         norm_num)
   · rcases logicalRange with transcript | ordinary
@@ -55,14 +55,14 @@ private theorem source_beforeSampler {source : Nat}
           using invocation.isLt
       have laneBound : lane.val < 8 := by
         simpa only [Spec.Poseidon2.width] using lane.isLt
-      rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
+      rw [show PiRLCStarts.samplerLogicalStart = 19513117 by rfl,
         PiCCSInputs.phaseOffset_eq]
       omega
     · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange at ordinary
       exact Nat.lt_of_lt_of_le ordinary.2 (by
         rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq,
-          show PiRLCStarts.samplerLogicalStart = 20064823 by rfl]
+          show PiRLCStarts.samplerLogicalStart = 19513117 by rfl]
         unfold PiCCSStarts.initialClaimLogicalStart
         rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
         norm_num)
@@ -97,7 +97,7 @@ theorem transcriptEnv_eq_semanticEnv_of_beforeSampler
       NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra.Assignment
         F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     {column : Nat} (before : column < PiRLCStarts.samplerLogicalStart) :
     Spartan.pullback

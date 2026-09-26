@@ -10,6 +10,15 @@ the concrete continuation is now consumed by
 and gate evidence at `01a8fd8ca68280c7f642451ab33bc714cee5bc98` are recorded in
 `formal/nightstream-fprime/NIFS_CLOSURE_STATUS.md`.
 
+Retired key, 2026-09-25: the security chain moved to the selected wide key.
+The events `FiatShamirTransfer.RealSuccess` and `FiatShamirModel` named below
+were for the retired `ProductionKey` sampler. No theorem consumed them after
+the move, so they were deleted. `FiatShamirTransfer` keeps only the
+key-independent composition, which takes the transfer inequality as a
+premise. `NifsClosure.finishValue_probability_and_expected_work` now consumes
+`WideFiatShamir.FiatShamirModel`. The selected boundary is the wide section
+below; its approved text is unchanged.
+
 For the fixed Nightstream Goldilocks profile, assume an external classical
 FS/SuperNeo game transfer for the **actual additive Poseidon2 transcript**.
 The real success event is `FiatShamirTransfer.RealSuccess`: the actual
@@ -66,3 +75,57 @@ Under the stated per-call laws, the selected PiCCS test and sampler-abort
 events have a union bound over arbitrary `n`. This excludes FS/hash/MSIS
 attacks and the square-root extraction loss. Neither this bound nor the
 independent-field sampler law establishes a complete deployed security bound.
+
+## Wide sampler (selected)
+
+Status: the owner approved the whole-vector map and one-block transcript
+schedule on 2026-09-24. On 2026-09-25 the owner confirmed in writing that
+the approval also extends this Fiat–Shamir boundary to
+`WideFiatShamir.RealSuccess` for `PiRLC.Wide.Key.key`. The approved boundary
+is the text from the next paragraph to the end of this section; its SHA-256
+is `8eada01dde88e02e67101ae1f96a962fa712504893167900ffe426600cbc5b30`. Approval selects no model instance or numerical security level.
+
+The whole-vector map and one-block transcript schedule are selected in
+production. `Lifecycle.Nifs.WideFiatShamir` applies the same parametric
+boundary to `PiRLC.Wide.Key.key`. Its success event
+`WideFiatShamir.RealSuccess` uses that verifier and openings for its exact
+sixteen returned children; it is not old-key acceptance. Its
+`returned_source_bound_with_adaptive_msis` consumes the existing interactive
+extractor without changing the profile or commitment assumptions.
+
+`TranscriptHistory.queryAt_answer` and `WideSamplerSecurity.response_history`
+prove a local replay fact: for any seed state and any normalized block
+history, replaying that history reproduces the wide key's 17 reads. No
+theorem identifies the verifier's PiCCS output state with the replay of the
+complete transcript from the initial state. That link, repeated states from
+distinct histories (capacity collisions) and inverse-permutation queries are
+not modeled by `OracleModel`; they belong to `modelError` or to the external
+FS transfer. The wide key has no sampler-abort event, so its trace union bound
+contains only the PiCCS test event.
+
+There are two distinct conditional statements:
+
+1. The FS boundary supplies `g Q p_real - deltaFS Q <= p_interactive`, followed
+   by the existing extraction, test and same-key MSIS losses. The interactive
+   side uses uniform challenges, so the whole difference between the wide
+   challenge law and uniform challenges is inside `deltaFS`.
+2. `WideSamplerSecurity.adaptive_bias_bound` is the general hybrid bound
+   `|p_uniform - p_balanced| <= q*δ`, with `δ < 2^-132`, for a bounded test of
+   an oracle run. Its test runs the concrete verifier, which computes its
+   challenges with concrete Poseidon2; the oracle enters only through the
+   supplied decoder. So `p_balanced` does not give the verifier uniform
+   challenges. `concrete_bias_bound` adds the supplied `modelError`.
+
+Statement 2 has no consumer in the extraction chain. It is guidance for
+whoever supplies `deltaFS`: a model that identifies the verifier's challenges
+with block-oracle replies can use `q*δ` for the law difference. No
+monotonicity or Lipschitz property is assumed for `g`, and `q*δ` cannot be
+moved across `g` by these proofs.
+
+`q` is the full adaptive block-call count, including repeats and adversarial
+calls. `Q` is the existing total permutation-query count, including replay.
+The local sampler has 17 reads and 34 permutations per fold, but this does
+not give the adversary's query budget or prove a global relation between
+`q` and `Q`. No concrete count or security level is selected. For independent
+fresh batches only, V6 gives a separate `17*L*δ` term and `17*L/|C|` extraction
+loss; these counts must not be substituted for adaptive query accounting.

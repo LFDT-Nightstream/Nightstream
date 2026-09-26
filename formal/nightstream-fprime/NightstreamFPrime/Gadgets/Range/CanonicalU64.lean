@@ -235,7 +235,8 @@ private theorem fieldOfNat_val_self (value : F) :
   apply Fin.eq_of_val_eq
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
-private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
+/-- Every nonzero field value times its hint inverse is one. -/
+theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     value * Hint.inverse value = 1 := by
   have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
     intro valueValZero
@@ -271,7 +272,7 @@ private theorem weightedValue_succ (env : Env) (offset bitStart count : Nat) :
         2 ^ count * bitValue env offset (bitStart + count) := by
   simp [weightedValue, List.range_succ, List.foldl_append]
 
-private theorem weightedExpr_eval (env : Env) (offset bitStart : Nat) :
+theorem weightedExpr_eval (env : Env) (offset bitStart : Nat) :
     ∀ count,
       (weightedExpr offset bitStart count).eval env =
         fieldOfNat (weightedValue env offset bitStart count)
@@ -329,7 +330,7 @@ theorem weightedExpr_varsBelow (offset bitStart count bound : Nat)
         · apply bitExpr_varsBelow
           omega
 
-private theorem highDifference_varsBelow (offset : Nat) :
+theorem highDifference_varsBelow (offset : Nat) :
     (highDifferenceExpr offset).VarsBelow (offset + bitCount) := by
   apply Expr.VarsBelow.sub
   · apply weightedExpr_varsBelow
@@ -411,7 +412,7 @@ theorem weightedExpr_varsSatisfy (offset bitStart count : Nat)
       exact ⟨trivial, bitExpr_varsSatisfy offset (bitStart + count) allowed (by
         simpa [Nat.add_assoc] using supported count (by omega))⟩
 
-private theorem highDifference_varsSatisfy (offset : Nat)
+theorem highDifference_varsSatisfy (offset : Nat)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < auxiliaryCount →
       allowed (offset + index)) :
@@ -427,7 +428,7 @@ private theorem highDifference_varsSatisfy (offset : Nat)
             omega))
   · trivial
 
-private theorem flagRecipe_varsSatisfy (offset : Nat)
+theorem flagRecipe_varsSatisfy (offset : Nat)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < auxiliaryCount →
       allowed (offset + index)) :
@@ -815,7 +816,7 @@ def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
   executeRecipes (completeInverse interface env offset)
     (offset + bitCount + 1) [flagRecipe offset]
 
-private theorem completeBits_value
+theorem completeBits_value
     (interface : Interface) (env : Env) (offset index : Nat)
     (assumptions : Assumptions interface offset env)
     (bounded : index < bitCount) :
@@ -840,7 +841,7 @@ private theorem completeBits_bitValue
   rw [bit]
   exact hintBit_value interface env offset index
 
-private theorem completeEnv_bitValue
+theorem completeEnv_bitValue
     (interface : Interface) (env : Env) (offset index : Nat)
     (assumptions : Assumptions interface offset env)
     (bounded : index < bitCount) :
@@ -864,7 +865,7 @@ private theorem completeEnv_bitValue
         exact afterInverse]
   exact bit
 
-private theorem completeBits_weightedValue
+theorem completeBits_weightedValue
     (interface : Interface) (env : Env) (offset start count : Nat)
     (assumptions : Assumptions interface offset env)
     (within : start + count ≤ bitCount) :
@@ -1145,6 +1146,16 @@ private theorem completeEnv_holdsFlat
       rcases member with rfl | rfl
       · exact recomposition
       · exact canonicality
+
+/-- The concrete hint-and-recipe execution is the honest completion. -/
+theorem completeEnv_correct (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env) :
+    AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount ∧
+      holdsFlat (completeEnv interface env offset) (operations interface offset) ∧
+      SpecHolds interface offset (completeEnv interface env offset) :=
+  ⟨completeEnv_agreesOutside interface env offset,
+    completeEnv_holdsFlat interface env offset assumptions,
+    completeEnv_spec interface env offset assumptions⟩
 
 theorem complete
     (interface : Interface) (env : Env) (offset : Nat)

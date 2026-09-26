@@ -1,12 +1,23 @@
-These files are expected test values from the recorded Lean exports at source
-commit `9787d8e77069246e3e2afc7dcfab755556fd5023`. The Rust application builder
-does not read them. Ordinary Rust tests need no Lean installation.
+The application reference is extracted from the selected Lean package at
+`41aa5ef63`. The execution vector retains its original bytes from Lean source
+`9787d8e77069246e3e2afc7dcfab755556fd5023` and still matches the current parity.
+The Rust application builder does not read these files. Ordinary Rust tests
+need no Lean installation.
+
+The linked base/NIFS/recursive outputs below refer to the compact selected
+layout at `41aa5ef63`. Their native staged
+C → R → D result, full proof comparison, and independent Lean base and
+recursive caller outputs have passed and are published. Final Nightstream
+consumer checks pass. Proving benchmarks remain paused.
+The state/message-only `nonzero-running.json`
+request is unchanged.
 
 `poseidon2-application-reference.json` is the exact application plan at index
 3 of `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
 It contains the four input state columns, four private message columns, four
 output state columns, all 7,700 application rows, and all 7,696 arithmetic
-witness recipes. These dimensions belong to the selected application.
+witness recipes. These are physical source dimensions; the selected logical
+application uses 262 rows and 10,742 private coordinates.
 
 `poseidon2-application-execution.json` contains `[prior_state, message, output]`
 from `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1-parity.json`.
@@ -65,10 +76,12 @@ recorded source paths retain the historical name at the source commit:
 
 Cargo packaging stores the linked file contents. The links add no second copy
 of the recorded data to Git. The native proof has a different package filename
-because the repository ignores new files named `proof.bin`; its bytes are
-unchanged. Its source and generation evidence are recorded in the original
-`stage1_actual_nifs/README.md` and the repository's
-`docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md`.
+because the repository ignores new files named `proof.bin`; the link exposes
+the exact native bytes without re-encoding. Current source, stage results and
+file hashes are recorded in
+[the selected NIFS fixture README](../../../neo-fold-clean/tests/nifs/fixtures/stage1_actual_nifs/README.md).
+The repository's `docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md`
+and archive describe the older 2026-09-12 fixture, not these new outputs.
 
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read

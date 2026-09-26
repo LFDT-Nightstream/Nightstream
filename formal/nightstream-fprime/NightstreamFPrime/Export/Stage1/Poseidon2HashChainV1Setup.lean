@@ -31,12 +31,22 @@ def messageColumns : Nat :=
     Phi81CarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
-      253011276 := by
+      149293044 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
   norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
     ringDegree]
 
-@[simp] theorem messageColumns_eq : messageColumns = 4685394 := by
+/-- The selected carrier meets the owner's 25% reduction target against the
+253,11,276-coordinate baseline. Multiplication keeps the comparison exact. -/
+theorem carrierWidth_reduced_by_at_least_one_quarter :
+    4 * Phi81CarrierLayout.carrierWidth
+        (PerApplicationFixedPoint.logicalWidth
+          Poseidon2HashChainV1Package.application) ≤
+      3 * 253011276 := by
+  rw [carrierWidth_eq]
+  norm_num
+
+@[simp] theorem messageColumns_eq : messageColumns = 2764686 := by
   unfold messageColumns
   rw [carrierWidth_eq]
   norm_num [Phi81ColumnLayout.blockCount, ringDegree]

@@ -120,7 +120,7 @@ private theorem sourceInterval_valid (start count minimum limit : Nat)
           omega
         · simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using endLe
 
-theorem rowSchedule_valid : rowSchedule.valid 27584200 = true := by
+theorem rowSchedule_valid : rowSchedule.valid 27032494 = true := by
   simp only [rowSchedule, IndexSchedule.valid, ranges, List.range_eq_range']
   apply sourceInterval_valid 0 PiRLCSamplerOrdinaryRows.sourceCount
   all_goals norm_num [PiRLCSamplerOrdinaryRows.sourceCount,

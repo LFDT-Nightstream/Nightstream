@@ -27,7 +27,8 @@ def prior (input : PiCCSInputCheck.Input)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (freshWitness : Stage1.Terminal.FreshWitness
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application)) : HyperNovaHistory.Payload where
+      (publicFits := PerApplicationFixedPoint.publicFits application)) :
+          PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application where
   running := fun _ => PiCCSInputCheck.running input
   runningWitness := fun _ => runningWitness
   fresh := PiCCSInputCheck.fresh input
@@ -38,7 +39,7 @@ def prior (input : PiCCSInputCheck.Input)
 state. The premise accepts only the prior state; it does not supply a verified
 local proof, a next-state equality, or an accepted successor. -/
 theorem checked_step
-    (statement : HyperNovaHistory.Statement)
+    (statement : PerApplicationTerminal.Statement)
     (input : PiCCSInputCheck.Input) (batch : PiRLCParent.Batch)
     (parent : PiRLCParent.Values) (messages : PiDECInputCheck.Messages)
     (runningWitness : Stage1.Terminal.RunningWitness

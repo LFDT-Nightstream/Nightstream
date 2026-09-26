@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Export.Stage1.PiCCSStoredPublicCheck
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheck
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckWork
@@ -28,15 +29,17 @@ open NightstreamFPrime.Lifecycle
 open CheckedWitnessExtraction
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
 
-abbrev carrier : Phi81Relation.Shape :=
-  PaperAlgebra.FullShape PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
+variable (inst : SecurityInstance)
 
-abbrev StoredWitness := StoredWitnessProjection.StoredWitness productionShape carrier
-abbrev Candidate := StoredProbe productionShape × StoredWitness
+abbrev carrier : Phi81Relation.Shape :=
+  PaperAlgebra.FullShape inst.logicalWidth inst.publicFits
+
+abbrev StoredWitness := StoredWitnessProjection.StoredWitness productionShape (carrier inst)
+abbrev Candidate := StoredProbe productionShape × StoredWitness inst
 
 /-- The sole selected commitment map, including the actual indexed key expansion. -/
-def commit : Phi81Relation.Assignment carrier → PaperAlgebra.Commitment :=
-  (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit
+def commit : Phi81Relation.Assignment (carrier inst) → PaperAlgebra.Commitment :=
+  (PaperAlgebra.openingMaps inst.ajtai).commit
 
 private theorem openingMaps_of_projection {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -46,56 +49,56 @@ private theorem openingMaps_of_projection {logicalWidth : Nat}
       (PaperAlgebra.openingMaps key).commit = PaperAlgebra.openingMaps key := by
   rfl
 
-private theorem selected_openingMaps : openingMaps (carrier := carrier) commit =
-    PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey :=
-  openingMaps_of_projection (logicalWidth := PiDECInputCheck.logicalWidth)
-    (publicFits := PiDECInputCheck.publicFits) Poseidon2HashChainV1Setup.productionAjtaiKey
+private theorem selected_openingMaps : openingMaps (carrier := carrier inst) (commit inst) =
+    PaperAlgebra.openingMaps inst.ajtai :=
+  openingMaps_of_projection (logicalWidth := inst.logicalWidth)
+    (publicFits := inst.publicFits) inst.ajtai
 
 /-- Computable projection of the selected key's statement. Matrix entries
 remain behind the existing selected relation's access function. -/
 def statement (input : PiCCSInputCheck.Input) :
-    Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput carrier)
-      productionShape carrier.carrierWidth
-      (Phi81ColumnLayout.blockCount carrier.carrierWidth) baseOps where
-  cubeLayout := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).cubeLayout
-  matrixSource := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource
+    Statement K PaperAlgebra.Commitment (Phi81Relation.PublicInput (carrier inst))
+      productionShape (carrier inst).carrierWidth
+      (Phi81ColumnLayout.blockCount (carrier inst).carrierWidth) baseOps where
+  cubeLayout := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource inst.relation).cubeLayout
+  matrixSource := (Lifecycle.PiRLC.v1_1.InputBinding.relationSource inst.relation).matrixSource
   commitments := PiCCSInputCheck.outputCommitments input
   publicInputs := PiCCSInputCheck.outputPublicInputs input
-  priorPoint := (PiCCSInputCheck.running input).point
+  priorPoint := (inst.running input).point
   claimedPadCoefficient := (PiCCSInputCheck.verifierInput input).claimedPadCoefficient
   claimedMatrixCoefficient := (PiCCSInputCheck.verifierInput input).claimedMatrixCoefficient
 
 /-- The executable statement is the literal selected NIFS statement. -/
 theorem statement_eq_key (input : PiCCSInputCheck.Input) :
-    statement input =
-      (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
-        (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input) := by
+    statement inst input =
+      (ProductionKey.key inst.relation inst.ajtai).statement
+        (inst.running input) (inst.fresh input) := by
   rfl
 
 /-- Check a returned probe and its stored witness at the selected statement. -/
-def check (input : PiCCSInputCheck.Input) (candidate : Candidate) : Bool :=
-  StoredWitnessCheck.check commit productionGlobalParams (statement input)
-    (ProductionKey.degreeBound PiDECInputCheck.relation) (candidate.1.view, candidate.2)
+def check (input : PiCCSInputCheck.Input) (candidate : Candidate inst) : Bool :=
+  StoredWitnessCheck.check (commit inst) productionGlobalParams (statement inst input)
+    (ProductionKey.degreeBound inst.relation) (candidate.1.view, candidate.2)
 
 /-- Exact selected public/ambient predicate; opening validity is checked. -/
 theorem check_eq_true_iff (input : PiCCSInputCheck.Input)
-    (probe : StoredProbe productionShape) (stored : StoredWitness) :
-    check input (probe, stored) = true ↔
+    (probe : StoredProbe productionShape) (stored : StoredWitness inst) :
+    check inst input (probe, stored) = true ↔
       probe.view.FixedWidthAccepted extensionOps K.embed
-        ((ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
-          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input))
-        (ProductionKey.degreeBound PiDECInputCheck.relation) ∧
+        ((ProductionKey.key inst.relation inst.ajtai).statement
+          (inst.running input) (inst.fresh input))
+        (ProductionKey.degreeBound inst.relation) ∧
       AmbientOutputHolds extensionOps K.embed
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        ((ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).statement
-          (PiCCSInputCheck.running input) (PiCCSInputCheck.fresh input))
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        ((ProductionKey.key inst.relation inst.ajtai).statement
+          (inst.running input) (inst.fresh input))
         probe.view (StoredWitnessProjection.view stored) := by
-  rw [← statement_eq_key input, ← selected_openingMaps]
+  rw [← statement_eq_key inst input, ← selected_openingMaps inst]
   exact StoredWitnessCheck.check_eq_true_iff
-    (shape := productionShape) (carrier := carrier)
-    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-    commit productionGlobalParams (statement input)
-    (ProductionKey.degreeBound PiDECInputCheck.relation) probe.view stored
+    (shape := productionShape) (carrier := carrier inst)
+    (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+    (commit inst) productionGlobalParams (statement inst input)
+    (ProductionKey.degreeBound inst.relation) probe.view stored
 
 private def checkedSourceValue {shape : Shape} {carrier : Phi81Relation.Shape}
     (checked : (StoredProbe shape × StoredWitnessProjection.StoredWitness shape carrier) → Bool) :
@@ -142,110 +145,110 @@ private theorem checkedSourceValue_source_iff
 /-- Execute the selected public/ambient Boolean check on the actual stored
 candidate. Abort and rejection return none. Acceptance returns the existing
 source projection. This value-only entrypoint assigns no checker clock. -/
-def finishValue (input : PiCCSInputCheck.Input) (outcome : StoredOutcome productionShape carrier) :
-    Option (WitnessProjection.SourceWitness productionShape carrier) :=
-  checkedSourceValue (check input) outcome
+def finishValue (input : PiCCSInputCheck.Input) (outcome : StoredOutcome productionShape (carrier inst)) :
+    Option (WitnessProjection.SourceWitness productionShape (carrier inst)) :=
+  checkedSourceValue (check inst input) outcome
 
 /-- The selected checked return has exactly the existing B.2 source event,
 with the actual Ajtai key and all matrix entries. SourceReturned uses the
 original source relation and verifier-owned public prefixes. No checker or
 primitive correctness premise remains; no work or EPT claim is made. -/
 theorem finishValue_source_iff (input : PiCCSInputCheck.Input)
-    (outcome : StoredOutcome productionShape carrier) :
-    SourceReturned (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      commit productionGlobalParams (statement input) (finishValue input outcome) ↔
+    (outcome : StoredOutcome productionShape (carrier inst)) :
+    SourceReturned (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      (commit inst) productionGlobalParams (statement inst input) (finishValue inst input outcome) ↔
       StrongProbability.RelaxedSuccess
-        (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) ∧
+        (width := ProductionKey.degreeBound inst.relation)
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) ∧
       StrongProbability.SourceValid
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) := by
-  rw [← selected_openingMaps]
-  exact checkedSourceValue_source_iff (shape := productionShape) (carrier := carrier)
-    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-    (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-    (check input) commit productionGlobalParams (statement input)
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) := by
+  rw [← selected_openingMaps inst]
+  exact checkedSourceValue_source_iff (shape := productionShape) (carrier := carrier inst)
+    (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+    (width := ProductionKey.degreeBound inst.relation)
+    (check inst input) (commit inst) productionGlobalParams (statement inst input)
     (fun probe stored => StoredWitnessCheck.check_eq_true_iff
-      (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      commit productionGlobalParams (statement input)
-      (ProductionKey.degreeBound PiDECInputCheck.relation) probe.view stored) outcome
+      (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      (commit inst) productionGlobalParams (statement inst input)
+      (ProductionKey.degreeBound inst.relation) probe.view stored) outcome
 
 /-- The remaining value-refinement obligation is equality to an implemented
 Boolean check. The charged call's work is retained without a proposed bound. -/
 theorem chargedCheck_correct (input : PiCCSInputCheck.Input)
-    (charged : StoredOneRunExtraction.Check productionShape carrier)
-    (computes : ∀ candidate, (charged candidate).value = check input candidate) :
+    (charged : StoredOneRunExtraction.Check productionShape (carrier inst))
+    (computes : ∀ candidate, (charged candidate).value = check inst input candidate) :
     ∀ probe stored, (charged (probe, stored)).value = true ↔
-      probe.view.FixedWidthAccepted extensionOps K.embed (statement input)
-        (ProductionKey.degreeBound PiDECInputCheck.relation) ∧
-      AmbientOutputHolds extensionOps K.embed (openingMaps commit) productionGlobalParams
-        (statement input) probe.view (StoredWitnessProjection.view stored) := by
+      probe.view.FixedWidthAccepted extensionOps K.embed (statement inst input)
+        (ProductionKey.degreeBound inst.relation) ∧
+      AmbientOutputHolds extensionOps K.embed (openingMaps (commit inst)) productionGlobalParams
+        (statement inst input) probe.view (StoredWitnessProjection.view stored) := by
   intro probe stored
   rw [computes]
-  exact StoredWitnessCheck.check_eq_true_iff commit productionGlobalParams (statement input)
-    (ProductionKey.degreeBound PiDECInputCheck.relation) probe.view stored
+  exact StoredWitnessCheck.check_eq_true_iff (commit inst) productionGlobalParams (statement inst input)
+    (ProductionKey.degreeBound inst.relation) probe.view stored
 
 /-- The selected source return consumes the proved checker correctness.
 Only the charged implementation's value refinement remains as a premise. -/
 theorem finish_source_iff (input : PiCCSInputCheck.Input)
-    (charged : StoredOneRunExtraction.Check productionShape carrier)
-    (computes : ∀ candidate, (charged candidate).value = check input candidate)
-    (outcome : StoredOutcome productionShape carrier) :
-    SourceReturned (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      commit productionGlobalParams (statement input) (finishStored charged outcome).value ↔
+    (charged : StoredOneRunExtraction.Check productionShape (carrier inst))
+    (computes : ∀ candidate, (charged candidate).value = check inst input candidate)
+    (outcome : StoredOutcome productionShape (carrier inst)) :
+    SourceReturned (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      (commit inst) productionGlobalParams (statement inst input) (finishStored charged outcome).value ↔
       StrongProbability.RelaxedSuccess
-        (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) ∧
+        (width := ProductionKey.degreeBound inst.relation)
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) ∧
       StrongProbability.SourceValid
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) := by
-  rw [← selected_openingMaps]
-  exact finishStored_source_iff (shape := productionShape) (carrier := carrier)
-    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-    (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-    charged commit productionGlobalParams (statement input)
-    (chargedCheck_correct input charged computes) outcome
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) := by
+  rw [← selected_openingMaps inst]
+  exact finishStored_source_iff (shape := productionShape) (carrier := carrier inst)
+    (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+    (width := ProductionKey.degreeBound inst.relation)
+    charged (commit inst) productionGlobalParams (statement inst input)
+    (chargedCheck_correct inst input charged computes) outcome
 
 /-- The implemented charged driver supplies the selected checker refinement.
 Its primitive implementation contracts remain explicit; the source-return
 path has no separate assumed opening or whole-checker correctness premise. -/
 theorem charged_finish_source_iff (input : PiCCSInputCheck.Input)
-    (program : StoredWitnessCheckWork.Program productionShape carrier)
+    (program : StoredWitnessCheckWork.Program productionShape (carrier inst))
     (correct : StoredWitnessCheckWork.Correct (Commitment := PaperAlgebra.Commitment)
-      (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      program commit productionGlobalParams (statement input)
-      (ProductionKey.degreeBound PiDECInputCheck.relation))
-    (outcome : StoredOutcome productionShape carrier) :
-    SourceReturned (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      commit productionGlobalParams (statement input)
+      (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      program (commit inst) productionGlobalParams (statement inst input)
+      (ProductionKey.degreeBound inst.relation))
+    (outcome : StoredOutcome productionShape (carrier inst)) :
+    SourceReturned (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      (commit inst) productionGlobalParams (statement inst input)
       (finishStored (StoredWitnessCheckWork.check program) outcome).value ↔
       StrongProbability.RelaxedSuccess
-        (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) ∧
+        (width := ProductionKey.degreeBound inst.relation)
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) ∧
       StrongProbability.SourceValid
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) := by
-  refine finish_source_iff input (StoredWitnessCheckWork.check program) ?_ outcome
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) := by
+  refine finish_source_iff inst input (StoredWitnessCheckWork.check program) ?_ outcome
   intro candidate
   exact StoredWitnessCheckWork.check_value (Commitment := PaperAlgebra.Commitment)
-    (shape := productionShape) (carrier := carrier)
-    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-    (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-    program commit productionGlobalParams (statement input) correct candidate
+    (shape := productionShape) (carrier := carrier inst)
+    (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+    (width := ProductionKey.degreeBound inst.relation)
+    program (commit inst) productionGlobalParams (statement inst input) correct candidate
 
 /-- Read the actual fresh/running public arrays. Both paths charge source
 index read, comparison, branch, data reads and return; the running path also
 charges index subtraction. The costs are six and nine operations. -/
 def publicInputRead (input : PiCCSInputCheck.Input) (source : Fin productionShape.sourceCount)
-    (column : Fin carrier.publicWidth) : Result F :=
+    (column : Fin (carrier inst).publicWidth) : Result F :=
   if fresh : source.val < productionShape.freshCount then
     ⟨input.publicInput.get column, 1 + 1 + 1 + 1 + 1 + 1⟩
   else
@@ -257,12 +260,12 @@ def publicInputRead (input : PiCCSInputCheck.Input) (source : Fin productionShap
     ⟨(input.running.publicInputs.get running).get column, 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1⟩
 
 theorem publicInputRead_value (input : PiCCSInputCheck.Input) (source : Fin productionShape.sourceCount)
-    (column : Fin carrier.publicWidth) :
-    (publicInputRead input source column).value = (statement input).publicInputs source column := by
-  change (publicInputRead input source column).value =
-    (Fin.addCases (motive := fun _ => Phi81Relation.PublicInput carrier)
-      (PiCCSInputCheck.fresh input).publicInputs
-      (PiCCSInputCheck.running input).publicInputs source) column
+    (column : Fin (carrier inst).publicWidth) :
+    (publicInputRead inst input source column).value = (statement inst input).publicInputs source column := by
+  change (publicInputRead inst input source column).value =
+    (Fin.addCases (motive := fun _ => Phi81Relation.PublicInput (carrier inst))
+      (inst.fresh input).publicInputs
+      (inst.running input).publicInputs source) column
   refine Fin.addCases (fun fresh => ?_) (fun running => ?_) source
   · have isFresh : (Fin.castAdd productionShape.runningCount fresh).val < productionShape.freshCount := fresh.isLt
     rw [publicInputRead, dif_pos isFresh, Fin.addCases_left]
@@ -271,16 +274,19 @@ theorem publicInputRead_value (input : PiCCSInputCheck.Input) (source : Fin prod
       change ¬ productionShape.freshCount + running.val < productionShape.freshCount
       omega
     rw [publicInputRead, dif_neg isRunning, Fin.addCases_right]
-    simp only [PiCCSInputCheck.running, PiCCSInputCheck.runningFromInput, Fin.natAdd, Nat.add_sub_cancel_left]
+    simp only
+        [SecurityInstance.running, PiCCSInputCheck.runningAt, PiCCSInputCheck.runningFromInput,
+        Fin.natAdd, Nat.add_sub_cancel_left]
 
 theorem publicInputRead_work (input : PiCCSInputCheck.Input) (source : Fin productionShape.sourceCount)
-    (column : Fin carrier.publicWidth) :
-    (publicInputRead input source column).work = if source.val < productionShape.freshCount then 6 else 9 := by
+    (column : Fin (carrier inst).publicWidth) :
+    (publicInputRead inst input source column).work = if source.val < productionShape.freshCount
+        then 6 else 9 := by
   unfold publicInputRead
   split <;> simp_all
 
 theorem publicInputRead_work_le (input : PiCCSInputCheck.Input) (source : Fin productionShape.sourceCount)
-    (column : Fin carrier.publicWidth) : (publicInputRead input source column).work ≤ 9 := by
+    (column : Fin (carrier inst).publicWidth) : (publicInputRead inst input source column).work ≤ 9 := by
   rw [publicInputRead_work]
   split <;> omega
 
@@ -303,13 +309,13 @@ private theorem padEntry_of_relation {logicalWidth : Nat}
 entry at every coordinate, independent of the returned probe. -/
 theorem padEntry_value (input : PiCCSInputCheck.Input)
     (coefficient : Fin productionShape.coefficientCount)
-    (vertex : BooleanVertex productionShape.cubeVariables) (column : Fin carrier.carrierWidth) :
+    (vertex : BooleanVertex productionShape.cubeVariables) (column : Fin (carrier inst).carrierWidth) :
     (StoredWitnessCheckEntries.padEntry coefficient vertex column).value =
-      (statement input).matrixSource.coefficientMatrixOf baseOps
-        (fun row column => (statement input).cubeLayout.paddedIdentityEntry
+      (statement inst input).matrixSource.coefficientMatrixOf baseOps
+        (fun row column => (statement inst input).cubeLayout.paddedIdentityEntry
           baseOps.zero baseOps.one row column) coefficient vertex column :=
-  padEntry_of_relation (logicalWidth := PiDECInputCheck.logicalWidth)
-    (publicFits := PiDECInputCheck.publicFits) PiDECInputCheck.relation coefficient vertex column
+  padEntry_of_relation (logicalWidth := inst.logicalWidth)
+    (publicFits := inst.publicFits) inst.relation coefficient vertex column
 
 private theorem kernelConstant_of_relation {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -331,28 +337,27 @@ private theorem outputMessage_of_constant {Commitment PublicInput : Type}
 every stored probe, retaining all raw-certificate rejection cases. -/
 theorem publicCheck_value (input : PiCCSInputCheck.Input) (probe : StoredProbe productionShape) :
     (PiCCSStoredPublicCheck.check input probe).value =
-      ProtocolPolynomial.FixedWidth.check extensionOps (ProductionKey.degreeBound PiDECInputCheck.relation)
-        ((statement input).verifierInput K.embed)
+      ProtocolPolynomial.FixedWidth.check extensionOps (ProductionKey.degreeBound inst.relation)
+        ((statement inst input).verifierInput K.embed)
         probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
-        ((statement input).projectOutput probe.view.response.fullOutput) probe.certificate := by
-  have selectedInput : PiCCSInputCheck.verifierInput input = (statement input).verifierInput K.embed := by
-    rw [statement_eq_key input]
-    exact PiCCSInputCheck.verifierInput_eq_production input PiDECInputCheck.relation
-      Poseidon2HashChainV1Setup.productionAjtaiKey
-  have kernel := kernelConstant_of_relation (logicalWidth := PiDECInputCheck.logicalWidth)
-    (publicFits := PiDECInputCheck.publicFits) PiDECInputCheck.relation
-  have selectedOutput := outputMessage_of_constant (statement input) kernel probe
+        ((statement inst input).projectOutput probe.view.response.fullOutput) probe.certificate := by
+  -- The checker's input does not depend on the width; this is definitional.
+  have selectedInput : PiCCSInputCheck.verifierInput input = (statement inst input).verifierInput
+      K.embed := rfl
+  have kernel := kernelConstant_of_relation (logicalWidth := inst.logicalWidth)
+    (publicFits := inst.publicFits) inst.relation
+  have selectedOutput := outputMessage_of_constant (statement inst input) kernel probe
   rw [PiCCSStoredPublicCheck.check_value, ProductionKey.degreeBound_eq, selectedInput, selectedOutput]
 
 /-- Install the public gate, scalar operations, stored readers, and Pad.
 Only the commitment and CCS matrix-entry calls stay explicit. -/
 def scalarProgram (input : PiCCSInputCheck.Input)
-    (program : StoredWitnessCheckWork.Program productionShape carrier) :
-    StoredWitnessCheckWork.Program productionShape carrier :=
+    (program : StoredWitnessCheckWork.Program productionShape (carrier inst)) :
+    StoredWitnessCheckWork.Program productionShape (carrier inst) :=
   StoredWitnessCheckPrimitives.withScalarChecks
     { program with
       publicCheck := PiCCSStoredPublicCheck.check input
-      publicInput := publicInputRead input
+      publicInput := publicInputRead inst input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
       matrixClaim := StoredProbe.matrixRead }
@@ -369,54 +374,56 @@ def scalarBounds (bounds : StoredWitnessCheckWork.PrimitiveBounds) : StoredWitne
 /-- The selected stored return needs only commitment and matrix-entry
 refinements. The public gate, scalar checks, stored reads, and Pad are proved. -/
 theorem scalar_finish_source_iff (input : PiCCSInputCheck.Input)
-    (program : StoredWitnessCheckWork.Program productionShape carrier)
+    (program : StoredWitnessCheckWork.Program productionShape (carrier inst))
     (commitmentCheck : ∀ stored source, (program.commitmentCheck stored source).value =
-      decide (commit (stored.get source).get = (statement input).commitments source))
+      decide ((commit inst) (stored.get source).get = (statement inst input).commitments source))
     (matrixEntry : ∀ matrix coefficient vertex column,
       (program.matrixEntry matrix coefficient vertex column).value =
-        (statement input).matrixSource.coefficientMatrix baseOps matrix coefficient vertex column)
-    (outcome : StoredOutcome productionShape carrier) :
-    SourceReturned (shape := productionShape) (carrier := carrier)
-      (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-      commit productionGlobalParams (statement input)
-      (finishStored (StoredWitnessCheckWork.check (scalarProgram input program)) outcome).value ↔
+        (statement inst input).matrixSource.coefficientMatrix baseOps matrix coefficient vertex column)
+    (outcome : StoredOutcome productionShape (carrier inst)) :
+    SourceReturned (shape := productionShape) (carrier := carrier inst)
+      (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+      (commit inst) productionGlobalParams (statement inst input)
+      (finishStored (StoredWitnessCheckWork.check (scalarProgram inst input program)) outcome).value ↔
       StrongProbability.RelaxedSuccess
-        (width := ProductionKey.degreeBound PiDECInputCheck.relation)
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) ∧
+        (width := ProductionKey.degreeBound inst.relation)
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) ∧
       StrongProbability.SourceValid
-        (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-        (statement input) (storedView outcome) := by
-  apply charged_finish_source_iff input (scalarProgram input program) _ outcome
+        (PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+        (statement inst input) (storedView outcome) := by
+  apply charged_finish_source_iff inst input (scalarProgram inst input program) _ outcome
   exact StoredWitnessCheckPrimitives.withScalarChecks_correct
-    (shape := productionShape) (carrier := carrier)
-    (blockCount := Phi81ColumnLayout.blockCount carrier.carrierWidth)
-    (width := ProductionKey.degreeBound PiDECInputCheck.relation)
+    (shape := productionShape) (carrier := carrier inst)
+    (blockCount := Phi81ColumnLayout.blockCount (carrier inst).carrierWidth)
+    (width := ProductionKey.degreeBound inst.relation)
     { program with
       publicCheck := PiCCSStoredPublicCheck.check input
-      publicInput := publicInputRead input
+      publicInput := publicInputRead inst input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
-      matrixClaim := StoredProbe.matrixRead } commit (statement input)
-    (publicCheck_value input) commitmentCheck (publicInputRead_value input) (padEntry_value input) matrixEntry
+      matrixClaim := StoredProbe.matrixRead } (commit inst) (statement inst input)
+    (publicCheck_value inst input) commitmentCheck (publicInputRead_value inst input)
+        (padEntry_value inst input) matrixEntry
     StoredProbe.padRead_value StoredProbe.matrixRead_value
 
 /-- The selected work bound includes the full public gate and Pad execution.
 Only commitment and CCS matrix-entry calls need supplied work bounds. -/
 theorem scalar_check_work_le (input : PiCCSInputCheck.Input)
-    (program : StoredWitnessCheckWork.Program productionShape carrier)
+    (program : StoredWitnessCheckWork.Program productionShape (carrier inst))
     (bounds : StoredWitnessCheckWork.PrimitiveBounds)
     (commitmentCheck : ∀ stored source, (program.commitmentCheck stored source).work ≤ bounds.commitmentCheck)
     (matrixEntry : ∀ matrix coefficient vertex column,
       (program.matrixEntry matrix coefficient vertex column).work ≤ bounds.matrixEntry)
-    (candidate : Candidate) :
-    (StoredWitnessCheckWork.check (scalarProgram input program) candidate).work ≤
-      StoredWitnessCheckWork.workBound productionShape carrier (scalarBounds bounds) := by
-  apply StoredWitnessCheckWork.check_work_le (scalarProgram input program) (scalarBounds bounds) _ candidate
+    (candidate : Candidate inst) :
+    (StoredWitnessCheckWork.check (scalarProgram inst input program) candidate).work ≤
+      StoredWitnessCheckWork.workBound productionShape (carrier inst) (scalarBounds bounds) := by
+  apply StoredWitnessCheckWork.check_work_le (scalarProgram inst input program)
+      (scalarBounds bounds) _ candidate
   exact StoredWitnessCheckPrimitives.withScalarChecks_bounded
     { program with
       publicCheck := PiCCSStoredPublicCheck.check input
-      publicInput := publicInputRead input
+      publicInput := publicInputRead inst input
       padEntry := StoredWitnessCheckEntries.padEntry
       padClaim := StoredProbe.padRead
       matrixClaim := StoredProbe.matrixRead }
@@ -426,7 +433,7 @@ theorem scalar_check_work_le (input : PiCCSInputCheck.Input)
       padEntry := StoredWitnessCheckEntries.padWork productionShape.cubeVariables
       padClaim := 4
       matrixClaim := 5 }
-    (PiCCSStoredPublicCheck.check_work_le input) commitmentCheck (publicInputRead_work_le input)
+    (PiCCSStoredPublicCheck.check_work_le input) commitmentCheck (publicInputRead_work_le inst input)
     (fun coefficient vertex column => StoredWitnessCheckEntries.padEntry_work_le coefficient vertex column) matrixEntry
     (fun probe source coefficient => le_of_eq (StoredProbe.padRead_work probe source coefficient))
     (fun probe source matrix coefficient => le_of_eq (StoredProbe.matrixRead_work probe source matrix coefficient))

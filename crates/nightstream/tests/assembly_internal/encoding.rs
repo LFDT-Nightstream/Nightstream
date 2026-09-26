@@ -1,92 +1,19 @@
 use super::*;
+
+#[path = "materialize.rs"]
+mod materialize;
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder};
-use nightstream_fprime::{ApplicationForm, ApplicationRecipeNode};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::json;
-use std::ops::ControlFlow;
 
 fn manifest_bytes() -> &'static [u8] {
     include_bytes!("../../artifacts/shared-verifier-v1.json")
 }
 
-// These small conformance fixtures materialize every word for comparison. The
-// production assembler passes the sealed records directly to the native loader.
-fn materialized_plan(application: &ApplicationCircuit, manifest: &Manifest) -> wire::ApplicationPlan {
-    let mut plan = application::plan(application, manifest).unwrap();
-    let mut columns = plan.input_columns.clone();
-    columns.extend_from_slice(&plan.witness_columns);
-    columns.extend_from_slice(&plan.output_columns);
-    columns.extend(plan.private_start..plan.private_start + plan.private_count);
-    let records = application.records();
-    for row in 0..records.row_count() {
-        let header = records.row_header(row).unwrap();
-        let mut forms = header.constants.map(|constant| wire::Combination {
-            constant,
-            terms: Vec::new(),
-        });
-        assert_eq!(
-            records
-                .visit_terms(row, |term| {
-                    let form = match term.form {
-                        ApplicationForm::A => 0,
-                        ApplicationForm::B => 1,
-                        ApplicationForm::C => 2,
-                    };
-                    forms[form]
-                        .terms
-                        .push((columns[term.variable], term.coefficient));
-                    Ok(ControlFlow::Continue(()))
-                })
-                .unwrap(),
-            ControlFlow::Continue(())
-        );
-        let [a, b, c] = forms;
-        plan.rows.push(wire::Row {
-            index: plan.row_start + row,
-            a,
-            b,
-            c,
-        });
-    }
-    if records.recipe_count() != 0 {
-        let mut recipes = Vec::new();
-        for recipe in 0..records.recipe_count() {
-            let mut nodes = Vec::new();
-            assert_eq!(
-                records
-                    .visit_recipe_nodes(recipe, |node| {
-                        nodes.push(node);
-                        Ok(ControlFlow::Continue(()))
-                    })
-                    .unwrap(),
-                ControlFlow::Continue(())
-            );
-            let mut nodes = nodes.into_iter();
-            recipes.push(recipe_value(&mut nodes, &columns));
-            assert!(nodes.next().is_none());
-        }
-        plan.batches.push(wire::Batch {
-            start: plan.private_start,
-            recipes,
-            hints: Vec::new(),
-        });
-    }
-    plan
-}
-
-fn recipe_value(nodes: &mut impl Iterator<Item = ApplicationRecipeNode>, columns: &[usize]) -> Value {
-    match nodes.next().expect("complete stored recipe") {
-        ApplicationRecipeNode::Variable(variable) => json!([0, columns[variable]]),
-        ApplicationRecipeNode::Constant(value) => json!([1, value]),
-        ApplicationRecipeNode::Add => json!([2, recipe_value(nodes, columns), recipe_value(nodes, columns)]),
-        ApplicationRecipeNode::Multiply => json!([3, recipe_value(nodes, columns), recipe_value(nodes, columns)]),
-    }
-}
-
 fn materialized_assembly(fixed: Value, application: &ApplicationCircuit, manifest: &Manifest) -> Value {
     let mut value: wire::Envelope = serde_json::from_value(fixed).unwrap();
-    let plan = materialized_plan(application, manifest);
+    let plan = materialize::materialized_plan(application, manifest).unwrap();
     let split = value
         .source
         .rows
@@ -104,7 +31,7 @@ fn materialized_assembly(fixed: Value, application: &ApplicationCircuit, manifes
 fn rust_poseidon_plan_preserves_every_raw_row_recipe_and_identity_byte() {
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     let application = poseidon2_hash_chain_v1().unwrap();
-    let plan = materialized_plan(&application, &manifest);
+    let plan = materialize::materialized_plan(&application, &manifest).unwrap();
     let expected = include_bytes!("../fixtures/poseidon2-application-reference.json");
     let mut actual = serde_json::to_vec(&plan).unwrap();
     actual.push(b'\n');
@@ -123,9 +50,13 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let expected: Value = serde_json::from_slice(&bytes).unwrap();
-    let reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    reference.assignment.schema = 2;
+    assert!(manifest.check_reference(&reference).is_err());
+    reference.assignment.schema = 4;
     let application = poseidon2_hash_chain_v1().unwrap();
+    // The shared assembler keeps the fixed envelope; records restore the application.
     let fixed = assemble(reference, &manifest, &application).unwrap();
     let actual = materialized_assembly(fixed, &application, &manifest);
 
@@ -152,10 +83,24 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
-    // The selected key permits W+L=7,701. The largest fixed envelope uses
-    // W=7,700 and L=1, because both nonempty private segments add array nodes.
-    // Count actual assembler output independently of the loader's bound.
-    for (witness, has_local, expected_nodes) in [(7_700, true, 32_045_229), (0, false, 32_037_521)] {
+    // An ordinary application may use every carrier coordinate of the approved
+    // key. The largest fixed envelope uses W = capacity - 1 and L = 1, because
+    // both nonempty private segments add array nodes. Count actual assembler
+    // output independently of the loader's bound.
+    let key_width = neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
+    let empty = manifest
+        .geometry
+        .logical_width
+        .eval(Counts {
+            witness: 0,
+            local: 0,
+            rows: 0,
+        })
+        .unwrap();
+    let capacity = (key_width - empty) / manifest.geometry.field_slot_width;
+    assert_eq!(capacity, 2_851_939, "application words permitted by the approved key");
+    // Both counts stay below the loader's fixed-source bound of 32,045,229 nodes.
+    for (witness, has_local, expected_nodes) in [(capacity - 1, true, 26_540_836), (0, false, 23_688_890)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();
@@ -164,8 +109,7 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         let application = builder.finish(input.map(Affine::from)).unwrap();
         if has_local {
             let counts = Counts::of(&application);
-            assert_eq!((counts.witness, counts.local, counts.rows), (7_700, 1, 5));
-            let key_width = neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
+            assert_eq!((counts.witness, counts.local, counts.rows), (capacity - 1, 1, 5));
             assert!(manifest.geometry.logical_width.eval(counts).unwrap() <= key_width);
             assert!(
                 manifest
@@ -210,8 +154,8 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     let fixed = assemble(reference, &manifest, &application).unwrap();
     let candidate = materialized_assembly(fixed, &application, &manifest);
     assert!(
-        candidate == expected,
-        "the assembled circuit is still the pinned circuit"
+        candidate[3] == expected[3],
+        "the rebuilt physical application repairs the changed row"
     );
     drop(candidate);
     drop(expected);
@@ -235,7 +179,7 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
             .into();
     }
     let circuit = builder.finish(output).unwrap();
-    let plan = materialized_plan(&circuit, &manifest);
+    let plan = materialize::materialized_plan(&circuit, &manifest).unwrap();
     assert_eq!(plan.private_count, 4);
     assert_eq!(plan.row_count, 8);
     for lane in 0..4 {
@@ -246,6 +190,49 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
         assert_eq!(plan.rows[lane].c.terms, vec![(plan.private_start + lane, 1)]);
     }
     manifest.check_dimensions(Counts::of(&circuit)).unwrap();
+}
+
+#[test]
+fn application_relocation_moves_the_wide_sampler_tail() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let bytes = std::fs::read(path).unwrap();
+    let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let manifest = Manifest::parse(manifest_bytes()).unwrap();
+    manifest.check_reference(&reference).unwrap();
+    let counts = Counts {
+        witness: 0,
+        local: 0,
+        rows: 4,
+    };
+    manifest.check_dimensions(counts).unwrap();
+    connect::matrix(&mut reference, &manifest, counts).unwrap();
+    connect::assignment(&mut reference, &manifest, counts).unwrap();
+    assert_eq!(reference.assignment.schema, 4);
+    assert_eq!(reference.assignment.blocks.len(), 76);
+    let coordinates = reference
+        .assignment
+        .blocks
+        .iter()
+        .fold(270, |total, block| {
+            total + block.slot_count * if block.slot_kind == 2 { 41 } else { 1 }
+        });
+    assert_eq!(coordinates, manifest.geometry.logical_width.eval(counts).unwrap());
+    assert_eq!(reference.assignment.blocks[20].slot_count, 0);
+    assert_eq!(reference.assignment.blocks[21].slot_count, 0);
+    assert_eq!(
+        reference.assignment.blocks[75].runs[0][0],
+        manifest.geometry.source_total.eval(counts).unwrap()
+    );
+
+    let mut changed: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
+    let relocation = &manifest.matrix_relocations[0];
+    let mut value = &mut changed.matrix[relocation.path[0]];
+    for index in &relocation.path[1..] {
+        value = &mut value[*index];
+    }
+    *value = json!(relocation.value.eval(manifest.reference()).unwrap() + 1);
+    assert!(connect::matrix(&mut changed, &manifest, counts).is_err());
 }
 
 #[test]

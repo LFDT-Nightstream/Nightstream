@@ -45,8 +45,11 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
 
-local notation "raw" => canonicalRawValues application
-  (PerApplicationSourceAssignment.ofCompleted application target suffix)
+variable (packet : PerApplicationCanonicalAssignment.RawValues application)
+  (baseEq : packet.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
+
+include packet baseEq
+local notation "raw" => packet
 local notation "geometry" => PerApplicationCanonicalEncodes.poseidonGeometry application
 local notation "payload" => DirectPiDECPrefixPlan.piCcsPayload
   (PerApplicationCanonicalEncodes.piDecGeometry application)
@@ -55,8 +58,9 @@ include relation physical in
 private theorem source_value (column : Nat) (bound : column < Spartan.SourceColumnCount) :
     PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource column =
       Spartan.pullback target column := by
-  exact (packageEnv_sourceAssignment application (raw).base (raw).groupValue (raw).products column bound).trans
-    (PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix physical column bound)
+  have copied := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix physical column bound
+  rw [← baseEq] at copied
+  exact (packageEnv_sourceAssignment application (raw).base (raw).groupValue (raw).products column bound).trans copied
 
 include relation physical in
 private theorem payload_value (index : Fin PiCCSActionPayloadBlock.payloadCount) :
@@ -66,7 +70,7 @@ private theorem payload_value (index : Fin PiCCSActionPayloadBlock.payloadCount)
     (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) (Spartan.pullback target)
     (PiCCSActionPayloadSupport.payloadExpression_supported index)
   intro column supported
-  exact source_value application relation target suffix physical column
+  exact source_value application relation target suffix physical packet baseEq column
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount supported)
 
 private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetainedSlots.rows.length) :
@@ -75,13 +79,14 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
         (PoseidonRetainedFamily.slot (PiCCSPoseidonPlan.schedule application) index row)) =
       target ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput row).val) := by
   refine (retainedSource_sbox application (raw).base (raw).groupValue (raw).products index row).trans ?_
+  rw [baseEq]
   apply PerApplicationSourceAssignment.packageEnv_ofCompleted
   have before := PoseidonRetainedBlock.laterWitnessStart_bound (laterIndex index)
   change (physicalInvocation index).witnessStart + 592 ≤
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 592 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 29336446 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 28784740 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -104,7 +109,7 @@ private theorem sbox_form (index : InvocationIndex) (row : Fin PoseidonRetainedS
     (PiCCSPoseidonPlan.retainedStart application) (PiCCSPoseidonPlan.retainedFits geometry)
     (raw).assignment (PiCCSActionPayloadBlock.sourceAssignment application (raw).retainedSource)
     sboxes index row).trans ?_
-  refine (source_sbox application target suffix index row).trans ?_
+  refine (source_sbox application target suffix packet baseEq index row).trans ?_
   rw [PoseidonRetainedSlots.output_eq_input_add_local]
   exact (Pilot.canonicalInvocationEnv_local (physicalInvocation index) target _).symm
 
@@ -121,7 +126,7 @@ private theorem sboxes_of_input (index : InvocationIndex)
     (raw).assignment
     (Pilot.canonicalInvocationEnv (physicalInvocation index) target)
     (PerApplicationCanonicalAssignment.assignment_one raw) inputEq
-    (sbox_form application target suffix index)
+    (sbox_form application target suffix packet baseEq index)
   exact Pilot.canonicalPermutationInvocation_implies_constraints (physicalInvocation index) target
     (PiCCSCompletedReadout.invocation_holds relation target physical index)
 
@@ -139,7 +144,7 @@ private theorem payload_absorb_source
       (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target) := by
   by_cases rateLane : lane.val < Spec.Poseidon2.rate
   · rw [payloadLaneValue, dif_pos rateLane]
-    have copied := payload_value application relation target suffix physical
+    have copied := payload_value application relation target suffix physical packet baseEq
       (Fin.encodeProd (index, ⟨lane.val, rateLane⟩))
     rw [PiCCSActionPayloadBlock.payloadExpression_encode] at copied
     simpa only [PiCCSActionPayloadBlock.payloadExpr, PiCCSActionPayloadBlock.selectedBlock,
@@ -159,7 +164,7 @@ private theorem expected_source
       expected.eval (Spartan.pullback target) := by
   have zero : expected.c0.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
       expected.c0.eval (Spartan.pullback target) := by
-    have copied := payload_value application relation target suffix physical
+    have copied := payload_value application relation target suffix physical packet baseEq
       (Fin.encodeProd (index, (⟨0, by decide⟩ : Fin Spec.Poseidon2.rate)))
     simpa only [PiCCSActionPayloadBlock.payloadValue,
       PiCCSActionPayloadBlock.payloadExpression_encode,
@@ -167,7 +172,7 @@ private theorem expected_source
       found, PiCCSActionPayloadBlock.selectedBlockForKind, List.getD_cons_zero] using copied
   have one : expected.c1.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
       expected.c1.eval (Spartan.pullback target) := by
-    have copied := payload_value application relation target suffix physical
+    have copied := payload_value application relation target suffix physical packet baseEq
       (Fin.encodeProd (index, (⟨1, by decide⟩ : Fin Spec.Poseidon2.rate)))
     simpa only [PiCCSActionPayloadBlock.payloadValue,
       PiCCSActionPayloadBlock.payloadExpression_encode,
@@ -190,7 +195,7 @@ private theorem binding_zero
   | squeezeSecond =>
       simp only [PiCCSPoseidonPlan.bindingForm, found, SparseForm.empty_eval]
   | squeezeFirst expected =>
-      have same := (expected_source application relation target suffix physical index expected found).trans
+      have same := (expected_source application relation target suffix physical packet baseEq index expected found).trans
         (expectedValues index expected found)
       have zero : expected.c0.eval (PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource) =
           previousValue geometry (raw).assignment index 0 := congrArg K.c0 same
@@ -202,7 +207,7 @@ private theorem binding_zero
         rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_zero payload geometry index expected found,
           SparseForm.add_eval, SparseForm.scale_eval,
           payloadForm_eval payload geometry (raw).assignment (raw).retainedSource
-            (encoding application target suffix),
+            (encoding application target suffix packet baseEq),
           payloadLaneValue_squeezeFirst_zero application (raw).retainedSource index expected found]
         rw [show (PiCCSPoseidonPlan.previousOutput geometry index 0).eval (raw).assignment =
             previousValue geometry (raw).assignment index 0 from
@@ -213,7 +218,7 @@ private theorem binding_zero
         rw [PiCCSPoseidonPlan.bindingForm_squeezeFirst_one payload geometry index expected found,
           SparseForm.add_eval, SparseForm.scale_eval,
           payloadForm_eval payload geometry (raw).assignment (raw).retainedSource
-            (encoding application target suffix),
+            (encoding application target suffix packet baseEq),
           payloadLaneValue_squeezeFirst_one application (raw).retainedSource index expected found]
         rw [show (PiCCSPoseidonPlan.outputState geometry index 0).eval (raw).assignment =
             outputValue geometry (raw).assignment index 0 from rfl, one]
@@ -275,7 +280,7 @@ private theorem slice_values
     apply congrArg List.ofFn
     funext lane
     have output := congrFun
-      (PiCCSCompletedReadout.outputValue_of_completed application relation target suffix physical
+      (PiCCSCompletedReadout.outputValue_of_base application relation target suffix physical packet baseEq
         (PoseidonActionSemantics.sliceIndex offset _ fits current)) lane
     exact (output.trans (congrArg (fun invocation : PermutationInvocation =>
       target (invocation.witnessStart + 584 + lane.val)) (selectedEq current))).symm
@@ -304,7 +309,7 @@ private theorem slice_values
     | absorb block =>
         change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
         simp only [canonicalInput, found]
-        rw [payload_absorb_source application relation target suffix physical globalIndex lane block found]
+        rw [payload_absorb_source application relation target suffix physical packet baseEq globalIndex lane block found]
         simpa only [globalIndex, found] using inputLaw
     | squeezeFirst expected =>
         change _ = canonicalInput geometry (raw).assignment (raw).retainedSource globalIndex lane
@@ -342,7 +347,7 @@ private theorem invocation_values (index : InvocationIndex) :
       omega
     rw [← same]
     have affine := PiCCSPhaseInputs.statement_affine relation
-    exact slice_values application relation target suffix physical
+    exact slice_values application relation target suffix physical packet baseEq
       PiCCSInvocations.statementPhase PiCCSInvocations.statementRowStart PiCCSInvocations.statementWitnessStart
       Hash.zeroE PiCCSActionPayloadBlock.statementActions
       PiCCSTranscriptDirectSemantics.statementOffset PiCCSTranscriptDirectSemantics.statementCount
@@ -353,7 +358,7 @@ private theorem invocation_values (index : InvocationIndex) :
         exact Nat.le_refl _) affine.1 affine.2
       PiCCSInvocationSlices.statement_invocation
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
-      (PiCCSPhaseInputs.statement_initial application target suffix)
+      (PiCCSPhaseInputs.statement_initial application target suffix packet baseEq)
       (PiCCSCompilerAssertions.statement_assertions (Spartan.pullback target)) current
   · by_cases inChallenge : index.val < 466
     · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 379, by
@@ -367,7 +372,7 @@ private theorem invocation_values (index : InvocationIndex) :
         omega
       rw [← same]
       have affine := PiCCSPhaseInputs.challenge_affine relation
-      exact slice_values application relation target suffix physical
+      exact slice_values application relation target suffix physical packet baseEq
         PiCCSInvocations.challengePhase PiCCSInvocations.challengeRowStart PiCCSInvocations.challengeWitnessStart
         ((PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits).initialState
           PiCCSInvocations.challengeWitnessStart) PiCCSActionPayloadBlock.challengeActions
@@ -379,7 +384,7 @@ private theorem invocation_values (index : InvocationIndex) :
           norm_num [Spartan.piCcsPhaseOffset]) affine.1 affine.2
         PiCCSInvocationSlices.challenge_invocation
         PiCCSTranscriptDirectSemantics.challengeKindAt_eq
-        (PiCCSPhaseInputs.challenge_initial application relation target suffix physical)
+        (PiCCSPhaseInputs.challenge_initial application relation target suffix physical packet baseEq)
         (PiCCSCompilerAssertions.challenge_assertions (Spartan.pullback target)) current
     · by_cases inRound : index.val < 718
       · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 466, by
@@ -393,7 +398,7 @@ private theorem invocation_values (index : InvocationIndex) :
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.round_affine relation
-        exact slice_values application relation target suffix physical
+        exact slice_values application relation target suffix physical packet baseEq
           PiCCSInvocations.roundPhase PiCCSInvocations.roundRowStart PiCCSInvocations.roundWitnessStart
           ((PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits).initialState
             PiCCSInvocations.roundWitnessStart) PiCCSActionPayloadBlock.roundActions
@@ -405,7 +410,7 @@ private theorem invocation_values (index : InvocationIndex) :
             norm_num [Spartan.piCcsPhaseOffset]) affine.1 affine.2
           PiCCSInvocationSlices.round_invocation
           PiCCSTranscriptDirectSemantics.roundKindAt_eq
-          (PiCCSPhaseInputs.round_initial application relation target suffix physical)
+          (PiCCSPhaseInputs.round_initial application relation target suffix physical packet baseEq)
           (PiCCSCompilerAssertions.round_assertions (Spartan.pullback target)) current
       · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 718, by
           change index.val - 718 < 6886
@@ -418,7 +423,7 @@ private theorem invocation_values (index : InvocationIndex) :
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.output_affine relation
-        exact slice_values application relation target suffix physical
+        exact slice_values application relation target suffix physical packet baseEq
           PiCCSInvocations.outputPhase PiCCSInvocations.outputRowStart PiCCSInvocations.outputWitnessStart
           ((PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits).initialState
             PiCCSInvocations.outputWitnessStart) PiCCSActionPayloadBlock.outputActions
@@ -430,29 +435,43 @@ private theorem invocation_values (index : InvocationIndex) :
             norm_num [Spartan.piCcsPhaseOffset]) affine.1 affine.2
           PiCCSInvocationSlices.output_invocation
           PiCCSTranscriptDirectSemantics.outputKindAt_eq
-          (PiCCSPhaseInputs.output_initial application relation target suffix physical)
+          (PiCCSPhaseInputs.output_initial application relation target suffix physical packet baseEq)
           (PiCCSCompilerAssertions.output_assertions (Spartan.pullback target)) current
 
 include relation physical in
 /-- Actual physical C rows satisfy the canonical direct C Poseidon plan.
 Inputs, retained S-box values and squeeze pins are derived from the same
 compiler invocations and their exact source expressions. -/
-theorem rowsZero_of_completed :
+theorem rowsZero_of_base :
     (PiCCSPoseidonPlan.plan payload geometry).RowsZero (raw).assignment := by
   apply PiCCSPoseidonPlan.equations_imply_rowsZero payload geometry (raw).assignment
     (PerApplicationCanonicalAssignment.assignment_one raw)
   · intro index
-    apply sboxes_of_input application relation target suffix physical index
+    apply sboxes_of_input application relation target suffix physical packet baseEq index
     rw [inputState_eval payload geometry (raw).assignment (raw).retainedSource
-      (encoding application target suffix)]
+      (encoding application target suffix packet baseEq)]
     funext lane
     change canonicalInput geometry (raw).assignment (raw).retainedSource index lane =
       Pilot.canonicalInvocationEnv (physicalInvocation index) target lane.val
     rw [Pilot.canonicalInvocationEnv_input]
-    exact ((invocation_values application relation target suffix physical index).1 lane).symm
-  · exact binding_zero application relation target suffix physical
-      (fun index => (invocation_values application relation target suffix physical index).2)
+    exact ((invocation_values application relation target suffix physical packet baseEq index).1 lane).symm
+  · exact binding_zero application relation target suffix physical packet baseEq
+      (fun index => (invocation_values application relation target suffix physical packet baseEq index).2)
 
 end Completed
+
+/-- The selected canonical assignment is an instance of the copied-base proof. -/
+theorem rowsZero_of_completed
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env) (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target)) :
+    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (PiCCSPoseidonPlan.plan
+      (DirectPiDECPrefixPlan.piCcsPayload (PerApplicationCanonicalEncodes.piDecGeometry application))
+      (PerApplicationCanonicalEncodes.poseidonGeometry application)).RowsZero raw.assignment := by
+  intro raw
+  exact rowsZero_of_base application relation target suffix physical raw rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonCompleteness

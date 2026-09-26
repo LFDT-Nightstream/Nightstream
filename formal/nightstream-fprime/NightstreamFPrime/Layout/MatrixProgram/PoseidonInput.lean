@@ -110,6 +110,7 @@ inductive Term where
       (required : InvocationTag)
       (slotBase invocationStride laneStride : Nat)
   | optionalConstant (values : OptionalConstantTable) (laneCount : Nat)
+  | sparse (values : Array WireForm) (laneCount : Nat)
   | taggedAffine (values : Affine.Table) (substitution : SourceSubstitution)
       (tags : TagTable) (required : InvocationTag) (laneCount : Nat)
 deriving Repr, DecidableEq
@@ -150,6 +151,9 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
                 ⟨coefficient, coefficientBound⟩)
             else none
           else none
+  | .sparse values laneCount => do
+      let value ← values[invocationOffset * laneCount + laneOffset]?
+      value.semantic? logicalWidth
   | .taggedAffine values substitution tags required laneCount => do
       let actual ← tags.tag? invocationOffset
       if actual = required then

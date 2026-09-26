@@ -16,21 +16,17 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-# Cargo path dependencies of nightstream, optional GPU adapters, and the
-# legacy golden checker, including wip-spartan. Metal is checked
+# Cargo path dependencies of nightstream, including the current golden
+# checker and wip-spartan. Metal is checked
 # against the CPU result; CUDA currently has only an unavailable boundary.
 CRATES = {
-    "nightstream", "nightstream-fprime", "neo-fold-legacy", "wip-spartan",
+    "nightstream", "nightstream-fprime", "wip-spartan",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
     "neo-reductions", "neo-prover-metal", "neo-prover-cuda",
 }
 NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")
 BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", ".gitattributes"}
-EMBEDDED_DOCS = {
-    "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
-    "crates/neo-fold-legacy/tests/nebula_preprocessing_read_only.md",
-}
 # These records locate the original witnesses/reference archive or supply the
 # replay coordinator's measured partitions. Other review reports are receipts.
 REPLAY_INPUTS = {
@@ -74,8 +70,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     path = PurePosixPath(name)
     if not name or path.is_absolute() or ".." in path.parts or path.as_posix() != name:
         raise ValueError(f"expected a repository-relative path: {name!r}")
-    if name in EMBEDDED_DOCS:
-        return NATIVE
     if path.suffix == ".md":
         return ()
     if name in BUILD_FILES or name.startswith(".cargo/"):
@@ -114,8 +108,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
             return ALL if "fixtures" in path.parts[3:4] else NATIVE
         if crate == "nightstream-fprime":
             return NATIVE
-        if crate == "neo-fold-legacy" and len(path.parts) > 3 and path.parts[3] == "nifs":
-            return ALL if "fixtures" in path.parts[4:5] else NATIVE
         return ()
     if part in {"LICENSE", "rustfmt.toml", "open-questions", "tests-paper-exact"}:
         return ()

@@ -45,6 +45,51 @@ private theorem coordinateAt_norm (schedule : Schedule)
       · exact blockCoordinate_norm entry (valid entry (List.mem_cons_self)) index
       · exact induction (fun next member => valid next (List.mem_cons_of_mem _ member)) _
 
+private theorem coordinateAt_prefix (left right : Schedule) (index : Nat)
+    (inside : index < coordinateCount left)
+    (valid : ∀ entry ∈ left, ∀ slot, LowNormSlot.Valid entry.block.kind
+      (entry.source (entry.block.source slot))) :
+    centeredMagnitude (coordinateAt (left ++ right) index) < 2 := by
+  induction left generalizing index with
+  | nil => simp only [coordinateCount] at inside; omega
+  | cons entry rest induction =>
+    simp only [List.cons_append, coordinateAt]
+    split
+    · exact blockCoordinate_norm entry (valid entry List.mem_cons_self) index
+    · rename_i outside
+      apply induction (index - entry.coordinateCount)
+      · simp only [coordinateCount] at inside
+        omega
+      · exact fun next member => valid next (List.mem_cons_of_mem _ member)
+
+/-- A coordinate in a valid prefix does not need validity of later blocks. -/
+theorem assignment_norm_prefix {logicalWidth : Nat}
+    (publicInput : Fin ProductionAssignment.publicWidth → F) (left right : Schedule)
+    (publicNorm : ∀ column, centeredMagnitude (publicInput column) < 2)
+    (valid : ∀ entry ∈ left, ∀ slot, LowNormSlot.Valid entry.block.kind
+      (entry.source (entry.block.source slot))) (column : Fin logicalWidth)
+    (inside : column.val < ProductionAssignment.publicWidth + coordinateCount left) :
+    centeredMagnitude (assignment publicInput (left ++ right) column) < 2 := by
+  unfold assignment
+  split
+  · exact publicNorm _
+  · apply coordinateAt_prefix left right _ _ valid
+    omega
+
+/-- A coordinate after a skipped prefix needs only the suffix's slot validity. -/
+theorem assignment_norm_suffix {logicalWidth : Nat}
+    (publicInput : Fin ProductionAssignment.publicWidth → F) (left right : Schedule)
+    (valid : ∀ entry ∈ right, ∀ slot, LowNormSlot.Valid entry.block.kind
+      (entry.source (entry.block.source slot))) (column : Fin logicalWidth)
+    (inside : ProductionAssignment.publicWidth + coordinateCount left ≤ column.val) :
+    centeredMagnitude (assignment publicInput (left ++ right) column) < 2 := by
+  unfold assignment
+  rw [dif_neg (by omega)]
+  have position : column.val - ProductionAssignment.publicWidth =
+      coordinateCount left + (column.val - ProductionAssignment.publicWidth - coordinateCount left) := by omega
+  rw [position, coordinateAt_append_offset]
+  exact coordinateAt_norm right valid _
+
 /-- The canonical compact assignment is pointwise bounded when its public
 coordinates and every retained source slot satisfy their existing contracts.
 Coordinates outside the schedule are zero, so no coverage premise is needed. -/

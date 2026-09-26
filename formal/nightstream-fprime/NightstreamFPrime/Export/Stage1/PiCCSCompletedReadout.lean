@@ -149,18 +149,18 @@ theorem transitionEnv_of_completed
 
 /-- Canonical retained C outputs equal the stored final-state lanes of the
 same accepted permutation, including the final C state consumed by R. -/
-theorem outputValue_of_completed
+theorem outputValue_of_base
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
     (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
     (index : InvocationIndex) :
-    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
     outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment index =
       fun lane : Fin 8 => target ((physicalInvocation index).witnessStart + 584 + lane.val) := by
-  intro raw
   let geometry := PerApplicationCanonicalEncodes.poseidonGeometry application
   have sboxes := PiCCSPoseidonPlan.retainedBlock_encodesAt geometry raw.assignment raw.retainedSource
     (PiRLCRetainedGeometry.laterPoseidonFits (PiCCSPoseidonPlan.prefixGeometry geometry))
@@ -172,6 +172,7 @@ theorem outputValue_of_completed
       fun lane : Fin 8 => target
         ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val) := by
     funext lane
+    rw [baseEq]
     apply PerApplicationSourceAssignment.packageEnv_ofCompleted
     have before := (PiCCSInvocations.invocations_scheduleWithin logicalWidth publicFits relation).2
       (physicalInvocation index) (physicalInvocation_mem index)
@@ -186,5 +187,21 @@ theorem outputValue_of_completed
   rw [slots]
   exact (PermutationOutput.invocation_finalLayer (physicalInvocation index) target
     (invocation_holds relation target physical index)).symm
+
+/-- Canonical retained C outputs equal the stored final-state lanes of the
+same accepted permutation, including the final C state consumed by R. -/
+theorem outputValue_of_completed
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (index : InvocationIndex) :
+    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment index =
+      fun lane : Fin 8 => target ((physicalInvocation index).witnessStart + 584 + lane.val) := by
+  intro raw
+  exact outputValue_of_base application relation target suffix physical raw rfl index
 
 end NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout

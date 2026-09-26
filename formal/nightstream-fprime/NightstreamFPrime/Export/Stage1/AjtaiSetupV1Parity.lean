@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Codec
-import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
+import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-!
@@ -48,7 +48,7 @@ def parityValue : Value :=
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
         1 32768 17,
       coordinateValue Poseidon2HashChainV1SetupAuthority.productionSeed
-        21 (Poseidon2HashChainV1SetupAuthority.messageColumns - 1) 53],
-    natListValue Poseidon2HashChainV1SetupAuthority.authorityNats]
+        21 (Wide.SetupBinding.messageColumns - 1) 53],
+    natListValue (Wide.SetupBinding.commitmentKeyWords.map fun word => word.val)]
 
 end NightstreamFPrime.Export.Stage1.AjtaiSetupV1Parity

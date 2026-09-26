@@ -1,0 +1,74 @@
+{
+  "source_commit": "469d12e2dc01a7cd236aaef86950f0708260041f",
+  "checkout": "/tmp/nightstream-phi81-before-469d12e2",
+  "command": [
+    "timeout",
+    "--signal=KILL",
+    "1200",
+    "/usr/bin/time",
+    "-v",
+    "target/release/nightstream-poseidon2-bench",
+    "--engine",
+    "optimized",
+    "--steps",
+    "2"
+  ],
+  "outcome": "verified",
+  "exit_code": 0,
+  "time_cap_seconds": 1200,
+  "cap_authority": "Explicit user approval for this before/after two-step CPU recursive lifecycle benchmark.",
+  "completed_phases": [
+    {
+      "event": "phase_finished",
+      "phase": "prepare",
+      "seconds": 21.39897736,
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "prove",
+      "seconds": 17.131547288,
+      "step": 1
+    },
+    {
+      "event": "phase_finished",
+      "phase": "extend",
+      "seconds": 226.013334207,
+      "step": 2
+    },
+    {
+      "event": "phase_finished",
+      "phase": "verify",
+      "seconds": 152.592720771,
+      "step": 2
+    }
+  ],
+  "benchmark_result": {
+    "circuit_identity": [
+      9705822157724451396,
+      520958727644325895,
+      9285622073986934000,
+      874020794279380938
+    ],
+    "event": "benchmark_finished",
+    "final_state": [
+      8390832655213940035,
+      5664256562799666955,
+      12851660542920424795,
+      14424449725225273080
+    ],
+    "seconds": 417.136703287,
+    "steps": 2,
+    "verified": true
+  },
+  "peak_rss_kib": 8301388,
+  "peak_rss_bytes": 8500621312,
+  "scope": "Exact baseline CPU base proof, one active recursive fold, and terminal verification.",
+  "same_identity_as_completed_base_baseline": true,
+  "same_input_application_and_k16_profile_checked": true,
+  "metric": "GNU time maximum resident set size on Linux; KiB converted to bytes with a factor of1024.",
+  "provenance_file": "before-steps2-1200-provenance.json",
+  "host_load_file": "before-steps2-1200-host-load.txt",
+  "old_timeout_record_preserved": "before-steps2-result.json",
+  "further_benchmarks_paused_at_user_request": true
+}

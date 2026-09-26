@@ -1,0 +1,66 @@
+{
+  "obligation": "stage1-terminal-assignment",
+  "target": "LeanGraph.Targets.Stage1TerminalAssignment",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "6805907ae523156661fa17e1c325f71d0814da7243ba9f550c57c49890350395",
+  "policy": "2b27bc790d1765322d96a23ad5255f64fc1c7cc9553eb27d6eba98665a6ce574",
+  "checker": "e520f0494e104333e10d9f08f0bec26267406eb00f8cd72944924870b3e35160",
+  "review": "decomposition",
+  "request": "8477d1baee1f7735f982b2c7bc5d9b92954ac4a6bdf884cf3714fda7239515f1",
+  "reviewer": "independent review agent (Claude), fresh context",
+  "reviewed_at": "2026-09-25T16:48:08-05:00",
+  "outcome": "pass",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pass",
+      "reason": "The statement is a real soundness implication, not a restatement. Its only premise is terminal acceptance (formal/nightstream-fprime/tests/EvidenceTargets.lean:166-173, formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:73-75). Its conclusion is the full wide-key HyperNova F' step (FixedAugmentedTransition, formal/nightstream-fprime/NightstreamFPrime/Spec/HyperNova/Construction2/Paper.lean:322-352, via formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:45-47) over values decoded from the prover's fresh witness, plus equality of all six fields of the next hash preimage with the advertised terminal preimage. Neither disjunct is trivially provable: the left needs the decoded rows to satisfy every phase, and the right is a Poseidon2 collision on two distinct serializations (formal/nightstream-fprime/NightstreamFPrime/Layout/Stage1/PiCCSSecurity.lean:62-71, formal/nightstream-fprime/NightstreamFPrime/Lifecycle/XOut.lean:144-145)."
+    },
+    "premises": {
+      "outcome": "pass",
+      "reason": "The only hypotheses are a Wide.Target value (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:29-36: program, compiled range plan, the size-only FitsTwoPow28 proof, an arbitrary Ajtai key, an arbitrary context digest and its length 4), an arbitrary terminal statement and payload, and target.Holds. The statement has no honest-witness, row, public-input, context-equality, encoder or hash premise. Rows and public input come from the fresh CCS opening (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/OpeningBinding.lean:102-116). The context length is a structure field that Wide.selected discharges with SetupBinding.contextKey_length (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:182). The #audit_axioms at formal/nightstream-fprime/tests/EvidenceTargets.lean:178 fails closed on anything other than propext, Classical.choice and Quot.sound (formal/nightstream-fprime/tests/AxiomAudit.lean:10-15). That rules out sorryAx and Lean.ofReduceBool."
+    },
+    "argument": {
+      "outcome": "pass",
+      "reason": "Each step gives exactly what the next step uses. (1) holdsFor_recursive_iff (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Terminal.lean:152-168) unfolds acceptance into StatementValid, pc in [1,1], a positive counter, the public link to encHash(stateHash preimage) and the fresh CCS opening (Paper.lean:157-171). (2) freshHolds_implies_rowsAndPublic (OpeningBinding.lean:102-116, AcceptedOpening.lean:73-106) restricts the carrier witness to logical columns and gives structuralPlan.RowsZero and the actual public projection. Padding values are arbitrary because the extended matrices are zero there. (3) PublicBinding.step (PublicBinding.lean:108-125) gives StepHoldsFor at the decoded contextKey and digest = stateHash preimage. With outputHash (TerminalSecurity.lean:120-122) this gives stateHash expected = stateHash actual. (4) If the serializations are equal, the counter word is equal (StateEncoding.lean:109-122). natWord_successor_eq_below_modulus (StateEncoding.lean:170-183) gives the natural prior+1 = statement.iteration from priorBound, positivity and statement.iteration < p. Both preimages are WellFormed, and serializePreimage_injective (StateEncoding.lean:194) gives full equality. Otherwise the pair is exactly StateHashCollision (TerminalSecurity.lean:158). (5) OpeningBinding.terminal_implies_stepOrCollision (OpeningBinding.lean:141-168) through ContextBinding.step_or_collision (ContextBinding.lean:34-63) moves the step to target.context, or gives the collision on the same pair. (6) terminal_implies_matchingStepOrCollision (TerminalSecurity.lean:161-172) combines the two results. A step-side collision together with preimage equality is refuted by congrArg serializePreimage. The target theorem is this lemma (EvidenceTargets.lean:175-176)."
+    },
+    "correspondence": {
+      "outcome": "pass",
+      "reason": "The concluded step uses Wide.Relation.setup, whose NIFS verifier is Nifs.PaperNonInteractive.verify with PiRLC.Wide.Key.key relation ajtai (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:19-33). That key only replaces piRlcResponse with the wide challengeAt (formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:34-37). SetupBinding.nifsKey_response and sampler_frame (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:81-83, 104-106) state the absorb [4, coordinate] frame that Rust uses (crates/neo-reductions/src/common.rs:817). The terminal predicate is Terminal.HoldsFor with the wide relation and the target key/context. It checks canonical counter and state widths, the prior hash link, all running CE openings and the fresh CCS opening, with no fold (Terminal.lean:63-82, Paper.lean:138-171). The Rust verifier says it implements this boundary (crates/nightstream/src/lifecycle/verify.rs:44-65). Terminal.HoldsFor still builds the baseline Lifecycle.setup, but the terminal transition reads only setup.verifierKeys, so the baseline NIFS key has no effect. Package-byte conformance is explicitly out of scope for this gap."
+    },
+    "parent_use": {
+      "outcome": "pass",
+      "reason": "HyperNovaHistory.counter_matches (formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/HyperNovaHistory.lean:175-182) calls target.terminal_implies_matchingStepOrCollision and projects the iteration field of the preimage equality. The collision branch is closed by the caller's no-collision premise. Target.terminal_implies_predecessorOrCollision (TerminalSecurity.lean:317-355) uses the step for the application transition and the base/recursive split, and uses the preimage equality for the counter, z0 and zi. terminal_implies_nifsOrBaseOrCollision (TerminalSecurity.lean:177-210) uses the same pair for the wide-key NIFS output link, and the registered parent Stage1TerminalParent uses it (EvidenceTargets.lean:183-198). All consumers take the same Target, the same Collision predicate and the same decodedInput/decodedOutput/preimage definitions, so no conversion or extra premise is needed."
+    }
+  },
+  "target_meaning": {
+    "outcome": "pass",
+    "reason": "The proposition (formal/nightstream-fprime/tests/EvidenceTargets.lean:166-173) is: for every Wide.Target, terminal statement and recursive payload, target.Holds implies either (wide-key StepHoldsFor at target.ajtai and target.context on the decoded input/output, and decodedNext = preimage) or StateHashCollision decodedNext preimage. Each part of the gap is present. Arbitrary fresh opening: decodedInput, decodedOutput and decodedNext are read from logicalAssignment payload.freshWitness (TerminalSecurity.lean:78-93). Logical rows and actual public input come from the opening and are not premises. Canonical context: the step is at the verifier's context target.context, the same value that the terminal hash check binds (Terminal.lean:71-82, Paper.lean:160-161). It is not at the prover-decoded contextKey. Complete advertised-state matching: full HashPreimage equality covers verifierKeys, the natural iteration, z0, current, running and pc (Paper.lean:63-73, OpeningBinding.lean:127-136). The collision is the named PiCCSSecurity.StateHashCollision, not a weaker event. Generalizing over key and context strengthens the claim, because the hypothesis and the conclusion use the same target.ajtai and target.context. The old instance (canonical commitmentKey and verifierContextDigest) is one instantiation, apart from the intended narrow-to-wide key change. Conjuncts of the old meaning are kept. The old output digest stateHash(terminalPreimage) is not stated directly: decodedOutput.x is the decoded digest (FixedPointSoundness.lean:276-282). It follows from StepHoldsFor's output hash with the verifierKeys equality in decodedNext = preimage. Wide.selected (TerminalSecurity.lean:41-48) is a Target, so the universal statement applies to the selected package. The statement is not vacuous in practice. Target needs a RangePlan.Compiled, which exists exactly when the certified compiler succeeds (RangePlan.lean:36-48). The production emitter only runs with such a value (Wide/Emitter.lean:53-59). Honest recursive terminals are accepted in the Rust fixtures. Neither fact is a Lean theorem (see findings)."
+  },
+  "findings": [
+    {
+      "severity": "minor",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Wide/Relation.lean:5-6; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/PiRLC/Wide/Key.lean:2-4; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/FixedPoint.lean:4-6; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean:6-9",
+      "finding": "Stale ownership docs. These headers say the wide relation, key and fixed point are candidates that the production package does not select. TerminalSecurity.lean:10-11,40 and commits c65a8605a/bab9b858f say the wide package is selected. This has no proof impact, but it misleads a reader who checks correspondence."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean:41-48",
+      "finding": "Wide.selected takes an arbitrary compiled plan and arbitrary parts, with no AuthorityStream.prepare compiled = .ok parts premise. No declaration uses it. It is the selected package's target only when the caller passes the prepared parts. Because the target is universally quantified over Target, this target has no gap. The link from the context to the prepared package stays with identity/conformance."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Layout/PiRlcWideSampler/RangePlan.lean:36-48; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/Emitter.lean:53-59",
+      "finding": "Non-vacuity rests on execution, not on a Lean theorem. No theorem proves Nonempty RangePlan.Compiled, so Wide.Target is inhabited only because compile? returns some at run time (emitter, tests/SharedVerifier.lean:245-248). No Lean completeness theorem shows that target.Holds (.recursive _) is satisfiable. Honest acceptance comes from Rust and fixture evidence."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Stage1/Terminal.lean:80; formal/nightstream-fprime/NightstreamFPrime/Lifecycle/Relation.lean:41-49",
+      "finding": "Terminal.HoldsFor builds the baseline Lifecycle.setup, whose NIFS field uses ProductionKey.key (the narrow key). This is harmless, because RecursiveTerminalTransition reads only setup.verifierKeys (Spec/HyperNova/Construction2/Paper.lean:138-171). A reader can still wrongly think that the terminal predicate is tied to the narrow key."
+    },
+    {
+      "severity": "note",
+      "location": "formal/nightstream-fprime/tests/EvidenceTargets.lean:170-171; formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/Wide/FixedPointSoundness.lean:276-282",
+      "finding": "The old statement put stateHash(terminalPreimage) in the step output directly. The new one uses the decoded output digest. The old fact follows from the two conjuncts (the StepHoldsFor output hash at target.context and decodedNext = preimage), so the meaning is kept. It is implicit and not stated."
+    }
+  ]
+}

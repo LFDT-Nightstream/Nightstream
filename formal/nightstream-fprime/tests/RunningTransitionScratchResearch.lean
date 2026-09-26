@@ -1,0 +1,49 @@
+import NightstreamFPrime.Export.Stage1.RunningTransitionScratchCustody
+import NightstreamFPrime.Layout.Stage1.RunningTransitionReducedRows
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedRetainedSemantics
+import tests.AxiomAudit
+
+#audit_axioms NightstreamFPrime.Export.Stage1.RunningTransitionReducedRetainedBlocks.nextStart_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport.logical_lt_columnCount
+
+open NightstreamFPrime.Export.Stage1.RunningTransitionScratchCustody
+#audit_axioms endpoints
+#audit_axioms endpoint_geometry
+#audit_axioms mapped_outside
+#audit_axioms shifted_outside
+#audit_axioms piCcsSource_before
+#audit_axioms piDecSource_before
+#audit_axioms samplerSource_before
+#audit_axioms runningLogical_before
+#audit_axioms runningLogicalConstraints_supported
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionReducedRows.physical_firstScratch
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionReducedRows.physical_already_reduced
+#audit_axioms NightstreamFPrime.Layout.Stage1.RunningTransitionReducedRows.physical_firstScratch_boolean
+#audit_axioms arithmeticRows_split
+#audit_axioms nonTransitionRows_supported
+#audit_axioms applicationRows_supported
+#audit_axioms nonTransitionRows_hold_iff
+
+#audit_axioms retainedNonTransitionSource_outside
+#audit_axioms retainedNonTransitionValues_eq
+
+open NightstreamFPrime.Export.Stage1.RunningTransitionReducedRetainedBlocks
+#audit_axioms source_addresses
+#audit_axioms local_geometry
+#audit_axioms inverseSource_eq_old
+#audit_axioms flagSource_eq_old
+
+open NightstreamFPrime.Export.Stage1.RunningTransitionReducedRetainedSemantics
+#audit_axioms inverseWire_eq
+#audit_axioms flagWire_eq
+#audit_axioms inverseSource_value
+#audit_axioms flagSource_value
+#audit_axioms blocks_valid
+#audit_axioms coordinates_length
+#audit_axioms coordinates_inverse
+#audit_axioms coordinates_flag
+#audit_axioms coordinates_norm
+#audit_axioms fromPhysical_valid
+#audit_axioms fromDecoded_preserves
+#audit_axioms fromDecoded_norm
+#audit_axioms localAssignment_encodes

@@ -123,7 +123,7 @@ private theorem piCcsArithmeticLogicalEnds :
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.initialClaimLogicalStart + 25918 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.sumcheckLogicalStart ≤
+      PiCCSArithmetic.sumcheckLogicalStart + 504 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.evalKLogicalStart + 1836 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
@@ -133,7 +133,7 @@ private theorem piCcsArithmeticLogicalEnds :
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.normLogicalStart + 32 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.finalIdentityLogicalStart + 27758 ≤
+      PiCCSArithmetic.finalIdentityLogicalStart + 142 ≤
         PiCCSArithmetic.initialClaimFreshStart := by
   unfold PiCCSArithmetic.initialClaimFreshStart
     PiCCSArithmetic.initialClaimLogicalStart
@@ -460,7 +460,7 @@ theorem piCcsArithmeticRows_of_piRlcAgreesOutside
       (piCcsEmittedConstraints_varsBelow relation
         (NightstreamFPrime.Layout.Stage1.Spartan.pullback before))
     rw [PiCCSCompleteness.emittedConstraints_totalFreshCount relation] at loweredScope
-    have endEq : PiCCSArithmetic.initialClaimFreshStart + 731605 =
+    have endEq : PiCCSArithmetic.initialClaimFreshStart + 207011 =
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset := by
       unfold PiCCSArithmetic.initialClaimFreshStart
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
@@ -571,7 +571,7 @@ theorem pilotAssertionRows_of_piRlcAgreesOutside
       agrees]
   exact beforeHolds
 
-private theorem pilotHashInvocationInput_varsBelow
+theorem pilotHashInvocationInput_varsBelow
     (chain : HashChain) (invocation : Nat) (lane : Fin 8) (bound : Nat)
     (invocationBound : invocation ≤ chain.absorbCount)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)
@@ -1214,7 +1214,7 @@ theorem complete_piCcsRows
   have stableInputs := schedule_stableInputs
     (PiCCSInvocations.invocations_scheduleWithin Data.logicalWidth
       Data.publicFits relation).1
-  have physicalEnd : PiCCSInvocations.invocationCeiling + 731605 ≤
+  have physicalEnd : PiCCSInvocations.invocationCeiling + 207011 ≤
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
@@ -1235,7 +1235,7 @@ theorem complete_piCcsRows
     intro invocation member
     apply NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
       invocation afterOutput completed PiCCSInvocations.invocationCeiling
-        731605
+        207011
     · intro lane term termMember
       rcases stableInputs invocation member lane term termMember with
         inputBefore | inputPublic

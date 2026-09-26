@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.SumCheck.FixedChain
+import NightstreamFPrime.Layout.SumCheck.CompactChain
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
@@ -17,7 +17,7 @@ Outputs:
 Constraint groups:
 - one generic round equality pair;
 - indexed composition over 28 rounds;
-- no logical witness or terminal-copy row.
+- one shared materialized Horner trace and no terminal-copy row.
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_1.sumcheck_chain`.
@@ -33,7 +33,7 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_1
 open NightstreamFPrime.Layout.Polynomial.Horner
-open NightstreamFPrime.Layout.SumCheck.FixedChain
+
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
@@ -53,153 +53,65 @@ structure InputsLinear
   challenge : ∀ roundIndex,
     KExprLinear (interface.round offset roundIndex).challenge
 
-private theorem coreRounds_linear
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
+private theorem coreCosts
+    (interface : NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
     (offset : Nat) (inputs : InputsLinear interface offset) :
-    ∀ round ∈
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-        interface offset).rounds,
-      RoundLinear round := by
-  intro round member
-  rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.Interface.rounds,
-    List.mem_ofFn'] at member
-  rcases member with ⟨roundIndex, rfl⟩
-  exact ⟨inputs.coefficient roundIndex, inputs.challenge roundIndex⟩
+    localLength (Circuit.ops (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit
+      interface).main offset) = 504 ∧
+    R1CS.totalFreshCount (flatConstraints (Circuit.ops
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit interface).main offset)) = 1764 ∧
+    R1CS.totalRowCount (flatConstraints (Circuit.ops
+      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit interface).main offset)) = 2324 := by
+  rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit_ops]
+  exact Layout.SumCheck.CompactChain.production_costs
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface interface offset)
+    offset inputs.initial (fun index => ⟨inputs.coefficient index, inputs.challenge index⟩)
 
-private theorem coreRounds_length
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
-    (offset : Nat) :
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset).rounds.length = 28 := by
-  simp [NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface,
-    NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.Interface.rounds,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
-
-private theorem coreRounds_nonempty
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
-    (offset : Nat) :
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset).rounds ≠ [] := by
-  intro empty
-  have length := congrArg List.length empty
-  rw [coreRounds_length interface offset] at length
-  simp at length
-
-private theorem flatConstraints_eq_coreConstraints
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
-    (offset : Nat) :
-    flatConstraints (Circuit.ops
-      (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit interface
-        ).main offset) =
-      NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-          interface offset) := by
-  unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit
-  exact NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.flatConstraints_eq
-    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset) offset
-
-private theorem core_totalFreshCount
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
-    (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalFreshCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-        interface offset)) = 424601 := by
-  let core :=
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset
-  unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
-  rw [constraintsFrom_totalFreshCount_of_nonempty core.initial core.rounds
-    (coreRounds_nonempty interface offset)
-    (coreRounds_linear interface offset inputs)]
-  have initialCount : KExprMulCount core.initial = 0 := by
-    change R1CS.mulCount (interface.initial offset).c0 +
-      R1CS.mulCount (interface.initial offset).c1 = 0
-    rw [inputs.initial.c0_mulCount, inputs.initial.c1_mulCount]
-  rw [initialCount, coreRounds_length interface offset]
-
-private theorem core_totalRowCount
-    (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.Interface 9)
-    (offset : Nat) (inputs : InputsLinear interface offset) :
-    R1CS.totalRowCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-        interface offset)) = 424657 := by
-  let core :=
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
-      interface offset
-  unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraints
-  rw [constraintsFrom_totalRowCount_of_nonempty core.initial core.rounds
-    (coreRounds_nonempty interface offset)
-    (coreRounds_linear interface offset inputs)]
-  have initialCount : KExprMulCount core.initial = 0 := by
-    change R1CS.mulCount (interface.initial offset).c0 +
-      R1CS.mulCount (interface.initial offset).c1 = 0
-    rw [inputs.initial.c0_mulCount, inputs.initial.c1_mulCount]
-  rw [initialCount, coreRounds_length interface offset]
-
-/-- Exact parent-facing physical footprint for the fixed 28-round chain. -/
+/-- Exact parent-facing footprint of the materialized 28-round chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth 9 publicFits)
-    (inputs : ∀ offset,
-      InputsLinear (Formal.sumcheckInterface interface) offset) :
+    (inputs : ∀ offset, InputsLinear (Formal.sumcheckInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.sumcheckCircuit interface) where
-  freshColumnCount := fun _ => 424601
-  physicalRowCount := fun _ => 424657
+  freshColumnCount := fun _ => 1764
+  physicalRowCount := fun _ => 2324
   freshColumnCount_eq := by
     intro offset
     unfold Formal.sumcheckCircuit
     rw [FormalCircuit.withConstantFootprint_main]
-    rw [flatConstraints_eq_coreConstraints]
-    exact core_totalFreshCount _ offset (inputs offset)
+    exact (coreCosts _ offset (inputs offset)).2.1
   physicalRowCount_eq := by
     intro offset
     unfold Formal.sumcheckCircuit
     rw [FormalCircuit.withConstantFootprint_main]
-    rw [flatConstraints_eq_coreConstraints]
-    exact core_totalRowCount _ offset (inputs offset)
+    exact (coreCosts _ offset (inputs offset)).2.2
 
 theorem freshColumnCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
-    (inputs : ∀ offset,
-      InputsLinear (Formal.sumcheckInterface interface) offset)
+    (inputs : ∀ offset, InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 424601 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 1764 :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
-    (inputs : ∀ offset,
-      InputsLinear (Formal.sumcheckInterface interface) offset)
+    (inputs : ∀ offset, InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 424657 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 2324 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
-    (inputs : ∀ offset,
-      InputsLinear (Formal.sumcheckInterface interface) offset)
+    (inputs : ∀ offset, InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     localLength (Circuit.ops (Formal.sumcheckCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 424601 := by
-  have noLogicalColumns :
-      localLength (Circuit.ops (Formal.sumcheckCircuit interface).main
-        offset) = 0 := by
-    unfold Formal.sumcheckCircuit
-    rw [FormalCircuit.withConstantFootprint_main]
-    exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.localLength_eq
-      (Formal.sumcheckInterface interface) offset
-  rw [noLogicalColumns, freshColumnCount_eq interface inputs offset]
+        (Formal.sumcheckCircuit interface).main offset)) = 2268 := by
+  rw [freshColumnCount_eq interface inputs offset]
+  have logical := (coreCosts _ offset (inputs offset)).1
+  simpa only [Formal.sumcheckCircuit, FormalCircuit.withConstantFootprint_main]
+    using congrArg (fun count => count + 1764) logical
 
 /-- The final SumCheck claim is in causal scope at the final-identity child. -/
 theorem output_varsBelow_finalIdentity
@@ -231,12 +143,15 @@ theorem output_varsBelow_finalIdentity
           (fun _ => 0) := by
     rw [Formal.sumcheckStart_atOffset interface parentOffset]
     exact childAssumption
-  have below := Formal.sumcheckOutput_varsBelow_start frozen finalAt
+  have below := Formal.sumcheckOutput_varsBelow_end frozen finalAt
     canonicalAssumption
-  have sumcheckLeEvalK : sumcheckAt ≤ evalKAt := by
+  have sumcheckLeEvalK : sumcheckAt +
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.privateCount
+        (ProductionKey.degreeBound relation) ≤ evalKAt := by
     dsimp [evalKAt]
-    unfold Formal.evalKOffset Formal.nextOffset
-    omega
+    unfold Formal.evalKOffset Formal.nextOffset Formal.childLength Formal.sumcheckCircuit
+    rw [FormalCircuit.withConstantFootprint_main,
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.localLength_eq]
   have evalKLeEvalA : evalKAt ≤ evalAAt := by
     dsimp [evalAAt]
     unfold Formal.evalAOffset Formal.nextOffset
@@ -253,28 +168,37 @@ theorem output_varsBelow_finalIdentity
     dsimp [finalAt]
     unfold Formal.finalIdentityOffset Formal.nextOffset
     omega
-  have sumcheckLeFinal : sumcheckAt ≤ finalAt := by
+  have sumcheckLeFinal : sumcheckAt +
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.privateCount
+        (ProductionKey.degreeBound relation) ≤ finalAt := by
     exact Nat.le_trans sumcheckLeEvalK
       (Nat.le_trans evalKLeEvalA
         (Nat.le_trans evalALeCcs (Nat.le_trans ccsLeNorm normLeFinal)))
-  have startLeFinal : Formal.sumcheckStart frozen ≤ finalAt := by
+  have startLeFinal : Formal.sumcheckStart frozen +
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.privateCount
+        (ProductionKey.degreeBound relation) ≤ finalAt := by
     rw [Formal.sumcheckStart_atOffset interface parentOffset]
     exact sumcheckLeFinal
   exact KExpr.varsBelow_mono _ below startLeFinal
 
-/-- Exact syntactic shape exported to the separate final-identity leaf. -/
+/-- The final identity receives an affine view of the owned Horner result. -/
 theorem output_mulCounts
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (offset : Nat)
     (inputs : InputsLinear (Formal.sumcheckInterface interface)
       (Formal.sumcheckStart interface)) :
-    R1CS.mulCount (Formal.sumcheckOutput interface offset).c0 = 2558 ∧
-      R1CS.mulCount (Formal.sumcheckOutput interface offset).c1 = 2557 := by
-  unfold Formal.sumcheckOutput
-    NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.output
-    NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.output
-  apply outputFrom_mulCounts_of_nonempty
-  · exact coreRounds_nonempty _ _
-  · exact coreRounds_linear _ _ inputs
+    R1CS.mulCount (Formal.sumcheckOutput interface offset).c0 = 0 ∧
+      R1CS.mulCount (Formal.sumcheckOutput interface offset).c1 = 0 := by
+  have linear := Layout.SumCheck.CompactChain.compile_output_linear
+    (Formal.sumcheckStart interface)
+    ((Formal.sumcheckInterface interface).initial (Formal.sumcheckStart interface))
+    (NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.coreInterface
+      (Formal.sumcheckInterface interface) (Formal.sumcheckStart interface)).rounds
+    inputs.initial (by
+      intro round member
+      rw [FixedChain.Owned.Interface.rounds, List.mem_ofFn'] at member
+      obtain ⟨index, rfl⟩ := member
+      exact ⟨inputs.coefficient index, inputs.challenge index⟩)
+  exact ⟨linear.c0_mulCount, linear.c1_mulCount⟩
 
 end NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain

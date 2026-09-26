@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
+import NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
@@ -29,16 +29,16 @@ variable {relationLogicalWidth : Nat}
 
 def prefixGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PiRLCSamplerOrdinaryRetainedGeometry.Geometry application logicalWidth :=
-  ApplicationRetainedGeometry.prefixGeometry geometry
+  ApplicationOrdinaryGeometry.prefixGeometry geometry
 
 def prefixPlan
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   DirectPiRLCSamplerCompletePrefixPlan.plan relation (prefixGeometry geometry)
 
@@ -46,42 +46,42 @@ def applicationPlan
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ApplicationDirectPlan.plan fits geometry
 
 def piDecGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PiDECRetainedGeometry.Geometry application logicalWidth :=
   DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry (prefixGeometry geometry)
 
 def pilotOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PilotOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   DirectPiDECPrefixPlan.pilotOrdinaryGeometry (piDecGeometry geometry)
 
 def piCcsOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   PilotOrdinaryDirectPlan.piCcsGeometry (pilotOrdinaryGeometry geometry)
 
 def nextPreimagePlan
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   NextPreimageDirectPlan.plan (piCcsOrdinaryGeometry geometry)
 
 def publicOutputPlan
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   RecursivePublicOutputPlan.plan geometry
 
@@ -91,7 +91,7 @@ theorem rowCount_le
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     (((prefixPlan relation geometry).rowCount +
         (applicationPlan fits geometry).rowCount) +
         (nextPreimagePlan geometry).rowCount) +
@@ -100,7 +100,7 @@ theorem rowCount_le
   have packageRows := fits.rows
   rw [PerApplicationPackage.package_rowCount] at packageRows
   have baseRows : PerApplicationPackage.basePackage.layout.rowCount =
-      29218024 := by
+      28666318 := by
     simpa [PerApplicationPackage.basePackage] using
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.1
   rw [baseRows] at packageRows
@@ -109,6 +109,7 @@ theorem rowCount_le
     nextPreimagePlan, NextPreimageDirectPlan.plan_rowCount,
     publicOutputPlan, RecursivePublicOutputPlan.plan_rowCount]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables] at packageRows ⊢
+  simp only [ApplicationDirectPlan.rowCount]
   omega
 
 private theorem prefixApplicationRowCount_le
@@ -117,7 +118,7 @@ private theorem prefixApplicationRowCount_le
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     (prefixPlan relation geometry).rowCount +
         (applicationPlan fits geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
@@ -130,7 +131,7 @@ private theorem throughNextPreimageRowCount_le
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ((prefixPlan relation geometry).rowCount +
         (applicationPlan fits geometry).rowCount) +
         (nextPreimagePlan geometry).rowCount ≤
@@ -144,7 +145,7 @@ def prefixApplicationPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.append (prefixPlan relation geometry)
     (applicationPlan fits geometry)
@@ -156,7 +157,7 @@ def throughNextPreimagePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.append (prefixApplicationPlan relation fits geometry)
     (nextPreimagePlan geometry)
@@ -168,7 +169,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.append
     (throughNextPreimagePlan relation fits geometry)
@@ -180,9 +181,9 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     (plan relation fits geometry).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + ApplicationDirectPlan.rowCount application +
         9 := by
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
@@ -195,7 +196,7 @@ theorem plan_eq_of_same_shape
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     plan left fits geometry = plan right fits geometry := by
   unfold plan throughNextPreimagePlan prefixApplicationPlan prefixPlan
   have prefixEq :=
@@ -210,7 +211,7 @@ theorem rowsZero_iff
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     (plan relation fits geometry).RowsZero assignment ↔
       (((prefixPlan relation geometry).RowsZero assignment ∧
@@ -235,29 +236,29 @@ theorem applicationSourceWidth_le_baseSourceWidth
   rw [PerApplicationPackage.package_totalColumnCount]
   unfold PerApplicationPackage.addedPrivateColumnCount
   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      29336725 := by
+      28785019 := by
     exact Package.circuitPackage_layout_values.2.2.2.2
-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 29336446 := by
+  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 28784740 := by
     exact Layout.Stage1.Spartan.privateColumnCount_eq
   rw [baseTotal, privateCount]
-  change 29336446 + application.witnessWordCount +
+  change 28784740 + application.witnessWordCount +
         localLength (ApplicationPackage.operations application
           (ApplicationPackage.productionColumns application)
-          (29336446 + application.witnessWordCount)) +
+          (28784740 + application.witnessWordCount)) +
         R1CS.totalFreshCount
           (ApplicationPackage.constraints application
             (ApplicationPackage.productionColumns application)
-            (29336446 + application.witnessWordCount)) ≤
-      29336725 + (application.witnessWordCount +
+            (28784740 + application.witnessWordCount)) ≤
+      28785019 + (application.witnessWordCount +
         (PerApplicationPackage.applicationPlan application).privateCount)
-  change _ ≤ 29336725 + (application.witnessWordCount +
+  change _ ≤ 28785019 + (application.witnessWordCount +
     (localLength (ApplicationPackage.operations application
       (ApplicationPackage.productionColumns application)
-      (29336446 + application.witnessWordCount)) +
+      (28784740 + application.witnessWordCount)) +
     R1CS.totalFreshCount
       (ApplicationPackage.constraints application
         (ApplicationPackage.productionColumns application)
-        (29336446 + application.witnessWordCount))))
+        (28784740 + application.witnessWordCount))))
   omega
 
 /-- The application reads the same complete package source assignment as the
@@ -285,16 +286,16 @@ every application source column. -/
 structure Encodes
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
     (prefixGeometry geometry) assignment base groupValue products
   /-- Input/output facts refer to the existing pilot coordinates. Only the
   witness/local fields describe new application suffix coordinates. -/
-  applicationEncoding : ApplicationRetainedGeometry.Encodes geometry assignment
+  applicationEncoding : ApplicationOrdinaryGeometry.Encodes geometry assignment
     (applicationSource application base)
 
 structure Semantics
@@ -302,10 +303,10 @@ structure Semantics
     {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
     (prefixGeometry geometry) assignment base groupValue products
@@ -322,9 +323,9 @@ structure Semantics
 private theorem prefixOne
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1) :
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn geometry) = 1) :
     assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn
         (prefixGeometry geometry)) =
@@ -337,12 +338,12 @@ theorem rowsZero_implies_semantics
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue products)
     (rowsZero : (plan relation fits geometry).RowsZero assignment) :
     Semantics relation geometry assignment base groupValue products := by
@@ -351,11 +352,8 @@ theorem rowsZero_implies_semantics
   · exact DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
       (prefixGeometry geometry) assignment base groupValue products
       (prefixOne geometry assignment one) encodes.runningPrefix children.1.1.1
-  · have rows := (ApplicationDirectPlan.rowsZero_iff_rowsHold fits geometry
-      assignment (applicationSource application base)
-      encodes.applicationEncoding one).mp children.1.1.2
-    exact ApplicationDirectSource.rowsHold_implies_applicationHolds application
-      (ApplicationDirectPlan.sourceEnv (applicationSource application base)) rows
+  · exact ApplicationAssignmentSoundness.rowsZero_implies_encodedHolds fits geometry
+      assignment (applicationSource application base) encodes.applicationEncoding one children.1.1.2
   · exact NextPreimageDirectPlan.rowsZero_implies_spec
       (piCcsOrdinaryGeometry geometry) assignment base groupValue products
       encodes.runningPrefix.prior.pilotOrdinary.prior one children.1.2

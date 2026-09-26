@@ -90,6 +90,35 @@ fn artifact(name: &str) -> PathBuf {
         .join(name)
 }
 
+// Decode only the retained ownership metadata; skip the large row program.
+fn retained_ranges(sealed: &[u8]) -> Vec<std::ops::Range<usize>> {
+    #[derive(Deserialize)]
+    struct Block(usize, usize, IgnoredAny);
+    #[derive(Deserialize)]
+    struct Assignment(u64, Vec<Block>, IgnoredAny, IgnoredAny);
+    #[derive(Deserialize)]
+    struct Envelope(u64, IgnoredAny, IgnoredAny, IgnoredAny, Assignment, IgnoredAny, usize);
+
+    let Envelope(schema, _, _, _, Assignment(transport, blocks, _, _), _, mut offset) =
+        serde_json::from_slice(sealed).expect("retained assignment layout");
+    assert_eq!((schema, transport), (6, 4));
+    assert_eq!(blocks.len(), 76, "schema-4 assignment block count");
+    blocks
+        .into_iter()
+        .map(|Block(kind, slots, _)| {
+            let width = match kind {
+                0 | 1 => 1,
+                2 => 41,
+                _ => panic!("unsupported slot kind"),
+            };
+            let end = offset + width * slots;
+            let range = offset..end;
+            offset = end;
+            range
+        })
+        .collect()
+}
+
 fn hash(words: &[u64]) -> [u64; 4] {
     let values = words
         .iter()
@@ -158,7 +187,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (29_225_729, 29_344_146, 29_344_146, PUBLIC_INPUTS, 29_344_425)
+        (27_724_114, 27_866_960, 27_866_960, PUBLIC_INPUTS, 27_867_239)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -205,41 +234,18 @@ fn base_step_assignment_satisfies_every_canonical_row() {
     check_base_assignment(package, sealed, bytes, expanded);
 }
 
-// The caller packet supplies a nonzero row assignment. This test does not
-// treat that packet as a proof for the candidate's verifier context.
 #[test]
-#[ignore = "external nonzero assignment and shared-value mutations; run under the 300-second cap"]
-fn external_pi_rlc_value_wiring_rejects_detached_values() {
-    use std::io::Read;
-
-    #[derive(Deserialize)]
-    struct Inputs {
-        package: PathBuf,
-        structural_identity: [u64; 4],
-        caller_fixture: PathBuf,
-    }
-
+#[ignore = "saved recursive assignment and shared-value mutations; run under the 300-second cap"]
+fn pi_rlc_value_wiring_rejects_detached_values() {
     let started = Instant::now();
-    let mut input = String::new();
-    std::io::stdin()
-        .read_to_string(&mut input)
-        .expect("external paths");
-    let inputs: Inputs = serde_json::from_str(&input).expect("external assignment inputs");
-    let sealed = fs::read(inputs.package).expect("candidate package");
-    let package = nightstream_fprime::load_per_application_package(&sealed, inputs.structural_identity)
-        .expect("selected candidate identity");
-    let Fixture(schema, context, private, public, _) =
-        serde_json::from_slice(&fs::read(inputs.caller_fixture).expect("nonzero caller fixture"))
-            .expect("caller fixture schema");
-    assert_eq!(schema, 1);
-    assert!(private.iter().chain(&public).all(|&value| value < MODULUS));
-    let binding = package
-        .production_verifier_binding()
-        .expect("candidate binding");
-    println!(
-        "caller_context_matches_candidate={} scope=arbitrary_assignment_rows",
-        context == binding.verifier_context().digest()
-    );
+    let sealed =
+        fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).expect("canonical package");
+    let bytes = fs::read(artifact(
+        "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
+    ))
+    .expect("Lean recursive caller fixture");
+    let package = load_poseidon2_hash_chain_v1_package(&sealed).expect("verifier-owned package");
+    let Fixture(_, _, private, public, _) = checked_caller_fixture(&package, &bytes);
     let physical = package
         .execute_witness(&private, &public)
         .expect("caller witness");
@@ -262,24 +268,8 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
     drop(physical);
     drop(package);
 
-    let raw: serde_json::Value = serde_json::from_slice(&sealed).expect("raw assignment plan");
-    let blocks = raw[4][1].as_array().expect("assignment blocks");
-    assert_eq!(blocks.len(), 33, "no product-input or PiDEC-parent copies");
-    let mut offset = raw[6].as_u64().expect("logical public width") as usize;
-    let mut ranges = Vec::with_capacity(blocks.len());
-    for (index, block) in blocks.iter().enumerate() {
-        assert_eq!(block[0].as_u64(), Some(index as u64));
-        let width = match block[1].as_u64().expect("slot kind") {
-            0 | 1 => 1,
-            2 => 41,
-            _ => panic!("unsupported slot kind"),
-        };
-        let end = offset + width * block[2].as_u64().expect("slot count") as usize;
-        ranges.push(offset..end);
-        offset = end;
-    }
-    assert_eq!(offset, original.len());
-    drop(raw);
+    let ranges = retained_ranges(&sealed);
+    assert_eq!(ranges.last().expect("retained blocks").end, original.len());
 
     let artifact = logical_reference::source::SourcePackage::decode(&sealed).expect("independent source");
     let program = logical_reference::matrix::MatrixProgram::decode(
@@ -306,7 +296,16 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
             },
         )
     };
-    assert_eq!(evaluate(original.balanced_values(), 0), Ok(artifact.logical_rows));
+    logical_reference::evaluation::verify_satisfaction_with(&program, &artifact.sources, &relation, |column| {
+        assert!(column < logical_reference::evaluation::CARRIER_WIDTH);
+        match original.balanced_values().get(column).copied().unwrap_or(0) {
+            -1 => -logical_reference::Field::ONE,
+            0 => logical_reference::Field::ZERO,
+            1 => logical_reference::Field::ONE,
+            _ => unreachable!("bounded control assignment"),
+        }
+    })
+    .expect("every canonical control row and carrier padding");
     println!(
         "nonzero_control_rows={} elapsed={:?}",
         artifact.logical_rows,
@@ -328,8 +327,11 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         panic!("one canonical PiRLC product block");
     };
 
-    // PiRLC product groups/output and the shared PiDEC/running child proof.
-    for (label, selected) in [("PiRLC products", &[3usize, 9][..]), ("PiDEC children", &[15usize][..])] {
+    // Schema-4 transport order: output=74, quotient=75, runningPiDec=5.
+    for (label, selected) in [
+        ("PiRLC products", &[74usize, 75][..]),
+        ("PiDEC children", &[5usize][..]),
+    ] {
         let mut changed = original.balanced_values().to_vec();
         for &block in selected {
             let range = ranges[block].clone();
@@ -386,8 +388,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 29_344_425);
-    assert_eq!(package.physical_row_count(), 29_225_729);
+    assert_eq!(package.total_column_count(), 27_867_239);
+    assert_eq!(package.physical_row_count(), 27_724_114);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -619,7 +621,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 45);
+    assert_eq!(alignment, 26);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
@@ -739,10 +741,45 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
+/// Split a checked column-map wrapper `[5, width, projection, inner]`.
+fn unwrap_mapped_block(block: &serde_json::Value) -> (&serde_json::Value, Option<&serde_json::Value>) {
+    match block.as_array().map(Vec::as_slice) {
+        Some([tag, _, projection, inner]) if tag.as_u64() == Some(5) => (inner, Some(projection)),
+        _ => (block, None),
+    }
+}
+
+/// Map one column through `[1, [[from, to, count], ...]]`; exactly one range must own it.
+fn project_column(projection: Option<&serde_json::Value>, column: u64) -> Option<u64> {
+    let Some(projection) = projection else {
+        return Some(column);
+    };
+    let targets = projection[1]
+        .as_array()?
+        .iter()
+        .filter_map(|range| {
+            let (from, to, count) = (range[0].as_u64()?, range[1].as_u64()?, range[2].as_u64()?);
+            (from <= column && column < from.checked_add(count)?).then(|| to + (column - from))
+        })
+        .collect::<Vec<_>>();
+    match targets.as_slice() {
+        [target] => Some(*target),
+        _ => None,
+    }
+}
+
 /// Replace only the application witness/local suffix with another valid
 /// execution. The independent rows must reject the detached state binding.
 pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
     let started = Instant::now();
+    let ranges = retained_ranges(&sealed);
+    // Schema-4 transport order: application witness=20, local=21, sampler=22.
+    let application_start = ranges[20].start;
+    let application_local = ranges[21].clone();
+    assert_eq!(ranges[20].end, application_local.start);
+    assert_eq!(application_local.end, ranges[22].start);
+    let application_range = application_start..application_local.end;
+    let output_words = package.application().output_columns().len();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
         .execute_witness(&private, &public)
@@ -790,38 +827,67 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         artifact.logical_rows,
     )
     .expect("independent canonical matrix program");
-    // DirectPiRLCSamplerCompletePrefixPlan.plan_rowCount and the concrete
-    // application row-count theorem locate these 7,700 canonical rows.
-    const APPLICATION_ROW_START: usize = 6_369_850;
-    const APPLICATION_ROW_END: usize = APPLICATION_ROW_START + 7_700;
+    // Find the compact Poseidon block by its retained application-local range,
+    // then include its following digest pins. Row offsets come from the decoder.
+    // A checked column map (tag 5) wraps a reused block; its retained start is
+    // stated in reference coordinates and projected to the logical layout.
+    let blocks = artifact.matrix_program.as_array().expect("matrix blocks");
+    let application_blocks = blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| {
+            let (inner, projection) = unwrap_mapped_block(block);
+            inner[0].as_u64() == Some(2)
+                && inner[1][2][2]
+                    .as_u64()
+                    .and_then(|start| project_column(projection, start))
+                    == Some(application_local.start as u64)
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let [application_block] = application_blocks.as_slice() else {
+        panic!("one Poseidon block owns the application-local coordinates");
+    };
+    let ends = program.block_ends().collect::<Vec<_>>();
+    assert_eq!(
+        unwrap_mapped_block(&blocks[application_block + 1]).0[0].as_u64(),
+        Some(1),
+        "application digest pins"
+    );
+    let application_row_start = application_block
+        .checked_sub(1)
+        .map_or(0, |index| ends[index]);
+    let application_row_end = ends[application_block + 1];
+    assert_eq!(application_row_end - ends[*application_block], output_words);
     let checked = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,
         &artifact.sources,
         &relation,
-        APPLICATION_ROW_START,
-        APPLICATION_ROW_END,
+        application_row_start,
+        application_row_end,
         |column| {
             let value = changed.value(column).map_err(|error| error.to_string())?;
             logical_reference::Field::checked(value, "changed application assignment")
         },
     )
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
-    assert_eq!(checked, APPLICATION_ROW_END - APPLICATION_ROW_START);
+    assert_eq!(checked, application_row_end - application_row_start);
 
-    // ApplicationRetainedGeometry.witnessStart = 253944883 on this identity.
-    // Keep every prefix/hash/public coordinate unchanged and replace only
-    // the application witness/local block family. Input/output coordinates
-    // belong to the preserved pilot preimage blocks.
-    const APPLICATION_START: usize = 253_944_883;
+    // Replace only the application witness/local blocks. The pilot owns
+    // the input/output coordinates; sampler blocks follow the application.
     let mut detached = original.balanced_values().to_vec();
-    detached[APPLICATION_START..].copy_from_slice(&changed.balanced_values()[APPLICATION_START..]);
+    detached[application_range.clone()].copy_from_slice(&changed.balanced_values()[application_range.clone()]);
     assert_eq!(
-        &detached[..APPLICATION_START],
-        &original.balanced_values()[..APPLICATION_START]
+        &detached[..application_start],
+        &original.balanced_values()[..application_start]
     );
     assert_ne!(
-        &detached[APPLICATION_START..],
-        &original.balanced_values()[APPLICATION_START..]
+        &detached[application_range.clone()],
+        &original.balanced_values()[application_range]
+    );
+    assert_eq!(
+        &detached[application_local.end..],
+        &original.balanced_values()[application_local.end..]
     );
     assert!(detached.iter().all(|value| (-1..=1).contains(value)));
     drop(original);
@@ -845,7 +911,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         .expect("rejection must be a nonzero canonical row residual");
     let row = row.parse::<usize>().expect("rejected row index");
     assert!(
-        (APPLICATION_ROW_START..APPLICATION_ROW_END).contains(&row),
+        (application_row_start..application_row_end).contains(&row),
         "rejection must occur in the application rows: {failure}"
     );
     let residual = residual.parse::<u64>().expect("canonical residual value");

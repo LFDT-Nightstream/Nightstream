@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
-import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedRetainedBlocks
 
 /-!
 Owns the placement of PiCCS ordinary retained blocks. The two preimage views
@@ -14,7 +14,7 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  RunningTransitionRetainedGeometry.completeLogicalWidth program
+  RunningTransitionReducedRetainedBlocks.nextStart program
 
 def priorInputStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCPoseidonGeometry.priorInputStart program
@@ -55,12 +55,12 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 242922033 := by
+    completeLogicalWidth program = 139508759 := by
   simp only [completeLogicalWidth, freshStart, outputEndpointStart,
     proofLogicalStart,
     expectedContextStart, outputLastStart, priorLastStart, freshPublicInputStart,
     prefixLogicalWidth]
-  rw [RunningTransitionRetainedGeometry.completeLogicalWidth_eq]
+  rw [RunningTransitionReducedRetainedBlocks.nextStart_eq]
   have count :=
     PiCCSOrdinaryRetainedBlocks.retainedCoordinateCount_eq program
   unfold PiCCSOrdinaryRetainedBlocks.retainedCoordinateCount at count
@@ -81,9 +81,8 @@ def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     RunningTransitionRetainedGeometry.Geometry program logicalWidth where
   completeFits := by
     apply Nat.le_trans _ geometry.completeFits
-    unfold completeLogicalWidth freshStart outputEndpointStart proofLogicalStart
-      expectedContextStart outputLastStart priorLastStart freshPublicInputStart
-      prefixLogicalWidth
+    rw [RunningTransitionRetainedGeometry.completeLogicalWidth_eq,
+      completeLogicalWidth_eq]
     omega
 
 def oneColumn {program : Lifecycle.Stage1.Application.Program}

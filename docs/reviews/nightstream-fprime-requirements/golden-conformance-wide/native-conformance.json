@@ -1,0 +1,535 @@
+{
+  "schema": 1,
+  "outcome": "passed",
+  "engine": "optimized",
+  "binary": {
+    "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+    "bytes": 22373152,
+    "sha256": "2cca90f0788087b76336ef491bbca9c4afd996ca27d343ca25fa9d099aeee1af"
+  },
+  "source": {
+    "commit": "48c8e0b9919a65459b3d4ddb5f3e1220d09c7bac",
+    "changes": [
+      " M crates/nightstream/tests/run_golden_conformance.py",
+      "?? scripts/__pycache__/",
+      "?? scripts/lean_graph/__pycache__/",
+      "?? scripts/lean_graph/tests/__pycache__/",
+      "?? tools/recursive-constraint-minimizer/experiments/__pycache__/"
+    ],
+    "tracked_diff_sha256": "bcf2b2317721f3a1b233b10ad68d565103ef90c53ada655d98bd006280c554de",
+    "untracked_files": [
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/__pycache__/fprime_stage1_review_manifest.cpython-314.pyc",
+        "bytes": 25143,
+        "sha256": "08c8220521cedbfe430492de9f1d8e219ea1715d92dcfd43eb1345560178205b"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/__init__.cpython-314.pyc",
+        "bytes": 268,
+        "sha256": "bd7bf975336e2009644842c0482644bf367f395648b399f451d20c14188be4a1"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/builds.cpython-314.pyc",
+        "bytes": 5697,
+        "sha256": "a9f380bbfb270ea6cd118c78621aa9c72ba86bb6c6f7cb31840820f2f9758572"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/checkpoint.cpython-314.pyc",
+        "bytes": 2695,
+        "sha256": "af0e6c60e1e4e142b2cecb8518f6c49687e238ac592b2b118e7c3824f8961673"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/drift.cpython-314.pyc",
+        "bytes": 2923,
+        "sha256": "884377c0d9240de17defa917fdbbee8d64115bf3b64e273aeb13ba6c801cfe7f"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/evidence.cpython-314.pyc",
+        "bytes": 14635,
+        "sha256": "9088e5c09763716f7c35f27bb4e5f9a2882943e582a4e9f98ced50d637d9a1d4"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/guard.cpython-314.pyc",
+        "bytes": 11101,
+        "sha256": "0ff407f0aeb9f276981b5837bbcb08c809e7e689f34de295ae889e9f476da306"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/metadata.cpython-314.pyc",
+        "bytes": 8303,
+        "sha256": "ced221b94a545391a2c275a9dfe6c9164c3d07c1a0f26371bf550c816b35ba4b"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/policy.cpython-314.pyc",
+        "bytes": 16835,
+        "sha256": "4d11dc755eaa9291bf18915aa07d84fbbe9e41e7aefab26156dbe1434a90799a"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/queries.cpython-314.pyc",
+        "bytes": 9238,
+        "sha256": "44c69190813e51f5aae5b5286a3ee1ca36ce91edb38111740c2223f7222a1115"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/records.cpython-314.pyc",
+        "bytes": 28346,
+        "sha256": "9332254d4f288b984534382f6bcbcb45486c7de86cdd4793c01714822e44104d"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/reviews.cpython-314.pyc",
+        "bytes": 13562,
+        "sha256": "bfb1b2e28d92c049393d873c8597d30229084332a5c01988f16f0b3e9aee95be"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/runner.cpython-314.pyc",
+        "bytes": 27368,
+        "sha256": "0748b41f992d3e08f6d8ae1d3ad39d2c543b9bfeeaacaaf6287a4af0345b8bb7"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/__pycache__/snapshot.cpython-314.pyc",
+        "bytes": 18894,
+        "sha256": "915b6ba2b19db680151d1d8446126c56c456afb0e784356002d96b86958f9698"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/__init__.cpython-314.pyc",
+        "bytes": 189,
+        "sha256": "8d9827d0a7ec1fd024d51440706844bceb331e57b0a1d3fcb02a133c55618b5e"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_conformance_registrations.cpython-314.pyc",
+        "bytes": 29944,
+        "sha256": "2f88e9a2c393c053be0614ab67dd7266756e39de6df70376609f1ef6bdf0b4e2"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_evidence.cpython-314.pyc",
+        "bytes": 38230,
+        "sha256": "651f9edda957f9eb3fcff50b570edfcd087add2211c09ffc985a700333391dff"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_guard.cpython-314.pyc",
+        "bytes": 13154,
+        "sha256": "2bcfc64ba6a300974954398e02addcdfbd545ea2f93d49b92be71ad797440dd4"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_metadata.cpython-314.pyc",
+        "bytes": 11682,
+        "sha256": "dc8ec0117c9acfaea521b1dc2080b9365e3e15ad1e423286a98a077261ae87e4"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_reporting.cpython-314.pyc",
+        "bytes": 10502,
+        "sha256": "d713f67877d963d92086c71cfbc79bc0021a1015b1b2314a6642ba9894a138af"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_reviews.cpython-314.pyc",
+        "bytes": 17238,
+        "sha256": "e35e189cc83f16dff5c3688392d4f66b8e3cbb96c78a3ae38ef5e3ae98b58901"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/scripts/lean_graph/tests/__pycache__/test_workflow.cpython-314.pyc",
+        "bytes": 25469,
+        "sha256": "0a861a836d8ca842e8983d294e716f3b9f5efb2c42a8615155982923f71f00b3"
+      },
+      {
+        "path": "/Users/nicarq/starstream/develop/nightstream-clean-up/tools/recursive-constraint-minimizer/experiments/__pycache__/application_matrix_cost.cpython-314.pyc",
+        "bytes": 12003,
+        "sha256": "32e349bef5b37ab9046b8823b32debd4f92aab2e2c0dc7bcba33f74518bb907a"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "base",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/base.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "sources",
+        "--step",
+        "1",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/sources-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "ccs",
+        "--step",
+        "1",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/ccs-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "rlc",
+        "--step",
+        "1"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/rlc-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "split",
+        "--step",
+        "1"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/split-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "openings",
+        "--step",
+        "1"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/openings-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "nifs",
+        "--step",
+        "1"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/nifs-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "successor",
+        "--step",
+        "1",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/successor-step-1.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "sources",
+        "--step",
+        "2",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/sources-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "ccs",
+        "--step",
+        "2",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/ccs-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "rlc",
+        "--step",
+        "2"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/rlc-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "split",
+        "--step",
+        "2"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/split-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "openings",
+        "--step",
+        "2"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/openings-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "nifs",
+        "--step",
+        "2"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/nifs-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "successor",
+        "--step",
+        "2",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/successor-step-2.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "terminal",
+        "--step",
+        "3",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/terminal-step-3.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "mutation",
+        "--step",
+        "3"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/mutation-step-3.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "reject",
+        "--step",
+        "3",
+        "--engine",
+        "optimized"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/reject-step-3.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "opening-k"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/opening-k.json"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "300",
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/run_recursive_phase.py",
+        "--binary",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+        "--directory",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+        "--phase",
+        "opening-a"
+      ],
+      "receipt": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/logs/opening-a.json"
+    }
+  ],
+  "references": null,
+  "identity_scope": "file custody only; not proof of binary/source correspondence",
+  "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, with archive output comparisons. No fresh Lean execution or universal correctness claim."
+}

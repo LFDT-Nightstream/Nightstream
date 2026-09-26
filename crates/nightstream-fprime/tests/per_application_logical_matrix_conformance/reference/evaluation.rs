@@ -8,10 +8,10 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 6_377_559;
+pub const ACTIVE_ROWS: usize = 3_248_956;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 253_011_231;
-pub const CARRIER_WIDTH: usize = 253_011_276;
+pub const LOGICAL_WIDTH: usize = 137_341_846;
+pub const CARRIER_WIDTH: usize = 137_341_872;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -164,6 +164,7 @@ fn evaluate_range(
     let mut public_bit_mutations = [None; 256];
     let mut zero_slot_mutation_rejected = false;
     let mut candidate_columns = Vec::new();
+    let matrix_degrees = relation.slot_degrees();
     program.visit_rows(start, end, sources, |ordinal, row| {
         if ordinal != next {
             return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
@@ -181,9 +182,15 @@ fn evaluate_range(
         for (slot, detected) in matrix_mutations.iter_mut().enumerate() {
             if detected.is_none() {
                 let mut changed = matrix_values;
-                changed[slot] += Field::ONE;
-                if relation.evaluate(&changed) != Field::ZERO {
-                    *detected = Some(ordinal);
+                // A +1 probe can remain a root of the centered-unit term x^3-x.
+                // The honest root plus d distinct probes determine a univariate
+                // polynomial of degree at most d. Use the decoded slot degree.
+                for _ in 0..matrix_degrees[slot] {
+                    changed[slot] += Field::ONE;
+                    if relation.evaluate(&changed) != Field::ZERO {
+                        *detected = Some(ordinal);
+                        break;
+                    }
                 }
             }
         }
@@ -371,20 +378,61 @@ pub fn first_failure(
     if assignment.len() != LOGICAL_WIDTH {
         return Err("mutated logical assignment has the wrong width".into());
     }
+    let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
+    let ranges = (0..ACTIVE_ROWS)
+        .step_by(range_size)
+        .map(|start| (start, (start + range_size).min(ACTIVE_ROWS)))
+        .collect::<Vec<_>>();
+    let results = ranges
+        .par_iter()
+        .map(|&(start, end)| first_failure_range(program, sources, relation, assignment, start, end))
+        .collect::<Vec<_>>();
+    // Indexed parallel collection preserves range order. An earlier failure
+    // or error takes precedence exactly as it does in the serial traversal.
+    let mut next = 0;
+    for ((start, end), result) in ranges.into_iter().zip(results) {
+        if start != next {
+            return Err(format!("logical row order changed: got {start}, expected {next}"));
+        }
+        if let Some(row) = result? {
+            return Ok(Some(row));
+        }
+        next = end;
+    }
+    if next != ACTIVE_ROWS {
+        return Err(format!("logical row coverage ended at {next}, expected {ACTIVE_ROWS}"));
+    }
+    Ok(None)
+}
+
+fn first_failure_range(
+    program: &MatrixProgram,
+    sources: &SourcePackage,
+    relation: &Relation,
+    assignment: &LogicalAssignment,
+    start: usize,
+    end: usize,
+) -> Result<Option<usize>> {
     const STOP: &str = "independent logical mutation detected";
+    let mut next = start;
     let mut failure = None;
-    let result = program.visit_rows(0, ACTIVE_ROWS, sources, |ordinal, row| {
+    let result = program.visit_rows(start, end, sources, |ordinal, row| {
+        if ordinal != next {
+            return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
+        }
         let values = evaluate_row(&row, assignment)?;
         validate_zero_slot(&values, ordinal)?;
         if relation.evaluate(&values) != Field::ZERO {
             failure = Some(ordinal);
             return Err(STOP.into());
         }
+        next += 1;
         Ok(())
     });
     match (failure, result) {
         (Some(row), Err(error)) if error == STOP => Ok(Some(row)),
-        (None, Ok(())) => Ok(None),
+        (None, Ok(())) if next == end => Ok(None),
+        (None, Ok(())) => Err(format!("logical row coverage ended at {next}, expected {end}")),
         (_, Err(error)) => Err(error),
         (Some(_), Ok(())) => Err("logical mutation stop was lost".into()),
     }

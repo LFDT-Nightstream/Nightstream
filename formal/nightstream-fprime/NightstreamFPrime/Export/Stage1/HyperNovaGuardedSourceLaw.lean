@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
@@ -25,10 +26,10 @@ open StrongReduction (Probe PublicCoins OutputWitness)
 open NightstreamFPrime.Lifecycle
 open PiRLC.PaperForkExtractionWork (Primitives)
 open PiRLC.CoordinateForkLaw (Challenge)
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
-open PiDECInputCheck (relation)
-open HyperNovaHistory (Statement Payload SourceResult)
+open HyperNovaHistory (Statement SourceResult)
 open HyperNovaVisitedLaw (Visit goodActive)
+
+variable (target : Wide.Target)
 
 attribute [local instance] Classical.propDecidable
 
@@ -48,18 +49,18 @@ private def inactiveInput : PiCCSInputCheck.Input where
 /-- The exact decoded source input on every recursive payload. The typed
 zero value only totalizes inactive branches, which the guarded prefix aborts
 before any input check or continuation. It is not an accepted base proof. -/
-def inputs (visit : Visit) : PiCCSInputCheck.Input :=
+def inputs (visit : Visit target) : PiCCSInputCheck.Input :=
   match visit.1 with
-  | some (_, .recursive payload) => HyperNovaHistory.sourceInput payload
+  | some (_, .recursive payload) => HyperNovaHistory.sourceInput target payload
   | _ => inactiveInput
 
 /-- The existing recursive terminal pair with the analytical mark set true.
 This fixes the source kernel independently of a later visited-context law. -/
-def recursiveVisit (statement : Statement) (payload : Payload) : Visit :=
+def recursiveVisit (statement : Statement) (payload : target.Payload) : Visit target :=
   (some (statement, .recursive payload), true)
 
-private theorem good_recursive (visit : Visit) (good : goodActive visit) :
-    ∃ statement payload, visit = recursiveVisit statement payload := by
+private theorem good_recursive (visit : Visit target) (good : goodActive target visit) :
+    ∃ statement payload, visit = recursiveVisit target statement payload := by
   rcases visit with ⟨current, mark⟩
   rcases good with ⟨marked, active, _safe⟩
   cases current with
@@ -85,47 +86,47 @@ private theorem abortPrefix_run {State : Type*}
 /-- The actual causal prefix on the marked active branch, and an explicit
 abort otherwise. The original history transition does not use this mask. -/
 noncomputable def guardedPrefix {State : Type*}
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
-    (visit : Visit) : InteractivePrefix.Prover State productionShape 9 :=
-  if goodActive visit then originalFirstPhase visit else abortPrefix
+    (originalFirstPhase : Visit target → InteractivePrefix.Prover State productionShape 9)
+    (visit : Visit target) : InteractivePrefix.Prover State productionShape 9 :=
+  if goodActive target visit then originalFirstPhase visit else abortPrefix
 
 /-- Inactive branches return no receipt before the public checker or suffix
 can be called. This holds for every checker, without evaluating its input. -/
 theorem guardedPrefix_abort {State : Type*}
-    (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
-    (visit : Visit) (inactive : ¬ goodActive visit)
+    (originalFirstPhase : Visit target → InteractivePrefix.Prover State productionShape 9)
+    (visit : Visit target) (inactive : ¬ goodActive target visit)
     (check : Probe K productionShape → Bool)
     (alpha : CubePoint K productionShape.cubeVariables) (gamma : K)
     (point : CubePoint K productionShape.cubeVariables) :
-    InteractivePrefix.run (InteractivePrefix.checked (guardedPrefix originalFirstPhase visit) check)
+    InteractivePrefix.run (InteractivePrefix.checked (guardedPrefix target originalFirstPhase visit) check)
       alpha gamma point = none := by
   rw [InteractivePrefix.run_checked]
   simp only [guardedPrefix, if_neg inactive, abortPrefix_run, Option.filter_none]
 
 /-- The actual local proof and current child witnesses on the good active
 branch. Every other visit remains present with an absent real output. -/
-noncomputable def realOutput (visit : Visit) :
-    Option (Lifecycle.Nifs.FiatShamirTransfer.RealOutput relation) :=
-  if goodActive visit then
+noncomputable def realOutput (visit : Visit target) :
+    Option (Lifecycle.Nifs.WideFiatShamir.RealOutput target.relation) :=
+  if goodActive target visit then
     match visit.1 with
-    | some (_, .recursive payload) => some (HyperNovaRealInput.output payload)
+    | some (_, .recursive payload) => some (HyperNovaRealInput.output target payload)
     | _ => none
   else none
 
 /-- No real output is presented outside the same source-experiment guard. -/
-theorem realOutput_off (visit : Visit) (inactive : ¬ goodActive visit) :
-    realOutput visit = none := by
+theorem realOutput_off (visit : Visit target) (inactive : ¬ goodActive target visit) :
+    realOutput target visit = none := by
   simp only [realOutput, if_neg inactive]
 
 /-- The normalized real experiment keeps the entire supplied visited law. -/
-noncomputable def realLaw (contexts : PMF Visit) :
-    PMF (Visit × Option (Lifecycle.Nifs.FiatShamirTransfer.RealOutput relation)) :=
-  contexts.map (fun visit => (visit, realOutput visit))
+noncomputable def realLaw (contexts : PMF (Visit target)) :
+    PMF (Visit target × Option (Lifecycle.Nifs.WideFiatShamir.RealOutput target.relation)) :=
+  contexts.map (fun visit => (visit, (realOutput target) visit))
 
 /-- The guarded real experiment retains stopped, rejected and abort contexts
 with their original mass; it performs no conditioning. -/
-theorem realLaw_context_marginal (contexts : PMF Visit) :
-    Lifecycle.Nifs.FiatShamirTransfer.contextLaw relation (realLaw contexts) = contexts := by
+theorem realLaw_context_marginal (contexts : PMF (Visit target)) :
+    Lifecycle.Nifs.FiatShamirTransfer.contextLaw target.relation (realLaw target contexts) = contexts := by
   rw [Lifecycle.Nifs.FiatShamirTransfer.contextLaw, realLaw, PMF.map_comp]
   exact PMF.map_id contexts
 
@@ -180,79 +181,84 @@ private theorem sequential_atContext_abort
 
 variable {State Tape : Type*}
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
-  (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
+  [Fintype (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key target.relation target.ajtai).piRlcAlgebra)]
+  (originalFirstPhase : Visit target → InteractivePrefix.Prover State productionShape 9)
   (continuation : ∀ visit (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
-      Lifecycle.Nifs.WeakExtraction.Continuation Tape relation productionAjtaiKey
-        (PiCCSInputCheck.running (inputs visit)) (PiCCSInputCheck.fresh (inputs visit)) coins output)
+      Lifecycle.Nifs.WeakExtraction.Continuation Tape target.relation target.ajtai
+        (target.security.running (inputs target visit))
+            (target.security.fresh (inputs target visit)) coins output)
   (primitives : Primitives RingF
-    (PaperAlgebra.Assignment (logicalWidth := PiDECInputCheck.logicalWidth)
-      (publicFits := PiDECInputCheck.publicFits)))
+    (PaperAlgebra.Assignment (logicalWidth := target.logicalWidth)
+      (publicFits := target.publicFits)))
 
 /-- The operational history kernel at its actual statement and payload.
 Its prefix, continuation and primitive values do not depend on the current
 history mark or on which visited-context distribution will be observed. -/
-noncomputable def source (statement : Statement) (payload : Payload) : PMF SourceResult :=
-  HyperNovaSourceLaw.atContext inputs originalFirstPhase continuation primitives
-    (recursiveVisit statement payload)
+noncomputable def source (statement : Statement) (payload : target.Payload) : PMF (SourceResult target) :=
+  (HyperNovaSourceLaw.atContext target.security) (inputs target) originalFirstPhase continuation primitives
+    (recursiveVisit target statement payload)
 
 /-- The selected stored source law with only the causal prefix guarded.
 The continuation is the literal one used by the operational source kernel. -/
-noncomputable def law (contexts : PMF Visit) : PMF (Visit × SourceResult) :=
-  HyperNovaSourceLaw.law inputs contexts (guardedPrefix originalFirstPhase) continuation primitives
+noncomputable def law (contexts : PMF (Visit target)) : PMF (Visit target × SourceResult target) :=
+  (HyperNovaSourceLaw.law target.security) (inputs target) contexts
+      (guardedPrefix target originalFirstPhase) continuation primitives
 
 /-- An inactive guarded call returns the absent source result with mass one.
 The public checker and continuation cannot affect this branch. -/
-theorem guarded_atContext_off (visit : Visit) (inactive : ¬ goodActive visit) :
-    HyperNovaSourceLaw.atContext inputs (guardedPrefix originalFirstPhase)
+theorem guarded_atContext_off (visit : Visit target) (inactive : ¬ goodActive target visit) :
+    (HyperNovaSourceLaw.atContext target.security) (inputs target) (guardedPrefix target originalFirstPhase)
       continuation primitives visit = PMF.pure none := by
   unfold HyperNovaSourceLaw.atContext HyperNovaSourceLaw.law
   rw [sequential_atContext_abort visit _ _ _ (fun alpha gamma point =>
-    guardedPrefix_abort originalFirstPhase visit inactive _ alpha gamma point)]
+    guardedPrefix_abort target originalFirstPhase visit inactive _ alpha gamma point)]
   simp only [PMF.pure_map]
   rfl
 
 /-- On the active marked branch, both experiments use the identical prefix,
 receipt, continuation and returned source value. No equality is assumed. -/
-theorem guarded_atContext_on (visit : Visit) (good : goodActive visit) :
-    HyperNovaSourceLaw.atContext inputs (guardedPrefix originalFirstPhase)
+theorem guarded_atContext_on (visit : Visit target) (good : goodActive target visit) :
+    (HyperNovaSourceLaw.atContext target.security) (inputs target) (guardedPrefix target originalFirstPhase)
       continuation primitives visit =
-      HyperNovaSourceLaw.atContext inputs originalFirstPhase continuation primitives visit := by
+      (HyperNovaSourceLaw.atContext target.security) (inputs target) originalFirstPhase continuation
+          primitives visit := by
   have same := sequential_atContext_congr visit
-    (Lifecycle.Nifs.InteractiveComposition.firstPhase (guardedPrefix originalFirstPhase)
+    (Lifecycle.Nifs.InteractiveComposition.firstPhase (guardedPrefix target originalFirstPhase)
       (Lifecycle.Nifs.SupportedExtraction.publicCheck
-        (fun context => PiCCSInputCheck.running (inputs context))))
+        (fun context => target.security.running (inputs target context))))
     (Lifecycle.Nifs.InteractiveComposition.firstPhase originalFirstPhase
       (Lifecycle.Nifs.SupportedExtraction.publicCheck
-        (fun context => PiCCSInputCheck.running (inputs context))))
-    (Lifecycle.Nifs.InteractiveComposition.suffixLaw relation productionAjtaiKey
-      (fun context => PiCCSInputCheck.running (inputs context))
-      (fun context => PiCCSInputCheck.fresh (inputs context)) continuation)
-    (Lifecycle.Nifs.InteractiveComposition.consume relation productionAjtaiKey primitives)
+        (fun context => target.security.running (inputs target context))))
+    (Lifecycle.Nifs.InteractiveComposition.suffixLaw target.relation target.ajtai
+      (fun context => target.security.running (inputs target context))
+      (fun context => target.security.fresh (inputs target context)) continuation)
+    (Lifecycle.Nifs.InteractiveComposition.consume target.relation target.ajtai primitives)
     (by simp only [Lifecycle.Nifs.InteractiveComposition.firstPhase, guardedPrefix, if_pos good])
   exact congrArg
-    (fun distribution : PMF (Visit × CheckedWitnessExtraction.Outcome productionShape
-        PiCCSStoredWitnessCheck.carrier) =>
+    (fun distribution : PMF (Visit target × CheckedWitnessExtraction.Outcome productionShape
+        (PiCCSStoredWitnessCheck.carrier target.security)) =>
       (distribution.map (fun sample =>
-        (sample.1, PiCCSStoredWitnessCheck.finishValue (inputs sample.1)
-          (PiCCSStoredSourceProbability.storeOutcome sample.2)))).map Prod.snd) same
+        (sample.1, (PiCCSStoredWitnessCheck.finishValue target.security) (inputs target sample.1)
+          (PiCCSStoredSourceProbability.storeOutcome target.security sample.2)))).map Prod.snd) same
 
 /-- This unconditional selected NIFS law is exactly the guarded draw of the
 operational history kernel, retaining every context and abort. -/
-theorem law_eq_guardedDraw (contexts : PMF Visit) :
-    law originalFirstPhase continuation primitives contexts =
-      contexts.bind (HyperNovaVisitedLaw.guardedDraw (source originalFirstPhase continuation primitives)) := by
+theorem law_eq_guardedDraw (contexts : PMF (Visit target)) :
+    law target originalFirstPhase continuation primitives contexts =
+      contexts.bind
+          (HyperNovaVisitedLaw.guardedDraw target
+          (source target originalFirstPhase continuation primitives)) := by
   rw [law, HyperNovaSourceLaw.law_eq_bind_atContext]
   apply congrArg (PMF.bind contexts)
   funext visit
-  by_cases good : goodActive visit
-  · rw [guarded_atContext_on originalFirstPhase continuation primitives visit good]
-    rcases good_recursive visit good with ⟨statement, payload, rfl⟩
+  by_cases good : goodActive target visit
+  · rw [guarded_atContext_on target originalFirstPhase continuation primitives visit good]
+    rcases (good_recursive target) visit good with ⟨statement, payload, rfl⟩
     rw [HyperNovaVisitedLaw.guardedDraw, if_pos good, HyperNovaVisitedLaw.draw, if_pos good.2.1]
     rfl
-  · rw [guarded_atContext_off originalFirstPhase continuation primitives visit good, PMF.pure_map]
+  · rw [guarded_atContext_off target originalFirstPhase continuation primitives visit good, PMF.pure_map]
     simp only [HyperNovaVisitedLaw.guardedDraw, if_neg good]
 
 private theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set Sample) :
@@ -285,22 +291,27 @@ private theorem partition_mass {Sample : Type*} (distribution : PMF Sample)
 /-- The first source-failure mass is exactly good-active mass minus the
 actual selected SourceReturned mass. This partitions the normalized law;
 it assumes neither source validity nor conditional Fiat--Shamir security. -/
-theorem first_source_failure_mass_eq (contexts : PMF Visit) :
-    ((law originalFirstPhase continuation primitives contexts).toOuterMeasure
-      {sample | goodActive sample.1 ∧
-        ¬ CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal =
-      (contexts.toOuterMeasure {visit | goodActive visit}).toReal -
-        ((law originalFirstPhase continuation primitives contexts).toOuterMeasure
-          {sample | CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
-            productionGlobalParams (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
-  have contained : ∀ sample ∈ (law originalFirstPhase continuation primitives contexts).support,
-      CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
-        (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2 → goodActive sample.1 := by
+theorem first_source_failure_mass_eq (contexts : PMF (Visit target)) :
+    ((law target originalFirstPhase continuation primitives contexts).toOuterMeasure
+      {sample | goodActive target sample.1 ∧
+        ¬ CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit target.security)
+            productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement target.security (inputs target sample.1)) sample.2}).toReal =
+      (contexts.toOuterMeasure {visit | goodActive target visit}).toReal -
+        ((law target originalFirstPhase continuation primitives contexts).toOuterMeasure
+          {sample | CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit target.security)
+            productionGlobalParams
+                (PiCCSStoredWitnessCheck.statement target.security (inputs target sample.1))
+                sample.2}).toReal := by
+  have contained : ∀ sample ∈ (law target originalFirstPhase continuation primitives contexts).support,
+      CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit target.security)
+          productionGlobalParams
+        (PiCCSStoredWitnessCheck.statement target.security (inputs target sample.1)) sample.2 →
+            goodActive target sample.1 := by
     intro sample supported returned
-    rw [law_eq_guardedDraw originalFirstPhase continuation primitives contexts] at supported
+    rw [law_eq_guardedDraw target originalFirstPhase continuation primitives contexts] at supported
     rcases (PMF.mem_support_bind_iff _ _ _).mp supported with ⟨visit, _visited, drawn⟩
-    by_cases good : goodActive visit
+    by_cases good : goodActive target visit
     · rw [HyperNovaVisitedLaw.guardedDraw, if_pos good] at drawn
       rcases (PMF.mem_support_map_iff _ _ _).mp drawn with ⟨result, _produced, same⟩
       rw [← same]
@@ -310,22 +321,26 @@ theorem first_source_failure_mass_eq (contexts : PMF Visit) :
       subst sample
       rcases returned with ⟨values, impossible, _⟩
       cases impossible
-  have partition := partition_mass (law originalFirstPhase continuation primitives contexts)
-    (fun sample => goodActive sample.1)
-    (fun sample => CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
-      productionGlobalParams (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2) contained
-  have marginal : (law originalFirstPhase continuation primitives contexts).map Prod.fst = contexts :=
-    HyperNovaSourceLaw.context_marginal inputs contexts (guardedPrefix originalFirstPhase)
+  have partition := partition_mass (law target originalFirstPhase continuation primitives contexts)
+    (fun sample => goodActive target sample.1)
+    (fun sample => CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit target.security)
+      productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement target.security (inputs target sample.1)) sample.2) contained
+  have marginal : (law target originalFirstPhase continuation primitives contexts).map Prod.fst = contexts :=
+    (HyperNovaSourceLaw.context_marginal target.security) (inputs target) contexts
+        (guardedPrefix target originalFirstPhase)
       continuation primitives
-  have activeMass : (law originalFirstPhase continuation primitives contexts).toOuterMeasure
-      {sample | goodActive sample.1} = contexts.toOuterMeasure {visit | goodActive visit} := by
+  have activeMass : (law target originalFirstPhase continuation primitives contexts).toOuterMeasure
+      {sample | goodActive target sample.1} = contexts.toOuterMeasure {visit | goodActive target visit} := by
     calc
-      _ = ((law originalFirstPhase continuation primitives contexts).map Prod.fst).toOuterMeasure
-          {visit | goodActive visit} :=
+      _ = ((law target originalFirstPhase continuation primitives contexts).map Prod.fst).toOuterMeasure
+          {visit | goodActive target visit} :=
         (PMF.toOuterMeasure_map_apply Prod.fst
-          (law originalFirstPhase continuation primitives contexts) {visit | goodActive visit}).symm
+          (law target originalFirstPhase continuation primitives contexts)
+              {visit | goodActive target visit}).symm
       _ = _ := congrArg
-        (fun distribution : PMF Visit => distribution.toOuterMeasure {visit | goodActive visit}) marginal
+        (fun distribution : PMF (Visit target) => distribution.toOuterMeasure
+            {visit | goodActive target visit}) marginal
   rw [activeMass] at partition
   exact partition
 

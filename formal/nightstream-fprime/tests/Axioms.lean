@@ -1,4 +1,4 @@
-import tests.FreshWitnessEvidence import tests.AxiomsSharedExports
+import tests.FreshWitnessEvidence import tests.RunningTransitionReductionResearch import tests.RunningTransitionScratchResearch import tests.AxiomsCompactPiCCSLowering
 import NightstreamFPrime
 import tests.AxiomsProductionMatrixPlan
 import tests.AxiomsStage1PiRLCExport
@@ -983,7 +983,7 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.finalIdentityCircuit_main_eq_rowMain
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.normOffset_eq_normRowOffset
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.finalIdentityOffset_eq_finalIdentityRowOffset
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.sumcheckOutput_varsBelow_start
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.Formal.sumcheckOutput_varsBelow_end
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.RoundTranscript.finalState_varsBelow
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.finalState_varsBelow_initialClaim
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.RoundTranscript.finalState_varsBelow_of_initialClaim_le

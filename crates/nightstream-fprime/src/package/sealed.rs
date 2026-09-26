@@ -20,10 +20,9 @@ use super::assignment_transport;
 use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS};
 use super::native_application::PreparedApplication;
 use super::{
-    relation_identifier, validate_per_application_package_schema, Layout, LoadedAssignmentPlan, LoadedPackage,
-    LoadedTerminalLayout, LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_1EncodedInputs,
-    PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, RawPackage,
-    PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
+    relation_identifier, Layout, LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout, LogicalAssignment,
+    PackageError, PackageR1cs, PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs,
+    PiDecV1_1PackageInputs, RawPackage, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
@@ -35,7 +34,7 @@ use crate::Stage1VerifierBinding;
 use crate::WitnessAssignment;
 
 const SEALED_PACKAGE_SCHEMA: u64 = 6;
-const INNER_PACKAGE_SCHEMA: u64 = 8;
+pub(super) const INNER_PACKAGE_SCHEMA: u64 = 8;
 const MATRIX_COUNT: usize = 14;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
 const APPLICATION_STATE_WORDS: usize = 4;
@@ -337,6 +336,16 @@ impl LoadedPerApplicationPackage {
         self.assignment_plan.execute(&self.circuit.layout, physical)
     }
 
+    /// Execute the physical witness and lower it to the final CCS assignment.
+    pub fn execute_ccs_assignment(
+        &self,
+        private_inputs: &[u64],
+        public_values: &[u64],
+    ) -> Result<LogicalAssignment, PackageError> {
+        let physical = self.execute_witness(private_inputs, public_values)?;
+        self.execute_logical_assignment(&physical)
+    }
+
     /// Encode the typed PiCCS input through this verifier-owned package.
     ///
     /// The generic prefix validates the caller's package context. This final
@@ -406,21 +415,22 @@ impl LoadedPerApplicationPackage {
             .execute_witness(encoded.private_values(), encoded.public_values())
     }
 
-    /// Reuse application values already computed by the caller. Inputs and
-    /// outputs must match the frame, and all circuit assertions are checked.
-    pub fn execute_stage1_v1_1_witness_with_application_values(
+    /// Construct the final CCS assignment from typed Stage 1 inputs. Cached
+    /// application values must match the inputs and satisfy every circuit row.
+    pub fn execute_stage1_v1_1_ccs_assignment(
         &self,
         pi_ccs: &PiCcsV1_1PackageInputs,
         pi_dec: &PiDecV1_1PackageInputs,
         application_witness: &[u64],
-        application_values: &[Goldilocks],
-    ) -> Result<WitnessAssignment, PackageError> {
+        application_values: Option<&[Goldilocks]>,
+    ) -> Result<LogicalAssignment, PackageError> {
         let encoded = self.encode_stage1_v1_1_inputs(pi_ccs, pi_dec, application_witness)?;
-        self.circuit.execute_witness_with_application(
+        let physical = self.circuit.execute_assignment_source(
             encoded.private_values(),
             encoded.public_values(),
-            Some(application_values),
-        )
+            application_values,
+        )?;
+        self.execute_logical_assignment(&physical)
     }
 
     /// Decode the PiCCS output segments through this verifier-owned package.
@@ -654,13 +664,7 @@ pub(super) fn decode_native_application_records(
     if schema != SEALED_PACKAGE_SCHEMA {
         return Err(PackageError::Invalid("sealed package schema version"));
     }
-    let circuit = super::validate_package_schema_with_layout(
-        raw_circuit,
-        [0; 4],
-        INNER_PACKAGE_SCHEMA,
-        super::LayoutProfile::PerApplication,
-        Some(application),
-    )?;
+    let circuit = super::validate_package(raw_circuit, [0; 4], Some(application))?;
     let application = circuit
         .native_application
         .as_ref()
@@ -718,10 +722,7 @@ pub(super) fn prepared_record_counts(fixed: &Value) -> Result<(usize, usize), Pa
         .ok_or(PackageError::Invalid("prepared source package"))?;
     super::validate_profile(serde_json::from_value(source[1].clone())?)?;
     super::validate_poseidon(serde_json::from_value(source[2].clone())?)?;
-    let layout = super::validate_layout(
-        serde_json::from_value(source[3].clone())?,
-        super::LayoutProfile::PerApplication,
-    )?;
+    let layout = super::validate_layout(serde_json::from_value(source[3].clone())?)?;
     let application = decode_native_application_plan(&envelope[3])?;
     let witness = layout
         .private_segments
@@ -769,7 +770,7 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
     let relation_value_words = value_preimage_words(relation_value)?;
     let application_words = value_preimage_words(&raw_application)?;
     let application_identity = ApplicationIdentity::from_words(&application_words)?;
-    let circuit = validate_per_application_package_schema(raw_circuit, computed, INNER_PACKAGE_SCHEMA)?;
+    let circuit = super::validate_package(raw_circuit, computed, None)?;
     let matrix_program = MatrixProgram::decode(&raw_matrix)?;
     matrix_program.validate(circuit.layout.row_count)?;
     if matrix_program.row_count()? != circuit.relation.row_count() {
@@ -1095,6 +1096,14 @@ fn validate_next_preimage_assertion_suffix(
 fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageError> {
     usize::try_from(value).map_err(|_| PackageError::Invalid(location))
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/wide_sealed_assignment.rs"]
+mod wide_assignment_tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/wide_physical_package.rs"]
+mod wide_physical_package_tests;
 
 #[cfg(test)]
 #[path = "../../tests/unit/sealed.rs"]

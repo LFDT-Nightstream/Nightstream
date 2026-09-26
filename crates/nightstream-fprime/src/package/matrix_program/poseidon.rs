@@ -7,13 +7,13 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use super::poseidon_input::Program as InputProgram;
+use super::ColumnProjection;
 use super::{
     checked_add, checked_mul, exact_array, owned_row, template, usize_atom, Form, PackageError, RetainedBlock,
     RetainedKind, RowForms, RowView,
 };
 
-const ROWS_PER_INVOCATION: usize = 94;
-const SBOX_ROWS_PER_INVOCATION: usize = 86;
+const ROWS_PER_INVOCATION: usize = 86;
 const WIDTH: usize = 8;
 
 #[derive(Clone, Debug)]
@@ -35,6 +35,12 @@ impl Block {
         })
     }
 
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        self.one_column = projection.column(self.one_column)?;
+        projection.retained(&mut self.retained)?;
+        self.input.map_columns(projection)
+    }
+
     pub(super) fn row_count(&self) -> Result<usize, PackageError> {
         checked_mul(self.invocation_count, ROWS_PER_INVOCATION, "Poseidon2 matrix row count")
     }
@@ -48,7 +54,7 @@ impl Block {
         }
         let expected_slots = checked_mul(
             self.invocation_count,
-            SBOX_ROWS_PER_INVOCATION,
+            ROWS_PER_INVOCATION,
             "Poseidon2 retained slot count",
         )?;
         if self.retained.slot_count() != expected_slots || !self.retained.fits(logical_width)? {
@@ -113,14 +119,14 @@ impl Block {
     }
 
     fn invocation_inputs(&self, logical_width: usize, invocation: usize) -> Result<Vec<Form>, PackageError> {
-        let mut inputs = Vec::with_capacity(1 + WIDTH + SBOX_ROWS_PER_INVOCATION);
+        let mut inputs = Vec::with_capacity(1 + WIDTH + ROWS_PER_INVOCATION);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(
             self.input
                 .state(logical_width, self.one_column, invocation)?,
         );
-        let slot_base = checked_mul(invocation, SBOX_ROWS_PER_INVOCATION, "Poseidon2 retained slot")?;
-        for slot in 0..SBOX_ROWS_PER_INVOCATION {
+        let slot_base = checked_mul(invocation, ROWS_PER_INVOCATION, "Poseidon2 retained slot")?;
+        for slot in 0..ROWS_PER_INVOCATION {
             inputs.push(
                 self.retained
                     .form(logical_width, checked_add(slot_base, slot, "Poseidon2 retained slot")?)?,

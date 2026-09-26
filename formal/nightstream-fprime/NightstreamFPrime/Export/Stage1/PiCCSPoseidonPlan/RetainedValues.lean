@@ -46,7 +46,7 @@ package, including its shifted public and constant columns. -/
 theorem retainedPrefix_baseEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
@@ -54,8 +54,8 @@ theorem retainedPrefix_baseEnv
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
           program base groupValue products)) column =
       PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base) column := by
-  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
+  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 28785019 := by
+    change PerApplicationPackage.basePackage.layout.totalColumnCount = 28785019
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
     rw [packageTotal]
@@ -85,7 +85,7 @@ transcript outputs agree. -/
 theorem readout_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
@@ -105,7 +105,7 @@ same shifted base assignment. -/
 theorem packageEnv_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
@@ -213,7 +213,7 @@ private def applicationSboxColumn (application : Lifecycle.Stage1.Application.Pr
 theorem retainedSource_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (index : InvocationIndex) (row : Fin PoseidonRetainedSlots.rows.length) :
     PiCCSPoseidonPreservation.sourceAssignment application (PiRLCRetainedPreservation.sourceAssignment application base groupValue products)
@@ -254,7 +254,7 @@ theorem outputState_baseEnv
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)

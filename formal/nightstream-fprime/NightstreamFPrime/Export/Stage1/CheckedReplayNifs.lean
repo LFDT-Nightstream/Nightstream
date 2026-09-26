@@ -30,8 +30,12 @@ def proof (input : PiCCSInputCheck.Input) (messages : PiDECInputCheck.Messages) 
     Lifecycle.Proof 9 where
   piCcsRounds := PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input)
   piCcsOutput := PiCCSProofInputs.output (PiCCSInputCheck.proofValues input)
-  piDecCommitments := (PiCCSInputCheck.runningFromInput messages).commitments
-  piDecEvaluations := (PiCCSInputCheck.runningFromInput messages).evaluations
+  piDecCommitments :=
+      (PiCCSInputCheck.runningFromInput (width := PiDECInputCheck.logicalWidth)
+      (fits := PiDECInputCheck.publicFits) messages).commitments
+  piDecEvaluations :=
+      (PiCCSInputCheck.runningFromInput (width := PiDECInputCheck.logicalWidth)
+      (fits := PiDECInputCheck.publicFits) messages).evaluations
 
 private abbrev pre (input : PiCCSInputCheck.Input) :=
   PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript

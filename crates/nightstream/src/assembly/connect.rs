@@ -146,10 +146,8 @@ fn assignment_blocks(manifest: &Manifest, counts: Counts) -> Result<Vec<Assignme
                 return Err(AssemblyError::Invalid("assignment run coverage"));
             }
             Ok(AssignmentBlock {
-                opcode,
                 slot_kind: block.slot_kind,
                 slot_count,
-                source_domain: block.source_domain,
                 runs: sources,
             })
         })
@@ -161,18 +159,21 @@ pub(super) fn assignment(reference: &mut Envelope, manifest: &Manifest, counts: 
         return Err(AssemblyError::Invalid("assignment templates differ from reference"));
     }
     reference.assignment.blocks = assignment_blocks(manifest, counts)?;
-    // Phi81Recipe's field 13 is valueSources in the existing typed transport ABI.
+    // Schema 4 carries families, value sources, and checked challenge bits.
     let phi81 = reference
         .assignment
         .phi81
         .as_array_mut()
-        .filter(|fields| fields.len() == 15)
+        .filter(|fields| fields.len() == 3)
         .ok_or(AssemblyError::Invalid("Phi81 assignment recipe"))?;
-    if phi81[13] != serde_json::to_value(runs(&manifest.phi81_value_sources, manifest.reference())?)? {
-        return Err(AssemblyError::Invalid(
-            "Phi81 value source template differs from reference",
-        ));
+    for (index, sources) in [
+        (1, &manifest.phi81_value_sources),
+        (2, &manifest.phi81_challenge_sources),
+    ] {
+        if phi81[index] != serde_json::to_value(runs(sources, manifest.reference())?)? {
+            return Err(AssemblyError::Invalid("Phi81 source template differs from reference"));
+        }
+        phi81[index] = serde_json::to_value(runs(sources, counts)?)?;
     }
-    phi81[13] = serde_json::to_value(runs(&manifest.phi81_value_sources, counts)?)?;
     Ok(())
 }

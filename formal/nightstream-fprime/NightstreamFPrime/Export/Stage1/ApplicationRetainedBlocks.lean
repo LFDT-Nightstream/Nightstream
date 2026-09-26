@@ -138,11 +138,24 @@ def retainedCoordinateCount
 theorem retainedCoordinateCount_eq
     (application : Lifecycle.Stage1.Application.Program) :
     retainedCoordinateCount application =
-      retainedSlotCount application * 41 := by
+      (application.witnessWordCount + localCount application) * 41 := by
   simp [retainedCoordinateCount, retainedSlotCount,
     witnessBlock, localBlock,
     LowNormBlock.Block.coordinateCount, LowNormSlot.Kind.width,
     BalancedTernary.width]
+  omega
+
+theorem localBlock_kind (application : Lifecycle.Stage1.Application.Program) :
+    (localBlock application).kind = .field := rfl
+
+theorem localBlock_coordinateCount (application : Lifecycle.Stage1.Application.Program) :
+    (localBlock application).coordinateCount = localCount application * 41 := rfl
+
+theorem source_after_localStart (application : Lifecycle.Stage1.Application.Program)
+    (slot : Fin (localBlock application).slotCount) :
+    Layout.Stage1.ApplicationInputs.localStart application ≤ ((localBlock application).source slot).val := by
+  change Layout.Stage1.ApplicationInputs.localStart application ≤
+    Layout.Stage1.ApplicationInputs.localStart application + slot.val
   omega
 
 /-- Every application source has a witness/local owner or a shared pilot

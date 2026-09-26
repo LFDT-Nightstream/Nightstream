@@ -36,27 +36,6 @@ pub(super) struct RawCompactInputRange(u64, u64, u64, u64);
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactRowInvocation(u64, u64, u64, u64, Vec<RawCompactInputRange>);
 
-pub(super) fn raw_invocation(
-    phase: u64,
-    template_index: u64,
-    row_start: u64,
-    local_start: u64,
-    input_ranges: Vec<[u64; 4]>,
-) -> RawCompactRowInvocation {
-    RawCompactRowInvocation(
-        phase,
-        template_index,
-        row_start,
-        local_start,
-        input_ranges
-            .into_iter()
-            .map(|[input_start, input_count, column_start, column_stride]| {
-                RawCompactInputRange(input_start, input_count, column_start, column_stride)
-            })
-            .collect(),
-    )
-}
-
 #[derive(Clone, Debug)]
 pub(super) struct CompactTemplateRow {
     pub(super) output_local: Option<usize>,

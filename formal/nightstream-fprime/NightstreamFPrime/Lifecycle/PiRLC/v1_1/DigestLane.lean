@@ -328,7 +328,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
           CanonicalU64.auxiliaryCount,
           Candidate16Five.auxiliaryCount])
 
-private theorem decoderCandidate_varsSatisfy (offset : Nat) (part : Fin 2)
+theorem decoderCandidate_varsSatisfy (offset : Nat) (part : Fin 2)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < logicalPrivateCount →
       allowed (offset + index)) :
@@ -343,7 +343,7 @@ private theorem decoderCandidate_varsSatisfy (offset : Nat) (part : Fin 2)
       norm_num [Candidate16Five.candidateBitCount, logicalPrivateCount] at bounded partLt ⊢
       omega)
 
-private theorem decoderBits_varsSatisfy (offset : Nat) (part : Fin 2)
+theorem decoderBits_varsSatisfy (offset : Nat) (part : Fin 2)
     (allowed : Nat → Prop)
     (localSupported : ∀ index, index < logicalPrivateCount →
       allowed (offset + index)) :

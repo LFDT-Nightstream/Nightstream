@@ -1,0 +1,18 @@
+{
+  "author": "implementation task bab9b858 (Claude, security port)",
+  "statement": "LeanGraph.Targets.Stage1TerminalAssignment",
+  "premises": [
+    "A wide target (Wide.Target): application program, compiled sampler plan, 2^28 fit proof, Ajtai key, and a verifier context digest of length four.",
+    "An arbitrary terminal statement and recursive payload with target.Holds statement (.recursive payload), that is Lifecycle.Stage1.Terminal.HoldsFor for the target's relation, key, context and program."
+  ],
+  "argument": "Terminal.holdsFor_recursive_iff gives statement validity, program-counter validity, a positive counter, the public link and the fresh CCS opening. OpeningBinding.freshHolds_implies_rowsAndPublic turns the opening into the logical rows and the actual public input. PublicBinding.step gives the wide-key StepHoldsFor under the decoded context and the output digest, which equals the hash of the terminal preimage. If the serializations of decodedNext and the terminal preimage are equal, StateEncoding injectivity with the natural successor from canonical counter words gives equal preimages; otherwise they form the named StateHashCollision. OpeningBinding.terminal_implies_stepOrCollision (through ContextBinding.step_or_collision) moves the step to the target's context digest, or gives the same collision.",
+  "parent_use": "Supplies the decoded wide-key step and the exact advertised-state match to the reverse history (HyperNovaHistory.counter_matches, Target.terminal_implies_predecessorOrCollision) and to the NIFS output link (Target.terminal_implies_nifsOrBaseOrCollision).",
+  "dependencies": [
+    "NightstreamFPrime.Export.Stage1.Wide.Target.terminal_implies_matchingStepOrCollision",
+    "NightstreamFPrime.Export.Stage1.Wide.Target.terminal_implies_preimageOrCollision",
+    "NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.terminal_implies_stepOrCollision",
+    "NightstreamFPrime.Export.Stage1.Wide.OpeningBinding.freshHolds_implies_rowsAndPublic",
+    "NightstreamFPrime.Export.Stage1.Wide.PublicBinding.step",
+    "NightstreamFPrime.Export.Stage1.Wide.ContextBinding.step_or_collision"
+  ]
+}

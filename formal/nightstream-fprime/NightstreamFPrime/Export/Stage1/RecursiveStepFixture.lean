@@ -33,7 +33,9 @@ private def extensionWords (value : K) : List F := [value.c0, value.c1]
 private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue (extensionWords value))
 
-private def valueFromPriorIO (context : VerifierContext.Digest4)
+private def valueFromPriorIO
+    (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch productionShape.sourceCount))
+    (context : VerifierContext.Digest4)
     (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (message : AppWitness)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
@@ -55,8 +57,7 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
     throw (IO.userError "recursive fixture: PiCCS proof rejected")
   unless decide (children.point.toList = phase.point.coordinates) do
     throw (IO.userError "recursive fixture: child point differs from the PiCCS output")
-  let some batch := Transcript.PiRlcSampler.piRlcChallengesWithState
-      phase.outgoing productionShape.sourceCount
+  let some batch := sampler phase.outgoing
     | throw (IO.userError "recursive fixture: PiRLC sampler shortfall")
   let sourcePublic : Fin productionShape.sourceCount → PublicInput :=
     Fin.addCases (PiCCSInputCheck.fresh input).publicInputs
@@ -110,11 +111,13 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
 /-- Construct a later caller packet from the actual prior state and C input.
 The caller supplies the verifier context; running claims come from the same
 typed C input whose fresh public hash is checked by the shared constructor. -/
-def valueFromStateIO (context : VerifierContext.Digest4)
+def valueFromStateIOWith
+    (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch productionShape.sourceCount))
+    (context : VerifierContext.Digest4)
     (iteration : Nat) (z0 current : AppState) (message : AppWitness)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
     IO Value :=
-  valueFromPriorIO context {
+  valueFromPriorIO sampler context {
     verifierKeys := fun _ => context.toList
     iteration := iteration
     z0 := z0
@@ -123,10 +126,23 @@ def valueFromStateIO (context : VerifierContext.Digest4)
     pc := 1 } message input children
 
 /-- Preserve the checked base-output fixture as the default caller. -/
-def valueIO (context : VerifierContext.Digest4)
+def valueIOWith
+    (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch productionShape.sourceCount))
+    (context : VerifierContext.Digest4)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
     IO Value :=
-  valueFromPriorIO context (BaseStepFixture.outputPreimage context)
+  valueFromPriorIO sampler context (BaseStepFixture.outputPreimage context)
     BaseStepFixture.applicationMessage input children
+
+def valueFromStateIO (context : VerifierContext.Digest4)
+    (iteration : Nat) (z0 current : AppState) (message : AppWitness)
+    (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) : IO Value :=
+  valueFromStateIOWith (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state productionShape.sourceCount)
+    context iteration z0 current message input children
+
+def valueIO (context : VerifierContext.Digest4)
+    (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) : IO Value :=
+  valueIOWith (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state productionShape.sourceCount)
+    context input children
 
 end NightstreamFPrime.Export.Stage1.RecursiveStepFixture

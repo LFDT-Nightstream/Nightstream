@@ -15,14 +15,6 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open StrongReduction
 
-abbrev Running := Lifecycle.Running
-  (logicalWidth := PiDECInputCheck.logicalWidth)
-  (publicFits := PiDECInputCheck.publicFits)
-
-abbrev Fresh := Lifecycle.Fresh
-  (logicalWidth := PiDECInputCheck.logicalWidth)
-  (publicFits := PiDECInputCheck.publicFits)
-
 private theorem vector_get_ofFn {α : Type} {n : Nat} (f : Fin n → α) (i : Fin n) :
     (Vector.ofFn f).get i = f i := Vector.getElem_ofFn i.isLt
 
@@ -54,8 +46,16 @@ private def commitmentWords (value : PaperAlgebra.Commitment) : Vector F 1188 :=
     ⟨index.val / 54, by have bound := index.isLt; change index.val / 54 < 22; omega⟩
     ⟨index.val % 54, Nat.mod_lt _ (by decide)⟩
 
+-- The checker input has fixed sizes; the claims keep the caller's width.
+variable {width : Nat}
+  {fits : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth width}
+
+abbrev Running := Lifecycle.Running (logicalWidth := width) (publicFits := fits)
+
+abbrev Fresh := Lifecycle.Fresh (logicalWidth := width) (publicFits := fits)
+
 /-- Serialize the existing typed running bundle into the checker's fixed arrays. -/
-def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
+def runningInput (value : Running (fits := fits)) : PiCCSInputCheck.RunningInput where
   point := ⟨value.point.coordinates.toArray, by simpa using! value.point.dimension⟩
   commitments := Vector.ofFn fun source => commitmentWords (value.commitments source)
   publicInputs := Vector.ofFn fun source => Vector.ofFn (value.publicInputs source)
@@ -64,7 +64,7 @@ def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
     Vector.ofFn ((value.evaluations source).matrix matrix)
 
 /-- Recover the same typed bundle, including the complete Pad and matrix families. -/
-theorem runningFromInput_runningInput (value : Running) :
+theorem runningFromInput_runningInput (value : Running (fits := fits)) :
     PiCCSInputCheck.runningFromInput (runningInput value) = value := by
   apply running_ext
   · apply point_ext
@@ -90,7 +90,7 @@ theorem runningFromInput_runningInput (value : Running) :
       simp only [PiCCSInputCheck.runningFromInput, runningInput, vector_get_ofFn]
 
 /-- Preserve the actual PiCCS messages when forming the existing checker input. -/
-def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
+def ofClaims (running : Running (fits := fits)) (fresh : Fresh (fits := fits)) (proof : Lifecycle.Proof 9) :
     PiCCSInputCheck.Input where
   commitment := commitmentWords (fresh.commitments ⟨0, by decide⟩)
   publicInput := Vector.ofFn (fresh.publicInputs ⟨0, by decide⟩)
@@ -103,13 +103,15 @@ def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
   running := runningInput running
 
 /-- The checked source statement retains the exact decoded running claims. -/
-theorem running_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
-    PiCCSInputCheck.running (ofClaims running fresh proof) = running :=
+theorem running_ofClaims (running : Running (fits := fits)) (fresh : Fresh (fits := fits))
+    (proof : Lifecycle.Proof 9) :
+    PiCCSInputCheck.runningAt (ofClaims running fresh proof) = running :=
   runningFromInput_runningInput running
 
 /-- The checked source statement retains the exact decoded fresh claim. -/
-theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 9) :
-    PiCCSInputCheck.fresh (ofClaims running fresh proof) = fresh := by
+theorem fresh_ofClaims (running : Running (fits := fits)) (fresh : Fresh (fits := fits))
+    (proof : Lifecycle.Proof 9) :
+    PiCCSInputCheck.freshAt (ofClaims running fresh proof) = fresh := by
   apply fresh_ext
   · funext source row coefficient
     have sourceEq : source = ⟨0, by decide⟩ := by
@@ -118,7 +120,7 @@ theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Pr
       change source.val = 0
       omega
     rw [sourceEq]
-    simp only [PiCCSInputCheck.fresh, PiCCSInputCheck.proofValues, ofClaims,
+    simp only [PiCCSInputCheck.freshAt, PiCCSInputCheck.proofValues, ofClaims,
       commitmentWords, vector_get_ofFn]
     apply congrArg₂ (fresh.commitments ⟨0, by decide⟩)
     · apply Fin.ext
@@ -137,6 +139,6 @@ theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Pr
       omega
     rw [sourceEq]
     funext column
-    simp only [PiCCSInputCheck.fresh, ofClaims, vector_get_ofFn]
+    simp only [PiCCSInputCheck.freshAt, ofClaims, vector_get_ofFn]
 
 end NightstreamFPrime.Export.Stage1.HyperNovaInput

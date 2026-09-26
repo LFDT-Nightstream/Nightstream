@@ -245,8 +245,8 @@ fn native_records_preserve_complete_frozen_envelope_preimage_and_binding() {
         binding.verification_key_digest(),
         POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST
     );
-    assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
-    assert_eq!(binding.verification_key_words().len(), 126);
+    assert_eq!(binding.verifier_context().descriptor_words().len(), 480);
+    assert_eq!(binding.verification_key_words().len(), 520);
 }
 
 #[test]

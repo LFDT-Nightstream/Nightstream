@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveOutput
 
@@ -22,10 +23,13 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Primit
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw (Challenge)
 open PiCCSStoredWitnessCheck (carrier commit statement)
 
-abbrev FunctionalWitness := OutputWitness productionShape carrier.carrierWidth
-abbrev FunctionalCandidate := Probe K productionShape × FunctionalWitness
-abbrev CheckClock := FunctionalCandidate → Nat
-abbrev AccessClock := FunctionalWitness → Fin productionShape.sourceCount → Fin carrier.carrierWidth → Nat
+variable (inst : SecurityInstance)
+
+abbrev FunctionalWitness := OutputWitness productionShape (carrier inst).carrierWidth
+abbrev FunctionalCandidate := Probe K productionShape × FunctionalWitness inst
+abbrev CheckClock := FunctionalCandidate inst → Nat
+abbrev AccessClock := FunctionalWitness inst → Fin productionShape.sourceCount → Fin
+    (carrier inst).carrierWidth → Nat
 
 private def storeProbe {shape : Shape} (probe : Probe K shape) : StoredProbe shape where
   coins := probe.coins
@@ -63,16 +67,17 @@ private theorem storeWitness_view {shape : Shape} {carrier : Phi81Relation.Shape
       funext source column
       simp [storeWitness, StoredWitnessProjection.view, Vector.get]
 
-private def storeCandidate (candidate : FunctionalCandidate) : PiCCSStoredWitnessCheck.Candidate :=
+private def storeCandidate (candidate : FunctionalCandidate inst) : PiCCSStoredWitnessCheck.Candidate inst :=
   (storeProbe candidate.1, storeWitness candidate.2)
 
 /-- Convert the actual returned values to the existing arrays. Abort stays
 abort; no certificate parsing, filtering or replacement takes place here. -/
-def storeOutcome (outcome : Outcome productionShape carrier) : StoredOutcome productionShape carrier :=
-  outcome.map storeCandidate
+def storeOutcome (outcome : Outcome productionShape (carrier inst)) : StoredOutcome productionShape
+    (carrier inst) :=
+  outcome.map (storeCandidate inst)
 
-theorem storeOutcome_view (outcome : Outcome productionShape carrier) :
-    storedView (storeOutcome outcome) = outcome := by
+theorem storeOutcome_view (outcome : Outcome productionShape (carrier inst)) :
+    storedView (storeOutcome inst outcome) = outcome := by
   cases outcome with
   | none => rfl
   | some candidate =>
@@ -83,21 +88,23 @@ theorem storeOutcome_view (outcome : Outcome productionShape carrier) :
 /-- The functional consumer executes the same selected Bool checker and
 reads the same witness. Both counters are caller-owned declared values;
 this definition supplies no constant-cost or runtime bound. -/
-def sourceProgram (input : PiCCSInputCheck.Input) (checkClock : CheckClock) (accessClock : AccessClock) :
-    CheckedWitnessExtraction.Program productionShape carrier where
-  check := fun candidate => ⟨PiCCSStoredWitnessCheck.check input (storeCandidate candidate), checkClock candidate⟩
+def sourceProgram (input : PiCCSInputCheck.Input) (checkClock : CheckClock inst)
+    (accessClock : AccessClock inst) :
+    CheckedWitnessExtraction.Program productionShape (carrier inst) where
+  check := fun candidate =>
+      ⟨PiCCSStoredWitnessCheck.check inst input (storeCandidate inst candidate), checkClock candidate⟩
   access := fun witness source column => ⟨witness.assignments source column, accessClock witness source column⟩
 
 /-- Exact check and access refinement for all functional candidates, including
 malformed raw certificates. Neither a matrix nor a checker premise remains. -/
 theorem sourceProgram_correct (input : PiCCSInputCheck.Input)
-    (checkClock : CheckClock) (accessClock : AccessClock) :
-    CheckedWitnessExtraction.Correct (width := 9) (sourceProgram input checkClock accessClock)
-      commit productionGlobalParams (statement input) := by
+    (checkClock : CheckClock inst) (accessClock : AccessClock inst) :
+    CheckedWitnessExtraction.Correct (width := 9) (sourceProgram inst input checkClock accessClock)
+      (commit inst) productionGlobalParams (statement inst input) := by
   constructor
   · intro probe witness
-    change StoredWitnessCheck.check commit productionGlobalParams (statement input)
-      (ProductionKey.degreeBound PiDECInputCheck.relation)
+    change StoredWitnessCheck.check (commit inst) productionGlobalParams (statement inst input)
+      (ProductionKey.degreeBound inst.relation)
       ((storeProbe probe).view, storeWitness witness) = true ↔ _
     rw [storeProbe_view, StoredWitnessCheck.check_eq_true_iff,
       storeWitness_view, ProductionKey.degreeBound_eq]
@@ -105,17 +112,19 @@ theorem sourceProgram_correct (input : PiCCSInputCheck.Input)
     rfl
 
 private theorem sourceProjection_value (input : PiCCSInputCheck.Input)
-    (checkClock : CheckClock) (accessClock : AccessClock) (witness : FunctionalWitness) :
-    (CostedWitnessProjection.project (sourceProgram input checkClock accessClock).access witness).value =
+    (checkClock : CheckClock inst) (accessClock : AccessClock inst) (witness : FunctionalWitness inst) :
+    (CostedWitnessProjection.project (sourceProgram inst input checkClock accessClock).access witness).value =
       (StoredWitnessProjection.project (storeWitness witness)).value := by
-  rw [CostedWitnessProjection.project_value _ (sourceProgram_correct input checkClock accessClock).access,
+  rw [CostedWitnessProjection.project_value _
+      (sourceProgram_correct inst input checkClock accessClock).access,
     StoredWitnessProjection.project_value, storeWitness_view]
 
 /-- Caller clocks do not change the actual returned source values. -/
-theorem finish_value (input : PiCCSInputCheck.Input) (checkClock : CheckClock) (accessClock : AccessClock)
-    (outcome : Outcome productionShape carrier) :
-    (CheckedWitnessExtraction.finish (sourceProgram input checkClock accessClock) outcome).value =
-      PiCCSStoredWitnessCheck.finishValue input (storeOutcome outcome) := by
+theorem finish_value (input : PiCCSInputCheck.Input) (checkClock : CheckClock inst)
+    (accessClock : AccessClock inst)
+    (outcome : Outcome productionShape (carrier inst)) :
+    (CheckedWitnessExtraction.finish (sourceProgram inst input checkClock accessClock) outcome).value =
+      PiCCSStoredWitnessCheck.finishValue inst input (storeOutcome inst outcome) := by
   cases outcome with
   | none => rfl
   | some candidate =>
@@ -125,12 +134,13 @@ theorem finish_value (input : PiCCSInputCheck.Input) (checkClock : CheckClock) (
       rw [CheckedWitnessExtraction.finish_return_iff]
       change (∃ otherProbe otherWitness,
         some (probe, witness) = some (otherProbe, otherWitness) ∧
-          PiCCSStoredWitnessCheck.check input (storeCandidate (otherProbe, otherWitness)) = true ∧
-            (CostedWitnessProjection.project (sourceProgram input checkClock accessClock).access otherWitness).value = values) ↔
-        (if PiCCSStoredWitnessCheck.check input (storeCandidate (probe, witness)) then
+          PiCCSStoredWitnessCheck.check inst input (storeCandidate inst (otherProbe, otherWitness)) = true ∧
+            (CostedWitnessProjection.project
+                (sourceProgram inst input checkClock accessClock).access otherWitness).value = values) ↔
+        (if PiCCSStoredWitnessCheck.check inst input (storeCandidate inst (probe, witness)) then
           some (StoredWitnessProjection.project (storeWitness witness)).value else none) = some values
-      simp only [sourceProjection_value]
-      cases checked : PiCCSStoredWitnessCheck.check input (storeCandidate (probe, witness)) <;>
+      simp only [sourceProjection_value inst]
+      cases checked : PiCCSStoredWitnessCheck.check inst input (storeCandidate inst (probe, witness)) <;>
         simp [checked]
 
 section Probability
@@ -138,44 +148,46 @@ section Probability
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
   [DecidableEq RingF]
-  [Fintype (Challenge (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).piRlcAlgebra)]
-  [Nonempty (Challenge (ProductionKey.key PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey).piRlcAlgebra)]
+  [Fintype (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
+  [Nonempty (Challenge (ProductionKey.key inst.relation inst.ajtai).piRlcAlgebra)]
   (contexts : PMF Context)
   (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
   (publicCheck : Context → Probe K productionShape → Bool)
   (continuation : ∀ context (coins : PublicCoins K productionShape)
     (output : FullOutputCoordinates.FullOutput K productionShape), State →
-      Lifecycle.Nifs.WeakExtraction.Continuation Tape PiDECInputCheck.relation
-        Poseidon2HashChainV1Setup.productionAjtaiKey
-        (PiCCSInputCheck.running (inputs context)) (PiCCSInputCheck.fresh (inputs context)) coins output)
+      Lifecycle.Nifs.WeakExtraction.Continuation Tape inst.relation
+        inst.ajtai
+        (inst.running (inputs context)) (inst.fresh (inputs context)) coins output)
   (primitives : Primitives RingF
-    (PaperAlgebra.Assignment (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)))
-  (checkClock : Context → CheckClock) (accessClock : Context → AccessClock)
+    (PaperAlgebra.Assignment (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)))
+  (checkClock : Context → CheckClock inst) (accessClock : Context → AccessClock inst)
 
 /-- The existing sequential source-return probability counts exactly this
 stored checked return. The original prefix, captured state, suffix law and
 consumed weak endpoint are identical on both sides. -/
 theorem returnedSourceProbability_eq_finishValue :
     Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability
-      PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey
-      (fun context => PiCCSInputCheck.running (inputs context))
-      (fun context => PiCCSInputCheck.fresh (inputs context))
+      inst.relation inst.ajtai
+      (fun context => inst.running (inputs context))
+      (fun context => inst.fresh (inputs context))
       originalFirstPhase publicCheck continuation primitives
-      (fun context => sourceProgram (inputs context) (checkClock context) (accessClock context)) contexts =
+      (fun context => sourceProgram inst (inputs context) (checkClock context)
+          (accessClock context)) contexts =
     PaperCompositionProbability.eventProbability contexts
       (Lifecycle.Nifs.InteractiveComposition.firstPhase originalFirstPhase publicCheck)
-      (Lifecycle.Nifs.InteractiveComposition.suffixLaw PiDECInputCheck.relation
-        Poseidon2HashChainV1Setup.productionAjtaiKey
-        (fun context => PiCCSInputCheck.running (inputs context))
-        (fun context => PiCCSInputCheck.fresh (inputs context)) continuation)
-      (Lifecycle.Nifs.InteractiveComposition.consume PiDECInputCheck.relation
-        Poseidon2HashChainV1Setup.productionAjtaiKey primitives)
-      (fun context outcome => SourceReturned commit productionGlobalParams (statement (inputs context))
-        (PiCCSStoredWitnessCheck.finishValue (inputs context) (storeOutcome outcome))) := by
+      (Lifecycle.Nifs.InteractiveComposition.suffixLaw inst.relation
+        inst.ajtai
+        (fun context => inst.running (inputs context))
+        (fun context => inst.fresh (inputs context)) continuation)
+      (Lifecycle.Nifs.InteractiveComposition.consume inst.relation
+        inst.ajtai primitives)
+      (fun context outcome => SourceReturned (commit inst) productionGlobalParams
+          (statement inst (inputs context))
+        (PiCCSStoredWitnessCheck.finishValue inst (inputs context) (storeOutcome inst outcome))) := by
   unfold Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability
   congr 1
   funext context outcome
-  rw [finish_value]
+  rw [finish_value inst]
   rfl
 
 /-- Instantiate sourceCorrect in the existing probability consumer. This
@@ -183,28 +195,30 @@ is the same sourceProbability used by SupportedExtraction, with no free
 check/access refinement and no work or security-probability bound added. -/
 theorem returnedSourceProbability_eq_sourceProbability :
     Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability
-      PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey
-      (fun context => PiCCSInputCheck.running (inputs context))
-      (fun context => PiCCSInputCheck.fresh (inputs context))
+      inst.relation inst.ajtai
+      (fun context => inst.running (inputs context))
+      (fun context => inst.fresh (inputs context))
       originalFirstPhase publicCheck continuation primitives
-      (fun context => sourceProgram (inputs context) (checkClock context) (accessClock context)) contexts =
+      (fun context => sourceProgram inst (inputs context) (checkClock context)
+          (accessClock context)) contexts =
     PaperCompositionProbability.sourceProbability contexts
       (Lifecycle.Nifs.InteractiveComposition.firstPhase originalFirstPhase publicCheck)
-      (Lifecycle.Nifs.InteractiveComposition.suffixLaw PiDECInputCheck.relation
-        Poseidon2HashChainV1Setup.productionAjtaiKey
-        (fun context => PiCCSInputCheck.running (inputs context))
-        (fun context => PiCCSInputCheck.fresh (inputs context)) continuation)
-      (Lifecycle.Nifs.InteractiveComposition.consume PiDECInputCheck.relation
-        Poseidon2HashChainV1Setup.productionAjtaiKey primitives)
-      (fun _ => PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey) productionGlobalParams
-      (fun context => statement (inputs context)) := by
+      (Lifecycle.Nifs.InteractiveComposition.suffixLaw inst.relation
+        inst.ajtai
+        (fun context => inst.running (inputs context))
+        (fun context => inst.fresh (inputs context)) continuation)
+      (Lifecycle.Nifs.InteractiveComposition.consume inst.relation
+        inst.ajtai primitives)
+      (fun _ => PaperAlgebra.openingMaps inst.ajtai) productionGlobalParams
+      (fun context => statement inst (inputs context)) := by
   exact Lifecycle.Nifs.InteractiveOutput.returnedSourceProbability_eq
-    PiDECInputCheck.relation Poseidon2HashChainV1Setup.productionAjtaiKey
-    (fun context => PiCCSInputCheck.running (inputs context))
-    (fun context => PiCCSInputCheck.fresh (inputs context))
+    inst.relation inst.ajtai
+    (fun context => inst.running (inputs context))
+    (fun context => inst.fresh (inputs context))
     originalFirstPhase publicCheck continuation primitives
-    (fun context => sourceProgram (inputs context) (checkClock context) (accessClock context))
-    (fun context => sourceProgram_correct (inputs context) (checkClock context) (accessClock context)) contexts
+    (fun context => sourceProgram inst (inputs context) (checkClock context) (accessClock context))
+    (fun context => sourceProgram_correct inst (inputs context) (checkClock context)
+        (accessClock context)) contexts
 
 end Probability
 

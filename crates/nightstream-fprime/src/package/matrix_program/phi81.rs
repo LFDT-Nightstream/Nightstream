@@ -1,4 +1,4 @@
-//! Direct 34-row Phi81 product-family matrix blocks.
+//! Phi81 quotient matrix blocks, with 108 evaluations per complete ring product.
 
 use std::ops::ControlFlow;
 
@@ -6,14 +6,14 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use super::ColumnProjection;
 use super::{
-    checked_add, checked_mul, decode_list, exact_array, owned_row, template, usize_atom, Form, PackageError,
-    RetainedBlock, RowForms, RowView, SourceSubstitution,
+    array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, owned_row, template,
+    usize_atom, Entry, Form, PackageError, RetainedBlock, RowForms, RowView, SourceSubstitution,
 };
 
 const RING_DEGREE: usize = 54;
-const GROUP_COUNT: usize = 33;
-const ROWS_PER_INVOCATION: usize = 34;
+const ROWS_PER_RING: usize = 2 * RING_DEGREE;
 
 #[derive(Clone, Copy, Debug)]
 struct Family {
@@ -47,6 +47,14 @@ impl Family {
             "Phi81 family invocation count",
         )
     }
+
+    fn ring_count(self) -> Result<usize, PackageError> {
+        checked_mul(
+            self.source_count,
+            checked_mul(self.block_count, self.cell_count, "Phi81 ring count")?,
+            "Phi81 ring count",
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -55,16 +63,10 @@ struct Descriptor {
     family_offset: usize,
     source: usize,
     block: usize,
-    lane: usize,
     cell: usize,
-    local_invocation: usize,
 }
 
 impl Descriptor {
-    fn invocation(self) -> Result<usize, PackageError> {
-        checked_add(self.family_offset, self.local_invocation, "Phi81 invocation")
-    }
-
     fn invocation_at_lane(self, lane: usize) -> Result<usize, PackageError> {
         let coordinate = checked_add(
             checked_mul(
@@ -92,41 +94,83 @@ impl Descriptor {
 }
 
 #[derive(Clone, Debug)]
+enum Challenge {
+    Retained {
+        block: RetainedBlock,
+        slot_start: usize,
+    },
+    Direct(Vec<Vec<Entry>>),
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct Block {
     families: Vec<Family>,
     one_column: usize,
-    challenge: RetainedBlock,
-    challenge_slot_start: usize,
+    challenge: Challenge,
     challenge_source_stride: usize,
     input: SourceSubstitution,
     output: RetainedBlock,
-    group: RetainedBlock,
+    quotient: RetainedBlock,
 }
 
 impl Block {
     pub(super) fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 8, "Phi81 product block")?;
+        let fields = array(value, "Phi81 product block")?;
+        let (challenge, stride, input, output, quotient) = match fields {
+            [_, _, block, start, stride, input, output, quotient] => (
+                Challenge::Retained {
+                    block: RetainedBlock::decode(block)?,
+                    slot_start: usize_atom(start, "Phi81 challenge slot start")?,
+                },
+                stride,
+                input,
+                output,
+                quotient,
+            ),
+            [_, _, forms, stride, input, output, quotient] => (
+                Challenge::Direct(decode_list(forms, decode_entries)?),
+                stride,
+                input,
+                output,
+                quotient,
+            ),
+            _ => return Err(PackageError::Invalid("Phi81 product block")),
+        };
         Ok(Self {
             families: decode_list(&fields[0], Family::decode)?,
             one_column: usize_atom(&fields[1], "Phi81 one column")?,
-            challenge: RetainedBlock::decode(&fields[2])?,
-            challenge_slot_start: usize_atom(&fields[3], "Phi81 challenge slot start")?,
-            challenge_source_stride: usize_atom(&fields[4], "Phi81 challenge source stride")?,
-            input: SourceSubstitution::decode(&fields[5])?,
-            output: RetainedBlock::decode(&fields[6])?,
-            group: RetainedBlock::decode(&fields[7])?,
+            challenge,
+            challenge_source_stride: usize_atom(stride, "Phi81 challenge source stride")?,
+            input: SourceSubstitution::decode(input)?,
+            output: RetainedBlock::decode(output)?,
+            quotient: RetainedBlock::decode(quotient)?,
         })
     }
 
-    fn invocation_count(&self) -> Result<usize, PackageError> {
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        self.one_column = projection.column(self.one_column)?;
+        match &mut self.challenge {
+            Challenge::Retained { block, .. } => projection.retained(block)?,
+            Challenge::Direct(forms) => {
+                for form in forms {
+                    projection.entries(form)?;
+                }
+            }
+        }
+        self.input.map_columns(projection)?;
+        projection.retained(&mut self.output)?;
+        projection.retained(&mut self.quotient)
+    }
+
+    fn ring_count(&self) -> Result<usize, PackageError> {
         self.families.iter().try_fold(0usize, |sum, family| {
-            sum.checked_add(family.invocation_count()?)
-                .ok_or(PackageError::Invalid("Phi81 invocation count"))
+            sum.checked_add(family.ring_count()?)
+                .ok_or(PackageError::Invalid("Phi81 ring count"))
         })
     }
 
     pub(super) fn row_count(&self) -> Result<usize, PackageError> {
-        checked_mul(self.invocation_count()?, ROWS_PER_INVOCATION, "Phi81 product row count")
+        checked_mul(self.ring_count()?, ROWS_PER_RING, "Phi81 product row count")
     }
 
     pub(super) fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms, PackageError> {
@@ -159,22 +203,18 @@ impl Block {
         }
 
         let mut scratch = template::RowScratch::default();
-        let first_invocation = start / ROWS_PER_INVOCATION;
-        let last_invocation = (end - 1) / ROWS_PER_INVOCATION;
+        let first_invocation = start / ROWS_PER_RING;
+        let last_invocation = (end - 1) / ROWS_PER_RING;
         for invocation in first_invocation..=last_invocation {
-            let invocation_start = checked_mul(invocation, ROWS_PER_INVOCATION, "Phi81 product row")?;
-            let local_start = start
-                .saturating_sub(invocation_start)
-                .min(ROWS_PER_INVOCATION);
-            let local_end = end
-                .saturating_sub(invocation_start)
-                .min(ROWS_PER_INVOCATION);
+            let invocation_start = checked_mul(invocation, ROWS_PER_RING, "Phi81 product row")?;
+            let local_start = start.saturating_sub(invocation_start).min(ROWS_PER_RING);
+            let local_end = end.saturating_sub(invocation_start).min(ROWS_PER_RING);
             let descriptor = self.descriptor(invocation)?;
             let inputs = self.invocation_inputs(logical_width, descriptor)?;
             if scratch
                 .visit_rows_until(
                     "phi81-product-v1",
-                    descriptor.lane,
+                    0,
                     &inputs,
                     logical_width,
                     local_start..local_end,
@@ -191,27 +231,24 @@ impl Block {
     fn descriptor(&self, mut index: usize) -> Result<Descriptor, PackageError> {
         let mut family_offset = 0usize;
         for &family in &self.families {
-            let invocation_count = family.invocation_count()?;
-            if index < invocation_count {
-                let private_count = family.private_count()?;
-                if private_count == 0 || family.cell_count == 0 {
+            let ring_count = family.ring_count()?;
+            if index < ring_count {
+                let rings_per_source = checked_mul(family.block_count, family.cell_count, "Phi81 rings per source")?;
+                if rings_per_source == 0 || family.cell_count == 0 {
                     return Err(PackageError::Invalid("Phi81 family geometry"));
                 }
-                let source = index / private_count;
-                let coordinate = index % private_count;
-                let lane_cell_count = checked_mul(RING_DEGREE, family.cell_count, "Phi81 family coordinate")?;
+                let source = index / rings_per_source;
+                let coordinate = index % rings_per_source;
                 return Ok(Descriptor {
                     family,
                     family_offset,
                     source,
-                    block: coordinate / lane_cell_count,
-                    lane: (coordinate % lane_cell_count) / family.cell_count,
+                    block: coordinate / family.cell_count,
                     cell: coordinate % family.cell_count,
-                    local_invocation: index,
                 });
             }
-            family_offset = checked_add(family_offset, invocation_count, "Phi81 family offset")?;
-            index -= invocation_count;
+            family_offset = checked_add(family_offset, family.invocation_count()?, "Phi81 family offset")?;
+            index -= ring_count;
         }
         Err(PackageError::Invalid("Phi81 family descriptor"))
     }
@@ -221,14 +258,23 @@ impl Block {
         logical_width: usize,
         descriptor: Descriptor,
     ) -> Result<[Form; RING_DEGREE], PackageError> {
-        let source_base = checked_add(
-            self.challenge_slot_start,
-            checked_mul(descriptor.source, self.challenge_source_stride, "Phi81 challenge slot")?,
-            "Phi81 challenge slot",
-        )?;
+        let source_base = checked_mul(descriptor.source, self.challenge_source_stride, "Phi81 challenge slot")?;
         fixed_ring_state(|lane| {
-            self.challenge
-                .form(logical_width, checked_add(source_base, lane, "Phi81 challenge slot")?)
+            let index = checked_add(source_base, lane, "Phi81 challenge slot")?;
+            match &self.challenge {
+                Challenge::Retained { block, slot_start } => {
+                    block.form(logical_width, checked_add(*slot_start, index, "Phi81 challenge slot")?)
+                }
+                Challenge::Direct(forms) => {
+                    let entries = forms
+                        .get(index)
+                        .ok_or(PackageError::Invalid("Phi81 direct challenge table"))?;
+                    let centered = checked_wire_form(entries, logical_width)?;
+                    // The saved Lean template takes an uncentered digit and subtracts two.
+                    // The new wire form is already centered; cancel that template offset.
+                    Ok(centered.append(Form::singleton(self.one_column, Goldilocks::from_u64(2))))
+                }
+            }
         })
     }
 
@@ -240,30 +286,31 @@ impl Block {
     }
 
     fn invocation_inputs(&self, logical_width: usize, descriptor: Descriptor) -> Result<Vec<Form>, PackageError> {
-        let invocation = descriptor.invocation()?;
-        let mut inputs = Vec::with_capacity(1 + 2 * RING_DEGREE + GROUP_COUNT + 2);
+        let mut inputs = Vec::with_capacity(1 + 5 * RING_DEGREE);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(self.challenge_state(logical_width, descriptor)?);
         inputs.extend(self.input_state(logical_width, descriptor)?);
-        let group_base = checked_mul(invocation, GROUP_COUNT, "Phi81 group output slot")?;
-        for group in 0..GROUP_COUNT {
-            inputs.push(self.group.form(
-                logical_width,
-                checked_add(group_base, group, "Phi81 group output slot")?,
-            )?);
-        }
-        let prior = if descriptor.source == 0 {
-            Form::default()
-        } else {
-            self.output.form(
-                logical_width,
-                invocation
-                    .checked_sub(descriptor.family.private_count()?)
-                    .ok_or(PackageError::Invalid("Phi81 prior output slot"))?,
-            )?
-        };
-        inputs.push(prior);
-        inputs.push(self.output.form(logical_width, invocation)?);
+        inputs.extend(fixed_ring_state(|lane| {
+            self.quotient
+                .form(logical_width, descriptor.invocation_at_lane(lane)?)
+        })?);
+        inputs.extend(fixed_ring_state(|lane| {
+            if descriptor.source == 0 {
+                Ok(Form::default())
+            } else {
+                self.output.form(
+                    logical_width,
+                    descriptor
+                        .invocation_at_lane(lane)?
+                        .checked_sub(descriptor.family.private_count()?)
+                        .ok_or(PackageError::Invalid("Phi81 prior output slot"))?,
+                )
+            }
+        })?);
+        inputs.extend(fixed_ring_state(|lane| {
+            self.output
+                .form(logical_width, descriptor.invocation_at_lane(lane)?)
+        })?);
         Ok(inputs)
     }
 }

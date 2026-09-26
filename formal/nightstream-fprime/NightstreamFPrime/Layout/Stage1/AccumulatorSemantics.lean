@@ -170,7 +170,7 @@ private theorem piCcsCheck_eq_true_of_phase
   rw [← checkEq]
   exact phase.accepted
 
-private theorem piRlcPoint_eq_roundTranscript
+theorem piRlcPoint_eq_roundTranscript
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

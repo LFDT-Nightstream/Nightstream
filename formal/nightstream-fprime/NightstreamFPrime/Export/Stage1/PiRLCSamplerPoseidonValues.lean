@@ -134,7 +134,7 @@ cell. It follows the existing slice and source lifts and requires no rows. -/
 theorem source_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (current : Fin PiRLCSamplerPoseidonPlan.invocationCount)
     (row : Fin PoseidonRetainedSlots.rows.length) :
@@ -169,7 +169,7 @@ theorem outputValue_of_packets
     (geometry : PiCCSPoseidonPlan.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))

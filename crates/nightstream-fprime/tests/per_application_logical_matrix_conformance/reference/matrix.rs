@@ -5,9 +5,12 @@ use serde_json::Value;
 use super::affine::{AffineProgram, Coordinate};
 use super::source::{SourceCombination, SourcePackage, SourceRow};
 use super::{
-    array, checked_add, checked_mul, decode_form, decode_list, empty_row, exact_array, word, Entry, Field, Form,
+    array, checked_add, checked_mul, decode_form, decode_list, empty_row, exact_array, field, word, Entry, Field, Form,
     Result, RetainedBlock, RowForms,
 };
+
+#[path = "matrix_projection.rs"]
+mod projection;
 
 #[derive(Clone, Debug)]
 struct SourceRange {
@@ -231,9 +234,9 @@ impl ProjectionRange {
             source_start: word(&fields[1], "projection source start")?,
             count: word(&fields[2], "projection count")?,
         };
-        if range.count == 0
-            || checked_add(range.package_start, range.count, "projection package range")? > physical_width
-            || checked_add(range.source_start, range.count, "projection source range").is_err()
+        if range.count != 0
+            && (checked_add(range.package_start, range.count, "projection package range")? > physical_width
+                || checked_add(range.source_start, range.count, "projection source range").is_err())
         {
             return Err("invalid matrix source projection range".into());
         }
@@ -263,11 +266,14 @@ impl SourceProjection {
         match fields {
             [tag] if word(tag, "projection tag")? == 0 => Ok(Self::Identity),
             [tag, ranges] if word(tag, "projection tag")? == 1 => {
-                let ranges = decode_list(
+                let ranges: Vec<_> = decode_list(
                     ranges,
                     |range| ProjectionRange::decode(range, physical_width),
                     "projection ranges",
-                )?;
+                )?
+                .into_iter()
+                .filter(|range| range.count != 0)
+                .collect();
                 for left in 0..ranges.len() {
                     for right in left + 1..ranges.len() {
                         let left_end = ranges[left].package_start + ranges[left].count;
@@ -426,7 +432,11 @@ impl OrdinaryBlock {
             .rows
             .index(ordinal)
             .ok_or_else(|| "ordinary row ordinal is out of range".to_string())?;
-        let source = self.projection.row(&sources.row(source_index)?)?;
+        self.source_forms(logical_width, &sources.row(source_index)?)
+    }
+
+    fn source_forms(&self, logical_width: usize, source: &SourceRow) -> Result<RowForms> {
+        let source = self.projection.row(source)?;
         let mut row = empty_row();
         row[1] = Form::singleton(self.one_column, Field::ONE);
         row[2] = self
@@ -440,6 +450,61 @@ impl OrdinaryBlock {
             .compile(logical_width, self.one_column, &source.c)?;
         Ok(row)
     }
+}
+
+#[derive(Clone, Debug)]
+struct OrdinaryTemplate {
+    block: OrdinaryBlock,
+    rows: Vec<SourceRow>,
+}
+
+impl OrdinaryTemplate {
+    fn decode(block: &Value, rows: &Value, physical_width: usize, logical_width: usize) -> Result<Self> {
+        let combinations = decode_list(rows, decode_source_combination, "ordinary template combinations")?;
+        let rows: Vec<_> = combinations
+            .chunks_exact(3)
+            .map(|ports| SourceRow {
+                a: ports[0].clone(),
+                b: ports[1].clone(),
+                c: ports[2].clone(),
+            })
+            .collect();
+        Ok(Self {
+            block: OrdinaryBlock::decode(block, rows.len(), physical_width, logical_width)?,
+            rows,
+        })
+    }
+
+    fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
+        let index = self
+            .block
+            .rows
+            .index(ordinal)
+            .ok_or_else(|| "ordinary template ordinal is out of range".to_string())?;
+        let source = self
+            .rows
+            .get(index)
+            .ok_or_else(|| "ordinary template row is absent".to_string())?;
+        self.block.source_forms(logical_width, source)
+    }
+}
+
+fn decode_source_combination(value: &Value) -> Result<SourceCombination> {
+    let fields = exact_array(value, 2, "ordinary template combination")?;
+    Ok(SourceCombination {
+        constant: field(&fields[0], "ordinary template constant")?,
+        terms: decode_list(
+            &fields[1],
+            |value| {
+                let entry = exact_array(value, 2, "ordinary template term")?;
+                Ok(Entry {
+                    column: word(&entry[0], "ordinary template source")?,
+                    coefficient: field(&entry[1], "ordinary template coefficient")?,
+                })
+            },
+            "ordinary template terms",
+        )?,
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -561,6 +626,7 @@ impl MultiplicationBlock {
 #[derive(Clone, Debug)]
 enum Block {
     Ordinary(OrdinaryBlock),
+    OrdinaryTemplate(OrdinaryTemplate),
     Pin(PinBlock),
     Poseidon(super::poseidon::Block),
     Phi81(super::phi81::Block),
@@ -569,6 +635,25 @@ enum Block {
 
 impl Block {
     fn decode(value: &Value, source_limit: usize, physical_width: usize, logical_width: usize) -> Result<Self> {
+        let fields = array(value, "matrix block")?;
+        if let [tag, source_width, projection, inner] = fields {
+            if tag.as_u64() == Some(5) {
+                let source_width = word(source_width, "mapped matrix source width")?;
+                let projection = SourceProjection::decode(projection, source_width)?;
+                let projected = projection::block(inner, source_width, &projection)?;
+                return Self::decode(&projected, source_limit, physical_width, logical_width);
+            }
+        }
+        if let [tag, block, rows] = fields {
+            if tag.as_u64() == Some(6) {
+                return Ok(Self::OrdinaryTemplate(OrdinaryTemplate::decode(
+                    block,
+                    rows,
+                    physical_width,
+                    logical_width,
+                )?));
+            }
+        }
         let fields = exact_array(value, 2, "matrix block")?;
         match word(&fields[0], "matrix block opcode")? {
             0 => Ok(Self::Ordinary(OrdinaryBlock::decode(
@@ -594,6 +679,7 @@ impl Block {
     fn row_count(&self) -> Result<usize> {
         match self {
             Self::Ordinary(block) => block.row_count(),
+            Self::OrdinaryTemplate(template) => template.block.row_count(),
             Self::Pin(block) => Ok(block.values.len()),
             Self::Poseidon(block) => block.row_count(),
             Self::Phi81(block) => block.row_count(),
@@ -605,6 +691,7 @@ impl Block {
     fn opcode(&self) -> usize {
         match self {
             Self::Ordinary(_) => 0,
+            Self::OrdinaryTemplate(_) => 6,
             Self::Pin(_) => 1,
             Self::Poseidon(_) => 2,
             Self::Phi81(_) => 3,
@@ -615,6 +702,7 @@ impl Block {
     fn row(&self, logical_width: usize, ordinal: usize, sources: &SourcePackage) -> Result<RowForms> {
         match self {
             Self::Ordinary(block) => block.row(logical_width, ordinal, sources),
+            Self::OrdinaryTemplate(template) => template.row(logical_width, ordinal),
             Self::Pin(block) => block.row(logical_width, ordinal),
             Self::Poseidon(block) => block.row(logical_width, ordinal),
             Self::Phi81(block) => block.row(logical_width, ordinal),

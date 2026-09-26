@@ -67,6 +67,32 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
+/-- Scope of accepted phase rows, derived from the existing logical circuit. -/
+theorem physicalRows_varsBelow_of_phase
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth (ProductionKey.degreeBound relation) publicFits)
+    (template : Proof (ProductionKey.degreeBound relation)) (offset : Nat) (env : Env)
+    (assumptions : Formal.Assumptions relation interface offset env)
+    (phase : Formal.PhaseHolds relation ajtai interface offset env template) :
+    ∀ row ∈ physicalRows relation interface offset,
+      row.VarsBelow (physicalColumnCount relation interface offset) := by
+  rcases Formal.completePrefix relation ajtai interface template env offset
+    assumptions phase with ⟨logical, operationsEq⟩
+  have mainOpsEq : logical.operations = Circuit.ops (Formal.main relation interface) offset := by
+    rw [Formal.main_ops]
+    exact operationsEq
+  have scope : ∀ expression ∈ (plan relation interface offset).constraints,
+      expression.VarsBelow (plan relation interface offset).firstFresh := by
+    change ∀ expression ∈ flatConstraints (Circuit.ops (Formal.main relation interface) offset),
+      expression.VarsBelow (logicalColumnCount relation interface offset)
+    rw [logicalColumnCount_eq relation interface offset, ← mainOpsEq]
+    exact logical.scope
+  change ∀ row ∈ (plan relation interface offset).rows,
+    row.VarsBelow (plan relation interface offset).next
+  rw [R1CS.LoweringPlan.next_eq]
+  exact R1CS.lowerConstraints_rows_varsBelow _ _ scope
+
 /-- Constructive physical completeness for the sole PiCCS layout. The final
 environment differs from the caller only inside the adjacent logical and R1CS
 fresh-column intervals. -/

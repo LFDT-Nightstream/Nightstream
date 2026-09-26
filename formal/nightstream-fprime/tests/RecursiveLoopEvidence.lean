@@ -34,7 +34,7 @@ private abbrev FreshWitness := Stage1.Terminal.FreshWitness
   (publicFits := PerApplicationFixedPoint.publicFits application)
 
 def CheckedRecursiveReplay : Prop :=
-  ∀ (statement : HyperNovaHistory.Statement) (input : PiCCSInputCheck.Input)
+  ∀ (statement : PerApplicationTerminal.Statement) (input : PiCCSInputCheck.Input)
     (runningWitness : RunningWitness) (freshWitness : FreshWitness)
     (advice : AppWitness) (masks : Array (Array (Nat × Nat)))
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)

@@ -119,7 +119,7 @@ theorem bindingRowCount_le : bindingRowCount ≤
   rw [bindingRowCount, invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
-theorem familyRowCount_le : invocationCount * 94 ≤
+theorem familyRowCount_le : invocationCount * 86 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -141,7 +141,7 @@ theorem combinedRowCount_le {program : Lifecycle.Stage1.Application.Program}
     (geometry : Geometry program logicalWidth) :
     (sboxPlan payload geometry).rowCount + (bindingPlan payload geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  change invocationCount * 94 + bindingRowCount ≤ _
+  change invocationCount * 86 + bindingRowCount ≤ _
   rw [bindingRowCount, invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
@@ -156,8 +156,8 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 729984 := by
-  change invocationCount * 94 + bindingRowCount = 729984
+    (plan payload geometry).rowCount = 669152 := by
+  change invocationCount * 86 + bindingRowCount = 669152
   rw [bindingRowCount, invocationCount_eq]
 
 theorem bindingRowsZero_iff

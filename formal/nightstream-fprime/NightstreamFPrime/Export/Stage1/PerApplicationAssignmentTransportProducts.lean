@@ -7,7 +7,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 Owns the value-level interpreter for the two compact derived-product recipes
 in the per-application assignment transport. The interpreter reads only the
 physical base assignment. It does not construct retained coordinates or the
-final 30-block assignment.
+final 31-block assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
@@ -461,54 +461,19 @@ def valueRing (recipe : Phi81GroupRecipe) (program : Program)
       AffineRuns.sourceAt recipe.valueSources
         (invocationIndex recipe (descriptor.withLane lane))
 
-/-- One raw convolution in source order. -/
-def rawTermValues (recipe : Phi81GroupRecipe) (coefficient : F)
-    (left right : RingF) (degree : Nat) : List F :=
-  (List.range recipe.ringDegree).map fun source =>
-    coefficient * Phi81ProductPlan.rawProduct left right degree source
-
-/-- The three signed raw convolutions in the order carried by the recipe. -/
-def termValues (recipe : Phi81GroupRecipe) (left right : RingF)
-    (lane : Fin ringDegree) : List F :=
-  rawTermValues recipe 1 left right lane.val ++
-    rawTermValues recipe (-1) left right
-      (lane.val + if lane.val < recipe.middleDegree then
-        recipe.ringDegree else recipe.middleDegree) ++
-    rawTermValues recipe
-      (if lane.val + recipe.foldOffset ≤ recipe.twiceCutoff then 1 else 0)
-      left right (lane.val + recipe.foldOffset)
-
-@[simp] private theorem rawTermValues_length (recipe : Phi81GroupRecipe)
-    (coefficient : F) (left right : RingF) (degree : Nat) :
-    (rawTermValues recipe coefficient left right degree).length =
-      recipe.ringDegree := by
-  simp [rawTermValues]
-
-@[simp] private theorem canonical_termValues_length (left right : RingF)
-    (lane : Fin ringDegree) :
-    (termValues (phi81GroupRecipe program) left right lane).length = 162 := by
-  simp [termValues, phi81GroupRecipe]
-
-@[simp] private theorem canonical_groups_length (left right : RingF)
-    (lane : Fin ringDegree) :
-    (ProductSumPlan.groups
-      (termValues (phi81GroupRecipe program) left right lane)).length = 33 := by
-  rfl
-
-/-- Evaluate one retained five-term group without constructing any matrix row
-or retained assignment coordinate. -/
-def ringGroupValue (recipe : Phi81GroupRecipe) (left right : RingF)
-    (lane : Fin ringDegree) (group : Nat) : F :=
-  ((ProductSumPlan.groups (termValues recipe left right lane)).getD group []).sum
-
-/-- Complete base-only Phi81 group evaluator. -/
+/-- Read one quotient coefficient from the complete physical base. The
+single retained slot uses the original lane index. -/
 def phi81GroupValue (recipe : Phi81GroupRecipe) (program : Program)
     (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Nat) : F :=
-  let descriptor := PiRLCProductSchedule.descriptor invocation
-  ringGroupValue recipe (challengeRing recipe program base descriptor)
-    (valueRing recipe program base descriptor) descriptor.lane group
+    (_group : Nat) : F :=
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
+  let descriptor := PiRLCProductSchedule.descriptor representative
+  Phi81Relation.QuotientProduct.quotientCoeff
+    (challengeRing recipe program base descriptor)
+    (valueRing recipe program base descriptor)
+    (PiRLCProductSchedule.descriptor invocation).lane
 
 /-- Complete base-only First54 accepted-symbol product evaluator. -/
 def first54ProductValue (recipe : First54ProductRecipe) (program : Program)
@@ -516,111 +481,13 @@ def first54ProductValue (recipe : First54ProductRecipe) (program : Program)
   (1 - baseBlockValue program base recipe.rejectBlock candidate) *
     baseBlockValue program base recipe.symbolBlock candidate
 
-private theorem groups_map {Alpha Beta : Type} (map : Alpha → Beta) :
-    ∀ values : List Alpha,
-      ProductSumPlan.groups (values.map map) =
-        (ProductSumPlan.groups values).map (List.map map)
-  | [] => rfl
-  | [_] => rfl
-  | [_, _] => rfl
-  | [_, _, _] => rfl
-  | [_, _, _, _] => rfl
-  | _ :: _ :: _ :: _ :: _ :: rest => by
-      simp [ProductSumPlan.groups, groups_map map rest]
-
-/-- Value-level raw terms are pointwise evaluations of the matrix plan's raw
-terms, in the same source order. -/
-private theorem canonical_rawTermValues_eq_eval {logicalWidth : Nat}
-    (coefficient : F) (left right : Phi81ProductPlan.State logicalWidth)
-    (degree : Nat) (assignment : Assignment F logicalWidth) :
-    rawTermValues (phi81GroupRecipe program) coefficient
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right) degree =
-      (Phi81ProductPlan.rawTerms coefficient left right degree).map
-        (ProductSumPlan.Term.eval assignment) := by
-  unfold rawTermValues Phi81ProductPlan.rawTerms
-  simp only [phi81GroupRecipe]
-  rw [List.map_map]
-  apply List.map_congr_left
-  intro source member
-  exact (Phi81ProductPlan.rawTerm_eval coefficient left right degree source
-    (List.mem_range.mp member) assignment).symm
-
-/-- The recipe's three-convolution term stream is exactly the matrix plan's
-162-term stream, including its signs and fold degrees. -/
-private theorem canonical_termValues_eq_eval {logicalWidth : Nat}
-    (left right : Phi81ProductPlan.State logicalWidth)
-    (lane : Fin ringDegree) (assignment : Assignment F logicalWidth) :
-    termValues (phi81GroupRecipe program)
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right) lane =
-      (Phi81ProductPlan.terms left right lane).map
-        (ProductSumPlan.Term.eval assignment) := by
-  unfold termValues Phi81ProductPlan.terms
-  change
-    (rawTermValues (phi81GroupRecipe program) 1
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right) lane.val ++
-      rawTermValues (phi81GroupRecipe program) (-1)
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right)
-        (lane.val + if lane.val < 27 then 54 else 27) ++
-      rawTermValues (phi81GroupRecipe program)
-        (if lane.val + 81 ≤ 106 then 1 else 0)
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right) (lane.val + 81)) = _
-  have foldedDegree :
-      lane.val + (if lane.val < 27 then 54 else 27) =
-        Phi81ProductPlan.foldedDegree lane := by
-    by_cases low : lane.val < 27
-    · simp [Phi81ProductPlan.foldedDegree, ringMiddleDegree, ringDegree, low]
-    · simp [Phi81ProductPlan.foldedDegree, ringMiddleDegree, ringDegree, low]
-  have twiceCoefficient :
-      (if lane.val + 81 ≤ 106 then (1 : F) else 0) =
-        Phi81ProductPlan.twiceCoefficient lane := by
-    rfl
-  rw [foldedDegree, twiceCoefficient]
-  simp only [List.map_append]
-  rw [canonical_rawTermValues_eq_eval,
-    canonical_rawTermValues_eq_eval,
-    canonical_rawTermValues_eq_eval]
-
-/-- Recipe grouping preserves the matrix plan's exact term and group order. -/
-private theorem canonical_ringGroupValue_eq_groupTotal {logicalWidth : Nat}
-    (left right : Phi81ProductPlan.State logicalWidth)
-    (lane : Fin ringDegree) (assignment : Assignment F logicalWidth)
-    (group : Fin 33) :
-    ringGroupValue (phi81GroupRecipe program)
-        (Phi81ProductPlan.evalState assignment left)
-        (Phi81ProductPlan.evalState assignment right) lane group.val =
-      ProductSumPlan.groupTotal assignment
-        ((ProductSumPlan.groups (Phi81ProductPlan.terms left right lane)).get
-          ⟨group.val, by simpa using group.isLt⟩) := by
-  unfold ringGroupValue
-  rw [canonical_termValues_eq_eval]
-  rw [groups_map]
-  change
-    (((ProductSumPlan.groups (Phi81ProductPlan.terms left right lane)).map
-          (List.map (ProductSumPlan.Term.eval assignment))).getD group.val
-        (([] : List (ProductSumPlan.Term logicalWidth)).map
-          (ProductSumPlan.Term.eval assignment))).sum = _
-  rw [List.getD_map]
-  have groupBound : group.val <
-      (ProductSumPlan.groups (Phi81ProductPlan.terms left right lane)).length := by
-    simpa using group.isLt
-  rw [List.getD_eq_get _ _ ⟨group.val, groupBound⟩]
-  symm
-  apply ProductSumPlan.groupTotal_eq_sum
-  apply ProductSumPlan.group_length_le
-  exact List.get_mem _ _
-
-/-- The canonical base-only Phi81 executor computes the exact honest group
-value used by the existing product-plan assignment. -/
+/-- The base-only Phi81 executor computes the exact quotient coefficient
+used by the product-plan assignment. -/
 theorem canonical_phi81GroupValue_eq_honestGroupValue
     {program : Program}
     (raw : PerApplicationCanonicalAssignment.RawValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Fin 33) :
+    (group : Fin 1) :
     phi81GroupValue (phi81GroupRecipe program) program raw.base invocation group.val =
       PiRLCProductPlan.honestGroupValue
         (PiRLCProductMatrixProgram.inputs
@@ -630,7 +497,9 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
   let values := PiRLCValueWiring.form
     (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry program)
   let inputs := PiRLCRetainedInputs.productInputs values geometry
-  let descriptor := PiRLCProductSchedule.descriptor invocation
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
+  let descriptor := PiRLCProductSchedule.descriptor representative
   have one : raw.assignment inputs.oneColumn = 1 := by
     exact PerApplicationCanonicalAssignment.assignment_one raw
   have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
@@ -672,48 +541,41 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
     exact SourceCompiler.sourceEnv_at raw.base _
   have challengeStateEval :
       Phi81ProductPlan.evalState raw.assignment
-          (PiRLCProductPlan.challengeState inputs invocation) =
+          (PiRLCProductPlan.challengeState inputs representative) =
         PiRLCProductPlan.challengeRing program raw.base descriptor := by
     funext lane
     have challengePreserves :
-        (PiRLCProductPlan.challengeForm inputs invocation lane).eval
+        (PiRLCProductPlan.challengeForm inputs representative lane).eval
             raw.assignment =
           PiRLCProductPlan.baseEnv program raw.base
             (descriptor.challengeColumn lane) := by
-      simpa only [descriptor] using preserves.challenge invocation lane
+      simpa only [descriptor] using preserves.challenge representative lane
     simp [Phi81ProductPlan.evalState, PiRLCProductPlan.challengeState,
       PiRLCProductPlan.challengeRing, challengePreserves, one,
       sub_eq_add_neg]
   have valueStateEval :
       Phi81ProductPlan.evalState raw.assignment
-          (PiRLCProductPlan.valueState inputs invocation) =
+          (PiRLCProductPlan.valueState inputs representative) =
         PiRLCProductPlan.valueRing program raw.base descriptor := by
     funext lane
-    exact preserves.value invocation lane
+    exact preserves.value representative lane
   have challengeEq :
       challengeRing (phi81GroupRecipe program) program raw.base descriptor =
         Phi81ProductPlan.evalState raw.assignment
-          (PiRLCProductPlan.challengeState inputs invocation) :=
+          (PiRLCProductPlan.challengeState inputs representative) :=
     challengeRead.trans challengeStateEval.symm
   have valueEq :
       valueRing (phi81GroupRecipe program) program raw.base descriptor =
         Phi81ProductPlan.evalState raw.assignment
-          (PiRLCProductPlan.valueState inputs invocation) :=
+          (PiRLCProductPlan.valueState inputs representative) :=
     valueRead.trans valueStateEval.symm
   unfold phi81GroupValue
-  change ringGroupValue (phi81GroupRecipe program)
+  change Phi81Relation.QuotientProduct.quotientCoeff
       (challengeRing (phi81GroupRecipe program) program raw.base descriptor)
       (valueRing (phi81GroupRecipe program) program raw.base descriptor)
-      descriptor.lane group.val = _
+      (PiRLCProductSchedule.descriptor invocation).lane = _
   rw [challengeEq, valueEq]
-  simpa [PiRLCProductPlan.honestGroupValue,
-    PiRLCProductPlan.groupIndex, ProductSumPlan.groupAt,
-    Phi81ProductFamilyPlan.laneInterface, PiRLCProductPlan.interface,
-    inputs, descriptor, geometry] using!
-      (canonical_ringGroupValue_eq_groupTotal
-        (PiRLCProductPlan.challengeState inputs invocation)
-        (PiRLCProductPlan.valueState inputs invocation) descriptor.lane
-        raw.assignment group)
+  rfl
 
 /-- The canonical base-only First54 executor computes the exact honest
 accepted-symbol product used by the existing First54 plan. -/

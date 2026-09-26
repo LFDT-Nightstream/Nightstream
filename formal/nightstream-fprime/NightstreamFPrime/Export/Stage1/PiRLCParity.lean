@@ -253,7 +253,9 @@ def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
   | .ok value => pure value
   | .error error => throw error
 
-def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value := do
+def parityValueIOWith
+    (sampler : Transcript.State → Option (Transcript.PiRlcSampler.Batch SourceCount))
+    (context packageIdentity : VerifierContext.Digest4) : IO Value := do
   let computed ← PiCCSNonzero.computeIO context.toList
   let inputFamiliesTask ←
     IO.asTask (prepare fun _ => inputFamilyValues computed)
@@ -261,8 +263,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
     IO.asTask (prepare fun _ => inputsNonzero computed)
   let inputFamilies ← prepared inputFamiliesTask
   let input := inputValueWithFamilies computed inputFamilies packageIdentity
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState SourceCount with
+  match sampler computed.outgoingState with
   | none =>
       pure <| .array [.atom 3, input,
         .array [PiCCSParity.boolValue false]]
@@ -291,6 +292,10 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
           pure <| Value.array [Value.atom 3, input, result]
       | none =>
           throw (IO.userError "incomplete PiRLC indexed partial grid")
+
+def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value :=
+  parityValueIOWith (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state SourceCount)
+    context packageIdentity
 
 /-- Schema 3 carries the selected package identity. The consumer checks it
 and the supplied context against its separately loaded canonical binding. -/

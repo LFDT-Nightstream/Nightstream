@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.SecurityInstance
 import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
 import NightstreamFPrime.Lifecycle.Relation
 
@@ -19,20 +20,21 @@ open StrongReduction ConcreteCarrier UnifiedSources
 open NightstreamFPrime.Lifecycle
 
 open PiCCSStoredWitnessCheck (carrier)
-open Poseidon2HashChainV1Setup (productionAjtaiKey)
+
+variable (inst : SecurityInstance)
 
 /-- The returned running vectors keep their existing source order. -/
 def runningWitness
-    (values : WitnessProjection.SourceWitness productionShape carrier) :
-    Fin productionShape.runningCount → Phi81Relation.Assignment carrier :=
+    (values : WitnessProjection.SourceWitness productionShape (carrier inst)) :
+    Fin productionShape.runningCount → Phi81Relation.Assignment (carrier inst) :=
   fun index => (values.running.get index).get
 
 /-- Reattach the exact public prefix to the returned fresh private tail. -/
 def freshWitness (input : PiCCSInputCheck.Input)
-    (values : WitnessProjection.SourceWitness productionShape carrier) :
-    Phi81Relation.Assignment carrier :=
+    (values : WitnessProjection.SourceWitness productionShape (carrier inst)) :
+    Phi81Relation.Assignment (carrier inst) :=
   WitnessProjection.joinFresh
-    ((PiCCSInputCheck.fresh input).publicInputs ⟨0, by decide⟩)
+    ((inst.fresh input).publicInputs ⟨0, by decide⟩)
     (values.fresh.get ⟨0, by decide⟩)
 
 section SemanticAgreement
@@ -114,13 +116,13 @@ private theorem runningAgreement
 end SemanticAgreement
 
 private theorem selectedOpeningMaps :
-    CheckedWitnessExtraction.openingMaps (carrier := carrier) PiCCSStoredWitnessCheck.commit =
+    CheckedWitnessExtraction.openingMaps (carrier := carrier inst) (PiCCSStoredWitnessCheck.commit inst) =
       PaperAlgebra.openingMaps
-        (logicalWidth := PiDECInputCheck.logicalWidth)
-        (publicFits := PiDECInputCheck.publicFits) productionAjtaiKey :=
+        (logicalWidth := inst.logicalWidth)
+        (publicFits := inst.publicFits) inst.ajtai :=
   openingMaps_projection
-    (logicalWidth := PiDECInputCheck.logicalWidth)
-    (publicFits := PiDECInputCheck.publicFits) productionAjtaiKey
+    (logicalWidth := inst.logicalWidth)
+    (publicFits := inst.publicFits) inst.ajtai
 
 private theorem addCases_running {shape : Shape} {Value : Type*}
     (fresh : Fin shape.freshCount → Value) (running : Fin shape.runningCount → Value)
@@ -131,8 +133,8 @@ private theorem addCases_running {shape : Shape} {Value : Type*}
 
 private theorem freshInstance_eq (input : PiCCSInputCheck.Input)
     (index : Fin productionShape.freshCount) :
-    SourceMembership.freshInstance (PiCCSStoredWitnessCheck.statement input) index =
-      Lifecycle.freshStatement PiDECInputCheck.relation (PiCCSInputCheck.fresh input) := by
+    SourceMembership.freshInstance (PiCCSStoredWitnessCheck.statement inst input) index =
+      Lifecycle.freshStatement inst.relation (inst.fresh input) := by
   have same : index = ⟨0, by decide⟩ := by
     apply Fin.ext
     have bound := index.isLt
@@ -164,30 +166,30 @@ private theorem ceInstance_ext {S P R E C : Type*}
 
 private theorem runningInstance_eq (input : PiCCSInputCheck.Input)
     (index : Fin productionShape.runningCount) :
-    SourceMembership.runningInstance (PiCCSStoredWitnessCheck.statement input) index =
-      Lifecycle.runningStatement PiDECInputCheck.relation (PiCCSInputCheck.running input) index := by
+    SourceMembership.runningInstance (PiCCSStoredWitnessCheck.statement inst input) index =
+      Lifecycle.runningStatement inst.relation (inst.running input) index := by
   refine ceInstance_ext _ _ ?_ ?_ ?_ ?_ ?_ ?_
   · rfl
-  · change Fin.addCases (PiCCSInputCheck.fresh input).commitments
-        (PiCCSInputCheck.running input).commitments (runningSourceIndex index) =
-      (PiCCSInputCheck.running input).commitments index
+  · change Fin.addCases (inst.fresh input).commitments
+        (inst.running input).commitments (runningSourceIndex index) =
+      (inst.running input).commitments index
     exact addCases_running (shape := productionShape) (Value := PaperAlgebra.Commitment)
-      (PiCCSInputCheck.fresh input).commitments (PiCCSInputCheck.running input).commitments index
-  · change Fin.addCases (PiCCSInputCheck.fresh input).publicInputs
-        (PiCCSInputCheck.running input).publicInputs (runningSourceIndex index) =
-      (PiCCSInputCheck.running input).publicInputs index
+      (inst.fresh input).commitments (inst.running input).commitments index
+  · change Fin.addCases (inst.fresh input).publicInputs
+        (inst.running input).publicInputs (runningSourceIndex index) =
+      (inst.running input).publicInputs index
     exact addCases_running (shape := productionShape) (Value := PiCCSInputCheck.PublicInput)
-      (PiCCSInputCheck.fresh input).publicInputs (PiCCSInputCheck.running input).publicInputs index
+      (inst.fresh input).publicInputs (inst.running input).publicInputs index
   · rfl
   · rfl
   · rfl
 
 private theorem reconstruct_fresh (input : PiCCSInputCheck.Input)
-    (values : WitnessProjection.SourceWitness productionShape carrier)
+    (values : WitnessProjection.SourceWitness productionShape (carrier inst))
     (index : Fin productionShape.freshCount) :
     (WitnessProjection.reconstruct
-      (PiCCSStoredWitnessCheck.statement input).publicInputs values).assignments
-        (freshSourceIndex index) = freshWitness input values := by
+      (PiCCSStoredWitnessCheck.statement inst input).publicInputs values).assignments
+        (freshSourceIndex index) = freshWitness inst input values := by
   rw [WitnessProjection.reconstruct_fresh]
   have same : index = ⟨0, by decide⟩ := by
     apply Fin.ext
@@ -203,13 +205,13 @@ private theorem reconstruct_fresh (input : PiCCSInputCheck.Input)
 memberships, with its returned running vectors and reconstructed fresh prefix.
 The result remains explicit; no witness is selected from an existential. -/
 theorem sourceReturned_iff_terminalHolds (input : PiCCSInputCheck.Input)
-    (result : Option (WitnessProjection.SourceWitness productionShape carrier)) :
-    CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
-        productionGlobalParams (PiCCSStoredWitnessCheck.statement input) result ↔
+    (result : Option (WitnessProjection.SourceWitness productionShape (carrier inst))) :
+    CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit inst)
+        productionGlobalParams (PiCCSStoredWitnessCheck.statement inst input) result ↔
       ∃ values, result = some values ∧
-        Lifecycle.TerminalHolds PiDECInputCheck.relation productionAjtaiKey
-          (PiCCSInputCheck.running input) (runningWitness values)
-          (PiCCSInputCheck.fresh input) (freshWitness input values) := by
+        Lifecycle.TerminalHolds inst.relation inst.ajtai
+          (inst.running input) (runningWitness inst values)
+          (inst.fresh input) (freshWitness inst input values) := by
   rw [CheckedWitnessExtraction.sourceReturned_iff_memberships
     (freshBound := (rfl : productionGlobalParams.b = 2)), selectedOpeningMaps]
   constructor
@@ -219,43 +221,43 @@ theorem sourceReturned_iff_terminalHolds (input : PiCCSInputCheck.Input)
       have member := running index
       rw [runningInstance_eq, WitnessProjection.reconstruct_running] at member
       exact (runningAgreement
-        (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
-        PiDECInputCheck.relation productionAjtaiKey
-        (PiCCSInputCheck.running input) index (runningWitness values index)).mp member
+        (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)
+        inst.relation inst.ajtai
+        (inst.running input) index (runningWitness inst values index)).mp member
     · have member := fresh ⟨0, by decide⟩
       rw [freshInstance_eq, reconstruct_fresh] at member
       exact (ccsAgreement
-        (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
-        productionAjtaiKey
-        (Lifecycle.freshStatement PiDECInputCheck.relation (PiCCSInputCheck.fresh input))
-        (freshWitness input values)).mp member
+        (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)
+        inst.ajtai
+        (Lifecycle.freshStatement inst.relation (inst.fresh input))
+        (freshWitness inst input values)).mp member
   · rintro ⟨values, returned, running, fresh⟩
     refine ⟨values, returned, ?_, ?_⟩
     · intro index
       rw [freshInstance_eq, reconstruct_fresh]
       exact (ccsAgreement
-        (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
-        productionAjtaiKey
-        (Lifecycle.freshStatement PiDECInputCheck.relation (PiCCSInputCheck.fresh input))
-        (freshWitness input values)).mpr fresh
+        (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)
+        inst.ajtai
+        (Lifecycle.freshStatement inst.relation (inst.fresh input))
+        (freshWitness inst input values)).mpr fresh
     · intro index
       rw [runningInstance_eq, WitnessProjection.reconstruct_running]
       exact (runningAgreement
-        (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
-        PiDECInputCheck.relation productionAjtaiKey
-        (PiCCSInputCheck.running input) index (runningWitness values index)).mpr (running index)
+        (logicalWidth := inst.logicalWidth) (publicFits := inst.publicFits)
+        inst.relation inst.ajtai
+        (inst.running input) index (runningWitness inst values index)).mpr (running index)
 
 /-- The actual checked NIFS source return identifies the complete source
 CCS and CE memberships consumed by terminal verification. -/
 theorem finishValue_source_iff_terminalHolds (input : PiCCSInputCheck.Input)
-    (outcome : CheckedWitnessExtraction.StoredOutcome productionShape carrier) :
-    CheckedWitnessExtraction.SourceReturned PiCCSStoredWitnessCheck.commit
-        productionGlobalParams (PiCCSStoredWitnessCheck.statement input)
-        (PiCCSStoredWitnessCheck.finishValue input outcome) ↔
-      ∃ values, PiCCSStoredWitnessCheck.finishValue input outcome = some values ∧
-        Lifecycle.TerminalHolds PiDECInputCheck.relation productionAjtaiKey
-          (PiCCSInputCheck.running input) (runningWitness values)
-          (PiCCSInputCheck.fresh input) (freshWitness input values) :=
-  sourceReturned_iff_terminalHolds input (PiCCSStoredWitnessCheck.finishValue input outcome)
+    (outcome : CheckedWitnessExtraction.StoredOutcome productionShape (carrier inst)) :
+    CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit inst)
+        productionGlobalParams (PiCCSStoredWitnessCheck.statement inst input)
+        (PiCCSStoredWitnessCheck.finishValue inst input outcome) ↔
+      ∃ values, (PiCCSStoredWitnessCheck.finishValue inst) input outcome = some values ∧
+        Lifecycle.TerminalHolds inst.relation inst.ajtai
+          (inst.running input) (runningWitness inst values)
+          (inst.fresh input) (freshWitness inst input values) :=
+  (sourceReturned_iff_terminalHolds inst) input (PiCCSStoredWitnessCheck.finishValue inst input outcome)
 
 end NightstreamFPrime.Export.Stage1.HyperNovaSource

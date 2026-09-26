@@ -34,7 +34,7 @@ theorem rowsZero_of_completed
     (physical : R1CS.RowsHold target (Spartan.remappedRows relation)) :
     let raw := canonicalRawValues application
       (PerApplicationSourceAssignment.ofCompleted application target suffix)
-    (RunningTransitionDirectPlan.plan relation
+    (RunningTransitionReducedPlan.plan
       (PerApplicationCanonicalEncodes.runningGeometry application)).RowsZero raw.assignment := by
   intro raw
   have allRows := (Spartan.remappedRows_hold relation target).mp physical
@@ -46,11 +46,16 @@ theorem rowsZero_of_completed
     (Spartan.pullback target)).mp throughD.1
   have throughC := (PilotPiCCS.physicalHolds_iff relation
     (Spartan.pullback target)).mp throughR.1
-  apply (RunningTransitionDirectPlan.rowsZero_iff_physical relation
+  apply (RunningTransitionReducedPlan.rowsZero_iff_accepts relation
+    (PerApplicationCanonicalEncodes.runningGeometry application)
+    (fun _ => none) raw.assignment).mpr
+  apply RunningTransitionReducedEncoding.physical_implies_accepts
     (PerApplicationCanonicalEncodes.runningGeometry application) raw.assignment
     raw.base raw.groupValue raw.products
-    (PerApplicationCanonicalAssignment.assignment_one raw)
-    (PerApplicationCanonicalEncodes.runningPrefixEncodes raw).transition).mpr
+    (PerApplicationCanonicalEncodes.runningPrefixEncodes raw).transition relation
+    (RunningTransitionRetainedGeometry.oneColumn
+      (PerApplicationCanonicalEncodes.runningGeometry application))
+    (fun _ => none) (PerApplicationCanonicalAssignment.assignment_one raw)
   apply R1CS.rowsHold_of_agree_below _ Spartan.SourceColumnCount
     (Spartan.pullback target) _ _ _ throughRunning.2
   · intro row member

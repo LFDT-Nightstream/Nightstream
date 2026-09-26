@@ -40,7 +40,7 @@ def outputDigest (geometry : PilotOrdinaryRetainedGeometry.Geometry program logi
 /-- The digest read by the hash slot and the final public pin rows uses the
 same four owned forms in the arbitrary assignment. -/
 theorem outputDigest_eq_forms
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
     outputDigest (RecursivePublicOutputPlan.pilotOrdinaryGeometry geometry) assignment =
       List.ofFn (fun word : Fin 4 =>
@@ -134,7 +134,7 @@ theorem selectedRowsZero_implies_hashSlots
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
-    (one : assignment (ApplicationRetainedGeometry.oneColumn
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :

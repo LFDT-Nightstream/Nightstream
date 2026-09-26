@@ -166,7 +166,8 @@ private theorem child_openings_checkedRelation
     (PiDECEvaluationHonestMessages.family children parent.point) system rfl parentValid
     (computed_messages parent parentWitness children success)
   intro child
-  rw [messages, HyperNovaInput.runningFromInput_runningInput]
+  rw [messages]
+  erw [HyperNovaInput.runningFromInput_runningInput]
   have witness := (PiDECStoredSplitHonestWitness.splitChecked_honestWitness
     (PiDECInputCheck.parent parent) parentWitness children success child).1
   change CE.Holds _ _ _ (view (children.get child))

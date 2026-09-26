@@ -139,14 +139,16 @@ private theorem valueRing_eq {program : Program}
   funext lane
   exact sourceValue_eq prepared base _
 
-/-- Phi81 keeps the existing signed convolutions, group order and summation. -/
+/-- Reuse the checked quotient formula on the prepared ring operands. -/
 def groupValue {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
-    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Nat) : F :=
-  let descriptor := PiRLCProductSchedule.descriptor invocation
-  PerApplicationAssignmentTransportProducts.ringGroupValue prepared.phi81
+    (invocation : Fin PiRLCProductSchedule.invocationCount) (_group : Nat) : F :=
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
+  let descriptor := PiRLCProductSchedule.descriptor representative
+  Phi81Relation.QuotientProduct.quotientCoeff
     (challengeRing prepared base descriptor) (valueRing prepared base descriptor)
-    descriptor.lane group
+    (PiRLCProductSchedule.descriptor invocation).lane
 
 /-- First54 keeps the existing accepted-symbol product. -/
 def productValue {program : Program} (prepared : Prepared program)
@@ -154,10 +156,10 @@ def productValue {program : Program} (prepared : Prepared program)
   (1 - blockValue prepared base prepared.reject candidate) *
     blockValue prepared base prepared.symbol candidate
 
-/-- Exact equality for every retained Phi81 invocation and group. -/
+/-- Exact equality for every retained Phi81 quotient coefficient. -/
 theorem groupValue_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
-    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Fin 33) :
+    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Fin 1) :
     groupValue prepared base invocation group.val =
       (PerApplicationAssignmentTransportExecution.canonicalRawValues program base).groupValue
         invocation group := by

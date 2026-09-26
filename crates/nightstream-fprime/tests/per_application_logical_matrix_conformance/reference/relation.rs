@@ -65,8 +65,8 @@ impl Relation {
             return Err("unexpected sealed relation envelope".into());
         }
         let fields = exact_array(&raw, 6, "CCS relation")?;
-        if word(&fields[0], "CCS row count")? != 6_377_559
-            || word(&fields[1], "CCS column count")? != 253_011_231
+        if word(&fields[0], "CCS row count")? != 3_248_956
+            || word(&fields[1], "CCS column count")? != 137_341_846
             || word(&fields[2], "CCS cube variables")? != 28
             || array(&fields[3], "CCS matrix sources")?
                 .iter()
@@ -134,6 +134,16 @@ impl Relation {
 
     pub fn term_count(&self) -> usize {
         self.terms.len()
+    }
+
+    pub fn slot_degrees(&self) -> [usize; MATRIX_COUNT] {
+        std::array::from_fn(|slot| {
+            self.terms
+                .iter()
+                .map(|term| term.exponents[slot])
+                .max()
+                .unwrap_or(0)
+        })
     }
 }
 

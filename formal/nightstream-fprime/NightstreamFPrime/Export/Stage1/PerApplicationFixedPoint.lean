@@ -22,14 +22,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def logicalWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  ApplicationRetainedGeometry.completeLogicalWidth application
+  ApplicationOrdinaryGeometry.completeLogicalWidth application
 
 def publicFits (application : Lifecycle.Stage1.Application.Program) :
     ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth (logicalWidth application) := by
   apply Nat.le_trans (m := logicalWidth application)
   · unfold logicalWidth
-    rw [ApplicationRetainedGeometry.completeLogicalWidth_eq]
+    rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq]
     norm_num [ringDegree, publicRingColumns]
     omega
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
@@ -46,21 +46,21 @@ bounds owned by one concrete application. -/
 def fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      239217427)
+      239769133)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      239098731)
+      239650437)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 353427) :
+      ApplicationRetainedBlocks.localCount application ≤ 2906174) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
   carrier := by
-    apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
+    apply (ApplicationOrdinaryGeometry.carrierWidth_le_twoPow28_iff
       application).2
-    exact carrierWords.trans (by decide)
+    exact carrierWords
 
 def geometry (application : Lifecycle.Stage1.Application.Program) :
-    ApplicationRetainedGeometry.Geometry application
+    ApplicationOrdinaryGeometry.Geometry application
       (logicalWidth application) where
   completeFits := Nat.le_refl _
 
@@ -112,7 +112,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + ApplicationDirectPlan.rowCount application +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
@@ -142,10 +142,10 @@ theorem rowsZero_implies_semantics
     (fits : FitsTwoPow28 application)
     (assignment : Assignment F (logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
-      (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
+      (ApplicationOrdinaryGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
       assignment base groupValue products)
     (accepted : (structuralPlan application fits).RowsZero assignment) :

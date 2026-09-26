@@ -58,7 +58,7 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 /-- Raw prover values before canonical low-norm coordinate encoding. -/
 structure RawValues (application : Program) where
   base : Fin (PiRLCProductPlan.baseSourceWidth application) → F
-  groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F
+  groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F
   products : Fin PiRLCFirst54DirectSchedule.candidateCount → F
 
 namespace RawValues
@@ -112,7 +112,9 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (RunningTransitionRetainedBlocks.piDecBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (RunningTransitionRetainedBlocks.freshBlock application)
+  , Canonical.ofBlock (RunningTransitionReducedRetainedBlocks.inverseBlock application)
+      raw.retainedSource
+  , Canonical.ofBlock (RunningTransitionReducedRetainedBlocks.flagBlock application)
       raw.retainedSource
   , Canonical.ofBlock
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock application)
@@ -158,7 +160,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 30 := by
+    (raw : RawValues application) : raw.schedule.length = 31 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -172,9 +174,9 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     CanonicalBlockAssignment.BlockValue.coordinateCount,
     CanonicalBlockAssignment.ofBlock]
   unfold PerApplicationFixedPoint.logicalWidth
-    ApplicationRetainedGeometry.completeLogicalWidth
-    ApplicationRetainedGeometry.localStart
-    ApplicationRetainedGeometry.witnessStart
+    ApplicationOrdinaryGeometry.completeLogicalWidth
+    ApplicationOrdinaryGeometry.localStart
+    ApplicationOrdinaryGeometry.witnessStart
     PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth
     PiRLCSamplerOrdinaryRetainedGeometry.freshStart
     PiRLCSamplerOrdinaryRetainedGeometry.logicalStart
@@ -196,7 +198,9 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiCCSOrdinaryRetainedGeometry.priorLastStart
     PiCCSOrdinaryRetainedGeometry.freshPublicInputStart
     PiCCSOrdinaryRetainedGeometry.prefixLogicalWidth
-    RunningTransitionRetainedGeometry.completeLogicalWidth
+    RunningTransitionReducedRetainedBlocks.nextStart
+    RunningTransitionReducedRetainedBlocks.flagStart
+    RunningTransitionReducedRetainedBlocks.inverseStart
     RunningTransitionRetainedGeometry.freshStart
     RunningTransitionRetainedGeometry.piDecStart
     PiRLCPoseidonGeometry.pilotLogicalWidth
@@ -211,6 +215,7 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiRLCRetainedGeometry.laterPoseidonStart
     PiRLCRetainedGeometry.outputPoseidonStart
     PiRLCRetainedGeometry.priorPoseidonStart
+  have reduced := RunningTransitionReducedRetainedBlocks.local_geometry application
   omega
 
 namespace RawValues
@@ -231,7 +236,7 @@ theorem publicFits {application : Program} :
     ProductionAssignment.publicWidth ≤
       PerApplicationFixedPoint.logicalWidth application := by
   unfold PerApplicationFixedPoint.logicalWidth
-  rw [ApplicationRetainedGeometry.completeLogicalWidth_eq,
+  rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq,
     ProductionAssignment.publicWidth_eq]
   omega
 
@@ -280,7 +285,7 @@ theorem projectPublicInput_completeAssignment {application : Program}
 encoded-hash public input. -/
 theorem assignment_one {application : Program} (raw : RawValues application) :
     raw.assignment
-        (ApplicationRetainedGeometry.oneColumn
+        (ApplicationOrdinaryGeometry.oneColumn
           (PerApplicationFixedPoint.geometry application)) = 1 := by
   have marker := Canonical.assignment_encHashMarker raw.outputDigest raw.schedule
     (publicFits (application := application))

@@ -19,7 +19,7 @@ fn sealed_artifact_bytes() -> Vec<u8> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
     )
-    .expect("run formal/nightstream-fprime/scripts/validate.sh emit-poseidon2-hash-chain-v1 first")
+    .expect("run formal/nightstream-fprime/scripts/validate.sh emit first")
 }
 
 fn pi_ccs_parity_bytes() -> Vec<u8> {
@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 29_225_729);
-    assert_eq!(package.total_column_count(), 29_344_425);
+    assert_eq!(package.physical_row_count(), 27_724_114);
+    assert_eq!(package.total_column_count(), 27_867_239);
     assert_eq!(package.private_input_count(), 177_326);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 6_377_559);
+    assert_eq!(relation.row_count(), 3_248_956);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 253_011_231);
+    assert_eq!(relation.column_count(), 137_341_846);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),

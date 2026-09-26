@@ -10,6 +10,7 @@ import NightstreamFPrime.Layout.Polynomial.Sparse
 import NightstreamFPrime.Layout.Multilinear.PointEquality
 import NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Layout.SumCheck.FixedChain
+import NightstreamFPrime.Layout.SumCheck.CompactChain
 import NightstreamFPrime.Layout.Sampling.Candidate16Five
 import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot

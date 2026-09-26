@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 28785019 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -416,7 +416,7 @@ private theorem mapped_lt_basePackage (source : Nat)
 theorem sourceAssignment_packageSource
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (source : Nat) (bound : source < Spartan.SourceColumnCount) :
     PiRLCRetainedPreservation.sourceAssignment program base groupValue products
@@ -457,30 +457,47 @@ theorem transitionEnv_of_outside
 
 namespace Location
 
+/-- A reader requires only the encoding of the block that supplies it. -/
+def Encodes {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : Geometry program logicalWidth) (assignment : Assignment F logicalWidth)
+    (source : Fin (sourceWidth program) → F) : Location → Prop
+  | .state _ => (stateBlock program).EncodesAt
+      (stateStart program) (stateFits geometry) assignment source
+  | .output _ => (outputBlock program).EncodesAt
+      (outputStart program) (outputFits geometry) assignment source
+  | .piDec _ => (piDecBlock program).EncodesAt
+      (piDecStart program) (piDecFits geometry) assignment source
+  | .fresh _ => (freshBlock program).EncodesAt
+      (freshStart program) (freshFits geometry) assignment source
+  | .roundC0 _ | .roundC1 _ => (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
+      (PiCCSPoseidonPlan.retainedStart program)
+      (PiCCSPoseidonPlan.retainedFits (poseidonGeometry geometry)) assignment
+      (PiCCSActionPayloadBlock.sourceAssignment program source)
+
 /-- All transition readers use the same physical source view. Point readers
 compute the actual Poseidon2 output; the other readers retain their source. -/
-theorem form_eval {program : Lifecycle.Stage1.Application.Program}
+theorem form_eval_of_encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (location : Location)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
-    (location : Location) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products) location) :
     (location.form geometry).eval assignment =
       transitionEnv program base (Spartan.sourceToSpartan location.sourceColumn) := by
   cases location with
   | roundC0 coordinate =>
       rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c0]
       exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
-        assignment base groupValue products encodes.sboxes coordinate 0
+        assignment base groupValue products encodes coordinate 0
   | roundC1 coordinate =>
       rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c1]
       exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
-        assignment base groupValue products encodes.sboxes coordinate 1
+        assignment base groupValue products encodes coordinate 1
   | state index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.state]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes]
       have sourceEq : (stateBlock program).source index =
           packageSourceColumn program (Location.state index).sourceColumn
             (Location.state index).sourceColumn_lt := by
@@ -501,7 +518,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           PiCCSInputs.phaseOffset_eq] using same
       omega
   | output index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.output]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes]
       have sourceEq : (outputBlock program).source index =
           packageSourceColumn program (Location.output index).sourceColumn
             (Location.output index).sourceColumn_lt := by
@@ -522,7 +539,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           PiCCSInputs.phaseOffset_eq] using same
       omega
   | piDec index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.piDec]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes]
       have sourceEq : (piDecBlock program).source index =
           packageSourceColumn program (Location.piDec index).sourceColumn
             (Location.piDec index).sourceColumn_lt := by
@@ -537,13 +554,13 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 8 := lane.isLt
-      have address : 28973248 + index.val =
+      have address : 28421542 + index.val =
           14751804 + invocation.val * 592 + 584 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
   | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes]
       have sourceEq : (freshBlock program).source index =
           packageSourceColumn program (Location.fresh index).sourceColumn
             (Location.fresh index).sourceColumn_lt := by
@@ -562,6 +579,25 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         (Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
           (Nat.le_add_right _ _))
 
+theorem form_eval {program : Lifecycle.Stage1.Application.Program}
+    {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
+    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
+    (encodes : RunningTransitionRetainedGeometry.Encodes geometry assignment
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+    (location : Location) :
+    (location.form geometry).eval assignment =
+      transitionEnv program base (Spartan.sourceToSpartan location.sourceColumn) := by
+  apply form_eval_of_encodes geometry assignment base groupValue products location
+  cases location with
+  | state _ => exact encodes.state
+  | output _ => exact encodes.output
+  | piDec _ => exact encodes.piDec
+  | fresh _ => exact encodes.fresh
+  | roundC0 _ | roundC1 _ => exact encodes.sboxes
+
 end Location
 
 theorem sourceMap_form_eval_of_target
@@ -569,7 +605,7 @@ theorem sourceMap_form_eval_of_target
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
@@ -594,7 +630,7 @@ private theorem preservesCombination
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
@@ -640,7 +676,7 @@ theorem inputs_preserve
     (geometry : Geometry program targetLogicalWidth)
     (assignment : Assignment F targetLogicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
@@ -704,7 +740,7 @@ theorem rowsZero_iff_physical
     (geometry : Geometry program targetLogicalWidth)
     (assignment : Assignment F targetLogicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment

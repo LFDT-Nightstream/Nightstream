@@ -213,7 +213,8 @@ theorem challenge_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
-    (block geometry).challenge.form? logicalWidth
+    (RetainedBlock.ofSemantic (PiRLCFirst54RetainedBlocks.valueBlock program)
+      (PiRLCRetainedGeometry.valueStart program)).form? logicalWidth
         (challengeSlotStart + descriptor.source.val *
           challengeSourceStride + lane.val) =
       some (PiRLCProductPlan.challengeForm
@@ -234,14 +235,17 @@ theorem challengeState?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
-    (block geometry).challengeState? logicalWidth (wireDescriptor descriptor) =
-      some (PiRLCProductPlan.challengeForm
-        (inputs geometry) descriptor.invocation) := by
+    (block geometry).challengeState? (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry))
+        (wireDescriptor descriptor) =
+      some (fun lane => SparseForm.add (PiRLCProductPlan.challengeForm
+        (inputs geometry) descriptor.invocation lane)
+        (SparseForm.singleton (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)) (-2))) := by
   unfold MatrixProgram.Phi81Product.Block.challengeState?
   apply loadFin?_of_some
   intro lane
-  simpa [block, wireDescriptor_source] using
-    challenge_form? geometry descriptor lane
+  simp only [block, wireDescriptor_source]
+  apply MatrixProgram.Phi81Product.Challenge.retained_form
+  exact challenge_form? geometry descriptor lane
 
 @[simp] theorem wireDescriptor_invocationAtLane
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
@@ -301,32 +305,19 @@ theorem inputState?
 theorem group_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductSchedule.Descriptor) (group : Fin 33) :
+    (descriptor : PiRLCProductSchedule.Descriptor) :
     (block geometry).group.form? logicalWidth
-        ((wireDescriptor descriptor).invocation * 33 + group.val) =
+        (wireDescriptor descriptor).invocation =
       some (PiRLCProductPlan.groupForm
-        (inputs geometry)
-          descriptor.invocation group) := by
+        (inputs geometry) descriptor.invocation 0) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
     (PiRLCRetainedGeometry.productGroupBlock program)
     (PiRLCRetainedGeometry.productGroupStart program)
     (PiRLCRetainedGeometry.productGroupFits (prefixGeometry geometry))
-    (Fin.encodeProd (descriptor.invocation, group))
+    (Fin.encodeProd (descriptor.invocation, (0 : Fin 1)))
   simpa [block, PiRLCProductPlan.groupForm,
     inputs, PiRLCRetainedInputs.productInputs, wireDescriptor_invocation,
-    Fin.encodeProd, Nat.mul_comm] using direct
-
-theorem groupOutput?
-    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (block geometry).groupOutput? logicalWidth (wireDescriptor descriptor) =
-      some (PiRLCProductPlan.groupForm
-        (inputs geometry) descriptor.invocation) := by
-  unfold MatrixProgram.Phi81Product.Block.groupOutput?
-  apply loadFin?_of_some
-  intro group
-  exact group_form? geometry descriptor group
+    Fin.encodeProd] using direct
 
 theorem output_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -437,157 +428,212 @@ theorem output_form_at_invocation?
           descriptor.invocation) := by
   simpa using output_form? geometry descriptor
 
+/-- The compact decoder reads every quotient coefficient in original lane order. -/
+theorem quotientState?
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    (block geometry).quotientState? logicalWidth (wireDescriptor descriptor) =
+      some (fun lane => PiRLCProductPlan.groupForm (inputs geometry)
+        (descriptor.withLane lane).invocation 0) := by
+  unfold MatrixProgram.Phi81Product.Block.quotientState?
+  apply loadFin?_of_some
+  intro lane
+  rw [wireDescriptor_invocationAtLane]
+  simpa only [wireDescriptor_invocation] using
+    group_form? geometry (descriptor.withLane lane)
+
+theorem outputState?
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    (block geometry).outputState? logicalWidth (wireDescriptor descriptor) =
+      some (fun lane => PiRLCProductPlan.outputForm (inputs geometry)
+        (descriptor.withLane lane).invocation) := by
+  unfold MatrixProgram.Phi81Product.Block.outputState?
+  apply loadFin?_of_some
+  intro lane
+  rw [wireDescriptor_invocationAtLane]
+  exact output_form_at_invocation? geometry (descriptor.withLane lane)
+
+theorem priorState?
+    {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
+    (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (descriptor : PiRLCProductSchedule.Descriptor) :
+    (block geometry).priorState? logicalWidth (wireDescriptor descriptor) =
+      some (fun lane => PiRLCProductPlan.priorForm (inputs geometry)
+        (descriptor.withLane lane).invocation) := by
+  unfold MatrixProgram.Phi81Product.Block.priorState?
+  rw [wireDescriptor_source]
+  by_cases first : descriptor.source.val = 0
+  · rw [if_pos first]
+    apply congrArg some
+    funext lane
+    simp [PiRLCProductPlan.priorForm,
+      PiRLCProductSchedule.descriptor_invocation,
+      PiRLCProductSchedule.Descriptor.withLane, first]
+  · rw [if_neg first]
+    apply loadFin?_of_some
+    intro lane
+    have notFirst : (descriptor.withLane lane).source.val ≠ 0 := by
+      cases descriptor
+      exact first
+    have sameFamily : (wireDescriptor (descriptor.withLane lane)).family.privateCount =
+        (wireDescriptor descriptor).family.privateCount := by
+      rw [wireDescriptor_privateCount, wireDescriptor_privateCount]
+      cases descriptor
+      rfl
+    rw [wireDescriptor_invocationAtLane]
+    rw [← sameFamily]
+    exact prior_form_at_invocation?_of_ne geometry (descriptor.withLane lane) notFirst
+
+/-- A ring descriptor selects its first coefficient only as an input representative. -/
+def wireRingDescriptor (descriptor : PiRLCProductRingSchedule.Descriptor) :
+    MatrixProgram.Phi81Product.Descriptor :=
+  wireDescriptor (descriptor.withLane PiRLCProductRingSchedule.zeroLane)
+
+theorem ringDescriptor?_wireRingDescriptor
+    (descriptor : PiRLCProductRingSchedule.Descriptor) :
+    MatrixProgram.Phi81Product.ringDescriptor? families descriptor.invocation.val =
+      some (wireRingDescriptor descriptor) := by
+  rcases descriptor with ⟨family, source, block, cell⟩
+  cases family
+  · change ringDescriptorFrom?
+        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
+        (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val = _
+    exact ringDescriptorFrom?_head commitmentFamily
+      [publicInputFamily, evalKFamily, evalAFamily] 0 source block cell
+  · change ringDescriptorFrom?
+        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
+        (commitmentFamily.ringCount +
+          (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val) = _
+    rw [ringDescriptorFrom?_tail]
+    exact ringDescriptorFrom?_head publicInputFamily [evalKFamily, evalAFamily]
+      (0 + commitmentFamily.invocationCount) source block cell
+  · change ringDescriptorFrom?
+        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
+        (commitmentFamily.ringCount + (publicInputFamily.ringCount +
+          (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val)) = _
+    rw [ringDescriptorFrom?_tail, ringDescriptorFrom?_tail]
+    exact ringDescriptorFrom?_head evalKFamily [evalAFamily]
+      ((0 + commitmentFamily.invocationCount) + publicInputFamily.invocationCount)
+      source block cell
+  · change ringDescriptorFrom?
+        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
+        (commitmentFamily.ringCount + (publicInputFamily.ringCount +
+          (evalKFamily.ringCount +
+            (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val))) = _
+    rw [ringDescriptorFrom?_tail, ringDescriptorFrom?_tail, ringDescriptorFrom?_tail]
+    exact ringDescriptorFrom?_head evalAFamily []
+      (((0 + commitmentFamily.invocationCount) + publicInputFamily.invocationCount) +
+        evalKFamily.invocationCount) source block cell
+
 def semanticInterface
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    ProductSumPlan.Interface logicalWidth :=
-  Phi81ProductFamilyPlan.laneInterface
-    (PiRLCProductPlan.interface
-      (inputs geometry)) descriptor.invocation
+    (descriptor : PiRLCProductRingSchedule.Descriptor) :
+    Phi81ProductPlan.Interface logicalWidth :=
+  Phi81ProductFamilyPlan.ringInterface
+    (PiRLCProductPlan.interface (inputs geometry)) descriptor.invocation
 
-/-- The complete fail-closed wire interface is exactly the direct semantic
-interface for the same PiRLC product invocation. -/
+/-- The loaded interface equals the canonical interface in every sparse form. -/
 theorem block_interface?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (block geometry).interface? logicalWidth (wireDescriptor descriptor) =
+    (descriptor : PiRLCProductRingSchedule.Descriptor) :
+    (block geometry).interface? logicalWidth (wireRingDescriptor descriptor) =
       some (semanticInterface geometry descriptor) := by
-  unfold MatrixProgram.Phi81Product.Block.interface?
-  rw [block_oneColumn?, challengeState?, inputState?, groupOutput?]
-  by_cases first : descriptor.source.val = 0
-  · have wireFirst : (wireDescriptor descriptor).source.val = 0 := by
-      simpa using first
-    rw [wireDescriptor_invocation]
-    simp only [wireFirst, if_pos]
-    rw [output_form_at_invocation?]
-    apply congrArg some
-    unfold semanticInterface Phi81ProductFamilyPlan.laneInterface
-      Phi81ProductFamilyPlan.groupOutputAt PiRLCProductPlan.interface
-      PiRLCProductPlan.challengeState PiRLCProductPlan.priorForm
-      inputs PiRLCRetainedInputs.productInputs
-    simp [first, wireDescriptor_lane_eq]
-    apply (Fin.heq_fun_iff (Phi81ProductPlan.groups_length _ _ _).symm).2
-    intro group
-    rfl
-  · have wireNotFirst : (wireDescriptor descriptor).source.val ≠ 0 := by
-      simpa using first
-    rw [wireDescriptor_invocation]
-    simp only [wireNotFirst, if_false]
-    rw [prior_form_at_invocation?_of_ne geometry descriptor first,
-      output_form_at_invocation?]
-    apply congrArg some
-    unfold semanticInterface Phi81ProductFamilyPlan.laneInterface
-      Phi81ProductFamilyPlan.groupOutputAt PiRLCProductPlan.interface
-      PiRLCProductPlan.challengeState inputs PiRLCRetainedInputs.productInputs
-    simp [wireDescriptor_lane_eq]
-    apply (Fin.heq_fun_iff (Phi81ProductPlan.groups_length _ _ _).symm).2
-    intro group
-    rfl
+  unfold MatrixProgram.Phi81Product.Block.interface? wireRingDescriptor
+  rw [block_oneColumn?]
+  simp only [bind, Option.bind]
+  rw [challengeState?, inputState?, quotientState?, priorState?, outputState?]
+  apply congrArg some
+  simp only [semanticInterface, Phi81ProductFamilyPlan.ringInterface,
+    PiRLCProductPlan.interface, PiRLCProductRingSchedule.laneInvocation,
+    PiRLCProductRingSchedule.descriptor_invocation]
+  cases descriptor
+  rfl
 
-/-- One compact physical product row is the exact semantic row for the same
-decoded descriptor and local row. -/
+/-- Every decoded evaluation row has exactly the canonical matrix forms. -/
 theorem block_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (descriptor : PiRLCProductSchedule.Descriptor) (localRow : Fin 34) :
+    (descriptor : PiRLCProductRingSchedule.Descriptor) (localRow : Fin 108) :
     (block geometry).row? logicalWidth
-        (descriptor.invocation.val * 34 + localRow.val) =
+        (descriptor.invocation.val * 108 + localRow.val) =
       some (Phi81ProductFamilyPlan.rowForms
-        (PiRLCProductPlan.interface
-          (inputs geometry))
+        (PiRLCProductPlan.interface (inputs geometry))
         descriptor.invocation localRow) := by
-  let ordinal := descriptor.invocation.val * 34 + localRow.val
+  let ordinal := descriptor.invocation.val * 108 + localRow.val
   have bound : ordinal < (block geometry).rowCount := by
     rw [block_rowCount]
     dsimp only [ordinal]
-    have invocationBound : descriptor.invocation.val < 52326 := by
-      simpa using descriptor.invocation.isLt
+    have invocationBound : descriptor.invocation.val < 969 := descriptor.invocation.isLt
     omega
-  have quotient : ordinal / 34 = descriptor.invocation.val := by
+  have quotient : ordinal / 108 = descriptor.invocation.val := by
     dsimp only [ordinal]
     omega
-  have remainder : ordinal % 34 = localRow.val := by
+  have remainder : ordinal % 108 = localRow.val := by
     dsimp only [ordinal]
     omega
-  have selected : MatrixProgram.Phi81Product.descriptor? families
-      (ordinal / 34) = some (wireDescriptor descriptor) := by
+  have selected : MatrixProgram.Phi81Product.ringDescriptor? families
+      (ordinal / 108) = some (wireRingDescriptor descriptor) := by
     rw [quotient]
-    exact descriptor?_wireDescriptor descriptor
+    exact ringDescriptor?_wireRingDescriptor descriptor
   let semanticRow := Phi81ProductFamilyPlan.rowAt
-    (PiRLCProductPlan.interface
-      (inputs geometry))
-    descriptor.invocation localRow
-  have rowBound : localRow.val <
-      (ProductSumPlan.rows (semanticInterface geometry descriptor)).length := by
-    change localRow.val <
-      (ProductSumPlan.rows (Phi81ProductFamilyPlan.laneInterface
-        (PiRLCProductPlan.interface
-          (inputs geometry))
-        descriptor.invocation)).length
-    rw [Phi81ProductFamilyPlan.laneRows_length]
-    exact localRow.isLt
+    (PiRLCProductPlan.interface (inputs geometry)) descriptor.invocation localRow
   have rowSelected :
-      (ProductSumPlan.rows
-        (semanticInterface geometry descriptor))[ordinal % 34]? =
-          some semanticRow := by
-    rw [remainder, List.getElem?_eq_getElem rowBound]
-    apply congrArg some
-    rfl
+      (Phi81ProductPlan.rows (semanticInterface geometry descriptor))[ordinal % 108]? =
+        some semanticRow := by
+    rw [remainder]
+    simp only [Phi81ProductPlan.rows, List.getElem?_ofFn, localRow.isLt,
+      dif_pos, semanticRow, Phi81ProductFamilyPlan.rowAt, semanticInterface]
   have loaded := MatrixProgram.Phi81Product.Block.row?_of_loaded
-    (block geometry) logicalWidth ordinal bound (wireDescriptor descriptor)
+    (block geometry) logicalWidth ordinal bound (wireRingDescriptor descriptor)
       selected (semanticInterface geometry descriptor)
       (block_interface? geometry descriptor) semanticRow rowSelected
   simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using! loaded
 
-/-- The singleton matrix program returns the exact semantic row for every
-authoritative invocation and local row. -/
+/-- The singleton program selects the canonical row at every ring and point. -/
 theorem matrixProgram_invocation_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (localRow : Fin 34) :
+    (invocation : Fin PiRLCProductRingSchedule.invocationCount)
+    (localRow : Fin 108) :
     (matrixProgram geometry).row? logicalWidth sourceRow
-        (invocation.val * 34 + localRow.val) =
+        (invocation.val * 108 + localRow.val) =
       some (Phi81ProductFamilyPlan.rowForms
-        (PiRLCProductPlan.interface
-          (inputs geometry)) invocation localRow) := by
-  let descriptor := PiRLCProductSchedule.descriptor invocation
+        (PiRLCProductPlan.interface (inputs geometry)) invocation localRow) := by
+  let descriptor := PiRLCProductRingSchedule.descriptor invocation
   have exactRow := block_row? geometry descriptor localRow
-  rw [PiRLCProductSchedule.invocation_descriptor] at exactRow
-  have bound : invocation.val * 34 + localRow.val <
+  rw [PiRLCProductRingSchedule.invocation_descriptor] at exactRow
+  have bound : invocation.val * 108 + localRow.val <
       (MatrixProgram.Block.phi81Product (block geometry)).rowCount := by
-    change invocation.val * 34 + localRow.val < (block geometry).rowCount
+    change invocation.val * 108 + localRow.val < (block geometry).rowCount
     rw [block_rowCount]
-    have invocationBound : invocation.val < 52326 := by
-      simpa using invocation.isLt
+    have invocationBound : invocation.val < 969 := invocation.isLt
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.phi81Product (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_row?, if_pos bound]
   exact exactRow
 
-/-- Every physical row in the complete compact product block is the exact
-row selected by the canonical Lean invocation-major family plan. -/
+/-- Exact sparse-form equality covers the complete compact product block. -/
 theorem matrixProgram_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiRLCProductSchedule.invocationCount * 34)) :
+    (global : Fin (PiRLCProductRingSchedule.invocationCount * 108)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiRLCProductSchedule.invocationCount × Fin 34 :=
+      let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 108 :=
         Fin.decodeProd global
       some (Phi81ProductFamilyPlan.rowForms
-        (PiRLCProductPlan.interface
-          (inputs geometry))
-        decoded.1 decoded.2) := by
-  let decoded : Fin PiRLCProductSchedule.invocationCount × Fin 34 :=
+        (PiRLCProductPlan.interface (inputs geometry)) decoded.1 decoded.2) := by
+  let decoded : Fin PiRLCProductRingSchedule.invocationCount × Fin 108 :=
     Fin.decodeProd global
-  have exactRow := matrixProgram_invocation_row? geometry sourceRow
-    decoded.1 decoded.2
-  have encoded : decoded.1.val * 34 + decoded.2.val = global.val := by
+  have exactRow := matrixProgram_invocation_row? geometry sourceRow decoded.1 decoded.2
+  have encoded : decoded.1.val * 108 + decoded.2.val = global.val := by
     have inverse := congrArg Fin.val (Fin.encodeProd_decodeProd global)
     simpa [decoded, Fin.encodeProd, Nat.mul_comm] using inverse
   rw [encoded] at exactRow

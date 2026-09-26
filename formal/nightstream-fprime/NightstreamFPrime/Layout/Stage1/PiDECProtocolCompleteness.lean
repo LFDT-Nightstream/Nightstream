@@ -145,13 +145,13 @@ private theorem parent_preserved (env : Env) (proof : Proof (ProductionKey.degre
       · exact preserves index (Or.inl (Nat.lt_of_lt_of_le below rEnd_before_dInputs)))
   exact same.symm
 
-private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
+theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
     (pad : left.pad = right.pad) (matrix : left.matrix = right.matrix) : left = right := by
   cases left
   cases right
   simp_all
 
-private theorem message_ext (left right : PiDEC.PaperVerifier.ChildMessage
+theorem message_ext (left right : PiDEC.PaperVerifier.ChildMessage
     PaperAlgebra.Evaluation PaperAlgebra.Commitment)
     (commitment : left.commitment = right.commitment)
     (evaluations : left.evaluations = right.evaluations) : left = right := by
@@ -175,7 +175,7 @@ private theorem loaded_message (env : Env) (proof : Proof (ProductionKey.degreeB
     · funext matrix coefficient
       exact PiDECProofInputs.eval_childEvalA env proof parentPublic child matrix coefficient
 
-private theorem attempt_ext
+theorem attempt_ext
     (left right : PiDEC.v1_1.InputBinding.Attempt logicalWidth publicFits)
     (parent : left.parent = right.parent) (messages : left.messages = right.messages) : left = right := by
   cases left
@@ -196,7 +196,7 @@ private theorem loaded_attempt (env : Env) (proof : Proof (ProductionKey.degreeB
   · funext child
     exact loaded_message relation env proof parentPublic child
 
-private theorem instance_ext
+theorem instance_ext
     (left right : PiDEC.v1_1.OutputBinding.Output logicalWidth publicFits)
     (system : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -232,7 +232,7 @@ private theorem loaded_output (env : Env) (proof : Proof (ProductionKey.degreeBo
       (loaded_message relation env proof parent.publicInput child)
   · rfl
 
-private theorem children_outputAccepted
+theorem children_outputAccepted
     (attempt : PiDEC.v1_1.InputBinding.Attempt logicalWidth publicFits)
     (checks : PiDEC.PaperVerifier.Accepted (PaperAlgebra.piDecAlgebra ajtai)
       (PaperAlgebra.publicInputSplit ajtai) (PaperAlgebra.evaluationArity ajtai) attempt) :
@@ -262,7 +262,7 @@ private theorem loaded_phase (env : Env) (proof : Proof (ProductionKey.degreeBou
   rw [loaded_attempt relation ajtai, loaded_output relation ajtai]
   exact children_outputAccepted ajtai _ checks
 
-private theorem computed_output_eq
+theorem computed_output_eq
     (key : ProductionKey.KeyType relation)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))

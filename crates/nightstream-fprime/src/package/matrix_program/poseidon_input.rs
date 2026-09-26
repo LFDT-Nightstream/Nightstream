@@ -3,9 +3,10 @@
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
+use super::ColumnProjection;
 use super::{
-    array, checked_add, checked_mul, decode_list, exact_array, field_atom, usize_atom, Form, PackageError,
-    RetainedBlock, SourceCombination, SourceSubstitution,
+    array, checked_add, checked_mul, checked_wire_form, decode_entries, decode_list, exact_array, field_atom,
+    usize_atom, Entry, Form, PackageError, RetainedBlock, SourceCombination, SourceSubstitution,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,6 +80,10 @@ enum Term {
         values: Vec<Option<Goldilocks>>,
         lane_count: usize,
     },
+    Sparse {
+        values: Vec<Vec<Entry>>,
+        lane_count: usize,
+    },
     TaggedAffine {
         values: Vec<SourceCombination>,
         substitution: SourceSubstitution,
@@ -123,7 +128,27 @@ impl Term {
                 required: InvocationTag::decode(&fields[4])?,
                 lane_count: usize_atom(&fields[5], "Poseidon2 affine lane count")?,
             }),
+            Some(6) if fields.len() == 3 => Ok(Self::Sparse {
+                values: decode_list(&fields[1], decode_entries)?,
+                lane_count: usize_atom(&fields[2], "Poseidon2 sparse lane count")?,
+            }),
             _ => Err(PackageError::Invalid("Poseidon2 input term")),
+        }
+    }
+
+    fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        match self {
+            Self::Retained { block, .. } | Self::External { block, .. } | Self::TaggedRetained { block, .. } => {
+                projection.retained(block)
+            }
+            Self::Sparse { values, .. } => {
+                for form in values {
+                    projection.entries(form)?;
+                }
+                Ok(())
+            }
+            Self::TaggedAffine { substitution, .. } => substitution.map_columns(projection),
+            Self::Constant(_) | Self::OptionalConstant { .. } => Ok(()),
         }
     }
 
@@ -208,6 +233,17 @@ impl Term {
                     Some(coefficient) => constant_form(logical_width, one_column, *coefficient, "Poseidon2 one column"),
                 }
             }
+            Self::Sparse { values, lane_count } => {
+                let index = checked_add(
+                    checked_mul(invocation_offset, *lane_count, "Poseidon2 sparse word index")?,
+                    lane_offset,
+                    "Poseidon2 sparse word index",
+                )?;
+                let entries = values
+                    .get(index)
+                    .ok_or(PackageError::Invalid("Poseidon2 sparse word table"))?;
+                checked_wire_form(entries, logical_width)
+            }
             Self::TaggedAffine {
                 values,
                 substitution,
@@ -261,6 +297,13 @@ impl Program {
         Ok(Self {
             rules: decode_list(value, Rule::decode)?,
         })
+    }
+
+    pub(super) fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        for rule in &mut self.rules {
+            rule.term.map_columns(projection)?;
+        }
+        Ok(())
     }
 
     fn form(

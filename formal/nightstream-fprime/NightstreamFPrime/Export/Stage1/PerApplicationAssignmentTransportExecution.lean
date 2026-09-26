@@ -55,7 +55,7 @@ def canonicalRawValues (program : Program) (base : BaseValues program) :
 theorem canonicalRawValues_groupValue_eq_honestGroupValue
     (program : Program) (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Fin 33) :
+    (group : Fin 1) :
     (canonicalRawValues program base).groupValue invocation group =
       PiRLCProductPlan.honestGroupValue
         (PiRLCProductMatrixProgram.inputs
@@ -107,14 +107,14 @@ private def expressionValue {program : Program} (expressions : List Expr)
     (SourceCompiler.sourceEnv raw.retainedSource)
 
 /-- Total value view of one serialized block source domain. -/
-private def domainValue (program : Program)
+def domainValue (program : Program)
     (raw : RawValues program) : SourceDomain → Nat → F
   | .retained => SourceCompiler.sourceEnv raw.retainedSource
   | .physicalBase => SourceCompiler.sourceEnv raw.base
 
 /-- On the canonical plan, each domain/index pair reads the scalar selected
 by the existing opcode interpreter. -/
-private theorem canonical_domain_source (program : Program)
+theorem canonical_domain_source (program : Program)
     (raw : RawValues program) (kind : BlockKind) (slot : Nat)
     (entryBound :
       slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount)
@@ -178,7 +178,7 @@ private def transportBlockValue (program : Program)
 
 /-- Two function-valued blocks with the same visible geometry and selected
 slot values have the same direct coordinate lookup. -/
-private theorem blockValue_coordinateAt_eq
+theorem blockValue_coordinateAt_eq
     (left right : CanonicalBlockAssignment.BlockValue)
     (kindEq : left.block.kind = right.block.kind)
     (slotCountEq : left.block.slotCount = right.block.slotCount)
@@ -318,7 +318,7 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 30 function-valued
+/-- Interpret the serialized block order. The list has 31 function-valued
 entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=

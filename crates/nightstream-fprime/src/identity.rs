@@ -35,7 +35,6 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     54,
     22,
 ];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 16, 64];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
@@ -43,23 +42,34 @@ const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    12_322_613_552_781_674_794,
-    11_618_660_216_342_328_080,
-    8_890_015_725_622_288_919,
-    10_115_040_070_495_147_315,
+    5_852_455_178_542_470_565,
+    14_862_963_511_289_254_499,
+    6_489_174_108_038_884_580,
+    14_918_705_724_099_522_201,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    9_705_822_157_724_451_396,
-    520_958_727_644_325_895,
-    9_285_622_073_986_934_000,
-    874_020_794_279_380_938,
+    14_833_867_475_356_745_945,
+    15_229_254_417_532_271_792,
+    2_646_223_786_752_830_247,
+    8_497_811_010_041_712_527,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    4_227_073_942_771_477_570,
-    16_912_780_434_901_028_030,
-    9_096_788_017_067_844_745,
-    11_810_418_611_163_981_283,
+    2_282_211_477_563_487_790,
+    872_988_257_131_249_992,
+    10_343_228_359_145_788_161,
+    9_996_816_170_330_114_705,
 ];
+
+fn verifier_context_schedule() -> Result<Vec<u64>, PackageError> {
+    let modulus = Goldilocks::ORDER_U64;
+    value_preimage_words(&serde_json::json!([
+        bytes_as_words(b"Nightstream/SuperNeo/PiCCS/digest-only/v1_1"),
+        [PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54],
+        bytes_as_words(b"Nightstream/PiRLC/wide-reduction/v1"),
+        [17, 4, 4, modulus, 5, 54, 1],
+        [modulus - 2, modulus - 1, 0, 1, 2]
+    ]))
+}
 
 /// Verifier-owned context derived from one identity-checked package and the
 /// canonical serialization of its commitment setup.
@@ -178,6 +188,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
     package_identity: [u64; 4],
     commitment_key_words: &[u64],
 ) -> Result<PiCcsV1_1VerifierContext, PackageError> {
+    let schedule = verifier_context_schedule()?;
     validate_context_words(commitment_key_words)?;
     let relation_words = package_identity.to_vec();
     let application = ApplicationIdentity::from_words(&package_identity)?;
@@ -185,7 +196,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
 
     let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
     append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_SCHEDULE)?;
+    append_framed(&mut nifs_key_words, &schedule)?;
     append_framed(&mut nifs_key_words, &relation_words)?;
     append_framed(&mut nifs_key_words, &commitment_digest)?;
 
@@ -194,7 +205,7 @@ pub(super) fn pi_ccs_v1_1_verifier_context(
 
     let mut descriptor = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
     append_framed(&mut descriptor, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut descriptor, &VERIFIER_CONTEXT_SCHEDULE)?;
+    append_framed(&mut descriptor, &schedule)?;
     append_framed(&mut descriptor, &relation)?;
     append_framed(&mut descriptor, &application.digest)?;
     append_framed(&mut descriptor, &nifs_key)?;
@@ -218,6 +229,7 @@ pub(super) fn stage1_verifier_binding(
     relation_value_words: &[u64],
     application: &ApplicationIdentity,
 ) -> Result<Stage1VerifierBinding, PackageError> {
+    let schedule = verifier_context_schedule()?;
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
         .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
     let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
@@ -231,7 +243,7 @@ pub(super) fn stage1_verifier_binding(
     let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
     append_framed(&mut nifs_key_words, &relation_words)?;
     append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut nifs_key_words, &VERIFIER_CONTEXT_SCHEDULE)?;
+    append_framed(&mut nifs_key_words, &schedule)?;
     append_framed(&mut nifs_key_words, &commitment_digest)?;
 
     let relation = component_digest(1, &relation_words)?;
@@ -239,7 +251,7 @@ pub(super) fn stage1_verifier_binding(
 
     let mut descriptor_words = bytes_as_words(VERIFIER_CONTEXT_DOMAIN);
     append_framed(&mut descriptor_words, &VERIFIER_CONTEXT_PROFILE)?;
-    append_framed(&mut descriptor_words, &VERIFIER_CONTEXT_SCHEDULE)?;
+    append_framed(&mut descriptor_words, &schedule)?;
     append_framed(&mut descriptor_words, &relation)?;
     append_framed(&mut descriptor_words, &application.digest)?;
     append_framed(&mut descriptor_words, &nifs_key)?;

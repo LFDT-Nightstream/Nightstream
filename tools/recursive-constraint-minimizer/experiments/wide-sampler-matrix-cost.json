@@ -1,0 +1,38 @@
+{
+  "scope": "candidate sampler only; previous Poseidon endpoint as input",
+  "selected_in_production": false,
+  "logical_rows": 14501,
+  "committed_coordinates": 135813,
+  "normalized_matrix_nonzeros": 1794350,
+  "normalized_matrix_nonzeros_by_port": [
+    0,
+    14501,
+    100079,
+    27676,
+    122740,
+    1529354,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "range_matrix_nonzeros": 142188,
+  "poseidon_matrix_nonzeros": 1652162,
+  "temporary_helpers": 23868,
+  "temporary_digit_words": 918,
+  "source_dsl_private_values": 55403,
+  "source_dsl_rows": 32623,
+  "source_r1cs_rows": 58939,
+  "source_r1cs_fresh_values": 26316,
+  "product_left_matrix": {
+    "scope": "all 969 ring products; left-operand port only",
+    "baseline_normalized_nonzeros": 229698543,
+    "candidate_normalized_nonzeros": 16904205,
+    "removed_normalized_nonzeros": 212794338,
+    "coordinate_layout": "baseline 41 coordinates per digit; candidate three checked bits"
+  }
+}

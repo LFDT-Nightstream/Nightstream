@@ -18,7 +18,9 @@ pub use form::MatrixRun;
 mod phi81;
 mod poseidon;
 mod poseidon_input;
+mod projection;
 mod template;
+use projection::ColumnProjection;
 
 #[cfg(test)]
 #[path = "../../../tests/unit/matrix_program.rs"]
@@ -53,7 +55,7 @@ pub(super) fn empty_row() -> RowForms {
     std::array::from_fn(|_| Form::default())
 }
 
-pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
+fn decode_entries(value: &Value) -> Result<Vec<Entry>, PackageError> {
     let entries = array(value, "matrix sparse form")?;
     let mut decoded = Vec::with_capacity(entries.len());
     for entry in entries {
@@ -63,7 +65,15 @@ pub(super) fn decode_form(value: &Value) -> Result<Form, PackageError> {
             coefficient: field_atom(&fields[1], "matrix sparse coefficient")?,
         });
     }
-    Ok(Form::from_entries(decoded))
+    Ok(decoded)
+}
+
+fn checked_wire_form(entries: &[Entry], logical_width: usize) -> Result<Form, PackageError> {
+    // Check the stored entries before normalization can remove zero terms.
+    if entries.iter().any(|entry| entry.column >= logical_width) {
+        return Err(PackageError::Invalid("matrix sparse column"));
+    }
+    Ok(Form::from_entries(entries.to_vec()))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -292,6 +302,16 @@ impl SourceSubstitution {
             ranges: decode_list(&fields[0], SourceRange::decode)?,
             grids: decode_list(&fields[1], SourceGrid::decode)?,
         })
+    }
+
+    fn map_columns(&mut self, projection: &ColumnProjection) -> Result<(), PackageError> {
+        for range in &mut self.ranges {
+            projection.retained(&mut range.retained)?;
+        }
+        for grid in &mut self.grids {
+            projection.retained(&mut grid.retained)?;
+        }
+        Ok(())
     }
 
     fn form(&self, logical_width: usize, source: usize) -> Result<Form, PackageError> {
@@ -594,7 +614,7 @@ impl OrdinaryBlock {
 #[derive(Clone, Debug)]
 struct PinBlock {
     one_column: usize,
-    values: Vec<Form>,
+    values: Vec<Vec<Entry>>,
 }
 
 impl PinBlock {
@@ -602,7 +622,7 @@ impl PinBlock {
         let fields = exact_array(value, 2, "pin matrix block")?;
         Ok(Self {
             one_column: usize_atom(&fields[0], "pin one column")?,
-            values: decode_list(&fields[1], decode_form)?,
+            values: decode_list(&fields[1], decode_entries)?,
         })
     }
 
@@ -613,9 +633,8 @@ impl PinBlock {
         let value = self
             .values
             .get(ordinal)
-            .ok_or(PackageError::Invalid("pin row ordinal"))?
-            .clone();
-        validate_form(&value, logical_width)?;
+            .ok_or(PackageError::Invalid("pin row ordinal"))?;
+        let value = checked_wire_form(value, logical_width)?;
         let mut row = empty_row();
         row[1] = Form::singleton(self.one_column, Goldilocks::ONE);
         row[4] = value;
@@ -703,8 +722,31 @@ impl MultiplicationBlock {
 }
 
 #[derive(Clone, Debug)]
+struct OrdinaryTemplate {
+    block: OrdinaryBlock,
+    combinations: Vec<SourceCombination>,
+}
+
+impl OrdinaryTemplate {
+    fn source_row(&self, index: usize) -> Result<SourceRow, PackageError> {
+        let first = checked_mul(index, 3, "ordinary template row index")?;
+        let end = checked_add(first, 3, "ordinary template row end")?;
+        let ports = self
+            .combinations
+            .get(first..end)
+            .ok_or(PackageError::Invalid("ordinary template row"))?;
+        Ok(SourceRow {
+            a: ports[0].clone(),
+            b: ports[1].clone(),
+            c: ports[2].clone(),
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
 enum Block {
     Ordinary(OrdinaryBlock),
+    OrdinaryTemplate(OrdinaryTemplate),
     Multiplication(MultiplicationBlock),
     Phi81(phi81::Block),
     Pin(PinBlock),
@@ -713,6 +755,26 @@ enum Block {
 
 impl Block {
     fn decode(value: &Value) -> Result<Self, PackageError> {
+        let fields = array(value, "production matrix block")?;
+        if let [tag, source_width, projection, inner] = fields {
+            if tag.as_u64() == Some(5) {
+                let mut block = Self::decode(inner)?;
+                ColumnProjection::new(
+                    usize_atom(source_width, "mapped matrix source width")?,
+                    SourceProjection::decode(projection)?,
+                )
+                .apply(&mut block)?;
+                return Ok(block);
+            }
+        }
+        if let [tag, block, rows] = fields {
+            if tag.as_u64() == Some(6) {
+                return Ok(Self::OrdinaryTemplate(OrdinaryTemplate {
+                    block: OrdinaryBlock::decode(block)?,
+                    combinations: decode_list(rows, SourceCombination::decode)?,
+                }));
+            }
+        }
         let fields = exact_array(value, 2, "production matrix block")?;
         match usize_atom(&fields[0], "production matrix block tag")? {
             0 => Ok(Self::Ordinary(OrdinaryBlock::decode(&fields[1])?)),
@@ -727,6 +789,7 @@ impl Block {
     fn row_count(&self) -> Result<usize, PackageError> {
         match self {
             Self::Ordinary(block) => block.row_count(),
+            Self::OrdinaryTemplate(template) => template.block.row_count(),
             Self::Multiplication(block) => block.shape.row_count(),
             Self::Phi81(block) => block.row_count(),
             Self::Pin(block) => Ok(block.values.len()),
@@ -735,10 +798,11 @@ impl Block {
     }
 
     fn validate(&self, source_limit: usize) -> Result<(), PackageError> {
-        if let Self::Ordinary(block) = self {
-            block.validate(source_limit)?;
+        match self {
+            Self::Ordinary(block) => block.validate(source_limit),
+            Self::OrdinaryTemplate(template) => template.block.validate(template.combinations.len() / 3),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn row(
@@ -749,6 +813,9 @@ impl Block {
     ) -> Result<RowForms, PackageError> {
         match self {
             Self::Ordinary(block) => block.row(logical_width, ordinal, source_row),
+            Self::OrdinaryTemplate(template) => template
+                .block
+                .row(logical_width, ordinal, &|index| template.source_row(index)),
             Self::Multiplication(block) => block.row(logical_width, ordinal),
             Self::Phi81(block) => block.row(logical_width, ordinal),
             Self::Pin(block) => block.row(logical_width, ordinal),

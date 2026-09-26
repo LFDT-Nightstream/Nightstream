@@ -40,8 +40,6 @@ class GoldenCITests(unittest.TestCase):
                 self.write(self.root / f"cpu/step-{step}" / name, {"iteration": step})
                 self.write(check / f"inputs/step-{step}" / name, {"iteration": step})
             self.write(check / f"step-{step}-lean-proof.native", values["proof.native"])
-            self.write(self.root / f"cpu/fold-{step}/physical.bin", b"complete assignment")
-            self.write(check / "lean-physical.bin", b"complete assignment")
             self.write(check / f"step-{step}-caller.json", lean)
 
     def test_handoff_compares_the_actual_lean_checked_bytes(self):
@@ -67,11 +65,9 @@ class GoldenCITests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "every private caller word"):
             ci.cpu_handoff(self.root)
 
-    def test_handoff_rejects_missing_lean_check_and_changed_physical_bytes(self):
+    def test_handoff_requires_lean_results_but_no_physical_witness(self):
         self.checked_cpu()
-        self.write(self.root / "cpu/fold-1/physical.bin", b"changed assignment")
-        with self.assertRaisesRegex(ValueError, "CPU/fresh Lean physical handoff"):
-            ci.cpu_handoff(self.root)
+        ci.cpu_handoff(self.root)
         (self.root / "lean-step-1/result.json").unlink()
         with self.assertRaises(FileNotFoundError):
             ci.cpu_handoff(self.root)
@@ -94,14 +90,16 @@ class GoldenCITests(unittest.TestCase):
         output = self.root / "new-cpu"
         with patch.object(ci, "run") as run, patch.object(ci, "build", return_value=Path("current-binary")) as build, \
                 patch.object(ci, "cpu_handoff") as handoff:
-            ci.execute("cpu", self.root / "archives", output)
+            ci.execute("cpu", None, output)
         calls = [call.args[0] for call in run.call_args_list]
         native = [call for call in calls if Path(call[2]).name == "run_golden_conformance.py"]
         self.assertEqual(len(native), 1)
         self.assertNotIn("--engine", native[0])
+        self.assertNotIn("--references", native[0])
+        self.assertFalse(any(Path(call[2]).name == "restore_golden_inputs.py" for call in calls))
         lean = [call for call in calls if Path(call[2]).name == "check_lean_fold.py"]
         self.assertEqual([call[call.index("--step") + 1] for call in lean], [1, 2])
-        self.assertEqual(build.call_count, 2)
+        self.assertEqual(build.call_count, 1)
         handoff.assert_called_once_with(output)
         self.assertEqual(ci.load(output / "cpu-result.json")["outcome"], "passed")
 
@@ -121,6 +119,10 @@ class GoldenCITests(unittest.TestCase):
             ci.execute("independent", self.root / "archives", output, self.root / "handoff")
         replay.assert_called_once()
         self.assertFalse((output / "independent-result.json").exists())
+
+    def test_independent_mode_still_requires_its_source_archives(self):
+        with self.assertRaisesRegex(ValueError, "independent requires.*archives"):
+            ci.execute("independent", None, self.root / "independent", self.root / "handoff")
 
     def test_independent_generation_stops_at_state_three_and_checks_connection(self):
         output, handoff = self.root / "independent", self.root / "handoff"

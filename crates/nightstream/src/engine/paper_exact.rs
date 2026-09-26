@@ -5,7 +5,7 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::{
-    common::{decode_pi_rlc_v1_1_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho},
+    common::{decode_pi_rlc_wide_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho},
     paper_exact_engine::{
         dec_reduction_paper_exact_with_rows, paper_exact_prove_with_rows, rlc_reduction_paper_exact_with_commit_mix,
         PaperMatrixRows,
@@ -132,8 +132,8 @@ fn sample_rhos(
     let mut output = Vec::with_capacity(count);
     for source in 0..count {
         transcript.absorb_v1_1(&[F::from_u64(4), F::from_usize(source)]);
-        let digests = std::array::from_fn(|_| transcript.squeeze_digest_v1_1());
-        let symbols = decode_pi_rlc_v1_1_coefficients(&digests)?;
+        let digest = transcript.squeeze_digest_v1_1();
+        let symbols = decode_pi_rlc_wide_coefficients(&digest);
         let mut column: Vec<F> = symbols.into_iter().map(|value| F::from_i8(value)).collect();
         let mut matrix = Mat::zero(D, D, F::ZERO);
         for index in 0..D {

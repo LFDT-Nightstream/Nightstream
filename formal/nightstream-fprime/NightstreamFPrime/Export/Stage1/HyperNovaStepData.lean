@@ -25,7 +25,8 @@ open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
 
 /-- The actual prior payload, selected application advice, and returned local
 proof are the existing augmented-function input fields. -/
-def input (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+def input (statement : PerApplicationTerminal.Statement)
+    (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
     (advice : AppWitness) (proof : Lifecycle.Proof 9) :
     Input KeyDigest AppState AppWitness
       (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -44,7 +45,7 @@ def input (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.P
 
 /-- Compute the selected application result and the full next-state digest.
 The NIFS result fills the one outer running slot; no output is supplied. -/
-def output (statement : HyperNovaHistory.Statement) (advice : AppWitness)
+def output (statement : PerApplicationTerminal.Statement) (advice : AppWitness)
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application)) :
     Output Digest AppState
@@ -66,7 +67,8 @@ step and both canonical state frames. Prior framing and the public link are
 derived from terminal acceptance; next framing uses only counter nonwrap.
 Advice width belongs to later application witness wiring, not this result. -/
 theorem stepHolds_and_wellFormed
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+    (statement : PerApplicationTerminal.Statement)
+        (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
     (advice : AppWitness) (proof : Lifecycle.Proof 9)
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

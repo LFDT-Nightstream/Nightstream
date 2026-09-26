@@ -1,4 +1,5 @@
-import NightstreamFPrime.Export.Stage1.HyperNovaHistory
+import NightstreamFPrime.Export.Stage1.HyperNovaInput
+import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
@@ -147,7 +148,8 @@ a normal production NIFS proof with valid openings for every returned child.
 No accepted local proof, intermediate output, or new witness validity is an
 input. This does not construct the next fresh application assignment. -/
 theorem recursive_nifs_of_sampler_success
-    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+    (statement : PerApplicationTerminal.Statement)
+        (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup
       statement (.recursive payload)) :
     let relation := PerApplicationFixedPoint.relation application fits

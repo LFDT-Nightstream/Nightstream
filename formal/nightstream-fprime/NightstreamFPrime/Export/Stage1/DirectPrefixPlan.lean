@@ -117,7 +117,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan payloadForms values geometry).rowCount = 4964947 := by
+    (plan payloadForms values geometry).rowCount = 3030859 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 
@@ -147,7 +147,7 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   pilot : PilotPoseidonPlan.Semantics (pilotGeometry geometry) assignment
   piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
@@ -169,7 +169,7 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   retained : PiRLCRetainedPreservation.Encodes
     (prefixGeometry geometry) assignment base groupValue products
@@ -202,7 +202,7 @@ theorem rowsZero_implies_semantics
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
     (encodes : Encodes payloadForms values geometry assignment base groupValue products)

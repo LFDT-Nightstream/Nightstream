@@ -23,7 +23,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) :
     Fin (PiRLCRetainedGeometry.sourceWidth program) → F :=
   PiRLCRetainedPreservation.sourceAssignment program base groupValue products
@@ -33,7 +33,7 @@ structure Encoding {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
   priorInput : (PiRLCPoseidonGeometry.priorInputBlock program).EncodesAt
     (PiRLCPoseidonGeometry.priorInputStart program)
@@ -48,9 +48,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      29336446 := Package.circuitPackage_layout_values.2.2.1
+      28784740 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
+      28785019 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -59,7 +59,7 @@ the same final per-application package value as the transition environment. -/
 private theorem sourceAssignment_privatePhysical
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (source : Fin (PiRLCRetainedGeometry.sourceWidth program))
     (column : Nat)
@@ -141,7 +141,7 @@ theorem priorInputForm_eval
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encoding : Encoding geometry assignment base groupValue products)
     (index : Fin Data.priorChain.inputLength) :
@@ -167,7 +167,7 @@ theorem outputInputForm_eval
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encoding : Encoding geometry assignment base groupValue products)
     (index : Fin Data.outputChain.inputLength) :

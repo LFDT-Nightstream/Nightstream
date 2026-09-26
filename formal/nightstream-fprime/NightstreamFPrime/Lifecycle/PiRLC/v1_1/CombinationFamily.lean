@@ -402,7 +402,7 @@ theorem accumulated_eq_orderedCombination
   simp [sourceCount_eq, accumulated, orderedCombination, ringFAdd, ringFZero]
   abel
 
-private theorem childSpecs
+theorem childSpecs
     {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Interface blockCount cellCount) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env)
@@ -422,7 +422,7 @@ private theorem childSpecs
         (stepOffset offset source.val blockCount cellCount) env at call
   exact call (childAssumptions interface offset source.val source.isLt env assumptions)
 
-private theorem outputAt_eq_accumulatedNat
+theorem outputAt_eq_accumulatedNat
     {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Interface blockCount cellCount) (offset : Nat) (env : Env)
     (prefixHolds : PrefixHolds interface offset env)

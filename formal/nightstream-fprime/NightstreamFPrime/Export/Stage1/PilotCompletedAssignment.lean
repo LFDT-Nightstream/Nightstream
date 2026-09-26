@@ -49,7 +49,7 @@ private theorem copied_pilotEnv
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation))
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
     (column : Nat) (support : PilotOrdinaryDirectSource.Target column) :
     PilotOrdinaryDirectPlan.pilotEnv application
       (PerApplicationSourceAssignment.ofCompleted application target suffix) column =
@@ -67,7 +67,7 @@ private theorem copied_pilotEnv
     unfold Spartan.sourceToSpartan
     rw [if_pos (by simpa only [Spartan.pilotSourceColumnCount_matches] using pilotBound)]
   have same := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
-    (phases relation target rows).2 source bound
+    ((PilotPiCCS.physicalHolds_iff relation (Spartan.pullback target)).mp rows).2 source bound
   change RunningTransitionDirectPlan.transitionEnv application
     (PerApplicationSourceAssignment.ofCompleted application target suffix) (Spartan.sourceToSpartan source) =
       target (Spartan.sourceToSpartan source) at same
@@ -83,7 +83,7 @@ private theorem form_value
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation))
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
     (location : PilotOrdinaryDirectPlan.Location) :
@@ -120,26 +120,27 @@ private theorem ordinary_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation)) :
-    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
     (PilotOrdinaryDirectPlan.plan (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)).RowsZero
       raw.assignment := by
-  intro raw
   apply (PilotOrdinaryDirectPlan.rowsZero_iff_rowsHold
     (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment
     raw.base raw.groupValue raw.products (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary).mpr
   apply R1CS.rowsHold_of_agree _ PilotOrdinaryDirectSource.Target
     (fun column => target (Spartan.liftPilotColumn column)) _ PilotOrdinaryDirectSource.sourceRows_varsSatisfy
-  · exact copied_pilotEnv application relation target suffix rows
-  · exact PilotOrdinaryPhysicalCompleteness.rows_of_physical target (phases relation target rows).1
+  · rw [baseEq]
+    exact copied_pilotEnv application relation target suffix rows
+  · exact PilotOrdinaryPhysicalCompleteness.rows_of_physical target ((PilotPiCCS.physicalHolds_iff relation (Spartan.pullback target)).mp rows).1
 
 private theorem prior_binding
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation))
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
     (lane : Fin PilotDigestBindingPlan.laneCount) :
@@ -148,7 +149,7 @@ private theorem prior_binding
     (PilotDigestBindingPlan.derivedForm (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)
       (PilotDigestBindingPlan.priorRow lane)).eval raw.assignment := by
   let geometry := PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application
-  have hashes := PilotHashRowsCompleteness.hashChains_of_pilotRows target (phases relation target rows).1
+  have hashes := PilotHashRowsCompleteness.hashChains_of_pilotRows target ((PilotPiCCS.physicalHolds_iff relation (Spartan.pullback target)).mp rows).1
   have legacy := PilotOrdinaryDirectPlan.priorDigest_form_eval_chainOutput geometry raw.assignment
     (fun column => target (Spartan.liftPilotColumn column))
     (fun selected => form_value application relation target suffix rows raw baseEq (.priorDigest selected)) lane
@@ -172,7 +173,7 @@ private theorem output_binding
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation))
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
     (lane : Fin PilotDigestBindingPlan.laneCount) :
@@ -181,7 +182,7 @@ private theorem output_binding
     (PilotDigestBindingPlan.derivedForm (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)
       (PilotDigestBindingPlan.outputRow lane)).eval raw.assignment := by
   let geometry := PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application
-  have hashes := PilotHashRowsCompleteness.hashChains_of_pilotRows target (phases relation target rows).1
+  have hashes := PilotHashRowsCompleteness.hashChains_of_pilotRows target ((PilotPiCCS.physicalHolds_iff relation (Spartan.pullback target)).mp rows).1
   have legacy := PilotOrdinaryDirectPlan.outputState_form_eval_chainOutput geometry raw.assignment
     (fun column => target (Spartan.liftPilotColumn column))
     (fun selected => form_value application relation target suffix rows raw baseEq (.outputState selected)) lane
@@ -205,11 +206,11 @@ private theorem binding_rows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (rows : R1CS.RowsHold target (Spartan.remappedRows relation)) :
-    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
     (PilotDigestBindingPlan.plan (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)).RowsZero
       raw.assignment := by
-  intro raw
   apply (PilotDigestBindingPlan.rowsZero_iff_matches
     (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment
     (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
@@ -224,7 +225,7 @@ private theorem binding_rows
       rw [← inverse]
       exact congrArg Fin.encodeProd (Prod.ext chain rfl)
     rw [position]
-    exact prior_binding application relation target suffix rows raw rfl decoded.2
+    exact prior_binding application relation target suffix rows raw baseEq decoded.2
   · have chain : decoded.1 = PilotDigestBindingPlan.outputChain := by
       apply Fin.ext
       have bound := decoded.1.isLt
@@ -235,7 +236,25 @@ private theorem binding_rows
       rw [← inverse]
       exact congrArg Fin.encodeProd (Prod.ext chain rfl)
     rw [position]
-    exact output_binding application relation target suffix rows raw rfl decoded.2
+    exact output_binding application relation target suffix rows raw baseEq decoded.2
+
+/-- The canonical completed assignment satisfies the pilot ordinary plan
+and all eight digest-binding rows. Both results derive their source values
+from the same cumulative physical prefix. -/
+theorem rowsZero_of_base
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (rows : PilotPiCCS.PhysicalHolds relation (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
+    (PilotOrdinaryDirectPlan.plan (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)).RowsZero
+      raw.assignment ∧
+    (PilotDigestBindingPlan.plan (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)).RowsZero
+      raw.assignment := by
+  exact ⟨ordinary_rows application relation target suffix rows raw baseEq,
+    binding_rows application relation target suffix rows raw baseEq⟩
 
 /-- The canonical completed assignment satisfies the pilot ordinary plan
 and all eight digest-binding rows. Both results derive their source values
@@ -252,7 +271,7 @@ theorem rowsZero_of_completed
     (PilotDigestBindingPlan.plan (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application)).RowsZero
       raw.assignment := by
   intro raw
-  exact ⟨ordinary_rows application relation target suffix rows,
-    binding_rows application relation target suffix rows⟩
+  exact rowsZero_of_base application relation target suffix
+    ((PilotPiCCS.physicalHolds_iff relation (Spartan.pullback target)).mpr (phases relation target rows)) raw rfl
 
 end NightstreamFPrime.Export.Stage1.PilotCompletedAssignment

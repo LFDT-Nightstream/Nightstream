@@ -146,7 +146,6 @@ pub(super) struct Run {
 pub(super) struct AssignmentBlock {
     pub opcode: usize,
     pub slot_kind: usize,
-    pub source_domain: usize,
     pub slot_count: Dimension,
     pub source_runs: Vec<Run>,
 }
@@ -196,6 +195,7 @@ pub(super) struct Manifest {
     dependencies: Vec<String>,
     parameters: Vec<String>,
     reference: [usize; 3],
+    pub application_local_index: usize,
     pub geometry: Geometry,
     pub ports: Vec<Port>,
     recursive_public: RecursivePublic,
@@ -205,6 +205,7 @@ pub(super) struct Manifest {
     pub matrix_relocations: Vec<Relocation>,
     pub assignment_blocks: Vec<AssignmentBlock>,
     pub phi81_value_sources: Vec<Run>,
+    pub phi81_challenge_sources: Vec<Run>,
     pub source_relocation: SourceRelocation,
     recipe_contract: Value,
     required_dimension_checks: Vec<String>,
@@ -218,7 +219,7 @@ impl Manifest {
     pub fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
         let manifest: Self = serde_json::from_slice(bytes)?;
         if manifest.format != "nightstream.shared-verifier"
-            || manifest.version != 1
+            || manifest.version != 2
             || manifest.id != "shared-recursive-verifier-v1"
             || manifest.profile != PROFILE
             || manifest.parameters != ["witness_words", "local_words", "application_rows"]
@@ -403,16 +404,32 @@ impl Manifest {
                 .checked_add(counts.witness)
                 != Some(local.source_start.eval(counts)?)
             || local.source_start.eval(counts)?.checked_add(counts.local) != Some(private)
-            || local.retained_start.eval(counts)?.checked_add(
-                counts
-                    .local
-                    .checked_mul(g.field_slot_width)
-                    .ok_or(AssemblyError::Overflow)?,
-            ) != Some(width)
             || self.port("one")?.source_start.eval(counts)? != private
             || self.port("one")?.retained_start.eval(counts)? != g.one_column
         {
             return Err(AssemblyError::Invalid("application port allocation"));
+        }
+        let mut coordinates = g.logical_public;
+        for (index, block) in self.assignment_blocks.iter().enumerate() {
+            if block.opcode != index || block.slot_kind > 2 {
+                return Err(AssemblyError::Invalid("assignment block order or encoding"));
+            }
+            if index == self.application_local_index {
+                if coordinates != local.retained_start.eval(counts)? || block.slot_count.eval(counts)? != counts.local {
+                    return Err(AssemblyError::Invalid("application retained allocation"));
+                }
+            }
+            let block_width = block
+                .slot_count
+                .eval(counts)?
+                .checked_mul(if block.slot_kind == 2 { g.field_slot_width } else { 1 })
+                .ok_or(AssemblyError::Overflow)?;
+            coordinates = coordinates
+                .checked_add(block_width)
+                .ok_or(AssemblyError::Overflow)?;
+        }
+        if self.application_local_index >= self.assignment_blocks.len() || coordinates != width {
+            return Err(AssemblyError::Invalid("complete assignment block width"));
         }
         let mut blocks = 0usize;
         let mut rows = 0usize;
@@ -434,25 +451,36 @@ impl Manifest {
     }
 
     pub fn check_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
+        self.check_reference_geometry(
+            reference,
+            self.geometry.logical_rows.eval(self.reference())?,
+            self.geometry.logical_width.eval(self.reference())?,
+            self.children.iter().map(|child| child.block_count).sum(),
+        )
+    }
+
+    fn check_reference_geometry(
+        &self,
+        reference: &Envelope,
+        logical_rows: usize,
+        logical_width: usize,
+        block_count: usize,
+    ) -> Result<(), AssemblyError> {
         let counts = self.reference();
         let g = &self.geometry;
         let layout = &reference.source.layout;
         if reference.schema != 6
             || reference.source.schema != 8
+            || reference.assignment.schema != 4
             || layout.rows != g.source_rows.eval(counts)?
             || layout.private != g.source_private.eval(counts)?
             || layout.constant != g.source_constant.eval(counts)?
             || layout.public != g.source_public
             || layout.total != g.source_total.eval(counts)?
-            || reference.source.relation.rows != g.logical_rows.eval(counts)?
-            || reference.source.relation.columns != g.logical_width.eval(counts)?
+            || reference.source.relation.rows != logical_rows
+            || reference.source.relation.columns != logical_width
             || reference.logical_public != g.logical_public
-            || self
-                .children
-                .iter()
-                .map(|child| child.block_count)
-                .sum::<usize>()
-                != reference.matrix.len()
+            || block_count != reference.matrix.len()
         {
             return Err(AssemblyError::Invalid("manifest does not describe selected reference"));
         }

@@ -115,8 +115,11 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (physical : Layout.PiCCS.v1_1.PhysicalHolds relation
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
 
-local notation "raw" => canonicalRawValues application
-  (PerApplicationSourceAssignment.ofCompleted application target suffix)
+variable (packet : PerApplicationCanonicalAssignment.RawValues application)
+  (baseEq : packet.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
+
+include packet baseEq
+local notation "raw" => packet
 local notation "geometry" => PerApplicationCanonicalEncodes.poseidonGeometry application
 
 /-- The first C slice uses the declared zero state. -/
@@ -141,7 +144,7 @@ theorem challenge_initial :
   change ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart lane).eval
       (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation statementFamily) lane
   rw [challenge_initial_column, Expr.eval_var]
-  exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
+  exact (PiCCSEndpointCompleteness.endpointValue_of_base application relation target suffix physical packet baseEq
     statementFamily lane).symm
 
 include relation physical in
@@ -158,7 +161,7 @@ theorem round_initial :
   change ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart lane).eval
       (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation challengeFamily) lane
   rw [round_initial_column, Expr.eval_var]
-  exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
+  exact (PiCCSEndpointCompleteness.endpointValue_of_base application relation target suffix physical packet baseEq
     challengeFamily lane).symm
 
 include relation physical in
@@ -175,7 +178,7 @@ theorem output_initial :
   change ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart lane).eval
       (Spartan.pullback target) = outputValue geometry (raw).assignment (endpointInvocation roundFamily) lane
   rw [output_initial_column, Expr.eval_var]
-  exact (PiCCSEndpointCompleteness.endpointValue_of_completed application relation target suffix physical
+  exact (PiCCSEndpointCompleteness.endpointValue_of_base application relation target suffix physical packet baseEq
     roundFamily lane).symm
 
 end InitialValues

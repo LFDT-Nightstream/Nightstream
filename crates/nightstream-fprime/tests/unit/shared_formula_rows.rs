@@ -61,14 +61,15 @@ fn shared_poseidon_templates_match_every_reference_row() {
         assert_eq!(output.terms()[0].column_count(), 41);
         assert_eq!(output.entries().len(), 41);
         let mut partial = Vec::new();
+        let terminal_round_start = 4 * 8 + 22;
         let flow = actual
-            .visit_rows_until(logical_width, 86, count - 1, |row| {
+            .visit_rows_until(logical_width, terminal_round_start, count - 1, |row| {
                 partial.push(owned_row(row));
                 Ok(ControlFlow::Continue(()))
             })
             .unwrap();
         assert_eq!(flow, ControlFlow::Continue(()));
-        assert_eq!(partial, visited[86..count - 1]);
+        assert_eq!(partial, visited[terminal_round_start..count - 1]);
         assert!(actual.row(logical_width, count).is_err());
         assert!(actual
             .visit_rows_until(logical_width, count, count - 1, |_| Ok(ControlFlow::Continue(())))
@@ -77,22 +78,23 @@ fn shared_poseidon_templates_match_every_reference_row() {
 }
 
 #[test]
-fn shared_phi81_templates_match_all_lanes_and_prior_source_cases() {
-    // Two sources cover both a zero prior and a carried prior for all 54 lanes.
+fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
+    // Ring order crosses sources, blocks, extension components, and families.
     let logical_width = 4_000;
     let encoded = json!([
-        [[2, 1, 1]],
+        [[2, 2, 2], [1, 1, 1]],
         0,
         [0, 108, 20],
         0,
         54,
-        [[[0, 108, [0, 108, 128], 0]], []],
-        [0, 108, 236],
-        [0, 108 * 33, 344]
+        [[[0, 486, [0, 486, 128], 0]], []],
+        [0, 486, 614],
+        [0, 486, 1100]
     ]);
     let actual = phi81::Block::decode(&encoded).unwrap();
     let expected = reference::phi81::Block::decode(&encoded, logical_width).unwrap();
     let count = actual.row_count().unwrap();
+    assert_eq!(count, 9 * 108);
     assert_eq!(count, expected.row_count().unwrap());
     let mut visited = Vec::new();
     let flow = actual
@@ -109,17 +111,94 @@ fn shared_phi81_templates_match_all_lanes_and_prior_source_cases() {
     }
     let mut partial = Vec::new();
     let flow = actual
-        .visit_rows_until(logical_width, 33, count - 1, |row| {
+        .visit_rows_until(logical_width, 107, count - 1, |row| {
             partial.push(owned_row(row));
             Ok(ControlFlow::Continue(()))
         })
         .unwrap();
     assert_eq!(flow, ControlFlow::Continue(()));
-    assert_eq!(partial, visited[33..count - 1]);
+    assert_eq!(partial, visited[107..count - 1]);
     assert!(actual.row(logical_width, count).is_err());
     assert!(actual
         .visit_rows_until(logical_width, count, count - 1, |_| Ok(ControlFlow::Continue(())))
         .is_err());
+}
+
+#[test]
+fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
+    let logical_width = 217;
+    let block = phi81::Block::decode(&json!([
+        [[1, 1, 1]],
+        0,
+        [0, 54, 1],
+        0,
+        54,
+        [[[0, 54, [0, 54, 55], 0]], []],
+        [0, 54, 109],
+        [0, 54, 163]
+    ]))
+    .unwrap();
+    let mut rows = Vec::new();
+    let flow = block
+        .visit_rows_until(logical_width, 0, 108, |row| {
+            rows.push(owned_row(row));
+            Ok(ControlFlow::Continue(()))
+        })
+        .unwrap();
+    assert_eq!(flow, ControlFlow::Continue(()));
+    let residuals = |values: &[Goldilocks]| {
+        rows.iter()
+            .map(|row| {
+                let evaluate = |port: usize| {
+                    row[port]
+                        .entries()
+                        .iter()
+                        .fold(Goldilocks::ZERO, |sum, entry| {
+                            sum + entry.coefficient * values[entry.column]
+                        })
+                };
+                evaluate(7) * (evaluate(0) * evaluate(2) - evaluate(4))
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut values = vec![Goldilocks::ZERO; logical_width];
+    values[0] = Goldilocks::ONE;
+    values[1..55].fill(Goldilocks::from_u64(2));
+    // X^53 * X^53 = X^25 + Phi81 * (X^52 - X^25).
+    values[1 + 53] += Goldilocks::ONE;
+    values[55 + 53] = Goldilocks::ONE;
+    values[109 + 25] = Goldilocks::ONE;
+    values[163 + 52] = Goldilocks::ONE;
+    values[163 + 25] = -Goldilocks::ONE;
+    assert!(residuals(&values)
+        .iter()
+        .all(|value| *value == Goldilocks::ZERO));
+    values[109 + 25] += Goldilocks::ONE;
+    assert!(residuals(&values)
+        .iter()
+        .any(|value| *value != Goldilocks::ZERO));
+
+    let attack: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tools/recursive-constraint-minimizer/experiments/phi81_quotient.json"
+    ))
+    .unwrap();
+    values[1..55].fill(Goldilocks::from_u64(2));
+    values[55..109].fill(Goldilocks::ZERO);
+    for (base, field) in [(109, "h_coefficients"), (163, "q_coefficients")] {
+        for (degree, coefficient) in attack["attack_replay"][field]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
+            values[base + degree] = Goldilocks::from_u64(coefficient.as_u64().unwrap());
+        }
+    }
+    let attack_residuals = residuals(&values);
+    assert!(attack_residuals[..107]
+        .iter()
+        .all(|value| *value == Goldilocks::ZERO));
+    assert_ne!(attack_residuals[107], Goldilocks::ZERO);
 }
 
 #[test]
@@ -274,20 +353,21 @@ fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
 fn template_visitors_stop_before_invalid_later_invocations() {
     let logical_width = 12_000;
     let poseidon = json!([2, [2, 0, [2, 2 * 86, 100], [[[1, 1, 0, 1], [0, [0, 0, 0], 0, 0, 0]]]]]);
+    // Two rings (one source, two blocks, one cell); retained blocks cover only the first.
     let phi81 = json!([
         3,
         [
-            [[1, 1, 1]],
+            [[1, 2, 1]],
             0,
             [0, 54, 20],
             0,
             54,
             [[[0, 54, [0, 54, 74], 0]], []],
             [0, 54, 128],
-            [0, 33, 182]
+            [0, 54, 182]
         ]
     ]);
-    for (encoded, invalid_row) in [(poseidon, 94), (phi81, 34)] {
+    for (encoded, invalid_row) in [(poseidon, 86), (phi81, 108)] {
         let program = MatrixProgram::decode(&json!([encoded])).unwrap();
         let source = |_| panic!("template rows do not read ordinary source rows");
         let expected = program.row(logical_width, 0, &source).unwrap();

@@ -158,19 +158,15 @@ fn checked_relocation<T: Clone + PartialEq>(
     Ok(())
 }
 
-pub(super) fn replace_application(
-    reference: &mut Envelope,
-    application: ApplicationPlan,
-    manifest: &Manifest,
-    counts: Counts,
-) -> Result<(), AssemblyError> {
-    let old = manifest.reference();
+/// Remove the reference application's rows, row instructions and recipes.
+/// The sealed application records supply them to the native loader.
+pub(super) fn strip_application(reference: &mut Envelope, manifest: &Manifest) -> Result<(), AssemblyError> {
     let source = &mut reference.source;
     let start = manifest.source_relocation.application_row_start;
     let end = manifest
         .source_relocation
         .next_preimage_row_start
-        .eval(old)?;
+        .eval(manifest.reference())?;
     let private_start = manifest.source_relocation.source_private_start;
     let private_end = manifest.source_relocation.reference_constant;
     source.rows.retain(|row| !(start..end).contains(&row.index));
@@ -180,6 +176,18 @@ pub(super) fn replace_application(
     source
         .batches
         .retain(|batch| !(private_start..private_end).contains(&batch.start));
+    Ok(())
+}
+
+pub(super) fn replace_application(
+    reference: &mut Envelope,
+    application: ApplicationPlan,
+    manifest: &Manifest,
+    counts: Counts,
+) -> Result<(), AssemblyError> {
+    let old = manifest.reference();
+    strip_application(reference, manifest)?;
+    let source = &mut reference.source;
 
     let forward = Mapping {
         manifest,

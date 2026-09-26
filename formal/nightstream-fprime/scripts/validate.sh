@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# Validation defaults to the project cap; an owner-authorized zero disables it.
+# Validation uses the project cap and kills the complete command group at the limit.
 #   validate.sh static            boundary checks only (no Lean)
-#   validate.sh build [target]    lake build (default: the two libraries)
+#   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh identity          recompute canonical binding and compare pins
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
-#   validate.sh emit-poseidon2-hash-chain-v1 <path>
-#   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
 #   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> [<prior-state-message>] <path>
@@ -46,16 +44,14 @@
 #   validate.sh poseidon2-hash-chain-v1-parity <context[4]> <path>
 #   validate.sh poseidon2-hash-chain-v1-canonical-binding <path>
 #   validate.sh poseidon2-hash-chain-v1-binding-parity <id[4]> <relation[4]> <application[4]> <nifs[4]> <commitment[4]> <path>
-#   validate.sh per-application-reference <path>
-#   validate.sh per-application-streamed <path>
 #   validate.sh all
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 CAP="${LEAN_TIMEOUT_SECONDS:-1500}"
-if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 0 || CAP > 1500 )); then
-  echo "LEAN_TIMEOUT_SECONDS must be 0 (owner-authorized no timeout) or between 1 and 1500" >&2; exit 2
+if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 1 || CAP > 1500 )); then
+  echo "LEAN_TIMEOUT_SECONDS must be between 1 and 1500" >&2; exit 2
 fi
 LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-$(getconf _NPROCESSORS_ONLN)}"
 if [[ ! "$LEAN_NUM_THREADS" =~ ^[0-9]+$ ]] || (( LEAN_NUM_THREADS < 1 )); then
@@ -65,22 +61,11 @@ export LEAN_NUM_THREADS
 echo "[parallel] LEAN_NUM_THREADS=${LEAN_NUM_THREADS}"
 
 capped() {
-  local start=$SECONDS
-  if (( CAP == 0 )); then
-    echo "[no timeout] $*"
-    "$@"
-  else
-    echo "[bounded ${CAP}s] $*"
-    # -k kills hard 10 s after the cap; exit 124 marks a timeout.
-    timeout -k 10 "$CAP" "$@"
-  fi
-  local rc=$?
-  if (( CAP == 0 )); then
-    echo "[no timeout] exit=$rc elapsed=$((SECONDS - start))s"
-  else
-    echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
-  fi
-  if (( rc == 124 )); then echo "[bounded] TIMEOUT is a failed gate" >&2; fi
+  local start=$SECONDS rc=0
+  echo "[bounded ${CAP}s] $*"
+  timeout --signal=KILL "$CAP" "$@" || rc=$?
+  echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
+  if (( rc == 124 || rc == 137 )); then echo "[bounded] TIMEOUT is a failed gate" >&2; fi
   return $rc
 }
 
@@ -97,7 +82,11 @@ case "$phase" in
     shift
     capped "$@"
     ;;
-  build)  capped lake build "${2:-NightstreamFPrime}" ;;
+  build)
+    shift
+    if (( $# == 0 )); then set -- NightstreamFPrime; fi
+    capped lake build "$@"
+    ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
   pi-ccs-first-round)
     if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi
@@ -214,14 +203,6 @@ case "$phase" in
     if (( $# != 2 )); then echo "usage: validate.sh emit-expanded <path>" >&2; exit 2; fi
     capped lake exe emit -- --expanded "$2"
     ;;
-  emit-poseidon2-hash-chain-v1)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1 <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1 "$2"
-    ;;
-  emit-poseidon2-hash-chain-v1-expanded)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1-expanded <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1-expanded "$2"
-    ;;
   pilot-parity)
     if (( $# != 6 )); then
       echo "usage: validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>" >&2
@@ -266,7 +247,7 @@ case "$phase" in
     ;;
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
-    capped lake exe emitPiRlcSamplerParity -- "$2"
+    capped lake exe emitWideSamplerParity -- "$2"
     ;;
   pi-rlc-input-check)
     if (( $# != 7 )); then
@@ -344,14 +325,6 @@ case "$phase" in
       "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" \
       "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" \
       "${18}" "${19}" "${20}" "${21}" "${22}"
-    ;;
-  per-application-reference)
-    if (( $# != 2 )); then echo "usage: validate.sh per-application-reference <path>" >&2; exit 2; fi
-    capped lake exe emitPerApplicationReferenceFixture -- "$2"
-    ;;
-  per-application-streamed)
-    if (( $# != 2 )); then echo "usage: validate.sh per-application-streamed <path>" >&2; exit 2; fi
-    capped lake exe emitPerApplicationStreamedFixture -- "$2"
     ;;
   all)
     bash scripts/check-boundaries.sh

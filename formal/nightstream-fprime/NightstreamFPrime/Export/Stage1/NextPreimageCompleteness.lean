@@ -87,26 +87,21 @@ private theorem copied_input
     (Or.inl beforeC)).trans
     (PerApplicationSourceAssignment.source_ofCompleted application target suffix column sourceBound)
 
-/-- Actual next-preimage wiring makes all five retained next-preimage rows
-zero on the existing completed assignment. No separate framing equality or
-source-copy premise is supplied by the caller. -/
-theorem rowsZero_of_completed
+/-- The five framing rows hold on every packet with the copied base. -/
+theorem rowsZero_of_base
     (application : Lifecycle.Stage1.Application.Program) (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (nextRows : holdsFlat (Spartan.pullback target) (NextPreimage.opsAt
-      NextPreimageInputs.sourceInterface RunningTransitionInputs.phaseOffset)) :
-    let raw := canonicalRawValues application
-      (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (sourceSpec : NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
+      RunningTransitionInputs.phaseOffset (Spartan.pullback target)) :
     (NextPreimageDirectPlan.plan
       (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
-  intro raw
-  have sourceSpec := NextPreimage.soundness NextPreimageInputs.sourceInterface
-    (Spartan.pullback target) RunningTransitionInputs.phaseOffset
-    (holdsFlat_implies_holds _ _ nextRows)
   have bounds := inputs_before_pilot (Spartan.pullback target)
   have copiedSpec : NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
       NextPreimagePackage.privateStart
       (Spartan.pullback (RunningTransitionDirectPlan.transitionEnv application raw.base)) := by
+    rw [baseEq]
     apply NextPreimage.SpecHolds.of_cross_values_eq _ _
       RunningTransitionInputs.phaseOffset NextPreimagePackage.privateStart
       (Spartan.pullback target) _ _ _ _ _ sourceSpec
@@ -122,5 +117,24 @@ theorem rowsZero_of_completed
     (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
   exact sourceRows_of_spec _
     ((NextPreimageInputs.spartanSpec_iff_sourceSpec _ _).mpr copiedSpec)
+
+
+/-- Actual next-preimage wiring makes all five retained next-preimage rows
+zero on the existing completed assignment. No separate framing equality or
+source-copy premise is supplied by the caller. -/
+theorem rowsZero_of_completed
+    (application : Lifecycle.Stage1.Application.Program) (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (nextRows : holdsFlat (Spartan.pullback target) (NextPreimage.opsAt
+      NextPreimageInputs.sourceInterface RunningTransitionInputs.phaseOffset)) :
+    let raw := canonicalRawValues application
+      (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (NextPreimageDirectPlan.plan
+      (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
+  intro raw
+  exact rowsZero_of_base application target suffix raw rfl
+    (NextPreimage.soundness NextPreimageInputs.sourceInterface
+      (Spartan.pullback target) RunningTransitionInputs.phaseOffset
+      (holdsFlat_implies_holds _ _ nextRows))
 
 end NightstreamFPrime.Export.Stage1.NextPreimageCompleteness

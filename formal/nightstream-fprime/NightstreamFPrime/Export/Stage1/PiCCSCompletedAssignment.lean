@@ -38,20 +38,20 @@ private theorem c_rows
   have throughC := (PilotPiCCSPiRLC.physicalHolds_iff relation _).mp throughR.1
   exact ((PilotPiCCS.physicalHolds_iff relation _).mp throughC.1).2
 
-/-- Actual completed Spartan rows make the canonical direct C arithmetic
-plan zero. Source agreement, transcript readout and encodings are derived;
-the caller supplies no compact-row or retained-value assertion. -/
-private theorem ordinaryRowsZero_of_completed
+/-- Physical C rows make the direct C arithmetic plan zero on any packet
+with the copied base. -/
+private theorem ordinaryRowsZero_of_base
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
     (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
-    (physical : R1CS.RowsHold target (Spartan.remappedRows relation)) :
-    let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
     (PiCCSOrdinaryDirectPlan.plan relation
       (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
-  intro raw
-  have cRows := c_rows relation target physical
+  have cRows := physical
   apply (PiCCSOrdinaryDirectPlan.rowsZero_iff_rowsHold relation
     (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
     raw.assignment raw.base raw.groupValue raw.products
@@ -61,9 +61,33 @@ private theorem ordinaryRowsZero_of_completed
     (PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation)
   · intro column supported
     rcases supported with ⟨source, sourceSupport, rfl⟩
+    rw [baseEq]
     exact PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
       cRows source (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount sourceSupport)
   · exact PiCCSOrdinaryPhysicalCompleteness.ordinaryRows_of_physical relation target cRows
+
+/-- Physical C rows imply acceptance of its arithmetic, Poseidon and endpoint
+plans on any packet with the copied base. -/
+theorem rowsZero_of_base
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
+    (PiCCSOrdinaryDirectPlan.plan relation
+      (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment ∧
+    (PiCCSPoseidonPlan.plan
+      (DirectPiDECPrefixPlan.piCcsPayload (PerApplicationCanonicalEncodes.piDecGeometry application))
+      (PerApplicationCanonicalEncodes.poseidonGeometry application)).RowsZero raw.assignment ∧
+    (PiCCSTranscriptEndpointPlan.plan
+      (PerApplicationCanonicalEncodes.poseidonGeometry application)
+      (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
+  exact ⟨ordinaryRowsZero_of_base application relation target suffix physical raw baseEq,
+    PiCCSPoseidonCompleteness.rowsZero_of_base application relation target suffix physical raw baseEq,
+    PiCCSEndpointCompleteness.rowsZero_of_base application relation target suffix physical raw baseEq⟩
 
 /-- The canonical assignment satisfies every direct C component: ordinary
 arithmetic, retained Poseidon permutations and all transcript endpoints.
@@ -84,9 +108,7 @@ theorem rowsZero_of_completed
       (PerApplicationCanonicalEncodes.poseidonGeometry application)
       (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
   intro raw
-  have cRows := c_rows relation target physical
-  exact ⟨ordinaryRowsZero_of_completed application relation target suffix physical,
-    PiCCSPoseidonCompleteness.rowsZero_of_completed application relation target suffix cRows,
-    PiCCSEndpointCompleteness.rowsZero_of_completed application relation target suffix cRows⟩
+  exact rowsZero_of_base application relation target suffix
+    (c_rows relation target physical) raw rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSCompletedAssignment

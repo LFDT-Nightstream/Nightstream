@@ -373,12 +373,29 @@ theorem emittedConstraints_varsSatisfy
     · simpa [sumcheckInterface, Formal.sumcheckInterface,
         Formal.roundTranscriptRound, RoundTranscript.round,
         RoundTranscript.Message.asRound] using! transcript.roundPoint roundIndex
+  have sumcheckLocal : ∀ index,
+      PiCCSArithmetic.sumcheckLogicalStart ≤ index →
+      index < PiCCSArithmetic.sumcheckLogicalStart + localLength
+        (Circuit.ops (SumcheckChain.circuit sumcheckInterface).main
+          PiCCSArithmetic.sumcheckLogicalStart) → Source index := by
+    intro index lower upper
+    rw [SumcheckChain.localLength_eq] at upper
+    change index < PiCCSArithmetic.sumcheckLogicalStart + 504 at upper
+    apply fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 504 _ _ index lower upper
+    · unfold PiCCSArithmetic.sumcheckLogicalStart PiCCSStarts.sumcheckLogicalStart
+        PiCCSArithmetic.initialClaimLogicalStart
+      omega
+    · rw [PiCCSStarts.outputBindingWitnessStart_eq]
+      unfold PiCCSArithmetic.sumcheckLogicalStart PiCCSStarts.sumcheckLogicalStart
+        PiCCSStarts.initialClaimLogicalStart
+      rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+      norm_num
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have sumcheckOutput := SumcheckChain.output_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have evalKLocal : ∀ index,
       PiCCSArithmetic.evalKLogicalStart ≤ index →
       index < PiCCSArithmetic.evalKLogicalStart + localLength
@@ -600,7 +617,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 731605 by
+    rw [show R1CS.totalFreshCount constraints = 207011 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart

@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.RecursiveStepFixture
+import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
 
 open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Spec
@@ -45,14 +46,16 @@ private def run (w0 w1 w2 w3 inputPath childrenPath outputPath : String)
           match statePath with
           | none =>
               NightstreamFPrime.Export.ParityEmitter.runIO "emitted_recursive_step_fixture"
-                (NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueIO context input children)
+                (NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueIOWith
+                  (fun state => some (NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture.batch state)) context input children)
                 [outputPath]
           | some path =>
               match parseState (← IO.FS.readFile path) with
               | .error error => IO.eprintln error; pure 2
               | .ok (iteration, z0, current, message) =>
                   NightstreamFPrime.Export.ParityEmitter.runIO "emitted_recursive_step_fixture"
-                    (NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueFromStateIO
+                    (NightstreamFPrime.Export.Stage1.RecursiveStepFixture.valueFromStateIOWith
+                      (fun state => some (NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture.batch state))
                       context iteration z0 current message input children) [outputPath]
       | .error error, _ | _, .error error => IO.eprintln error; pure 2
 

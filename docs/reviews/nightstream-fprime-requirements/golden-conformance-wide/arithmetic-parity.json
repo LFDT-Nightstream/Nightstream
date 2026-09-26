@@ -1,0 +1,31 @@
+{
+  "outcome": "passed",
+  "scope": "Direct arithmetic comparisons on fresh active-Lean vectors; finite cases, not universal Rust semantics.",
+  "inputs": "Goldilocks modulus, production B, 32-bit carries, centered signs and u64 conversion boundaries. Extension cases use both basis directions and both signs.",
+  "Lean": "NightstreamFPrime.Export.FoundationParityMain.emitArithmetic; Fin Goldilocks arithmetic, Spec.K operations and Circuit.Hint.inverse. Nonzero extension inverses are checked against Spec.K.mul.",
+  "Rust": "neo_math::{Fq, K}; canonical coefficients compared for normalization, add, subtract, multiply, negation, conjugation and inverse (zero maps to zero).",
+  "emission_command": "timeout --signal=KILL 1500 formal/nightstream-fprime/scripts/validate.sh foundation-parity OUTPUT",
+  "comparison_command": "printf the JSON-encoded OUTPUT path to stdin of timeout --signal=KILL 300 cargo test -p neo-math --release --test field_lean_parity -- --ignored --exact active_lean_arithmetic_matches_runtime",
+  "emission_exit": 0,
+  "comparison_exit": 0,
+  "vectors": {
+    "field.jsonl": {
+      "header": [
+        18446744069414584321,
+        16
+      ],
+      "cases": 256,
+      "sha256": "3a285ddb5f58909878650dde4e6f9463f78d5102b510aed0b30fb2e756266bbf"
+    },
+    "extension.jsonl": {
+      "header": [
+        18446744069414584321,
+        7,
+        53
+      ],
+      "cases": 2809,
+      "sha256": "aef001fde1eb5390eb1357ee0d0ca530596eae83e80171489647fe0139292a04"
+    }
+  },
+  "digest_scope": "File identity only. Arithmetic equality comes from the actual comparisons."
+}

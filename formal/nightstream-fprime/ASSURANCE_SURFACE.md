@@ -5,6 +5,12 @@ Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`, 17 sources, 16 childr
 14 matrices, 28 rounds, and Poseidon2 binding. A successful build checks the
 stated conclusions under their stated hypotheses.
 
+The current production entrypoint selects the wide sampler package. Its
+proof authority is listed in the wide-sampler section below. The earlier
+baseline declarations and native trace records remain evidence for their
+recorded package versions. The current native integration checks and open
+fixture work are recorded in the integration report.
+
 The selected native NIFS-to-successor bridge is checked at `68c5d94a`.
 It constructs the complete caller packet from the actual saved NIFS output,
 matches every caller word with Lean, and passes independent complete
@@ -48,7 +54,7 @@ The constructor consumes `Export.Stage1.DirectApplicationPrefixPlan.rowsZero_iff
 
 **Actual NIFS and security consumers.**
 
-- `Export.Stage1.ActualContextSecurity.terminal_implies_rowsAndPublic` ([source:186](NightstreamFPrime/Export/Stage1/ActualContextSecurity.lean#L186)) reaches the selected rows from semantic terminal membership. `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`, `terminal_implies_parentOrBaseOrCollision`, and `terminal_implies_securityOrCollision` ([source:30](NightstreamFPrime/Export/Stage1/ActualTerminalSecurity.lean#L30), lines 101 and 157 in the same file) consume the actual decoded input, proof, and terminal witnesses. They give the exact NIFS output, a valid recomposed parent, or the named base/collision alternatives. These are implications from `Terminal.HoldsFor`, not a theorem about an arbitrary Rust Boolean verifier result.
+- `Export.Stage1.Wide.OpeningBinding.freshHolds_implies_rowsAndPublic` ([source:102](NightstreamFPrime/Export/Stage1/Wide/OpeningBinding.lean#L102)) reaches the wide package rows from semantic terminal membership. For each `Wide.Target`, `terminal_implies_nifsOrBaseOrCollision` and `terminal_implies_parentOrBaseOrCollision` ([source:166](NightstreamFPrime/Export/Stage1/Wide/TerminalSecurity.lean#L166), line 204 in the same file) consume the actual decoded input, proof, and terminal witnesses. They give the exact wide-key NIFS output, a valid recomposed parent, or the named base/collision alternatives. These are implications from `Terminal.HoldsFor`, not a theorem about an arbitrary Rust Boolean verifier result. The baseline-key `terminal_implies_securityOrCollision` was removed with the baseline security owners; the wide history bound replaces its role.
 - `Poseidon2HashChainV1Closure.rowsZero_implies_base_or_securityOutcome` and `expectedBindingAndRowsZero_implies_securityOrCollision` ([source:64](NightstreamFPrime/Export/Stage1/Poseidon2HashChainV1Closure.lean#L64), line 107 in the same file) retain low-norm invertibility and explicit collision alternatives. `Spec.Folding.Nifs.PaperSecurityComposition.SecurityOutcome` ([source:466](NightstreamFPrime/Spec/Folding/Nifs/PaperSecurityComposition.lean#L466)) includes knowledge, mixing, sumcheck, parent-binding, missing-fork, and missing-child-opening cases. Its exhaustive case split is not a probability bound on those failures.
 - `Export.Stage1.NifsClosure.source_probability_linear_bound` ([source:186](NightstreamFPrime/Export/Stage1/NifsClosure.lean#L186)) proves the selected v1.2 lower bound `g Q p_real − deltaFS Q − weakLoss − testError − 17 * adaptiveMsisSuccess` on the constructed `HyperNovaSourceLaw.law` PMF and its actual `SourceReturned` event. `AdaptiveBindingProbability.successProbability_tendsto` identifies the MSIS term with the limit of the actual driver's emitted-vector success, retaining both acceptance gates, aborts and the original context law. `AdaptiveBindingWork` proves the actual-step clock correspondence, entered termination, complete mean convergence and prepared polynomial bound under explicit moments. The existing square-root and source-extractor work theorem remains available as `finishValue_probability_and_expected_work`.
 - `Export.Stage1.HyperNovaHistory.run_correct` proves correctness of the actual reverse run on a supplied list of NIFS source results. Under accepted terminal membership, the exact encountered `SourceReturned` events and absence of the encountered state-hash collisions, it returns advice of length `statement.iteration` whose forward execution reaches `statement.zi` from `statement.z0`. It uses the exact decoded claims, reconstructs accepted predecessors and consumes no source result at the base step. The result generator and its probability bound are described below; the selected probability and declared-work bounds are now composed below.
@@ -77,7 +83,95 @@ The constructor consumes `Export.Stage1.DirectApplicationPrefixPlan.rowsZero_iff
 - The final consumer constructs its continuation with `NifsExtractionProvider.provider`. `ClaimCheck.check_eq_true_iff` checks the full CE opening; `suffixProgram_correct` checks the actual PiDEC attempt and all 16 child openings; `recompose_value` and `parentChecker_spec` check the exact recomposed parent. `batchAt_eq` connects the selected relation, statement and receipt to the existing continuation. These facts discharge the suffix and parent-check correctness fields. The final consumer executes the exact checked prefix and uses identity preparation under the supplied context law. It requires no free provider, `callCorrect` or prepared-context equality. Low-norm invertibility, raw adversary calls and tape laws, declared clock bounds, access bounds and summability/polynomial moment bounds remain explicit. Identity preparation does not implement a sampler or adversary translation. `Spec.Phi81StrongSet.LowNormInvertibility` ([source:213](NightstreamFPrime/Spec/Phi81StrongSet.lean#L213)) is an external mathematical theorem parameter, not a cryptographic hardness assumption. The delivered work claim uses its declared mathematical clock; it is not a Lean/Rust machine-time bound or a bound for an unspecified adversary translator.
 - Named Poseidon2 collision events remain explicit. Treating them as negligible requires the applicable cryptographic security premise. The approved [public-seed MSIS assumption](../../docs/reviews/nightstream-fprime-requirements/PUBLIC_SEED_MSIS_ASSUMPTION.md) is specifically for the frozen generated matrix and strict norm below `8TB`; it is stronger than a setup-average or uniform-matrix assumption. `NifsBinding.bindingEvent_to_shortKernel` ([source:29](NightstreamFPrime/Export/Stage1/NifsBinding.lean#L29)) connects the actual binding event to that search problem. No numerical hardness bound follows from this approval.
 - `Spec.AjtaiSetupV1.Prefix.extendShortKernel` preserves a nonzero short integer kernel when a same-seed key prefix is extended by zero blocks. Padding starts after the smaller complete carrier. This is the deterministic prerequisite for retaining the existing hardness premise after the proposed unused-allocation removal; it changes no package width or pin and proves no hardness.
-- The owner approved the [Fiat–Shamir assumption boundary](../../docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md) on 2026-09-11 UTC. This approves no numerical model instance. `Lifecycle.Nifs.FiatShamirTransfer.FiatShamirModel` ([source:138](NightstreamFPrime/Lifecycle/Nifs/FiatShamirTransfer.lean#L138)) assumes only the transfer inequality to the typed interactive game. Its real event requires actual verifier acceptance **and witnesses for the exact 16 children**. The shared context marginal does not construct an adversary translation. Applicable classical transfer, useful `g`/`deltaFS`, and total permutation-query accounting, including replays, must be supplied externally. This is an additional FS/SuperNeo contract, not ordinary collision resistance or an established instantiation of the overwrite-duplex theorem for the additive transcript.
+- The owner approved the [Fiat–Shamir assumption boundary](../../docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md) on 2026-09-11 UTC. This approves no numerical model instance. `Lifecycle.Nifs.WideFiatShamir.FiatShamirModel` ([source:108](NightstreamFPrime/Lifecycle/Nifs/WideFiatShamir.lean#L108)) assumes only the transfer inequality to the typed interactive game, for the selected wide key. `FiatShamirTransfer` keeps only the key-independent composition that consumes this inequality. Its real event requires actual verifier acceptance **and witnesses for the exact 16 children**. The shared context marginal does not construct an adversary translation. Applicable classical transfer, useful `g`/`deltaFS`, and total permutation-query accounting, including replays, must be supplied externally. This is an additional FS/SuperNeo contract, not ordinary collision resistance or an established instantiation of the overwrite-duplex theorem for the additive transcript.
 - Finite sampler density and abort results concern the explicit independent-field comparison. They do not assign that law to Poseidon2. `Lifecycle.Nifs.VerifierErrorBudget.any_test_or_sampler_abort_le` ([source:62](NightstreamFPrime/Lifecycle/Nifs/VerifierErrorBudget.lean#L62)) unions the two specified events over caller-supplied `n` in one trace law. Actual per-call bounds, which can follow from bounds conditional on the preceding history, remain required; independence is not required. This bound excludes FS/hash/MSIS and extraction loss. It is not a complete security bound.
 - Verifier-owned identity and setup checks remain necessary at the runtime trust boundary. The retained optimized Lean/Rust examples establish only their recorded inputs and rejection cases. This note adds no arbitrary-input Rust proof, backend claim, PaperExact authorization, or efficient probabilistic full-history extraction result.
 - The selected native cache now derives its rows through `Poseidon2HashChainV1Package.build_superneo_cache`. Exact reservations control memory; every actual row still passes order, coefficient and coverage checks. The actual base witness and logical transport matched all 14 × 54 retained Lean matrix outputs in 197.77 seconds of test time, with 26.90 GiB peak RSS. This is one full-profile matrix comparison. The normal selected PiCCS prover now passes from the actual base witness and fixed-key commitment: all round messages, transcript states and complete outputs match retained assertions, and the normal optimized verifier accepts (231.52 seconds, 26.86 GiB peak RSS). The complete selected-base C → R → D path now passes through capped actual-witness stages: computed D openings, normal NIFS acceptance, all 43 NIFS mutations, and strict comparison with an independently computed Lean C/R/D result, including all 55 D mutations. The retained regression checks that result and its 945,983-byte proof encoding against the current pinned package. The unused-allocation mutation repair is recorded separately in `NIFS_UNUSED_ALLOCATIONS.md`. See [native evidence](../../docs/reviews/nightstream-fprime-requirements/NATIVE_NIFS_EVIDENCE.md) for exact sources, inputs and logs. Full-profile later running inputs, universal Rust semantics, the production proof backend and performance remain separate.
+
+### Selected wide sampler
+
+The owner approved the map and transcript change on 2026-09-24 and, on
+2026-09-25, confirmed that the Fiat–Shamir boundary extends to the wide key
+(recorded with a hash in the [FS boundary note](../../docs/reviews/nightstream-fprime-requirements/FIAT_SHAMIR_MODEL.md)). The selection
+keeps Poseidon2 and the Nightstream Goldilocks profile `b=2`, `k_rho=16`,
+`B=65536`. `Export.Entrypoint` uses `Wide.Emitter` for the selected package,
+and the Rust native sampler reads the same joint four-field block.
+
+- `Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory.queryAt_answer`
+  proves that replaying a normalized block history from any seed reproduces
+  the additive Poseidon2 domain entry, four rate lanes and digest advance.
+  `Lifecycle.Nifs.WideSamplerSecurity.response_history` connects those values
+  to the wide verification key. No theorem identifies the verifier's PiCCS
+  output state with the replay of the complete transcript history.
+- `WideSamplerSecurity.no_sampler_abort` proves totality for every initial
+  state. `any_test_le` unions only PiCCS test errors in the supplied trace law.
+  It includes no old sampler-shortfall event.
+- `Lifecycle.Nifs.WideFiatShamir.returned_source_bound_with_adaptive_msis`
+  consumes the same parametric classical transfer boundary for the wide key.
+  The real event requires that key's actual acceptance and witnesses for its
+  exact sixteen returned children. The source bound keeps `g Q p_real`,
+  `deltaFS Q`, interactive extraction loss, PiCCS test loss and the actual
+  same-key MSIS event separate.
+- `WideSamplerSecurity.adaptive_bias_bound` is the general hybrid bound `q*δ`
+  for a bounded test of a cached block-oracle run, including raw lanes and
+  repeated queries. Its test runs the concrete verifier, which derives its
+  challenges with concrete Poseidon2; the oracle reaches the test only through
+  the supplied decoder, so the balanced run does not give the verifier uniform
+  challenges. `concrete_bias_bound` adds the supplied `modelError`. Neither
+  result is consumed by the extraction chain: the wide-versus-uniform challenge
+  difference stays inside the FS term `deltaFS`. Here `δ < 2^-132`; `q` counts every block call, while
+  `Q` in the FS boundary counts permutation calls including replays. Neither
+  count is inferred from the other. Balanced raw replies are not asserted to
+  be a Fiat–Shamir extractor, and a general `g` is not assumed to preserve
+  additive error. The fresh-batch result alone allows `17*L*δ`; its extraction
+  term `17*L/|C|` remains separate.
+- `Export.Stage1.Wide.ContextBinding.step_or_collision` binds arbitrary
+  accepted candidate rows and their actual public projection to the context
+  in a verifier-checked state hash, or exhibits the existing state-hash
+  collision event. No honest assignment or context-equality premise is used.
+- `Export.Stage1.Wide.PackageAuthority.matrix_exact`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/PackageAuthority.lean)) proves
+  that the matrix program in a successfully prepared package has the exact
+  structural-plan rows, using that package's actual physical source archive.
+  The constructor supplies source custody; no source-row equality is assumed.
+- `Export.Stage1.Wide.AssignmentTransportCorrectness.canonical_execute_eq_assignment`
+  and `canonical_carrier_eq`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/AssignmentTransportCorrectness.lean))
+  identify execution of the emitted schema-4 transport with the direct wide
+  assignment and its complete padded carrier. These theorems require the
+  stated PiCCS/PiRLC physical conditions and completed range values. The
+  package completeness theorem below constructs those conditions.
+- `Export.Stage1.Wide.PackageCompleteness.complete`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/PackageCompleteness.lean))
+  constructs physical values that the actual prepared transport accepts. The
+  resulting assignment satisfies the complete structural plan, has strict
+  carrier norm below two, and carries the exact public output digest and
+  application advice. Its premises are successful package preparation, the
+  typed semantic step, well-formed prior and next preimages, the fresh public
+  link, actual wide-key NIFS acceptance, agreement of the recursive result,
+  and four-word advice. It assumes no physical rows, transport equality or
+  source-read equality.
+- `Export.Stage1.Wide.SetupBinding.descriptor_recomputed` and
+  `step_or_collision`
+  ([source](NightstreamFPrime/Export/Stage1/Wide/SetupBinding.lean)) bind the
+  relation and exact application child from the sealed package, the wide
+  transcript schedule, and the indexed Ajtai setup with the approved seed
+  and dimensions 22 × 2,543,368. The setup dimensions follow from the
+  137,341,872-coordinate carrier. The context and verification-key
+  serializers both use the wide schedule. The key uses the same sampler as
+  `WideSamplerSecurity`; the explicit Fiat–Shamir and block-oracle model
+  boundaries above remain in force. `shortKernel_to_approvedMsis` reduces the
+  smaller same-seed key to the existing approved MSIS instance by zero
+  extension.
+
+All three selected costs are recorded in
+[the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
+The selected layout has 3,248,956 rows, 137,341,872 committed coordinates,
+and 2,607,606,765 normalized matrix entries. The complete independent Rust
+matrix comparison and native binding parity pass. The current-package
+golden conformance run at `48c8e0b9` passes for both folds and the terminal
+checks: fresh Lean C/R/D verification, complete proof bytes and caller inputs
+match native, with the stated mutation rejections. C messages and child claims
+are native inputs; the physical witness is not compared. See
+[the record](../../docs/reviews/nightstream-fprime-requirements/golden-conformance-wide/README.md).
+No numerical security level or performance claim follows from these counts.

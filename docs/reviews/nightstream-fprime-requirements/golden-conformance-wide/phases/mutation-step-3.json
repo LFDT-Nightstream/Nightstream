@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "source_commit": "48c8e0b9919a65459b3d4ddb5f3e1220d09c7bac",
+  "source_changes": [
+    " M crates/nightstream/tests/check_lean_fold.py",
+    " M crates/nightstream/tests/run_golden_conformance.py",
+    "?? scripts/__pycache__/",
+    "?? scripts/lean_graph/__pycache__/",
+    "?? scripts/lean_graph/tests/__pycache__/",
+    "?? tools/recursive-constraint-minimizer/experiments/__pycache__/"
+  ],
+  "command": [
+    "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/deps/nightstream-fd9cf442f48374a2",
+    "lifecycle::tests::staged::run_phase",
+    "--ignored",
+    "--exact",
+    "--nocapture"
+  ],
+  "request": {
+    "phase": "mutation",
+    "directory": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+    "step": 3
+  },
+  "cap_seconds": 300,
+  "elapsed_seconds": 43.6705799580086,
+  "exit": 0,
+  "outcome": "passed",
+  "process_exit": 0,
+  "user_seconds": 337.177253,
+  "system_seconds": 2.531123,
+  "maximum_resident_bytes": 4294377472,
+  "sampled_maximum_resident_bytes": 4287184896,
+  "memory_cap_bytes": 17179869184,
+  "memory_cap_metric": "RSS",
+  "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+  "memory_cap_exceeded": false,
+  "memory_enforcement": "peak RSS acceptance check after exit",
+  "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+  "memory_observation_error": null
+}

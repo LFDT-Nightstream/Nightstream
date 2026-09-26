@@ -19,13 +19,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
 
-def witness (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+def witness (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) : AppWitness :=
   List.ofFn fun index : Fin application.witnessWordCount =>
-    ((ApplicationDirectPlan.Location.witness index).form geometry).eval assignment
+    (ApplicationDirectPlan.witnessForm geometry index).eval assignment
 
 private theorem input_eq_forms
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     StateDecoder.currentState (ActualPreimageFraming.priorState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment) =
@@ -33,7 +33,7 @@ private theorem input_eq_forms
         ((PiRLCPoseidonGeometry.priorInputBlock application).form
           (PiRLCPoseidonGeometry.priorInputStart application)
           (PiRLCPoseidonGeometry.priorInputFits
-            (ApplicationRetainedGeometry.pilotGeometry geometry))
+            (ApplicationOrdinaryGeometry.pilotGeometry geometry))
           (ApplicationDirectPlan.Location.preimageWord index)).eval assignment) := by
   unfold StateDecoder.currentState StateDecoder.slice
   apply congrArg List.ofFn
@@ -49,7 +49,7 @@ private theorem input_eq_forms
   rfl
 
 private theorem output_eq_forms
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     StateDecoder.currentState (ActualPreimageFraming.outputState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment) =
@@ -57,7 +57,7 @@ private theorem output_eq_forms
         ((PiRLCPoseidonGeometry.outputInputBlock application).form
           (PiRLCPoseidonGeometry.outputInputStart application)
           (PiRLCPoseidonGeometry.outputInputFits
-            (ApplicationRetainedGeometry.pilotGeometry geometry))
+            (ApplicationOrdinaryGeometry.pilotGeometry geometry))
           (ApplicationDirectPlan.Location.preimageWord index)).eval assignment) := by
   unfold StateDecoder.currentState StateDecoder.slice
   apply congrArg List.ofFn
@@ -76,9 +76,9 @@ private theorem output_eq_forms
 to be the selected application step on the decoded prior state and witness. -/
 theorem rowsZero_implies_decodedStep
     (fits : PerApplicationPackage.FitsTwoPow28 application)
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
-    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn geometry) = 1)
     (rows : (ApplicationDirectPlan.plan fits geometry).RowsZero assignment) :
     StateDecoder.currentState (ActualPreimageFraming.outputState
         (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry geometry) assignment) =
@@ -96,7 +96,7 @@ theorem selectedRowsZero_implies_decodedStep
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
-    (one : assignment (ApplicationRetainedGeometry.oneColumn
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :

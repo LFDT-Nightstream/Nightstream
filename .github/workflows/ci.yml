@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, nico/f-prime-constraints-cuda-formal ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,6 +34,16 @@ jobs:
     runs-on: self-hosted
     
     steps:
+    - name: Provide Git LFS before checkout
+      run: |
+        if ! command -v git-lfs >/dev/null; then
+          lfs_package_dir=$(mktemp -d "$RUNNER_TEMP/git-lfs.XXXXXX")
+          cd "$lfs_package_dir"
+          apt-get download git-lfs
+          dpkg-deb --extract git-lfs_*.deb .
+          echo "$lfs_package_dir/usr/bin" >> "$GITHUB_PATH"
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -62,37 +72,37 @@ jobs:
     - name: Run matrix row tests
       run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
 
+    - name: Run wide sampler parity tests
+      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test pi_rlc_wide_lean_parity
+
+    - name: Run matrix program tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib matrix_program
+
+    - name: Run retained assignment transport tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib assignment_transport
+
     - name: Run application record and recipe stack tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
 
     - name: Run native application tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 
-  lean-assurance:
-    name: Lean assurance
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    permissions:
-      contents: read
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install pinned Lean toolchain
-      uses: leanprover/lean-action@v1
+    - name: Install Python for golden tools
+      uses: actions/setup-python@v5
       with:
-        lake-package-directory: formal/nightstream-fprime
-        auto-config: false
-        build: false
-        test: false
-        lint: false
-        use-github-cache: true
-        use-mathlib-cache: false
+        python-version: '3.11'
 
-    - name: Run bounded assurance gates
-      working-directory: formal/nightstream-fprime
-      run: ./scripts/validate.sh all
+    - name: Check golden conformance tools
+      run: |
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_run_golden_conformance.py
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_lean_fold.py
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_golden_vectors.py
+
+    # CI runs no Lean. Lean build, axiom, boundary and identity checks run
+    # locally with scripts/check_lean.sh (owner decision, 2026-09-26).
+    - name: Compare Rust primitives with saved Lean results
+      run: bash scripts/check_fprime_foundation_parity.sh
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

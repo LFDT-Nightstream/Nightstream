@@ -62,7 +62,7 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
       change 14751804 ≤ 14751804 + index.val * 592
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 14751804 ≤ 15256706 + (index.val - 718) * 592
+      change 14751804 ≤ 15229594 + (index.val - 718) * 592
       omega
   have endpointEq : sourceStart + 584 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart
@@ -85,6 +85,26 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
 
 /-- A canonical C endpoint form reads the same actual source column as the
 lifecycle compiler. No endpoint-plan acceptance is assumed. -/
+theorem endpointValue_of_base
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix)
+    (family : Fin familyCount) (lane : Fin laneCount) :
+    outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment
+      (endpointInvocation family) lane = Spartan.pullback target (endpointColumn family lane) := by
+  have output := congrFun
+    (PiCCSCompletedReadout.outputValue_of_base application relation target suffix physical raw baseEq
+      (endpointInvocation family)) lane
+  rw [physicalEndpoint_column] at output
+  exact output
+
+/-- A canonical C endpoint form reads the same actual source column as the
+lifecycle compiler. No endpoint-plan acceptance is assumed. -/
 theorem endpointValue_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -97,11 +117,46 @@ theorem endpointValue_of_completed
     outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment
       (endpointInvocation family) lane = Spartan.pullback target (endpointColumn family lane) := by
   intro raw
-  have output := congrFun
-    (PiCCSCompletedReadout.outputValue_of_completed application relation target suffix physical
-      (endpointInvocation family)) lane
-  rw [physicalEndpoint_column] at output
-  exact output
+  exact endpointValue_of_base application relation target suffix physical raw rfl family lane
+
+/-- The actual completed C phase makes all four endpoint pin families zero
+on the canonical assignment, with exact source agreement derived from rows. -/
+theorem rowsZero_of_base
+    (application : Lifecycle.Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (target : Env)
+    (suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
+    (physical : NightstreamFPrime.Layout.PiCCS.v1_1.PhysicalHolds relation
+      (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset (Spartan.pullback target))
+    (raw : PerApplicationCanonicalAssignment.RawValues application)
+    (baseEq : raw.base = PerApplicationSourceAssignment.ofCompleted application target suffix) :
+    (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)
+      (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
+  apply (PiCCSTranscriptEndpointPlan.rowsZero_iff _ _ raw.assignment
+    (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
+  intro rowIndex
+  let selected := descriptor rowIndex
+  have direct := endpointValue_of_base application relation target suffix physical raw baseEq selected.1 selected.2
+  have source := sourceForm_eval (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+    raw.assignment raw.base raw.groupValue raw.products
+    (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior selected.1 selected.2
+  have bound := endpointColumn_lt_source selected.1 selected.2
+  have same := packageEnv_sourceAssignment application raw.base raw.groupValue raw.products _ bound
+  have copied := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
+    physical (endpointColumn selected.1 selected.2) bound
+  rw [← baseEq] at copied
+  have sourceValue : (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+      selected.1 selected.2).eval raw.assignment =
+      Spartan.pullback target (endpointColumn selected.1 selected.2) :=
+    source.trans (same.trans copied)
+  change (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
+    selected.1 selected.2).eval raw.assignment = _ at direct
+  change (SparseForm.add (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
+      selected.1 selected.2)
+    (SparseForm.scale (-1) (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
+      selected.1 selected.2))).eval raw.assignment = 0
+  rw [SparseForm.add_eval, SparseForm.scale_eval, direct, sourceValue]
+  simp
 
 /-- The actual completed C phase makes all four endpoint pin families zero
 on the canonical assignment, with exact source agreement derived from rows. -/
@@ -116,29 +171,6 @@ theorem rowsZero_of_completed
     (PiCCSTranscriptEndpointPlan.plan (PerApplicationCanonicalEncodes.poseidonGeometry application)
       (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)).RowsZero raw.assignment := by
   intro raw
-  apply (PiCCSTranscriptEndpointPlan.rowsZero_iff _ _ raw.assignment
-    (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
-  intro rowIndex
-  let selected := descriptor rowIndex
-  have direct := endpointValue_of_completed application relation target suffix physical selected.1 selected.2
-  have source := sourceForm_eval (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
-    raw.assignment raw.base raw.groupValue raw.products
-    (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior selected.1 selected.2
-  have bound := endpointColumn_lt_source selected.1 selected.2
-  have same := packageEnv_sourceAssignment application raw.base raw.groupValue raw.products _ bound
-  have copied := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
-    physical (endpointColumn selected.1 selected.2) bound
-  have sourceValue : (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
-      selected.1 selected.2).eval raw.assignment =
-      Spartan.pullback target (endpointColumn selected.1 selected.2) :=
-    source.trans (same.trans copied)
-  change (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
-    selected.1 selected.2).eval raw.assignment = _ at direct
-  change (SparseForm.add (directForm (PerApplicationCanonicalEncodes.poseidonGeometry application)
-      selected.1 selected.2)
-    (SparseForm.scale (-1) (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
-      selected.1 selected.2))).eval raw.assignment = 0
-  rw [SparseForm.add_eval, SparseForm.scale_eval, direct, sourceValue]
-  simp
+  exact rowsZero_of_base application relation target suffix physical raw rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness

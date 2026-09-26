@@ -10,7 +10,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 import NightstreamFPrime.Export.Stage1.PinMatrixPrograms
-import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixProgram
 import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 
 /-!
@@ -88,7 +88,8 @@ def piDecProgram (application : ApplicationProgram) : Program :=
   PiDECMatrixProgram.matrixProgram (piDecGeometry application)
 
 def runningTransitionProgram (application : ApplicationProgram) : Program :=
-  RunningTransitionMatrixProgram.matrixProgram (runningGeometry application)
+  RunningTransitionReducedMatrixProgram.matrixProgram application
+    (RunningTransitionRetainedGeometry.oneColumn (runningGeometry application)).val
 
 def applicationProgram (application : ApplicationProgram) : Program :=
   ApplicationMatrixProgram.matrixProgram (applicationGeometry application)
@@ -231,7 +232,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      3587920 + ApplicationDirectPlan.rowCount application +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,

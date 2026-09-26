@@ -804,7 +804,7 @@ theorem resolvedEnv_logical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue
@@ -846,7 +846,7 @@ theorem resolvedEnv_fresh
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue
@@ -899,7 +899,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 29336446 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 28784740 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]
@@ -916,7 +916,7 @@ theorem resolvedEnv_selector
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment Spec.F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → Spec.F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → Spec.F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → Spec.F)
     (encodes : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base
@@ -955,7 +955,7 @@ theorem resolvedEnv_selector
         PiRLCProductPlan.basePackage.layout.constantColumn := by
     have sourceLt := source.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28784740 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [PiRLCSamplerOrdinaryDirectSource.selectorSource,

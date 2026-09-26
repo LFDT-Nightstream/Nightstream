@@ -2,26 +2,19 @@ import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
 /-!
-An explicit classical FS/SuperNeo game-transfer hypothesis. The owner
-approved the parametric boundary in FIAT_SHAMIR_MODEL.md on 2026-09-11 UTC.
-The real event runs the actual ProductionKey verifier: additive Poseidon2
-absorption, existing domain labels, complete C output absorption, bounded
-R sampling, and the actual PiDEC attempt. It includes valid witnesses for
-all sixteen returned children; bare public acceptance is not this event.
+Compose an explicit classical FS/SuperNeo game transfer with the existing
+interactive extraction, test and same-key MSIS losses. The transfer is a
+premise: `g Q realSuccess - deltaFS Q` bounds the success of the typed
+interactive experiment. The verifier-specific real event and the approved
+model that supplies this premise belong to `WideFiatShamir`.
 
 The translated side is the existing checked causal prefix and supported
 R/D provider under the real law's context marginal, with the same public
-input and key. FiatShamirModel assumes only a symbolic success transfer.
-It supplies no source witness, checker correctness, call refinement, or work
-bound. This is an additional game-transfer assumption, not Poseidon2 collision
-resistance or an application of the printed CO25 overwrite-sponge theorem.
-
-No oracle simulator, repeated-prefix cache, adaptive-query bound, or executable
-adversary translation is constructed here. Q, g, and deltaFS have no defaults.
-Any concrete model must separately supply their values, query inflation,
-and replay scope. The local implementation premises remain explicit. The
-prepared work theorem charges the supplied preparation call and existing
-extractor clocks; it makes no machine-time or unprovided-translator claim.
+input and key. No oracle simulator, repeated-prefix cache, adaptive-query
+bound, or executable adversary translation is constructed here. The local
+implementation premises remain explicit. The prepared work theorem charges
+the supplied preparation call and existing extractor clocks; it makes no
+machine-time or unprovided-translator claim.
 -/
 
 set_option autoImplicit false
@@ -29,7 +22,6 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
 
 open scoped BigOperators
-attribute [local instance] Classical.propDecidable
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
@@ -55,54 +47,11 @@ variable
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- The actual NIFS verifier accepts, and the supplied witnesses open its
-exact sixteen returned children. The same proof supplies the PiDEC attempt. -/
-def RealSuccess
-    (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    Option (RealOutput relation) → Prop
-  | none => False
-  | some output =>
-      let key := ProductionKey.key relation ajtai
-      ∃ result attempt,
-        PaperNonInteractive.verify key running fresh output.proof = some result ∧
-        key.piDecAttempt running fresh output.proof = some attempt ∧
-        ∀ child, CE.Holds key.piRlcSemantics key.params
-          (PiDEC.OutputWitnessConsumer.runningStatement key result child) (output.children child)
-
-/-- The real event's witnesses are for the exact verifier-computed PiDEC
-children, in their original order, with no assumed output correspondence. -/
-theorem realSuccess_implies_exact_children
-    (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (output : RealOutput relation) (success : RealSuccess relation ajtai running fresh (some output)) :
-    let key := ProductionKey.key relation ajtai
-    ∃ result attempt,
-      PaperNonInteractive.verify key running fresh output.proof = some result ∧
-      key.piDecAttempt running fresh output.proof = some attempt ∧
-      ∀ child, CE.Holds key.piRlcSemantics key.params
-        (PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt child)
-        (output.children (Fin.cast key.outputCount_eq child)) := by
-  dsimp only
-  rcases success with ⟨result, attempt, accepted, attemptEq, valid⟩
-  refine ⟨result, attempt, accepted, attemptEq, ?_⟩
-  intro child
-  rw [← PiDEC.OutputWitnessConsumer.runningStatement_eq_child
-    (ProductionKey.key relation ajtai) running fresh output.proof result attempt attemptEq accepted child]
-  exact valid (Fin.cast (ProductionKey.key relation ajtai).outputCount_eq child)
-
 variable {Context : Type*}
   (running : Context → Lifecycle.Running
     (logicalWidth := logicalWidth) (publicFits := publicFits))
   (fresh : Context → Lifecycle.Fresh
     (logicalWidth := logicalWidth) (publicFits := publicFits))
-
-/-- Success mass under the supplied classical adversary output law.
-There is no caller-supplied scalar standing in for verifier success. -/
-noncomputable def realSuccessProbability
-    (law : PMF (Context × Option (RealOutput relation))) : ℝ :=
-  ∑' outcome, if RealSuccess relation ajtai (running outcome.1) (fresh outcome.1) outcome.2
-    then (law outcome).toReal else 0
 
 /-- The translated experiment keeps the same context and hence the same
 running/fresh public input law. The relation and Ajtai key are shared parameters. -/
@@ -129,20 +78,11 @@ noncomputable def originalSuccessProbability : ℝ :=
         (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
         abortTape provider))
 
-/-- Owner-approved additional classical game-transfer assumption. Its sole field
-transfers success to the typed interactive experiment. No source conclusion,
-local correctness, replay/query theorem, or time bound is assumed here.
-The admitted adversaries, history depth and total-query interpretation are
-specified in FIAT_SHAMIR_MODEL.md. Neither a model instance nor numerical
-functions g and deltaFS are supplied by this module. -/
-structure FiatShamirModel (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat) : Prop where
-  successTransfer :
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
-      originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider
-
 variable
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirModel relation ajtai running fresh law originalFirstPhase abortTape provider g deltaFS Q)
+  (realSuccess : ℝ)
+  (transfer : g Q realSuccess - deltaFS Q ≤
+    originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider)
   (program : Primitives RingF
     (PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)))
   (sourceProgram : Context → CheckedWitnessExtraction.Program productionShape
@@ -156,14 +96,14 @@ variable
     (sourceProgram context) (PaperAlgebra.openingMaps ajtai).commit productionGlobalParams
     ((ProductionKey.key relation ajtai).statement (running context) (fresh context)))
 
-include model lowNorm correct bounded sourceCorrect in
+include transfer lowNorm correct bounded sourceCorrect in
 /-- Algebraic composition with the existing actual binding-event bound.
-Every implementation premise remains outside FiatShamirModel. -/
+Every implementation premise remains separate from the transfer. -/
 theorem returned_source_bound_with_binding :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q realSuccess - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation program
@@ -171,21 +111,20 @@ theorem returned_source_bound_with_binding :
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only
-  have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_binding relation ajtai running fresh
     (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right transfer _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include transfer lowNorm correct bounded sourceCorrect in
 /-- The same-key MSIS success event is the existing executable reduction's
 event. Its probability is not replaced by a numerical hardness estimate. -/
 theorem returned_source_bound_with_msis :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q realSuccess - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (BindingProbability.successProbability ajtai program relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation
@@ -194,22 +133,21 @@ theorem returned_source_bound_with_msis :
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only
-  have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_msis relation ajtai running fresh
     (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right transfer _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
-/-- Transfer the v1.2 additive bound without changing the approved FS
-model. The MSIS term is the actual stopped reduction under the same context
+include transfer lowNorm correct bounded sourceCorrect in
+/-- Transfer the v1.2 additive bound without changing the transfer
+premise. The MSIS term is the actual stopped reduction under the same context
 law; efficient translation and query applicability remain external. -/
 theorem returned_source_bound_with_adaptive_msis :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q realSuccess - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
       AdaptiveBindingProbability.successProbability relation ajtai program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram
@@ -217,16 +155,15 @@ theorem returned_source_bound_with_adaptive_msis :
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only
-  have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   have extracted := SupportedExtraction.returned_source_bound_with_adaptive_msis relation ajtai running fresh
     (contextLaw relation law) originalFirstPhase abortTape provider program sourceProgram lowNorm
     correct bounds bounded sourceCorrect
   exact (sub_le_sub_right (sub_le_sub_right (sub_le_sub_right transfer _) _) _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include transfer lowNorm correct bounded sourceCorrect in
 /-- A supplied bound on that exact same-key success probability can be used
-without changing the FS hypothesis or its real verifier-success event. -/
+without changing the transfer premise. -/
 theorem returned_source_bound_of_msis
     (epsilonMSIS : ℝ)
     (msisBound :
@@ -239,24 +176,25 @@ theorem returned_source_bound_of_msis
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q realSuccess - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (epsilonMSIS * PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only at msisBound ⊢
   have extracted := returned_source_bound_with_msis relation ajtai running fresh law
-    originalFirstPhase abortTape provider g deltaFS Q model program sourceProgram lowNorm correct bounds
+    originalFirstPhase abortTape provider g deltaFS Q realSuccess transfer program sourceProgram
+        lowNorm correct bounds
     bounded sourceCorrect
   have errorBound := Real.sqrt_le_sqrt (_root_.add_le_add
     (mul_le_mul_of_nonneg_right msisBound (Nat.cast_nonneg PaperProfile.arity.total))
     (le_refl (IndependentExecution.testError productionShape 9)))
   exact (sub_le_sub_left errorBound _).trans extracted
 
-include model lowNorm correct bounded sourceCorrect in
+include transfer lowNorm correct bounded sourceCorrect in
 /-- Compose with the existing prepared source/MSIS work theorem. The supplied
 preparation call generates the same context law; its charged translation work
-and every local value/moment premise are separate from FiatShamirModel.
+and every local value/moment premise are separate from the transfer.
 The result concerns the declared clocks of these calls, not an unprovided
 simulator, oracle-query count, or compiled execution-time bound. -/
 theorem prepared_probability_and_expected_work {SetupTape : Type*}
@@ -296,7 +234,7 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
     (∑' tape, (setupTapes tape).toReal * (prepare tape).work) ≤
       preparationPolynomial.eval (securityParameter : ℝ) →
-    (g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    (g Q realSuccess - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability ajtai program
         (sourceProgram (prepare tape).value).access relation running fresh originalFirstPhase
@@ -317,7 +255,6 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
     call callCorrect accessBound accessBounded securityParameter
     preparationPolynomial basePolynomial primitivePolynomial accessPolynomial
     baseSummable basePPT primitivePPT accessPPT preparationPPT
-  have transfer := model.successTransfer
   unfold originalSuccessProbability at transfer
   exact ⟨(sub_le_sub_right (sub_le_sub_right transfer _) _).trans checked.2.1, checked.2.2⟩
 

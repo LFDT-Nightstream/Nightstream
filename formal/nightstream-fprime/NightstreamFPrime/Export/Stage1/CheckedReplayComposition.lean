@@ -39,7 +39,7 @@ Custody premises connect supplied bytes to the exact source/field constructors;
 all output, parent opening, child openings, row validity and norm conclusions
 are derived by the source and check theorems. -/
 theorem accepted_and_handoff
-    (statement : HyperNovaHistory.Statement) (input : PiCCSInputCheck.Input)
+    (statement : PerApplicationTerminal.Statement) (input : PiCCSInputCheck.Input)
     (runningWitness : RunningWitness) (freshWitness : FreshWitness)
     (advice : AppWitness) (masks : Array (Array (Nat × Nat)))
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)

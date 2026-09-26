@@ -1,5 +1,5 @@
 import NightstreamFPrime.Gadgets.Multilinear.PointEquality
-import NightstreamFPrime.Gadgets.Polynomial.Power
+import NightstreamFPrime.Lifecycle.PiCCS.v1_1.GammaPowers
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
@@ -19,8 +19,7 @@ Outputs:
 
 Constraint groups:
 - C1: one opaque owned `PointEquality` child;
-- C2: one opaque owned `Power` child for `gamma^864`;
-- C3: one opaque owned `Power` child for `gamma^12960`;
+- C2: one opaque shared child for `gamma^864` and `gamma^12960`;
 - C4: two extension-component final-identity assertions.
 
 Parent coverage:
@@ -81,88 +80,44 @@ def pointInterfaceAt (interface : Interface) (parentOffset : Nat) :
   left := fun _ => interface.roundPoint parentOffset
   right := fun _ => interface.alpha parentOffset
 
-def matrixPowerInterfaceAt (interface : Interface) (parentOffset : Nat) :
-    Power.Interface where
-  point := fun _ => interface.gamma parentOffset
-
-def constraintPowerInterfaceAt (interface : Interface) (parentOffset : Nat) :
-    Power.Interface where
-  point := fun _ => interface.gamma parentOffset
-
-def pointCircuitAt (interface : Interface) (parentOffset : Nat) :
-    FormalCircuit :=
+def pointCircuitAt (interface : Interface) (parentOffset : Nat) : FormalCircuit :=
   PointEquality.Owned.circuit (pointInterfaceAt interface parentOffset)
 
-def matrixPowerCircuitAt (interface : Interface) (parentOffset : Nat) :
-    FormalCircuit :=
-  Power.circuit matrixExponent (matrixPowerInterfaceAt interface parentOffset)
-
-def constraintPowerCircuitAt (interface : Interface) (parentOffset : Nat) :
-    FormalCircuit :=
-  Power.circuit constraintExponent
-    (constraintPowerInterfaceAt interface parentOffset)
+def gammaCircuitAt (interface : Interface) (parentOffset : Nat) : FormalCircuit :=
+  GammaPowers.circuit (interface.gamma parentOffset)
 
 def pointLength (interface : Interface) (offset : Nat) : Nat :=
   localLength (Circuit.ops (pointCircuitAt interface offset).main offset)
 
-def matrixOffset (interface : Interface) (offset : Nat) : Nat :=
+def gammaOffset (interface : Interface) (offset : Nat) : Nat :=
   offset + pointLength interface offset
 
-def matrixLength (interface : Interface) (offset : Nat) : Nat :=
-  localLength (Circuit.ops (matrixPowerCircuitAt interface offset).main
-    (matrixOffset interface offset))
-
-def constraintOffset (interface : Interface) (offset : Nat) : Nat :=
-  matrixOffset interface offset + matrixLength interface offset
-
-private theorem constraintOffset_eq (interface : Interface) (offset : Nat) :
-    constraintOffset interface offset =
-      offset + (pointLength interface offset + matrixLength interface offset) := by
-  unfold constraintOffset matrixOffset
-  exact Nat.add_assoc _ _ _
-
-def constraintLength (interface : Interface) (offset : Nat) : Nat :=
-  localLength (Circuit.ops (constraintPowerCircuitAt interface offset).main
-    (constraintOffset interface offset))
+def gammaLength (interface : Interface) (offset : Nat) : Nat :=
+  localLength (Circuit.ops (gammaCircuitAt interface offset).main (gammaOffset interface offset))
 
 def finalOffset (interface : Interface) (offset : Nat) : Nat :=
-  constraintOffset interface offset + constraintLength interface offset
+  gammaOffset interface offset + gammaLength interface offset
 
 def pointEqualityOutput (interface : Interface) (offset : Nat) : KExpr :=
   PointEquality.Owned.output (pointInterfaceAt interface offset) offset
 
 def gammaMatrixOutput (interface : Interface) (offset : Nat) : KExpr :=
-  Power.output matrixExponent (matrixPowerInterfaceAt interface offset)
-    (matrixOffset interface offset)
+  GammaPowers.matrixOutput (interface.gamma offset) (gammaOffset interface offset)
 
 def gammaConstraintOutput (interface : Interface) (offset : Nat) : KExpr :=
-  Power.output constraintExponent (constraintPowerInterfaceAt interface offset)
-    (constraintOffset interface offset)
+  GammaPowers.constraintOutput (interface.gamma offset) (gammaOffset interface offset)
 
 def pointName : String := "piccs.v1_1.final.point_equality"
-def matrixPowerName : String := "piccs.v1_1.final.gamma_matrix_offset"
-def constraintPowerName : String := "piccs.v1_1.final.gamma_constraint_offset"
+def gammaName : String := "piccs.v1_1.final.gamma_powers"
 
 def pointSubcircuit (interface : Interface) (offset : Nat) : Subcircuit :=
   (pointCircuitAt interface offset).asSubcircuit pointName offset
 
-def matrixPowerSubcircuit (interface : Interface) (offset : Nat) : Subcircuit :=
-  (matrixPowerCircuitAt interface offset).asSubcircuit matrixPowerName
-    (matrixOffset interface offset)
+def gammaSubcircuit (interface : Interface) (offset : Nat) : Subcircuit :=
+  (gammaCircuitAt interface offset).asSubcircuit gammaName (gammaOffset interface offset)
 
-def constraintPowerSubcircuit (interface : Interface)
-    (offset : Nat) : Subcircuit :=
-  (constraintPowerCircuitAt interface offset).asSubcircuit
-    constraintPowerName (constraintOffset interface offset)
-
-def pointOp (interface : Interface) (offset : Nat) : Op :=
-  .subcircuit (pointSubcircuit interface offset)
-
-def matrixPowerOp (interface : Interface) (offset : Nat) : Op :=
-  .subcircuit (matrixPowerSubcircuit interface offset)
-
-def constraintPowerOp (interface : Interface) (offset : Nat) : Op :=
-  .subcircuit (constraintPowerSubcircuit interface offset)
+def pointOp (interface : Interface) (offset : Nat) : Op := .subcircuit (pointSubcircuit interface offset)
+def gammaOp (interface : Interface) (offset : Nat) : Op := .subcircuit (gammaSubcircuit interface offset)
 
 def terminalExpr (interface : Interface) (offset : Nat) : KExpr :=
   KExpr.add (interface.eval_K offset) <|
@@ -178,16 +133,14 @@ def terminalAssertions (interface : Interface) (offset : Nat) : List Expr :=
   KExpr.equalities (interface.terminal offset) (terminalExpr interface offset)
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
-  [pointOp interface offset, matrixPowerOp interface offset,
-    constraintPowerOp interface offset] ++
-      (terminalAssertions interface offset).map Op.assertZero
+  [pointOp interface offset, gammaOp interface offset] ++
+    (terminalAssertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), finalOffset interface offset, opsAt interface offset)
 
 @[simp] theorem main_ops (interface : Interface) (offset : Nat) :
-    Circuit.ops (main interface) offset = opsAt interface offset := by
-  rfl
+    Circuit.ops (main interface) offset = opsAt interface offset := by rfl
 
 structure Assumptions (interface : Interface) (offset : Nat)
     (env : Env) : Prop where
@@ -266,7 +219,7 @@ theorem specHolds_at_iff_of_fields_eq (interface : Interface)
   rw [leftPointEq, rightPointEq, gammaEq, evalKEq, evalAEq, ccsEq, normEq,
     terminalEq]
 
-private theorem pointLength_eq (interface : Interface) (offset : Nat) :
+theorem pointLength_eq (interface : Interface) (offset : Nat) :
     pointLength interface offset = 110 := by
   unfold pointLength pointCircuitAt
   simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
@@ -275,41 +228,15 @@ private theorem pointLength_eq (interface : Interface) (offset : Nat) :
         norm_num [productionShape, Phi81MatrixSource.phi81Shape,
           cubeVariables])
 
-private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
-    matrixLength interface offset = 1728 := by
-  unfold matrixLength matrixPowerCircuitAt
-  rw [Power.localLength_eq, matrixExponent_eq]
+private theorem gammaLength_eq (interface : Interface) (offset : Nat) :
+    gammaLength interface offset = 32 := by
+  unfold gammaLength gammaCircuitAt
+  exact GammaPowers.localLength_eq _ _
 
-private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
-    constraintLength interface offset = 25920 := by
-  unfold constraintLength constraintPowerCircuitAt
-  rw [Power.localLength_eq, constraintExponent_eq]
-
-private theorem matrixAssumptionsAt (interface : Interface) (offset : Nat)
-    (env : Env) {source : Env}
-    (assumptions : Assumptions interface offset source) :
-    Power.Assumptions matrixExponent
-      (matrixPowerInterfaceAt interface offset)
-      (matrixOffset interface offset) env := by
-  apply Power.assumptions_of_point_varsBelow
-  have offsetLe : offset ≤ matrixOffset interface offset := by
-    unfold matrixOffset
-    omega
-  simpa [matrixPowerInterfaceAt] using
-    (interface.gamma offset).varsBelow_mono assumptions.gammaBelow offsetLe
-
-private theorem constraintAssumptionsAt (interface : Interface) (offset : Nat)
-    (env : Env) {source : Env}
-    (assumptions : Assumptions interface offset source) :
-    Power.Assumptions constraintExponent
-      (constraintPowerInterfaceAt interface offset)
-      (constraintOffset interface offset) env := by
-  apply Power.assumptions_of_point_varsBelow
-  have offsetLe : offset ≤ constraintOffset interface offset := by
-    unfold constraintOffset matrixOffset
-    omega
-  simpa [constraintPowerInterfaceAt] using
-    (interface.gamma offset).varsBelow_mono assumptions.gammaBelow offsetLe
+private theorem gammaAssumptionsAt (interface : Interface) (offset : Nat)
+    {env : Env} (assumptions : Assumptions interface offset env) :
+    (interface.gamma offset).VarsBelow (gammaOffset interface offset) :=
+  KExpr.varsBelow_mono _ assumptions.gammaBelow (Nat.le_add_right _ _)
 
 private theorem pointCall_sound (interface : Interface) (offset : Nat)
     (env : Env) (rows : holds env (opsAt interface offset))
@@ -321,30 +248,13 @@ private theorem pointCall_sound (interface : Interface) (offset : Nat)
     (pointCircuitAt interface offset).spec offset env at callHolds
   exact callHolds assumptions.point
 
-private theorem matrixPowerCall_sound (interface : Interface) (offset : Nat)
+private theorem gammaCall_sound (interface : Interface) (offset : Nat)
     (env : Env) (rows : holds env (opsAt interface offset))
     (assumptions : Assumptions interface offset env) :
-    Power.SpecHolds matrixExponent (matrixPowerInterfaceAt interface offset)
-      (matrixOffset interface offset) env := by
-  have callHolds := rows (matrixPowerOp interface offset) (by simp [opsAt])
-  change (matrixPowerCircuitAt interface offset).assumptions
-      (matrixOffset interface offset) env →
-    (matrixPowerCircuitAt interface offset).spec
-      (matrixOffset interface offset) env at callHolds
-  exact callHolds (matrixAssumptionsAt interface offset env assumptions)
-
-private theorem constraintPowerCall_sound (interface : Interface)
-    (offset : Nat) (env : Env) (rows : holds env (opsAt interface offset))
-    (assumptions : Assumptions interface offset env) :
-    Power.SpecHolds constraintExponent
-      (constraintPowerInterfaceAt interface offset)
-      (constraintOffset interface offset) env := by
-  have callHolds := rows (constraintPowerOp interface offset) (by simp [opsAt])
-  change (constraintPowerCircuitAt interface offset).assumptions
-      (constraintOffset interface offset) env →
-    (constraintPowerCircuitAt interface offset).spec
-      (constraintOffset interface offset) env at callHolds
-  exact callHolds (constraintAssumptionsAt interface offset env assumptions)
+    GammaPowers.SpecHolds (interface.gamma offset) (gammaOffset interface offset) env := by
+  have callHolds := rows (gammaOp interface offset) (by simp [opsAt])
+  change (interface.gamma offset).VarsBelow (gammaOffset interface offset) → _ at callHolds
+  exact callHolds (gammaAssumptionsAt interface offset assumptions)
 
 private theorem terminalRows_sound (interface : Interface) (offset : Nat)
     (env : Env) (rows : holds env (opsAt interface offset)) :
@@ -358,48 +268,24 @@ private theorem terminalRows_sound (interface : Interface) (offset : Nat)
 
 private theorem terminalExpr_eval_of_children (interface : Interface)
     (offset : Nat) (env : Env)
-    (pointSpec : PointEquality.Owned.SpecHolds
-      (pointInterfaceAt interface offset) offset env)
-    (matrixSpec : Power.SpecHolds matrixExponent
-      (matrixPowerInterfaceAt interface offset)
-      (matrixOffset interface offset) env)
-    (constraintSpec : Power.SpecHolds constraintExponent
-      (constraintPowerInterfaceAt interface offset)
-      (constraintOffset interface offset) env) :
-    (terminalExpr interface offset).eval env =
-      referenceTerminal interface offset env := by
-  have matrixEq := Power.spec_implies_power matrixExponent
-    (matrixPowerInterfaceAt interface offset)
-      (matrixOffset interface offset) env matrixSpec
-  have constraintEq := Power.spec_implies_power constraintExponent
-    (constraintPowerInterfaceAt interface offset)
-      (constraintOffset interface offset) env constraintSpec
-  change (gammaMatrixOutput interface offset).eval env =
-    TargetPolynomial.power extensionOps.toOps
-      ((interface.gamma offset).eval env) matrixExponent at matrixEq
-  change (gammaConstraintOutput interface offset).eval env =
-    TargetPolynomial.power extensionOps.toOps
-      ((interface.gamma offset).eval env) constraintExponent at constraintEq
-  unfold gammaMatrixOutput at matrixEq
-  unfold gammaConstraintOutput at constraintEq
+    (pointSpec : PointEquality.Owned.SpecHolds (pointInterfaceAt interface offset) offset env)
+    (gammaSpec : GammaPowers.SpecHolds (interface.gamma offset) (gammaOffset interface offset) env) :
+    (terminalExpr interface offset).eval env = referenceTerminal interface offset env := by
+  have matrixEq := gammaSpec.1
+  have constraintEq := gammaSpec.2
   unfold PointEquality.Owned.SpecHolds at pointSpec
-  unfold terminalExpr referenceTerminal pointEqualityOutput gammaMatrixOutput
-    gammaConstraintOutput
-  simp only [KExpr.eval_add, KExpr.eval_mul]
-  rw [pointSpec, matrixEq, constraintEq]
+  unfold terminalExpr referenceTerminal pointEqualityOutput gammaMatrixOutput gammaConstraintOutput
+  simp only [KExpr.eval_add, KExpr.eval_mul, matrixExponent_eq, constraintExponent_eq]
+  rw [matrixEq, constraintEq, pointSpec]
 
 theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
-    (rows : holds env (Circuit.ops (main interface) offset)) :
-    SpecHolds interface offset env := by
+    (rows : holds env (Circuit.ops (main interface) offset)) : SpecHolds interface offset env := by
   rw [main_ops] at rows
-  have pointSpec := pointCall_sound interface offset env rows assumptions
-  have matrixSpec := matrixPowerCall_sound interface offset env rows assumptions
-  have constraintSpec := constraintPowerCall_sound interface offset env rows
-    assumptions
   exact (terminalRows_sound interface offset env rows).trans
-    (terminalExpr_eval_of_children interface offset env pointSpec matrixSpec
-      constraintSpec)
+    (terminalExpr_eval_of_children interface offset env
+      (pointCall_sound interface offset env rows assumptions)
+      (gammaCall_sound interface offset env rows assumptions))
 
 private theorem evalLeftPoint_eq_of_agree_below (interface : Interface)
     (offset : Nat) (before after : Env)
@@ -463,123 +349,59 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   rw [terminalEq, gammaEq, evalKEq, evalAEq, ccsEq, normEq, leftEq, rightEq]
   exact specification
 
-private theorem pointOp_flatConstraints (interface : Interface) (offset : Nat) :
-    (pointOp interface offset).flatConstraints =
-      flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
-        offset) := by
-  unfold pointOp pointSubcircuit
-  exact FormalCircuit.asSubcircuit_constraints _ _ _
-
-private theorem matrixPowerOp_flatConstraints (interface : Interface)
-    (offset : Nat) :
-    (matrixPowerOp interface offset).flatConstraints =
-      flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset)) := by
-  unfold matrixPowerOp matrixPowerSubcircuit
-  exact FormalCircuit.asSubcircuit_constraints _ _ _
-
-private theorem constraintPowerOp_flatConstraints (interface : Interface)
-    (offset : Nat) :
-    (constraintPowerOp interface offset).flatConstraints =
-      flatConstraints (Circuit.ops
-        (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset)) := by
-  unfold constraintPowerOp constraintPowerSubcircuit
-  exact FormalCircuit.asSubcircuit_constraints _ _ _
-
 private theorem flatConstraints_assertions (expressions : List Expr) :
     flatConstraints (expressions.map Op.assertZero) = expressions := by
   induction expressions with
   | nil => rfl
   | cons expression rest ih =>
-      change [expression] ++ flatConstraints (rest.map Op.assertZero) =
-        expression :: rest
-      rw [ih]
-      rfl
+    change [expression] ++ flatConstraints (rest.map Op.assertZero) = expression :: rest
+    rw [ih]
+    rfl
 
 theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
-      flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset) ++
-      flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset)) ++
-      flatConstraints (Circuit.ops
-        (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset)) ++
-      terminalAssertions interface offset := by
-  unfold opsAt
-  rw [flatConstraints_append, flatConstraints_assertions]
-  simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil,
-    List.append_nil, pointOp_flatConstraints,
-    matrixPowerOp_flatConstraints, constraintPowerOp_flatConstraints]
-  simp only [List.append_assoc]
-
-private theorem pointOp_localLength (interface : Interface) (offset : Nat) :
-    (pointOp interface offset).localLength = pointLength interface offset := by
-  rfl
-
-private theorem matrixPowerOp_localLength (interface : Interface)
-    (offset : Nat) :
-    (matrixPowerOp interface offset).localLength =
-      matrixLength interface offset := by
-  rfl
-
-private theorem constraintPowerOp_localLength (interface : Interface)
-    (offset : Nat) :
-    (constraintPowerOp interface offset).localLength =
-      constraintLength interface offset := by
-  rfl
-
-private theorem assertions_localLength (expressions : List Expr) :
-    localLength (expressions.map Op.assertZero) = 0 := by
-  induction expressions with
-  | nil => rfl
-  | cons _ rest ih =>
-      simp only [List.map_cons, localLength, Op.localLength, List.sum_cons,
-        Nat.zero_add]
-      simpa [localLength] using ih
-
-private theorem localLength_append (left right : List Op) :
-    localLength (left ++ right) = localLength left + localLength right := by
-  unfold localLength
-  rw [List.map_append, List.sum_append]
-
-private theorem localLength_three (first second third : Op) :
-    localLength [first, second, third] =
-      first.localLength + (second.localLength + third.localLength) := by
-  rfl
+      (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset) ++
+        flatConstraints (Circuit.ops (gammaCircuitAt interface offset).main (gammaOffset interface offset))) ++
+        terminalAssertions interface offset := by
+  have point : (pointOp interface offset).flatConstraints =
+      flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset) := by
+    unfold pointOp pointSubcircuit
+    exact FormalCircuit.asSubcircuit_constraints _ _ _
+  have gamma : (gammaOp interface offset).flatConstraints =
+      flatConstraints (Circuit.ops (gammaCircuitAt interface offset).main
+        (gammaOffset interface offset)) := by
+    unfold gammaOp gammaSubcircuit
+    exact FormalCircuit.asSubcircuit_constraints _ _ _
+  have flatten (first second : Op) (checks : List Expr) :
+      flatConstraints ([first, second] ++ checks.map Op.assertZero) =
+        (first.flatConstraints ++ second.flatConstraints) ++ checks := by
+    rw [flatConstraints_append, flatConstraints_assertions]
+    change (first.flatConstraints ++ (second.flatConstraints ++ [])) ++ checks = _
+    rw [List.append_nil]
+  rw [opsAt, flatten, point, gamma]
 
 private theorem opsAt_localLength (interface : Interface) (offset : Nat) :
-    localLength (opsAt interface offset) = pointLength interface offset +
-      matrixLength interface offset + constraintLength interface offset := by
-  calc
-    localLength (opsAt interface offset) =
-        localLength [pointOp interface offset, matrixPowerOp interface offset,
-          constraintPowerOp interface offset] +
-            localLength ((terminalAssertions interface offset).map
-              Op.assertZero) := by
-      rw [opsAt, localLength_append]
-    _ = (pointOp interface offset).localLength +
-          ((matrixPowerOp interface offset).localLength +
-            (constraintPowerOp interface offset).localLength) := by
-      rw [localLength_three, assertions_localLength, Nat.add_zero]
-    _ = pointLength interface offset + matrixLength interface offset +
-          constraintLength interface offset := by
-      rw [pointOp_localLength, matrixPowerOp_localLength,
-        constraintPowerOp_localLength]
-      omega
+    localLength (opsAt interface offset) = pointLength interface offset + gammaLength interface offset := by
+  simp only [opsAt, localLength, List.map_append, List.sum_append, List.map_cons,
+    List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero, List.map_map]
+  have assertions : (List.map (Op.localLength ∘ Op.assertZero)
+      (terminalAssertions interface offset)).sum = 0 := by
+    simp [Function.comp_def, Op.localLength]
+  rw [assertions, Nat.add_zero]
+  rfl
 
-private theorem pointRows_preservedAfterMatrix (interface : Interface)
-    (offset : Nat) (env afterPoint afterMatrix : Env)
+private theorem pointRows_preservedAfterGamma (interface : Interface)
+    (offset : Nat) (env afterPoint afterGamma : Env)
     (assumptions : Assumptions interface offset env)
     (pointRows : holdsFlat afterPoint
       (Circuit.ops (pointCircuitAt interface offset).main offset))
-    (matrixAgrees : AgreesOutside afterPoint afterMatrix
-      (matrixOffset interface offset) (matrixLength interface offset)) :
-    holdsFlat afterMatrix
+    (gammaAgrees : AgreesOutside afterPoint afterGamma
+      (gammaOffset interface offset) (gammaLength interface offset)) :
+    holdsFlat afterGamma
       (Circuit.ops (pointCircuitAt interface offset).main offset) := by
   unfold holdsFlat at pointRows ⊢
-  apply constraintsHold_of_agree_below afterPoint afterMatrix _
-    (matrixOffset interface offset)
+  apply constraintsHold_of_agree_below afterPoint afterGamma _
+    (gammaOffset interface offset)
   · have scope := PointEquality.Owned.flatConstraints_varsBelow
       (pointInterfaceAt interface offset) offset env assumptions.point
     intro expression member
@@ -589,160 +411,49 @@ private theorem pointRows_preservedAfterMatrix (interface : Interface)
       (pointInterfaceAt interface offset) offset (by
         norm_num [productionShape, Phi81MatrixSource.phi81Shape,
           cubeVariables])]
-    unfold matrixOffset
+    unfold gammaOffset
     rw [pointLength_eq]
     norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
   · intro index below
-    exact matrixAgrees index (Or.inl below)
+    exact gammaAgrees index (Or.inl below)
   · exact pointRows
-
-private theorem pointRows_preservedAfterConstraint (interface : Interface)
-    (offset : Nat) (env afterMatrix completed : Env)
-    (assumptions : Assumptions interface offset env)
-    (pointRows : holdsFlat afterMatrix
-      (Circuit.ops (pointCircuitAt interface offset).main offset))
-    (constraintAgrees : AgreesOutside afterMatrix completed
-      (constraintOffset interface offset) (constraintLength interface offset)) :
-    holdsFlat completed
-      (Circuit.ops (pointCircuitAt interface offset).main offset) := by
-  unfold holdsFlat at pointRows ⊢
-  apply constraintsHold_of_agree_below afterMatrix completed _
-    (constraintOffset interface offset)
-  · have scope := PointEquality.Owned.flatConstraints_varsBelow
-      (pointInterfaceAt interface offset) offset env assumptions.point
-    intro expression member
-    apply Expr.VarsBelow.mono expression (scope expression member)
-    rw [PointEquality.Owned.program_recipes_length_of_positive
-      (pointInterfaceAt interface offset) offset (by
-        norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-          cubeVariables])]
-    unfold constraintOffset matrixOffset
-    rw [pointLength_eq, matrixLength_eq]
-    norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
-  · intro index below
-    exact constraintAgrees index (Or.inl below)
-  · exact pointRows
-
-private theorem matrixRows_preservedAfterConstraint (interface : Interface)
-    (offset : Nat) (env afterMatrix completed : Env)
-    (assumptions : Assumptions interface offset env)
-    (matrixRows : holdsFlat afterMatrix
-      (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset)))
-    (constraintAgrees : AgreesOutside afterMatrix completed
-      (constraintOffset interface offset) (constraintLength interface offset)) :
-    holdsFlat completed (Circuit.ops (matrixPowerCircuitAt interface offset).main
-      (matrixOffset interface offset)) := by
-  unfold holdsFlat at matrixRows ⊢
-  apply constraintsHold_of_agree_below afterMatrix completed _
-    (constraintOffset interface offset)
-  · have scope := Power.flatConstraints_varsBelow_exact matrixExponent
-      (matrixPowerInterfaceAt interface offset)
-      (matrixOffset interface offset) env
-      (matrixAssumptionsAt interface offset env assumptions)
-    intro expression member
-    apply Expr.VarsBelow.mono expression (scope expression member)
-    rw [matrixExponent_eq]
-    unfold constraintOffset
-    rw [matrixLength_eq]
-  · intro index below
-    exact constraintAgrees index (Or.inl below)
-  · exact matrixRows
-
-private theorem terminalRows_complete (interface : Interface) (offset : Nat)
-    (env completed : Env) (assumptions : Assumptions interface offset env)
-    (agrees : AgreesOutside env completed offset
-      (pointLength interface offset + matrixLength interface offset +
-        constraintLength interface offset))
-    (specification : SpecHolds interface offset env)
-    (pointRows : holdsFlat completed
-      (Circuit.ops (pointCircuitAt interface offset).main offset))
-    (matrixRows : holdsFlat completed
-      (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset)))
-    (constraintRows : holdsFlat completed
-      (Circuit.ops (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset))) :
-    ConstraintsHold completed (terminalAssertions interface offset) := by
-  have belowAgrees : ∀ index, index < offset →
-      completed index = env index := fun index below =>
-    agrees index (Or.inl below)
-  have semantic := specHolds_of_agree_below interface offset env completed
-    assumptions belowAgrees specification
-  have pointSpec := PointEquality.Owned.soundness
-    (pointInterfaceAt interface offset) completed offset assumptions.point
-      (holdsFlat_implies_holds completed _ pointRows)
-  have matrixSpec := Power.soundness matrixExponent
-    (matrixPowerInterfaceAt interface offset) completed
-      (matrixOffset interface offset)
-      (matrixAssumptionsAt interface offset completed assumptions)
-      (holdsFlat_implies_holds completed _ matrixRows)
-  have constraintSpec := Power.soundness constraintExponent
-    (constraintPowerInterfaceAt interface offset) completed
-      (constraintOffset interface offset)
-      (constraintAssumptionsAt interface offset completed assumptions)
-      (holdsFlat_implies_holds completed _ constraintRows)
-  apply (KExpr.equalities_hold_iff completed (interface.terminal offset)
-    (terminalExpr interface offset)).mpr
-  exact semantic.trans
-    (terminalExpr_eval_of_children interface offset completed pointSpec
-      matrixSpec constraintSpec).symm
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
-    ∃ completed,
-      AgreesOutside env completed offset
-        (localLength (Circuit.ops (main interface) offset)) ∧
+    ∃ completed, AgreesOutside env completed offset
+      (localLength (Circuit.ops (main interface) offset)) ∧
       holdsFlat completed (Circuit.ops (main interface) offset) := by
-  rcases PointEquality.Owned.build (pointInterfaceAt interface offset) env
-      offset assumptions.point with ⟨afterPoint, pointAgrees, pointRows⟩
-  rcases Power.build matrixExponent (matrixPowerInterfaceAt interface offset)
-      afterPoint (matrixOffset interface offset)
-      (matrixAssumptionsAt interface offset afterPoint assumptions) with
-    ⟨afterMatrix, matrixAgrees, matrixRows⟩
-  have pointMatrixAgrees : AgreesOutside env afterMatrix offset
-      (pointLength interface offset + matrixLength interface offset) := by
-    have matrixAgreesAt : AgreesOutside afterPoint afterMatrix
-        (offset + pointLength interface offset)
-        (matrixLength interface offset) := by
-      simpa only [matrixOffset] using! matrixAgrees
-    exact pointAgrees.append matrixAgreesAt
-  rcases Power.build constraintExponent
-      (constraintPowerInterfaceAt interface offset) afterMatrix
-      (constraintOffset interface offset)
-      (constraintAssumptionsAt interface offset afterMatrix assumptions) with
-    ⟨completed, constraintAgrees, constraintRows⟩
+  obtain ⟨afterPoint, pointAgrees, pointRows⟩ :=
+    PointEquality.Owned.build (pointInterfaceAt interface offset) env offset assumptions.point
+  obtain ⟨completed, gammaAgrees, gammaRows⟩ := GammaPowers.build (interface.gamma offset)
+    (gammaOffset interface offset) afterPoint (gammaAssumptionsAt interface offset assumptions)
+  have gammaAgreesAt : AgreesOutside afterPoint completed
+      (offset + pointLength interface offset) (gammaLength interface offset) := by
+    simpa only [gammaOffset, gammaLength_eq] using gammaAgrees
   have combinedAgrees : AgreesOutside env completed offset
-      (pointLength interface offset + matrixLength interface offset +
-        constraintLength interface offset) := by
-    have constraintAgreesAt : AgreesOutside afterMatrix completed
-        (offset + (pointLength interface offset + matrixLength interface offset))
-        (constraintLength interface offset) := by
-      rw [← constraintOffset_eq]
-      exact constraintAgrees
-    exact pointMatrixAgrees.append constraintAgreesAt
-  have pointRowsAfterMatrix := pointRows_preservedAfterMatrix interface offset
-    env afterPoint afterMatrix assumptions pointRows matrixAgrees
-  have pointRowsCompleted := pointRows_preservedAfterConstraint interface offset
-    env afterMatrix completed assumptions pointRowsAfterMatrix constraintAgrees
-  have matrixRowsCompleted := matrixRows_preservedAfterConstraint interface
-    offset env afterMatrix completed assumptions matrixRows constraintAgrees
-  have terminalRows := terminalRows_complete interface offset env completed
-    assumptions combinedAgrees specification pointRowsCompleted
-      matrixRowsCompleted constraintRows
+      (pointLength interface offset + gammaLength interface offset) :=
+    pointAgrees.append gammaAgreesAt
+  have pointRowsCompleted := pointRows_preservedAfterGamma interface offset env
+    afterPoint completed assumptions pointRows gammaAgreesAt
+  have pointSpec := PointEquality.Owned.soundness (pointInterfaceAt interface offset)
+    completed offset assumptions.point (holdsFlat_implies_holds completed _ pointRowsCompleted)
+  have gammaSpec := GammaPowers.soundness (interface.gamma offset) (gammaOffset interface offset)
+    completed (holdsFlat_implies_holds completed _ gammaRows)
+  have semantic := specHolds_of_agree_below interface offset env completed assumptions
+    (fun index below => combinedAgrees index (Or.inl below)) specification
+  have terminalRows : ConstraintsHold completed (terminalAssertions interface offset) := by
+    apply (KExpr.equalities_hold_iff completed (interface.terminal offset)
+      (terminalExpr interface offset)).mpr
+    exact semantic.trans (terminalExpr_eval_of_children interface offset completed pointSpec gammaSpec).symm
   refine ⟨completed, ?_, ?_⟩
-  · change AgreesOutside env completed offset
-      (localLength (opsAt interface offset))
+  · change AgreesOutside env completed offset (localLength (opsAt interface offset))
     rw [opsAt_localLength]
     exact combinedAgrees
   · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
     rw [flatConstraints_opsAt]
     exact (constraintsHold_append completed _ _).mpr
-      ⟨(constraintsHold_append completed _ _).mpr
-      ⟨(constraintsHold_append completed _ _).mpr
-          ⟨pointRowsCompleted, matrixRowsCompleted⟩, constraintRows⟩,
-        terminalRows⟩
+      ⟨(constraintsHold_append completed _ _).mpr ⟨pointRowsCompleted, gammaRows⟩, terminalRows⟩
 
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -763,7 +474,7 @@ def circuit (interface : Interface) : FormalCircuit where
 private theorem pointOutput_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     (pointEqualityOutput interface offset).VarsBelow
-      (matrixOffset interface offset) := by
+      (gammaOffset interface offset) := by
   have below := PointEquality.Owned.output_varsBelow
     (pointInterfaceAt interface offset) offset env assumptions.point
   unfold pointEqualityOutput
@@ -772,41 +483,31 @@ private theorem pointOutput_varsBelow (interface : Interface) (offset : Nat)
     (pointInterfaceAt interface offset) offset (by
       norm_num [productionShape, Phi81MatrixSource.phi81Shape,
         cubeVariables])]
-  unfold matrixOffset
+  unfold gammaOffset
   rw [pointLength_eq]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 private theorem matrixOutput_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
-    (gammaMatrixOutput interface offset).VarsBelow
-      (constraintOffset interface offset) := by
-  have below := Power.output_varsBelow matrixExponent
-    (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
-      env (matrixAssumptionsAt interface offset env assumptions)
-  apply KExpr.varsBelow_mono _ below
-  rw [matrixExponent_eq]
-  unfold constraintOffset
-  rw [matrixLength_eq]
-
-private theorem constraintOutput_varsBelow (interface : Interface)
-    (offset : Nat) (env : Env)
-    (assumptions : Assumptions interface offset env) :
-    (gammaConstraintOutput interface offset).VarsBelow
-      (finalOffset interface offset) := by
-  have below := Power.output_varsBelow constraintExponent
-    (constraintPowerInterfaceAt interface offset)
-      (constraintOffset interface offset) env
-      (constraintAssumptionsAt interface offset env assumptions)
-  apply KExpr.varsBelow_mono _ below
-  rw [constraintExponent_eq]
+    (gammaMatrixOutput interface offset).VarsBelow (finalOffset interface offset) := by
   unfold finalOffset
-  rw [constraintLength_eq]
+  rw [gammaLength_eq]
+  exact GammaPowers.wire_varsBelow _ _ 11 16
+    (gammaAssumptionsAt interface offset assumptions) (by decide)
+
+private theorem constraintOutput_varsBelow (interface : Interface) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    (gammaConstraintOutput interface offset).VarsBelow (finalOffset interface offset) := by
+  unfold finalOffset
+  rw [gammaLength_eq]
+  exact GammaPowers.wire_varsBelow _ _ 16 16
+    (gammaAssumptionsAt interface offset assumptions) (by decide)
 
 private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     (terminalExpr interface offset).VarsBelow (finalOffset interface offset) := by
   have offsetLe : offset ≤ finalOffset interface offset := by
-    unfold finalOffset constraintOffset matrixOffset
+    unfold finalOffset gammaOffset
     omega
   unfold terminalExpr
   apply KExpr.add_varsBelow
@@ -824,7 +525,7 @@ private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
       · apply KExpr.mul_varsBelow
         · exact KExpr.varsBelow_mono _
             (pointOutput_varsBelow interface offset env assumptions) (by
-              unfold finalOffset constraintOffset matrixOffset
+              unfold finalOffset gammaOffset
               omega)
         · apply KExpr.add_varsBelow
           · exact (interface.ccs offset).varsBelow_mono assumptions.ccsBelow
@@ -837,101 +538,57 @@ private theorem terminalExpr_varsBelow (interface : Interface) (offset : Nat)
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
-    ∀ expression ∈ flatConstraints
-      (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow
-        (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
+    ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      expression.VarsBelow (offset + localLength (Circuit.ops (circuit interface).main offset)) := by
   change ∀ expression ∈ flatConstraints (opsAt interface offset),
     expression.VarsBelow (offset + localLength (opsAt interface offset))
   rw [flatConstraints_opsAt, opsAt_localLength]
   intro expression member
   rcases List.mem_append.mp member with coreMember | terminalMember
-  · rcases List.mem_append.mp coreMember with firstTwoMember |
-        constraintMember
-    · rcases List.mem_append.mp firstTwoMember with pointMember |
-          matrixMember
-      · have below := PointEquality.Owned.flatConstraints_varsBelow
-          (pointInterfaceAt interface offset) offset env assumptions.point
-            expression pointMember
-        apply Expr.VarsBelow.mono expression below
-        rw [PointEquality.Owned.program_recipes_length_of_positive
-          (pointInterfaceAt interface offset) offset (by
-            norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-              cubeVariables])]
-        rw [pointLength_eq, matrixLength_eq, constraintLength_eq]
-        norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-          cubeVariables]
-      · have below := Power.flatConstraints_varsBelow_exact matrixExponent
-          (matrixPowerInterfaceAt interface offset)
-            (matrixOffset interface offset) env
-            (matrixAssumptionsAt interface offset env assumptions)
-            expression matrixMember
-        apply Expr.VarsBelow.mono expression below
-        unfold matrixOffset
-        rw [matrixExponent_eq, pointLength_eq, matrixLength_eq,
-          constraintLength_eq]
-        omega
-    · have below := Power.flatConstraints_varsBelow_exact constraintExponent
-        (constraintPowerInterfaceAt interface offset)
-          (constraintOffset interface offset) env
-          (constraintAssumptionsAt interface offset env assumptions)
-          expression constraintMember
+  · rcases List.mem_append.mp coreMember with pointMember | gammaMember
+    · have below := PointEquality.Owned.flatConstraints_varsBelow
+        (pointInterfaceAt interface offset) offset env assumptions.point expression pointMember
       apply Expr.VarsBelow.mono expression below
-      unfold constraintOffset matrixOffset
-      rw [constraintExponent_eq, pointLength_eq, matrixLength_eq,
-        constraintLength_eq]
-  · exact KExpr.equalities_varsBelow (interface.terminal offset)
-      (terminalExpr interface offset)
-      (offset + (pointLength interface offset + matrixLength interface offset +
-        constraintLength interface offset))
-      ((interface.terminal offset).varsBelow_mono assumptions.terminalBelow
-        (by omega))
-      (by
-        have below := terminalExpr_varsBelow interface offset env assumptions
-        apply KExpr.varsBelow_mono _ below
-        unfold finalOffset constraintOffset matrixOffset
-        omega)
-      expression terminalMember
+      rw [PointEquality.Owned.program_recipes_length_of_positive
+        (pointInterfaceAt interface offset) offset (by
+          norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables])]
+      rw [pointLength_eq, gammaLength_eq]
+      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    · have below := GammaPowers.flatConstraints_varsBelow (interface.gamma offset)
+        (gammaOffset interface offset) (gammaAssumptionsAt interface offset assumptions)
+        expression gammaMember
+      simpa only [gammaOffset, gammaLength_eq, Nat.add_assoc] using below
+  · apply KExpr.equalities_varsBelow (interface.terminal offset) (terminalExpr interface offset)
+      (offset + (pointLength interface offset + gammaLength interface offset))
+      ((interface.terminal offset).varsBelow_mono assumptions.terminalBelow (by omega))
+      _ expression terminalMember
+    simpa only [finalOffset, gammaOffset, Nat.add_assoc] using
+      terminalExpr_varsBelow interface offset env assumptions
 
-/-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 27758
+def privateCount : Nat := 142
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 27758 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 142 := by
   change localLength (opsAt interface offset) = _
-  rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
+  rw [opsAt_localLength, pointLength_eq, gammaLength_eq]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 5 := by
-  change (opsAt interface offset).length = 5
-  simp [opsAt, terminalAssertions, KExpr.equalities]
+    (Circuit.ops (circuit interface).main offset).length = 4 := by
+  simp [circuit, main, Circuit.ops, opsAt, terminalAssertions, KExpr.equalities]
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      27760 := by
+    (flatConstraints (Circuit.ops (circuit interface).main offset)).length = 144 := by
   change (flatConstraints (opsAt interface offset)).length = _
-  have pointFlat :
-      (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
-        offset)).length = 110 := by
+  have pointFlat : (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main offset)).length = 110 := by
     unfold pointCircuitAt
     simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
       PointEquality.Owned.flatConstraints_length_of_positive
         (pointInterfaceAt interface offset) offset (by
-          norm_num [productionShape, Phi81MatrixSource.phi81Shape,
-            cubeVariables])
-  have matrixFlat :
-      (flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset))).length = 1728 := by
-    unfold matrixPowerCircuitAt
-    rw [Power.flatConstraints_length, matrixExponent_eq]
-  have constraintFlat :
-      (flatConstraints (Circuit.ops
-        (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset))).length = 25920 := by
-    unfold constraintPowerCircuitAt
-    rw [Power.flatConstraints_length, constraintExponent_eq]
-  rw [flatConstraints_opsAt, List.length_append, List.length_append,
-    List.length_append, pointFlat, matrixFlat, constraintFlat]
+          norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables])
+  rw [flatConstraints_opsAt, List.length_append, List.length_append, pointFlat]
+  change 110 + (flatConstraints (Circuit.ops (GammaPowers.circuit (interface.gamma offset)).main
+    (gammaOffset interface offset))).length + _ = _
+  rw [GammaPowers.flatConstraints_length]
   simp [terminalAssertions, KExpr.equalities]
 
 /-- Concrete parent coverage: the owned child values and terminal assertions

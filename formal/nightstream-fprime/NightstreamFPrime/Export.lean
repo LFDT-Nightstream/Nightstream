@@ -100,10 +100,10 @@ import NightstreamFPrime.Export.Stage1.AccumulatorPackage
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
-import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryGeometry
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
-import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSubstitution
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixSubstitution
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
@@ -148,6 +148,10 @@ import NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Closure
+import NightstreamFPrime.Export.Stage1.Wide.PackageAuthority
+import NightstreamFPrime.Export.Stage1.Wide.PackageCompleteness
+import NightstreamFPrime.Export.Stage1.Wide.SetupBinding
+import NightstreamFPrime.Export.Stage1.Wide.OpeningBinding
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 import NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
@@ -192,9 +196,7 @@ import NightstreamFPrime.Export.Stage1.ActualPiDECParent
 import NightstreamFPrime.Export.Stage1.ActualPiDECMessages
 import NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
 import NightstreamFPrime.Export.Stage1.ActualPiDECOutput
-import NightstreamFPrime.Export.Stage1.ActualContextSecurity
-import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
-import NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
+import NightstreamFPrime.Export.Stage1.Wide.TerminalSecurity
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
@@ -315,5 +317,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
+import NightstreamFPrime.Export.Stage1.CanonicalDirectPhysicalExecution
 
 /-! Export layer root. Lists the modules of this layer explicitly. -/

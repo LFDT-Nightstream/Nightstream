@@ -1,91 +1,19 @@
-import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
-import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixProgram
 
-/-!
-Owns the compact matrix program for one verifier-selected Stage 1
-application. Lean maps the input/output sources into the actual pilot
-preimages and retains only witness/local suffix values. The application row
-order is unchanged.
--/
+/-! The executable matrix program for the shared application layout. -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 
-open NightstreamFPrime.Layout.MatrixProgram
-open NightstreamFPrime.Layout
-open NightstreamFPrime.Layout.Stage1
-open ApplicationRetainedBlocks
-open ApplicationRetainedGeometry
+open NightstreamFPrime.Layout NightstreamFPrime.Lifecycle ApplicationOrdinaryGeometry
 
-abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
-abbrev FitsTwoPow28 (application : ApplicationProgram) :=
-  PerApplicationPackage.FitsTwoPow28 application
+def matrixProgram {application : Stage1.Application.Program} {columns : Nat}
+    (geometry : Geometry application columns) : MatrixProgram.Program :=
+  ApplicationOrdinaryMatrixProgram.matrixProgram geometry
 
-def inputRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (PiRLCPoseidonGeometry.priorInputBlock application)
-    (PiRLCPoseidonGeometry.priorInputStart application)
-    ApplicationInputs.currentWordStart Lifecycle.Stage1.Application.stateWordCount
-    ApplicationInputs.currentWordStart
-
-def witnessRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (witnessBlock application) (witnessStart application)
-    ApplicationInputs.witnessStart application.witnessWordCount 0
-
-def outputRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (PiRLCPoseidonGeometry.outputInputBlock application)
-    (PiRLCPoseidonGeometry.outputInputStart application)
-    49428 Lifecycle.Stage1.Application.stateWordCount
-    ApplicationInputs.currentWordStart
-
-def localRange (application : ApplicationProgram) : SourceRange :=
-  SourceRange.ofSemantic (localBlock application) (localStart application)
-    (ApplicationInputs.localStart application) (localCount application) 0
-
-/-- Complete fail-closed source substitution for one selected application. -/
-def substitution (application : ApplicationProgram) : SourceSubstitution where
-  ranges := [inputRange application, witnessRange application,
-    outputRange application, localRange application]
-
-def rowSchedule (application : ApplicationProgram) : IndexSchedule :=
-  .rangeList [⟨PerApplicationPackage.basePackage.layout.rowCount,
-    (PerApplicationPackage.applicationPlan application).rowCount⟩]
-
-def directRowSchedule (application : ApplicationProgram) : IndexSchedule :=
-  .rangeList [⟨29218024,
-    (PerApplicationPackage.directApplicationPlan application).rowCount⟩]
-
-theorem directRowSchedule_eq_rowSchedule (application : ApplicationProgram) :
-    directRowSchedule application = rowSchedule application := by
-  unfold directRowSchedule rowSchedule
-  rw [PerApplicationPackage.directApplicationPlan_eq_applicationPlan,
-    PerApplicationPackage.basePackage_rowCount_eq]
-
-@[csimp] theorem rowSchedule_eq_directRowSchedule :
-    @rowSchedule = @directRowSchedule := by
-  funext application
-  exact (directRowSchedule_eq_rowSchedule application).symm
-
-@[simp] theorem rowSchedule_count (application : ApplicationProgram) :
-    (rowSchedule application).count =
-      (PerApplicationPackage.applicationPlan application).rowCount := by
-  rfl
-
-def ordinaryBlock {application : ApplicationProgram} {logicalWidth : Nat}
-    (geometry : Geometry application logicalWidth) : Ordinary.Block where
-  rows := rowSchedule application
-  oneColumn := (oneColumn geometry).val
-  substitution := substitution application
-  projection := PerApplicationSourceProjection.application
-
-def matrixProgram {application : ApplicationProgram} {logicalWidth : Nat}
-    (geometry : Geometry application logicalWidth) : MatrixProgram.Program where
-  blocks := [.ordinary (ordinaryBlock geometry)]
-
-@[simp] theorem matrixProgram_rowCount
-    {application : ApplicationProgram} {logicalWidth : Nat}
-    (geometry : Geometry application logicalWidth) :
-    (matrixProgram geometry).rowCount =
-      (PerApplicationPackage.applicationPlan application).rowCount := by
-  rfl
+@[simp] theorem matrixProgram_rowCount {application : Stage1.Application.Program} {columns : Nat}
+    (geometry : Geometry application columns) :
+    (matrixProgram geometry).rowCount = ApplicationDirectPlan.rowCount application :=
+  ApplicationOrdinaryMatrixProgram.matrixProgram_rowCount geometry
 
 end NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram

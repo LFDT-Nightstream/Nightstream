@@ -18,7 +18,12 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.SharedVerifier", "tests.PiCCSNativeDot", "tests.CheckedReplayEvidence", "tests.RecursiveLoopEvidence", "tests.AxiomsStoredPhysicalRowCheck", "tests.AxiomsCompactRowExecution", "tests.FreshWitnessEvidence", "tests.AxiomsCachedAssignmentProducts", "tests.AxiomsCachedAssignmentPlan", "tests.AxiomsFreshCommitmentBlock", "tests.AxiomsStoredWitnessExecution", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.PiRLCSamplerCandidateWiring", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.StoredRingInverse", "tests.StoredRingPowerInverseComparison", "tests.PerApplicationEmitterFixture", "tests.EvidenceMetadata", "tests.EvidenceTargets", "tests.EvidenceAcceptance", "tests.EvidenceContractChecks"]
+roots = ["tests.AxiomsCompactPiCCSLowering", "tests.AxiomsApplicationSelection", "tests.ConstraintReductionResearch", "tests.RunningTransitionReductionResearch", "tests.RunningTransitionReducedMatrixResearch", "tests.RunningTransitionScratchResearch", "tests.PoseidonPinReductionResearch", "tests.SharedFormulas", "tests.SharedVerifier", "tests.PiCCSNativeDot", "tests.CheckedReplayEvidence", "tests.RecursiveLoopEvidence", "tests.AxiomsStoredPhysicalRowCheck", "tests.AxiomsCompactRowExecution", "tests.FreshWitnessEvidence", "tests.AxiomsCachedAssignmentProducts", "tests.AxiomsCachedAssignmentPlan", "tests.AxiomsFreshCommitmentBlock", "tests.AxiomsStoredWitnessExecution", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.PiRLCSamplerCandidateWiring", "tests.AxiomsPiRlcWideSampler", "tests.WideRetainedSupport", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1PiRLCParity", "tests.AxiomsStage1Security", "tests.NativePoseidon2Halving", "tests.StoredRingInverse", "tests.StoredRingPowerInverseComparison", "tests.PerApplicationEmitterFixture", "tests.EvidenceMetadata", "tests.EvidenceTargets", "tests.EvidenceAcceptance", "tests.EvidenceContractChecks"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "checkWideSamplerHints"
+root = "tests.WideSamplerHints"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -34,16 +39,6 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "emitSharedVerifier"
 root = "NightstreamFPrime.Export.EmitSharedVerifier"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
-name = "emitPerApplicationReferenceFixture"
-root = "tests.PerApplicationReferenceMain"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
-name = "emitPerApplicationStreamedFixture"
-root = "tests.PerApplicationStreamedMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -142,11 +137,6 @@ root = "tests.PiDECActualMutations"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
-name = "emitPiRlcSamplerParity"
-root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
 name = "emitPiRLCParity"
 root = "NightstreamFPrime.Export.PiRLCParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
@@ -209,4 +199,28 @@ root = "NightstreamFPrime.Export.FreshRowsCheckMain"
 [[lean_exe]]
 name = "checkSharedVerifier"
 root = "tests.SharedVerifierMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "measureWideSamplerCost"
+root = "tests.WideSamplerCost"
+
+[[lean_exe]]
+name = "emitWideSamplerParity"
+root = "tests.WideSamplerParity"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWideMatrixCost"
+root = "tests.WideMatrixCost"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWideWitnessParity"
+root = "tests.WideWitnessParity"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitWidePhysicalPackage"
+root = "NightstreamFPrime.Export.WidePhysicalPackageMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

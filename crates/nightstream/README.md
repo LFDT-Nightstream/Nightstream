@@ -272,12 +272,12 @@ Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
 verifier component and binds the resulting application and circuit identity.
 
-The current `Circuit` uses a prefix of the selected production commitment key.
-Private input words plus generated local words must be at most **7,701**. This
-comes from the existing layout
-`252,695,531 + 41 × (private_words + local_words)` and the selected key's
-253,011,276-coefficient capacity. The exported row and domain checks also apply.
-A larger application needs a separately supported key; preparation rejects it.
+Each `Circuit` binds its exact prefix of the production commitment key.
+Private input words plus generated local words must be at most **2,851,939**.
+This comes from the exported layout
+`137,331,104 + 41 × (private_words + local_words)` and the approved key capacity
+of 22 × 4,708,530 ring columns (254,260,620 coefficients). The exported row and
+domain checks also apply. Preparation rejects a larger application.
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining

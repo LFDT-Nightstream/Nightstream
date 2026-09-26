@@ -836,7 +836,7 @@ theorem sumcheckRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sumcheckRows logicalWidth publicFits).length = 424657 := by
+    (sumcheckRows logicalWidth publicFits).length = 2324 := by
   rw [sumcheckRows, compilePacket_length]
   unfold sumcheckConstraints
   rw [sumcheckLogicalStart_matches logicalWidth publicFits]
@@ -918,7 +918,7 @@ theorem finalIdentityRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (finalIdentityRows logicalWidth publicFits).length = 130503 := by
+    (finalIdentityRows logicalWidth publicFits).length = 1130 := by
   rw [finalIdentityRows, compilePacket_length]
   unfold finalIdentityConstraints mainConstraints
   rw [finalIdentityLogicalStart_matches logicalWidth publicFits]
@@ -944,7 +944,7 @@ theorem finalIdentityRows_length
             (sharedInterface logicalWidth publicFits))
           (Formal.finalIdentityOffset relation
             (parentInterface logicalWidth publicFits)
-            NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset) = 5326 := by
+            NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset) = 211 := by
     simpa [NightstreamFPrime.Layout.PiCCS.v1_1.terminalRowCost,
       sharedInterface, parentInterface,
       PiCCSInvocations.sharedInterface] using terminal
@@ -955,7 +955,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 811669 := by
+    (arithmeticRows logicalWidth publicFits).length = 259963 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

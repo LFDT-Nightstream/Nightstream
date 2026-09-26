@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.MatrixProgram.Exact
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgramSemantics
@@ -7,7 +8,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgramSemantic
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgramSemantics
-import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSemantics
+import NightstreamFPrime.Export.Stage1.RunningTransitionReducedPlan
 
 /-!
 Proves row-by-row equality between the complete compact per-application matrix
@@ -31,14 +32,7 @@ def relation (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :=
   PerApplicationProductionPlan.relation application fits
 
-/-- Exact compact interpretation of one semantic plan. -/
-structure Exact {logicalWidth : Nat}
-    (matrixProgram : MatrixProgram.Program)
-    (plan : ProductionRelation.Plan logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) : Prop where
-  rowCount : matrixProgram.rowCount = plan.rowCount
-  row? : ∀ row : Fin plan.rowCount,
-    matrixProgram.row? logicalWidth sourceRow row.val = some (plan.forms row)
+abbrev Exact {logicalWidth : Nat} := @MatrixProgram.Exact logicalWidth
 
 theorem Exact.append {logicalWidth : Nat}
     {leftProgram rightProgram : MatrixProgram.Program}
@@ -49,21 +43,15 @@ theorem Exact.append {logicalWidth : Nat}
     (fits : leftPlan.rowCount + rightPlan.rowCount ≤
       2 ^ Lifecycle.cubeVariables) :
     Exact (leftProgram.append rightProgram)
-      (ProductionRelation.Plan.append leftPlan rightPlan fits) sourceRow := by
-  refine ⟨?_, ?_⟩
-  · rw [MatrixProgram.Program.append_rowCount,
-      ProductionRelation.Plan.append_rowCount, left.rowCount, right.rowCount]
-  · intro global
-    exact MatrixProgram.Program.append_plan_row? leftProgram rightProgram
-      leftPlan rightPlan fits sourceRow left.rowCount left.row? right.row?
-      global
+      (ProductionRelation.Plan.append leftPlan rightPlan fits) sourceRow :=
+  MatrixProgram.Exact.append left right fits
 
 /-- The final source-row accessor must return the exact Lean-selected source
 row for every ordinary family. -/
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 811669, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 259963, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -103,13 +91,6 @@ structure SourceCustody (application : ApplicationProgram)
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.evalAProgramRow
           (relation application fits) index))
-  runningTransition : ∀ index :
-      Fin (RunningTransitionDirectSource.program
-        (relation application fits)).rowCount,
-    sourceRow (RunningTransitionArithmetic.rowStart + index.val) =
-      some (PerApplicationSourceProjection.basePackageRow application
-        ((RunningTransitionDirectSource.program
-          (relation application fits)).row index))
   applicationRows : ∀ index :
       Fin (ApplicationDirectSource.program application fits.package).rowCount,
     sourceRow (PerApplicationPackage.basePackage.layout.rowCount + index.val) =
@@ -347,8 +328,7 @@ theorem piDecExact (application : ApplicationProgram)
 
 theorem runningTransitionExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (sourceRow : Nat → Option R1CS.Row)
-    (custody : SourceCustody application fits sourceRow) :
+    (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .runningTransition)
       (PerApplicationProductionPlan.BlockKind.runningTransition.plan
@@ -362,11 +342,11 @@ theorem runningTransitionExact (application : ApplicationProgram)
     PerApplicationMatrixProgram.piDecGeometry,
     PerApplicationProductionPlan.BlockKind.plan,
     DirectPiRLCSamplerCompletePrefixPlan.transitionPlan,
-    DirectPiDECPrefixPlan.transitionPlan] using!
-      RunningTransitionMatrixProgram.matrixProgram_row?
+    DirectPiDECPrefixPlan.transitionPlan] using
+      RunningTransitionReducedPlan.matrixProgram_row?
         (relation application fits)
         (PerApplicationMatrixProgram.runningGeometry application) sourceRow
-        custody.runningTransition row
+        row
 
 theorem applicationExact (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -450,7 +430,7 @@ theorem blockExact (application : ApplicationProgram)
   | piRlc => exact piRlcExact application fits sourceRow
   | piDec => exact piDecExact application fits sourceRow custody
   | runningTransition =>
-      exact runningTransitionExact application fits sourceRow custody
+      exact runningTransitionExact application fits sourceRow
   | application => exact applicationExact application fits sourceRow custody
   | nextPreimage =>
       exact nextPreimageExact application fits sourceRow custody

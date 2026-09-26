@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import NightstreamFPrime.Lifecycle.VerifierContext
 
 /-!
 Owns the selected semantic step data after the honest NIFS call returns.
@@ -20,19 +21,23 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Layout.Stage1
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The actual prior payload, selected application advice, and returned local
 proof are the existing augmented-function input fields. -/
-def input (statement : PerApplicationTerminal.Statement)
-    (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
+def input (statement : TerminalStatement AppState)
+    (payload : TerminalProof
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.RunningWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (advice : AppWitness) (proof : Lifecycle.Proof 9) :
     Input KeyDigest AppState AppWitness
-      (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-        (publicFits := PerApplicationFixedPoint.publicFits application))
-      (Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-        (publicFits := PerApplicationFixedPoint.publicFits application))
+      (Running (logicalWidth := logicalWidth)
+        (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth)
+        (publicFits := publicFits))
       (Lifecycle.Proof 9) slotCount where
   iteration := statement.iteration
   z0 := statement.z0
@@ -45,17 +50,17 @@ def input (statement : PerApplicationTerminal.Statement)
 
 /-- Compute the selected application result and the full next-state digest.
 The NIFS result fills the one outer running slot; no output is supplied. -/
-def output (statement : PerApplicationTerminal.Statement) (advice : AppWitness)
-    (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application)) :
+def output (context : VerifierContext.Digest4) (application : Stage1.Application.Program) (statement : TerminalStatement AppState) (advice : AppWitness)
+    (result : Running (logicalWidth := logicalWidth)
+      (publicFits := publicFits)) :
     Output Digest AppState
-      (Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-        (publicFits := PerApplicationFixedPoint.publicFits application)) slotCount where
+      (Running (logicalWidth := logicalWidth)
+        (publicFits := publicFits)) slotCount where
   zNext := application.step statement.zi advice
   runningNext := fun _ => result
   pcNext := functionIndex
   x := stateHash {
-    verifierKeys := fun _ => PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup
+    verifierKeys := fun _ => context.toList
     iteration := statement.iteration + 1
     z0 := statement.z0
     current := application.step statement.zi advice
@@ -66,34 +71,39 @@ def output (statement : PerApplicationTerminal.Statement) (advice : AppWitness)
 step and both canonical state frames. Prior framing and the public link are
 derived from terminal acceptance; next framing uses only counter nonwrap.
 Advice width belongs to later application witness wiring, not this result. -/
+private abbrev application := Stage1.Poseidon2HashChainV1.program
+
 theorem stepHolds_and_wellFormed
-    (statement : PerApplicationTerminal.Statement)
-        (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (context : VerifierContext.Digest4)
+    (statement : TerminalStatement AppState)
+        (payload : TerminalProof
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.RunningWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (advice : AppWitness) (proof : Lifecycle.Proof 9)
-    (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+    (result : Running (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (accepted : Stage1.Terminal.HoldsFor relation ajtai context.toList application
       statement (.recursive payload))
     (verified : Nifs.PaperNonInteractive.verify
-      (ProductionKey.key (PerApplicationFixedPoint.relation application fits) productionAjtaiKey)
+      (ProductionKey.key relation ajtai)
       (payload.running functionIndex) payload.fresh proof = some result)
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
-    let relation := PerApplicationFixedPoint.relation application fits
-    let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
     let before := input statement payload advice proof
-    let after := output statement advice result
-    StepHoldsFor relation productionAjtaiKey context.toList application before after ∧
-    StateEncoding.WellFormed (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) ∧
-    StateEncoding.WellFormed (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) ∧
+    let after := output context application statement advice result
+    StepHoldsFor relation ajtai context.toList application before after ∧
+    StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) before) ∧
+    StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) before after) ∧
     before.fresh.publicInputs ⟨0, by decide⟩ =
-      encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) ∧
+      encHash (stateHash (priorHashPreimage (setup relation ajtai context.toList) before)) ∧
     result = after.runningNext functionIndex := by
-  let relation := PerApplicationFixedPoint.relation application fits
-  let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
   let before := input statement payload advice proof
-  let after := output statement advice result
+  let after := output context application statement advice result
   obtain ⟨valid, pcValid, positive, publicLink, _running, _fresh⟩ :=
-    (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
+    (Stage1.Terminal.holdsFor_recursive_iff relation ajtai context.toList application statement payload).mp accepted
   have pc : payload.pc = 1 := by
     change 1 ≤ payload.pc ∧ payload.pc ≤ 1 at pcValid
     omega
@@ -104,14 +114,14 @@ theorem stepHolds_and_wellFormed
     change (selectedIndex pcValid).val = 0
     omega
   have link : before.fresh.publicInputs ⟨0, by decide⟩ =
-      encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) :=
+      encHash (stateHash (priorHashPreimage (setup relation ajtai context.toList) before)) :=
     publicLink
-  have step : StepHoldsFor relation productionAjtaiKey context.toList application before after := by
+  have step : StepHoldsFor relation ajtai context.toList application before after := by
     refine ⟨rfl, rfl, rfl, Or.inr ⟨pcValid, positive, link, ?_, ?_⟩⟩
     · dsimp only [HyperNova.NonInteractiveMultiFold.Accepts, setup, nifsVerifier,
         before, after, input, output]
       exact Eq.mpr (congrArg (fun index : Fin slotCount =>
-        Nifs.PaperNonInteractive.verify (ProductionKey.key relation productionAjtaiKey)
+        Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
           (payload.running index) payload.fresh proof = some result) selected) verified
     · intro slot different
       have same : slot = selectedIndex pcValid := by
@@ -123,12 +133,12 @@ theorem stepHolds_and_wellFormed
         omega
       exact False.elim (different same)
   have priorFixed : NightstreamFPrime.Layout.PilotProduction.FixedPreimage
-      (priorHashPreimage (setup relation productionAjtaiKey context.toList) before) :=
+      (priorHashPreimage (setup relation ajtai context.toList) before) :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
   have nextWidth : after.zNext.length = Stage1.Application.stateWordCount :=
     Stage1.Poseidon2HashChainV1.step_output_length statement.zi advice
   have nextFixed : NightstreamFPrime.Layout.PilotProduction.FixedPreimage
-      (nextHashPreimage (setup relation productionAjtaiKey context.toList) before after) :=
+      (nextHashPreimage (setup relation ajtai context.toList) before after) :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
   exact ⟨step, ⟨priorFixed, valid.1, pc⟩, ⟨nextFixed, nonwrap, rfl⟩, link, rfl⟩
 

@@ -46,7 +46,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.RetainedValues
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
-import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.PiCCSBoundary
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.PhaseTransport
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateRetry
@@ -132,9 +132,9 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceWork.expected_work_polynomial_bound
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaInitial.initial_accepted
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize.accepted_wordCount_le
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.completePrefix
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.completePrefix_from
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.completePrefix_after_c
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.completePrefix
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.completePrefix_from
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.completePrefix_after_c
 #audit_axioms NightstreamFPrime.Export.Stage1.HyperNovaSourceLaw.law_eq_of_continuation_eq_on_return
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncodingCanonical.serializePreimage_canonical
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncodingCanonical.serializePreimage_context_word

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
+import NightstreamFPrime.Layout.Stage1.PiCCSPhysicalPrefix
 import NightstreamFPrime.Layout.Stage1.Wide.PiDECProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.Wide.PilotPiCCSPiRLCPiDEC
 
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Layout.Stage1.Wide.PhysicalPrefixCompleteness
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open Spec.Folding Spec.Folding.PiCCS.PaperJoint
-open Stage1.StepPhysicalCompleteness
+open Stage1.PiCCSPhysicalPrefix
   (lower_prefix pilot_end_before_c pilot_start_le_end pilot_logical_le_physical
    external_outside_pilot_physical external_before_c c_end_before_r firstFresh_le_next)
 
@@ -52,7 +52,7 @@ theorem complete_with_values
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (outputHash : digest = stateHash advertised)
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
       (PiCCSProofInputs.relationProof relation values template) = some result) :
@@ -100,7 +100,6 @@ theorem complete_with_values
     advertised digest priorFixed advertisedFixed digestFixed values context relation ajtai template
     priorPc advertisedPc priorContext advertisedContext (by
       unfold PiCCS.Accepted at cAccepted ⊢
-      rw [PiRLC.Wide.Key.piCcsCheck_unchanged] at cAccepted
       exact cAccepted) pPhysical (fun index support => pAgrees index (Or.inr support))
   let cPlan := NightstreamFPrime.Layout.PiCCS.v1_1.plan relation
     (PiCCSProofInputs.relationInterface relation) PiCCSInputs.phaseOffset
@@ -221,7 +220,7 @@ theorem complete
     (priorContext : prior.verifierKeys functionIndex = context.toList)
     (advertisedContext : advertised.verifierKeys functionIndex = context.toList)
     (outputHash : digest = stateHash advertised)
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
       (PiCCSProofInputs.relationProof relation values template) = some result) :

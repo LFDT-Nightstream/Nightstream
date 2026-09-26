@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import NightstreamFPrime.Layout.Stage1.Wide.PiRLCInputs
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 
 /-! The wide phase consumes the same PiCCS outputs and constructs the exact
 parent computed by the wide NIFS key. Its transcript response is total. -/
@@ -22,10 +22,9 @@ theorem inputs_eq_keyOutputs
       Stage1.PiCCSInputs.phaseOffset env (Stage1.AccumulatorInputs.proof relation env)) :
     PiRLC.Wide.Semantics.evalInputs relation
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset env =
-      (PiRLC.Wide.Key.key relation ajtai).piCcsOutputs
+      (ProductionKey.key relation ajtai).piCcsOutputs
         (Stage1.AccumulatorInputs.running logicalWidth publicFits env)
         (Stage1.AccumulatorInputs.fresh logicalWidth publicFits env) (Stage1.AccumulatorInputs.proof relation env) := by
-  rw [PiRLC.Wide.Key.piCcsOutputs_unchanged]
   have same : PiRLC.Wide.Semantics.evalInputs relation
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset env =
       PiRLC.v1_1.Semantics.evalInputs relation
@@ -43,13 +42,13 @@ theorem challenges_eq_key
     (interface : PiRLC.Wide.Formal.Interface logicalWidth publicFits) (offset : Nat)
     (phase : PiRLC.Wide.Semantics.PhaseHolds relation ajtai interface offset env)
     (initial : PiRLC.Wide.Scalar.evalState env (interface.initialState offset) =
-      ((PiRLC.Wide.Key.key relation ajtai).piCcsExecution running fresh proof).outgoingState) :
-    (PiRLC.Wide.Key.key relation ajtai).piRlcChallenges running fresh proof =
+      ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).outgoingState) :
+    (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
       some (PiRLC.Wide.Semantics.evalChallenges interface offset env) := by
-  change (PiRLC.Wide.Key.key relation ajtai).piRlcResponse
-    ((PiRLC.Wide.Key.key relation ajtai).piCcsExecution running fresh proof).outgoingState = _
+  change (ProductionKey.key relation ajtai).piRlcResponse
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).outgoingState = _
   rw [← initial]
-  exact PiRLC.Wide.Key.phase_response relation ajtai interface offset env phase
+  exact PiRLC.Wide.Semantics.key_response relation ajtai interface offset env phase
 
 theorem output_eq_keyParent
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -60,21 +59,21 @@ theorem output_eq_keyParent
     (interface : PiRLC.Wide.Formal.Interface logicalWidth publicFits) (offset : Nat)
     (phase : PiRLC.Wide.Semantics.PhaseHolds relation ajtai interface offset env)
     (inputs : PiRLC.Wide.Semantics.evalInputs relation interface offset env =
-      (PiRLC.Wide.Key.key relation ajtai).piCcsOutputs running fresh proof) :
+      (ProductionKey.key relation ajtai).piCcsOutputs running fresh proof) :
     PiRLC.Wide.Semantics.evalOutput relation interface offset env =
-      (PiRLC.Wide.Key.key relation ajtai).parentForChallenges running fresh proof
+      (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
         (PiRLC.Wide.Semantics.evalChallenges interface offset env) := by
   let first : Fin Nifs.PaperProfile.arity.total := ⟨0, by decide⟩
   have inputStructure := congrArg (fun values => (values first).constraintSystem) inputs
   have inputPoint := congrArg (fun values => (values first).point) inputs
   change (PiRLC.Wide.Semantics.evalInputs relation interface offset env first).constraintSystem =
-    (PiRLC.Wide.Key.key relation ajtai).relationSource at inputStructure
+    (ProductionKey.key relation ajtai).relationSource at inputStructure
   change (PiRLC.Wide.Semantics.evalInputs relation interface offset env first).point =
-    ((PiRLC.Wide.Key.key relation ajtai).piCcsExecution running fresh proof).coins.roundPoint at inputPoint
+    ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins.roundPoint at inputPoint
   have outputStructure : (PiRLC.Wide.Semantics.evalOutput relation interface offset env).constraintSystem =
-      (PiRLC.Wide.Key.key relation ajtai).relationSource := (phase.accepted.sameStructure first).symm.trans inputStructure
+      (ProductionKey.key relation ajtai).relationSource := (phase.accepted.sameStructure first).symm.trans inputStructure
   have outputPoint : (PiRLC.Wide.Semantics.evalOutput relation interface offset env).point =
-      ((PiRLC.Wide.Key.key relation ajtai).piCcsExecution running fresh proof).coins.roundPoint :=
+      ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins.roundPoint :=
     (phase.accepted.samePoint first).symm.trans inputPoint
   rw [PiRLC.Wide.Semantics.output_eq_combinedOutput relation ajtai interface offset env phase]
   unfold Nifs.PaperNonInteractive.Key.parentForChallenges

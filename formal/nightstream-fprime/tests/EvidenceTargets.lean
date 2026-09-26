@@ -167,7 +167,7 @@ def Stage1TerminalAssignment : Prop :=
   ∀ (target : Wide.Target) (statement : Spec.HyperNova.Construction2.Paper.TerminalStatement AppState)
     (payload : target.Payload),
     target.Holds statement (.recursive payload) →
-    (Lifecycle.Stage1.Wide.Relation.StepHoldsFor target.relation target.ajtai target.context
+    (Lifecycle.StepHoldsFor target.relation target.ajtai target.context
         target.program (target.decodedInput payload) (target.decodedOutput payload) ∧
       target.decodedNext payload = target.preimage statement payload) ∨
       target.Collision statement payload
@@ -185,7 +185,7 @@ def Stage1TerminalParent : Prop :=
     (payload : target.Payload),
     target.Holds statement (.recursive payload) →
     let input := target.decodedInput payload
-    let key := PiRLC.Wide.Key.key target.relation target.ajtai
+    let key := ProductionKey.key target.relation target.ajtai
     input.iteration = 0 ∨
       (0 < input.iteration ∧ ∃ attempt,
         key.piDecAttempt (input.running functionIndex) input.fresh input.nifsProof = some attempt ∧

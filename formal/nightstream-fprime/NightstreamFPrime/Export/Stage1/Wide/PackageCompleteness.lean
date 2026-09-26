@@ -31,19 +31,19 @@ theorem complete (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (result : Running
       (logicalWidth := RetainedLayout.logicalWidth application)
       (publicFits := FixedPoint.publicFits application))
-    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation application compiled fits)
+    (step : Lifecycle.StepHoldsFor (FixedPoint.relation application compiled fits)
       ajtai context.toList application input output)
     (priorWellFormed : StateEncoding.WellFormed
-      (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup (FixedPoint.relation application compiled fits)
+      (priorHashPreimage (Lifecycle.setup (FixedPoint.relation application compiled fits)
         ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed
-      (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup (FixedPoint.relation application compiled fits)
+      (nextHashPreimage (Lifecycle.setup (FixedPoint.relation application compiled fits)
         ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
       encHash (stateHash (priorHashPreimage
-        (Lifecycle.Stage1.Wide.Relation.setup (FixedPoint.relation application compiled fits) ajtai context.toList) input)))
+        (Lifecycle.setup (FixedPoint.relation application compiled fits) ajtai context.toList) input)))
     (accepted : Nifs.PaperNonInteractive.verify
-      (PiRLC.Wide.Key.key (FixedPoint.relation application compiled fits) ajtai)
+      (ProductionKey.key (FixedPoint.relation application compiled fits) ajtai)
       (input.running functionIndex) input.fresh input.nifsProof = some result)
     (recursiveResult : 0 < input.iteration → result = output.runningNext functionIndex)
     (witnessWidth : input.witness.length = Stage1.Poseidon2HashChainV1.messageWordCount) :

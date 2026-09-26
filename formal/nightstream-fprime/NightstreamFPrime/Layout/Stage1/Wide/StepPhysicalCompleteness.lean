@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Lifecycl
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open Spec.Folding Spec.Folding.PiCCS.PaperJoint
 open Spec.HyperNova.Construction2.Paper
-open Stage1.StepPhysicalCompleteness (external_before_c prior_word_below next_word_below)
+open Stage1.PiCCSPhysicalPrefix (external_before_c prior_word_below next_word_below)
 
 private theorem c_before_running : PiCCSInputs.phaseOffset ≤ RunningTransitionInputs.phaseOffset := by decide
 private theorem pilot_before_running : PilotProduction.witnessOffset ≤ RunningTransitionInputs.phaseOffset := by decide
@@ -34,16 +34,16 @@ theorem complete_with_values
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input))
-    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output))
+    (step : Lifecycle.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input))
+    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
-      encHash (stateHash (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input)))
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+      encHash (stateHash (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input)))
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (input.running functionIndex) input.fresh input.nifsProof = some result)
     (recursiveResult : 0 < input.iteration → result = output.runningNext functionIndex) :
-    let prior := priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input
-    let next := nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output
+    let prior := priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input
+    let next := nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output
     let values := PiCCSProofReadback.ofProof (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
     ∃ (digestFixed : output.x.length = PilotProduction.digestWords), ∃ env : Env,
       PilotPiCCSPiRLCPiDECRunningTransition.PhysicalHolds relation env ∧
@@ -61,8 +61,8 @@ theorem complete_with_values
           (serializePreimage (publicFits := publicFits) next).getD index.val 0) ∧
       PiRLC.Wide.Formal.RangesCompleted
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset env := by
-  let prior := priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input
-  let next := nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output
+  let prior := priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input
+  let next := nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output
   let values := PiCCSProofReadback.ofProof (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
   have outputHash : output.x = stateHash next := step.2.2.1
   have digestFixed : output.x.length = PilotProduction.digestWords := by
@@ -76,7 +76,7 @@ theorem complete_with_values
     exact readback
   have proofReadback : PiCCSProofInputs.relationProof relation values input.nifsProof = input.nifsProof :=
     PiCCSProofReadback.relationProof_ofProof relation _ _
-  have acceptedSource : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+  have acceptedSource : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values)
       (PiCCSProofInputs.relationProof relation values input.nifsProof) = some result := by
@@ -147,16 +147,16 @@ theorem complete
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input))
-    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output))
+    (step : Lifecycle.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input))
+    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
-      encHash (stateHash (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input)))
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+      encHash (stateHash (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input)))
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (input.running functionIndex) input.fresh input.nifsProof = some result)
     (recursiveResult : 0 < input.iteration → result = output.runningNext functionIndex) :
-    let prior := priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input
-    let next := nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output
+    let prior := priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input
+    let next := nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output
     let values := PiCCSProofReadback.ofProof (input.fresh.commitments ⟨0, by decide⟩) input.nifsProof
     ∃ (digestFixed : output.x.length = PilotProduction.digestWords), ∃ env : Env,
       PilotPiCCSPiRLCPiDECRunningTransition.PhysicalHolds relation env ∧

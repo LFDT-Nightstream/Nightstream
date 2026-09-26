@@ -3,8 +3,8 @@ import NightstreamFPrime.Export.Stage1.Wide.DecodedPiDEC
 import NightstreamFPrime.Export.Stage1.Wide.PiDECSourceWitness
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCSourceOutput
 import NightstreamFPrime.Layout.Stage1.Wide.PiRLCProtocolCompleteness
-import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.PiCCSPhysicalPrefix
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.VerifierOutput
 
 /-! Connect arbitrary accepted candidate values to the existing phase
 semantics. The total PiRLC constructor supplies an auxiliary proof view;
@@ -63,7 +63,7 @@ private theorem ccs_at (target : Env)
     (PiCCSOrdinarySourceSupport.externalInputsSupported width publicFits)
   · intro index allowed
     exact (agrees index (lt_of_lt_of_le
-      (Layout.Stage1.StepPhysicalCompleteness.external_before_c index allowed) (by decide))).symm
+      (Layout.Stage1.PiCCSPhysicalPrefix.external_before_c index allowed) (by decide))).symm
   · exact (AccumulatorSemantics.piRlcPoint_eq_roundTranscript
       (logicalWidth := width) (publicFits := publicFits) before).symm.trans
       (pointEq.trans (AccumulatorSemantics.piRlcPoint_eq_roundTranscript
@@ -221,7 +221,7 @@ theorem parent_of_view (compiled : PiRlcWideSampler.RangePlan.Compiled)
   have startA : PiRLC.v1_1.CombinationFamily.stepOffset (PiRLC.v1_1.Formal.evalAOffset PiRLCInputs.phaseOffset)
       PiRLC.v1_1.CombinationFamily.finalSource.val PiRLC.v1_1.EvalACombination.blockCount
       PiRLC.v1_1.RingKCombination.cellCount = 19827499 := by rfl
-  apply PiDECProtocolCompleteness.instance_ext
+  apply PiDEC.v1_1.VerifierOutput.instance_ext
   · rfl
   · funext row lane
     change r.current _ = r.current _
@@ -260,7 +260,7 @@ theorem parent_of_view (compiled : PiRlcWideSampler.RangePlan.Compiled)
         ring)
   · rfl
   · apply congrArg (fun evaluation : PaperAlgebra.Evaluation => #[evaluation])
-    apply PiDECProtocolCompleteness.evaluation_ext
+    apply PiDEC.v1_1.VerifierOutput.evaluation_ext
     · funext coefficient
       apply congrArg₂ K.mk
       · change r.current _ = r.current _
@@ -339,7 +339,7 @@ theorem accepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (rRows : (Stage1Plan.piRlc program compiled).RowsZero assignment)
     (dRows : (Stage1Plan.piDec program relation).RowsZero assignment) :
     ∃ env : Env,
-      Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+      Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
         (AccumulatorInputs.running width publicFits env) (AccumulatorInputs.fresh width publicFits env)
         (AccumulatorInputs.proof relation env) = some (AccumulatorInputs.output relation env) ∧
       (∀ index, index < Layout.Stage1.Wide.PiRLCInputs.phaseOffset →
@@ -348,7 +348,7 @@ theorem accepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
   obtain ⟨r, operations, cPhase, rPhase, dPhase, early, late⟩ :=
     witnessView program relation ajtai assignment one cRows dRows
   let env := r.current
-  let key := PiRLC.Wide.Key.key relation ajtai
+  let key := ProductionKey.key relation ajtai
   let running := AccumulatorInputs.running width publicFits env
   let fresh := AccumulatorInputs.fresh width publicFits env
   let proof := AccumulatorInputs.proof relation env
@@ -359,8 +359,7 @@ theorem accepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
   have initial : PiRLC.Wide.Scalar.evalState env
       ((Layout.Stage1.Wide.PiRLCInputs.interface (logicalWidth := width) (publicFits := publicFits)).initialState
         Layout.Stage1.Wide.PiRLCInputs.phaseOffset) = (key.piCcsExecution running fresh proof).outgoingState := by
-    rw [PiRLC.Wide.Key.piCcsExecution_unchanged]
-    exact PiRLCProtocolCompleteness.initialState_eq_of_phase relation ajtai env proof cPhase
+    exact PiCCSBoundary.initialState_eq_of_phase relation ajtai env proof cPhase
   have challenges := Layout.Stage1.Wide.AccumulatorSemantics.challenges_eq_key relation ajtai env
     running fresh proof Layout.Stage1.Wide.PiRLCInputs.interface Layout.Stage1.Wide.PiRLCInputs.phaseOffset rPhase initial
   have joined := parent_of_view program relation ajtai assignment compiled one cRows rRows
@@ -376,11 +375,9 @@ theorem accepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
     rw [challenges]
     change some (key.piDecAttemptForParent proof (key.parentForChallenges running fresh proof _)) = _
     rw [← parent]
-    rw [PiRLC.Wide.Key.piDecAttemptForParent_unchanged]
     exact congrArg some attempt.symm
   have cCheck : Folding.PiCCS.Accepted key running fresh proof := by
     unfold Folding.PiCCS.Accepted
-    rw [PiRLC.Wide.Key.piCcsCheck_unchanged]
     exact cPhase.accepted
   have dAccepted := PiDEC.v1_1.Semantics.accepted relation ajtai
     (PiDECInputs.interface width publicFits) PiDECInputs.phaseOffset env
@@ -392,7 +389,6 @@ theorem accepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
       (PiDEC.v1_1.Semantics.inputAttempt relation (PiDECInputs.interface width publicFits) PiDECInputs.phaseOffset env)
       (key.piDecPublicInputSplit.split
         (PiDEC.v1_1.Semantics.inputAttempt relation (PiDECInputs.interface width publicFits) PiDECInputs.phaseOffset env).parent.publicInput) = output := by
-    rw [PiRLC.Wide.Key.outputForAttempt_unchanged]
     exact AccumulatorSemantics.outputForAttempt_eq_accumulatorOutput relation ajtai env dPhase
   rw [outputEq] at computed
   exact ⟨env, (Nifs.PaperNonInteractive.verify_eq_some_iff key running fresh proof output).mpr
@@ -439,7 +435,7 @@ private theorem output_readback (env : Env)
     constructor <;> omega
   · funext source
     have hs : source.val < 16 := source.isLt
-    apply PiDECProtocolCompleteness.evaluation_ext
+    apply PiDEC.v1_1.VerifierOutput.evaluation_ext
     · funext coefficient
       have hc : coefficient.val < 54 := coefficient.isLt
       apply congrArg₂ K.mk
@@ -472,7 +468,7 @@ theorem decodedAccepted (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (rRows : (Stage1Plan.piRlc program compiled).RowsZero assignment)
     (dRows : (Stage1Plan.piDec program relation).RowsZero assignment) :
     let env := DecodedPiDEC.env program assignment
-    Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+    Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (AccumulatorInputs.running width publicFits env) (AccumulatorInputs.fresh width publicFits env)
       (AccumulatorInputs.proof relation env) = some (AccumulatorInputs.output relation env) := by
   let before := DecodedPiDEC.env program assignment

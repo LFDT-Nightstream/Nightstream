@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.Wide.FixedPoint
 import NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.RunningTransitionReducedMatrixComplete
 import NightstreamFPrime.Layout.Stage1.StateDecoder
-import NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
+import NightstreamFPrime.Lifecycle.Relation
 
 /-! Decode and join the candidate's application, state, and verifier phases.
 Every view reads the accepted assignment through the existing retained forms. -/
@@ -353,13 +353,13 @@ private theorem next_serialization (relation : ProductionKey.LogicalRelation wid
     (prefixRows : (Stage1Plan.prefixPlan program relation).RowsZero assignment)
     (next : (Stage1Plan.nextPreimage program).RowsZero assignment) :
     serializePreimage (publicFits := publicFits)
-      (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment))
+      (nextHashPreimage (Lifecycle.setup relation ajtai (contextKey program assignment))
         (input program assignment relation) (output program assignment width publicFits)) =
       serializePreimage (StateDecoder.preimage width publicFits (nextState program assignment)) := by
   have context := context_keys program assignment relation one prefixRows
   have iteration := next_iteration program assignment one next
   have initial := next_initial program assignment one next
-  unfold serializePreimage nextHashPreimage Lifecycle.Stage1.Wide.Relation.setup StateDecoder.preimage
+  unfold serializePreimage nextHashPreimage Lifecycle.setup StateDecoder.preimage
   change stateDomainTag ++ block (contextKey program assignment) ++
       [natWord (StateDecoder.iteration (priorState program assignment) + 1)] ++
       block (StateDecoder.initialState (priorState program assignment)) ++
@@ -428,7 +428,6 @@ private theorem hash_slots (relation : ProductionKey.LogicalRelation width publi
         (input program assignment relation) (output program assignment width publicFits)) :=
     by
       have serial := next_serialization program assignment relation ajtai one prefixRows next
-      rw [Lifecycle.Stage1.Wide.Relation.nextPreimage_unchanged] at serial
       exact nextRep.trans serial.symm
   exact Lifecycle.Pilot.builders_imply_hash_slots PilotProduction.interface PilotProduction.witnessOffset
     (DecodedPrefix.pilotEnv program assignment) relation ajtai (contextKey program assignment) program.step
@@ -447,7 +446,7 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (fits : PerApplicationPackage.FitsTwoPow28 program)
     (one : assignment (Stage1Plan.piRlcInterface program).oneColumn = 1)
     (rows : (Stage1Plan.plan program compiled relation fits).RowsZero assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai (contextKey program assignment) program
+    Lifecycle.StepHoldsFor relation ajtai (contextKey program assignment) program
       (input program assignment relation) (output program assignment width publicFits) := by
   obtain ⟨cRows, rRows, dRows, runningRows, appRows, nextRows, _publicRows⟩ :=
     (Stage1Plan.rows_iff program compiled relation fits assignment).mp rows
@@ -468,15 +467,14 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
     constructor
     · intro h; rw [h]; rfl
     · intro h; exact Fin.ext h
-  change FixedAugmentedTransition (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment))
+  change FixedAugmentedTransition (Lifecycle.setup relation ajtai (contextKey program assignment))
     (machineFor publicFits program) functionIndex (input program assignment relation)
     (output program assignment width publicFits)
   refine ⟨rfl, ?_, ?_, ?_⟩
   · exact application
   · change (output program assignment width publicFits).x =
-      stateHash (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment))
+      stateHash (nextHashPreimage (Lifecycle.setup relation ajtai (contextKey program assignment))
         (input program assignment relation) (output program assignment width publicFits))
-    rw [Lifecycle.Stage1.Wide.Relation.nextPreimage_unchanged]
     exact hashes.2
   rcases Nat.eq_zero_or_pos (input program assignment relation).iteration with base | positive
   · have fieldZero := iterationZero.mpr base
@@ -490,7 +488,7 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
         RunningTransitionInputs.currentStateWordStart, Nat.add_assoc] using! runningSpec.initialState fieldZero lane
     have baseOutput := RunningTransitionInputs.spec_typed_base runningSpec fieldZero
     have defaultOutput : (output program assignment width publicFits).runningNext = fun _ =>
-        (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment)).defaultRunning := by
+        (Lifecycle.setup relation ajtai (contextKey program assignment)).defaultRunning := by
       funext slot
       rw [slot_eq slot, ← outRunning]
       exact baseOutput
@@ -505,7 +503,7 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
     change AccumulatorInputs.running width publicFits env = (input program assignment relation).running functionIndex at inRunning
     have outEq : AccumulatorInputs.output relation env = (output program assignment width publicFits).runningNext functionIndex :=
       recursiveOutput.symm.trans outRunning
-    change Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+    change Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       (AccumulatorInputs.running width publicFits env) (input program assignment relation).fresh
       (input program assignment relation).nifsProof = some (AccumulatorInputs.output relation env) at accepted
     rw [inRunning, outEq] at accepted
@@ -515,13 +513,12 @@ private theorem plan_semantics (compiled : PiRlcWideSampler.RangePlan.Compiled)
     refine Or.inr ⟨valid, positive, ?_, ?_, ?_⟩
     · change (machineFor publicFits program).freshPublic (input program assignment relation).fresh =
         encHash (stateHash (priorHashPreimage
-          (Lifecycle.Stage1.Wide.Relation.setup relation ajtai (contextKey program assignment))
+          (Lifecycle.setup relation ajtai (contextKey program assignment))
           (input program assignment relation)))
-      rw [Lifecycle.Stage1.Wide.Relation.priorPreimage_unchanged]
       exact hashes.1
     · rw [slot_eq (selectedIndex valid)]
-      simpa only [Spec.HyperNova.NonInteractiveMultiFold.Accepts, Lifecycle.Stage1.Wide.Relation.setup,
-        Lifecycle.Stage1.Wide.Relation.nifsVerifier] using accepted
+      simpa only [Spec.HyperNova.NonInteractiveMultiFold.Accepts, Lifecycle.setup,
+        Lifecycle.nifsVerifier] using accepted
     · intro slot different
       exact False.elim (different ((slot_eq slot).trans (slot_eq (selectedIndex valid)).symm))
 
@@ -534,7 +531,7 @@ theorem rowsZero_implies_stepHoldsFor (compiled : PiRlcWideSampler.RangePlan.Com
       (publicFits := FixedPoint.publicFits program))
     (one : assignment (Stage1Plan.piRlcInterface program).oneColumn = 1)
     (rows : (FixedPoint.structuralPlan program compiled fits).RowsZero assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
+    Lifecycle.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
       (contextKey program assignment) program
       (input program assignment (FixedPoint.relation program compiled fits))
       (output program assignment (RetainedLayout.logicalWidth program) (FixedPoint.publicFits program)) := by

@@ -43,16 +43,16 @@ private theorem success_of_verified_output
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (children : Stage1.Terminal.RunningWitness
       (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (verified : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai)
+    (verified : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       running fresh proof = some result)
     (valid : ∀ child, CE.Holds (semantics ajtai) productionGlobalParams
       (Lifecycle.runningStatement relation result child) (children child)) :
     WideFiatShamir.RealSuccess relation ajtai running fresh
       (some (makeOutput relation proof children)) := by
   have checks := (Nifs.PaperNonInteractive.verify_eq_some_iff
-    (PiRLC.Wide.Key.key relation ajtai) running fresh proof result).mp verified
+    (ProductionKey.key relation ajtai) running fresh proof result).mp verified
   rcases (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff
-      (PiRLC.Wide.Key.key relation ajtai) running fresh proof).mp checks.2.1 with
+      (ProductionKey.key relation ajtai) running fresh proof).mp checks.2.1 with
     ⟨attempt, attemptEq, _attemptAccepted⟩
   exact ⟨result, attempt, verified, attemptEq, valid⟩
 

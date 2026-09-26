@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Plan
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 
 /-! Derive the wide recursive relation from its own matrices and width.
 The seed has no semantic authority. Reassembly with the derived relation
@@ -100,6 +100,6 @@ theorem relation_matrices (program : Program) (compiled : PiRlcWideSampler.Range
 noncomputable def key (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 program)
     (ajtai : AjtaiKey (logicalWidth := RetainedLayout.logicalWidth program) (publicFits := publicFits program)) :=
-  Lifecycle.PiRLC.Wide.Key.key (relation program compiled fits) ajtai
+  Lifecycle.ProductionKey.key (relation program compiled fits) ajtai
 
 end NightstreamFPrime.Export.Stage1.Wide.FixedPoint

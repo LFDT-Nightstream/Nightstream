@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.VerifierOutput
 
 /-!
 Owns one environment for the existing pilot and local C/R/D rows. Pilot

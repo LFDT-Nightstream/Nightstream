@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.TranscriptHistory
 
 /-! Security consumers for the total wide-sampler key. The real event uses
@@ -47,7 +47,7 @@ def RealSuccess
     Option (RealOutput relation) → Prop
   | none => False
   | some output =>
-      let key := PiRLC.Wide.Key.key relation ajtai
+      let key := ProductionKey.key relation ajtai
       ∃ result attempt,
         PaperNonInteractive.verify key running fresh output.proof = some result ∧
         key.piDecAttempt running fresh output.proof = some attempt ∧
@@ -60,7 +60,7 @@ theorem realSuccess_implies_exact_children
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (output : RealOutput relation) (success : RealSuccess relation ajtai running fresh (some output)) :
-    let key := PiRLC.Wide.Key.key relation ajtai
+    let key := ProductionKey.key relation ajtai
     ∃ result attempt,
       PaperNonInteractive.verify key running fresh output.proof = some result ∧
       key.piDecAttempt running fresh output.proof = some attempt ∧
@@ -72,8 +72,8 @@ theorem realSuccess_implies_exact_children
   refine ⟨result, attempt, accepted, attemptEq, ?_⟩
   intro child
   rw [← PiDEC.OutputWitnessConsumer.runningStatement_eq_child
-    (PiRLC.Wide.Key.key relation ajtai) running fresh output.proof result attempt attemptEq accepted child]
-  exact valid (Fin.cast (PiRLC.Wide.Key.key relation ajtai).outputCount_eq child)
+    (ProductionKey.key relation ajtai) running fresh output.proof result attempt attemptEq accepted child]
+  exact valid (Fin.cast (ProductionKey.key relation ajtai).outputCount_eq child)
 
 variable {Context : Type*}
   (running : Context → Lifecycle.Running

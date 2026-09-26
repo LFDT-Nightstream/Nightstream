@@ -19,31 +19,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-theorem combinationOutput_varsBelow
-    {blockCount cellCount : Nat} [NeZero cellCount]
-    (interface : PiRLC.v1_1.CombinationFamily.Interface blockCount cellCount)
-    (offset : Nat) (block : Fin blockCount) (lane : Fin ringDegree)
-    (cell : Fin cellCount) :
-    (PiRLC.v1_1.CombinationFamily.output interface offset block lane cell
-      ).VarsBelow
-      (offset +
-        PiRLC.v1_1.CombinationFamily.logicalPrivateCount blockCount
-          cellCount) := by
-  simp only [PiRLC.v1_1.CombinationFamily.output,
-    PiRLC.v1_1.CombinationStep.output, Expr.VarsBelow]
-  have indexBound :
-      (PiRLC.v1_1.CombinationStep.indexOf block lane cell).val <
-        PiRLC.v1_1.CombinationFamily.stepSize blockCount cellCount := by
-    exact (PiRLC.v1_1.CombinationStep.indexOf block lane cell).isLt
-  have finalSourceValue :
-      PiRLC.v1_1.CombinationFamily.finalSource.val = 16 := by
-    rfl
-  unfold PiRLC.v1_1.CombinationFamily.stepOffset
-    PiRLC.v1_1.CombinationFamily.logicalPrivateCount
-  rw [finalSourceValue]
-  simp only [PiRLC.v1_1.CombinationFamily.sourceCount_eq]
-  omega
-
 private theorem piDecField_lt_phaseOffset {column : Nat}
     (field : RunningTransitionSourceSupport.PiDecField column) :
     column < phaseOffset := by
@@ -98,7 +73,7 @@ theorem inputsBelow
     digit := ?_ }
   · intro row lane
     apply Expr.VarsBelow.mono _
-      (combinationOutput_varsBelow
+      (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.CommitmentCombination.familyInterface
           (PiRLC.v1_1.Formal.commitmentInterface
             (piRlcSharedInterface logicalWidth publicFits)))
@@ -109,7 +84,7 @@ theorem inputsBelow
     norm_num
   · intro column
     apply Expr.VarsBelow.mono _
-      (combinationOutput_varsBelow
+      (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.PublicInputCombination.familyInterface
           (PiRLC.v1_1.Formal.publicInputInterface
             (piRlcSharedInterface logicalWidth publicFits)))
@@ -125,7 +100,7 @@ theorem inputsBelow
   · intro coefficient
     constructor
     · apply Expr.VarsBelow.mono _
-        (combinationOutput_varsBelow
+        (PiRLC.v1_1.CombinationFamily.output_varsBelow
           (PiRLC.v1_1.RingKCombination.familyInterface
             (PiRLC.v1_1.EvalKCombination.ringInterface
               (PiRLC.v1_1.Formal.evalKInterface
@@ -138,7 +113,7 @@ theorem inputsBelow
       change 19801471 + 1836 ≤ 28470790
       norm_num
     · apply Expr.VarsBelow.mono _
-        (combinationOutput_varsBelow
+        (PiRLC.v1_1.CombinationFamily.output_varsBelow
           (PiRLC.v1_1.RingKCombination.familyInterface
             (PiRLC.v1_1.EvalKCombination.ringInterface
               (PiRLC.v1_1.Formal.evalKInterface
@@ -153,7 +128,7 @@ theorem inputsBelow
   · intro matrix coefficient
     constructor
     · apply Expr.VarsBelow.mono _
-        (combinationOutput_varsBelow
+        (PiRLC.v1_1.CombinationFamily.output_varsBelow
           (PiRLC.v1_1.RingKCombination.familyInterface
             (PiRLC.v1_1.EvalACombination.ringInterface
               (PiRLC.v1_1.Formal.evalAInterface
@@ -166,7 +141,7 @@ theorem inputsBelow
       change 19803307 + 25704 ≤ 28470790
       norm_num
     · apply Expr.VarsBelow.mono _
-        (combinationOutput_varsBelow
+        (PiRLC.v1_1.CombinationFamily.output_varsBelow
           (PiRLC.v1_1.RingKCombination.familyInterface
             (PiRLC.v1_1.EvalACombination.ringInterface
               (PiRLC.v1_1.Formal.evalAInterface

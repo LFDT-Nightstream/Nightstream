@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.Wide.PiDECInputs
-import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
+import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.OutputBindingTransport
 
 /-! All wide PiDEC inputs precede its local allocation. These bounds derive
@@ -10,7 +10,6 @@ namespace NightstreamFPrime.Layout.Stage1.Wide.PiDECInputs
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
 open Spec.Folding.PiCCS.PaperJoint
-open Stage1.PiDECInputs (combinationOutput_varsBelow)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -27,12 +26,12 @@ theorem parentBelow (_relation : ProductionKey.LogicalRelation logicalWidth publ
       (15027676 + coordinate.val * 5328 + 4728 < 19620846)
     constructor <;> omega
   · intro row lane
-    exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
       (PiRLC.v1_1.CommitmentCombination.familyInterface
         (PiRLC.Wide.Formal.commitmentInterface (piRlcSharedInterface logicalWidth publicFits)))
       PiRLCStarts.commitmentLogicalStart row lane PiRLC.v1_1.CommitmentCombination.cell) (by decide)
   · intro column
-    exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
       (PiRLC.v1_1.PublicInputCombination.familyInterface
         (PiRLC.Wide.Formal.publicInputInterface (piRlcSharedInterface logicalWidth publicFits)))
       PiRLCStarts.publicInputLogicalStart
@@ -40,24 +39,24 @@ theorem parentBelow (_relation : ProductionKey.LogicalRelation logicalWidth publ
       (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column) PiRLC.v1_1.PublicInputCombination.cell) (by decide)
   · intro coefficient
     constructor
-    · exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    · exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.RingKCombination.familyInterface
           (PiRLC.v1_1.EvalKCombination.ringInterface (PiRLC.Wide.Formal.evalKInterface (piRlcSharedInterface logicalWidth publicFits))))
         PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
         (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient) PiRLC.v1_1.RingKCombination.c0Cell) (by decide)
-    · exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    · exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.RingKCombination.familyInterface
           (PiRLC.v1_1.EvalKCombination.ringInterface (PiRLC.Wide.Formal.evalKInterface (piRlcSharedInterface logicalWidth publicFits))))
         PiRLCStarts.evalKLogicalStart PiRLC.v1_1.EvalKCombination.block
         (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient) PiRLC.v1_1.RingKCombination.c1Cell) (by decide)
   · intro matrix coefficient
     constructor
-    · exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    · exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.RingKCombination.familyInterface
           (PiRLC.v1_1.EvalACombination.ringInterface (PiRLC.Wide.Formal.evalAInterface (piRlcSharedInterface logicalWidth publicFits))))
         PiRLCStarts.evalALogicalStart matrix
         (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq coefficient) PiRLC.v1_1.RingKCombination.c0Cell) (by decide)
-    · exact Expr.VarsBelow.mono _ (combinationOutput_varsBelow
+    · exact Expr.VarsBelow.mono _ (PiRLC.v1_1.CombinationFamily.output_varsBelow
         (PiRLC.v1_1.RingKCombination.familyInterface
           (PiRLC.v1_1.EvalACombination.ringInterface (PiRLC.Wide.Formal.evalAInterface (piRlcSharedInterface logicalWidth publicFits))))
         PiRLCStarts.evalALogicalStart matrix

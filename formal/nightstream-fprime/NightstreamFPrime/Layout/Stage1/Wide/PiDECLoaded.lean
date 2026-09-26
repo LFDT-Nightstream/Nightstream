@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.Wide.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.Wide.PiDECProofInputs
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.VerifierOutput
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 
 /-! Load PiDEC's actual proof fields for the wide parent. The resulting
 semantic phase follows from the verifier's checks on that exact parent. -/
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Layout.Stage1.Wide.PiDECLoaded
 open NightstreamFPrime.Circuit NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
 open Spec.Folding Spec.Folding.PiCCS.PaperJoint
-open Stage1.PiDECProtocolCompleteness
+open PiDEC.v1_1.VerifierOutput
   (evaluation_ext message_ext attempt_ext instance_ext children_outputAccepted)
 
 variable {logicalWidth : Nat}
@@ -62,7 +62,7 @@ theorem loaded_attempt (env : Env) (proof : Proof (ProductionKey.degreeBound rel
     (publicInput : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     PiDEC.v1_1.Semantics.inputAttempt relation (PiDECInputs.interface logicalWidth publicFits)
         PiDECInputs.phaseOffset (PiDECProofInputs.load env proof publicInput) =
-      (PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof (parent relation env) := by
+      (ProductionKey.key relation ajtai).piDecAttemptForParent proof (parent relation env) := by
   apply attempt_ext
   · exact (inputParent relation _).trans (parent_preserved relation env proof publicInput)
   · funext child
@@ -72,7 +72,7 @@ theorem loaded_output (env : Env) (proof : Proof (ProductionKey.degreeBound rela
     PiDEC.v1_1.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
         (PiDECProofInputs.load env proof (parent relation env).publicInput) =
       PiDEC.PaperVerifier.children (PaperAlgebra.publicInputSplit ajtai)
-        ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof (parent relation env)) := by
+        ((ProductionKey.key relation ajtai).piDecAttemptForParent proof (parent relation env)) := by
   funext child
   apply instance_ext
   · rfl
@@ -94,9 +94,9 @@ theorem loaded_output (env : Env) (proof : Proof (ProductionKey.degreeBound rela
   · rfl
 
 theorem loaded_phase (env : Env) (proof : Proof (ProductionKey.degreeBound relation))
-    (checks : PiDEC.PaperVerifier.Accepted (PiRLC.Wide.Key.key relation ajtai).piDecAlgebra
-      (PiRLC.Wide.Key.key relation ajtai).piDecPublicInputSplit (PiRLC.Wide.Key.key relation ajtai).piDecEvaluationArity
-      ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof (parent relation env))) :
+    (checks : PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
+      (ProductionKey.key relation ajtai).piDecPublicInputSplit (ProductionKey.key relation ajtai).piDecEvaluationArity
+      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof (parent relation env))) :
     PiDEC.v1_1.Semantics.PhaseHolds relation ajtai (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset
       (PiDECProofInputs.load env proof (parent relation env).publicInput) := by
   unfold PiDEC.v1_1.Semantics.PhaseHolds

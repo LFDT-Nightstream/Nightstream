@@ -591,4 +591,29 @@ def circuit {blockCount cellCount : Nat} [NeZero cellCount]
     intro env offset assumptions specification
     exact completeness interface offset env assumptions specification
 
+theorem output_varsBelow
+    {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount)
+    (offset : Nat) (block : Fin blockCount) (lane : Fin ringDegree)
+    (cell : Fin cellCount) :
+    (output interface offset block lane cell
+      ).VarsBelow
+      (offset +
+        logicalPrivateCount blockCount
+          cellCount) := by
+  simp only [output,
+    CombinationStep.output, Expr.VarsBelow]
+  have indexBound :
+      (CombinationStep.indexOf block lane cell).val <
+        stepSize blockCount cellCount := by
+    exact (CombinationStep.indexOf block lane cell).isLt
+  have finalSourceValue :
+      finalSource.val = 16 := by
+    rfl
+  unfold stepOffset
+    logicalPrivateCount
+  rw [finalSourceValue]
+  simp only [sourceCount_eq]
+  omega
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily

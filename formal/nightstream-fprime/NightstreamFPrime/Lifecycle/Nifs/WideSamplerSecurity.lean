@@ -22,15 +22,15 @@ variable {logicalWidth : Nat}
 
 /-- No sampler-abort event remains, for any concrete starting state. -/
 theorem no_sampler_abort (state : Poseidon2.State) :
-    (PiRLC.Wide.Key.key relation ajtai).piRlcResponse state ≠ none := by
-  rw [PiRLC.Wide.Key.key_response]
+    (ProductionKey.key relation ajtai).piRlcResponse state ≠ none := by
+  rw [ProductionKey.key_response]
   simp only [ne_eq, reduceCtorEq, not_false_eq_true]
 
 /-- Replaying a normalized query history from `seed` yields the response used
 by the wide verification key. This holds for any seed and history; it does not
 identify the verifier's PiCCS output state with a complete-transcript replay. -/
 theorem response_history (seed : Poseidon2.State) (history : List Draw) (coordinate : Fin 17) :
-    PiRLC.Wide.Key.response (TranscriptHistory.replay seed history) coordinate =
+    ProductionKey.response (TranscriptHistory.replay seed history) coordinate =
       Phi81StrongSet.embedScalar
         (sample (TranscriptHistory.answer seed (ScheduleLaw.queryAt history coordinate))) := by
   rw [TranscriptHistory.queryAt_sample]
@@ -40,7 +40,7 @@ theorem response_history (seed : Poseidon2.State) (history : List Draw) (coordin
 theorem statement_unchanged
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (PiRLC.Wide.Key.key relation ajtai).statement running fresh =
+    (ProductionKey.key relation ajtai).statement running fresh =
       (ProductionKey.key relation ajtai).statement running fresh := by
   unfold Spec.Folding.Nifs.PaperNonInteractive.Key.statement
   rfl

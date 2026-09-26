@@ -20,7 +20,7 @@ import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
 import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
-import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.PiCCSBoundary
 import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementBinding
 import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption
@@ -85,8 +85,8 @@ import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
-import NightstreamFPrime.Layout.Stage1.PiDECProofInputs
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.Wide.PiDECProofInputs
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.VerifierOutput
 import NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 import NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
 import NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness

@@ -246,7 +246,7 @@ theorem step_or_collision (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (publicEqual : PublicBinding.publicInput application assignment = encHash publicDigest)
     (checkedDigest : publicDigest = stateHash { claimed with verifierKeys := fun _ => contextKey (descriptor parts) })
     (rows : (FixedPoint.structuralPlan application compiled fits).RowsZero assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation application compiled fits)
+    Lifecycle.StepHoldsFor (FixedPoint.relation application compiled fits)
       productionAjtaiKey (contextKey (descriptor parts)) application
       (FixedPointSoundness.input application assignment (FixedPoint.relation application compiled fits))
       (FixedPointSoundness.output application assignment (RetainedLayout.logicalWidth application)

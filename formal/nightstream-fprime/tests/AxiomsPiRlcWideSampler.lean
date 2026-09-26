@@ -61,10 +61,10 @@ import NightstreamFPrime.Layout.Stage1.Wide.AccumulatorSemantics
 import NightstreamFPrime.Export.Stage1.Wide.SelectedAssignmentCompleteness
 import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
-import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
-import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
+import NightstreamFPrime.Layout.Stage1.PiCCSBoundary
+import NightstreamFPrime.Lifecycle.PiDEC.v1_1.VerifierOutput
 import NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment
-import NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
+import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Export.Stage1.Wide.CompletedRows
 import NightstreamFPrime.Export.Stage1.Wide.PrefixCompletedAssignment
 import NightstreamFPrime.Export.Stage1.Wide.PiRLCSourceInputs
@@ -97,7 +97,7 @@ import NightstreamFPrime.Export.Stage1.Wide.RunningSupport
 import NightstreamFPrime.Export.Stage1.Wide.Stage1InputSupport
 import NightstreamFPrime.Export.Stage1.Wide.FixedPoint
 import NightstreamFPrime.Export.Stage1.Wide.PiDECOutput
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 import NightstreamFPrime.Export.Stage1.Wide.HashChainCounts
 import NightstreamFPrime.Export.Stage1.Wide.Stage1Witness
 import NightstreamFPrime.Export.Stage1.Wide.InputSupport
@@ -802,12 +802,10 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.HashChainCounts.logicalCoordinates
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.HashChainCounts.committedCoordinates
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.HashChainCounts.logicalRows
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.response_valid
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piRlcResponse_valid
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.key_response
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.phase_response
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.profile_unchanged
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.challengeSet_unchanged
+#audit_axioms NightstreamFPrime.Lifecycle.ProductionKey.response_valid
+#audit_axioms NightstreamFPrime.Lifecycle.ProductionKey.piRlcResponse_valid
+#audit_axioms NightstreamFPrime.Lifecycle.ProductionKey.key_response
+#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics.key_response
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.referenceOutputStart
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.output_column
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.PiDECOutput.output_form
@@ -1044,20 +1042,18 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.public_value
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.publicInput
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.CarrierAssignment.publicOutput
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Wide.Relation.priorPreimage_unchanged
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Wide.Relation.nextPreimage_unchanged
 
 -- Semantic-step construction for the candidate wide relation.
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.evaluation_ext
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.message_ext
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.attempt_ext
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.instance_ext
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.children_outputAccepted
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness.computed_output_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.cViews_eq_of_fields
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.initialState_eq_of_phase
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.accumulator_phase
-#audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness.protocol_readback
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.evaluation_ext
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.message_ext
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.attempt_ext
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.instance_ext
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.children_outputAccepted
+#audit_axioms NightstreamFPrime.Layout.PiDEC.v1_1.VerifierOutput.computed_output_eq
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.cViews_eq_of_fields
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.initialState_eq_of_phase
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.accumulator_phase
+#audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSBoundary.protocol_readback
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness.lower_prefix
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness.pilot_end_before_c
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness.pilot_start_le_end
@@ -1070,9 +1066,6 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness.next_word_below
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepSourceSpecs.initial_word
 #audit_axioms NightstreamFPrime.Layout.Stage1.StepSourceSpecs.current_word
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piCcsOutputs_unchanged
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piCcsExecution_unchanged
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piCcsCheck_unchanged
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.SelectedAssignmentCompleteness.complete
 #audit_axioms NightstreamFPrime.Layout.Stage1.Wide.AccumulatorSemantics.inputs_eq_keyOutputs
 #audit_axioms NightstreamFPrime.Layout.Stage1.Wide.AccumulatorSemantics.challenges_eq_key
@@ -1125,9 +1118,7 @@ footprint (V3-V5). -/
 
 #audit_axioms NightstreamFPrime.Layout.Stage1.Wide.PiRLCInputBounds.samplerInitialBelow
 
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.piDecAttemptForParent_unchanged
 
-#audit_axioms NightstreamFPrime.Lifecycle.PiRLC.Wide.Key.outputForAttempt_unchanged
 
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.DecodedPrefix.piCcsSpec
 

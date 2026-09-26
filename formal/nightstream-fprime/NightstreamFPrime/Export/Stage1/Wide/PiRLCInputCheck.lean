@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
 import NightstreamFPrime.Export.Stage1.Wide.BaseStepFixture
-import NightstreamFPrime.Lifecycle.PiRLC.Wide.Key
+import NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics
 
 /-! Selected C/R execution uses the exact total wide transcript batch.
 The indexed commitment and evaluation traces reuse the materialized algebra. -/
@@ -14,7 +14,7 @@ def sampler (state : Transcript.State) : Option (Transcript.PiRlcSampler.Batch S
   some (BaseStepFixture.batch state)
 
 theorem sampler_response (state : Transcript.State) :
-    (sampler state).map Transcript.PiRlcSampler.Batch.challenges = PiRLC.Wide.Key.piRlcResponse state := by
+    (sampler state).map Transcript.PiRlcSampler.Batch.challenges = ProductionKey.piRlcResponse state := by
   apply congrArg some
   funext source lane
   exact BaseStepFixture.batch_challenges state source lane
@@ -30,7 +30,7 @@ theorem sampled_on_rejection (input : Stage1.PiRLCInputCheck.Input)
 theorem sampled_response (input : Stage1.PiRLCInputCheck.Input)
     (batch : Transcript.PiRlcSampler.Batch SourceCount) (returned : sampled input = some batch) :
     (PiCCSInputCheck.execute input).accepted = true ∧
-      PiRLC.Wide.Key.piRlcResponse (PiCCSInputCheck.execute input).outgoing = some batch.challenges := by
+      ProductionKey.piRlcResponse (PiCCSInputCheck.execute input).outgoing = some batch.challenges := by
   dsimp only [sampled] at returned
   split at returned
   · rename_i accepted

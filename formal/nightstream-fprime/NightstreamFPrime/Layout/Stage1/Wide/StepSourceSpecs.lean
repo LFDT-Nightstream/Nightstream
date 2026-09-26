@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.Wide.RunningTransitionSemantics
-import NightstreamFPrime.Lifecycle.Stage1.Wide.Relation
+import NightstreamFPrime.Lifecycle.Relation
 
 /-! Read the state-transition and next-preimage specifications from the
 candidate HyperNova step, using its exact wide-key PiDEC output. -/
@@ -30,25 +30,25 @@ theorem specs_of_step
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (env : Env)
-    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input))
-    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output))
+    (step : Lifecycle.StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input))
+    (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output))
     (priorWords : ∀ index : Fin PilotProduction.stateHashWords,
       env (PilotProduction.priorPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits)
-          (priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input)).getD index.val 0)
+          (priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input)).getD index.val 0)
     (nextWords : ∀ index : Fin PilotProduction.stateHashWords,
       env (PilotProduction.outputPreimageStart + index.val) =
         (serializePreimage (publicFits := publicFits)
-          (nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output)).getD index.val 0)
+          (nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output)).getD index.val 0)
     (recursiveOutput : 0 < input.iteration →
       RunningTransitionInputs.piDecRunningOutput relation env = output.runningNext functionIndex) :
     Lifecycle.Stage1.RunningTransition.SpecHolds (RunningTransitionInputs.interface logicalWidth publicFits)
       RunningTransitionInputs.phaseOffset env ∧
     Lifecycle.Stage1.NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
       RunningTransitionInputs.phaseOffset env := by
-  let prior := priorHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input
-  let next := nextHashPreimage (Lifecycle.Stage1.Wide.Relation.setup relation ajtai context.toList) input output
+  let prior := priorHashPreimage (Lifecycle.setup relation ajtai context.toList) input
+  let next := nextHashPreimage (Lifecycle.setup relation ajtai context.toList) input output
   have priorDecoded := StateEncodingReadback.preimage_eq_of_words prior priorWellFormed
     (fun word => env (PilotProduction.priorPreimageStart + word)) priorWords
   have nextDecoded := StateEncodingReadback.preimage_eq_of_words next nextWellFormed

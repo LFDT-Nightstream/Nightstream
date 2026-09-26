@@ -74,7 +74,7 @@ theorem step_or_collision_of_matrix (compiled : PiRlcWideSampler.RangePlan.Compi
       stateHash { claimed with verifierKeys := fun _ => SetupBinding.contextKey (SetupBinding.descriptor parts) })
     (rows : ProgramRowsZero parts.matrix (RetainedLayout.logicalWidth SetupBinding.application)
       (PackageSourceRows.packageSourceRow? parts.package) assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor
+    Lifecycle.StepHoldsFor
         (FixedPoint.relation SetupBinding.application compiled SetupBinding.fits)
         SetupBinding.productionAjtaiKey (SetupBinding.contextKey (SetupBinding.descriptor parts))
         SetupBinding.application
@@ -147,7 +147,7 @@ theorem terminal_implies_stepOrCollision (program : RetainedLayout.Program)
     (statement : TerminalStatement AppState) (payload : TerminalPayload program)
     (terminal : Stage1.Terminal.HoldsFor (FixedPoint.relation program compiled fits) ajtai vk
       program statement (.recursive payload)) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai vk program
+    Lifecycle.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai vk program
         (FixedPointSoundness.input program (Plan.logicalAssignment payload.freshWitness)
           (FixedPoint.relation program compiled fits))
         (FixedPointSoundness.output program (Plan.logicalAssignment payload.freshWitness)

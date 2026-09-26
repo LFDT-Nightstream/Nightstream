@@ -6,6 +6,7 @@ import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 import NightstreamFPrime.Spec.Folding.Nifs
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcWideSampler.Transcript
 
 /-!
 Owns the one concrete Stage 1 SuperNeo NIFS verifier key. Every algebraic law
@@ -135,12 +136,17 @@ def absorbFullOutput (s : Transcript.State)
       (List.finRange productionShape.coefficientCount).flatMap fun l =>
         serializeK (out.matrixCoordinate i j l)))
 
-/-- The exact 17-value `ρ` batch from the post-output state, or explicit
-sampler shortfall. -/
-def piRlcResponse (s : Transcript.State) :
-    Option (Fin (Nifs.PaperProfile.arity).total → RingF) :=
-  Transcript.PiRlcSampler.piRlcChallenges s
-    (Nifs.PaperProfile.arity).total
+/-- The verifier derives every scalar from one joint four-field block. -/
+def response (state : Transcript.State) : Fin Nifs.PaperProfile.arity.total → RingF :=
+  fun source => Nifs.NonInteractive.PiRlcWideSampler.Transcript.challengeAt state source.val
+
+def piRlcResponse (state : Transcript.State) :
+    Option (Fin Nifs.PaperProfile.arity.total → RingF) :=
+  some (response state)
+
+theorem response_valid (state : Transcript.State) (source : Fin Nifs.PaperProfile.arity.total) :
+    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (response state source) :=
+  Nifs.NonInteractive.PiRlcWideSampler.Transcript.challengeAt_member state source.val
 
 theorem piRlcResponse_valid
     (s : Transcript.State)
@@ -148,12 +154,9 @@ theorem piRlcResponse_valid
     (success : piRlcResponse s = some response)
     (index : Fin (Nifs.PaperProfile.arity).total) :
     Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (response index) := by
-  unfold piRlcResponse Transcript.PiRlcSampler.piRlcChallenges at success
-  rw [Option.map_eq_some_iff] at success
-  rcases success with ⟨batch, batchEq, responseEq⟩
-  rw [← responseEq]
-  exact Transcript.PiRlcSampler.piRlcChallenges_member
-    (by simpa using batchEq) index
+  have same := Option.some.inj success
+  rw [← same]
+  exact response_valid s index
 
 /-- The Stage 1 production NIFS key for one logical relation and one
 verifier-owned Ajtai key. -/
@@ -209,6 +212,11 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   absorbPiCcsOutput := absorbFullOutput
   piRlcResponse := piRlcResponse
   piRlcResponseValid := piRlcResponse_valid
+
+theorem key_response (relation : LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (state : Transcript.State) :
+    (key relation ajtai).piRlcResponse state = some (response state) := rfl
 
 /-- The key's selected challenge count is exactly the cardinality of the
 production PiRLC membership predicate. -/

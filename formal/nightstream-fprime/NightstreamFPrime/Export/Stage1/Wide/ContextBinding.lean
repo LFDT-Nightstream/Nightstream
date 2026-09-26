@@ -23,7 +23,7 @@ variable (program : RetainedLayout.Program)
 noncomputable def decodedNext : HashPreimage (logicalWidth := RetainedLayout.logicalWidth program)
     (publicFits := FixedPoint.publicFits program) :=
   nextHashPreimage
-    (Lifecycle.Stage1.Wide.Relation.setup (FixedPoint.relation program compiled fits) ajtai
+    (Lifecycle.setup (FixedPoint.relation program compiled fits) ajtai
       (contextKey program assignment))
     (input program assignment (FixedPoint.relation program compiled fits))
     (output program assignment (RetainedLayout.logicalWidth program) (FixedPoint.publicFits program))
@@ -38,7 +38,7 @@ theorem step_or_collision (expected : KeyDigest) (expectedLength : expected.leng
     (publicEqual : PublicBinding.publicInput program assignment = encHash publicDigest)
     (checkedDigest : publicDigest = stateHash {claimed with verifierKeys := fun _ => expected})
     (rows : (FixedPoint.structuralPlan program compiled fits).RowsZero assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
+    Lifecycle.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
       expected program (input program assignment (FixedPoint.relation program compiled fits))
       (output program assignment (RetainedLayout.logicalWidth program) (FixedPoint.publicFits program)) ∨
     PiCCSSecurity.StateHashCollision (decodedNext program assignment compiled fits ajtai)

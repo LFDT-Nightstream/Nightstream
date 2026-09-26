@@ -627,4 +627,15 @@ theorem combinedWitness_holds
   rw [output_eq_combinedOutput relation ajtai interface offset env phase]
   exact canonical
 
+theorem key_response {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) (env : Env)
+    (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
+    (ProductionKey.key relation ajtai).piRlcResponse (Scalar.evalState env (interface.initialState offset)) =
+      some (Semantics.evalChallenges interface offset env) := by
+  rw [ProductionKey.key_response]
+  exact congrArg some phase.response
+
 end NightstreamFPrime.Lifecycle.PiRLC.Wide.Semantics

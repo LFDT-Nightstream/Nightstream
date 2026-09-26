@@ -21,14 +21,14 @@ theorem verifierInputs
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai) running fresh proof = some result) :
-    PiCCS.Accepted (PiRLC.Wide.Key.key relation ajtai) running fresh proof ∧
-    ∃ challenges, (PiRLC.Wide.Key.key relation ajtai).piRlcChallenges running fresh proof = some challenges ∧
-      PiDEC.PaperVerifier.Accepted (PiRLC.Wide.Key.key relation ajtai).piDecAlgebra
-        (PiRLC.Wide.Key.key relation ajtai).piDecPublicInputSplit (PiRLC.Wide.Key.key relation ajtai).piDecEvaluationArity
-        ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof
-          ((PiRLC.Wide.Key.key relation ajtai).parentForChallenges running fresh proof challenges)) := by
-  let key := PiRLC.Wide.Key.key relation ajtai
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai) running fresh proof = some result) :
+    PiCCS.Accepted (ProductionKey.key relation ajtai) running fresh proof ∧
+    ∃ challenges, (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof = some challenges ∧
+      PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
+        (ProductionKey.key relation ajtai).piDecPublicInputSplit (ProductionKey.key relation ajtai).piDecEvaluationArity
+        ((ProductionKey.key relation ajtai).piDecAttemptForParent proof
+          ((ProductionKey.key relation ajtai).parentForChallenges running fresh proof challenges)) := by
+  let key := ProductionKey.key relation ajtai
   obtain ⟨cCheck, dCheck, _⟩ := (Nifs.PaperNonInteractive.verify_eq_some_iff key running fresh proof result).mp accepted
   obtain ⟨attempt, attemptEq, checks⟩ := (Nifs.PaperNonInteractive.piDecCheck_eq_true_iff key running fresh proof).mp dCheck
   change (key.parent running fresh proof).map (key.piDecAttemptForParent proof) = some attempt at attemptEq
@@ -67,11 +67,11 @@ private theorem running_of_children (env : Env) (proof : Proof (ProductionKey.de
     (parent : PiDEC.v1_1.OutputBinding.Output logicalWidth publicFits)
     (outputs : PiDEC.v1_1.Semantics.output relation (PiDECInputs.interface logicalWidth publicFits) PiDECInputs.phaseOffset env =
       PiDEC.PaperVerifier.children (PaperAlgebra.publicInputSplit ajtai)
-        ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof parent)) :
+        ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent)) :
     RunningTransitionInputs.piDecRunningOutput relation env =
-      (PiRLC.Wide.Key.key relation ajtai).outputForAttempt proof
-        ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof parent)
-        ((PiRLC.Wide.Key.key relation ajtai).piDecPublicInputSplit.split parent.publicInput) := by
+      (ProductionKey.key relation ajtai).outputForAttempt proof
+        ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent)
+        ((ProductionKey.key relation ajtai).piDecPublicInputSplit.split parent.publicInput) := by
   apply running_ext
   · exact congrArg (fun values => (values ⟨0, by decide⟩).point) outputs
   · funext source
@@ -89,14 +89,14 @@ theorem completePrefix_after_r
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (accepted : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key relation ajtai) running fresh proof = some result)
+    (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai) running fresh proof = some result)
     (initial : Env) (r : Sequence.Prefix initial PiRLCInputs.phaseOffset)
     (rOperations : r.operations = PiRLC.Wide.Formal.opsAt relation PiRLCInputs.interface PiRLCInputs.phaseOffset)
-    (rSampled : (PiRLC.Wide.Key.key relation ajtai).piRlcChallenges running fresh proof =
+    (rSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
       some (PiRLC.Wide.Semantics.evalChallenges
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
     (rParent : PiDECLoaded.parent relation r.current =
-      (PiRLC.Wide.Key.key relation ajtai).parentForChallenges running fresh proof
+      (ProductionKey.key relation ajtai).parentForChallenges running fresh proof
         (PiRLC.Wide.Semantics.evalChallenges
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset r.current))
     (afterR : Env)
@@ -112,20 +112,20 @@ theorem completePrefix_after_r
     rw [rOperations, ← PiRLC.Wide.Formal.main_ops, PiRLC.Wide.Formal.localLength_eq]
     exact below)
   obtain ⟨_, challenges, sampled, checks⟩ := verifierInputs relation ajtai running fresh proof result accepted
-  have afterSampled : (PiRLC.Wide.Key.key relation ajtai).piRlcChallenges running fresh proof =
+  have afterSampled : (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
       some (PiRLC.Wide.Semantics.evalChallenges
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
     rw [currentValues.1]
     exact rSampled
   have challengeEq := Option.some.inj (afterSampled.symm.trans sampled)
   have afterParent : PiDECLoaded.parent relation afterR =
-      (PiRLC.Wide.Key.key relation ajtai).parentForChallenges running fresh proof challenges := by
+      (ProductionKey.key relation ajtai).parentForChallenges running fresh proof challenges := by
     rw [currentValues.2, rParent, ← challengeEq, currentValues.1]
   let parent := PiDECLoaded.parent relation afterR
   let loaded := PiDECProofInputs.load afterR proof parent.publicInput
-  have parentChecks : PiDEC.PaperVerifier.Accepted (PiRLC.Wide.Key.key relation ajtai).piDecAlgebra
-      (PiRLC.Wide.Key.key relation ajtai).piDecPublicInputSplit (PiRLC.Wide.Key.key relation ajtai).piDecEvaluationArity
-      ((PiRLC.Wide.Key.key relation ajtai).piDecAttemptForParent proof parent) := by
+  have parentChecks : PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
+      (ProductionKey.key relation ajtai).piDecPublicInputSplit (ProductionKey.key relation ajtai).piDecEvaluationArity
+      ((ProductionKey.key relation ajtai).piDecAttemptForParent proof parent) := by
     dsimp only [parent]
     rw [afterParent]
     exact checks
@@ -154,7 +154,7 @@ theorem completePrefix_after_r
     (PiDECInputs.assumptions relation loaded) (fun index below => (d.agrees index (Or.inl below)).symm)
   have family := outputPreserved.symm.trans (PiDECLoaded.loaded_output relation ajtai afterR proof)
   have output := running_of_children relation ajtai d.current proof parent family
-  have computed := Stage1.PiDECProtocolCompleteness.computed_output_eq relation (PiRLC.Wide.Key.key relation ajtai)
+  have computed := PiDEC.v1_1.VerifierOutput.computed_output_eq relation (ProductionKey.key relation ajtai)
     running fresh proof result challenges sampled checks accepted
   dsimp only [parent] at output
   rw [afterParent] at output

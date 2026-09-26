@@ -1,13 +1,12 @@
-import NightstreamFPrime.Export.Stage1.HyperNovaInput
-import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
+import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
 /-!
-Owns the honest selected NIFS call from an accepted recursive terminal
-payload. Its existing fresh and running witnesses supply source membership.
-C messages are fixed before actual sampler success; the normal verifier and
-all new running openings are conclusions. No security or work law is assumed.
+Owns the honest production NIFS call from an accepted recursive terminal.
+Its fresh and running openings supply source membership. The total verifier
+sampler supplies the actual response after the causal PiCCS messages.
+Verifier acceptance and every returned child opening are conclusions.
 -/
 
 set_option autoImplicit false
@@ -22,8 +21,7 @@ open ConcreteCarrier UnifiedSources
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open Poseidon2HashChainV1Package (application fits)
-open Poseidon2HashChainV1Setup (productionSetup productionAjtaiKey)
+open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 private theorem addCases_fresh {shape : Shape} {Value : Type*}
     (fresh : Fin shape.freshCount → Value) (running : Fin shape.runningCount → Value)
@@ -142,63 +140,48 @@ private theorem sourceHolds_of_terminalHolds
 
 end SourceMembership
 
-/-- An accepted selected recursive payload supplies the actual old witnesses.
-They construct one causal C prefix and, when its actual PiRLC sampler returns,
-a normal production NIFS proof with valid openings for every returned child.
-No accepted local proof, intermediate output, or new witness validity is an
-input. This does not construct the next fresh application assignment. -/
-theorem recursive_nifs_of_sampler_success
-    (statement : PerApplicationTerminal.Statement)
-        (payload : PerApplicationTerminal.Payload Poseidon2HashChainV1Package.application)
-    (accepted : PerApplicationTerminal.Holds application fits productionSetup
-      statement (.recursive payload)) :
-    let relation := PerApplicationFixedPoint.relation application fits
-    let key := ProductionKey.key relation productionAjtaiKey
-    ∃ (messages : Fin productionShape.cubeVariables → FixedPolynomial K 9)
-      (fullOutput : FullOutputCoordinates.FullOutput K productionShape),
-      let coins := FiatShamir.derive key.oracle.transcript
-        ({ priorState := key.publicInputState (payload.running functionIndex) payload.fresh
-           input := (key.statement (payload.running functionIndex) payload.fresh).verifierInput key.lift } :
-          PiCCS.TranscriptReplay.Statement K Transcript.State productionShape)
-        { rounds := fun round => (messages round).toMessage }
-      ∀ rho : Fin key.arity.total → RingF,
-        key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho →
-        ∃ (proof : Lifecycle.Proof 9)
-          (result : Running
-            (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-            (publicFits := PerApplicationFixedPoint.publicFits application))
-          (children : Stage1.Terminal.RunningWitness
-            (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-            (publicFits := PerApplicationFixedPoint.publicFits application)),
-          proof.piCcsRounds = messages ∧ proof.piCcsOutput = fullOutput ∧
-          key.piRlcChallenges (payload.running functionIndex) payload.fresh proof = some rho ∧
-          Nifs.PaperNonInteractive.verify key (payload.running functionIndex) payload.fresh proof = some result ∧
-          ∀ child, CE.Holds (semantics productionAjtaiKey) productionGlobalParams
-            (Lifecycle.runningStatement relation result child) (children child) := by
-  let relation := PerApplicationFixedPoint.relation application fits
-  let key := ProductionKey.key relation productionAjtaiKey
-  obtain ⟨_statementValid, _pcValid, _positive, _public, runningMember, freshMember⟩ :=
-    (PerApplicationTerminal.holds_recursive_iff application fits productionSetup statement payload).mp accepted
-  have memberships : Lifecycle.TerminalHolds relation productionAjtaiKey
+/-- Accepted terminal openings construct an accepted production fold and its exact children.
+No sampler-success, accepted-local-proof or new-opening premise is required. -/
+theorem recursive_nifs
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (context : KeyDigest) (application : Stage1.Application.Program)
+    (statement : TerminalStatement AppState)
+    (payload : TerminalProof
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.RunningWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Stage1.Terminal.FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
+    (accepted : Stage1.Terminal.HoldsFor relation ajtai context application statement (.recursive payload)) :
+    ∃ (proof : Lifecycle.Proof 9)
+      (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (children : Stage1.Terminal.RunningWitness (logicalWidth := logicalWidth) (publicFits := publicFits)),
+      Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
+        (payload.running functionIndex) payload.fresh proof = some result ∧
+      ∀ child, CE.Holds (semantics ajtai) productionGlobalParams
+        (Lifecycle.runningStatement relation result child) (children child) := by
+  let key := ProductionKey.key relation ajtai
+  obtain ⟨_valid, _pc, _positive, _public, runningMember, freshMember⟩ :=
+    (Stage1.Terminal.holdsFor_recursive_iff relation ajtai context application statement payload).mp accepted
+  have memberships : Lifecycle.TerminalHolds relation ajtai
       (payload.running functionIndex) (payload.runningWitness functionIndex)
       payload.fresh payload.freshWitness :=
     ⟨runningMember functionIndex, freshMember⟩
-  have valid := sourceHolds_of_terminalHolds relation productionAjtaiKey
+  have valid := sourceHolds_of_terminalHolds relation ajtai
     (payload.running functionIndex) payload.fresh
     (payload.runningWitness functionIndex) payload.freshWitness memberships
-  obtain ⟨messages, fullOutput, _cAccepted, _cOpenings, continuation⟩ :=
+  obtain ⟨_messages, _fullOutput, _cAccepted, _cOpenings, continuation⟩ :=
     Nifs.PaperNonInteractive.Completeness.exists_honest_proof_of_sampler_success key
       (payload.running functionIndex) payload.fresh
       (sourceWitness (payload.runningWitness functionIndex) payload.freshWitness) valid
-  refine ⟨messages, fullOutput, ?_⟩
-  intro coins rho sampled
-  obtain ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, childValid⟩ :=
-    continuation rho sampled
-  refine ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, ?_⟩
+  obtain ⟨proof, result, children, _roundsEq, _outputEq, _sampleEq, verified, childValid⟩ :=
+    continuation _ (ProductionKey.key_response relation ajtai _)
+  refine ⟨proof, result, children, verified, ?_⟩
   intro child
   have member := childValid child
-  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq
-    relation productionAjtaiKey result child] at member
+  rw [Lifecycle.PiDEC.v1_1.OutputWitnessConsumer.runningStatement_eq relation ajtai result child] at member
   exact member
 
 end NightstreamFPrime.Export.Stage1.HyperNovaCompleteness

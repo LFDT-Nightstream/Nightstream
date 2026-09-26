@@ -139,7 +139,7 @@ theorem terminal_implies_preimageOrCollision (statement : TerminalStatement AppS
       refine ⟨?_, ?_, rfl⟩
       · refine ⟨?_, ?_, ?_⟩ <;>
           simp [actual, decodedNext, ContextBinding.decodedNext, nextHashPreimage,
-            Lifecycle.Stage1.Wide.Relation.setup, FixedPointSoundness.contextKey,
+            Lifecycle.setup, FixedPointSoundness.contextKey,
             FixedPointSoundness.input, FixedPointSoundness.output, StateDecoder.keyDigest,
             StateDecoder.slice, PilotProduction.digestWords, PilotValues.digestWords,
             Lifecycle.Stage1.Application.stateWordCount]
@@ -160,7 +160,7 @@ theorem terminal_implies_preimageOrCollision (statement : TerminalStatement AppS
 /-- The decoded HyperNova step reaches the advertised terminal preimage. -/
 theorem terminal_implies_matchingStepOrCollision (statement : TerminalStatement AppState)
     (payload : target.Payload) (terminal : target.Holds statement (.recursive payload)) :
-    (Lifecycle.Stage1.Wide.Relation.StepHoldsFor target.relation target.ajtai target.context
+    (Lifecycle.StepHoldsFor target.relation target.ajtai target.context
         target.program (target.decodedInput payload) (target.decodedOutput payload) ∧
       target.decodedNext payload = target.preimage statement payload) ∨
       target.Collision statement payload := by
@@ -179,14 +179,14 @@ theorem terminal_implies_nifsOrBaseOrCollision (statement : TerminalStatement Ap
     let input := target.decodedInput payload
     (input.iteration = 0 ∨
       (0 < input.iteration ∧
-        Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key target.relation target.ajtai)
+        Nifs.PaperNonInteractive.verify (ProductionKey.key target.relation target.ajtai)
           (input.running functionIndex) input.fresh input.nifsProof =
             some (payload.running functionIndex))) ∨
       target.Collision statement payload := by
   rcases terminal_implies_matchingStepOrCollision target statement payload terminal with
     ⟨step, same⟩ | collision
   · apply Or.inl
-    unfold Lifecycle.Stage1.Wide.Relation.StepHoldsFor at step
+    unfold Lifecycle.StepHoldsFor at step
     rcases step.2.2.2 with base | recursive
     · exact Or.inl base.1
     · rcases recursive with ⟨priorPcValid, positive, _priorPublic, selectedNifs, _unchanged⟩
@@ -197,12 +197,12 @@ theorem terminal_implies_nifsOrBaseOrCollision (statement : TerminalStatement Ap
         change (selectedIndex priorPcValid).val = 0
         omega
       rw [selected] at selectedNifs
-      have checked : Nifs.PaperNonInteractive.verify (PiRLC.Wide.Key.key target.relation target.ajtai)
+      have checked : Nifs.PaperNonInteractive.verify (ProductionKey.key target.relation target.ajtai)
           ((target.decodedInput payload).running functionIndex) (target.decodedInput payload).fresh
           (target.decodedInput payload).nifsProof =
             some ((target.decodedOutput payload).runningNext functionIndex) := by
-        simpa [Accepts, Lifecycle.Stage1.Wide.Relation.setup,
-          Lifecycle.Stage1.Wide.Relation.nifsVerifier] using selectedNifs
+        simpa [Accepts, Lifecycle.setup,
+          Lifecycle.nifsVerifier] using selectedNifs
       have outputSame : (target.decodedOutput payload).runningNext functionIndex =
           payload.running functionIndex :=
         congrArg (fun preimage => preimage.running functionIndex) same
@@ -215,7 +215,7 @@ collision occurs. No output-match or child-opening premise is added. -/
 theorem terminal_implies_parentOrBaseOrCollision (statement : TerminalStatement AppState)
     (payload : target.Payload) (terminal : target.Holds statement (.recursive payload)) :
     let input := target.decodedInput payload
-    let key := PiRLC.Wide.Key.key target.relation target.ajtai
+    let key := ProductionKey.key target.relation target.ajtai
     input.iteration = 0 ∨
       (0 < input.iteration ∧ ∃ attempt,
         key.piDecAttempt (input.running functionIndex) input.fresh input.nifsProof = some attempt ∧
@@ -224,7 +224,7 @@ theorem terminal_implies_parentOrBaseOrCollision (statement : TerminalStatement 
             (payload.runningWitness functionIndex))) ∨
       target.Collision statement payload := by
   let input := target.decodedInput payload
-  let key := PiRLC.Wide.Key.key target.relation target.ajtai
+  let key := ProductionKey.key target.relation target.ajtai
   rcases terminal_implies_nifsOrBaseOrCollision target statement payload terminal with
     (base | ⟨positive, accepted⟩) | collision
   · exact Or.inl base
@@ -263,7 +263,7 @@ private theorem step_implies_predecessor {logicalWidth : Nat}
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
-    (step : Lifecycle.Stage1.Wide.Relation.StepHoldsFor relation ajtai context application input output)
+    (step : Lifecycle.StepHoldsFor relation ajtai context application input output)
     (sources : 0 < input.iteration → Lifecycle.TerminalHolds relation ajtai
       (input.running functionIndex) runningWitness input.fresh freshWitness) :
     Lifecycle.Stage1.Terminal.HoldsFor relation ajtai context application
@@ -274,7 +274,7 @@ private theorem step_implies_predecessor {logicalWidth : Nat}
         fresh := input.fresh
         freshWitness := freshWitness
         pc := input.priorPc }) := by
-  unfold Lifecycle.Stage1.Wide.Relation.StepHoldsFor at step
+  unfold Lifecycle.StepHoldsFor at step
   rcases step.2.2.2 with base | recursive
   · rw [if_pos base.1]
     exact (Lifecycle.Stage1.Terminal.holdsFor_bottom_iff relation ajtai context application _).mpr
@@ -376,7 +376,7 @@ theorem terminal_one_implies_baseOrCollision (statement : TerminalStatement AppS
     have applicationStep : (target.decodedOutput payload).zNext =
         target.program.step (target.decodedInput payload).zi (target.decodedInput payload).witness :=
       step.2.1
-    unfold Lifecycle.Stage1.Wide.Relation.StepHoldsFor at step
+    unfold Lifecycle.StepHoldsFor at step
     have baseState : (target.decodedInput payload).z0 = (target.decodedInput payload).zi := by
       rcases step.2.2.2 with base | recursive
       · exact base.2.1

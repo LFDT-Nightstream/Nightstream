@@ -112,7 +112,7 @@ theorem step (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (expected : Digest) (fixed : expected.length = 4)
     (publicEqual : publicInput program assignment = encHash expected)
     (rows : (FixedPoint.structuralPlan program compiled fits).RowsZero assignment) :
-    Lifecycle.Stage1.Wide.Relation.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
+    Lifecycle.StepHoldsFor (FixedPoint.relation program compiled fits) ajtai
       (contextKey program assignment) program
       (input program assignment (FixedPoint.relation program compiled fits))
       (output program assignment (RetainedLayout.logicalWidth program) (FixedPoint.publicFits program)) ∧

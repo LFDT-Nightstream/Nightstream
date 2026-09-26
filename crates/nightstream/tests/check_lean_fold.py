@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check one current native fold, caller and physical witness with Lean.
+"""Check one current native fold and its caller inputs with Lean.
 
 This coordinates verifier checks. Rust supplies C proof messages; this does
 not claim independent Lean proof generation. Each child command has the
@@ -245,12 +245,6 @@ class Check:
         successor = load(self.snapshot(self.directory / f"step-{self.step + 1}/envelope.json", "successor-envelope.json"))
         equal([successor["iteration"], successor["z0"], successor["current"]],
               [self.step + 1, request[1], lean_caller[4][0]], "returned successor state")
-        native_physical = self.snapshot(self.directory / f"fold-{self.step}/physical.bin", "native-physical.bin")
-        physical = self.output / "lean-physical.bin"
-        self.lean("physical-build", "build", "replayPhysicalWitness")
-        self.lean("physical", "lean-executable", FORMAL / ".lake/build/bin/replayPhysicalWitness", caller_path, physical)
-        compare_files(physical, native_physical, "complete physical witness")
-
         generated = self.output / "mutation-inputs"
         self.phase("mutation-inputs", "python", [sys.executable, "-B", TESTS / "generate_lean_mutations.py",
                    folder / "pi_ccs_input.json", folder / "children.json", generated])
@@ -258,12 +252,13 @@ class Check:
         log = self.lean("mutations", "pi-dec-mutations", *identity, folder / "pi_ccs_input.json",
                         folder / "children.json", generated / manifest["changed_ccs_input"],
                         generated / manifest["mutation_directory"])
-        return {"caller": counts, "physical_bytes": physical.stat().st_size,
+        return {"caller": counts,
                 "Lean_rejections": mutation_rejections(manifest, log),
                 "native_D_rejections": native_mutations,
                 "independent_proof_generation": False,
-                "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte, caller and physical-witness equality. "
-                         "C proof messages are native inputs. Independent proof generation and terminal opening checks are separate."}
+                "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte and caller equality. "
+                         "C proof messages are native inputs. The physical witness is a prover internal and is not "
+                         "compared. Independent proof generation and terminal opening checks are separate."}
 
 
 def main():

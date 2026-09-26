@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "step": 1,
+  "directory": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run",
+  "source_commit": "48c8e0b9919a65459b3d4ddb5f3e1220d09c7bac",
+  "outcome": "passed",
+  "commands": [
+    {
+      "name": "step-1-verifier",
+      "kind": "lean",
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-input-check",
+        "14833867475356745945",
+        "15229254417532271792",
+        "2646223786752830247",
+        "8497811010041712527",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/children.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-nifs.json"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 37.76308829104528
+    },
+    {
+      "name": "step-1-native-comparison",
+      "kind": "native",
+      "command": [
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/generate_pi_ccs_fixture",
+        "check-owned-nifs",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/package.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-nifs.json"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 14.717429958982393
+    },
+    {
+      "name": "step-1-wire",
+      "kind": "native",
+      "command": [
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/target/release/generate_pi_ccs_fixture",
+        "encode-lean-nifs",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-nifs.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-lean-proof.native"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.05841349996626377
+    },
+    {
+      "name": "step-1-caller",
+      "kind": "lean",
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "recursive-step-fixture",
+        "3655690788832675491",
+        "8329563131889505301",
+        "16354331076390305092",
+        "6869939382635632534",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/children.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-request.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/step-1-caller.json"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 27.438779457937926
+    },
+    {
+      "name": "mutation-inputs",
+      "kind": "python",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/generate_lean_mutations.py",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/children.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/mutation-inputs"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.4236227920046076
+    },
+    {
+      "name": "mutations",
+      "kind": "lean",
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-mutations",
+        "14833867475356745945",
+        "15229254417532271792",
+        "2646223786752830247",
+        "8497811010041712527",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/children.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/mutation-inputs/invalid_first_round_constant.json",
+        "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/mutation-inputs/mutations"
+      ],
+      "cwd": "/Users/nicarq/starstream/develop/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 27.6158587919781
+    }
+  ],
+  "caller": {
+    "private_words": 177326,
+    "public_words": 278,
+    "complete_caller_word_equality_checked": true,
+    "all_seven_result_fields_checked": true
+  },
+  "Lean_rejections": {
+    "decoder": [
+      "encoding_missing_child",
+      "encoding_short_commitment",
+      "encoding_short_public",
+      "encoding_short_point",
+      "encoding_short_eval_K",
+      "encoding_missing_matrix",
+      "encoding_short_eval_A",
+      "encoding_noncanonical_field",
+      "encoding_extra_field",
+      "encoding_alternate_number"
+    ],
+    "public_check": [
+      "public_child_0_commitment",
+      "public_child_1_commitment",
+      "public_child_2_commitment",
+      "public_child_3_commitment",
+      "public_child_4_commitment",
+      "public_child_5_commitment",
+      "public_child_6_commitment",
+      "public_child_7_commitment",
+      "public_child_8_commitment",
+      "public_child_9_commitment",
+      "public_child_10_commitment",
+      "public_child_11_commitment",
+      "public_child_12_commitment",
+      "public_child_13_commitment",
+      "public_child_14_commitment",
+      "public_child_15_commitment",
+      "public_child_public",
+      "public_shared_point",
+      "public_child_eval_K",
+      "public_child_eval_A0",
+      "public_child_eval_A1",
+      "public_child_eval_A2",
+      "public_child_eval_A3",
+      "public_child_eval_A4",
+      "public_child_eval_A5",
+      "public_child_eval_A6",
+      "public_child_eval_A7",
+      "public_child_eval_A8",
+      "public_child_eval_A9",
+      "public_child_eval_A10",
+      "public_child_eval_A11",
+      "public_child_eval_A12",
+      "public_child_eval_A13",
+      "public_child_digit_range"
+    ],
+    "pi_ccs": [
+      "invalid_first_round_constant"
+    ],
+    "internal": [
+      "unbounded_parent",
+      "rejected_C_stops_D"
+    ]
+  },
+  "native_D_rejections": [
+    "child_0_commitment",
+    "child_1_commitment",
+    "child_2_commitment",
+    "child_3_commitment",
+    "child_4_commitment",
+    "child_5_commitment",
+    "child_6_commitment",
+    "child_7_commitment",
+    "child_8_commitment",
+    "child_9_commitment",
+    "child_10_commitment",
+    "child_11_commitment",
+    "child_12_commitment",
+    "child_13_commitment",
+    "child_14_commitment",
+    "child_15_commitment",
+    "child_public",
+    "child_point",
+    "child_eval_K",
+    "child_eval_A0",
+    "child_eval_A1",
+    "child_eval_A2",
+    "child_eval_A3",
+    "child_eval_A4",
+    "child_eval_A5",
+    "child_eval_A6",
+    "child_eval_A7",
+    "child_eval_A8",
+    "child_eval_A9",
+    "child_eval_A10",
+    "child_eval_A11",
+    "child_eval_A12",
+    "child_eval_A13",
+    "missing_child",
+    "short_commitment",
+    "short_point",
+    "short_eval_K",
+    "missing_matrix",
+    "nonzero_eval_K_padding",
+    "nonzero_eval_A0_padding",
+    "nonzero_eval_A1_padding",
+    "nonzero_eval_A2_padding",
+    "nonzero_eval_A3_padding",
+    "nonzero_eval_A4_padding",
+    "nonzero_eval_A5_padding",
+    "nonzero_eval_A6_padding",
+    "nonzero_eval_A7_padding",
+    "nonzero_eval_A8_padding",
+    "nonzero_eval_A9_padding",
+    "nonzero_eval_A10_padding",
+    "nonzero_eval_A11_padding",
+    "nonzero_eval_A12_padding",
+    "nonzero_eval_A13_padding",
+    "child_fold_digest",
+    "child_digit_range"
+  ],
+  "independent_proof_generation": false,
+  "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte and caller equality. C proof messages are native inputs. The physical witness is a prover internal and is not compared. Independent proof generation and terminal opening checks are separate.",
+  "input_snapshots": [
+    {
+      "original": "/Users/nicarq/starstream/develop/nightstream-clean-up/formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/base.json",
+      "sha256": "a1b62f2c9bc4e6e7b74b2b2c21024dc7c0e9b351587ab27fcdd66e27ff480ee5"
+    },
+    {
+      "original": "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream/tests/fixtures/stage1_recursive_states/nonzero-running.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/request-2.json",
+      "sha256": "f83ebbc1dc85cac908e07f8a2a6b5ea305118379d7c0b4f39c3738dc9fc30cbc"
+    },
+    {
+      "original": "/Users/nicarq/starstream/develop/nightstream-clean-up/crates/nightstream-fprime/src/identity.rs",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/identity.rs",
+      "sha256": "2c4bd4caa7691b20a83d81c88e72100a1b57e5f341a8d63649dd317c1dd25574"
+    },
+    {
+      "original": "/Users/nicarq/starstream/develop/nightstream-clean-up/formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/package.json",
+      "sha256": "552037b491125305a45821577584c43fade57caee83e470cf25810f3e6844762"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/fold-1/pi_ccs_input.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+      "sha256": "4450e1c16f0723d6006007e508908ba630b775bc7d4ed0ac344a5e6f7caca969"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/fold-1/children.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/children.json",
+      "sha256": "7b9060826c6a5c1867ce243a48a9fd84ccf28577396ce7f205f3cf07b8940bde"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/fold-1/actual_result.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/actual_result.json",
+      "sha256": "a5f6557d51e5a83d0c0776cea089db892998479412246236bd3ed6eb635ab0e5"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/fold-1/proof.native",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/proof.native",
+      "sha256": "f08fb717c6640f0cac3dcb7389584c5b1daa0b43ef6816adf7b524effff84313"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/fold-1/caller-inputs.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/fold-1/caller-inputs.json",
+      "sha256": "c532454c2e4f52ebc2af56d1fd7a71d9ff36fed286234fc17c989cee1e53514c"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/step-1/envelope.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/step-1/envelope.json",
+      "sha256": "21f2beb47aecde8a3df95bce63cc17927cc225f1df4a5c303175f4109c066202"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/step-1/fresh-claim.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/step-1/fresh-claim.json",
+      "sha256": "e55bf7f6d3315269cc17a1abaf7d951a34202feed4d3e34fb26f3f1ab25bde86"
+    },
+    {
+      "original": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/golden-run/step-2/envelope.json",
+      "snapshot": "/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up/72b9bdc0-6004-40d4-8eed-dc6ec149e283/scratchpad/lean-step-1/inputs/successor-envelope.json",
+      "sha256": "974891ade1d00d8bf837210751be353a9781b7c8f2e7f303a44340f9cbd3c167"
+    }
+  ],
+  "digest_scope": "file custody only; equality checks use actual content"
+}

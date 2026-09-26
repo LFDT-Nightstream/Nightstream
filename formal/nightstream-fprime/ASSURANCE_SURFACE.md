@@ -168,6 +168,10 @@ All three selected costs are recorded in
 [the integration report](../../tools/recursive-constraint-minimizer/experiments/wide-sampler-integration.md).
 The selected layout has 3,248,956 rows, 137,341,872 committed coordinates,
 and 2,607,606,765 normalized matrix entries. The complete independent Rust
-matrix comparison and native binding parity pass. Recursive fixture and
-consumer checks remain required before the integration is complete. No
-numerical security level or performance claim follows from these counts.
+matrix comparison and native binding parity pass. The current-package
+golden conformance run at `48c8e0b9` passes for both folds and the terminal
+checks: fresh Lean C/R/D verification, complete proof bytes and caller inputs
+match native, with the stated mutation rejections. C messages and child claims
+are native inputs; the physical witness is not compared. See
+[the record](../../docs/reviews/nightstream-fprime-requirements/golden-conformance-wide/README.md).
+No numerical security level or performance claim follows from these counts.

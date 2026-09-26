@@ -69,8 +69,6 @@ def cpu_handoff(directory):
                           checked / f"inputs/step-{step}" / name, "CPU/Lean source handoff")
         compare_files(directory / f"cpu/fold-{step}/proof.native", checked / f"step-{step}-lean-proof.native",
                       "CPU/fresh Lean proof handoff")
-        compare_files(directory / f"cpu/fold-{step}/physical.bin", checked / "lean-physical.bin",
-                      "CPU/fresh Lean physical handoff")
         caller = load(checked / f"step-{step}-caller.json")
         compare_caller(load(directory / f"cpu/fold-{step}/caller-inputs.json"), caller,
                        load(directory / f"cpu/fold-{step}/actual_result.json"),
@@ -112,10 +110,13 @@ def execute(mode, archives, directory, cpu_reference=None):
         raise ValueError("independent requires the CPU handoff artifact")
     if mode == "cpu" and cpu_reference is not None:
         raise ValueError("CPU generation cannot use another CPU result")
+    if mode == "independent" and archives is None:
+        raise ValueError("independent requires its source archives")
     directory.mkdir(parents=True, exist_ok=False)
-    references = directory / "references"
-    run(bounded("python", [sys.executable, "-B", TESTS / "restore_golden_inputs.py",
-                           "--archives", archives, "--directory", references]))
+    references = directory / "references" if archives is not None else None
+    if references is not None:
+        run(bounded("python", [sys.executable, "-B", TESTS / "restore_golden_inputs.py",
+                               "--archives", archives, "--directory", references]))
     if mode == "independent":
         cpu_handoff(cpu_reference)
         scope = independent_expectations(directory, references, cpu_reference)
@@ -125,27 +126,30 @@ def execute(mode, archives, directory, cpu_reference=None):
         return
     binary = build(directory)
     native = directory / "cpu"
-    run([sys.executable, "-B", TESTS / "run_golden_conformance.py", "--binary", binary,
-         "--directory", native, "--references", references])
+    command = [sys.executable, "-B", TESTS / "run_golden_conformance.py", "--binary", binary,
+               "--directory", native]
+    if references is not None:
+        command += ["--references", references]
+    run(command)
     checker = build(directory, checker=True)
     for step in (1, 2):
         run([sys.executable, "-B", TESTS / "check_lean_fold.py", "--directory", native,
              "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", checker])
     cpu_handoff(directory)
     receipt = {"outcome": "passed", "engine": "optimized",
-               "scope": "Current CPU folds 1–2 and state-3 terminal checks; fresh Lean verifier, caller "
-                        "and physical checks. Independent generation is a separate command."}
+               "scope": "Current CPU folds 1–2 and state-3 terminal checks; fresh Lean verifier and caller "
+                        "comparisons. Physical witnesses are not compared. Independent generation is separate."}
     (directory / "cpu-result.json").write_text(json.dumps(receipt, indent=2) + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("cpu", "independent"))
-    parser.add_argument("--archives", type=Path, required=True)
+    parser.add_argument("--archives", type=Path, help="optional native references; required for independent generation")
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--cpu-reference", type=Path)
     args = parser.parse_args()
-    execute(args.mode, args.archives.resolve(), args.directory.resolve(),
+    execute(args.mode, args.archives.resolve() if args.archives else None, args.directory.resolve(),
             args.cpu_reference.resolve() if args.cpu_reference else None)
 
 

@@ -8,10 +8,17 @@ Source: commit `48c8e0b99`, with the two tool changes committed with this
 record (optional reference archives; no physical-witness step). Host: the
 development Mac, 2026-09-26. Engine: optimized CPU.
 
+The later repair adds direct arithmetic parity and retains the compact
+two-fold vector. `retained-vector-check.json` records a fresh replay of that
+archive. The original native receipt's phrase "with archive output
+comparisons" is a reporting error: `references` is null. The current runner
+states this scope correctly.
+
 ## Results
 
 | Interface | Check | Result |
 |---|---|---|
+| 1. Primitives | Fresh Lean field and quadratic-extension vectors: 256 base cases and 2,809 extension cases, including nonzero inverses | pass |
 | 1. Primitives | `scripts/check_fprime_foundation_parity.sh`: fresh Lean ring-transform and `split_b` vectors against Rust | pass |
 | 1. Primitives | Lean regenerates the Ajtai setup and sparse-commitment parity files; both equal the committed files | pass |
 | 1. Primitives | `neo-ajtai` setup tests on the fresh file; `check_package_conformance primitive` on the fresh file (3 support coordinates, 1,188 coefficients) | pass |
@@ -46,8 +53,10 @@ evaluations. Lean checks those prover outputs; it does not generate them.
 - Poseidon2 matches through every transcript state that both sides compute.
   The `neo-ccs` round-constant test reads a file from the removed
   `formal/nightstream-lean` project and fails; it is not used here.
-- Field and extension arithmetic have no separate Lean vector check in this
-  run; every check above depends on them.
+- Direct arithmetic checks are recorded in `arithmetic-parity.json`. Inputs
+  cover zero/one, the extension nonresidue, the production decomposition
+  bound, 32-bit carries, centered signs, modulus reduction and the largest
+  u64. Extension inverses also satisfy the active Lean multiplication relation.
 - Recipe rejection was not checked.
 - These are executed examples, not universal proofs of Rust semantics.
 
@@ -56,9 +65,32 @@ evaluations. Lean checks those prover outputs; it does not generate them.
 From the repository root, with Homebrew `bash` and `python3` first on `PATH`:
 
 ```sh
-cargo test -p nightstream --release --lib --no-run
+timeout --signal=KILL 300 cargo test -p nightstream --release --lib --no-run
 python3 -B crates/nightstream/tests/run_golden_conformance.py --binary target/release/deps/nightstream-<hash> --directory RUN
-cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
+timeout --signal=KILL 300 cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
 python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 1 --output OUT1 --native-checker target/release/generate_pi_ccs_fixture
 python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 2 --output OUT2 --native-checker target/release/generate_pi_ccs_fixture
+bash scripts/check_fprime_foundation_parity.sh
 ```
+
+## Retained vector
+
+[`golden-wide-v1.zip`](../../../../crates/nightstream/tests/fixtures/golden-wide-v1.zip)
+contains both folds' proof inputs, canonical proofs, caller inputs, source
+claims, successor state and Lean expected results. Its 19 files occupy
+20,550,970 bytes uncompressed and 5,542,881 bytes in the archive. It contains
+no private witness matrices. The package and base fixture stay in their
+existing versioned locations.
+
+Replay the retained vector without reconstructing the native witnesses:
+
+```sh
+timeout --signal=KILL 300 cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
+python3 -B crates/nightstream/tests/check_golden_vectors.py --output CHECK --native-checker target/release/generate_pi_ccs_fixture
+```
+
+The replay runs the current Lean verifier and caller emitter, compares every
+native field and canonical proof byte, checks the retained Lean results, and
+reruns the mutation cases. Each child command has the project cap. Terminal
+opening verification remains the separately recorded native run; the compact
+archive does not contain the private openings needed to repeat that check.

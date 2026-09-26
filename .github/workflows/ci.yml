@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, nico/f-prime-constraints-cuda-formal ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,6 +34,16 @@ jobs:
     runs-on: self-hosted
     
     steps:
+    - name: Provide Git LFS before checkout
+      run: |
+        if ! command -v git-lfs >/dev/null; then
+          lfs_package_dir=$(mktemp -d "$RUNNER_TEMP/git-lfs.XXXXXX")
+          cd "$lfs_package_dir"
+          apt-get download git-lfs
+          dpkg-deb --extract git-lfs_*.deb .
+          echo "$lfs_package_dir/usr/bin" >> "$GITHUB_PATH"
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -68,6 +78,18 @@ jobs:
     - name: Run native application tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 
+    - name: Install Python for golden tools
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Check golden conformance tools
+      run: |
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_run_golden_conformance.py
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_lean_fold.py
+        timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_golden_vectors.py
+
   lean-assurance:
     name: Lean assurance
     runs-on: ubuntu-latest
@@ -93,6 +115,12 @@ jobs:
     - name: Run bounded assurance gates
       working-directory: formal/nightstream-fprime
       run: ./scripts/validate.sh all
+
+    - name: Install Rust for primitive parity
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Compare fresh Lean primitive vectors with Rust
+      run: bash scripts/check_fprime_foundation_parity.sh
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

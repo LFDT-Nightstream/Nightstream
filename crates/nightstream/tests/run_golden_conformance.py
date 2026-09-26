@@ -105,9 +105,10 @@ def main():
     record = {"schema": 1, "outcome": "running", "engine": "optimized",
               "binary": file_identity(binary), "source": source_identity(), "commands": [],
               "references": str(references) if references else None,
-              "identity_scope": "file custody only; not proof of binary/source correspondence",
-              "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, "
-                       "with archive output comparisons. No fresh Lean execution or universal correctness claim."}
+               "identity_scope": "file custody only; not proof of binary/source correspondence",
+               "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, "
+                       + ("with archive output comparisons. " if references else "without archive comparisons. ")
+                       + "No fresh Lean execution or universal correctness claim."}
     directory.mkdir(parents=True)
     try:
         phase(binary, directory, "base", record["commands"], engine="optimized")

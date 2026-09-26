@@ -7,6 +7,10 @@ No controlled checker or signing process has been supplied to this task.
 ## Current source and requests
 
 Captured source commit: `ce0159538534579f3459adacecfca325b5b9692b`.
+The requests remain valid at `31148bcce`: its CI workflow, local check scripts
+and saved primitive archive are outside these four declared review scopes.
+Both terminal request IDs were recomputed and are unchanged; the security
+scopes add only the unchanged security reference documents.
 Later changes only to this review directory do not change the captured source.
 The source capture excludes Python bytecode caches.
 

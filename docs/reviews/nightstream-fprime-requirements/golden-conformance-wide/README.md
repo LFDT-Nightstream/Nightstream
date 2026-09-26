@@ -19,7 +19,7 @@ states this scope correctly.
 | Interface | Check | Result |
 |---|---|---|
 | 1. Primitives | Fresh Lean field and quadratic-extension vectors: 256 base cases and 2,809 extension cases, including nonzero inverses | pass |
-| 1. Primitives | `scripts/check_fprime_foundation_parity.sh`: fresh Lean ring-transform and `split_b` vectors against Rust | pass |
+| 1. Primitives | Fresh Lean ring-transform and `split_b` vectors against Rust | pass |
 | 1. Primitives | Lean regenerates the Ajtai setup and sparse-commitment parity files; both equal the committed files | pass |
 | 1. Primitives | `neo-ajtai` setup tests on the fresh file; `check_package_conformance primitive` on the fresh file (3 support coordinates, 1,188 coefficients) | pass |
 | 2. Challenges | `neo-reductions --test pi_rlc_wide_lean_parity` (decoder, transcript states, sampler) | pass |
@@ -62,6 +62,21 @@ evaluations. Lean checks those prover outputs; it does not generate them.
 
 ## Reproduce
 
+Run the local Lean checks from the repository root with one command:
+
+```sh
+./scripts/check_lean.sh
+```
+
+This runs the boundary checks, library build, axiom audits and identity gate.
+It also regenerates the four primitive files, compares them byte-for-byte with
+`crates/neo-math/tests/fixtures/lean-foundation.zip`, and runs the Rust comparisons.
+The archive was emitted by `FoundationParityMain.lean` at source `ce0159538`.
+CI only reads these saved Lean results through
+`scripts/check_fprime_foundation_parity.sh`; it does not install or run Lean.
+
+For the complete native golden run and Lean fold replay:
+
 From the repository root, with Homebrew `bash` and `python3` first on `PATH`:
 
 ```sh
@@ -70,7 +85,7 @@ python3 -B crates/nightstream/tests/run_golden_conformance.py --binary target/re
 timeout --signal=KILL 300 cargo build -p neo-fold-legacy --release --bin generate_pi_ccs_fixture
 python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 1 --output OUT1 --native-checker target/release/generate_pi_ccs_fixture
 python3 -B crates/nightstream/tests/check_lean_fold.py --directory RUN --step 2 --output OUT2 --native-checker target/release/generate_pi_ccs_fixture
-bash scripts/check_fprime_foundation_parity.sh
+./scripts/check_lean.sh
 ```
 
 ## Retained vector

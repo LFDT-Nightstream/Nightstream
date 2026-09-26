@@ -90,36 +90,7 @@ jobs:
         timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_lean_fold.py
         timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_golden_vectors.py
 
-  lean-assurance:
-    name: Lean assurance
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    permissions:
-      contents: read
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install pinned Lean toolchain
-      uses: leanprover/lean-action@v1
-      with:
-        lake-package-directory: formal/nightstream-fprime
-        auto-config: false
-        build: false
-        test: false
-        lint: false
-        use-github-cache: true
-        use-mathlib-cache: true
-
-    - name: Run bounded assurance gates
-      working-directory: formal/nightstream-fprime
-      run: ./scripts/validate.sh all
-
-    - name: Install Rust for primitive parity
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Compare fresh Lean primitive vectors with Rust
+    - name: Compare Rust primitives with saved Lean results
       run: bash scripts/check_fprime_foundation_parity.sh
 
   # ============================================================================

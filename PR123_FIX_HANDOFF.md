@@ -1,243 +1,139 @@
-# PR #123: partial repair handoff
+# PR #123: completed fixes and validation
 
-Date: September 26, 2026. Branch: `nico/pirlc-wide-sampler-integration`.
-Exact starting commit: `bb7fb8db6dc3d525ce5435eb844804f34cd81feb`.
-This file is part of the new handoff commit. The user asked to stop implementation,
-commit and push the work, and let another AI continue on a different computer.
+September 26, 2026. Branch: `nico/pirlc-wide-sampler-integration`.
+This completion started from `1e90095b805c30f1a86a9c0665dcbc9197e9006f`.
 
-**This change is unfinished and is not ready to merge.** Do not use the passed
-component checks as proof that the final source and all saved fixtures agree.
-The original review, paper analysis, commit ledger, and review-comment assessment
-are in [PR123_DEEP_REVIEW.md](PR123_DEEP_REVIEW.md). Its opening update describes
-this repair; its main review describes the starting commit.
-The earlier [PR123_HANDOFF.md](PR123_HANDOFF.md) is a historical record.
+**The implementation fixes and local validation pass. Independent review and
+signed acceptance remain pending.** The current review requests identify the
+source cut in [the review directory](docs/reviews/nightstream-fprime-requirements/wide-target-reviews/README.md).
+Passing tests are conformance evidence, not a universal proof of Rust correctness
+or a production security certification.
 
-## Contract and fixed choices
+The main body of [PR123_DEEP_REVIEW.md](PR123_DEEP_REVIEW.md) reviews the earlier
+`bb7fb8db6` checkpoint. The previous partial-repair handoff is retained in
+[Git history](https://github.com/LFDT-Nightstream/Nightstream/blob/1e90095b805c30f1a86a9c0665dcbc9197e9006f/PR123_FIX_HANDOFF.md).
 
-The requested result is one maintained production path, with no supported old
-application layout or legacy lifecycle dependency. Close R1–R4 and the earlier
-handoff gaps. Prove actual application-row custody; use matching artifacts and
-verifier pins; preserve exact matrix, assignment, nonzero-fold, and rejection
-checks. Keep Lean local, as the owner requested.
+## Result
 
-The profile remains Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`, with Poseidon2
-protocol binding. The existing rank, 28 rounds, domain, key seed, maximum
-4,708,530 key columns, and zero-extension policy are unchanged. This work adds no
-Rust feature, environment variable, protocol hash family, cryptographic assumption,
-or application source-custody premise.
+There is one selected emitter, one manifest schema, one general application
+assembly route, and one physical witness executor. Canonical application
+compilation and proved placement supply the exact application rows. Required
+mathematical reference facts remain in the Lean dependency graph; they do not
+select another runtime protocol.
 
-Read the September 4 SuperNeo v1.2 text in `docs/superneo-paper-v1_2` and the
-HyperNova sections cited in the deep review. Preserve separate Pad/`Eval_K` and
-matrix/`Eval_A` checks, all 14 matrix slots, and the verifier-driven transcript.
-Some repository HyperNova notes contain local edits; the review distinguishes
-those notes from the original paper.
+The profile remains Goldilocks, `b = 2`, `k_rho = 16`, `B = 65536`, 14 matrix
+slots and 28 rounds. Poseidon2 binding, the key seed, approved maximum of
+4,708,530 key columns, and zero-extension policy are unchanged. This completion
+adds no Rust feature, environment variable, protocol assumption, or proof premise.
 
-## Completed source and artifact work
+The selected package, manifest and verifier pins from the preceding repair were
+retained. Fresh canonical binding generation confirms that the structural,
+package and verification-key identities match. The current constants are in
+[identity.rs](crates/nightstream-fprime/src/identity.rs).
 
-| Area | Changes and evidence |
-|---|---|
-| R2: exact application rows | Fixed guarded instruction and assertion mapping. Added structural compiled-row mapping and index facts, canonical application row pairs and bounds, supported-column inverse recovery, and the actual application case in physical source custody. The focused proofs and their audits pass. |
-| R2: dimensions | Updated wide and reused reference counts. The wide carrier has 137,646,804 logical coordinates, 137,646,810 padded coordinates, 3,256,394 logical rows, and 2,549,015 key columns. The general application has 4 witness values, 7,696 locals, and 7,700 rows. |
-| R2: audits | Added `tests/AxiomsWidePhysicalArchive.lean`, removed stale audits, and registered the new target. Full production and axiom targets passed together. No new axiom, `sorry`, recursion limit, or heartbeat limit was added. |
-| R1: one schema | Rust requires manifest version 3 and rejects version 2, the old paired reference, and a missing application-local index. The emitted manifest has one reference and 14 phase children. Lean shared-verifier checks passed for both the selected and identity applications. All seven Rust assembly tests passed after promotion. |
-| R1: selected artifacts | Emitted and checked the package, physical expansion, binding, setup, base fixture, component parity files, and manifest, then promoted them with matching Rust pins. Removed the unused duplicate candidate artifact. The crate package remains a symlink to the formal artifact. |
-| R3: current tools | Removed the obsolete replay and bridge coordinators. The golden workflow uses the maintained library checker. Added maintained PiCCS and child-handoff checks; these compile, but their new operations still need execution on fresh output. Updated graph registrations and removed orphaned gates and inputs. |
-| R3: process cleanup | Fixed timeout cleanup to stop nested process groups. The real nested-timeout regression and Python suites passed. |
-| R3: deprecated support | Removed six unused Metal kernels and their old shader files. Retained the production ChaCha20 key expansion and moved its unchanged helpers into its owning shader. Refreshed the independent minimizer lockfile. Final Metal and minimizer checks are pending. |
-| R4 | Removed the old eight-field Phi81 challenge encoding, obsolete sampler census API/constants, and unused old-key successor wrappers. Kept the generic membership lemmas needed by the selected path. Matrix tests passed 23 cases, with one ignored; parameter tests passed 10 cases. |
+## Repairs completed in this continuation
 
-The application is compiled once at canonical coordinates. Its exact row syntax
-is then relocated. The column inverse is proved on the application's supported
-reads, not on all natural-number columns. This retains the general application
-path without an identity-based application mode.
+- Fixed the key-prefix regression to derive the selected width from the
+  version-3 manifest's sole reference and affine geometry.
+- Replaced the saved native proof/result, Lean NIFS/caller fixtures and the
+  19-file golden archive with freshly checked outputs. No private witness files
+  were added to the interface archive.
+- Removed the unreachable Metal selector, its unused pipeline and shader code.
+  The generic coefficient evaluator remains the sole joint-round path.
+- Removed the two unused legacy-producer checkers from `protocol-contract`.
+  Cleared their deleted source anchors, which already had evidence level `none`,
+  and marked the missing circuit and decider artifacts unresolved. Regenerated
+  the derived views without changing normative rules or claiming replacement
+  refinement evidence. Repository validation and the sealed migration audit pass.
+- Corrected the graph regression to require the complete NIFS result instead
+  of the retired folded-metadata input.
+- Added change-selection and conformance-registration tests to CI and removed
+  the obsolete commented WASM job. Lean remains a local check.
 
-The application parity emitter previously built a large row plan only to count
-it. It now uses the derived count, with a private theorem proving equality to
-the plan's row count. The repaired emitter built and ran in 47 seconds.
+## Fresh execution and conformance
 
-The last full Lean production and axiom build passed in 8 seconds, incrementally.
-After that pass, four unused old identity/context definitions were removed from
-`VerifierContextCandidate.lean`, and reference-fixture headers were clarified.
-A final full Lean build and static check after these edits are still required.
+All 22 native stages passed. Both folds include sources, PiCCS, wide PiRLC,
+PiDEC decomposition and openings, NIFS verification, and successor construction.
+Terminal acceptance and the recommitted-witness rejection passed. Maximum native
+stage duration was 126.13 seconds; maximum recorded RSS was 9.75 GiB.
 
-## Current selected identities
+The balanced opening tests preserve weighted PiDEC recomposition, rebuild the
+complete fresh witness and commitment, and pass all earlier terminal checks.
+The verifier then rejects child 0 specifically at `Eval_K` or `Eval_A`.
+The preparation/check durations were 77.70/122.62 seconds for K and
+76.70/123.86 seconds for A. The earlier combined-test timeout is resolved by the
+separate preparation and verification stages.
 
-| Value | Four Goldilocks words |
-|---|---|
-| Structural identity | `[1079497172432010844, 16672848630866421234, 8750472192629984461, 1306370760931750244]` |
-| Package identity | `[15031848204567304573, 4564442748971577180, 11142206294796127265, 239069948372924710]` |
-| Transcript context | `[12467448792212941571, 15091756229906015131, 169265933689485490, 16666007258455189345]` |
-| Verification key digest | `[6983138835289037493, 10537484322204503039, 12099023242372410068, 11555272426941468087]` |
+Both folds passed fresh Lean verification, exact canonical proof-byte equality,
+every C/R/D result comparison, complete caller-word equality, all 55 native
+PiDEC mutation cases, and the Lean rejection cases.
 
-The transcript context and verification key digest are different values. An early
-scratch base fixture used the latter in the context field. It was regenerated
-with the correct context before the conformance checks and promotion.
+The maintained PiCCS checker also passed 562 proof, 282 statement and 843 output
+mutations on each fold, plus 56 nonzero-point mutations on the second fold:
+3,430 PiCCS mutations in total. Both child handoff checks recomputed commitments
+and public values from all 17 sources.
 
-Physical geometry: 27,724,114 rows; 27,867,239 columns; 27,866,960 private/constant
-columns; 278 public columns. The matrix program has 40 blocks. The general
-application ordinary block is 37, the next block is 38, and the final pin is 39.
-The manifest reference is `[4, 7696, 7700]`; `application_local_index` is 21.
+Independent recursive assignment checks passed on both folds. Each checked all
+27,724,114 physical rows, all logical coordinates and six alignment zeros, and
+all 3,256,394 logical rows. The complete 10-field NIFS result is required at this
+boundary. Assignment and mutation commands took 62.58/17.76 seconds for the
+first fold and 67.59/22.10 seconds for the second.
 
-## Evidence before pin changes
+These checks passed before saved fold fixtures were promoted. The preceding
+repair's exact matrix and candidate checks remain recorded in the historical
+handoff; this continuation made no matrix or circuit change.
 
-All candidate checks below ran with explicit candidate identities while the old
-production pins were still installed. Each non-Lean command had the required
-300-second cap. The comparison uses values and rows, not digest agreement alone.
+## Final checks
+
+Durations below cover the command, including any compilation.
 
 | Check | Result |
 |---|---|
-| Physical expansion | Passed, 30.19 s. Compared every A/B/C entry with the separate Lean expansion. Nonzero counts: `[91935932, 37291416, 27552988]`. |
-| All logical matrices | Passed, 64.36 s. Exact independent comparison of all 14 slots; 2,609,213,916 total nonzeros. |
-| Matrix mutations | Passed, 99.59 s. Rejected block order, column, and coefficient mutations. |
-| Base assignment | Passed, about 93 s. Checked all physical rows, every logical coordinate, six alignment zeros, and all logical rows. |
-| Detached application | Passed, 92.91 s. Application mismatch rejected at logical row 3,256,381. |
-| Nonzero assignment | Passed, 103.80 s. Included 76 assignment-block mutations, 13 matrix-slot mutations, zero-slot rejection, 256 digest-bit and four digest-word mutations. |
-| Phi81 recipe mutation | Passed, 144.97 s. Rejected at row 3,069,186. |
-| Challenge-bit mutation | Passed, 146.45 s. Rejected at row 3,058,284. |
-| Output-digest mutation | Passed, 145.90 s. Rejected at row 3,054,641. |
-| Sparse commitment | Passed after repair of a stale last-block probe. Compared all 1,188 coefficients and three support coordinates, including the actual final carrier coordinate. |
-| Wide sampler parity | Three tests passed. |
+| Workspace release all-target check with `nightstream/metal` | Passed; 8.48 s |
+| Full Nightstream release suite | 46 passed, 13 ignored; 111.42 s |
+| Full F-prime release suite | 113 passed, 40 ignored; 296.76 s |
+| Packed witness / matrix-row / wide sampler tests | 5 / 13 / 3 passed |
+| Parameter tests | 20 passed |
+| Saved Lean foundation comparisons | Field, extension, bar and signed-binary checks passed |
+| Metal unit tests | 23 passed |
+| Two-link application mutation | Passed; 242.53 s |
+| Public two-link Metal fold | Passed; 49.91 s |
+| CPU-proof acceptance and matching rejection on Metal | Passed; 52.62 s |
+| Independent minimizer | 26 passed, 1 ignored |
+| Golden coordinator and change selection | 17 passed |
+| Native coordinator / Lean driver / archive regressions | 8 / 6 / 3 passed |
+| Lean graph tools | 95 passed, 1 skipped |
+| Protocol-contract tests | 50 passed; repository and sealed-import checks also passed |
+| Lean static boundaries | Passed |
+| `NightstreamFPrime` and `NightstreamFPrimeTests` | Passed together; 132.14 s |
+| Fresh canonical binding and identity pins | Passed; 82.68 s |
 
-The exact logical nonzero counts are
-`[16904205, 3151742, 265314580, 25940975, 801029256, 1496768506, 0, 104652, 0, 0, 0, 0, 0, 0]`.
+Ignored or skipped tests are not counted as passes. The named full-profile checks
+above were explicitly executed. All native commands retained the 300-second cap;
+Lean commands used the pinned 4.32.2 toolchain and `validate.sh`'s 1,500-second cap.
+No longer invocation was needed. Rust formatting and whitespace checks pass.
 
-## Fresh native run: partial success and current failure
+## Reproduction and review
 
-The first fresh native run failed because two producer phases still compared
-new output with old saved fixtures. Removed those producer dependencies from
-`staged_fold.rs` and `staged_terminal.rs`. Fresh NIFS verification remains, and
-the separate golden checker still compares complete results, proof bytes, and
-caller words.
-
-After that change, the resumed CPU run passed these stages on the new artifacts:
-
-| Stage | Step 1 | Step 2 |
-|---|---:|---:|
-| Sources | 77.13 s | 140.97 s |
-| PiCCS | 98.32 s | 144.71 s |
-| PiRLC | 31.44 s | 34.44 s |
-| Split | 99.98 s | 106.80 s |
-| Openings | 125.55 s | 131.82 s |
-| NIFS | 109.55 s | 116.39 s |
-| Successor | 143.09 s | 152.80 s |
-
-Base construction passed in 78.51 seconds. Terminal acceptance at state 3 passed
-in 239.14 seconds. Preparation of a changed witness and a new commitment passed
-in 83.47 seconds. Its terminal relation rejection passed in 239.57 seconds.
-
-**The combined balanced `Eval_K` test reached 300 seconds and was killed. This
-is a failed check.** The weighted PiDEC sum was preserved, and the fresh witness
-and commitment were rebuilt, but the terminal check did not finish under the
-cap. `Eval_A` and both fresh Lean comparisons were not reached.
-
-The last code change splits each balanced-opening test into preparation and
-verification. Preparation saves the complete changed state and witness.
-Verification reloads it, checks the exact balanced changes, and requires the
-production verifier to reject at `Running { index: 0, reason: Eval_K/Eval_A }`.
-It must not pass merely because some earlier check rejects the input.
-
-The new phases are `opening-k-prepare`, `opening-k`, `opening-a-prepare`, and
-`opening-a`. The driver runs each preparation before its check. The eight
-coordinator tests pass. `cargo fmt --all` ran, and the final
-`timeout --signal=KILL 300 cargo test -p nightstream --release --lib --no-run`
-passed in 45 seconds. **The split tests have not run.**
-
-There is no successful `cpu-result.json` and no fresh `lean-step-1` or
-`lean-step-2` result. Do not turn the failure record into a pass or promote the
-old fixtures on the basis of these partial results.
-
-## Work to continue
-
-1. Execute the split balanced-opening preparation and rejection checks under the
-   existing caps. The exact commands are in `scripts/GOLDEN_CONFORMANCE.md`.
-2. Complete fresh Lean verification and full byte/value comparisons for both
-   native folds. Use the pinned toolchain and the maintained
-   `crates/nightstream/tests/check_lean_fold.py` driver. The normal fresh workflow
-   is `python3.12 -B scripts/golden_conformance_ci.py --directory NEW_DIRECTORY`.
-   On the original computer, successful native stages can be reused with their
-   real receipts. On another computer, regenerate the required native output.
-3. Execute the new maintained PiCCS checker operations on both folds. The checks
-   cover acceptance, 562 proof mutations, 282 statement mutations, and 843 output
-   mutations. Run the 56 nonzero-point mutations on the second fold. Execute
-   child handoff checks for both folds; they recompute commitments and public
-   values from all 17 current sources. These new operations currently have
-   compile evidence only.
-4. Regenerate the saved fold fixtures only after fresh comparisons pass. See the
-   table below. The current saved native proof, Lean NIFS/caller fixtures, and
-   `golden-wide-v1.zip` are still for the old package.
-5. Rebuild `check_package_conformance` after its last interface edit. Its
-   recursive checks now require the complete 10-field NIFS result, not the old
-   13-field folded-metadata form. Run actual recursive raw-assignment and
-   mutation checks with the new caller and complete result. The earlier base and
-   exact matrix passes do not prove this recursive handoff.
-6. Run the final Lean production targets, axiom audits, static checks, and
-   identity checks. Run the workspace release all-target check with
-   `nightstream/metal`, the affected Rust release tests, and minimizer tests.
-   Final Metal compilation and runtime checks have not run after shader cleanup.
-7. After fixture refresh, run the public two-link application mutation check,
-   the Metal two-link flow, and CPU/Metal terminal compatibility. Relevant test
-   names are `two_link_hash_chain_base_step_verifies_and_rejects_changes`,
-   `two_link_hash_chain_folds_on_metal`, and
-   `metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection`.
-8. Update current documentation, this report's implementation status, and the
-   source-bound review requests after the final source and artifacts agree.
-   Independent review acceptance remains pending. Do not sign the author's own
-   acceptance records or treat old accepted records as approval of this change.
-
-The maintained golden test is
-`lifecycle::tests::staged::fold::lean::golden::native_checker`. It reads JSON on
-stdin. Its operations include `compare`, `encode`, `ccs`, and `child-handoff`.
-The child-handoff request takes `package`, `identity`, `input`, `lean`,
-`children`, and `output`. Use the current PiCCS input and complete PiCCS result;
-the first six fields of a successful 10-field NIFS result are that result.
-Graph registrations in `scripts/lean_graph/obligations.json` specify the
-current checker requests.
-
-### Saved fixture update after successful fresh comparisons
-
-| Fresh checked source | Saved target |
-|---|---|
-| `lean-step-1/step-1-nifs.json` | `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-nifs-result-v1.json` |
-| `lean-step-1/step-1-caller.json` | `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json` |
-| `cpu/fold-1/actual_result.json` and `proof.native` | Matching names in `crates/nightstream/tests/fixtures/stage1_actual_nifs/` |
-| Both folds, their checked caller/NIFS results, and state envelopes | `crates/nightstream/tests/fixtures/golden-wide-v1.zip` |
-
-The vector archive has 19 interface files. For each step 1 and 2, retain
-`native/fold-N/{pi_ccs_input.json,children.json,actual_result.json,proof.native,caller-inputs.json}`,
-`native/step-N/{envelope.json,fresh-claim.json}`, and
-`expected/step-N-{nifs,caller}.json`. Also retain `native/step-3/envelope.json`.
-Do not add large private witness files to this interface archive.
-
-## Local evidence and execution rules
-
-The original computer has logs and candidate files in
-`/tmp/nightstream-pr123-fix/`. The partial native run is
-`golden-current/cpu`. The two old-fixture failures are retained under
-`cpu/attempts/`; the latest timeout is in `cpu/logs/opening-k.log` and
-`golden-resume.log`. `cpu/conformance.json` records failure. The last build log
-is `opening-stages-build.log`.
-
-These temporary files are not in Git and may not exist on the next computer.
-They are not required to understand the open work. A scratch
-`promote_fold_fixtures.py` has not run; it requires successful CPU and both Lean
-result records. A scratch resume script predates the new preparation stages and
-must not be used unchanged. Unsigned review proposals exist only in scratch;
-repository review requests and independent acceptance records were not changed.
-
-Use the pinned Lean toolchain on the original computer; its local override is
-old. From `formal/nightstream-fprime`, use:
+The maintained fresh workflow is:
 
 ```sh
-elan run leanprover/lean4:v4.32.2 bash scripts/validate.sh COMMAND
+elan run leanprover/lean4:v4.32.2 python3.12 -B scripts/golden_conformance_ci.py --directory NEW_DIRECTORY
 ```
 
-Use the applicable `AGENTS.md` instructions. Run one Lean or Rust build/test at
-a time. The project requires a cap of 300 seconds for each non-Lean test and
-1,500 seconds for each Lean command. Lean commands must use `validate.sh`.
-Use release Rust tests and `FoldingMode::Optimized`. Do not raise limits to make
-a failed run pass. Do not add proof premises or unsafe evaluation shortcuts.
+[The conformance instructions](scripts/GOLDEN_CONFORMANCE.md) describe the native
+stages and the separate row checks. The current checker accepts `compare`,
+`encode`, `ccs` and `child-handoff` JSON requests on stdin. PiCCS requests use the
+six-field prefix of the fresh ten-field NIFS result and the structural identifier;
+package identity and transcript context are distinct values. Current graph
+registrations specify the request fields and mutation groups.
 
-No protected owner file or frozen Lean project was changed in this repair.
-Keep the existing owner files and independent review records intact. The last
-external-review check, at 17:20 UTC on September 26, found no change. Those
-reviews refer to older source and are not acceptance of this handoff.
+Local receipts and logs are under `/tmp/nightstream-pr123-final/`; they are not
+required to build the repository. The checked interface data is committed in
+`golden-wide-v1.zip` and the refreshed native and Lean fixtures. Reproduction on
+another computer must regenerate private witnesses for terminal-opening checks.
+
+The review directory records the source cut for the four security review requests.
+Their acceptance is still pending. An independent reviewer and the controlled
+review process must provide those acceptances; old responses and this author's
+test results do not approve the new source.

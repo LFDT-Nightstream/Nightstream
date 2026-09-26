@@ -84,7 +84,6 @@ pub struct MetalSession {
     joint_fold_assignments: Pipeline,
     joint_fold_assignment_values: Pipeline,
     joint_round_partials: Pipeline,
-    joint_selective_round_partials: Pipeline,
     dec_build_row_weights: Pipeline,
     dec_build_ring_forms: Pipeline,
     dec_build_parallel_original_forms: Pipeline,
@@ -164,7 +163,6 @@ impl MetalSession {
         let joint_fold_assignments = pipeline(&device, &library, "joint_fold_assignments")?;
         let joint_fold_assignment_values = pipeline(&device, &library, "joint_fold_assignment_values")?;
         let joint_round_partials = pipeline(&device, &library, "joint_round_partials")?;
-        let joint_selective_round_partials = pipeline(&device, &library, "joint_selective_round_partials")?;
         let dec_build_row_weights = pipeline(&device, &library, "dec_build_row_weights")?;
         let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
         let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
@@ -208,7 +206,6 @@ impl MetalSession {
             joint_fold_assignments,
             joint_fold_assignment_values,
             joint_round_partials,
-            joint_selective_round_partials,
             dec_build_row_weights,
             dec_build_ring_forms,
             dec_build_parallel_original_forms,

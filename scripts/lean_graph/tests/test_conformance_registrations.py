@@ -140,7 +140,7 @@ class ConformanceRegistrationTests(unittest.TestCase):
         command = self.gates["candidate-recursive"]["commands"][0]
         self.assertEqual(command["argv"][-7:], ["{input:expanded}", "{input:recursive_fixture}",
                          "{input:base_fixture}", "{input:phase_input}", "{input:child_running}",
-                         "{input:lean_result}", "{input:folded_cache}/folded.json"])
+                         "{input:lean_result}", "{input:nifs_result}"])
 
     def test_every_referenced_input_is_captured(self):
         def strings(value):

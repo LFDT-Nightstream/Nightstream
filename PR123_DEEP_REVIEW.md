@@ -1,25 +1,28 @@
-**Implementation update — September 26, 2026**
+**Completion update — September 26, 2026**
 
-Implementation stopped at the user's request so another AI can continue on a different computer. This work is on `nico/pirlc-wide-sampler-integration`, based on `bb7fb8db6dc3d525ce5435eb844804f34cd81feb`. The [new implementation handoff](PR123_FIX_HANDOFF.md) gives the current source, artifact, and test state. The review after this update remains the historical record of the base commit.
+The fixes and local validation are complete on `nico/pirlc-wide-sampler-integration`,
+continuing from `1e90095b8`. [The current completion record](PR123_FIX_HANDOFF.md)
+lists the source changes, exact validation scope and reproduction commands.
+**Independent review and signed acceptance remain pending.**
 
-**The goal is not complete, and this change is not ready to merge.** The repaired Lean production library and axiom targets passed before the final removal of unused reference definitions. The candidate matrix, base and nonzero assignment, recipe rejection, sampler, and commitment checks passed before the new package and verifier pins were installed. The version-3 manifest and seven assembly tests pass. Saved native and Lean fold fixtures still use the old package. Fresh Lean fold checks and final Metal checks have not run.
+Both native folds now pass fresh Lean verification, complete proof-byte and
+caller comparisons, and terminal acceptance/rejection. The balanced `Eval_K`
+and `Eval_A` checks reach their specific running-opening rejection after a
+valid fresh relation. All 3,430 additional PiCCS mutations, both 17-source child
+handoffs, and independent recursive row/assignment checks pass. The saved fold
+fixtures and golden archive were refreshed only after these checks passed.
 
-| Work | Current evidence |
-|---|---|
-| R2: application relocation and source custody | The guarded row map, canonical row pairs, interval bounds, supported-column inverse recovery, and real application custody case compile. The kernel recursion failure is closed by a structural row-index theorem. No recursion override or new premise was added. |
-| R2: derived dimensions and audits | The wide carrier is 137,646,810 coordinates, with 2,549,015 key columns. Reused source-layout counts were updated. `NightstreamFPrime` and `NightstreamFPrimeTests` passed together; the latest incremental pass took 8 seconds. New exported theorems are audited. A final rebuild is still needed after removal of unused reference identity definitions. |
-| R1: one manifest schema | Rust requires version 3. The emitted candidate has one reference, `[4, 7696, 7700]`, one application-local index, and 14 phase children. The candidate passed its pre-pin checks and was promoted with matching Rust pins. All seven Rust assembly tests pass, including complete package-value equality. |
-| R3: maintained conformance tools | Removed the obsolete replay coordinators. Current graph registrations use the maintained library checker. The graph Python suite reported 96 tests, with one skip, before the last registration edits; all 19 registration tests passed after those edits. The final staged native coordinator suite passed 8 tests. |
-| R3: verifier checks and cleanup | Ported PiCCS comparison and mutation checks, plus child handoff checks, into maintained tests. The final library test build passed in 45 seconds; runtime checks of these new operations are pending. The child handoff reads current proof inputs and checks all 17 sources. Removed six newly unused GPU kernels and refreshed the minimizer lockfile. Metal validation is pending. |
-| R4: obsolete support | Removed the eight-field Phi81 challenge form, the old rejection-sampler census API, and unused old-key successor wrappers. Matrix tests passed 23 cases, with one ignored. Parameter tests passed 10 cases. |
+The five failing Nightstream tests are resolved. The complete Nightstream and
+F-prime release suites, Metal unit and public-flow checks, CPU/Metal terminal
+compatibility, minimizer tests, final Lean production/axiom targets, static
+boundaries and canonical identity checks pass. Remaining live references to
+the removed Rust producer were cleared from protocol-contract evidence;
+unavailable assurance remains explicitly open.
 
-The implementation preserves canonical compilation followed by exact syntax relocation. Column recovery uses the application's actual supported reads. It adds no cryptographic assumption, source-custody premise, Rust feature, environment variable, parameter change, or hash family. The generic membership theorems still used by the selected path remain.
-
-The fresh CPU producer exposed two comparisons with old saved outputs in its NIFS and successor phases. Those comparisons were removed from production of fresh outputs; the separate golden checker still owns complete comparisons. After this fix, both CPU folds, their successors, terminal acceptance, and rejection of a changed witness with a new commitment passed.
-
-The combined balanced `Eval_K` test reached the required 300-second limit and failed this slice. The latest code separates witness preparation and terminal rejection into two capped stages. These stages compile, and the coordinator tests pass, but their runtime checks have not run. The balanced `Eval_A` check and both fresh Lean comparisons also remain open. The native run has a failure record, not an acceptance record. Do not promote its fold fixtures or describe it as a complete golden pass.
-
-Candidate files, partial native outputs, and command logs are under `/tmp/nightstream-pr123-fix/` on the original computer. They are not part of the commit. The package, physical expansion, canonical binding, setup parity, base fixture, and shared manifest were emitted from the repaired Lean source. Pre-pin conformance passed before promotion. The sparse commitment probe exposed one stale last-block address; its address now derives from the current key width, and all 1,188 commitment coefficients match. Independent acceptance records remain unchanged. Current review requests still need an update after the remaining checks pass.
+Read the body below as the historical review of `bb7fb8db6`. Its former build
+failures and stale fixture descriptions are superseded by the completion record.
+The paper analysis, commit ledger, limits of the security claims and independent
+review requirements remain relevant.
 
 ---
 

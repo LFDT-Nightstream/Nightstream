@@ -69,11 +69,14 @@ this contract as its target. This state does not permit a production security
 claim. G2 through G5 require new Lean, Rust-origin, circuit, decider, and
 security evidence.
 
-The earlier `formal/nightstream-lean` project is absent from this checkout.
-Its former paths are not available evidence. The affected artifacts are
-unresolved and the Lean proof obligations remain open; historical paths remain
-in the sealed migration record. Refreshing this package does not renew old
-review receipts or establish a production security claim.
+The earlier `formal/nightstream-lean` project and `neo-fold-legacy` crate are
+absent from this checkout. Their former paths are not available evidence. The
+legacy Rust evidence checkers are removed with their producers. The affected
+artifacts and refinement obligations remain unresolved; historical paths remain
+in the sealed migration record. The current Nightstream conformance workflow is
+documented in [GOLDEN_CONFORMANCE.md](../scripts/GOLDEN_CONFORMANCE.md). Its
+results do not establish refinement of this contract. Refreshing this package
+does not renew old review receipts or establish a production security claim.
 
 ## Editing model
 

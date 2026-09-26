@@ -18,12 +18,12 @@ fn preparation_requires_the_exact_selected_key_prefix_authority() {
         .zip([1usize, 4, 4, 8])
         .map(|(coefficient, value)| usize::try_from(coefficient.as_u64().unwrap()).unwrap() * value)
         .sum::<usize>();
-    let golden_width = usize::try_from(
-        manifest["selected_reference"]["logical_width"]
-            .as_u64()
-            .unwrap(),
-    )
-    .unwrap();
+    let reference: [usize; 3] = serde_json::from_value(manifest["reference"].clone()).unwrap();
+    let golden_width = dimensions
+        .iter()
+        .zip([1, reference[0], reference[1], reference[2]])
+        .map(|(coefficient, value)| usize::try_from(coefficient.as_u64().unwrap()).unwrap() * value)
+        .sum::<usize>();
     // Prefixes wider than the selected package are valid up to the approved matrix.
     for width in [
         addition_width,

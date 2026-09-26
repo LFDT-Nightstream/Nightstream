@@ -90,6 +90,8 @@ jobs:
         timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_lean_fold.py
         timeout --signal=KILL 300 python3 -B crates/nightstream/tests/test_check_golden_vectors.py
 
+    # CI runs no Lean. Lean build, axiom, boundary and identity checks run
+    # locally with scripts/check_lean.sh (owner decision, 2026-09-26).
     - name: Compare Rust primitives with saved Lean results
       run: bash scripts/check_fprime_foundation_parity.sh
 

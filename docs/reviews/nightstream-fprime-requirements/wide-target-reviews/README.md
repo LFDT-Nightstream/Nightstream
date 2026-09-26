@@ -1,69 +1,68 @@
 # Wide-key target reviews
 
-Status: **pending acceptance.** The four reviews below pass. They are local
-diagnostic records. The review gate stays open until the controlled review
-process accepts them.
+Status: **pending independent review and signed acceptance.** Current requests
+are captured below. The older passing responses do not approve this source.
+No controlled checker or signing process has been supplied to this task.
 
-## Final snapshot
+## Current source and requests
 
-Commit `eb3f78599f968f34ae363272d7306c89d7889019`. The lean-graph snapshot
-covers only the captured source roots, so a later commit that changes no
-captured file (for example this directory) keeps it valid.
+Captured source commit: `ce0159538534579f3459adacecfca325b5b9692b`.
+Later changes only to this review directory do not change the captured source.
+The source capture excludes Python bytecode caches.
 
-| Obligation | Snapshot | Request | Diagnostic record |
+| Obligation | Snapshot | Request | Review |
 |---|---|---|---|
-| `stage1-terminal-assignment` | `33e467917a6d313680371677b2efaf0b78838bd930fb2291653574e79ad2b1b0` | `d28bd13df6c11754ed85765e63ce051894fe3245680dc80d4348c2112e495113` | `87ab939abad3f0341870b1ed4f006196daaf59b73a54681b2ed4f3d48c6af791` |
-| `stage1-terminal-parent` | `33e467917a6d313680371677b2efaf0b78838bd930fb2291653574e79ad2b1b0` | `0e20de364ec49d81f1c3dbacc288a54f3552420d7f92f70bb91cd5153d6e5fa7` | `07fd87792f83f09a7ad4965ec829f5c2c84732de2ab28e72808655780fe795a0` |
-| `hypernova-linear-security` | `cf1d93d89a4533c72848742960353bd657915c34680de775836cb5798db9f1a9` | `cec62fc392f8fca131c5b6a37f4ff08428caa7851474d93a5bcda643d9340182` | `c2ec5d89aa5d33a3c94455b3c474ea945ceaab47b00a2547f9ff3dee79525d0f` |
-| `hypernova-terminal-false-acceptance` | `cf1d93d89a4533c72848742960353bd657915c34680de775836cb5798db9f1a9` | `5bc442b34b72b198fbd6ca6b98773a9deac1b6a6374d1051c823c3ffe98e412f` | `cde65f3831413b6d9c28258cf3eb6fa21857d06622d34e0ebe7a0d158a6b8336` |
+| `stage1-terminal-assignment` | `f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86` | `4fe5a5fc3ead7e00d687c2173059e448c8811dee36e473ce460a72fe9cf389d4` | pending |
+| `stage1-terminal-parent` | `f1218dc180ec00b52faf5c520dd8fa1f4496159ecbdda3bda9fa4be926616c86` | `95fe9e5407111d7a0ec69d5c45b65bf8ba96f78601da5189384ab95545728b9d` | pending |
+| `hypernova-linear-security` | `531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3` | `b06476363a187ae6ce029461cf7bafd04ea4e1963d5ab813ce23391459549c79` | pending |
+| `hypernova-terminal-false-acceptance` | `531d27f5cfa99efc945073ec744fbcbd6f4aa544a1749b421d0a996cbc5c74f3` | `fb6cb1592b282bdfc424dd78cf1b2a6c8a3f205393ee122856b7073f37686911` | pending |
 
-Each `final/<obligation>.proposal.json` is the author's proposal, and each
-`final/<obligation>.json` is the reviewer's response. Every response passes
-target meaning and all five decomposition checks (substantiveness, premises,
-argument, correspondence, parent use). The reviewers were independent review
-agents (Claude) with fresh context and read-only access.
+`current/<obligation>.proposal.json` is the proposal.
+`current/<obligation>.request.json` contains the exact request, its binding,
+and the blank response template. No template is a passing review record.
+The local captured store is `/tmp/nightstream-review-ce0159538.cHjmiI`;
+retain or transfer that store when arranging the controlled review.
 
-## Required action for the controlled review process
+## Changes since the previous reviews
 
-1. Check out commit `eb3f78599`. Below, `DIR` is this directory.
-2. For each obligation, run
-   `python3 scripts/lean_graph/evidence.py --store STORE review-request OBLIGATION --proposal DIR/final/OBLIGATION.proposal.json`
-   and confirm that the request identifier equals the table value.
-3. Put `DIR/final/OBLIGATION.json` in an envelope signed by the controlled review
-   process.
-4. Run
-   `python3 scripts/lean_graph/evidence.py --authority APPROVED_CHECKER --store STORE record-review REQUEST SIGNED_ENVELOPE`.
-5. Run `explain OBLIGATION` to confirm the accepted record. The tool imports
-   only decomposition reviews; each response also carries its
-   `target_meaning` assessment for the process to accept.
+The only changed Lean source since `eb3f78599` is
+`Export/FoundationParityMain.lean`, which emits the new arithmetic test
+vectors. The four target definitions and their security proofs are unchanged.
+The Rust and Python changes repair golden checks, retain the test inputs,
+and add parity tests. Local static and axiom gates pass.
 
-## Findings and dispositions
+The current false-acceptance proposal names
+`HyperNovaFirstFailure.accepted_failure_exists_first`, correcting the old
+proposal's dependency list. That correction deliberately changes its request.
 
-- **Minor, final review:** the proposal for
-  `hypernova-terminal-false-acceptance` lists
-  `HyperNovaFirstFailure.accepted_probability_le_first_failures`; the proof
-  uses `accepted_failure_exists_first`. The proposal stays as reviewed, so its
-  request identifier does not change.
-- **Minor, initial review at `9e9cd23d1`:** stale "candidate" headers in four
-  wide Lean files and nonexistent declarations in
-  `HYPERNOVA_LINEAR_SECURITY.md`. Fixed before the final snapshot.
-- **Capture defect:** four symlinks under `crates/nightstream` point to Lean
-  artifacts that the `lean` group excludes, so no gate that captures `rust`
-  could run. Fixed in `eb3f78599` by excluding them from the `rust` group.
-- **Notes, no change:**
-  - `Wide.selected` has no `AuthorityStream.prepare compiled = .ok parts`
-    premise, and no theorem uses it. Each target covers every wide target.
-  - No Lean theorem proves that `RangePlan.compile?` succeeds or that a
-    recursive `target.Holds` can hold; emitter and test runs show both.
-  - `Terminal.HoldsFor` builds the narrow `Lifecycle.setup`; the terminal
-    transition reads only its verifier keys.
-  - The interactive challenge instances name `ProductionKey.key`; the wide key
-    changes only `piRlcResponse`.
-  - `LowNormInvertibility` stays an explicit premise, as before.
-  - Some proof-path docstrings still use the word "candidate".
-  - `obligations.json` (the `hypernova-linear-security` argument),
-    `HYPERNOVA_LINEAR_SECURITY.md` line 4, `STAGE1_BASELINE.md` lines 500-501,
-    `STAGE1_BASELINE_STATUS.md` and `FALSE_ACCEPTANCE_REVIEW.json` still hold
-    older text.
+## Handoff to the controlled review process
 
-The `initial/` directory holds the earlier reviews of commit `9e9cd23d1`.
+1. Use a checkout containing these `current/` files and the captured source
+   above. Do not check out the earlier commit that predates the review files.
+2. Give the captured source, proposal and request to the independent reviewer.
+   The reviewer must fill the response template, including all five
+   assessments and the target-meaning assessment. Do not relabel an earlier
+   response as a review of the current snapshot.
+3. The authorized process must use its independently provisioned checker,
+   policy and library seed. If those produce different request identifiers,
+   prepare new requests under that checker and review their matching source.
+4. Import the signed response with
+   `python3 -B scripts/lean_graph/evidence.py --authority APPROVED_CHECKER --store STORE record-review REQUEST SIGNED_ENVELOPE`.
+5. Use the same `--authority`, store and source when running
+   `explain OBLIGATION`. Accepted closure also requires the current proof gates
+   and the other reviews required by the policy.
+
+A local import without `--authority` remains diagnostic. This task cannot
+create an accepted record by signing its own findings.
+
+## Previous review records
+
+- `final/` retains the proposals and passing responses for source
+  `eb3f78599`. They are historical context, not current source approval.
+- `initial/` retains the earlier reviews of `9e9cd23d1`.
+- The stale headers and the nonexistent theorem reference reported in the
+  initial reviews were fixed before `eb3f78599`.
+- The source-capture exclusions for the four Lean-artifact symlinks remain
+  unchanged. Artifact inputs are separate from captured Rust sources.
+- The existing cryptographic assumptions and unproved compiler-success and
+  recursive-terminal existence claims are unchanged by these test-tool fixes.

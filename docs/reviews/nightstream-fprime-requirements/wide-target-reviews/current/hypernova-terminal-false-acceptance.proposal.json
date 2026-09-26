@@ -1,0 +1,16 @@
+{
+  "author": "Codex golden-conformance fixes at ce0159538534579f3459adacecfca325b5b9692b",
+  "statement": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+  "premises": [
+    "A wide target (Wide.Target): application program, compiled sampler plan, 2^28 fit proof, Ajtai key, and a verifier context digest of length four.",
+    "The same continuation, instance, law, clock, bound and summability premises as HyperNovaLinearSecurity.",
+    "For every visit j < depth, WideFiatShamir.FiatShamirModel for the target's relation and key at the guarded real law of that visit."
+  ],
+  "argument": "HyperNovaFalseAcceptance.probability_linear_bound, generic over the target. The false-acceptance event (accepted terminal membership without a returned forward history) is included in the union of first failures on the original mixed law, without a positive AdviceReturned mass. Each first failure is bounded by the marked hash-collision mass and the per-visit linear source bound from HyperNovaVisitedSecurity.",
+  "parent_use": "The symbolic terminal false-acceptance bound for the selected wide package and any wide target.",
+  "dependencies": [
+    "NightstreamFPrime.Export.Stage1.HyperNovaFalseAcceptance.probability_linear_bound",
+    "NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.source_failure_probability_linear_le",
+    "NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure.accepted_failure_exists_first"
+  ]
+}

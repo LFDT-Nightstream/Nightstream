@@ -22,14 +22,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def logicalWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
-  ApplicationRetainedGeometry.completeLogicalWidth application
+  ApplicationOrdinaryGeometry.completeLogicalWidth application
 
 def publicFits (application : Lifecycle.Stage1.Application.Program) :
     ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth (logicalWidth application) := by
   apply Nat.le_trans (m := logicalWidth application)
   · unfold logicalWidth
-    rw [ApplicationRetainedGeometry.completeLogicalWidth_eq]
+    rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq]
     norm_num [ringDegree, publicRingColumns]
     omega
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
@@ -55,13 +55,12 @@ def fitsTwoPow28OfApplicationBounds
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
   carrier := by
-    apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
+    apply (ApplicationOrdinaryGeometry.carrierWidth_le_twoPow28_iff
       application).2
-    exact (Nat.add_le_add_left (ApplicationSelectedBlocks.localCount_le_ordinary application)
-      application.witnessWordCount).trans carrierWords
+    exact carrierWords
 
 def geometry (application : Lifecycle.Stage1.Application.Program) :
-    ApplicationRetainedGeometry.Geometry application
+    ApplicationOrdinaryGeometry.Geometry application
       (logicalWidth application) where
   completeFits := Nat.le_refl _
 
@@ -146,7 +145,7 @@ theorem rowsZero_implies_semantics
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
-      (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
+      (ApplicationOrdinaryGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
       assignment base groupValue products)
     (accepted : (structuralPlan application fits).RowsZero assignment) :

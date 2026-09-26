@@ -13,8 +13,7 @@ fn wide_physical_package_passes_production_validation() {
     assert_eq!(paths.len(), 2, "physical and matrix export paths");
     let bytes = std::fs::read(paths[0]).unwrap();
     let raw: RawPackage = serde_json::from_slice(&bytes).expect("Lean physical package");
-    let package = validate_per_application_package_schema(raw, [0; 4], 8)
-        .expect("wide physical package uses the production loader");
+    let package = validate_package(raw, [0; 4], None).expect("wide physical package uses the production loader");
     assert_eq!(package.permutation_invocation_count(), 7_638);
     assert_eq!(package.compact_template_count(), 108);
     assert_eq!(package.compact_invocation_count(), PHI81_INVOCATIONS);

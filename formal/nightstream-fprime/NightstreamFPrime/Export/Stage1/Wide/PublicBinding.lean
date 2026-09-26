@@ -80,7 +80,7 @@ theorem one (expected : Digest)
   have marker := public_cell program assignment expected publicEqual ⟨0, by decide⟩
   have encoded : Lifecycle.encodedHashCells expected ⟨0, by decide⟩ = 1 := rfl
   have referenceOne : AssignmentPullback.assignment program assignment
-      (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1 := marker.trans encoded
+      (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1 := marker.trans encoded
   rw [AssignmentPullback.at_live program assignment _ (ReadSupport.one program _ rfl)] at referenceOne
   exact referenceOne
 

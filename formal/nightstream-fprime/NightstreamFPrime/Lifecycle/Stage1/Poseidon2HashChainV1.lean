@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.Stage1.Application
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Circuit
 
-/-! The selected hash-chain program includes its proved compact compiler case. -/
+/-! The hash-chain application uses the shared application compiler. -/
 
 namespace NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
@@ -15,7 +16,6 @@ def program : Application.Program where
   spec_iff := spec_iff
   assumptions_of_inputsBelow := assumptions_of_inputsBelow
   constraintsSupported := constraintsSupported
-  compactHashChain := some { wordCount := rfl, circuit_eq := fun _ => rfl }
 
 @[simp] theorem program_witnessWordCount : program.witnessWordCount = 4 := by
   rfl

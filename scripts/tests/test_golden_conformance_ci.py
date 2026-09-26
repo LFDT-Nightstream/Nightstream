@@ -99,7 +99,7 @@ class GoldenCITests(unittest.TestCase):
         self.assertFalse(any(Path(call[2]).name == "restore_golden_inputs.py" for call in calls))
         lean = [call for call in calls if Path(call[2]).name == "check_lean_fold.py"]
         self.assertEqual([call[call.index("--step") + 1] for call in lean], [1, 2])
-        self.assertEqual(build.call_count, 2)
+        self.assertEqual(build.call_count, 1)
         handoff.assert_called_once_with(output)
         self.assertEqual(ci.load(output / "cpu-result.json")["outcome"], "passed")
 

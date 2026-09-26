@@ -154,7 +154,7 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (ApplicationRetainedBlocks.witnessBlock application)
       raw.applicationSource
-  , Canonical.ofBlock (ApplicationSelectedBlocks.localBlock application)
+  , Canonical.ofBlock (ApplicationRetainedBlocks.localBlock application)
       raw.applicationSource ]
 
 end RawValues
@@ -174,8 +174,7 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     CanonicalBlockAssignment.BlockValue.coordinateCount,
     CanonicalBlockAssignment.ofBlock]
   unfold PerApplicationFixedPoint.logicalWidth
-    ApplicationRetainedGeometry.completeLogicalWidth
-    ApplicationRetainedGeometry.localStart
+    ApplicationOrdinaryGeometry.completeLogicalWidth
     ApplicationOrdinaryGeometry.localStart
     ApplicationOrdinaryGeometry.witnessStart
     PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth
@@ -237,7 +236,7 @@ theorem publicFits {application : Program} :
     ProductionAssignment.publicWidth ≤
       PerApplicationFixedPoint.logicalWidth application := by
   unfold PerApplicationFixedPoint.logicalWidth
-  rw [ApplicationRetainedGeometry.completeLogicalWidth_eq,
+  rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq,
     ProductionAssignment.publicWidth_eq]
   omega
 
@@ -286,7 +285,7 @@ theorem projectPublicInput_completeAssignment {application : Program}
 encoded-hash public input. -/
 theorem assignment_one {application : Program} (raw : RawValues application) :
     raw.assignment
-        (ApplicationRetainedGeometry.oneColumn
+        (ApplicationOrdinaryGeometry.oneColumn
           (PerApplicationFixedPoint.geometry application)) = 1 := by
   have marker := Canonical.assignment_encHashMarker raw.outputDigest raw.schedule
     (publicFits (application := application))

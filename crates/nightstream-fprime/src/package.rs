@@ -1,4 +1,4 @@
-use std::{fs, path::Path, sync::Arc};
+use std::sync::Arc;
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -22,13 +22,9 @@ mod matrix_program;
 pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
-mod permutation_plan;
-mod plan;
 mod prepared;
 pub use prepared::load_compiled_application_package;
-mod source_map;
 mod v1_1;
-mod witness_plan;
 pub use v1_1::{
     PiCcsV1_1EncodedInputs, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
@@ -109,9 +105,6 @@ struct RawPackage(
     Vec<RawSparseRow>,
     Vec<Value>,
 );
-
-#[derive(Debug, Deserialize)]
-struct RawPlan(u64, RawPackage, Vec<Value>, Vec<Value>, Vec<Value>);
 
 #[derive(Debug, Deserialize, Serialize)]
 struct RawProfile(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
@@ -423,16 +416,14 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
-        self.execute_assignment_source(private_inputs, public_values, None, false)
+        self.execute_assignment_source(private_inputs, public_values, None)
     }
 
-    // A source with omitted scratch stays inside sealed CCS construction.
     fn execute_assignment_source(
         &self,
         private_inputs: &[u64],
         public_values: &[u64],
         application_values: Option<&[Goldilocks]>,
-        direct_product_outputs: bool,
     ) -> Result<WitnessAssignment, PackageError> {
         if application_values.is_some() && self.native_application.is_none() {
             return Err(PackageError::Invalid("precomputed values require a native application"));
@@ -489,11 +480,7 @@ impl LoadedPackage {
                     self.execute_invocation(invocation, &mut assignment)?;
                 }
                 ScheduledAssignment::Compact(invocation) => {
-                    if direct_product_outputs {
-                        compact::execute_ccs_invocation(invocation, &self.compact_templates, &mut assignment)?;
-                    } else {
-                        compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
-                    }
+                    compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
                 }
                 ScheduledAssignment::Batch(batch) => {
                     execute_witness_batch(batch, &mut assignment);
@@ -711,105 +698,9 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
     Ok(scheduled)
 }
 
-pub fn load_file(path: impl AsRef<Path>, expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
-    load(&fs::read(path)?, expected_identity)
-}
-
-pub fn load(bytes: &[u8], expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
-    bind_expanded_package(decode_plan(bytes)?, expected_identity)
-}
-
-/// Strictly decode one compact plan and return both its identity-bound package
-/// and the exact canonical schema-7 package produced by the production
-/// expander. The caller must supply the verifier-owned expected identity.
-pub fn load_with_expanded_package(
-    bytes: &[u8],
-    expected_identity: [u64; 4],
-) -> Result<(LoadedPackage, Vec<u8>), PackageError> {
-    let raw = decode_plan(bytes)?;
-    let mut expanded_bytes = serde_json::to_vec(&raw)?;
-    expanded_bytes.push(b'\n');
-    let package = bind_expanded_package(raw, expected_identity)?;
-    Ok((package, expanded_bytes))
-}
-
-fn decode_plan(bytes: &[u8]) -> Result<RawPackage, PackageError> {
-    let value: Value = serde_json::from_slice(bytes)?;
-    let mut canonical = serde_json::to_vec(&value)?;
-    canonical.push(b'\n');
-    if bytes != canonical {
-        return Err(PackageError::NonCanonicalBytes);
-    }
-
-    let RawPlan(schema, mut raw, permutation_blocks, compact_blocks, witness_blocks): RawPlan =
-        serde_json::from_value(value.clone())?;
-    if schema != 8 {
-        return Err(PackageError::Invalid("plan schema version"));
-    }
-    if !raw.7.is_empty() {
-        return Err(PackageError::Invalid("static permutation invocations"));
-    }
-    if !raw.9.is_empty() {
-        return Err(PackageError::Invalid("static compact invocations"));
-    }
-    raw.7 = permutation_plan::expand(permutation_blocks)?;
-    raw.9 = plan::expand(compact_blocks)?;
-    raw.10.extend(witness_plan::expand(witness_blocks)?);
-    Ok(raw)
-}
-
-fn bind_expanded_package(raw: RawPackage, expected_identity: [u64; 4]) -> Result<LoadedPackage, PackageError> {
-    let expanded_value = serde_json::to_value(&raw)?;
-    let computed_identity = relation_identifier(&expanded_value)?;
-    let mut package = validate_package(raw, [0; 4])?;
-    if computed_identity != expected_identity {
-        return Err(PackageError::ExpectedIdentityMismatch {
-            expected: expected_identity,
-            computed: computed_identity,
-        });
-    }
-
-    package.relation_identifier = computed_identity;
-    Ok(package)
-}
-
-fn validate_package(raw: RawPackage, relation_identifier: [u64; 4]) -> Result<LoadedPackage, PackageError> {
-    validate_package_schema(raw, relation_identifier, 7)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LayoutProfile {
-    Prefix,
-    PerApplication,
-}
-
-fn validate_package_schema(
+fn validate_package(
     raw: RawPackage,
     relation_identifier: [u64; 4],
-    expected_schema: u64,
-) -> Result<LoadedPackage, PackageError> {
-    validate_package_schema_with_layout(raw, relation_identifier, expected_schema, LayoutProfile::Prefix, None)
-}
-
-fn validate_per_application_package_schema(
-    raw: RawPackage,
-    relation_identifier: [u64; 4],
-    expected_schema: u64,
-) -> Result<LoadedPackage, PackageError> {
-    validate_package_schema_with_layout(
-        raw,
-        relation_identifier,
-        expected_schema,
-        LayoutProfile::PerApplication,
-        None,
-    )
-}
-
-fn validate_package_schema_with_layout(
-    raw: RawPackage,
-    relation_identifier: [u64; 4],
-    expected_schema: u64,
-    layout_profile: LayoutProfile,
     native_application: Option<PreparedApplication>,
 ) -> Result<LoadedPackage, PackageError> {
     let RawPackage(
@@ -828,21 +719,21 @@ fn validate_package_schema_with_layout(
         assertion_rows,
         terminal,
     ) = raw;
-    if schema != expected_schema {
+    if schema != sealed::INNER_PACKAGE_SCHEMA {
         return Err(PackageError::Invalid("schema version"));
     }
     validate_profile(profile)?;
     validate_poseidon(poseidon)?;
 
-    let layout = validate_layout(layout, layout_profile)?;
+    let layout = validate_layout(layout)?;
     let native_application = native_application
         .map(|application| {
             application.validate(&layout)?;
             Ok::<_, PackageError>(Arc::new(application))
         })
         .transpose()?;
-    let relation = relation::validate(relation, &layout, expected_schema)?;
-    let terminal = validate_terminal(&terminal, expected_schema, relation.row_count())?;
+    let relation = relation::validate(relation)?;
+    let terminal = validate_terminal(&terminal, relation.row_count())?;
     let permutation = validate_permutation(permutation)?;
     let hash_chains = chains
         .into_iter()
@@ -862,10 +753,7 @@ fn validate_package_schema_with_layout(
         .private_segments
         .iter()
         .copied()
-        .filter(|segment| {
-            v1_1::is_witness_role(segment.role)
-                || (layout_profile == LayoutProfile::PerApplication && segment.role == sealed::APPLICATION_LOCAL_ROLE)
-        })
+        .filter(|segment| v1_1::is_witness_role(segment.role) || segment.role == sealed::APPLICATION_LOCAL_ROLE)
         .collect::<Vec<_>>();
     let witness_start = witness_segments
         .first()
@@ -1013,14 +901,9 @@ fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
     Ok(())
 }
 
-fn validate_terminal(
-    raw: &[Value],
-    schema: u64,
-    relation_row_count: usize,
-) -> Result<Option<LoadedTerminalLayout>, PackageError> {
-    match (schema, raw) {
-        (7, [Value::Number(tag)]) if tag.as_u64() == Some(0) => Ok(None),
-        (8, [Value::Number(tag), Value::Array(layout)]) if tag.as_u64() == Some(1) => {
+fn validate_terminal(raw: &[Value], relation_row_count: usize) -> Result<Option<LoadedTerminalLayout>, PackageError> {
+    match raw {
+        [Value::Number(tag), Value::Array(layout)] if tag.as_u64() == Some(1) => {
             let [row_start, row_count, running, fresh] = layout.as_slice() else {
                 return Err(PackageError::Invalid("pilot terminal option"));
             };
@@ -1058,7 +941,7 @@ fn validate_terminal(
     }
 }
 
-fn validate_layout(raw: RawPhysicalLayout, profile: LayoutProfile) -> Result<Layout, PackageError> {
+fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
     let RawPhysicalLayout(rows, private, constant, public, total, private_segments, public_segments) = raw;
     let row_count = word_to_usize(rows, "row count")?;
     let private_column_count = word_to_usize(private, "private column count")?;
@@ -1082,20 +965,8 @@ fn validate_layout(raw: RawPhysicalLayout, profile: LayoutProfile) -> Result<Lay
 
     let mut expected_private_roles = v1_1::private_segment_roles();
     let prefix_segment_count = expected_private_roles.len();
-    let zero_length_suffix = match profile {
-        LayoutProfile::Prefix => 0,
-        LayoutProfile::PerApplication => {
-            expected_private_roles.extend([sealed::APPLICATION_WITNESS_ROLE, sealed::APPLICATION_LOCAL_ROLE]);
-            2
-        }
-    };
-    let private_segments = validate_segments(
-        private_segments,
-        0,
-        private_column_count,
-        &expected_private_roles,
-        zero_length_suffix,
-    )?;
+    expected_private_roles.extend([sealed::APPLICATION_WITNESS_ROLE, sealed::APPLICATION_LOCAL_ROLE]);
+    let private_segments = validate_segments(private_segments, 0, private_column_count, &expected_private_roles, 2)?;
     v1_1::validate_private_segments(&private_segments[..prefix_segment_count])?;
     let public_segments = validate_segments(public_segments, constant_column + 1, total_column_count, &[4, 5, 10], 0)?;
     v1_1::validate_public_segments(&public_segments)?;

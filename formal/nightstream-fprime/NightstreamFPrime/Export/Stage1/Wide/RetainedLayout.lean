@@ -17,7 +17,7 @@ def hashEnd (program : Program) : Nat := LaterPoseidonRetainedBlocks.samplerStar
 def sharedStart (program : Program) : Nat := PiRLCRetainedGeometry.prefixLogicalWidth program
 def sharedEnd (program : Program) : Nat := PiDECRetainedGeometry.completeLogicalWidth program
 def applicationStart (program : Program) : Nat := ApplicationOrdinaryGeometry.witnessStart program
-def applicationCount (program : Program) : Nat := ApplicationSelectedBlocks.retainedCoordinateCount program
+def applicationCount (program : Program) : Nat := ApplicationRetainedBlocks.retainedCoordinateCount program
 
 theorem boundaries (program : Program) :
     hashEnd program = 113904174 ∧ sharedStart program = 121293360 ∧
@@ -60,7 +60,7 @@ theorem logicalWidth_eq (program : Program) :
 
 theorem referenceWidth_eq (program : Program) :
     PerApplicationFixedPoint.logicalWidth program = 149282257 + applicationCount program :=
-  ApplicationRetainedGeometry.completeLogicalWidth_eq program
+  ApplicationOrdinaryGeometry.completeLogicalWidth_eq program
 
 def outputStart (program : Program) : Nat := commonCount program + 135813
 def quotientStart (program : Program) : Nat := outputStart program + 2145366

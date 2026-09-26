@@ -28,7 +28,7 @@ theorem reference_one (program : RetainedLayout.Program)
     (assignment : Assignment F (RetainedLayout.logicalWidth program))
     (one : assignment (Stage1Plan.piRlcInterface program).oneColumn = 1) :
     AssignmentPullback.assignment program assignment
-      (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1 := by
+      (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1 := by
   rw [AssignmentPullback.at_live program assignment _ (ReadSupport.one program _ rfl)]
   exact one
 

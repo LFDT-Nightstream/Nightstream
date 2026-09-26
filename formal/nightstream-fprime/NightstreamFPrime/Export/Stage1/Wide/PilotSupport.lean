@@ -79,7 +79,7 @@ theorem pilot_binding (program : Program)
       · exact external _ (fun _ => output_sbox program (PilotDigestBindingPlan.poseidonGeometry geometry) _) _
 
 theorem public_output (program : Program)
-    (geometry : ApplicationRetainedGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program)) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry program (PerApplicationFixedPoint.logicalWidth program)) :
     CommonPlans program (RecursivePublicOutputPlan.plan geometry) := by
   have bit (word : Fin 4) (index : Nat) : CommonForm program (RecursivePublicOutputPlan.bitForm geometry word index) := by
     apply FormSupport.singleton

@@ -100,7 +100,7 @@ private theorem schedule_valid {application : Program}
   case applicationLocal =>
     simp only [PerApplicationAssignmentPlan.BlockKind.expand,
       PerApplicationAssignmentPlan.BlockKind.template, Canonical.ofBlock,
-      CanonicalBlockAssignment.ofBlock, ApplicationSelectedBlocks.localBlock_kind]
+      CanonicalBlockAssignment.ofBlock, ApplicationRetainedBlocks.localBlock_kind]
     trivial
   all_goals trivial
 

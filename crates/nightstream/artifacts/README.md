@@ -77,7 +77,7 @@ To regenerate a separate copy of the selected blueprint for comparison, use
 the existing production emitter from the same directory:
 
 ```sh
-timeout --signal=KILL 1500 bash scripts/validate.sh emit-poseidon2-hash-chain-v1 /tmp/nightstream-reference.json
+timeout --signal=KILL 1500 bash scripts/validate.sh emit /tmp/nightstream-reference.json
 ```
 
 Keep the selected blueprint and pins until the complete circuit and execution

@@ -1,4 +1,7 @@
 use super::*;
+
+#[path = "materialize.rs"]
+mod materialize;
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
@@ -10,7 +13,7 @@ fn manifest_bytes() -> &'static [u8] {
 
 fn materialized_assembly(fixed: Value, application: &ApplicationCircuit, manifest: &Manifest) -> Value {
     let mut value: wire::Envelope = serde_json::from_value(fixed).unwrap();
-    let plan = application::materialized_plan(application, manifest).unwrap();
+    let plan = materialize::materialized_plan(application, manifest).unwrap();
     let split = value
         .source
         .rows
@@ -28,7 +31,7 @@ fn materialized_assembly(fixed: Value, application: &ApplicationCircuit, manifes
 fn rust_poseidon_plan_preserves_every_raw_row_recipe_and_identity_byte() {
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     let application = poseidon2_hash_chain_v1().unwrap();
-    let plan = application::materialized_plan(&application, &manifest).unwrap();
+    let plan = materialize::materialized_plan(&application, &manifest).unwrap();
     let expected = include_bytes!("../fixtures/poseidon2-application-reference.json");
     let mut actual = serde_json::to_vec(&plan).unwrap();
     actual.push(b'\n');
@@ -53,8 +56,7 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
     assert!(manifest.check_reference(&reference).is_err());
     reference.assignment.schema = 4;
     let application = poseidon2_hash_chain_v1().unwrap();
-    // The selected application is recognized as the proved specialization.
-    // Assembly keeps the fixed envelope; the records restore the application.
+    // The shared assembler keeps the fixed envelope; records restore the application.
     let fixed = assemble(reference, &manifest, &application).unwrap();
     let actual = materialized_assembly(fixed, &application, &manifest);
 
@@ -177,7 +179,7 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
             .into();
     }
     let circuit = builder.finish(output).unwrap();
-    let plan = application::materialized_plan(&circuit, &manifest).unwrap();
+    let plan = materialize::materialized_plan(&circuit, &manifest).unwrap();
     assert_eq!(plan.private_count, 4);
     assert_eq!(plan.row_count, 8);
     for lane in 0..4 {
@@ -191,24 +193,13 @@ fn rust_addition_plan_uses_declared_ports_and_causal_recipes() {
 }
 
 #[test]
-fn ordinary_application_relocation_moves_the_wide_sampler_tail() {
+fn application_relocation_moves_the_wide_sampler_tail() {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
     manifest.check_reference(&reference).unwrap();
-    assert!(!manifest.selected_reference.matrix_relocations.is_empty());
-    connect::ordinary_reference(&mut reference, &manifest).unwrap();
-    let ordinary = serde_json::to_value(&reference.matrix).unwrap();
-    for relocation in &manifest.selected_reference.matrix_relocations {
-        let mut value = &ordinary;
-        for index in &relocation.path {
-            value = &value[*index];
-        }
-        assert_eq!(value.as_u64(), Some(relocation.ordinary as u64));
-    }
-
     let counts = Counts {
         witness: 0,
         local: 0,
@@ -235,13 +226,13 @@ fn ordinary_application_relocation_moves_the_wide_sampler_tail() {
     );
 
     let mut changed: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
-    let selected = &manifest.selected_reference.matrix_relocations[0];
-    let mut value = &mut changed.matrix[selected.path[0]];
-    for index in &selected.path[1..] {
+    let relocation = &manifest.matrix_relocations[0];
+    let mut value = &mut changed.matrix[relocation.path[0]];
+    for index in &relocation.path[1..] {
         value = &mut value[*index];
     }
-    *value = json!(selected.selected + 1);
-    assert!(connect::ordinary_reference(&mut changed, &manifest).is_err());
+    *value = json!(relocation.value.eval(manifest.reference()).unwrap() + 1);
+    assert!(connect::matrix(&mut changed, &manifest, counts).is_err());
 }
 
 #[test]

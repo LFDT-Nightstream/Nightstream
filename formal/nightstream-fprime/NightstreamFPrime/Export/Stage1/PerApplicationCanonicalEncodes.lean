@@ -815,7 +815,7 @@ theorem samplerPrefixEncodes {application : Program} (raw : RawValues applicatio
   ⟨piDecPrefixEncodes raw, samplerOrdinaryEncodes raw⟩
 
 private def position29 {application : Program} (raw : RawValues application) :
-    Position raw (ApplicationRetainedGeometry.witnessStart application)
+    Position raw (ApplicationOrdinaryGeometry.witnessStart application)
       (ApplicationRetainedBlocks.sourceWidth application)
       (ApplicationRetainedBlocks.witnessBlock application)
       raw.applicationSource where
@@ -826,9 +826,9 @@ private def position29 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position30 {application : Program} (raw : RawValues application) :
-    Position raw (ApplicationRetainedGeometry.localStart application)
+    Position raw (ApplicationOrdinaryGeometry.localStart application)
       (ApplicationRetainedBlocks.sourceWidth application)
-      (ApplicationSelectedBlocks.localBlock application)
+      (ApplicationRetainedBlocks.localBlock application)
       raw.applicationSource where
   cursor := (position29 raw).next
   after := tail raw 31
@@ -857,8 +857,8 @@ private theorem retainedSource_applicationColumn {application : Program}
 private theorem applicationInputEncodes {application : Program}
     (raw : RawValues application) :
     (ApplicationRetainedBlocks.inputBlock application).EncodesAt
-      (ApplicationRetainedGeometry.inputStart application)
-      (ApplicationRetainedGeometry.inputFits (applicationGeometry application))
+      (ApplicationOrdinaryGeometry.inputStart application)
+      (ApplicationOrdinaryGeometry.inputFits (applicationGeometry application))
       raw.assignment raw.applicationSource := by
   let parent := PiRLCPoseidonGeometry.priorInputBlock application
   have slots : 35 + 4 ≤ parent.slotCount := by
@@ -866,14 +866,14 @@ private theorem applicationInputEncodes {application : Program}
   have fits : PiRLCPoseidonGeometry.priorInputStart application +
       35 * parent.kind.width + (parent.slice 35 4 slots).coordinateCount ≤
         PerApplicationFixedPoint.logicalWidth application :=
-    ApplicationRetainedGeometry.inputFits (applicationGeometry application)
+    ApplicationOrdinaryGeometry.inputFits (applicationGeometry application)
   have view := parent.encodesAt_slice 35 4 slots
     (PiRLCPoseidonGeometry.priorInputStart application)
     (PiRLCPoseidonGeometry.priorInputFits
-      (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
+      (ApplicationOrdinaryGeometry.pilotGeometry (applicationGeometry application)))
     fits raw.assignment raw.retainedSource
     ((position10 raw).encodes (PiRLCPoseidonGeometry.priorInputFits
-      (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application))))
+      (ApplicationOrdinaryGeometry.pilotGeometry (applicationGeometry application))))
   intro slot coordinate
   have selected : parent.source (ApplicationDirectPlan.Location.preimageWord slot) =
       PiRLCRetainedPreservation.baseSourceColumn application
@@ -886,8 +886,8 @@ private theorem applicationInputEncodes {application : Program}
   have value := view slot coordinate
   change raw.assignment
       ((ApplicationRetainedBlocks.inputBlock application).column
-        (ApplicationRetainedGeometry.inputStart application)
-        (ApplicationRetainedGeometry.inputFits (applicationGeometry application))
+        (ApplicationOrdinaryGeometry.inputStart application)
+        (ApplicationOrdinaryGeometry.inputFits (applicationGeometry application))
         slot coordinate) =
     LowNormSlot.coordinate .field
       (raw.retainedSource (parent.source (ApplicationDirectPlan.Location.preimageWord slot)))
@@ -898,8 +898,8 @@ private theorem applicationInputEncodes {application : Program}
 private theorem applicationOutputEncodes {application : Program}
     (raw : RawValues application) :
     (ApplicationRetainedBlocks.outputBlock application).EncodesAt
-      (ApplicationRetainedGeometry.outputStart application)
-      (ApplicationRetainedGeometry.outputFits (applicationGeometry application))
+      (ApplicationOrdinaryGeometry.outputStart application)
+      (ApplicationOrdinaryGeometry.outputFits (applicationGeometry application))
       raw.assignment raw.applicationSource := by
   let parent := PiRLCPoseidonGeometry.outputInputBlock application
   have slots : 35 + 4 ≤ parent.slotCount := by
@@ -907,14 +907,14 @@ private theorem applicationOutputEncodes {application : Program}
   have fits : PiRLCPoseidonGeometry.outputInputStart application +
       35 * parent.kind.width + (parent.slice 35 4 slots).coordinateCount ≤
         PerApplicationFixedPoint.logicalWidth application :=
-    ApplicationRetainedGeometry.outputFits (applicationGeometry application)
+    ApplicationOrdinaryGeometry.outputFits (applicationGeometry application)
   have view := parent.encodesAt_slice 35 4 slots
     (PiRLCPoseidonGeometry.outputInputStart application)
     (PiRLCPoseidonGeometry.outputInputFits
-      (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
+      (ApplicationOrdinaryGeometry.pilotGeometry (applicationGeometry application)))
     fits raw.assignment raw.retainedSource
     ((position11 raw).encodes (PiRLCPoseidonGeometry.outputInputFits
-      (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application))))
+      (ApplicationOrdinaryGeometry.pilotGeometry (applicationGeometry application))))
   intro slot coordinate
   have selected : parent.source (ApplicationDirectPlan.Location.preimageWord slot) =
       PiRLCRetainedPreservation.baseSourceColumn application
@@ -927,8 +927,8 @@ private theorem applicationOutputEncodes {application : Program}
   have value := view slot coordinate
   change raw.assignment
       ((ApplicationRetainedBlocks.outputBlock application).column
-        (ApplicationRetainedGeometry.outputStart application)
-        (ApplicationRetainedGeometry.outputFits (applicationGeometry application))
+        (ApplicationOrdinaryGeometry.outputStart application)
+        (ApplicationOrdinaryGeometry.outputFits (applicationGeometry application))
         slot coordinate) =
     LowNormSlot.coordinate .field
       (raw.retainedSource (parent.source (ApplicationDirectPlan.Location.preimageWord slot)))
@@ -938,14 +938,14 @@ private theorem applicationOutputEncodes {application : Program}
 
 private theorem applicationRetainedEncodes {application : Program}
     (raw : RawValues application) :
-    ApplicationRetainedGeometry.Encodes (applicationGeometry application)
+    ApplicationOrdinaryGeometry.Encodes (applicationGeometry application)
       raw.assignment raw.applicationSource where
   input := applicationInputEncodes raw
   witness := (position29 raw).encodes
-    (ApplicationRetainedGeometry.witnessFits (applicationGeometry application))
+    (ApplicationOrdinaryGeometry.witnessFits (applicationGeometry application))
   output := applicationOutputEncodes raw
   localValues := (position30 raw).encodes
-    (ApplicationRetainedGeometry.localFits (applicationGeometry application))
+    (ApplicationOrdinaryGeometry.localFits (applicationGeometry application))
 
 /-- One raw packet constructs the complete final assignment-encoding contract.
 No caller supplies `DirectApplicationPrefixPlan.Encodes`. -/

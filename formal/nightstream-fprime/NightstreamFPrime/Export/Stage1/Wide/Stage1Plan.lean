@@ -54,7 +54,7 @@ def value (program : Program) (ring : PiRLCGeometry.RingIndex) :
       (PiRLCValueWiring.located (PiRLCProductRingSchedule.laneInvocation ring lane)).location))
 
 def piRlcInterface (program : Program) : PiRLCGeometry.Interface (RetainedLayout.logicalWidth program) where
-  oneColumn := RetainedLayout.column program (ApplicationRetainedGeometry.oneColumn (referenceGeometry program))
+  oneColumn := RetainedLayout.column program (ApplicationOrdinaryGeometry.oneColumn (referenceGeometry program))
     (ReadSupport.one program _ rfl)
   initialState := initialState program
   value := value program

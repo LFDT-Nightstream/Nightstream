@@ -12,8 +12,8 @@ open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.MatrixProgram
 
-private def ordinaryReference : NightstreamFPrime.Lifecycle.Stage1.Application.Program :=
-  { Poseidon2HashChainV1Package.application with compactHashChain := none }
+private def referenceApplication : NightstreamFPrime.Lifecycle.Stage1.Application.Program :=
+  Poseidon2HashChainV1Package.application
 
 private def require (condition : Bool) (message : String) : Except String Unit :=
   if condition then .ok () else .error message
@@ -108,13 +108,6 @@ private def replaceApplication (source replacement : Codec.Value) (start count :
   require (start + count ≤ blocks.length) "application replacement exceeds program"
   return .array (blocks.take start ++ application ++ blocks.drop (start + count))
 
-private def valueAt : Codec.Value → List Nat → Except String Nat
-  | .atom value, [] => pure value
-  | .array values, index :: rest => do
-      let some value := values[index]? | throw "matrix relocation is out of range"
-      valueAt value rest
-  | _, _ => throw "matrix relocation does not select an atom"
-
 private def applicationChild (manifest : Lean.Json) : Except String Lean.Json := do
   let children ← array manifest "children"
   let some child := children.find? (fun child => child.getObjValAs? Bool "replaceable" == .ok true)
@@ -188,52 +181,6 @@ private def checkApplication (manifest : Lean.Json) (reference : Program)
     let actual ← sourceRuns parameters (← array manifest field)
     require (equalRuns actual expected) s!"wide source relocation differs: {field}"
 
-private def checkSelected (compiled : PiRlcWideSampler.RangePlan.Compiled)
-    (manifest : Lean.Json) (ordinary : Program) : Except String Unit := do
-  let selected ← manifest.getObjVal? "selected_reference"
-  let application := Poseidon2HashChainV1Package.application
-  let program ← programValue compiled application
-  require ((← natural selected "logical_rows") == program.rowCount &&
-    (← natural selected "logical_width") == Wide.RetainedLayout.logicalWidth application)
-    "selected reference geometry differs"
-  let child ← applicationChild manifest
-  let start ← natural child "block_start"
-  let applicationProgram ← applicationValue application
-  let selectedApplication ← codecValue (← selected.getObjVal? "application_matrix")
-  require (equalValue selectedApplication (Program.format.encode applicationProgram))
-    "selected reference application matrix differs"
-  require (equalValue selectedApplication (Program.format.encode
-    ⟨(program.blocks.drop start).take applicationProgram.blocks.length⟩))
-    "selected application child is misplaced"
-  let localIndex := Wide.AssignmentTransport.commonKinds.idxOf .applicationLocal
-  require ((← natural selected "application_local_index") == localIndex)
-    "selected application local index differs"
-  let localBlock ← Wide.AssignmentTransport.commonBlock application .applicationLocal
-  require (equalValue (← codecValue (← selected.getObjVal? "application_local")) localBlock.encode)
-    "selected reference assignment differs"
-  let template ← codecValue (← manifest.getObjVal? "application_matrix_template")
-  let replaced ← replaceApplication (Program.format.encode program) template start applicationProgram.blocks.length
-  let mut actual := replaced
-  let mut paths : List (List Nat) := []
-  for relocation in ← array selected "matrix_relocations" do
-    let path ← (← array relocation "path").mapM Lean.Json.getNat?
-    require (!path.isEmpty && !paths.contains path) "duplicate or empty selected relocation"
-    let before ← natural relocation "selected"
-    let after ← natural relocation "ordinary"
-    require ((← valueAt actual path) == before) "selected field differs before conversion"
-    actual ← updateValue actual path after
-    paths := path :: paths
-  require (equalValue actual (Program.format.encode ordinary))
-    "selected-to-ordinary conversion differs from complete wide program"
-  let mut restored := actual
-  for relocation in ← array selected "matrix_relocations" do
-    let path ← (← array relocation "path").mapM Lean.Json.getNat?
-    let before ← natural relocation "selected"
-    let after ← natural relocation "ordinary"
-    require ((← valueAt restored path) == after) "ordinary field differs before restoration"
-    restored ← updateValue restored path before
-  require (equalValue restored replaced) "selected conversion changed undeclared fields"
-
 private def checked {α : Type} (phase : String) (action : Unit → Except String α) : IO α := do
   IO.println s!"wide shared verifier: {phase}"
   (← IO.getStdout).flush
@@ -247,10 +194,9 @@ def check : IO Unit := do
     | some compiled => .ok compiled
     | none => .error "wide range compilation failed"
   let manifest ← Export.SharedVerifier.prepare
-  let ordinary ← checked "ordinary reference program" fun _ => programValue compiled ordinaryReference
-  checked "selected-to-ordinary matrix comparison" fun _ => checkSelected compiled manifest ordinary
-  checked "ordinary reference dimensions and runs" fun _ =>
-    checkApplication manifest ordinary ordinaryReference ordinary
+  let ordinary ← checked "reference program" fun _ => programValue compiled referenceApplication
+  checked "reference dimensions and runs" fun _ =>
+    checkApplication manifest referenceApplication ordinary
   let fixture := PerApplicationEmitterFixture.program ()
   let fixtureProgram ← checked "identity application program" fun _ => programValue compiled fixture
   checked "identity application dimensions and runs" fun _ =>

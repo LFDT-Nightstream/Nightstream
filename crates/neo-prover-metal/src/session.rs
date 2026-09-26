@@ -21,8 +21,6 @@ use crate::{
     PoseidonDigest, PoseidonHashVariant, PoseidonState,
 };
 
-#[cfg(feature = "legacy-adapter")]
-mod ajtai_batch;
 mod joint;
 mod masks;
 mod production_commitment;
@@ -74,8 +72,6 @@ pub struct MetalSession {
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
     production_ajtai_partials: Pipeline,
-    #[cfg(feature = "legacy-adapter")]
-    seeded_ajtai_matrix: Pipeline,
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
     sumcheck_reduce_partials: Pipeline,
@@ -101,17 +97,7 @@ pub struct MetalSession {
     joint_carried_projection: Pipeline,
     fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
-    #[cfg(feature = "legacy-adapter")]
-    dec_ring_partials: Pipeline,
-    #[cfg(feature = "legacy-adapter")]
-    dec_ring_sum_chunks: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
-    #[cfg(feature = "legacy-adapter")]
-    ajtai_lane_ring_partials: Pipeline,
-    #[cfg(feature = "legacy-adapter")]
-    ajtai_lane_ring_sum_chunks: Pipeline,
-    #[cfg(feature = "legacy-adapter")]
-    ajtai_lane_ring_reduce_phi81: Pipeline,
     activity: ActivityCounters,
 }
 
@@ -166,8 +152,6 @@ impl MetalSession {
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
         let production_ajtai_partials = pipeline(&device, &library, "production_ajtai_partials")?;
-        #[cfg(feature = "legacy-adapter")]
-        let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
@@ -194,17 +178,7 @@ impl MetalSession {
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
-        #[cfg(feature = "legacy-adapter")]
-        let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
-        #[cfg(feature = "legacy-adapter")]
-        let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
-        #[cfg(feature = "legacy-adapter")]
-        let ajtai_lane_ring_partials = pipeline(&device, &library, "ajtai_lane_ring_partials")?;
-        #[cfg(feature = "legacy-adapter")]
-        let ajtai_lane_ring_sum_chunks = pipeline(&device, &library, "ajtai_lane_ring_sum_chunks")?;
-        #[cfg(feature = "legacy-adapter")]
-        let ajtai_lane_ring_reduce_phi81 = pipeline(&device, &library, "ajtai_lane_ring_reduce_phi81")?;
         Ok(Self {
             device,
             queue,
@@ -222,8 +196,6 @@ impl MetalSession {
             ajtai_low_norm_products,
             ajtai_reduce_columns,
             production_ajtai_partials,
-            #[cfg(feature = "legacy-adapter")]
-            seeded_ajtai_matrix,
             fold_k_table,
             tensor_point_expand_k,
             sumcheck_reduce_partials,
@@ -248,17 +220,7 @@ impl MetalSession {
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
             fe_weighted_row_table,
-            #[cfg(feature = "legacy-adapter")]
-            dec_ring_partials,
-            #[cfg(feature = "legacy-adapter")]
-            dec_ring_sum_chunks,
             dec_ring_reduce_phi81,
-            #[cfg(feature = "legacy-adapter")]
-            ajtai_lane_ring_partials,
-            #[cfg(feature = "legacy-adapter")]
-            ajtai_lane_ring_sum_chunks,
-            #[cfg(feature = "legacy-adapter")]
-            ajtai_lane_ring_reduce_phi81,
             activity: ActivityCounters::default(),
         })
     }
@@ -619,82 +581,6 @@ impl MetalSession {
         }
 
         let matrix = self.buffer_from_slice(matrix)?;
-        self.prepare_ajtai_low_norm_from_buffer(matrix, rows, cols)
-    }
-
-    /// Expands the canonical chunked ChaCha matrix directly on Metal, falling
-    /// back to the canonical host expansion only if rejection sampling flags it.
-    #[cfg(feature = "legacy-adapter")]
-    pub(crate) fn prepare_ajtai_low_norm_seeded(
-        &self,
-        seed: [u8; 32],
-        rows: usize,
-        cols: usize,
-    ) -> Result<MetalAjtaiLowNormPlan, MetalError> {
-        const RING_DEGREE: usize = 54;
-        const CHACHA_U64S_PER_BLOCK: usize = 8;
-        if rows == 0 || cols == 0 {
-            return Err(MetalError::Shape("Ajtai dimensions must be nonzero"));
-        }
-        let matrix_words = rows
-            .checked_mul(cols)
-            .and_then(|words| words.checked_mul(RING_DEGREE))
-            .ok_or(MetalError::Shape("Ajtai matrix dimensions overflow"))?;
-        let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds(seed, rows, cols);
-        let chunks_per_row = cols.div_ceil(chunk_size);
-        if chunk_seeds.len() != rows
-            || chunk_seeds
-                .iter()
-                .any(|seeds| seeds.len() != chunks_per_row)
-            || (chunks_per_row > 1 && !(chunk_size * RING_DEGREE).is_multiple_of(CHACHA_U64S_PER_BLOCK))
-        {
-            return Err(MetalError::Shape("seeded Ajtai chunk geometry is inconsistent"));
-        }
-        let mut seed_words = Vec::with_capacity(rows * chunks_per_row * 8);
-        for chunk in chunk_seeds.iter().flatten() {
-            for word in chunk.chunks_exact(4) {
-                seed_words.push(u32::from_le_bytes(word.try_into().expect("four-byte seed word")));
-            }
-        }
-        let groups_per_row = (cols * RING_DEGREE).div_ceil(CHACHA_U64S_PER_BLOCK);
-        let seeds = self.buffer_from_slice(&seed_words)?;
-        let shape = self.buffer_from_slice(&[
-            rows as u64,
-            cols as u64,
-            chunk_size as u64,
-            chunks_per_row as u64,
-            groups_per_row as u64,
-        ])?;
-        let rejected = self.buffer_from_slice(&[0u32])?;
-        let mut matrix = self.buffer(matrix_words * size_of::<u64>())?;
-        let command = self.command_buffer("nightstream.ajtai.seeded_matrix")?;
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.seeded_ajtai_matrix);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&seeds), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&matrix), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&rejected), 0, 3);
-        }
-        self.dispatch(&encoder, &self.seeded_ajtai_matrix, rows * groups_per_row);
-        encoder.endEncoding();
-        self.finish(&command)?;
-        // The shader flags a rejection-sampling corner case instead of
-        // silently choosing different field elements. Materialize the same
-        // canonical seeded matrix on the host when that rare case occurs.
-        if self.read_buffer::<u32>(&rejected, 1)[0] != 0 {
-            let pp = neo_ajtai::materialize_seeded_pp(seed, RING_DEGREE, rows, cols)
-                .map_err(|_| MetalError::Shape("materialize rejected seeded Ajtai matrix"))?;
-            let words = pp
-                .m_rows
-                .iter()
-                .flat_map(|row| {
-                    row.iter()
-                        .flat_map(|value| value.0.iter().map(p3_field::PrimeField64::as_canonical_u64))
-                })
-                .collect::<Vec<_>>();
-            matrix = self.buffer_from_slice(&words)?;
-        }
         self.prepare_ajtai_low_norm_from_buffer(matrix, rows, cols)
     }
 
@@ -1178,15 +1064,6 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
         return Err(MetalError::Execution(format!("{error:?}")));
     }
     Ok(())
-}
-
-#[cfg(feature = "legacy-adapter")]
-pub(super) fn command_gpu_duration(command: &ProtocolObject<dyn MTLCommandBuffer>) -> std::time::Duration {
-    // Metal timestamps are defined after completion; every caller waits on the
-    // command before requesting this duration.
-    let start: f64 = unsafe { objc2::msg_send![command, GPUStartTime] };
-    let end: f64 = unsafe { objc2::msg_send![command, GPUEndTime] };
-    std::time::Duration::from_secs_f64((end - start).max(0.0))
 }
 
 fn flatten_k_words(values: &[KWords]) -> Vec<u64> {

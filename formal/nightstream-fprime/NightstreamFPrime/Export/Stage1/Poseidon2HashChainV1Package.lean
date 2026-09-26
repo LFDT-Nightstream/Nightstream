@@ -122,17 +122,13 @@ theorem sourceWidth :
   rw [sourceWidth]
   omega
 
-@[simp] theorem retainedLocalCount :
-    ApplicationSelectedBlocks.localCount application = 258 := by
-  rfl
-
 @[simp] theorem selectedApplicationRowCount :
-    ApplicationDirectPlan.rowCount application = 262 := by rfl
+    ApplicationDirectPlan.rowCount application = 7700 := applicationPlan_rowCount
 
 @[simp] theorem retainedApplicationWordCount :
     application.witnessWordCount +
-      ApplicationSelectedBlocks.localCount application = 262 := by
-  rw [retainedLocalCount]
+      ApplicationRetainedBlocks.localCount application = 7700 := by
+  rw [ordinaryLocalCount]
   simp [application, Lifecycle.Stage1.Poseidon2HashChainV1.program,
     Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount]
 
@@ -148,14 +144,14 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
       decide)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 149292999 := by
+    PerApplicationFixedPoint.logicalWidth application = 149597957 := by
   unfold PerApplicationFixedPoint.logicalWidth
-  rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
+  rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      3588191 := by
+      3595629 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     selectedApplicationRowCount]
 

@@ -45,7 +45,7 @@ def PilotAssignment : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)),
-    assignment (ApplicationRetainedGeometry.oneColumn
+    assignment (ApplicationOrdinaryGeometry.oneColumn
       (Export.Stage1.PerApplicationFixedPoint.geometry application)) = 1 →
     (Export.Stage1.PerApplicationFixedPoint.structuralPlan application fits).RowsZero assignment →
     Lifecycle.Pilot.SpecHolds PilotProduction.interface PilotProduction.witnessOffset
@@ -65,7 +65,7 @@ def PiCCSAssignment : Prop :=
     (template : Lifecycle.Proof (Lifecycle.ProductionKey.degreeBound
       (Export.Stage1.PerApplicationFixedPoint.relation application fits)))
     (assignment : Assignment F (Export.Stage1.PerApplicationFixedPoint.logicalWidth application)),
-    assignment (ApplicationRetainedGeometry.oneColumn
+    assignment (ApplicationOrdinaryGeometry.oneColumn
       (Export.Stage1.PerApplicationFixedPoint.geometry application)) = 1 →
     (Export.Stage1.PerApplicationFixedPoint.structuralPlan application fits).RowsZero assignment →
     Lifecycle.PiCCS.v1_1.Formal.PhaseHolds

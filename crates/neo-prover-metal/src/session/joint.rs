@@ -528,10 +528,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             .iter()
             .any(|&source| source >= fresh_count);
         drop(source_blocks);
-        #[cfg(feature = "legacy-adapter")]
-        let selective_f_prime = input.params.b == 2
-            && neo_fold_legacy::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
-        #[cfg(not(feature = "legacy-adapter"))]
         let selective_f_prime = false;
         let (common, common_len) = session
             .build_joint_common_tables(&plan, &input, &masks, has_carried)

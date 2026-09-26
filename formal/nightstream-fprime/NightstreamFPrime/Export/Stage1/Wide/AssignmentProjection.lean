@@ -146,14 +146,14 @@ theorem assignment_eq_project (program : Program)
 
 theorem piRlc_complete (program : Program) (compiled : PiRlcWideSampler.RangePlan.Compiled)
     (before : Assignment F (PerApplicationFixedPoint.logicalWidth program))
-    (one : before (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1) :
+    (one : before (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program)) = 1) :
     (Stage1Plan.piRlc program compiled).RowsZero (assignment program before) := by
   apply Stage1Witness.complete
   calc
     seed program before (Stage1Plan.piRlcInterface program).oneColumn =
         project program before (Stage1Plan.piRlcInterface program).oneColumn :=
       seed_before program before _ (InputSupport.inputsBefore program).sampler.one
-    _ = before (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program)) :=
+    _ = before (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program)) :=
       project_at program before _ (ReadSupport.one program _ rfl)
     _ = 1 := one
 

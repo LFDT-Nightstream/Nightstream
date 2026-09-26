@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryGeometry
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
@@ -33,10 +33,10 @@ def rowCount : Nat := 4
 def publicFits
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionAssignment.publicWidth ≤ logicalWidth := by
   have complete := geometry.completeFits
-  rw [ApplicationRetainedGeometry.completeLogicalWidth_eq] at complete
+  rw [ApplicationOrdinaryGeometry.completeLogicalWidth_eq] at complete
   norm_num [ProductionAssignment.publicWidth, ringDegree, publicRingColumns]
     at complete ⊢
   omega
@@ -44,7 +44,7 @@ def publicFits
 def carrierPublicFits
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth := by
   exact Nat.le_trans (publicFits geometry)
@@ -53,23 +53,23 @@ def carrierPublicFits
 def oneColumn
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     Fin logicalWidth :=
-  ApplicationRetainedGeometry.oneColumn geometry
+  ApplicationOrdinaryGeometry.oneColumn geometry
 
 def pilotOrdinaryGeometry
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PilotOrdinaryRetainedGeometry.Geometry application logicalWidth :=
   DirectPiDECPrefixPlan.pilotOrdinaryGeometry
     (DirectPiRLCSamplerCompletePrefixPlan.piDecGeometry
-      (ApplicationRetainedGeometry.prefixGeometry geometry))
+      (ApplicationOrdinaryGeometry.prefixGeometry geometry))
 
 def publicColumn
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (column : Fin ProductionAssignment.publicWidth) : Fin logicalWidth :=
   CanonicalBlockAssignment.publicColumn (publicFits geometry) column
 
@@ -84,7 +84,7 @@ def publicBitIndex (word : Fin 4) (bit : Nat) :
 def publicInput
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     PaperAlgebra.PublicInput
       (logicalWidth := logicalWidth)
@@ -95,7 +95,7 @@ def publicInput
 CCS assignment. Completion does not change any public coordinate. -/
 theorem publicInput_eq_projectPublicInput
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     publicInput geometry assignment =
       Phi81Relation.projectPublicInput
@@ -115,7 +115,7 @@ theorem publicInput_eq_projectPublicInput
 coordinate used by every child plan. No witness-generation premise is used. -/
 theorem publicEqual_implies_one
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (publicEqual : publicInput geometry assignment =
       Lifecycle.encHash (publicFits := carrierPublicFits geometry) digest) :
@@ -127,7 +127,7 @@ theorem publicEqual_implies_one
 def bitForm
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (word : Fin 4) (bit : Nat) : SparseForm logicalWidth :=
   SparseForm.singleton (publicColumn geometry (publicBitIndex word bit))
     (Poseidon2.ofNat (2 ^ bit))
@@ -135,7 +135,7 @@ def bitForm
 def publicWordForm
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (word : Fin 4) : SparseForm logicalWidth :=
   (List.range 64).foldl (fun form bit =>
     SparseForm.add form (bitForm geometry word bit)) .empty
@@ -143,7 +143,7 @@ def publicWordForm
 private theorem foldlForms_eval
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) (word : Fin 4)
     (bits : List Nat) (initial : SparseForm logicalWidth) :
     (bits.foldl (fun form bit =>
@@ -162,7 +162,7 @@ private theorem foldlForms_eval
 theorem publicWordForm_eval
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) (word : Fin 4) :
     (publicWordForm geometry word).eval assignment =
       Lifecycle.decodeHashWord (publicInput geometry assignment) word := by
@@ -179,7 +179,7 @@ theorem publicWordForm_eval
 def outputWordForm
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (word : Fin 4) : SparseForm logicalWidth :=
   (PilotOrdinaryDirectPlan.Location.outputDigest word).form
     (pilotOrdinaryGeometry geometry)
@@ -187,7 +187,7 @@ def outputWordForm
 def difference
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (word : Fin rowCount) : SparseForm logicalWidth :=
   SparseForm.add (outputWordForm geometry word)
     (SparseForm.scale (-1) (publicWordForm geometry word))
@@ -195,7 +195,7 @@ def difference
 def interface
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     PinFamilyPlan.Interface logicalWidth rowCount where
   oneColumn := oneColumn geometry
   value := difference geometry
@@ -207,21 +207,21 @@ theorem rowCount_le :
 def plan
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
   PinFamilyPlan.plan (interface geometry) rowCount_le
 
 @[simp] theorem plan_rowCount
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth) :
     (plan geometry).rowCount = 4 := by
   rfl
 
 def Matches
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
   ∀ word, (outputWordForm geometry word).eval assignment =
     Lifecycle.decodeHashWord (publicInput geometry assignment) word
@@ -229,7 +229,7 @@ def Matches
 theorem rowsZero_iff_matches
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (oneColumn geometry) = 1) :
     (plan geometry).RowsZero assignment ↔ Matches geometry assignment := by
@@ -259,7 +259,7 @@ theorem rowsZero_iff_matches
 theorem Matches.outputDigest_eq_decodeHash
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    {geometry : ApplicationRetainedGeometry.Geometry application logicalWidth}
+    {geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth}
     {assignment : Assignment F logicalWidth}
     (matching : Matches geometry assignment) :
     List.ofFn (fun word : Fin 4 =>
@@ -272,7 +272,7 @@ theorem Matches.outputDigest_eq_decodeHash
 theorem Matches.outputDigest_eq_of_encHash
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
-    {geometry : ApplicationRetainedGeometry.Geometry application logicalWidth}
+    {geometry : ApplicationOrdinaryGeometry.Geometry application logicalWidth}
     {assignment : Assignment F logicalWidth}
     (matching : Matches geometry assignment)
     (digest : Digest) (fixed : digest.length = 4)

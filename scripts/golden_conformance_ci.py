@@ -30,10 +30,9 @@ def bounded(kind, command):
             "--kind", kind, "--cwd", ROOT, "--", *command]
 
 
-def build(directory, checker=False):
-    target = "generate_pi_ccs_fixture" if checker else "nightstream"
-    arguments = (["build", "-p", "neo-fold-legacy", "--bin", target] if checker else
-                 ["test", "-p", "nightstream", "--lib", "--no-run"])
+def build(directory):
+    target = "nightstream"
+    arguments = ["test", "-p", "nightstream", "--lib", "--no-run"]
     toolchain = tomllib.loads((ROOT / "rust-toolchain.toml").read_text())["toolchain"]["channel"]
     command = bounded("rust", ["cargo", f"+{toolchain}", *arguments, "--locked", "--release", "--message-format=json"])
     log = directory / f"build-{target}.jsonl"
@@ -48,7 +47,7 @@ def build(directory, checker=False):
             continue
         item = json.loads(line)
         if (item.get("reason") == "compiler-artifact" and item["target"]["name"] == target
-                and item.get("executable") and (checker or item["profile"]["test"])):
+                and item.get("executable") and item["profile"]["test"]):
             artifacts.append(Path(item["executable"]))
     if len(artifacts) != 1 or not artifacts[0].is_file():
         raise ValueError(f"build must return exactly one current executable: {target}")
@@ -131,10 +130,9 @@ def execute(mode, archives, directory, cpu_reference=None):
     if references is not None:
         command += ["--references", references]
     run(command)
-    checker = build(directory, checker=True)
     for step in (1, 2):
         run([sys.executable, "-B", TESTS / "check_lean_fold.py", "--directory", native,
-             "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", checker])
+             "--step", step, "--output", directory / f"lean-step-{step}", "--native-checker", binary])
     cpu_handoff(directory)
     receipt = {"outcome": "passed", "engine": "optimized",
                "scope": "Current CPU folds 1–2 and state-3 terminal checks; fresh Lean verifier and caller "

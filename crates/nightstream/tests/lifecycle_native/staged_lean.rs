@@ -1,5 +1,5 @@
 //! Numeric checker inputs and observed C/R/D values from a verified native fold.
-//! Schema: neo-fold-legacy/tests/nifs/stage1_values.rs. No expected values enter here.
+//! Numeric schemas are checked against fresh Lean output. No expected values enter here.
 
 use super::*;
 use neo_math::KExtensions;
@@ -199,3 +199,6 @@ pub(super) fn export(
 
 #[path = "staged_lean_tests.rs"]
 mod tests;
+
+#[path = "golden.rs"]
+mod golden;

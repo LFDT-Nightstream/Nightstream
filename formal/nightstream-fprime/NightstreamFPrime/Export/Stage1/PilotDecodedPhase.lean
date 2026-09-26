@@ -59,7 +59,7 @@ theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
-    (one : assignment (ApplicationRetainedGeometry.oneColumn
+    (one : assignment (ApplicationOrdinaryGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero
       assignment) :

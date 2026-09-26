@@ -2,8 +2,7 @@
 //!
 //! The module maps template inputs and locals to final package columns. It
 //! requires total input bindings, causal witness targets, exact row/column
-//! ownership, and direct checks of every instantiated `A * B = C` row. The
-//! selected CCS path omits product scratch rows proved redundant in Lean.
+//! ownership, and direct checks of every instantiated `A * B = C` row.
 
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
@@ -36,27 +35,6 @@ pub(super) struct RawCompactInputRange(u64, u64, u64, u64);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawCompactRowInvocation(u64, u64, u64, u64, Vec<RawCompactInputRange>);
-
-pub(super) fn raw_invocation(
-    phase: u64,
-    template_index: u64,
-    row_start: u64,
-    local_start: u64,
-    input_ranges: Vec<[u64; 4]>,
-) -> RawCompactRowInvocation {
-    RawCompactRowInvocation(
-        phase,
-        template_index,
-        row_start,
-        local_start,
-        input_ranges
-            .into_iter()
-            .map(|[input_start, input_count, column_start, column_stride]| {
-                RawCompactInputRange(input_start, input_count, column_start, column_stride)
-            })
-            .collect(),
-    )
-}
 
 #[derive(Clone, Debug)]
 pub(super) struct CompactTemplateRow {
@@ -310,7 +288,9 @@ pub(super) fn execute_invocation(
     assignment: &mut [Goldilocks],
 ) -> Result<(), PackageError> {
     let template = &templates[invocation.template_index];
-    write_output(invocation, template, assignment);
+    assignment[invocation.output_column] = template
+        .output_recipe
+        .eval_with(&|input| assignment[invocation.input_column(input)]);
     for row in &template.rows {
         let left = eval_combination(&row.a, invocation, assignment);
         let right = eval_combination(&row.b, invocation, assignment);
@@ -323,28 +303,6 @@ pub(super) fn execute_invocation(
         }
     }
     Ok(())
-}
-
-/// Used only after the complete package matches the fixed selected identity.
-pub(super) fn execute_ccs_invocation(
-    invocation: &CompactRowInvocation,
-    templates: &[CompactRowTemplate],
-    assignment: &mut [Goldilocks],
-) -> Result<(), PackageError> {
-    if invocation.template_index < super::plan::COMBINATION_TEMPLATE_COUNT {
-        // CanonicalDirectPhysicalExecution.execute_agree proves that these
-        // local rows cannot change the retained assignment or public digest.
-        write_output(invocation, &templates[invocation.template_index], assignment);
-        Ok(())
-    } else {
-        execute_invocation(invocation, templates, assignment)
-    }
-}
-
-fn write_output(invocation: &CompactRowInvocation, template: &CompactRowTemplate, assignment: &mut [Goldilocks]) {
-    assignment[invocation.output_column] = template
-        .output_recipe
-        .eval_with(&|input| assignment[invocation.input_column(input)]);
 }
 
 fn eval_combination(

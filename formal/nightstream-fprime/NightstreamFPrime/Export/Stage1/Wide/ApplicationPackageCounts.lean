@@ -12,71 +12,20 @@ open Lifecycle.Stage1
 
 abbrev application := Poseidon2HashChainV1Package.application
 
-private theorem privateCount_eq (program : ApplicationPackage.Program) (rowStart : Nat) :
-    (ApplicationPackage.plan program rowStart).privateCount =
-      localLength (Stage1.ApplicationPackage.operations program (ApplicationPackage.columns program)
-        (Layout.Stage1.Wide.SourceOrder.privateColumns + program.witnessWordCount)) +
-      R1CS.totalFreshCount (Stage1.ApplicationPackage.constraints program (ApplicationPackage.columns program)
-        (Layout.Stage1.Wide.SourceOrder.privateColumns + program.witnessWordCount)) := rfl
-
-private theorem rowCount_eq (program : ApplicationPackage.Program) (rowStart : Nat) :
-    (ApplicationPackage.plan program rowStart).rowCount =
-      (Stage1.ApplicationPackage.compiledRows program (ApplicationPackage.columns program)
-        (Layout.Stage1.Wide.SourceOrder.privateColumns + program.witnessWordCount) rowStart).length := rfl
-
-private theorem affine (start : Nat) :
-    Layout.Poseidon2.HashInterfaceAffine
-      (Poseidon2HashChainV1.hashInterface (ApplicationPackage.columns application).interface) start := by
-  constructor
-  · intro expression member
-    simp only [Poseidon2HashChainV1.hashInterface, Poseidon2HashChainV1.inputExpressions,
-      List.mem_append] at member
-    rcases member with (tagMember | inputMember) | witnessMember
-    · rcases List.mem_map.mp tagMember with ⟨value, _, rfl⟩
-      exact R1CS.isAffine_const _
-    · rw [List.mem_ofFn'] at inputMember
-      rcases inputMember with ⟨index, rfl⟩
-      exact R1CS.isAffine_var _
-    · rw [List.mem_ofFn'] at witnessMember
-      rcases witnessMember with ⟨index, rfl⟩
-      exact R1CS.isAffine_var _
-  · intro lane
-    exact R1CS.isAffine_var _
-
-theorem plan_privateCount (rowStart : Nat) :
-    (ApplicationPackage.plan application rowStart).privateCount = 7696 := by
-  rw [privateCount_eq]
-  have locals := Poseidon2HashChainV1.program_localLength
-    (ApplicationPackage.columns application).interface
-    (Layout.Stage1.Wide.SourceOrder.privateColumns + application.witnessWordCount)
-  have fresh := Layout.Poseidon2.hashConstraints_freshCount _ _
-    (affine (Layout.Stage1.Wide.SourceOrder.privateColumns + application.witnessWordCount))
-  change _ = 7696 at locals
-  change R1CS.totalFreshCount (Stage1.ApplicationPackage.constraints application
-    (ApplicationPackage.columns application) _) = 0 at fresh
-  rw [fresh, Nat.add_zero]
-  exact locals
-
-theorem plan_rowCount (rowStart : Nat) :
-    (ApplicationPackage.plan application rowStart).rowCount = 7700 := by
-  rw [rowCount_eq]
-  unfold Stage1.ApplicationPackage.compiledRows
-  rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq, R1CS.lowerConstraints_rows_length]
-  change R1CS.totalRowCount (Layout.Poseidon2.hashConstraints
-    (Poseidon2HashChainV1.hashInterface (ApplicationPackage.columns application).interface) _) = _
-  rw [Layout.Poseidon2.hashConstraints_rowCount _ _ (affine _)]
-  change (Gadgets.Poseidon2.Hash.inputChunks (Poseidon2HashChainV1.inputExpressions
-    (ApplicationPackage.columns application).interface _)).length * 592 + 596 = 7700
-  rw [Poseidon2HashChainV1.inputChunks_length]
-
 theorem plan_counts (rowStart : Nat) :
     (ApplicationPackage.plan application rowStart).privateCount =
       (PerApplicationPackage.applicationPlan application).privateCount ∧
     (ApplicationPackage.plan application rowStart).rowCount =
-      (PerApplicationPackage.applicationPlan application).rowCount := by
-  rw [plan_privateCount, plan_rowCount, Poseidon2HashChainV1Package.applicationPlan_privateCount,
-    Poseidon2HashChainV1Package.applicationPlan_rowCount]
-  exact ⟨rfl, rfl⟩
+      (PerApplicationPackage.applicationPlan application).rowCount :=
+  ApplicationRelocation.plan_counts application rowStart
+
+theorem plan_privateCount (rowStart : Nat) :
+    (ApplicationPackage.plan application rowStart).privateCount = 7696 :=
+  (plan_counts rowStart).1.trans Poseidon2HashChainV1Package.applicationPlan_privateCount
+
+theorem plan_rowCount (rowStart : Nat) :
+    (ApplicationPackage.plan application rowStart).rowCount = 7700 :=
+  (plan_counts rowStart).2.trans Poseidon2HashChainV1Package.applicationPlan_rowCount
 
 private theorem bind_ok {α β : Type} (input : Except String α) (next : α → Except String β) (output : β) :
     (input >>= next) = .ok output ↔ ∃ value, input = .ok value ∧ next value = .ok output := by

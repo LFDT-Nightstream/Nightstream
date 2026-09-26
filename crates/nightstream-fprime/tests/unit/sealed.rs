@@ -265,7 +265,7 @@ fn application_plan_rejects_assertion_not_immediately_before_next_preimage() {
 #[test]
 fn terminal_layout_retains_the_exact_outer_relation_shape() {
     let raw = json!([1, [0, 17, 16, 1]]);
-    let layout = super::super::validate_terminal(raw.as_array().expect("terminal option"), 8, 17)
+    let layout = super::super::validate_terminal(raw.as_array().expect("terminal option"), 17)
         .expect("valid terminal option")
         .expect("present terminal layout");
     assert_eq!(layout.row_start(), 0);
@@ -280,7 +280,7 @@ fn terminal_layout_rejects_each_changed_authoritative_field() {
         let mut raw = json!([1, [0, 17, 16, 1]]);
         raw[1][index] = json!(raw[1][index].as_u64().expect("terminal word") + 1);
         assert!(matches!(
-            super::super::validate_terminal(raw.as_array().expect("terminal option"), 8, 17),
+            super::super::validate_terminal(raw.as_array().expect("terminal option"), 17),
             Err(PackageError::Invalid("pilot terminal option"))
         ));
     }

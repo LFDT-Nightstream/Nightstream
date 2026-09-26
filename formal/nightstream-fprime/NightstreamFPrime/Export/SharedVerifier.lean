@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-! Export typed ownership and relocation fields for the wide shared verifier.
 The pinned package supplies the rows and recipes. The manifest preserves its
-shared children when an ordinary application replaces the compact reference. -/
+shared children when an application replaces the reference. -/
 
 namespace NightstreamFPrime.Export.SharedVerifier
 
@@ -16,9 +16,7 @@ open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-private abbrev selectedApplication := Poseidon2HashChainV1Package.application
-private def referenceApplication : Lifecycle.Stage1.Application.Program :=
-  { selectedApplication with compactHashChain := none }
+private abbrev referenceApplication := Poseidon2HashChainV1Package.application
 private abbrev Kind := PerApplicationProductionPlan.BlockKind
 
 private def dimension (constant : Nat) (witness localWords rows : Nat := 0) : Lean.Json :=
@@ -103,13 +101,11 @@ private def childProgram (compiled : PiRlcWideSampler.RangePlan.Compiled)
 
 private structure ChildPrograms where
   kind : Kind
-  ordinary : Program
-  selected : Program
+  program : Program
 
 private def children (compiled : PiRlcWideSampler.RangePlan.Compiled) : Except String (List ChildPrograms) :=
   PerApplicationProductionPlan.canonicalKinds.mapM fun kind => do
-    return ⟨kind, ← childProgram compiled referenceApplication kind,
-      ← childProgram compiled selectedApplication kind⟩
+    return ⟨kind, ← childProgram compiled referenceApplication kind⟩
 
 private def port (name role : String) (count sourceStart retainedStart : Lean.Json)
     (slotKind : Nat := 2) : Lean.Json :=
@@ -126,10 +122,10 @@ private def ports (_ : Unit) : Except String Lean.Json := do
   return Lean.toJson [
     port "state_input" "private_input" (dimension Lifecycle.Stage1.Application.stateWordCount)
       (dimension (Layout.Stage1.ApplicationInputs.inputColumn ⟨0, by decide⟩))
-      (dimension (← retained (ApplicationRetainedGeometry.inputStart referenceApplication))),
+      (dimension (← retained (ApplicationOrdinaryGeometry.inputStart referenceApplication))),
     port "state_output" "private_output" (dimension Lifecycle.Stage1.Application.stateWordCount)
       (dimension (Layout.Stage1.ApplicationInputs.outputColumn ⟨0, by decide⟩))
-      (dimension (← retained (ApplicationRetainedGeometry.outputStart referenceApplication))),
+      (dimension (← retained (ApplicationOrdinaryGeometry.outputStart referenceApplication))),
     port "application_witness" "private_input" (dimension 0 1)
       (dimension privateStart) (dimension (sharedRetainedWidth ())),
     port "application_local" "private_witness" (dimension 0 0 1)
@@ -162,7 +158,7 @@ private def recursivePublic : Lean.Json :=
 
 private def geometry (context : SourceContext) (programs : List ChildPrograms) : Lean.Json :=
   let sharedRows := (programs.filter (·.kind != .application)).foldl
-    (fun total child => total + child.ordinary.rowCount) 0
+    (fun total child => total + child.program.rowCount) 0
   Lean.Json.mkObj [
     ("source_rows", dimension (context.prefixRows + 5) 0 0 1),
     ("source_private", dimension Layout.Stage1.Wide.SourceOrder.privateColumns 1 1),
@@ -189,13 +185,6 @@ private def Relocation.json (relocation : Relocation) (blockStart : Nat := 0) : 
     | block :: rest => (blockStart + block) :: rest
     | [] => []
   Lean.Json.mkObj [("path", Lean.toJson path), ("value", relocation.value)]
-
-private def atomAt : Codec.Value → List Nat → Except String Nat
-  | .atom value, [] => .ok value
-  | .array values, index :: rest => do
-      let some value := values[index]? | throw "matrix relocation index is out of range"
-      atomAt value rest
-  | _, _ => .error "matrix relocation does not select an atom"
 
 /-- Only columns in the wide sampler tail move with the application slots. -/
 private def tailColumn (context : SourceContext) (path : List Nat) (column : Nat) : List Relocation :=
@@ -298,24 +287,21 @@ private structure Metadata where
   children : List Lean.Json
   shared : List Lean.Json
   application : List Lean.Json
-  selectedChanges : List Lean.Json
 
 private def childMetadata (context : SourceContext) (programs : List ChildPrograms) : Except String Metadata := do
   let mut blockStart := 0
   let mut fixedRowStart := 0
   let mut afterApplication := false
-  let mut result : Metadata := ⟨[], [], [], []⟩
+  let mut result : Metadata := ⟨[], [], []⟩
   for child in programs do
     let application := child.kind == .application
     result := { result with children := Lean.Json.mkObj [
       ("id", .str (kindName child.kind)), ("opcode", jsonNat (kindOpcode child.kind)),
-      ("block_start", jsonNat blockStart), ("block_count", jsonNat child.ordinary.blocks.length),
+      ("block_start", jsonNat blockStart), ("block_count", jsonNat child.program.blocks.length),
       ("row_start", dimension fixedRowStart 0 0 (if afterApplication then 1 else 0)),
-      ("row_count", if application then dimension 0 0 0 1 else dimension child.ordinary.rowCount),
+      ("row_count", if application then dimension 0 0 0 1 else dimension child.program.rowCount),
       ("replaceable", Lean.toJson application)] :: result.children }
-    let ordinary := Program.format.encode child.ordinary
-    let selected := Program.format.encode child.selected
-    for (block, index) in child.ordinary.blocks.zipIdx do
+    for (block, index) in child.program.blocks.zipIdx do
       let relocations ← blockRelocations context child.kind [index] block
       if application then
         result := { result with application :=
@@ -323,21 +309,11 @@ private def childMetadata (context : SourceContext) (programs : List ChildProgra
       else
         result := { result with shared :=
           (relocations.foldl (fun accumulated relocation => relocation.json blockStart :: accumulated) result.shared) }
-        for relocation in relocations do
-          let before ← atomAt selected relocation.path
-          let after ← atomAt ordinary relocation.path
-          if before != after then
-            let path := match relocation.path with
-              | localBlock :: rest => (blockStart + localBlock) :: rest
-              | [] => []
-            result := { result with selectedChanges := Lean.Json.mkObj [
-              ("path", Lean.toJson path), ("selected", jsonNat before), ("ordinary", jsonNat after)] ::
-              result.selectedChanges }
-    blockStart := blockStart + child.ordinary.blocks.length
+    blockStart := blockStart + child.program.blocks.length
     if application then afterApplication := true
-    else fixedRowStart := fixedRowStart + child.ordinary.rowCount
+    else fixedRowStart := fixedRowStart + child.program.rowCount
   return ⟨result.children.reverse, result.shared.reverse,
-    result.application.reverse, result.selectedChanges.reverse⟩
+    result.application.reverse⟩
 
 private def runJson (first count : Lean.Json) (step : Nat) : Lean.Json :=
   Lean.Json.mkObj [("first", first), ("step", jsonNat step), ("count", count)]
@@ -406,28 +382,21 @@ private def contracts : List String := [
   "NightstreamFPrime.Export.Stage1.Wide.PackageCompleteness.complete"]
 
 private def manifestValue (context : SourceContext) (programs : List ChildPrograms)
-    (metadata : Metadata) (transport : Wide.AssignmentTransport.Plan)
-    (selectedLocal : Wide.AssignmentTransport.Values) : Except String Lean.Json := do
+    (metadata : Metadata) (transport : Wide.AssignmentTransport.Plan) : Except String Lean.Json := do
   let some application := programs.find? (·.kind == .application) | throw "missing application child"
   let profile := [goldilocksModulus, productionGlobalParams.b, productionGlobalParams.k,
     productionGlobalParams.bigB, ringDegree, Lifecycle.cubeVariables,
     Spec.ProductionRelation.matrixCount, Spec.ProductionRelation.meaningfulPortCount]
   return Lean.Json.mkObj [
-    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 2),
+    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 3),
     ("id", .str "shared-recursive-verifier-v1"), ("profile", Lean.toJson profile),
     ("dependencies", strings ["poseidon2-permutation-v1", "poseidon2-external-v1", "phi81-product-v1"]),
     ("parameters", strings ["witness_words", "local_words", "application_rows"]),
     ("reference", Lean.toJson (referenceCounts ())),
-    ("selected_reference", Lean.Json.mkObj [
-      ("logical_rows", jsonNat (programs.foldl (fun total child => total + child.selected.rowCount) 0)),
-      ("logical_width", jsonNat (Wide.RetainedLayout.logicalWidth selectedApplication)),
-      ("application_matrix", valueJson (Program.format.encode application.selected)),
-      ("application_local_index", jsonNat applicationLocalIndex),
-      ("application_local", valueJson selectedLocal.encode),
-      ("matrix_relocations", Lean.toJson metadata.selectedChanges)]),
+    ("application_local_index", jsonNat applicationLocalIndex),
     ("geometry", geometry context programs), ("ports", ← ports ()), ("recursive_public", recursivePublic),
     ("children", Lean.toJson metadata.children), ("matrix_relocations", Lean.toJson metadata.shared),
-    ("application_matrix_template", valueJson (Program.format.encode application.ordinary)),
+    ("application_matrix_template", valueJson (Program.format.encode application.program)),
     ("application_matrix_relocations", Lean.toJson metadata.application),
     ("assignment_blocks", Lean.toJson ((transport.blocks.zipIdx).map fun (block, index) => assignmentBlock context index block)),
     ("phi81_value_sources", Lean.toJson (transport.valueSources.flatMap (sourceRun context))),
@@ -438,7 +407,7 @@ private def manifestValue (context : SourceContext) (programs : List ChildProgra
     ("terminal", Lean.Json.mkObj [("running_claims", jsonNat productionShape.runningCount),
       ("fresh_claims", jsonNat productionShape.freshCount), ("all_final_rows", Lean.toJson true)]),
     ("contracts", strings contracts),
-    ("proof_scope", .str "The wide owners prove the selected Lean application and its exact prepared archive. The ordinary connector uses Lean Application.Program and the stated encoding hypotheses. This manifest does not prove Rust application semantics, relocation, or assembly.")]
+    ("proof_scope", .str "The wide owners prove the selected Lean application and its exact prepared archive. The application connector uses Lean Application.Program and the stated encoding hypotheses. This manifest does not prove Rust application semantics, relocation, or assembly.")]
 
 def value (_ : Unit) : Except String Lean.Json := do
   let some compiled := PiRlcWideSampler.RangePlan.compile? | throw "wide range compilation failed"
@@ -446,8 +415,7 @@ def value (_ : Unit) : Except String Lean.Json := do
   let programs ← children compiled
   let metadata ← childMetadata context programs
   let transport ← Wide.AssignmentTransport.plan referenceApplication context.total
-  let selectedLocal ← Wide.AssignmentTransport.commonBlock selectedApplication .applicationLocal
-  manifestValue context programs metadata transport selectedLocal
+  manifestValue context programs metadata transport
 
 private def progress (message : String) : IO Unit := do
   IO.println s!"wide shared verifier: {message}"
@@ -467,11 +435,9 @@ private def prepareChildren (compiled : PiRlcWideSampler.RangePlan.Compiled) : I
   let mut tasks : Array (Task (Except IO.Error ChildPrograms)) := #[]
   for kind in PerApplicationProductionPlan.canonicalKinds do
     tasks := tasks.push (← IO.asTask do
-      let ordinary ← timed s!"child {kindName kind} ordinary" fun _ =>
+      let program ← timed s!"child {kindName kind}" fun _ =>
         childProgram compiled referenceApplication kind
-      let selected ← timed s!"child {kindName kind} selected" fun _ =>
-        childProgram compiled selectedApplication kind
-      return ⟨kind, ordinary, selected⟩)
+      return ⟨kind, program⟩)
   let mut programs := []
   for task in tasks do
     match ← IO.wait task with
@@ -493,9 +459,7 @@ def prepare : IO Lean.Json := do
   let metadata ← timed "child metadata" fun _ => childMetadata context programs
   let transport ← timed "assignment transport" fun _ =>
     Wide.AssignmentTransport.plan referenceApplication context.total
-  let selectedLocal ← timed "selected application transport" fun _ =>
-    Wide.AssignmentTransport.commonBlock selectedApplication .applicationLocal
-  timed "manifest assembly" fun _ => manifestValue context programs metadata transport selectedLocal
+  timed "manifest assembly" fun _ => manifestValue context programs metadata transport
 
 def write (path : System.FilePath) : IO Unit := do
   let manifest ← prepare

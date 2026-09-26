@@ -74,7 +74,34 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     // Change one application coordinate to another signed unit. The old
     // commitment no longer opens, and a recomputed commitment opens to a
     // witness that violates the CCS rows.
-    let column = circuit.compiled.package.application().private_range().start;
+    let application = &circuit.compiled.application;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
+    let local = manifest["ports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|port| port["name"] == "application_local")
+        .unwrap();
+    let counts = [
+        1,
+        application.private_input_count(),
+        application.generated_range().len(),
+        application.row_count(),
+    ];
+    let retained_start: usize = local["retained_start"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(counts)
+        .map(|(coefficient, count)| coefficient.as_u64().unwrap() as usize * count)
+        .sum();
+    let retained_end = retained_start
+        + application.generated_range().len() * manifest["geometry"]["field_slot_width"].as_u64().unwrap() as usize;
+    let column = retained_start;
+    assert!((retained_start..retained_end).contains(&column));
+    assert!(retained_end <= circuit.compiled.package.logical_column_count());
+    assert_ne!(column, circuit.compiled.package.application().private_range().start);
     let (lane, block) = (column % D, column / D);
     let mut witness = fresh.clone();
     let value = witness.witness.Z[(lane, block)];

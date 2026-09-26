@@ -185,7 +185,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
-      (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
+      (ApplicationOrdinaryGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
       assignment base groupValue products)
     (input : Input KeyDigest AppState AppWitness

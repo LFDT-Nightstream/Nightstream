@@ -19,7 +19,7 @@ fn sealed_artifact_bytes() -> Vec<u8> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
     )
-    .expect("run formal/nightstream-fprime/scripts/validate.sh emit-poseidon2-hash-chain-v1 first")
+    .expect("run formal/nightstream-fprime/scripts/validate.sh emit first")
 }
 
 fn pi_ccs_parity_bytes() -> Vec<u8> {

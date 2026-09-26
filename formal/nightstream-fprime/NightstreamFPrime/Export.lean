@@ -100,7 +100,7 @@ import NightstreamFPrime.Export.Stage1.AccumulatorPackage
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
-import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
+import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryGeometry
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 import NightstreamFPrime.Export.Stage1.ApplicationOrdinaryMatrixSubstitution

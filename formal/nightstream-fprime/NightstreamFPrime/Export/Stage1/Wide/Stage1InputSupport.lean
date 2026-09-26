@@ -10,7 +10,7 @@ theorem inputsBefore (program : RetainedLayout.Program) :
     PiRLCWitness.InputsBefore (Stage1Plan.piRlcInterface program) := by
   refine ⟨⟨?_, ?_⟩, ?_⟩
   · exact common_before program
-      (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program))
+      (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program))
       (Or.inl (by
         rw [(RetainedLayout.boundaries program).1]
         change 0 < 113904174

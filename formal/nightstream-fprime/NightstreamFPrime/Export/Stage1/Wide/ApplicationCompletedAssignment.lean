@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Wide.SourceAssignment
-import NightstreamFPrime.Export.Stage1.ApplicationCompactWitness
+import NightstreamFPrime.Export.Stage1.ApplicationWitness
 
-/-! Construct the three application permutations, then preserve their retained
+/-! Construct the complete application witness, then preserve its retained
 values while direct PiRLC fills its own block. The four advice words are exact. -/
 
 namespace NightstreamFPrime.Export.Stage1.Wide.ApplicationCompletedAssignment
@@ -10,8 +10,8 @@ open NightstreamFPrime.Circuit NightstreamFPrime.Spec NightstreamFPrime.Layout
 open Poseidon2HashChainV1Package (application fits)
 
 def suffix (env : Env) (message : Fin 4 → F) :=
-  ApplicationCompactWitness.privateSuffix
-    (ApplicationCompactWitness.priorValues (SourceAssignment.targetEnv env)) message
+  ApplicationWitness.privateSuffix
+    (SourceAssignment.targetEnv env) message
 
 private theorem source (env : Env) (column : Nat) (before : column < SourceAssignment.prefixEnd) :
     SourceAssignment.targetEnv env (Layout.Stage1.Spartan.sourceToSpartan column) = env column := by
@@ -27,7 +27,7 @@ theorem rowsZero (env : Env) (message : Fin 4 → F)
     (Stage1Plan.application application fits.package).RowsZero
       (SourceAssignment.assignment application env (suffix env message)) := by
   have inputValues (lane : Fin 4) :
-      ApplicationCompactWitness.priorValues (SourceAssignment.targetEnv env) lane =
+      ApplicationWitness.priorValues (SourceAssignment.targetEnv env) lane =
         env (Layout.Stage1.ApplicationInputs.inputSourceColumn lane) := by
     apply source
     have bound : lane.val < 4 := lane.isLt
@@ -43,7 +43,7 @@ theorem rowsZero (env : Env) (message : Fin 4 → F)
   apply (AssignmentProjection.copied_rowsZero_iff application
     (SourceAssignment.raw application env (suffix env message)).assignment
     _ (ReadSupport.application application fits.package _) _).mpr
-  apply ApplicationCompactWitness.complete_of_base (SourceAssignment.targetEnv env) message
+  apply ApplicationWitness.complete_of_base (SourceAssignment.targetEnv env) message
     (SourceAssignment.raw application env (suffix env message)) rfl
   exact (congrArg List.ofFn (funext outputValues)).trans
     (step.trans (congrArg (fun values => application.step values (List.ofFn message))
@@ -54,6 +54,6 @@ theorem advice (env : Env) (message : Fin 4 → F) :
       (Layout.Stage1.ApplicationInputs.localStart application)
       (ProductionRelation.SourceCompiler.sourceEnv (SourceAssignment.raw application env (suffix env message)).base) =
         List.ofFn message :=
-  ApplicationCompactWitness.witnessValue (SourceAssignment.targetEnv env) message
+  ApplicationWitness.witnessValue (SourceAssignment.targetEnv env) message
 
 end NightstreamFPrime.Export.Stage1.Wide.ApplicationCompletedAssignment

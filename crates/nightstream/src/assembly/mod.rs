@@ -75,17 +75,6 @@ fn assemble(
     let counts = Counts::of(application);
     manifest.check_dimensions(counts)?;
     let actual = application::plan(application, manifest)?;
-    // Exact rows, recipes, ports and counts identify the already proved
-    // specialization. The independent reference check in prepare still applies.
-    // The row-count guard keeps other applications from being materialized.
-    if application.row_count() == reference.application.rows.len()
-        && application::materialized_plan(application, manifest)? == reference.application
-    {
-        source::strip_application(&mut reference, manifest)?;
-        reference.application = actual;
-        return Ok(serde_json::to_value(reference)?);
-    }
-    connect::ordinary_reference(&mut reference, manifest)?;
     connect::matrix(&mut reference, manifest, counts)?;
     connect::assignment(&mut reference, manifest, counts)?;
     source::replace_application(&mut reference, actual, manifest, counts)?;

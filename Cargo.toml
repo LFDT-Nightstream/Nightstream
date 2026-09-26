@@ -10,10 +10,8 @@ members = [
   "crates/neo-reductions",
   "crates/neo-prover-cuda",
   "crates/neo-prover-metal",
-  "crates/neo-fold-legacy",
   "crates/nightstream-fprime",
   "crates/nightstream",
-  "crates/neo-wasm",
 ]
 exclude = [
   "external/Spartan2",

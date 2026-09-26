@@ -179,19 +179,19 @@ theorem piCcsEndpointProgram_plan_row?
 
 def recursivePublicOutput
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth) :
     Pin.Block :=
   Pin.Block.ofSemantic (RecursivePublicOutputPlan.interface geometry)
 
 @[simp] theorem recursivePublicOutput_rowCount
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth) :
     (recursivePublicOutput geometry).rowCount = 4 := by
   simp [recursivePublicOutput, RecursivePublicOutputPlan.rowCount]
 
 theorem recursivePublicOutput_row?
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth)
     (row : Fin RecursivePublicOutputPlan.rowCount) :
     (recursivePublicOutput geometry).row? logicalWidth row.val =
       some (Layout.ProductionRelation.PinFamilyPlan.forms
@@ -200,13 +200,13 @@ theorem recursivePublicOutput_row?
 
 def recursivePublicOutputProgram
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program where
   blocks := [.pin (recursivePublicOutput geometry)]
 
 @[simp] theorem recursivePublicOutputProgram_rowCount
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth) :
     (recursivePublicOutputProgram geometry).rowCount = 4 := by
   rw [show recursivePublicOutputProgram geometry = MatrixProgram.Program.mk
       [.pin (recursivePublicOutput geometry)] by rfl]
@@ -215,7 +215,7 @@ def recursivePublicOutputProgram
 
 theorem recursivePublicOutputProgram_row?
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option Layout.R1CS.Row)
     (row : Fin RecursivePublicOutputPlan.rowCount) :
     (recursivePublicOutputProgram geometry).row?
@@ -238,7 +238,7 @@ theorem recursivePublicOutputProgram_row?
 
 theorem recursivePublicOutputProgram_plan_row?
     {program : Program} {logicalWidth : Nat}
-    (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
+    (geometry : ApplicationOrdinaryGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option Layout.R1CS.Row)
     (row : Fin (RecursivePublicOutputPlan.plan geometry).rowCount) :
     (recursivePublicOutputProgram geometry).row?

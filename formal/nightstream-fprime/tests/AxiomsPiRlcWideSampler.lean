@@ -1026,7 +1026,7 @@ footprint (V3-V5). -/
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.ReadSupport.copied_plan
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.copied_form
 #audit_axioms NightstreamFPrime.Export.Stage1.Wide.AssignmentProjection.copied_rowsZero_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationCompactWitness.complete_of_base
+#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationWitness.complete_of_base
 #audit_axioms NightstreamFPrime.Export.Stage1.NextPreimageCompleteness.rowsZero_of_base
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment.assignment_norm_prefix
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment.assignment_norm_suffix

@@ -50,7 +50,7 @@ example (program : RetainedLayout.Program)
 theorem constant_stays_zero (program : RetainedLayout.Program) :
     (Stage1Plan.piRlcInterface program).oneColumn.val = 0 := by
   exact RetainedLayout.column_of_some program
-    (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program))
+    (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program))
     (ReadSupport.one program _ rfl) 0 (RetainedLayout.publicColumn program 0 (by decide))
 
 end NightstreamFPrimeTests.WideRetainedSupport

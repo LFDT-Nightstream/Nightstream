@@ -40,7 +40,7 @@ abbrev selectedPlan : ProductionRelation.Plan PiDECInputCheck.logicalWidth :=
   PerApplicationFixedPoint.structuralPlan Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits
 
-private theorem width_eq : PiDECInputCheck.logicalWidth = 149292999 :=
+private theorem width_eq : PiDECInputCheck.logicalWidth = 149597957 :=
   Poseidon2HashChainV1Package.logicalWidth
 
 attribute [local irreducible] PerApplicationFixedPoint.logicalWidth PiDECInputCheck.relation
@@ -53,7 +53,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {columns relationW
     Phi81CarrierLayout.carrierWidth relationWidth}
   (relation : ProductionKey.LogicalRelation relationWidth publicFits)
   (fits : PerApplicationPackage.FitsTwoPow28 application)
-  (geometry : ApplicationRetainedGeometry.Geometry application columns)
+  (geometry : ApplicationOrdinaryGeometry.Geometry application columns)
 
 /-- A structural index through the existing append tree. This is used only
 to prove the selected packet's global position and exact matrix images. -/
@@ -238,7 +238,7 @@ def entry (matrix : Fin productionShape.matrixCount)
     (column : Fin carrier.carrierWidth) : Result F :=
   let forms := PiDECCommitmentMatrixWork.commitmentForms row
   let selected := selectPort forms.value matrix
-  let result := CoefficientWork.coefficient (logicalWidth := 149292999)
+  let result := CoefficientWork.coefficient (logicalWidth := 149597957)
     (width_eq ▸ selected.value) coefficient
     (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)
   ⟨result.value, forms.work + selected.work + result.work + 8⟩
@@ -253,7 +253,7 @@ theorem entry_value (matrix : Fin productionShape.matrixCount)
     (entry matrix coefficient row column).value =
       (Lifecycle.PiRLC.v1_1.InputBinding.relationSource PiDECInputCheck.relation).matrixSource.coefficientMatrix
         baseOps matrix coefficient (selectedPlan.rowLayout.toVertex (globalRow row)) column := by
-  change (CoefficientWork.coefficient (logicalWidth := 149292999)
+  change (CoefficientWork.coefficient (logicalWidth := 149597957)
     (width_eq ▸ (selectPort (PiDECCommitmentMatrixWork.commitmentForms row).value matrix).value)
     coefficient (congrArg Phi81CarrierLayout.carrierWidth width_eq ▸ column)).value = _
   rw [coefficient_cast]

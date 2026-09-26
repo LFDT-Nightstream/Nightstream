@@ -138,13 +138,22 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     _ = Spec.Poseidon2.hash (Hash.evalList env (interface.input offset)) :=
       computed
 
-theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+/-- Execute the circuit's canonical recipes without changing caller inputs. -/
+def witness (interface : Interface) (env : Env) (offset : Nat) : Env :=
+  executeRecipes env offset (Hash.compile offset (interface.input offset)).recipes
+
+theorem witness_agreesOutside (interface : Interface) (env : Env) (offset : Nat) :
+    AgreesOutside env (witness interface env offset) offset
+      (localLength (Circuit.ops (main interface) offset)) := by
+  simpa only [witness, main_ops, opsAt_localLength] using
+    executeRecipes_agreesOutside env offset (Hash.compile offset (interface.input offset)).recipes
+
+theorem witness_complete (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
-    ∃ completed,
-      AgreesOutside env completed offset
+    AgreesOutside env (witness interface env offset) offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
+      holdsFlat (witness interface env offset) (Circuit.ops (main interface) offset) := by
   let program := Hash.compile offset (interface.input offset)
   let completed := executeRecipes env offset program.recipes
   have causal : RecipesCausal offset program.recipes :=
@@ -192,8 +201,8 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     fin_cases lane <;>
       simpa [Hash.digestE, Hash.digestF, Layer.evalState, List.ofFn_succ] using
         selected
-  refine ⟨completed, ?_, ?_⟩
-  · simpa [main_ops, opsAt_localLength, program, completed] using
+  refine ⟨?_, ?_⟩
+  · simpa [witness, main_ops, opsAt_localLength, program, completed] using
       executeRecipes_agreesOutside env offset program.recipes
   · change ConstraintsHold completed
       (flatConstraints (opsAt interface offset))
@@ -211,6 +220,15 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
         interface.expected offset lane).eval completed = 0
       simp only [Expr.eval_sub]
       exact sub_eq_zero.mpr (digestEquation lane)
+
+theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (main interface) offset)) ∧
+      holdsFlat completed (Circuit.ops (main interface) offset) := by
+  exact ⟨witness interface env offset, witness_complete interface env offset assumptions specification⟩
 
 /-- The only proof-carrying Poseidon2 hash circuit exported to parents. -/
 def circuit (interface : Interface) : FormalCircuit where

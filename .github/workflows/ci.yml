@@ -72,6 +72,15 @@ jobs:
     - name: Run matrix row tests
       run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
 
+    - name: Run wide sampler parity tests
+      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test pi_rlc_wide_lean_parity
+
+    - name: Run matrix program tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib matrix_program
+
+    - name: Run retained assignment transport tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib assignment_transport
+
     - name: Run application record and recipe stack tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
 

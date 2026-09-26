@@ -48,8 +48,7 @@ theorem completeLogicalWidth_eq_applicationCounts
     completeLogicalWidth application =
       149282257 +
         (application.witnessWordCount + localCount application) * 41 := by
-  rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
-    retainedSlotCount_eq]
+  rw [completeLogicalWidth_eq, retainedCoordinateCount_eq]
 
 /-- Exact retained-word budget for one application in the owner-selected
 `2^28` carrier. -/

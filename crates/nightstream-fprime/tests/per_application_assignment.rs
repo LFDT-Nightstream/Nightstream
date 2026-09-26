@@ -308,25 +308,13 @@ fn output_digest_recipe_mutation_fails_the_original_logical_relation() {
 }
 
 #[test]
-#[ignore = "complete direct/full assignment comparison; run explicitly under the 300-second cap"]
-fn direct_ccs_assignment_matches_full_physical_assignment() {
+#[ignore = "complete assignment input rejection; run explicitly under the 300-second cap"]
+fn ccs_assignment_rejects_invalid_inputs() {
     let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let package = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let binding = package.production_verifier_binding().unwrap();
     let (private_inputs, public_inputs, _, _) =
         concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
-    let physical = package
-        .execute_witness(&private_inputs, &public_inputs)
-        .unwrap();
-    let expected = package.execute_logical_assignment(&physical).unwrap();
-    drop(physical);
-    let direct = package
-        .execute_ccs_assignment(&private_inputs, &public_inputs)
-        .unwrap();
-    assert!(direct.balanced_values() == expected.balanced_values());
-    drop((direct, expected));
-
-    // Both paths retain the caller-input checks and the application assertions.
     for changed in [
         private_inputs[..private_inputs.len() - 1].to_vec(),
         {
@@ -340,19 +328,15 @@ fn direct_ccs_assignment_matches_full_physical_assignment() {
             changed
         },
     ] {
-        let full_error = package
-            .execute_witness(&changed, &public_inputs)
-            .unwrap_err();
-        let direct_error = package
+        assert!(package
             .execute_ccs_assignment(&changed, &public_inputs)
-            .unwrap_err();
-        assert_eq!(direct_error.to_string(), full_error.to_string());
+            .is_err());
     }
 }
 
 #[test]
-#[ignore = "complete package mutation and fallback execution; run explicitly under the 300-second cap"]
-fn direct_ccs_assignment_keeps_full_checks_after_a_package_mutation() {
+#[ignore = "complete package row mutation rejection; run explicitly under the 300-second cap"]
+fn ccs_assignment_checks_rows_after_a_package_mutation() {
     let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let selected = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
     let binding = selected.production_verifier_binding().unwrap();

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.Stage1.ApplicationCompactWitness
+import NightstreamFPrime.Export.Stage1.ApplicationWitness
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
@@ -88,16 +88,16 @@ private theorem complete_suffix
       rw [List.get_ofFn]
       exact List.getD_eq_getElem (l := witness) (d := 0) rightBound
   have directStep : (List.ofFn fun lane : Fin 4 => target (ApplicationInputs.outputColumn lane)) =
-      application.step (List.ofFn (ApplicationCompactWitness.priorValues target)) (List.ofFn message) := by
+      application.step (List.ofFn (ApplicationWitness.priorValues target)) (List.ofFn message) := by
     change Lifecycle.Stage1.Application.outputState (ApplicationInputs.interface application)
       (ApplicationInputs.localStart application) target = application.step
       (Lifecycle.Stage1.Application.inputState (ApplicationInputs.interface application)
         (ApplicationInputs.localStart application) target) (List.ofFn message)
     rw [inputValue, outputValue, messageEq]
     exact step
-  refine ⟨ApplicationCompactWitness.privateSuffix (ApplicationCompactWitness.priorValues target) message,
-    ApplicationCompactWitness.complete target message directStep, ?_⟩
-  exact (ApplicationCompactWitness.witnessValue target message).trans messageEq
+  refine ⟨ApplicationWitness.privateSuffix target message,
+    ApplicationWitness.complete target message directStep, ?_⟩
+  exact (ApplicationWitness.witnessValue target message).trans messageEq
 
 private theorem outputDigest_of_completed
     (target : Env)

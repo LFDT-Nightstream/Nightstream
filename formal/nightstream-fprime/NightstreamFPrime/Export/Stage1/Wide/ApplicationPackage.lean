@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Wide.PhysicalPackage
-import NightstreamFPrime.Export.Stage1.PerApplicationPackage
+import NightstreamFPrime.Export.Stage1.Wide.ApplicationRelocation
 
 /-! Extend the wide physical prefix with the same application and next-state
 binding. Only source positions change; the application circuit is unchanged. -/
@@ -11,14 +11,8 @@ open Layout.Stage1.Wide
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-def columns (program : Program) : Stage1.ApplicationPackage.Columns program.witnessWordCount where
-  input := Layout.Stage1.ApplicationInputs.inputColumn
-  output := Layout.Stage1.ApplicationInputs.outputColumn
-  witness := fun index => SourceOrder.privateColumns + index.val
-
 def plan (program : Program) (rowStart : Nat) : Stage1.ApplicationPackage.Plan :=
-  Stage1.ApplicationPackage.ofProgram program (columns program)
-    (SourceOrder.privateColumns + program.witnessWordCount) rowStart
+  ApplicationRelocation.plan program rowStart
 
 def insertApplication (count : Nat) : PhysicalRelabel.Map where
   column := fun column => .ok (if column < SourceOrder.privateColumns then column else column + count)

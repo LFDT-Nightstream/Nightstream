@@ -25,7 +25,7 @@ DEFAULT_MANIFEST = Path("FPRIME_STAGE1_REVIEW_MANIFEST.json")
 RECURSIVE_ROOTS = (
     Path("formal/nightstream-fprime"),
     Path("crates/nightstream-fprime"),
-    Path("crates/neo-fold-legacy"),
+    Path("crates/nightstream"),
     Path("crates/neo-math"),
     Path("crates/neo-params"),
     Path("crates/neo-ccs"),
@@ -34,7 +34,7 @@ RECURSIVE_ROOTS = (
     Path("crates/neo-reductions"),
     Path("crates/wip-spartan"),
     Path("decisions"),
-    Path("docs/superneo-paper-v1_1"),
+    Path("docs/superneo-paper-v1_2"),
 )
 
 EXPLICIT_FILES = (
@@ -294,7 +294,7 @@ def entry_class(relative: Path) -> str:
         return "artifact"
     if relative in OWNER_FILES or is_relative_to(relative, Path("decisions")):
         return "owner"
-    if is_relative_to(relative, Path("docs/superneo-paper-v1_1")):
+    if is_relative_to(relative, Path("docs/superneo-paper-v1_2")):
         return "paper"
     if "tests" in relative.parts:
         return "test"

@@ -187,25 +187,6 @@ struct Terminal {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct SelectedReference {
-    pub logical_rows: usize,
-    pub logical_width: usize,
-    pub application_matrix: Vec<Value>,
-    pub application_local_index: usize,
-    pub application_local: super::wire::AssignmentBlock,
-    pub matrix_relocations: Vec<SelectedRelocation>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct SelectedRelocation {
-    pub path: Vec<usize>,
-    pub selected: usize,
-    pub ordinary: usize,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct Manifest {
     format: String,
     version: usize,
@@ -214,7 +195,7 @@ pub(super) struct Manifest {
     dependencies: Vec<String>,
     parameters: Vec<String>,
     reference: [usize; 3],
-    pub selected_reference: SelectedReference,
+    pub application_local_index: usize,
     pub geometry: Geometry,
     pub ports: Vec<Port>,
     recursive_public: RecursivePublic,
@@ -433,7 +414,7 @@ impl Manifest {
             if block.opcode != index || block.slot_kind > 2 {
                 return Err(AssemblyError::Invalid("assignment block order or encoding"));
             }
-            if index == self.selected_reference.application_local_index {
+            if index == self.application_local_index {
                 if coordinates != local.retained_start.eval(counts)? || block.slot_count.eval(counts)? != counts.local {
                     return Err(AssemblyError::Invalid("application retained allocation"));
                 }
@@ -447,7 +428,7 @@ impl Manifest {
                 .checked_add(block_width)
                 .ok_or(AssemblyError::Overflow)?;
         }
-        if self.selected_reference.application_local_index >= self.assignment_blocks.len() || coordinates != width {
+        if self.application_local_index >= self.assignment_blocks.len() || coordinates != width {
             return Err(AssemblyError::Invalid("complete assignment block width"));
         }
         let mut blocks = 0usize;
@@ -470,37 +451,6 @@ impl Manifest {
     }
 
     pub fn check_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
-        let selected = &self.selected_reference;
-        let child = self.application_child();
-        let end = child
-            .block_start
-            .checked_add(selected.application_matrix.len())
-            .ok_or(AssemblyError::Overflow)?;
-        let block_count = self
-            .children
-            .iter()
-            .map(|child| child.block_count)
-            .sum::<usize>()
-            .checked_sub(child.block_count)
-            .ok_or(AssemblyError::Overflow)?
-            .checked_add(selected.application_matrix.len())
-            .ok_or(AssemblyError::Overflow)?;
-        self.check_reference_geometry(reference, selected.logical_rows, selected.logical_width, block_count)?;
-        if reference.matrix.get(child.block_start..end) != Some(selected.application_matrix.as_slice())
-            || reference
-                .assignment
-                .blocks
-                .get(selected.application_local_index)
-                != Some(&selected.application_local)
-        {
-            return Err(AssemblyError::Invalid(
-                "selected application suffix differs from manifest",
-            ));
-        }
-        Ok(())
-    }
-
-    pub fn check_ordinary_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
         self.check_reference_geometry(
             reference,
             self.geometry.logical_rows.eval(self.reference())?,

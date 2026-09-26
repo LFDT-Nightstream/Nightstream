@@ -25,7 +25,7 @@ private theorem block_valid {program : RetainedLayout.Program} (raw : RawValues 
       CanonicalBlockAssignment.ofBlock, RunningTransitionReducedRetainedBlocks.flagBlock] using flag
   case applicationLocal =>
     simp only [BlockKind.expand, BlockKind.template, Canonical.ofBlock,
-      CanonicalBlockAssignment.ofBlock, ApplicationSelectedBlocks.localBlock_kind]
+      CanonicalBlockAssignment.ofBlock, ApplicationRetainedBlocks.localBlock_kind]
     trivial
   all_goals trivial
 

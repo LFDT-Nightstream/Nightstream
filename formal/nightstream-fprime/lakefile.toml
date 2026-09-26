@@ -37,23 +37,8 @@ root = "NightstreamFPrime.Export.EmitSharedFormulas"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
-name = "emitApplicationMatrixCost"
-root = "tests.MeasureCompactApplication"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
 name = "emitSharedVerifier"
 root = "NightstreamFPrime.Export.EmitSharedVerifier"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
-name = "emitPerApplicationReferenceFixture"
-root = "tests.PerApplicationReferenceMain"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
-
-[[lean_exe]]
-name = "emitPerApplicationStreamedFixture"
-root = "tests.PerApplicationStreamedMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

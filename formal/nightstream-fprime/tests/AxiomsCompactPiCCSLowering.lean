@@ -1,11 +1,8 @@
+import NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness
 import NightstreamFPrime.Layout.SumCheck.CompactChain
 import NightstreamFPrime.Layout.PiCCS.v1_1.GammaPowers
-import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Prefix
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Support.GammaPowers
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.WitnessSupport
-import NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompactWitness
-import NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness
-import NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixRows
 import tests.AxiomAudit
 
 /-! Kernel and cost gates for the compact PiCCS lowering batch. -/
@@ -49,8 +46,6 @@ end NightstreamFPrime.Tests.CompactPiCCSLowering
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.GammaPowers.transcript_wire_costs
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.GammaPowers.local_coordinate_count
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.GammaPowers.local_savings
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Prefix.absorbBlocksFast_append
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Prefix.suffixHash_eq_step
 
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.CompactChain.compile_cons
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.circuit_ops
@@ -65,35 +60,9 @@ end NightstreamFPrime.Tests.CompactPiCCSLowering
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.GammaPowers.flatConstraints_varsSatisfy
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.GammaPowers.witnessesFromConstraints
 
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1Prefix.threePermutations_eq_step
-#audit_axioms NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompact.plan_rowCount
-#audit_axioms NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompact.private_coordinate_count
-#audit_axioms NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompact.soundness
 
-#audit_axioms NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompact.output_eq_step
-#audit_axioms NightstreamFPrime.Layout.Stage1.Poseidon2HashChainCompactWitness.complete_of_encoding
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.source_input
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.source_rows
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.output_eq_permute
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.equations
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonCompactWitness.family_member
-
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.HashChainCircuit.localLength
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.hashChain_spec_iff
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.Program.hashChain_relation_iff
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.sourceWidth_bound
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.witnessStart_bound
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.block_slotCount
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedBlock.block_coordinateCount
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedGeometry.completeLogicalWidth_eq
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonRetainedGeometry.plan_rowCount
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.input_form_eq_pilot
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.output_form_eq_pilot
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.rowsZero_implies_step
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness.complete_of_encoding
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.matrixProgram_rowCount
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.bindingBlock_row?
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.inputProgram_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.inputProgram_state?
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.poseidonBlock_row?
-#audit_axioms NightstreamFPrime.Export.Stage1.ApplicationPoseidonMatrixProgram.matrixProgram_row?

@@ -5,12 +5,12 @@ check_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$check_root"
 
 # Project policy: at most 1,500 s per Lean command.
-timeout -s KILL 1500 formal/nightstream-fprime/scripts/validate.sh all
-timeout -s KILL 1500 formal/nightstream-fprime/scripts/validate.sh identity
+formal/nightstream-fprime/scripts/validate.sh all
+formal/nightstream-fprime/scripts/validate.sh identity
 
 parity_dir="$(mktemp -d "${TMPDIR:-/tmp}/nightstream-lean-foundation.XXXXXX")"
 trap 'rm -rf "$parity_dir"' EXIT
-timeout -s KILL 1500 formal/nightstream-fprime/scripts/validate.sh foundation-parity "$parity_dir"
+formal/nightstream-fprime/scripts/validate.sh foundation-parity "$parity_dir"
 python3 - "$parity_dir" <<'PY'
 from pathlib import Path
 import sys

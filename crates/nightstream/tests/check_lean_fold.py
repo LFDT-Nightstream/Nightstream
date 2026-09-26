@@ -122,10 +122,12 @@ class Check:
         self.originals[source] = target
         return target
 
-    def phase(self, name, kind, command, cwd=ROOT):
+    def phase(self, name, kind, command, cwd=ROOT, input=None):
         cap = CAPS["lean" if kind == "lean" else "rust"]
         record = {"name": name, "kind": kind, "command": list(map(str, command)),
                   "cwd": str(cwd), "cap_seconds": cap, "outcome": "failed-to-start"}
+        if input is not None:
+            record["input"] = input
         self.records.append(record)
         log = self.output / f"{name}.log"
         started = time.monotonic()
@@ -142,10 +144,14 @@ class Check:
                 if kind == "lean":
                     environment["LEAN_TIMEOUT_SECONDS"] = str(cap)
                 process = subprocess.Popen(record["command"], cwd=cwd, env=environment,
-                                           stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+                                           stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
+                                           stdin=subprocess.PIPE if input is not None else None)
                 for signum in (signal.SIGINT, signal.SIGTERM):
                     handlers[signum] = signal.signal(signum, interrupted)
                 try:
+                    if input is not None:
+                        process.stdin.write(json.dumps(input).encode())
+                        process.stdin.close()
                     code = process.wait(timeout=max(0, cap - (time.monotonic() - started)))
                     record.update(exit=code, outcome="passed" if code == 0 else "failed")
                 except subprocess.TimeoutExpired:
@@ -180,7 +186,6 @@ class Check:
         for name in ("envelope.json", "fresh-claim.json"):
             self.snapshot(self.directory / f"step-{step}" / name, Path(f"step-{step}") / name)
         folder = self.output / "inputs" / relative
-        shutil.copyfile(folder / "proof.native", folder / "proof.bin")
         return folder
 
     def verify_fold(self, step, folder, identity, package):
@@ -195,16 +200,20 @@ class Check:
         equal(len(lean), 10, "complete Lean C/R/D result")
         for accepted in (lean[5][0], lean[7][0], lean[9][0], lean[9][16][0]):
             equal(accepted, 1, "Lean verifier acceptance")
-        log = self.phase(f"step-{step}-native-comparison", "native",
-                         [self.native_checker, "check-owned-nifs", package, folder, result])
+        checker = [self.native_checker, "--exact",
+                   "lifecycle::tests::staged::fold::lean::golden::native_checker", "--ignored", "--nocapture"]
+        log = self.phase(f"step-{step}-native-comparison", "native", checker,
+                         input={"operation": "compare", "package": str(package),
+                                "directory": str(folder), "lean": str(result)})
         for marker in ("complete_nifs_wire=passed", "saved_actual_pi_dec=passed complete_fields=17 normal_wrapper=true",
                        "actual_selected_nifs_Lean_comparison=passed"):
             require(marker in log, f"native comparison omitted {marker}")
         wire = self.output / f"step-{step}-lean-proof.native"
-        self.phase(f"step-{step}-wire", "native", [self.native_checker, "encode-lean-nifs", result, wire])
+        self.phase(f"step-{step}-wire", "native", checker,
+                   input={"operation": "encode", "lean": str(result), "output": str(wire)})
         compare_files(wire, folder / "proof.native", "Lean/native proof wire")
         rejected = re.findall(r"^pi_dec_mutation=(\S+) rejected=", log, re.MULTILINE)
-        # Exact families in neo-fold-legacy/tests/nifs/pi_dec_actual_mutations.rs.
+        # Exact families in lifecycle_native/golden_dec.rs.
         expected = {f"child_{child}_commitment" for child in range(CHILDREN)} | {
             f"child_eval_A{matrix}" for matrix in range(MATRICES)
         } | {f"nonzero_eval_A{matrix}_padding" for matrix in range(MATRICES)} | {

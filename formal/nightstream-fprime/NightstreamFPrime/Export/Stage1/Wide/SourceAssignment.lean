@@ -200,7 +200,7 @@ theorem assignment_one (program : Program) (env : Env)
   rw [AssignmentProjection.seed_before program (raw program env application).assignment
     (Stage1Plan.piRlcInterface program).oneColumn (InputSupport.inputsBefore program).sampler.one]
   exact (AssignmentProjection.project_at program (raw program env application).assignment
-    (ApplicationRetainedGeometry.oneColumn (Stage1Plan.referenceGeometry program))
+    (ApplicationOrdinaryGeometry.oneColumn (Stage1Plan.referenceGeometry program))
     (ReadSupport.one program _ rfl)).trans
       (PerApplicationCanonicalAssignment.assignment_one (raw program env application))
 

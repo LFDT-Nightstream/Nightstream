@@ -75,12 +75,12 @@ theorem directStructuralRowCount_eq
 
 def directLogicalWidth (program : Program) : Nat :=
   149282257 +
-    (program.witnessWordCount + ApplicationSelectedBlocks.localCount program) * 41
+    (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :
     directLogicalWidth program = PerApplicationFixedPoint.logicalWidth program := by
   unfold directLogicalWidth PerApplicationFixedPoint.logicalWidth
-  exact (ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts
+  exact (ApplicationOrdinaryGeometry.completeLogicalWidth_eq_applicationCounts
     program).symm
 
 def directRecursiveRelation (program : Program) : CcsRelation :=

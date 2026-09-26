@@ -144,24 +144,12 @@ impl PreparedLifecycle {
 
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let logical = match application_values {
-            Some(values) => {
-                let physical = self
-                    .package
-                    .execute_stage1_v1_1_witness_with_application_values(
-                        inputs.pi_ccs(),
-                        inputs.pi_dec(),
-                        inputs.application_witness(),
-                        values,
-                    )?;
-                self.package.execute_logical_assignment(&physical)?
-            }
-            None => self.package.execute_stage1_v1_1_ccs_assignment(
-                inputs.pi_ccs(),
-                inputs.pi_dec(),
-                inputs.application_witness(),
-            )?,
-        };
+        let logical = self.package.execute_stage1_v1_1_ccs_assignment(
+            inputs.pi_ccs(),
+            inputs.pi_dec(),
+            inputs.application_witness(),
+            application_values,
+        )?;
         #[cfg(test)]
         eprintln!("complete CCS assignment elapsed={:?}", started.elapsed());
         #[cfg(test)]

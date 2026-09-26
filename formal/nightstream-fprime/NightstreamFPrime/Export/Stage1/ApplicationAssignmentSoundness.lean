@@ -1,9 +1,8 @@
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.ApplicationOrdinarySoundness
-import NightstreamFPrime.Export.Stage1.ApplicationPoseidonSoundness
 import Mathlib.Data.List.OfFn
 
-/-! Both selected application backends bind the actual pilot states to the same step. -/
+/-! Application rows bind the actual pilot states to the declared step. -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 
@@ -13,7 +12,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-open ApplicationDirectPlan ApplicationRetainedGeometry
+open ApplicationDirectPlan ApplicationOrdinaryGeometry
 
 theorem rowsZero_implies_step {application : Stage1.Application.Program} {columns : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
@@ -33,30 +32,7 @@ theorem rowsZero_implies_step {application : Stage1.Application.Program} {column
             (Location.preimageWord lane)).eval assignment)
         (List.ofFn fun lane : Fin application.witnessWordCount =>
           (witnessForm geometry lane).eval assignment) := by
-  cases selected : application.compactHashChain with
-  | none =>
-    have ordinaryRows : (ApplicationOrdinaryPlan.plan fits (ordinaryGeometry geometry selected)).RowsZero
-        assignment := by
-      rw [plan_none fits geometry selected] at rows
-      exact rows
-    exact ApplicationOrdinarySoundness.rowsZero_implies_step fits
-      (ordinaryGeometry geometry selected) assignment one ordinaryRows
-  | some certificate =>
-    let compact := poseidonGeometry geometry certificate selected
-    have compactRows : (ApplicationPoseidonRetainedGeometry.plan compact).RowsZero assignment := by
-      rw [plan_some fits geometry certificate selected] at rows
-      exact rows
-    have step := ApplicationPoseidonSoundness.rowsZero_implies_step compact assignment one compactRows
-    simp only [ApplicationPoseidonSoundness.input_form_eq_pilot,
-      ApplicationPoseidonSoundness.output_form_eq_pilot] at step
-    have messageEq :
-        (List.ofFn fun lane : Fin application.witnessWordCount =>
-          (witnessForm geometry lane).eval assignment) =
-        (List.ofFn fun lane : Fin 4 =>
-          ((ApplicationPoseidonRetainedGeometry.interface compact).message lane).eval assignment) :=
-      List.ofFn_congr certificate.wordCount (fun lane => (witnessForm geometry lane).eval assignment)
-    rw [messageEq]
-    exact step
+  exact ApplicationOrdinarySoundness.rowsZero_implies_step fits geometry assignment one rows
 
 theorem rowsZero_implies_encodedHolds {application : Stage1.Application.Program} {columns : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)

@@ -48,18 +48,18 @@ class EvidenceFixture(unittest.TestCase):
                    "completion": {"patterns": ["^fixture validity checked$"],
                                   "tests": ["required_case"]}}
         self.policy = {
-            "schema": 1, "sources": {"code": {"roots": ["src"], "exclude": ["*.md"]}},
+            "schema": 2, "sources": {"code": {"roots": ["src"], "exclude": ["*.md"]}},
             "inputs": {"fixture": {}, "package": {}}, "identity_inputs": ["package"],
             "gates": {"validity": {"sources": ["code"], "inputs": ["fixture"],
                                     "identity_bound": True, "commands": [command]}},
             "reviews": {"meaning": {"scope": "exact registered target"}},
             "obligations": {
-                "compiler": {"owner": "owner criterion", "status": "Compiler-closed",
+                "compiler": {"owner": "owner criterion", "tier": "Compiler",
                              "target_required": True, "target": "Test.Target",
                              "gates": ["validity"], "reviews": ["meaning"], "gap": "Prove Target."},
-                "conformance": {"owner": "owner conformance", "status": "Conformance-closed",
+                "conformance": {"owner": "owner conformance", "tier": "Conformance",
                                 "gates": ["validity"], "reviews": ["meaning"], "gap": "Check input."},
-                "production": {"owner": "owner production", "status": "Production-closed",
+                "production": {"owner": "owner production", "tier": "Production",
                                "gates": [], "reviews": [], "gap": "Production verifier is not selected."}}}
         self.authority_path = self.root / "checker"
         self.authority_path.mkdir()
@@ -103,6 +103,11 @@ class EvidenceTests(EvidenceFixture):
         self.assertTrue(result["statuses"]["Compiler-closed"])
         self.assertTrue(result["statuses"]["Conformance-closed"])
         self.assertFalse(result["statuses"]["Production-closed"])
+        outcomes = {item["id"]: item for item in result["obligations"]}
+        self.assertEqual(outcomes["compiler"]["tier"], "Compiler")
+        self.assertEqual(outcomes["compiler"]["status"], "Compiler-closed")
+        self.assertEqual(outcomes["production"]["tier"], "Production")
+        self.assertEqual(outcomes["production"]["status"], "Open")
 
     def test_nonzero_opening_with_zero_matrix_evaluation_is_valid(self):
         shutil.copyfile(FIXTURES / "nonzero.json", self.fixture)

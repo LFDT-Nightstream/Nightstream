@@ -1,0 +1,35 @@
+{
+  "assessments": {
+    "argument": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "correspondence": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "parent_use": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
+    }
+  },
+  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "obligation": "recursive-loop-kernel",
+  "outcome": "pending",
+  "policy": "430476494d19e0462830646ace8e3a7cb4bd8e0518c0489aa572f816c2b8834c",
+  "request": "600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b",
+  "review": "decomposition",
+  "reviewed_at": "",
+  "reviewer": "",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+  "target": "LeanGraph.Targets.CheckedRecursiveReplay"
+}

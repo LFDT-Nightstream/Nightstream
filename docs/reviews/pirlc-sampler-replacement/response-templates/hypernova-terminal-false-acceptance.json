@@ -1,24 +1,5 @@
 {
-  "obligation": "hypernova-terminal-false-acceptance",
-  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
-  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
-  "policy": "620b1b68cf9bad2bfba892f56a8dd38d2e897c92a4806afd259fc520002614cc",
-  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
-  "review": "decomposition",
-  "request": "a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189",
-  "reviewer": "",
-  "reviewed_at": "",
-  "outcome": "pending",
   "assessments": {
-    "substantiveness": {
-      "outcome": "pending",
-      "reason": ""
-    },
-    "premises": {
-      "outcome": "pending",
-      "reason": ""
-    },
     "argument": {
       "outcome": "pending",
       "reason": ""
@@ -30,6 +11,25 @@
     "parent_use": {
       "outcome": "pending",
       "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
     }
-  }
+  },
+  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "obligation": "hypernova-terminal-false-acceptance",
+  "outcome": "pending",
+  "policy": "430476494d19e0462830646ace8e3a7cb4bd8e0518c0489aa572f816c2b8834c",
+  "request": "c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3",
+  "review": "decomposition",
+  "reviewed_at": "",
+  "reviewer": "",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241",
+  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance"
 }

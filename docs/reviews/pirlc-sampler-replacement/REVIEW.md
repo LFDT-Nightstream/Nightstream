@@ -1,52 +1,57 @@
 # Independent review requests
 
-All four requests are **pending**. The implementation author prepared the
-proposals and did not assess, approve, or sign them. Earlier accepted records
-refer to earlier source and do not approve this change.
+All ten requests are **pending**. Four cover the selected terminal/security
+targets. Six cover the restored replay-kernel registrations and retain their
+existing review requirements. The implementation author prepared the proposals
+and did not assess, approve, or sign them. Earlier accepted records do not
+approve this source and policy.
 
-The reviewed source cut is `8dc2b67506f0d56759fa170d1dbf70779a0f47b6`. Its protocol implementation is unchanged
-from `557f13ef6203dbb0a70d359ccad42dfcac654d34`, on which the final local Lean
-build and audits passed. Subsequent changes add this review package and prepare
-Git LFS and Python 3.12 in CI. The captured Lean, Rust, and proof-checker sources
-are unchanged.
+The reviewed source cut is `726d2b8f3395d1b8c08c3dbc25d2cca6d9a7c5b7`. The Lean and Rust implementation is unchanged
+from `0846e4df26d76d75152c9da7c4b97f6e20c2b9d6`; the follow-up repairs documentation
+and evidence registration. [REVIEW_FIXES.md](REVIEW_FIXES.md) records the clean
+stock build and exact emitter comparison. Subsequent commits only add this
+review bundle.
 
 | Obligation | Proposal and exact binding | Response template |
 |---|---|---|
-| `stage1-terminal-assignment` | [request](requests/3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0.json) | [pending response](response-templates/stage1-terminal-assignment.json) |
-| `stage1-terminal-parent` | [request](requests/2bcf7793c34172e930f3775722acc748232f6d5ee06c912343719f5621d34100.json) | [pending response](response-templates/stage1-terminal-parent.json) |
-| `hypernova-linear-security` | [request](requests/131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46.json) | [pending response](response-templates/hypernova-linear-security.json) |
-| `hypernova-terminal-false-acceptance` | [request](requests/a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189.json) | [pending response](response-templates/hypernova-terminal-false-acceptance.json) |
+| `fresh-witness-kernel` | [request](requests/132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c.json) | [pending response](response-templates/fresh-witness-kernel.json) |
+| `hypernova-linear-security` | [request](requests/b1ee9ec10987ba62c3879b8b7e6982bead595b508570c4bba86ab8359b27112b.json) | [pending response](response-templates/hypernova-linear-security.json) |
+| `hypernova-terminal-false-acceptance` | [request](requests/c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3.json) | [pending response](response-templates/hypernova-terminal-false-acceptance.json) |
+| `pidec-commitment-kernel` | [request](requests/dbb7e282b55126cd509a6f8904deda7f430eb1c486e76caaec82bd9ce9739461.json) | [pending response](response-templates/pidec-commitment-kernel.json) |
+| `pidec-evaluation-kernel` | [request](requests/dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016.json) | [pending response](response-templates/pidec-evaluation-kernel.json) |
+| `pidec-witness-kernel` | [request](requests/a4dc7c4789c1d8c15790b8e1b28f3f5aaa7fea4c4537477e42287f52bbb61c45.json) | [pending response](response-templates/pidec-witness-kernel.json) |
+| `pirlc-witness-kernel` | [request](requests/ba6cf6e3acf950d62ecb765846942ede0de30c037b6309c93b324ee6d3ea9023.json) | [pending response](response-templates/pirlc-witness-kernel.json) |
+| `recursive-loop-kernel` | [request](requests/600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b.json) | [pending response](response-templates/recursive-loop-kernel.json) |
+| `stage1-terminal-assignment` | [request](requests/0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef.json) | [pending response](response-templates/stage1-terminal-assignment.json) |
+| `stage1-terminal-parent` | [request](requests/a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0.json) | [pending response](response-templates/stage1-terminal-parent.json) |
 
-[review-index.json](review-index.json) lists the exact request, policy, checker
-and snapshot bindings through each request. [source-manifest.json](source-manifest.json)
-is the deterministic source/artifact cut; its SHA-256 is
-`b59d7185514e7e6d2ff1168a9d143b0aabb4c53bc9366a93817647343f72f4b5`. These file hashes establish custody,
-not protocol soundness or independent acceptance.
+[review-index.json](review-index.json) names each exact request, policy, checker
+and snapshot binding. [source-manifest.json](source-manifest.json) binds the
+source/artifact cut; its SHA-256 is
+`bc6f5733358d54e746933c3f3a548ba05f71a49f2b3c33f96ab51da231aea460`. File hashes establish custody, not protocol
+soundness or independent acceptance.
 
-The two compressed snapshot manifests retain every captured file identity,
-including the dependency seed. They contain no compiled binaries or witness
-payloads. The complete local captures are in
-`/tmp/nightstream-pirlc-replacement/review-evidence/snapshots/`. That temporary
-store is not in Git and is not guaranteed to exist on another computer.
+The three compressed snapshot manifests retain all captured file identities,
+including the clean stock-built dependency seed. They contain no compiled
+binaries or witness payloads. Complete local captures are in
+`/tmp/nightstream-pr124-review-fixes/review-evidence/snapshots/`; this temporary
+store is not in Git and might not exist on another computer.
 
-A reviewer should use the source commit above, materialize its Git LFS artifacts,
-and check the source manifest with
-`python3.12 -B scripts/fprime_stage1_review_manifest.py check MANIFEST_PATH`.
-Keep the review package outside that checkout when checking the older source
-cut. The build used optimized Lean commit
-`3019a32cb6f44782ff1e1210676099d683b8d3a8`, based on Lean 4.32.2;
-all Lean commands must use `formal/nightstream-fprime/scripts/validate.sh`.
+To verify the source cut, use the commit above, materialize its Git LFS artifacts,
+and run `python3.12 -B scripts/fprime_stage1_review_manifest.py check MANIFEST_PATH`.
+Keep this bundle outside that checkout when checking the older source cut. Use
+`leanprover/lean4:v4.32.2` through `formal/nightstream-fprime/scripts/validate.sh`.
+A separately rebuilt library seed may have different bytes; capture it and issue
+a new request instead of claiming that the existing snapshot matches it. The
+frozen manifests permit a file-by-file comparison.
 
-The graph requests also bind the exact local library seed. An independently
-rebuilt seed can have different bytes; capture it and issue a new request
-with the same proposal instead of treating the old snapshot as identical.
-The frozen manifest permits a file-by-file comparison of the two cuts.
-An approved review requires the existing independent checker process. Empty
-response templates and successful author-run tests do not satisfy that process.
+Approval requires the existing independent checker process. The review must
+assess each exact target, every premise, the argument, its correspondence to the
+selected implementation and its use by the parent. Blank response templates
+and successful author-run tests do not constitute approval.
 
-The review must assess the exact target, every premise, the argument, its
-correspondence to the selected implementation, and its use by the parent.
-In particular, the security requests retain concrete Poseidon2 Fiat–Shamir
-applicability as an external assumption. The proved sampler transfer accounts
-for the complete query budget; it does not establish that applicability or a
-numerical total-security estimate.
+Concrete Poseidon2 Fiat–Shamir applicability remains an external assumption.
+The sampler term covers the full translated query budget and does not provide
+a numerical total-security estimate. The kernel requests do not replace the
+open complete independent-generation coverage described in
+[the replay map](../../../scripts/lean_graph/REPLAY_COVERAGE.md).

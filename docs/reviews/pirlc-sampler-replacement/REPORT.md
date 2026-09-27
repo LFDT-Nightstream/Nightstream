@@ -181,7 +181,7 @@ recommitted, in 68.15 seconds. Device activity was checked.
 
 Rust tests ran during construction of implementation commit `557f13ef6`; the
 final Lean checks ran on that committed source. Later changes affect only review
-tooling and documentation. The local receipts and scope are summarized in
+tooling, documentation, and CI environment setup. The local receipts and scope are summarized in
 [VALIDATION.json](VALIDATION.json). These executed comparisons do not constitute
 a universal proof of Rust semantics.
 
@@ -206,6 +206,8 @@ Current README, wiki, artifact, and conformance instructions describe the
 maintained path. Historical receipts remain identified as evidence for their
 original source revisions. No root PR handoff files are added. Rust CI checks
 all PR bases, with pushes limited to main; Lean stays local as requested.
+The first PR run stopped at checkout because the Linux self-hosted runner lacked
+Git LFS. The workflow now installs it when missing, before fetching the artifacts.
 
 The prepared-package metadata bound is derived from the unchanged maximum
 key, not the smaller selected prefix. It permits 292,329 application fields;

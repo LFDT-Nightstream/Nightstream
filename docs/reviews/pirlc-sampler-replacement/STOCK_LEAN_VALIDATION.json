@@ -1,0 +1,301 @@
+{
+  "schema": 1,
+  "source_commit": "0846e4df26d76d75152c9da7c4b97f6e20c2b9d6",
+  "scope": "Verified existing clean stock build from the separate compiler benchmark, then independently compared all proof-source files and every emitted byte. No optimized project or dependency objects were reused in that recorded build. This follow-up changes no Lean or Rust implementation source.",
+  "toolchain": {
+    "toolchain": "leanprover/lean4:v4.32.2",
+    "version_output": "[parallel] LEAN_NUM_THREADS=18\n[bounded 1500s] lean --version\nLean (version 4.32.2, arm64-apple-darwin24.6.0, commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, Release)\n[bounded] exit=0 elapsed=0s"
+  },
+  "build": {
+    "command": [
+      "elan",
+      "run",
+      "leanprover/lean4:v4.32.2",
+      "bash",
+      "scripts/validate.sh",
+      "lean-executable",
+      "/usr/bin/time",
+      "-lp",
+      "-o",
+      "/private/tmp/nightstream-lean-92be54-benchmark/build-stock.time",
+      "lake",
+      "--no-cache",
+      "build",
+      "NightstreamFPrime",
+      "NightstreamFPrimeTests",
+      "emit",
+      "emitBaseStepFixture",
+      "emitRecursiveStepFixture",
+      "checkPiDECInput"
+    ],
+    "elapsed_seconds": 1029.0124735420104,
+    "exit": 0,
+    "kind": "build",
+    "log": "build-stock.log",
+    "max_rss_bytes": 10816143360,
+    "name": "build-stock",
+    "real_seconds": 1029.02,
+    "sys_seconds": 3399.1,
+    "user_seconds": 8542.91,
+    "version": "stock"
+  },
+  "source_files_compared": 1252,
+  "dependency_revisions": {
+    "CompPoly": "6133f9f796707c438d0a614f97dc218ae976ab8f",
+    "mathlib": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "plausible": "e12c1910fe855cbfc38803cd4e55543906d5fa62",
+    "LeanSearchClient": "c5d5b8fe6e5158def25cd28eb94e4141ad97c843",
+    "importGraph": "7e9612bf0b9ee66db3cb5b9988a35afc706f5a12",
+    "proofwidgets": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+    "aesop": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+    "Qq": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+    "batteries": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+    "Cli": "88679d088c9720c27ebdf2ba4dafe17341747f94"
+  },
+  "clean_preparation": {
+    "version": "stock",
+    "project": "/tmp/nightstream-lean-92be54-benchmark/projects/stock/formal/nightstream-fprime",
+    "compiled_objects_before_build": 0,
+    "dependency_revisions": {
+      "CompPoly": "6133f9f796707c438d0a614f97dc218ae976ab8f",
+      "mathlib": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "plausible": "e12c1910fe855cbfc38803cd4e55543906d5fa62",
+      "LeanSearchClient": "c5d5b8fe6e5158def25cd28eb94e4141ad97c843",
+      "importGraph": "7e9612bf0b9ee66db3cb5b9988a35afc706f5a12",
+      "proofwidgets": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+      "aesop": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+      "Qq": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+      "batteries": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+      "Cli": "88679d088c9720c27ebdf2ba4dafe17341747f94"
+    }
+  },
+  "kernel_closures_checked": {
+    "LeanGraph.Targets.PiRLCWitnessReplay": "LeanGraph.Targets.piRLCWitnessReplay",
+    "LeanGraph.Targets.PiDECWitnessReplay": "LeanGraph.Targets.piDECWitnessReplay",
+    "LeanGraph.Targets.PiDECCommitmentReplay": "LeanGraph.Targets.piDECCommitmentReplay",
+    "LeanGraph.Targets.PiDECChildEvaluationReplay": "LeanGraph.Targets.piDECChildEvaluationReplay",
+    "LeanGraph.Targets.FreshWitnessKernels": "LeanGraph.Targets.freshWitnessKernels",
+    "LeanGraph.Targets.CheckedRecursiveReplay": "LeanGraph.Targets.checkedRecursiveReplay"
+  },
+  "emitter": {
+    "command": [
+      "elan",
+      "run",
+      "leanprover/lean4:v4.32.2",
+      "bash",
+      "scripts/validate.sh",
+      "lean-executable",
+      "/usr/bin/time",
+      "-lp",
+      "-o",
+      "/private/tmp/nightstream-lean-92be54-benchmark/runtime-emitter-stock-1.time",
+      "lake",
+      "--no-cache",
+      "exe",
+      "emit",
+      "--",
+      "/private/tmp/nightstream-lean-92be54-benchmark/outputs/runtime-emitter-stock-1.json"
+    ],
+    "elapsed_seconds": 52.71292800013907,
+    "exit": 0,
+    "kind": "runtime",
+    "log": "runtime-emitter-stock-1.log",
+    "max_rss_bytes": 943931392,
+    "name": "runtime-emitter-stock-1",
+    "real_seconds": 52.69,
+    "sys_seconds": 5.33,
+    "user_seconds": 48.03,
+    "version": "stock"
+  },
+  "emitter_comparison": {
+    "method": "complete byte-for-byte comparison",
+    "passed": true,
+    "bytes": 128162339,
+    "sha256": "22e0f02134cb215eb4f9c445db6fd568d7723a80f7a26ee67a69a01850b4f1c8",
+    "shipped_artifact": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
+  },
+  "security_audits": [
+    {
+      "command": [
+        "elan",
+        "run",
+        "leanprover/lean4:v4.32.2",
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/usr/bin/time",
+        "-lp",
+        "-o",
+        "/private/tmp/nightstream-lean-92be54-benchmark/audit-stock-1.time",
+        "lake",
+        "--no-cache",
+        "env",
+        "lean",
+        "-j18",
+        "-DautoImplicit=false",
+        "-DrelaxedAutoImplicit=false",
+        "tests/AxiomsStage1Security.lean"
+      ],
+      "elapsed_seconds": 12.629810916027054,
+      "exit": 0,
+      "kind": "audit",
+      "log": "audit-stock-1.log",
+      "max_rss_bytes": 3465904128,
+      "name": "audit-stock-1",
+      "real_seconds": 12.61,
+      "sys_seconds": 4.21,
+      "user_seconds": 1.65,
+      "version": "stock"
+    },
+    {
+      "command": [
+        "elan",
+        "run",
+        "leanprover/lean4:v4.32.2",
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/usr/bin/time",
+        "-lp",
+        "-o",
+        "/private/tmp/nightstream-lean-92be54-benchmark/audit-stock-2.time",
+        "lake",
+        "--no-cache",
+        "env",
+        "lean",
+        "-j18",
+        "-DautoImplicit=false",
+        "-DrelaxedAutoImplicit=false",
+        "tests/AxiomsStage1Security.lean"
+      ],
+      "elapsed_seconds": 2.8735445830971003,
+      "exit": 0,
+      "kind": "audit",
+      "log": "audit-stock-2.log",
+      "max_rss_bytes": 3465969664,
+      "name": "audit-stock-2",
+      "real_seconds": 2.85,
+      "sys_seconds": 3.25,
+      "user_seconds": 1.51,
+      "version": "stock"
+    },
+    {
+      "command": [
+        "elan",
+        "run",
+        "leanprover/lean4:v4.32.2",
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/usr/bin/time",
+        "-lp",
+        "-o",
+        "/private/tmp/nightstream-lean-92be54-benchmark/audit-stock-3.time",
+        "lake",
+        "--no-cache",
+        "env",
+        "lean",
+        "-j18",
+        "-DautoImplicit=false",
+        "-DrelaxedAutoImplicit=false",
+        "tests/AxiomsStage1Security.lean"
+      ],
+      "elapsed_seconds": 2.851191374938935,
+      "exit": 0,
+      "kind": "audit",
+      "log": "audit-stock-3.log",
+      "max_rss_bytes": 3466706944,
+      "name": "audit-stock-3",
+      "real_seconds": 2.83,
+      "sys_seconds": 3.26,
+      "user_seconds": 1.54,
+      "version": "stock"
+    },
+    {
+      "command": [
+        "elan",
+        "run",
+        "leanprover/lean4:v4.32.2",
+        "bash",
+        "scripts/validate.sh",
+        "lean-executable",
+        "/usr/bin/time",
+        "-lp",
+        "-o",
+        "/private/tmp/nightstream-lean-92be54-benchmark/audit-stock-4.time",
+        "lake",
+        "--no-cache",
+        "env",
+        "lean",
+        "-j18",
+        "-DautoImplicit=false",
+        "-DrelaxedAutoImplicit=false",
+        "tests/AxiomsStage1Security.lean"
+      ],
+      "elapsed_seconds": 2.8013377918396145,
+      "exit": 0,
+      "kind": "audit",
+      "log": "audit-stock-4.log",
+      "max_rss_bytes": 3466723328,
+      "name": "audit-stock-4",
+      "real_seconds": 2.78,
+      "sys_seconds": 3.26,
+      "user_seconds": 1.52,
+      "version": "stock"
+    }
+  ],
+  "receipt_files": {
+    "source-preparation.json": "f09219cbf459b4ce7af80003a5a69d274c1768d2240042bd36fd4ed4236b69de",
+    "toolchain-versions.json": "e9ca28f4f7b9f7dc0a622be13f1f3ffd2bf0257e91ff81d8f704a0c9c2cf33dd",
+    "build-stock.log": "5f411d6d7ab8433f20aa00ce2f55cfbd9a45725c868b40b4f3c6673b94ecd1cd",
+    "runtime-emitter-stock-1.log": "8edc0147662d934e5daf1cad63a7b5d5539d414649eb547ca1819985a483832f",
+    "benchmark.py": "fad696efa433d4d036543f8e4d86bac42654bcbcb849cdbb1dbdb4eb83420816"
+  },
+  "source_hash_manifest": {
+    "file": "stock-proof-sources.json.gz",
+    "compressed_sha256": "8f0c7514b5deee5fcb9cdf8a2457c35ed68a4d5d33e9bbe2bf05806fda7ce612",
+    "files": 1252
+  },
+  "retained_build_log": {
+    "file": "stock-build.log.gz",
+    "compressed_sha256": "765e68817ec8276d4f60b703bf2a2b63cbc74b5936d32ff014c6547e63c17504"
+  },
+  "followup_tests": {
+    "graph": "99 tests run, one platform skip; remaining tests passed",
+    "golden_contract": [
+      {
+        "command": [
+          "python3.12",
+          "-B",
+          "-m",
+          "unittest",
+          "-v",
+          "scripts.tests.test_golden_conformance_ci",
+          "scripts.tests.test_golden_conformance_changes"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 0.0981862919870764,
+        "completion": "passed"
+      },
+      {
+        "command": [
+          "python3.12",
+          "-B",
+          "-m",
+          "unittest",
+          "discover",
+          "-v",
+          "-s",
+          "crates/nightstream/tests",
+          "-p",
+          "test_*.py"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 1.6817782090511173,
+        "completion": "passed"
+      }
+    ],
+    "regression_before_fix": "The new registration test fails on all six missing kernel entries at 0846e4df2.",
+    "registration_checks": "All six checked target/witness closures extracted from the stock compiler build log passed the existing closure parser."
+  }
+}

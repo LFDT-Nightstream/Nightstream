@@ -90,5 +90,5 @@ jobs:
 
     - name: Run conformance coordinator tests
       run: |
-        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
         timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'

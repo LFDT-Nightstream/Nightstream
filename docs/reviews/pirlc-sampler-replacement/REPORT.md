@@ -1,6 +1,7 @@
 # Canonical PiRLC sampler replacement
 
-Status: implementation and local validation complete. Independent review is
+Status: implementation and local validation complete, including a verified clean
+stock Lean 4.32.2 build and exact emitter comparison. Independent review is
 pending; this report is not merge approval. The final Lean build and axiom audits,
 fresh CPU/Lean comparisons, Rust regressions, and Metal runtime checks passed.
 
@@ -223,3 +224,8 @@ excludes large private witnesses. Follow
 
 The four [independent review requests](REVIEW.md) now bind the final source
 and current targets. All remain pending; no author acceptance was created.
+
+The [review follow-up](REVIEW_FIXES.md) records stock-toolchain validation, the
+corrected application-capacity documentation, and the restored kernel-proof
+registrations. Complete independent Lean proof generation remains an explicit
+coverage gap; the maintained golden workflow verifies native proof messages.

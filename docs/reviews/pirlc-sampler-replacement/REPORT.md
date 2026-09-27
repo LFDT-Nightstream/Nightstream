@@ -208,6 +208,8 @@ original source revisions. No root PR handoff files are added. Rust CI checks
 all PR bases, with pushes limited to main; Lean stays local as requested.
 The first PR run stopped at checkout because the Linux self-hosted runner lacked
 Git LFS. The workflow now installs it when missing, before fetching the artifacts.
+The next run passed all Rust suites but found Python 3.10 on the runner, which
+lacks `tomllib`. CI now selects Python 3.12, matching the local tooling checks.
 
 The prepared-package metadata bound is derived from the unchanged maximum
 key, not the smaller selected prefix. It permits 292,329 application fields;

@@ -7,7 +7,8 @@ refer to earlier source and do not approve this change.
 The reviewed source cut is `8dc2b67506f0d56759fa170d1dbf70779a0f47b6`. Its protocol implementation is unchanged
 from `557f13ef6203dbb0a70d359ccad42dfcac654d34`, on which the final local Lean
 build and audits passed. Subsequent changes add this review package and prepare
-Git LFS in CI. The captured Lean, Rust, and proof-checker sources are unchanged.
+Git LFS and Python 3.12 in CI. The captured Lean, Rust, and proof-checker sources
+are unchanged.
 
 | Obligation | Proposal and exact binding | Response template |
 |---|---|---|

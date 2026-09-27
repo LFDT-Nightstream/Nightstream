@@ -216,3 +216,6 @@ Saved fold fixtures must come only from successful fresh two-fold execution
 and Lean comparisons. The maintained archive contains 19 interface files and
 excludes large private witnesses. Follow
 [the conformance workflow](../../../scripts/GOLDEN_CONFORMANCE.md).
+
+The four [independent review requests](REVIEW.md) now bind the final source
+and current targets. All remain pending; no author acceptance was created.

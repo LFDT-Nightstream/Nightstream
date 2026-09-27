@@ -1,0 +1,35 @@
+{
+  "obligation": "stage1-terminal-assignment",
+  "target": "LeanGraph.Targets.Stage1TerminalAssignment",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
+  "policy": "620b1b68cf9bad2bfba892f56a8dd38d2e897c92a4806afd259fc520002614cc",
+  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "review": "decomposition",
+  "request": "3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0",
+  "reviewer": "",
+  "reviewed_at": "",
+  "outcome": "pending",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "argument": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "correspondence": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "parent_use": {
+      "outcome": "pending",
+      "reason": ""
+    }
+  }
+}

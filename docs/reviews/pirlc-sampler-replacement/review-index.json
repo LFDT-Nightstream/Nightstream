@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "source_commit": "8dc2b67506f0d56759fa170d1dbf70779a0f47b6",
+  "implementation_commit": "557f13ef6203dbb0a70d359ccad42dfcac654d34",
+  "source_manifest_sha256": "b59d7185514e7e6d2ff1168a9d143b0aabb4c53bc9366a93817647343f72f4b5",
+  "approval": "pending",
+  "requests": [
+    {
+      "obligation": "stage1-terminal-assignment",
+      "target": "LeanGraph.Targets.Stage1TerminalAssignment",
+      "request": "3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0",
+      "file": "requests/3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0.json",
+      "response_template": "response-templates/stage1-terminal-assignment.json",
+      "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "stage1-terminal-parent",
+      "target": "LeanGraph.Targets.Stage1TerminalParent",
+      "request": "2bcf7793c34172e930f3775722acc748232f6d5ee06c912343719f5621d34100",
+      "file": "requests/2bcf7793c34172e930f3775722acc748232f6d5ee06c912343719f5621d34100.json",
+      "response_template": "response-templates/stage1-terminal-parent.json",
+      "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "hypernova-linear-security",
+      "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
+      "request": "131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46",
+      "file": "requests/131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46.json",
+      "response_template": "response-templates/hypernova-linear-security.json",
+      "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "hypernova-terminal-false-acceptance",
+      "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+      "request": "a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189",
+      "file": "requests/a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189.json",
+      "response_template": "response-templates/hypernova-terminal-false-acceptance.json",
+      "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
+      "outcome": "pending"
+    }
+  ],
+  "snapshots": {
+    "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd": {
+      "manifest": "snapshots/9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd.json.gz",
+      "compressed_sha256": "2d9af725902bc5d68463d0ae6a7d912786fe581085681d23159ddb97db59b98b",
+      "manifest_bytes": 16118386,
+      "compressed_bytes": 3878086
+    },
+    "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde": {
+      "manifest": "snapshots/c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde.json.gz",
+      "compressed_sha256": "aee16a97a7e39d99c3e5599a873b44c89f5bdd99f6e0f43e2defec8185d41cdc",
+      "manifest_bytes": 16343303,
+      "compressed_bytes": 3937458
+    }
+  }
+}

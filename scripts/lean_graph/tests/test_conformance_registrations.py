@@ -6,7 +6,7 @@ import unittest
 
 from scripts.lean_graph.policy import gate_order, gate_scope, load_policy, validate, verify_checker_sources
 from scripts.lean_graph.runner import completion
-from scripts.lean_graph.snapshot import EvidenceError, inspect
+from scripts.lean_graph.snapshot import EvidenceError, entries, inspect
 
 
 class ConformanceRegistrationTests(unittest.TestCase):
@@ -16,7 +16,10 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_current_rust_sources_can_be_captured(self):
         root = Path(__file__).resolve().parents[3]
-        inspect(root, self.policy, {}, {"sources": ["rust"], "inputs": []})
+        manifest, _ = inspect(root, self.policy, {}, {"sources": ["rust"], "inputs": []})
+        # Every captured artifact link must resolve to captured bytes, not an
+        # uncaptured file in the author's checkout.
+        self.assertTrue(entries(manifest))
 
     def selected(self, obligation):
         return gate_order(self.policy, self.policy["obligations"][obligation]["gates"])

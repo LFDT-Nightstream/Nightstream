@@ -1,0 +1,411 @@
+{
+  "schema": 1,
+  "date": "2026-09-27",
+  "implementation_commit": "557f13ef6203dbb0a70d359ccad42dfcac654d34",
+  "compiler": {
+    "repository": "https://github.com/nicarq/lean4-optimized",
+    "commit": "3019a32cb6f44782ff1e1210676099d683b8d3a8",
+    "base_version": "4.32.2"
+  },
+  "scope": "Author-run local evidence. Lean final checks are commit-bound; Rust and fresh fold runs were performed while constructing that commit. No independent approval, universal Rust semantics proof, or concrete Poseidon2 Fiat-Shamir model is claimed. Receipt hashes identify local files; actual conformance checks compare rows, values and bytes.",
+  "local_receipt_directory": "/tmp/nightstream-pirlc-replacement",
+  "records": {
+    "lean": {
+      "local_receipt": "final-lean-results.json",
+      "sha256": "33f22f3c3458f65ab8a59a3743e543decd104af902733235162888b748515aaa",
+      "results": [
+        {
+          "name": "final-lean-build",
+          "exit": 0,
+          "elapsed_seconds": 74.006,
+          "outcome": "passed"
+        },
+        {
+          "name": "final-lean-static",
+          "exit": 0,
+          "elapsed_seconds": 16.365,
+          "outcome": "passed"
+        },
+        {
+          "name": "final-lean-identity",
+          "exit": 0,
+          "elapsed_seconds": 67.784,
+          "outcome": "passed"
+        },
+        {
+          "name": "final-lean-metadata",
+          "exit": 0,
+          "elapsed_seconds": 202.569,
+          "outcome": "passed"
+        }
+      ]
+    },
+    "runtime": {
+      "local_receipt": "final-runtime-results.json",
+      "sha256": "a8e367302c0156b2ac97644df25f494db4594a9df354163a8d1f8327011b0be5",
+      "results": [
+        {
+          "name": "final-two-link-cpu",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 235.649,
+          "outcome": "passed"
+        },
+        {
+          "name": "final-two-link-metal",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 72.51,
+          "outcome": "passed"
+        },
+        {
+          "name": "final-terminal-cpu-metal",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 68.151,
+          "outcome": "passed"
+        }
+      ]
+    },
+    "recursive_assignments": {
+      "local_receipt": "fresh-recursive-results.json",
+      "sha256": "9f377c597f02cdf2439fca634cc6dcaf822c1c798f5d9b2dc949cfeb8e9cffa9",
+      "results": [
+        {
+          "name": "complete-step-1-recursive",
+          "exit": 0,
+          "elapsed_seconds": 34.27,
+          "outcome": "passed"
+        },
+        {
+          "name": "complete-step-1-recursive-mutations",
+          "exit": 0,
+          "elapsed_seconds": 22.215,
+          "outcome": "passed"
+        },
+        {
+          "name": "complete-step-2-recursive",
+          "exit": 0,
+          "elapsed_seconds": 34.113,
+          "outcome": "passed"
+        },
+        {
+          "name": "complete-step-2-recursive-mutations",
+          "exit": 0,
+          "elapsed_seconds": 22.724,
+          "outcome": "passed"
+        }
+      ]
+    },
+    "piccs_and_child_handoff": {
+      "local_receipt": "fresh-ccs-checks/results.json",
+      "sha256": "cbd9f70cf9d79685629383d1eb5d8032dc485cd8ff6a88fe7e919c725d0a8016",
+      "results": [
+        {
+          "name": "step-1-accept",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 19.776,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-1-proof-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 19.626,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-1-statement-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 19.402,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-1-output-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 21.847,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-1-child-handoff",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 38.303,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-accept",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 18.911,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-proof-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 19.342,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-statement-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 18.849,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-output-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 21.643,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-point-mutations",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 19.859,
+          "outcome": "passed"
+        },
+        {
+          "name": "step-2-child-handoff",
+          "exit": 0,
+          "cap_seconds": 300,
+          "elapsed_seconds": 38.257,
+          "outcome": "passed"
+        }
+      ]
+    },
+    "cpu": {
+      "local_receipt": "golden-current/cpu/conformance.json",
+      "sha256": "fd7a10c7261f631a2abbb10fcf46c00221ef1db81f14cbbf5b800f96d17660e6",
+      "outcome": "passed",
+      "scope": "Fresh selected native two-fold execution, terminal acceptance and mutation rejection, without archive comparisons. No fresh Lean execution or universal correctness claim.",
+      "phases": 22
+    },
+    "lean_step_1": {
+      "local_receipt": "golden-current/lean-step-1/result.json",
+      "sha256": "1658c0082bc4d1ba9363442a39e674c87add9ba7878835769a71ad2ededef2a3",
+      "step": 1,
+      "outcome": "passed",
+      "independent_proof_generation": false,
+      "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte and caller equality. C proof messages are native inputs. Independent proof generation and terminal opening checks are separate. Complete fresh native and Lean physical witnesses were compared byte for byte.",
+      "physical_bytes": 227351560
+    },
+    "lean_step_2": {
+      "local_receipt": "golden-current/lean-step-2/result.json",
+      "sha256": "15391a4d646fa64a248f45621d73ebbd1e91c3c651fdec52f91f44784de7ffef",
+      "step": 2,
+      "outcome": "passed",
+      "independent_proof_generation": false,
+      "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte and caller equality. C proof messages are native inputs. Independent proof generation and terminal opening checks are separate. Complete fresh native and Lean physical witnesses were compared byte for byte.",
+      "physical_bytes": 227351560
+    },
+    "complete_cpu_lean_handoff": {
+      "local_receipt": "golden-current/cpu-result.json",
+      "sha256": "7a9eac2d2ef8650d5156a817f2ac4754154fddbe4fc333177cf37fa69bd62b60",
+      "outcome": "passed",
+      "scope": "Fresh CPU folds 1\u20132 and state-3 terminal checks; fresh Lean verifier, complete proof, caller and physical-witness comparisons. Native proofs are verified by Lean, not independently generated in Lean."
+    },
+    "rust": {
+      "results": [
+        {
+          "name": "final-fmt",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 0.929,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-workspace-metal-check",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 3.115,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-nightstream-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 118.44,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-matrix-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 28.101,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-assignment-transport-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 0.073,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-prepared-value-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 0.1,
+          "outcome": "passed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-binding-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 58.619,
+          "outcome": "passed",
+          "local_receipt": "final-rust-remaining-results.json",
+          "sha256": "288fa7d253d5c75d56c893c55f9dff3a0f70e9c321cc3689d611fb23196cd9c1"
+        },
+        {
+          "name": "final-sampler-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 12.503,
+          "outcome": "passed",
+          "local_receipt": "final-rust-remaining-results.json",
+          "sha256": "288fa7d253d5c75d56c893c55f9dff3a0f70e9c321cc3689d611fb23196cd9c1"
+        },
+        {
+          "name": "final-params-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 7.267,
+          "outcome": "passed",
+          "local_receipt": "final-rust-remaining-results.json",
+          "sha256": "288fa7d253d5c75d56c893c55f9dff3a0f70e9c321cc3689d611fb23196cd9c1"
+        },
+        {
+          "name": "final-minimizer-tests",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 8.242,
+          "outcome": "passed",
+          "local_receipt": "final-rust-tail-results.json",
+          "sha256": "fcb3f7a373338527a2b4df0a9e37dd367d8d74183696281be30c23bf6335cf02"
+        },
+        {
+          "name": "final-metal-test-build",
+          "cap_seconds": 300,
+          "exit": 0,
+          "elapsed_seconds": 37.122,
+          "outcome": "passed",
+          "local_receipt": "final-rust-tail-results.json",
+          "sha256": "fcb3f7a373338527a2b4df0a9e37dd367d8d74183696281be30c23bf6335cf02"
+        }
+      ],
+      "resolved_failed_slices": [
+        {
+          "name": "final-package-loader-tests",
+          "cap_seconds": 300,
+          "exit": 101,
+          "elapsed_seconds": 46.79,
+          "outcome": "failed",
+          "local_receipt": "final-rust-results.json",
+          "sha256": "94dd513e20bd80862daf5bbb7abf6c064742c3d70752e35f08d445539dcc3b5c"
+        },
+        {
+          "name": "final-ajtai-tests",
+          "cap_seconds": 300,
+          "exit": 101,
+          "elapsed_seconds": 6.718,
+          "outcome": "failed",
+          "local_receipt": "final-rust-remaining-results.json",
+          "sha256": "288fa7d253d5c75d56c893c55f9dff3a0f70e9c321cc3689d611fb23196cd9c1"
+        }
+      ]
+    },
+    "final_test_logs": [
+      {
+        "local_receipt": "final-sampler-coverage-test.log",
+        "sha256": "7bf0577480d4adb0cf8173f11457cdf562925e14b65c133a1ef0004e96babf4f",
+        "summary": [
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 57.33s"
+        ]
+      },
+      {
+        "local_receipt": "final-ajtai-tests-3.log",
+        "sha256": "c78052214fc7c110a9f0d5a033296796979a5e05bc37fec39f19e7b47793f289",
+        "summary": [
+          "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+        ]
+      },
+      {
+        "local_receipt": "final-graph-tests.log",
+        "sha256": "42eae6d93e8fdc51cd0805ee2ab10f87c90782059f206ab42c392ed4451092d5",
+        "summary": [
+          "Ran 96 tests in 5.758s",
+          "OK (skipped=1)"
+        ]
+      },
+      {
+        "local_receipt": "review-manifest-tests.log",
+        "sha256": "2c37d50a88147ca2ebd5197d74ee37d462dab650d793512e849814c28d5a38f0",
+        "summary": [
+          "Ran 3 tests in 0.004s",
+          "OK"
+        ]
+      },
+      {
+        "local_receipt": "current-golden-script-tests.log",
+        "sha256": "7c556eb6397782ace4120008c45e307cf7a5cdf9a3b312aeddc7dc5badd1e735",
+        "summary": [
+          "Ran 18 tests in 0.038s",
+          "OK"
+        ]
+      },
+      {
+        "local_receipt": "final-native-python-tests.log",
+        "sha256": "ad6e0fc36b38f274baf0775ec755951f078a7bccf17cc2103c464a4932495a10",
+        "summary": [
+          "Ran 40 tests in 1.382s",
+          "OK"
+        ]
+      },
+      {
+        "local_receipt": "final-validate-script-tests.log",
+        "sha256": "8dbca7cabbd6d21fb02a2071ee80f0faedf2099455686e6352371acaf868e509",
+        "summary": [
+          "Ran 5 tests in 1.593s",
+          "OK"
+        ]
+      },
+      {
+        "local_receipt": "final-contract-tests-3.log",
+        "sha256": "5e78276b64f13a07af693ea7151a9352a079904f70eabe27808f2f3d656a890c",
+        "summary": [
+          "Ran 50 tests in 1.548s",
+          "OK"
+        ]
+      }
+    ],
+    "resolved_failures": [
+      "Serial nonzero mutation scan exceeded 300 seconds; full parallel row scan rerun passed in 125.997 seconds.",
+      "First Lean physical replay wrapper failed after output because the running script was edited. Both complete Lean comparisons were repeated successfully; failed receipt retained.",
+      "New loader regression initially rejected identity before coverage. After rehashing the mutated package, the focused coverage regression passed. Eight other loader tests had already passed.",
+      "Ajtai test used the selected prefix as the maximum; corrected to the unchanged maximum. An accidental fixture index change was then reverted. All seven affected tests passed.",
+      "Historical contract tests found stale generated views and deleted producer paths. Derived views and level-none locations were repaired; all 50 tests passed."
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "obligation": "hypernova-linear-security",
+  "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
+  "policy": "620b1b68cf9bad2bfba892f56a8dd38d2e897c92a4806afd259fc520002614cc",
+  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "review": "decomposition",
+  "request": "131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46",
+  "reviewer": "",
+  "reviewed_at": "",
+  "outcome": "pending",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "argument": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "correspondence": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "parent_use": {
+      "outcome": "pending",
+      "reason": ""
+    }
+  }
+}

@@ -32,9 +32,8 @@ def sourceIndex (source : Fin SourceCount) :
 def initialState (_ : Unit) : Transcript.State :=
   (PiCCSNonzero.compute ()).outgoingState
 
-/-- The exact fixed-size sampler result. `none` is an explicit phase
-rejection; no challenge fallback exists. -/
-def sampled (_ : Unit) : Option (Transcript.PiRlcSampler.Batch SourceCount) :=
+/-- The total fixed-size production sampler result. -/
+def sampled (_ : Unit) : Transcript.PiRlcSampler.Batch SourceCount :=
   Transcript.PiRlcSampler.piRlcChallengesWithState (initialState ()) SourceCount
 
 def inputCommitment (source : Fin SourceCount) : PaperAlgebra.Commitment :=
@@ -44,14 +43,14 @@ def inputCommitment (source : Fin SourceCount) : PaperAlgebra.Commitment :=
 carrier. This view evaluates the same key-bound PiCCS digest in that carrier;
 the logical-width proof does not change any serialized coordinate. -/
 def candidateFreshPublicInput :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
-  fun column => encHash (publicFits := VerifierContext.candidatePublicFits)
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
+  fun column => encHash (publicFits := PhaseReference.publicFits)
     (stateDigest () (stateVerifierKey ())) column
 
 def inputPublicInput (source : Fin SourceCount) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   Fin.addCases (fun _ => candidateFreshPublicInput)
     (fun runningSource column => field (runningSource.val + column.val))
     (sourceIndex source)
@@ -70,13 +69,13 @@ def combinedCommitment (challenges : Fin SourceCount → RingF) :
     challenges inputCommitment
 
 def combinedPublicInput (challenges : Fin SourceCount → RingF) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   let digest := stateDigest () (stateVerifierKey ())
   let inputs := fun source =>
     Fin.addCases
       (fun _ column =>
-        encHash (publicFits := VerifierContext.candidatePublicFits)
+        encHash (publicFits := PhaseReference.publicFits)
           digest column)
       (fun runningSource column => field (runningSource.val + column.val))
       (sourceIndex source)
@@ -88,11 +87,11 @@ def combinedEvaluation (challenges : Fin SourceCount → RingF) : Evaluation :=
 
 def inputInstance
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (source : Fin SourceCount) :
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.InputInstance
-      VerifierContext.candidateLogicalWidth
-        VerifierContext.candidatePublicFits where
+      PhaseReference.logicalWidth
+        PhaseReference.publicFits where
   constraintSystem :=
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource relation
   commitment := inputCommitment source
@@ -103,13 +102,13 @@ def inputInstance
 
 def attempt
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (challenges : Fin SourceCount → RingF) :
     PiRLC.Attempt
-      (PaperAlgebra.Structure VerifierContext.candidateLogicalWidth)
+      (PaperAlgebra.Structure PhaseReference.logicalWidth)
       (PaperAlgebra.PublicInput
-        (logicalWidth := VerifierContext.candidateLogicalWidth)
-        (publicFits := VerifierContext.candidatePublicFits))
+        (logicalWidth := PhaseReference.logicalWidth)
+        (publicFits := PhaseReference.publicFits))
       PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment RingF
       productionGlobalParams
       Nifs.PaperProfile.arity where
@@ -126,7 +125,7 @@ def attempt
 
 theorem attempt_output_commitment
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (challenges : Fin SourceCount → RingF) :
     (attempt relation challenges).output.commitment =
       combinedCommitment challenges := by
@@ -134,7 +133,7 @@ theorem attempt_output_commitment
 
 theorem attempt_output_publicInput
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (challenges : Fin SourceCount → RingF) :
     (attempt relation challenges).output.publicInput =
       combinedPublicInput challenges := by
@@ -142,7 +141,7 @@ theorem attempt_output_publicInput
 
 theorem attempt_output_evaluations
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (challenges : Fin SourceCount → RingF) :
     (attempt relation challenges).output.evaluations =
       #[combinedEvaluation challenges] := by
@@ -153,14 +152,13 @@ satisfy the exact model-level PiRLC acceptance predicate for any final
 relation and Ajtai key. -/
 theorem accepted
     (relation : ProductionKey.LogicalRelation
-      VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+      PhaseReference.logicalWidth PhaseReference.publicFits)
     (key : AjtaiKey
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
-    (batch : Transcript.PiRlcSampler.Batch SourceCount)
-    (success : sampled () = some batch) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     PiRLC.Accepted (PaperAlgebra.piRlcAlgebra key)
-      (attempt relation batch.challenges) := by
+      (attempt relation (sampled ()).challenges) := by
+  let batch := sampled ()
   refine {
     inputFresh := fun _ => rfl
     sameStructure := fun _ => rfl
@@ -173,7 +171,7 @@ theorem accepted
   · exact (PaperAlgebra.combineEvaluations_singletons (by decide)
       batch.challenges inputEvaluation).symm
   intro source
-  have member := Transcript.PiRlcSampler.piRlcChallenges_member success source
+  have member := Transcript.PiRlcSampler.piRlcChallenges_member (initialState ()) SourceCount source
   simpa [PaperAlgebra.piRlcAlgebra,
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge.challengeValid]
     using! member

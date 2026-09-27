@@ -150,6 +150,10 @@ private def checkApplication (manifest : Lean.Json)
 def check : IO Unit := do
   let result : Except String Unit := do
     let manifest ← Export.SharedVerifier.value ()
+    require ((← natural manifest "version") == 3) "manifest schema version differs"
+    let localIndex := PerApplicationAssignmentPlan.canonicalKinds.idxOf .applicationLocal
+    require ((← natural manifest "application_local_index") == localIndex)
+      "manifest application-local block differs"
     checkApplication manifest Poseidon2HashChainV1Package.application
     checkApplication manifest (PerApplicationEmitterFixture.program ())
   match result with

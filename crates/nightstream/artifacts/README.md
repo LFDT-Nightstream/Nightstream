@@ -3,7 +3,7 @@ Library users need these saved artifacts:
 | Artifact | Delivery and use |
 | --- | --- |
 | `shared-verifier-v1.json` | Included by the `nightstream` Rust build. Declares mandatory components, application ports, dimensions, and relocation rules. |
-| `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Included in this package. Pass these bytes to `Circuit::prepare` as verifier configuration. |
+| `nightstream-fprime-stage1-poseidon2-hash-chain-v1.json` | Included in this package. Pass these bytes to `Circuit::compile` as verifier configuration. |
 | `shared-formulas-v1.json` | Included by the `nightstream-fprime` dependency's Rust build. Supplies the shared Poseidon2 and Phi81 formulas. |
 
 Application preparation, proving, verification, and Rust builds do not run
@@ -25,37 +25,35 @@ They are not producer inputs or prerequisites for a consumer's proof run.
 Those tests use only package-local paths. Their source records are in
 `tests/fixtures/README.md`.
 
-The selected blueprint is retained from repository snapshot
-`9787d8e77069246e3e2afc7dcfab755556fd5023`. Its data was last changed by
-`dd38a22f9e213538966bf0d5c867e477b3bc016d`. The manifest source is
+The blueprint and manifest come from the current canonical Lean package.
+The manifest source is
 `formal/nightstream-fprime/NightstreamFPrime/Export/SharedVerifier.lean`.
-Its definitions and contract names are recorded in the JSON. The maintainer
-toolchain is `leanprover/lean4:v4.32.2`, as set by the formal project's
-`lean-toolchain` file. All artifacts use the selected Nightstream Goldilocks
-profile with `b = 2`, `k_rho = 16`, and `B = 2^16`.
+It emits version 3 with one reference application and fourteen phase children.
+The repository toolchain remains `leanprover/lean4:v4.32.2`. A compatible local
+compiler can be selected with `elan run TOOLCHAIN`. All artifacts use
+`b = 2`, `k_rho = 16`, and `B = 65536`.
 
 The reference application has four witness words, 7,696 local words, and 7,700
 rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current Rust `Circuit` supports at most 7,701 witness and local words
-together. This bound follows from the
-[selected key's](../../neo-ajtai/src/nightstream_fprime_setup.rs)
-253,011,276-coordinate carrier and the exported width
-`252695531 + 41 * (witness_words + local_words)`. Assembly-only dimension checks
-also require the source rows, source columns, and padded retained carrier to fit
-the declared domain.
+The current selected application has 242,590,792 logical coordinates and
+242,590,842 padded coordinates, using 4,492,423 columns of the unchanged fixed
+key. The approved maximum is 4,708,530 columns. With logical width
+`242275092 + 41 * (witness_words + local_words)`, that maximum permits 292,329
+application witness and local fields together. Source rows, source columns,
+and the padded carrier must also fit the declared domain.
 
 From `formal/nightstream-fprime`, run the maintainer commands one at a time.
-The outer 1,500-second cap follows that project's `AGENTS.md`.
+The wrapper enforces that project's 1,500-second cap.
 
 ```sh
-timeout --signal=KILL 1500 bash scripts/validate.sh build emitSharedVerifier
-timeout --signal=KILL 1500 bash scripts/validate.sh build checkSharedVerifier
-timeout --signal=KILL 1500 bash scripts/validate.sh file tests/SharedVerifier.lean
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/checkSharedVerifier
-timeout --signal=KILL 1500 bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedVerifier ../../crates/nightstream/artifacts/shared-verifier-v1.json
+bash scripts/validate.sh build emitSharedVerifier
+bash scripts/validate.sh build checkSharedVerifier
+bash scripts/validate.sh file tests/SharedVerifier.lean
+bash scripts/validate.sh lean-executable .lake/build/bin/checkSharedVerifier
+bash scripts/validate.sh lean-executable .lake/build/bin/emitSharedVerifier ../../crates/nightstream/artifacts/shared-verifier-v1.json
 ```
 
 The native check compares the manifest with both existing Lean applications.
@@ -68,11 +66,12 @@ To regenerate a separate copy of the selected blueprint for comparison, use
 the existing production emitter from the same directory:
 
 ```sh
-timeout --signal=KILL 1500 bash scripts/validate.sh emit-poseidon2-hash-chain-v1 /tmp/nightstream-reference.json
+bash scripts/validate.sh emit /tmp/nightstream-reference.json
 ```
 
-Keep the selected blueprint and pins until the complete circuit and execution
-comparisons pass. The test-only per-application emitter selects another
+Check emitted candidates before installing matching local blueprint and pins.
+Promote saved fold fixtures only after the fresh native and Lean comparisons
+pass. The test-only per-application emitter selects another
 application and is not a replacement for this command.
 
 Before a Cargo release, inspect `cargo package --list -p nightstream` and test

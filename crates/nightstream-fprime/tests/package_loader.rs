@@ -19,7 +19,7 @@ fn sealed_artifact_bytes() -> Vec<u8> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
     )
-    .expect("run formal/nightstream-fprime/scripts/validate.sh emit-poseidon2-hash-chain-v1 first")
+    .expect("run formal/nightstream-fprime/scripts/validate.sh emit first")
 }
 
 fn pi_ccs_parity_bytes() -> Vec<u8> {
@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 29_225_729);
-    assert_eq!(package.total_column_count(), 29_344_425);
+    assert_eq!(package.physical_row_count(), 28_275_820);
+    assert_eq!(package.total_column_count(), 28_418_945);
     assert_eq!(package.private_input_count(), 177_326);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 6_377_559);
+    assert_eq!(relation.row_count(), 6_064_606);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 253_011_231);
+    assert_eq!(relation.column_count(), 242_590_792);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),
@@ -348,4 +348,35 @@ fn loader_rejects_noncanonical_json_bytes() {
         load_poseidon2_hash_chain_v1_package(&bytes),
         Err(PackageError::NonCanonicalBytes)
     ));
+}
+
+#[test]
+fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
+    let bytes = sealed_artifact_bytes();
+    load_poseidon2_hash_chain_v1_package(&bytes).expect("current complete package");
+    let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value[4][0], json!(3));
+    let challenge_block = value[4][2][9].as_u64().unwrap() as usize;
+    let first_word = value[4][1][challenge_block][4][0][0].as_u64().unwrap();
+    let batches = value[1][10].as_array_mut().unwrap();
+    let index = batches
+        .iter()
+        .position(|batch| batch[0].as_u64() == Some(first_word))
+        .expect("sampler coefficient words have their own witness batch");
+    assert_eq!(batches[index][1].as_array().unwrap().len(), 54);
+    batches.remove(index);
+    let changed = canonical_bytes(&value);
+    // A self-consistent identity must not authorize a missing witness writer.
+    // Replay the computed identity so the second load reaches structural checks.
+    let identity = match load_per_application_package(&changed, [0; 4]) {
+        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+        _ => panic!("the mutation must change the structural identity"),
+    };
+    let error = load_per_application_package(&changed, identity)
+        .err()
+        .expect("a rehashed incomplete witness program must be rejected");
+    assert!(
+        matches!(error, PackageError::Invalid("witness column coverage")),
+        "{error:?}"
+    );
 }

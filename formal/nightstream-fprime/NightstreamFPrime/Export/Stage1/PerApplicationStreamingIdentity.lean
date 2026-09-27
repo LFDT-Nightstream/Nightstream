@@ -818,7 +818,7 @@ theorem processMatrixProgramWith_eq_processValueWith {State : Type}
 @[inline, specialize push] def processAssignmentTransportWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (program : Program) : State :=
-  let state := push state ⟨1, 6⟩
+  let state := push state ⟨1, 5⟩
   let state := push state
     ⟨0, PerApplicationAssignmentTransport.schema⟩
   let state := StreamingIdentity.processEncodedListWith push state
@@ -827,9 +827,6 @@ theorem processMatrixProgramWith_eq_processValueWith {State : Type}
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentTransport.Phi81GroupRecipe.format.encode
       (PerApplicationAssignmentTransport.phi81GroupRecipe program)) state
-  let state := StreamingIdentity.processValueWith push
-    (PerApplicationAssignmentTransport.First54ProductRecipe.format.encode
-      PerApplicationAssignmentTransport.first54ProductRecipe) state
   let state := StreamingIdentity.processValueWith push
     (PerApplicationAssignmentPlan.BlockKind.format.encode
       .pilotOutputDigest) state

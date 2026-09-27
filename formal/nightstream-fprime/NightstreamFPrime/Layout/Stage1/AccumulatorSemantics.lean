@@ -683,13 +683,11 @@ theorem piRlcChallenges_eq_key
             rw [PiRLCInputs.piCcsOutputState_eq_parent relation]
             rfl
       _ = _ := piCcsPhase.outgoingState
-  change
-    NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.piRlcChallenges
-        ((ProductionKey.key relation ajtai).piCcsExecution
-          (AccumulatorInputs.running logicalWidth publicFits env)
-          (AccumulatorInputs.fresh logicalWidth publicFits env)
-          (AccumulatorInputs.proof relation env)).outgoingState
-        Nifs.PaperProfile.arity.total = some _
+  change ProductionKey.piRlcResponse
+      ((ProductionKey.key relation ajtai).piCcsExecution
+        (AccumulatorInputs.running logicalWidth publicFits env)
+        (AccumulatorInputs.fresh logicalWidth publicFits env)
+        (AccumulatorInputs.proof relation env)).outgoingState = some _
   rw [← stateEq]
   exact piRlcPhase.response
 

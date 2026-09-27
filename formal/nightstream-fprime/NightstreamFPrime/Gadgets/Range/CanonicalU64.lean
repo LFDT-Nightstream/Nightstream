@@ -235,7 +235,8 @@ private theorem fieldOfNat_val_self (value : F) :
   apply Fin.eq_of_val_eq
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
-private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
+/-- Every nonzero field value times its hint inverse is one. -/
+theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     value * Hint.inverse value = 1 := by
   have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
     intro valueValZero
@@ -1145,6 +1146,16 @@ private theorem completeEnv_holdsFlat
       rcases member with rfl | rfl
       · exact recomposition
       · exact canonicality
+
+/-- The concrete hint-and-recipe execution is the honest completion. -/
+theorem completeEnv_correct (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env) :
+    AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount ∧
+      holdsFlat (completeEnv interface env offset) (operations interface offset) ∧
+      SpecHolds interface offset (completeEnv interface env offset) :=
+  ⟨completeEnv_agreesOutside interface env offset,
+    completeEnv_holdsFlat interface env offset assumptions,
+    completeEnv_spec interface env offset assumptions⟩
 
 theorem complete
     (interface : Interface) (env : Env) (offset : Nat)

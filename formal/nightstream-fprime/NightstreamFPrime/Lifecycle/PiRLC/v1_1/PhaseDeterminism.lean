@@ -35,6 +35,8 @@ theorem challenges_eq_of_initialState_eq
       Semantics.evalChallenges interface offset right := by
   have leftResponse := leftPhase.response
   have rightResponse := rightPhase.response
+  change Sampler.evalState left (interface.initialState offset) =
+    Sampler.evalState right (interface.initialState offset) at initialStateEq
   rw [initialStateEq] at leftResponse
   exact Option.some.inj (leftResponse.symm.trans rightResponse)
 

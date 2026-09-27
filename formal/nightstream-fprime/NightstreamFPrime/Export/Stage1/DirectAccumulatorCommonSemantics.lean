@@ -38,13 +38,12 @@ theorem semantics_imply_accumulatorHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
-      base groupValue products)
+      base groupValue)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-      geometry assignment base groupValue products)
+      geometry assignment base groupValue)
     (piRlcAssumptions :
       NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.Assumptions relation
         (PiRLCInputs.interface
@@ -71,10 +70,10 @@ theorem semantics_imply_accumulatorHolds
   have piCcsPhase :=
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsPhaseHolds relation
       ajtai (AccumulatorInputs.proof relation commonEnv) geometry assignment
-      base groupValue products semantics
+      base groupValue semantics
   have piRlcPhase :=
     DirectPiRLCSamplerCompletePhaseSemantics.semantics_imply_piRlcPhaseHolds
-      relation ajtai geometry assignment base groupValue products one encodes
+      relation ajtai geometry assignment base groupValue one encodes
       semantics piRlcAssumptions
   have piDecAssumptions :
       Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
@@ -85,7 +84,7 @@ theorem semantics_imply_accumulatorHolds
       PiDECInputs.assumptions relation commonEnv
   have piDecPhase :=
     DirectPiDECCommonPhaseSemantics.semantics_imply_piDecPhaseHolds relation
-      ajtai geometry assignment base groupValue products semantics
+      ajtai geometry assignment base groupValue semantics
       piDecAssumptions
   apply AccumulatorSemantics.phases_imply_holds relation ajtai vk commonEnv
   · simpa [PiCCSInvocations.parentInterface,

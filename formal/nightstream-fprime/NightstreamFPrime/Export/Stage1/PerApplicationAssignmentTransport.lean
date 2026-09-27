@@ -4,10 +4,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
-The transport keeps the existing 30 retained block plans and adds only the
-recipes that cannot be recovered from their source runs: Phi81 group totals,
-First54 accepted-symbol products and the four
-verifier-owned output-digest words.
+The 26 retained block plans supply their source values. Compact recipes
+derive the Phi81 group totals and the four constrained output-digest words.
 
 Every expression variable is renamed to its final physical package column.
 The package does not carry expanded low-norm coordinates or assignment values.
@@ -165,47 +163,12 @@ def phi81GroupRecipe (program : Program) : Phi81GroupRecipe where
   groupWidth := 5
   groupCount := 33
   familyShapes := phi81FamilyShapes
-  challengeBlock := .first54Value
-  challengeSlotBase := 3402
-  challengeSourceStride := 3456
+  challengeBlock := .challengeWords
+  challengeSlotBase := 0
+  challengeSourceStride := 54
   challengeShift := 2
   valueSources := phi81ValueSources program
   groupOutputBlock := .productGroup
-
-/-- Compact executable recipe for the 1,088 shared First54 products. -/
-structure First54ProductRecipe where
-  candidateCount : Nat
-  rejectBlock : BlockKind
-  symbolBlock : BlockKind
-  outputBlock : BlockKind
-deriving Repr, DecidableEq
-
-def First54ProductRecipe.format : Format First54ProductRecipe where
-  encode := fun recipe => .array [
-    .atom recipe.candidateCount,
-    BlockKind.format.encode recipe.rejectBlock,
-    BlockKind.format.encode recipe.symbolBlock,
-    BlockKind.format.encode recipe.outputBlock]
-  decode
-    | .array [.atom candidateCount, rejectBlock, symbolBlock, outputBlock] =>
-        do
-          pure {
-            candidateCount,
-            rejectBlock := ← BlockKind.format.decode rejectBlock,
-            symbolBlock := ← BlockKind.format.decode symbolBlock,
-            outputBlock := ← BlockKind.format.decode outputBlock }
-    | _ => .error "invalid First54 assignment product recipe"
-  decode_encode := by
-    intro recipe
-    cases recipe
-    simp only [BlockKind.format.decode_encode]
-    rfl
-
-def first54ProductRecipe : First54ProductRecipe where
-  candidateCount := 1088
-  rejectBlock := .first54Reject
-  symbolBlock := .first54Symbol
-  outputBlock := .first54Product
 
 def physicalExpr (program : Program) (expression : Expr) : Expr :=
   CompactRows.renameExpr (PerApplicationPackage.shiftColumn program) <|
@@ -228,13 +191,12 @@ def outputDigestExpressions (program : Program) : List Expr :=
   simp [outputDigestExpressions]
 
 /-- Schema of the assignment-transport child in the sealed package. -/
-def schema : Nat := 2
+def schema : Nat := 3
 
 /-- Complete package-carried transport plan. -/
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
   phi81 : Phi81GroupRecipe
-  first54 : First54ProductRecipe
   outputDigestBlock : BlockKind
   outputDigestExpressions : List Expr
 deriving Repr, DecidableEq
@@ -244,17 +206,15 @@ def Plan.format : Format Plan where
     .atom schema,
     PerApplicationAssignmentBlocks.format.encode plan.blocks,
     Phi81GroupRecipe.format.encode plan.phi81,
-    First54ProductRecipe.format.encode plan.first54,
     BlockKind.format.encode plan.outputDigestBlock,
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
   decode
-    | .array [.atom 2, blocks, phi81, first54,
+    | .array [.atom 3, blocks, phi81,
         outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,
         phi81 := ← Phi81GroupRecipe.format.decode phi81,
-        first54 := ← First54ProductRecipe.format.decode first54,
         outputDigestBlock := ← BlockKind.format.decode outputDigestBlock,
         outputDigestExpressions :=
           ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
@@ -265,7 +225,6 @@ def Plan.format : Format Plan where
     cases plan
     simp only [schema, PerApplicationAssignmentBlocks.format.decode_encode,
       Phi81GroupRecipe.format.decode_encode,
-      First54ProductRecipe.format.decode_encode,
       BlockKind.format.decode_encode,
       (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode_encode]
     rfl
@@ -273,12 +232,11 @@ def Plan.format : Format Plan where
 def canonical (program : Program) : Plan where
   blocks := PerApplicationAssignmentBlocks.canonical program
   phi81 := phi81GroupRecipe program
-  first54 := first54ProductRecipe
   outputDigestBlock := .pilotOutputDigest
   outputDigestExpressions := outputDigestExpressions program
 
 @[simp] theorem canonical_blocks_length (program : Program) :
-    (canonical program).blocks.length = 30 := by
+    (canonical program).blocks.length = 26 := by
   exact PerApplicationAssignmentBlocks.canonical_length program
 
 @[simp] theorem canonical_outputDigestExpressions_length (program : Program) :

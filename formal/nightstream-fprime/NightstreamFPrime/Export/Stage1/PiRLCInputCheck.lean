@@ -78,8 +78,8 @@ theorem sampled_on_rejection (input : Input)
     (rejected : (PiCCSInputCheck.execute input).accepted = false) : sampled input = none := by
   simp only [sampled, rejected, Bool.false_eq_true, ↓reduceIte]
 
-/-- The actual endpoint gives the production key response, including its
-fail-closed sampler behavior. This is an execution equality, not a coin law. -/
+/-- An accepted PiCCS endpoint gives the total production key response.
+This is an execution equality, not a coin law. -/
 theorem sampled_response (input : Input) (batch : Transcript.PiRlcSampler.Batch SourceCount)
     (returned : sampled input = some batch) :
     (PiCCSInputCheck.execute input).accepted = true ∧
@@ -88,8 +88,7 @@ theorem sampled_response (input : Input) (batch : Transcript.PiRlcSampler.Batch 
   split at returned
   · rename_i accepted
     refine ⟨accepted, ?_⟩
-    simp only [ProductionKey.piRlcResponse, Transcript.PiRlcSampler.piRlcChallenges,
-      returned, Option.map_some]
+    exact congrArg (fun batch => some batch.challenges) (Option.some.inj returned)
   · cases returned
 
 /-- Every successful actual C/R handoff supplies the strong extractor's
@@ -108,8 +107,8 @@ def inputFamilies (input : Input) : List Value :=
       PiCCSParity.fieldWordsValue (serializeCommitment (commitments input source))),
     .array ((List.finRange SourceCount).map fun source =>
       PiCCSParity.fieldWordsValue (serializePublicInput
-        (logicalWidth := VerifierContext.candidateLogicalWidth)
-        (publicFits := VerifierContext.candidatePublicFits) (publicInputs input source))),
+        (logicalWidth := PhaseReference.logicalWidth)
+        (publicFits := PhaseReference.publicFits) (publicInputs input source))),
     .array (input.evalK.toList.map fun family => PiCCSParity.extensionWordsValue family.toList),
     .array (input.evalA.toList.map fun family =>
       .array (family.toList.map fun matrix => PiCCSParity.extensionWordsValue matrix.toList))]
@@ -169,29 +168,27 @@ def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Exe
   let rlcInput := inputValue input ccsResult packageIdentity
   if !ccsResult.accepted then
     return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
-  match Transcript.PiRlcSampler.piRlcChallengesWithState ccsResult.outgoing SourceCount with
-  | none => return ⟨fields ++ [rlcInput, .array [.atom 0]], none⟩
-  | some batch =>
-      let commitmentTask ← IO.asTask (PiRLCParity.prepare fun _ =>
-        commitmentPartials batch.challenges (commitments input))
-      let publicTask ← IO.asTask (PiRLCParity.prepare fun _ =>
-        publicInputPartials batch.challenges (publicInputs input))
-      let padTask ← IO.asTask (PiRLCParity.prepare fun _ =>
-        evaluationPartials batch.challenges fun source => (evaluations input source).pad)
-      let matrixTasks ← (List.finRange productionShape.matrixCount).mapM fun matrix =>
-        IO.asTask (PiRLCParity.prepare fun _ =>
-          evaluationPartials batch.challenges fun source => (evaluations input source).matrix matrix)
-      let commitmentValues ← PiRLCParity.prepared commitmentTask
-      let publicValues ← PiRLCParity.prepared publicTask
-      let padValues ← PiRLCParity.prepared padTask
-      let matrixValues ← matrixTasks.mapM PiRLCParity.prepared
-      match PiRLCParity.resultValueFromPartials ccsResult.point batch (inputsNonzero input)
-          commitmentValues publicValues padValues matrixValues with
-      | some result =>
-          match finalParent ccsResult.point batch commitmentValues publicValues padValues matrixValues with
-          | some parent => return ⟨fields ++ [rlcInput, result], some parent⟩
-          | none => throw (IO.userError "incomplete actual PiRLC parent")
-      | none => throw (IO.userError "incomplete actual PiRLC indexed trace")
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState ccsResult.outgoing SourceCount
+  let commitmentTask ← IO.asTask (PiRLCParity.prepare fun _ =>
+    commitmentPartials batch.challenges (commitments input))
+  let publicTask ← IO.asTask (PiRLCParity.prepare fun _ =>
+    publicInputPartials batch.challenges (publicInputs input))
+  let padTask ← IO.asTask (PiRLCParity.prepare fun _ =>
+    evaluationPartials batch.challenges fun source => (evaluations input source).pad)
+  let matrixTasks ← (List.finRange productionShape.matrixCount).mapM fun matrix =>
+    IO.asTask (PiRLCParity.prepare fun _ =>
+      evaluationPartials batch.challenges fun source => (evaluations input source).matrix matrix)
+  let commitmentValues ← PiRLCParity.prepared commitmentTask
+  let publicValues ← PiRLCParity.prepared publicTask
+  let padValues ← PiRLCParity.prepared padTask
+  let matrixValues ← matrixTasks.mapM PiRLCParity.prepared
+  match PiRLCParity.resultValueFromPartials ccsResult.point batch (inputsNonzero input)
+      commitmentValues publicValues padValues matrixValues with
+  | some result =>
+      match finalParent ccsResult.point batch commitmentValues publicValues padValues matrixValues with
+      | some parent => return ⟨fields ++ [rlcInput, result], some parent⟩
+      | none => throw (IO.userError "incomplete actual PiRLC parent")
+  | none => throw (IO.userError "incomplete actual PiRLC indexed trace")
 
 def checkValueIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Value := do
   let execution ← checkIO input packageIdentity

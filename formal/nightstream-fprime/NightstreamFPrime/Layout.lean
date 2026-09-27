@@ -10,7 +10,6 @@ import NightstreamFPrime.Layout.Polynomial.Sparse
 import NightstreamFPrime.Layout.Multilinear.PointEquality
 import NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Layout.SumCheck.FixedChain
-import NightstreamFPrime.Layout.Sampling.Candidate16Five
 import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotProduction
@@ -40,9 +39,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Preservation
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.InputBinding
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.TranscriptAbsorption
-import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane
-import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestWindow
-import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.First54
 import NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.OutputBinding
 import NightstreamFPrime.Layout.PiRLC.v1_1.Sampler
 import NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.Composition

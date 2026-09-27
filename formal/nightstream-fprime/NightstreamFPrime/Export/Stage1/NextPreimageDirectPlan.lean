@@ -93,10 +93,8 @@ private theorem preservesCombination
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
       combination)
@@ -107,7 +105,7 @@ private theorem preservesCombination
       combination bounded := by
   intro term member
   exact PiCCSOrdinaryDirectPlan.sourceMap_form_eval_of_target geometry
-    assignment base groupValue products encodes
+    assignment base groupValue encodes
     ⟨term.1, bounded term member⟩ (scope term member)
 
 theorem inputs_preserve
@@ -117,10 +115,8 @@ theorem inputs_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs geometry).sourceMap index) assignment
       (RunningTransitionDirectPlan.transitionEnv application base)
@@ -128,11 +124,11 @@ theorem inputs_preserve
   intro index
   have scope := sourceRows_varsSatisfy _ (List.get_mem sourceRows index)
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 def plan
@@ -157,17 +153,15 @@ theorem rowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) = 1) :
     (plan geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         sourceRows := by
   rw [plan, OrdinarySourcePlan.Program.rowsZero_iff program (inputs geometry)
     assignment (RunningTransitionDirectPlan.transitionEnv application base)
-    one (inputs_preserve geometry assignment base groupValue products encodes)]
+    one (inputs_preserve geometry assignment base groupValue encodes)]
   exact program_holds_iff_rowsHold _
 
 theorem rowsZero_implies_spec
@@ -177,10 +171,8 @@ theorem rowsZero_implies_spec
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (rows : (plan geometry).RowsZero assignment) :
     NextPreimage.SpecHolds NextPreimageInputs.sourceInterface
@@ -188,7 +180,7 @@ theorem rowsZero_implies_spec
       (Spartan.pullback
         (RunningTransitionDirectPlan.transitionEnv application base)) := by
   have sourceRowsHold := (rowsZero_iff_rowsHold geometry assignment base
-    groupValue products encodes one).mp rows
+    groupValue encodes one).mp rows
   have spartanSpec := NextPreimagePackage.sourceRows_imply_spec
     (RunningTransitionDirectPlan.transitionEnv application base) sourceRowsHold
   have sourceSpec := (NextPreimageInputs.spartanSpec_iff_sourceSpec

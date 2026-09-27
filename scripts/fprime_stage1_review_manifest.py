@@ -25,16 +25,16 @@ DEFAULT_MANIFEST = Path("FPRIME_STAGE1_REVIEW_MANIFEST.json")
 RECURSIVE_ROOTS = (
     Path("formal/nightstream-fprime"),
     Path("crates/nightstream-fprime"),
-    Path("crates/neo-fold-legacy"),
+    Path("crates/nightstream"),
     Path("crates/neo-math"),
     Path("crates/neo-params"),
     Path("crates/neo-ccs"),
     Path("crates/neo-ajtai"),
     Path("crates/neo-transcript"),
     Path("crates/neo-reductions"),
-    Path("crates/wip-spartan"),
     Path("decisions"),
     Path("docs/superneo-paper-v1_1"),
+    Path("docs/superneo-paper-v1_2"),
 )
 
 EXPLICIT_FILES = (

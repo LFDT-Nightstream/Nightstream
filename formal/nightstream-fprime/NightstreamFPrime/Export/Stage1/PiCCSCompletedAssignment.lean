@@ -54,7 +54,7 @@ private theorem ordinaryRowsZero_of_completed
   have cRows := c_rows relation target physical
   apply (PiCCSOrdinaryDirectPlan.rowsZero_iff_rowsHold relation
     (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
-    raw.assignment raw.base raw.groupValue raw.products
+    raw.assignment raw.base raw.groupValue
     (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior).mpr
   apply R1CS.rowsHold_of_agree _ PiCCSOrdinarySourceSupport.Target target _

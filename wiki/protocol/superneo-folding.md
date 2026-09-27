@@ -3,15 +3,15 @@
 SuperNeo §7 defines Neo's folding scheme for CCS in the lattice setting. One fold
 takes `K` fresh committed CCS instances plus the carried accumulator of `k` CE claims
 and outputs a new accumulator of `k` low-norm CE claims. The composition of the three
-reductions is what `neo-fold-legacy` calls `NIFS` (`src/paper/nifs/`).
+reductions is the NIFS in `nightstream/src/folding/compose.rs`.
 
 ## The relations (SuperNeo §7.1)
 
 | Relation | Content | Code |
 |---|---|---|
-| Structure (Def. 11) | `s = ({M_j}_{j∈[t]}, f)` — `t` matrices and a degree-`u` polynomial `f`. CCS is satisfied when `f(M_1·z, …, M_t·z) = 0` row-wise. | `paper::relations::Structure`, `neo_ccs::CcsStructure` |
-| CCS(b, ℒ) (Def. 12) | A committed instance: Ajtai commitment `c` to the low-norm witness matrix `Z`, public input `x`, satisfying the structure. | `paper::relations::CcsInstance` |
-| CE(b, ℒ) (Def. 13) | Committed evaluation: `(c, x, r, {y_j})` claims that for the committed `Z`, the multilinear extension of `M_j·z` evaluated at point `r` equals `y_j` — with `‖Z‖_∞ < b`. | `paper::relations::CeClaim` |
+| Structure (Def. 11) | `s = ({M_j}_{j∈[t]}, f)` — `t` matrices and a degree-`u` polynomial `f`. CCS is satisfied when `f(M_1·z, …, M_t·z) = 0` row-wise. | `neo_ccs::CcsStructure` |
+| CCS(b, ℒ) (Def. 12) | A committed instance: Ajtai commitment `c` to the low-norm witness matrix `Z`, public input `x`, satisfying the structure. | `neo_ccs::CcsClaim` |
+| CE(b, ℒ) (Def. 13) | Committed evaluation: `(c, x, r, {y_j})` claims that for the committed `Z`, the multilinear extension of `M_j·z` evaluated at point `r` equals `y_j` — with `‖Z‖_∞ < b`. | `neo_ccs::CeClaim` |
 
 CE is the *universal foldable claim*: both reduction outputs and the accumulator have
 this shape, which is what makes the scheme compose indefinitely.
@@ -26,8 +26,7 @@ claims `y′_{i,j}` at `r′`.
 
 - The math lives in `neo-reductions` (`api::pi_ccs_prove` / `pi_ccs_verify`, optimized
   and paper-exact engines).
-- The paper layer in `neo-fold-legacy` exposes only a shape-checked seam:
-  `paper/reductions/pi_ccs.rs` wrapping `engine/optimized.rs`.
+- `nightstream/src/folding/pi_ccs.rs` owns the current lifecycle integration.
 - Sum-check soundness comes from the extension field `K = F_{q²}`; per-shape effective
   λ is validated at preprocessing (see [Parameters](parameters.md)).
 
@@ -39,9 +38,9 @@ Aggregates the `K+k` CE claims into **one** CE claim by mixing with challenges
 
 - Norm cost: mixing multiplies witness norm by at most the expansion factor `T`, so the
   output claim has norm bound `B = b^k`. Parameter validity requires
-  `(K+k)·T·(b−1) < B` (`paper/sampling.rs::check_rlc_bound`).
+  `(K+k)·T·(b−1) < B` (`nightstream/src/folding/params.rs`).
 - The verifier recomputes the combined claim itself from the inputs and challenges; the
-  prover's claimed output is never trusted (`paper/reductions/pi_rlc.rs`).
+  prover's claimed output is never trusted (`nightstream/src/folding/pi_rlc.rs`).
 
 ## Π_DEC — decomposition (§7.5)
 
@@ -54,7 +53,7 @@ c   ?=  Σ_i b^{i−1} · c_i
 y_j ?=  Σ_i b^{i−1} · y_{i,j}
 ```
 
-(`paper/reductions/pi_dec.rs`). The children are the next accumulator: low-norm again,
+(`nightstream/src/folding/pi_dec.rs`). The children are the next accumulator: low-norm again,
 so Ajtai binding holds for the next fold. This step is the lattice-specific part of the
 pipeline — HyperNova over Pedersen commitments needs no norm control.
 
@@ -65,9 +64,9 @@ CCS arithmetic happens over `F_q`, but commitments live over the ring
 the `bar(·)` lift satisfies `Mz = ct(bar(M)·z)` (Thm. 4), so field-level matrix-vector
 products are recoverable from ring-level products, and linear combinations of
 evaluations commute with the commitment's S-action (Thm. 5). In code:
-`neo_math::superneo_bar_*`, enforced at the seam by `paper/reductions/pi_rlc.rs`.
+`neo_math::superneo_bar_*`, enforced at the seam by `nightstream/src/folding/pi_rlc.rs`.
 The maintained proof and Rust/R1CS refinement work lives in
-`formal/nightstream-lean`; sibling Lean projects are legacy references only.
+`formal/nightstream-fprime`; the older `formal/nightstream-lean` is frozen.
 
 ## Engines
 

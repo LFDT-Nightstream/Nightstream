@@ -48,10 +48,8 @@ def evalChallenges
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
     Fin Nifs.PaperProfile.arity.total → RingF :=
-  fun source =>
-    SamplerChain.evalChallenges
-      (Formal.samplerInterface (Formal.atOffset interface offset))
-      (Formal.samplerOffset offset) env (sourceIndex source)
+  fun source position =>
+    (SamplerChain.outputChallenge (Formal.samplerOffset offset) (sourceIndex source) position).eval env
 
 def evalOutput
     {logicalWidth : Nat}
@@ -72,13 +70,10 @@ theorem combinationChallenge_eval
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) (source : Fin 17)
     (lane : Fin ringDegree) :
-    (SamplerChain.challengeExpr
-        (Formal.samplerInterface (Formal.atOffset interface offset)) offset
+    (SamplerChain.outputChallenge offset
         (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env =
       evalChallenges interface offset env source lane := by
-  exact SamplerChain.challengeExpr_eval
-    (Formal.samplerInterface (Formal.atOffset interface offset)) offset env
-    (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane
+  rfl
 
 theorem commitmentChallenges_eq
     {logicalWidth : Nat}
@@ -478,7 +473,7 @@ structure PhaseHolds
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : Prop where
-  sampler : SamplerChain.RelationHolds
+  sampler : SamplerChain.SpecHolds
     (Formal.samplerInterface (Formal.atOffset interface offset))
     (Formal.samplerOffset offset) env
   accepted : PiRLC.Accepted (PaperAlgebra.piRlcAlgebra ajtai)
@@ -494,14 +489,15 @@ theorem PhaseHolds.response
     {interface : Formal.Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
     (phase : PhaseHolds relation ajtai interface offset env) :
-    NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.piRlcChallenges
-        (SamplerChain.evalInitialState
-          (Formal.samplerInterface (Formal.atOffset interface offset))
-          (Formal.samplerOffset offset) env)
-        Nifs.PaperProfile.arity.total =
+    ProductionKey.piRlcResponse (Sampler.evalState env (interface.initialState offset)) =
       some (evalChallenges interface offset env) := by
-  simpa [evalChallenges, sourceIndex, arityTotal_eq_sourceCount] using!
-    phase.sampler.response
+  rw [ProductionKey.piRlcResponse, Transcript.PiRlcSampler.piRlcChallenges,
+    Transcript.PiRlcSampler.piRlcChallengesWithState_challenges]
+  apply congrArg some
+  funext source
+  exact (SamplerChain.outputChallenge_eval
+    (Formal.samplerInterface (Formal.atOffset interface offset)) env
+    (Formal.samplerOffset offset) phase.sampler (sourceIndex source)).symm
 
 theorem PhaseHolds.outgoingState
     {logicalWidth : Nat}
@@ -513,16 +509,12 @@ theorem PhaseHolds.outgoingState
     {interface : Formal.Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
     (phase : PhaseHolds relation ajtai interface offset env) :
-    SamplerChain.evalFinalState
+    Sampler.evalState env (SamplerChain.outputState
         (Formal.samplerInterface (Formal.atOffset interface offset))
-        (Formal.samplerOffset offset) env =
-      Nifs.NonInteractive.PiRlcSampler.stateAt
-        NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.specification
-        (SamplerChain.evalInitialState
-          (Formal.samplerInterface (Formal.atOffset interface offset))
-          (Formal.samplerOffset offset) env)
-        Nifs.PaperProfile.arity.total := by
-  simpa [arityTotal_eq_sourceCount] using! phase.sampler.finalState
+        (Formal.samplerOffset offset)) =
+      Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt
+        (Sampler.evalState env (interface.initialState offset)) Nifs.PaperProfile.arity.total := by
+  simpa [arityTotal_eq_sourceCount] using! phase.sampler.state
 
 theorem challengesValid
     {logicalWidth : Nat}
@@ -538,15 +530,9 @@ theorem challengesValid
       (PaperAlgebra.piRlcAlgebra ajtai).challengeValid
         (evalChallenges interface offset env source) := by
   intro source
-  have success := SamplerChain.sampleRingChallenge_eq
-    (Formal.samplerInterface (Formal.atOffset interface offset))
-    (Formal.samplerOffset offset) env specification.sampler.child
-    (sourceIndex source)
-  simpa [PaperAlgebra.piRlcAlgebra,
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid,
-    evalChallenges] using!
-      NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.sampleRingChallenge_member
-        success
+  exact SamplerChain.outputChallenge_member
+    (Formal.samplerInterface (Formal.atOffset interface offset)) env
+    (Formal.samplerOffset offset) specification.sampler (sourceIndex source)
 
 /-- Mechanical coverage of the exact production PiRLC relation and its
 transcript transition. No challenge or outgoing state is supplied as a

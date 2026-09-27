@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 28411245 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -417,9 +417,8 @@ theorem sourceAssignment_packageSource
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (source : Nat) (bound : source < Spartan.SourceColumnCount) :
-    PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+    PiRLCRetainedPreservation.sourceAssignment program base groupValue
         (packageSourceColumn program source bound) =
       packageEnv program base (Spartan.sourceToSpartan source) := by
   rw [packageSourceColumn,
@@ -464,9 +463,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (location : Location) :
     (location.form geometry).eval assignment =
       transitionEnv program base (Spartan.sourceToSpartan location.sourceColumn) := by
@@ -474,11 +472,11 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
   | roundC0 coordinate =>
       rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c0]
       exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
-        assignment base groupValue products encodes.sboxes coordinate 0
+        assignment base groupValue encodes.sboxes coordinate 0
   | roundC1 coordinate =>
       rw [form, sourceColumn, ← PiCCSTranscriptOutputForms.pointSource_c1]
       exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
-        assignment base groupValue products encodes.sboxes coordinate 1
+        assignment base groupValue encodes.sboxes coordinate 1
   | state index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.state]
       have sourceEq : (stateBlock program).source index =
@@ -537,7 +535,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 8 := lane.isLt
-      have address : 28973248 + index.val =
+      have address : 28047768 + index.val =
           14751804 + invocation.val * 592 + 584 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
@@ -570,9 +568,8 @@ theorem sourceMap_form_eval_of_target
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (column : Fin Spartan.spartanColumnCount)
     (support : RunningTransitionSourceSupport.Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
@@ -582,7 +579,7 @@ theorem sourceMap_form_eval_of_target
     | none => SparseForm.empty
     | some value => value.location.form geometry).eval assignment = _
   rw [found]
-  rw [Location.form_eval geometry assignment base groupValue products
+  rw [Location.form_eval geometry assignment base groupValue
     encodes decoded.location]
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
@@ -595,9 +592,8 @@ private theorem preservesCombination
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
       combination)
@@ -606,7 +602,7 @@ private theorem preservesCombination
       assignment (transitionEnv program base) combination bounded := by
   intro term member
   exact sourceMap_form_eval_of_target geometry assignment base groupValue
-    products encodes ⟨term.1, bounded term member⟩ (scope term member)
+    encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 private theorem programRow_support
     {logicalWidth : Nat}
@@ -641,9 +637,8 @@ theorem inputs_preserve
     (assignment : Assignment F targetLogicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs relation geometry).sourceMap index) assignment
       (transitionEnv program base)
@@ -652,11 +647,11 @@ theorem inputs_preserve
   intro index
   have scope := programRow_support relation index
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 /-- Canonical direct 14-matrix rows for the running transition. -/
@@ -705,10 +700,9 @@ theorem rowsZero_iff_physical
     (assignment : Assignment F targetLogicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     (plan relation geometry).RowsZero assignment ↔
       RunningTransitionLayout.PhysicalHolds sourceLogicalWidth publicFits
         (Spartan.pullback (transitionEnv program base)) := by
@@ -716,7 +710,7 @@ theorem rowsZero_iff_physical
   rw [OrdinarySourcePlan.Program.rowsZero_iff
     (RunningTransitionDirectSource.program relation)
     (inputs relation geometry) assignment (transitionEnv program base) one
-    (inputs_preserve relation geometry assignment base groupValue products encodes)]
+    (inputs_preserve relation geometry assignment base groupValue encodes)]
   exact RunningTransitionDirectSource.program_holds_iff_physical relation
     (transitionEnv program base)
 

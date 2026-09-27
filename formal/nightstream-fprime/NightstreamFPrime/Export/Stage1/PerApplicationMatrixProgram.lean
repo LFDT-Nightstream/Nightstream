@@ -15,7 +15,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 
 /-!
 Owns the exact compact 14-matrix row program for one Lean-authored
-application. Its thirteen children use the same order and geometry projections
+application. Its fourteen children use the same order and geometry projections
 as `PerApplicationProductionPlan.canonical`.
 
 This module selects no package bytes, verification key, or Rust consumer.
@@ -231,7 +231,7 @@ theorem matrixProgram_blocks (application : ApplicationProgram) :
 
 @[simp] theorem matrixProgram_rowCount (application : ApplicationProgram) :
     (matrixProgram application).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      6056897 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [matrixProgram, throughNextPreimageProgram, applicationCompleteProgram,
     runningCompleteProgram,

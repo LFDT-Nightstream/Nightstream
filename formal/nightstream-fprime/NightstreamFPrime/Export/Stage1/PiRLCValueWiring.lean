@@ -209,9 +209,8 @@ theorem form_eval_source
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     (form geometry invocation).eval assignment =
       PiRLCProductPlan.baseEnv program base
         ((PiRLCProductSchedule.descriptor invocation).valueColumn
@@ -223,7 +222,7 @@ theorem form_eval_source
   let column : Fin Spartan.spartanColumnCount :=
     ⟨Spartan.sourceToSpartan source, Spartan.sourceToSpartan_lt source bounded⟩
   have direct := PiCCSOrdinaryDirectPlan.sourceMap_form_eval_of_target geometry
-    assignment base groupValue products encodes column
+    assignment base groupValue encodes column
       (PiCCSOrdinarySourceSupport.source_target source support)
   rw [form_eval_eq_decodedEnv]
   change SourceCompiler.sourceEnv

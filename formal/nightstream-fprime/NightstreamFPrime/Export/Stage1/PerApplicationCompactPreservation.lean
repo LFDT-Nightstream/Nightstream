@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 
 /-!
 Owns the production construction of compact-row shift compatibility for the
-PiRLC First54 and combination invocation families.
+PiRLC combination invocation families.
 
 The generic row-renaming semantics remain in `PerApplicationPreservation`.
 This file proves only the fixed family layout facts selected by the canonical
@@ -225,16 +225,9 @@ private theorem samplerColumn_private (column : Nat)
   · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
       Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
       Spartan.constantColumn] at sourceLocal ⊢
-    have upperValue : column < 20328391 := by
-      simpa [PiRLCStarts.commitmentLogicalStart,
-        PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.commitmentOffset,
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset,
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount,
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Sampler.logicalPrivateCount]
-        using! upper
+    have upperValue : column < 20120226 := by
+      change column < 20120226 at upper
+      exact upper
     omega
 
 private theorem samplerRange_compatible
@@ -260,37 +253,12 @@ private theorem samplerRange_compatible
     · exact Nat.le_trans sourceLower (Nat.le_add_right sourceStart _)
     · exact sourceUpper offset offsetBound
 
-private theorem samplerFreshInterval_private (sourceStart count : Nat)
-    (sourceLower : PiRLCStarts.phaseLogicalStart ≤ sourceStart)
-    (sourceUpper : sourceStart + count ≤ PiRLCStarts.commitmentFreshStart) :
-    Spartan.sourceToSpartan sourceStart + count ≤
-      basePackage.layout.constantColumn := by
-  have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 20064823 ≤ sourceStart := by
-      simpa [PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
-    norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
-    omega
-  have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
-    sourceLocal
-  rw [← affine]
-  have mappedUpper : Spartan.sourceToSpartan (sourceStart + count) <
-      basePackage.layout.constantColumn := by
-    apply sourceToSpartan_local_lt_constant
-    · exact Nat.le_trans sourceLocal (Nat.le_add_right sourceStart count)
-    · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
-        Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
-        Spartan.constantColumn, PiRLCStarts.phaseLogicalStart,
-        PiRLCStarts.commitmentFreshStart_eq] at sourceUpper ⊢
-      omega
-  exact mappedUpper.le
-
 private theorem piRlcFreshInterval_private (sourceStart count : Nat)
     (sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart)
     (sourceUpper : sourceStart + count ≤ PiRLCStarts.outputFreshStart) :
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
-  have outputValue : PiRLCStarts.outputFreshStart = 28973248 := by rfl
+  have outputValue : PiRLCStarts.outputFreshStart = 28047768 := by rfl
   rw [outputValue] at sourceUpper
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
     sourceLocal
@@ -305,583 +273,6 @@ private theorem piRlcFreshInterval_private (sourceStart count : Nat)
         at sourceUpper ⊢
       omega
   exact mappedUpper.le
-
-set_option maxRecDepth 100000 in -- fixed-size: 55 First54 position templates
-private theorem firstPosition_layout
-    (program : Lifecycle.Stage1.Application.Program) (source : Nat)
-    (slot : Fin First54Step.slotCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount) :
-    CompactInvocationPrivate program
-      (PiRLCFirst54Invocations.positionInvocation source 0 slot.val) 0 := by
-  constructor
-  · simp only [Nat.add_zero]
-    rw [PiRLCFirst54Invocations.positionInvocation_localStart]
-    change Spartan.sourceToSpartan (PiRLCStarts.selectorFreshStart source) ≤
-      basePackage.layout.constantColumn
-    apply samplerFreshInterval_private _ 0
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-      norm_num [PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart_eq, PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-      omega
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-      norm_num [PiRLCFirst54Invocations.sourceCount,
-        PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq,
-        PiRLCStarts.commitmentFreshStart_eq] at sourceLt ⊢
-      omega
-  · intro range member
-    rw [PiRLCFirst54Invocations.positionInvocation_zero_inputRanges] at member
-    have choices : range =
-        { inputStart := 0
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.rejectSourceColumn source 0)
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 1
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.positionSourceStart source 0 + slot.val)
-          columnStride := 1 } := by
-      simpa only [PiRLCFirst54Invocations.firstPositionInputRanges,
-        List.mem_cons, List.not_mem_nil, or_false] using member
-    rcases choices with rfl | rfl
-    · exact singletonRange_compatible program 0
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.rejectSourceColumn source 0)) 1
-    · exact singletonRange_compatible program 1
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.positionSourceStart source 0 + slot.val)) 1
-
-set_option maxRecDepth 100000 in -- fixed-size: 54 First54 value templates
-private theorem firstValue_layout
-    (program : Lifecycle.Stage1.Application.Program) (source : Nat)
-    (slot : Fin First54ValueStep.outputCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount) :
-    CompactInvocationPrivate program
-      (PiRLCFirst54Invocations.valueInvocation source 0 slot.val) 4 := by
-  constructor
-  ·
-    rw [PiRLCFirst54Invocations.valueInvocation_localStart]
-    change Spartan.sourceToSpartan
-        (PiRLCStarts.selectorFreshStart source +
-          PiRLCFirst54Invocations.valueFreshPrefix 0 slot.val) + 4 ≤
-      basePackage.layout.constantColumn
-    apply samplerFreshInterval_private _ 4
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-        PiRLCFirst54Invocations.valueFreshPrefix
-        PiRLCFirst54Invocations.positionFreshCount
-      norm_num [PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart_eq, PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-      omega
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-        PiRLCFirst54Invocations.valueFreshPrefix
-        PiRLCFirst54Invocations.positionFreshCount
-      have slotLt := slot.isLt
-      norm_num [PiRLCFirst54Invocations.sourceCount,
-        First54ValueStep.outputCount, PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart_eq, PiRLCStarts.commitmentFreshStart_eq]
-        at sourceLt slotLt ⊢
-      omega
-  · intro range member
-    rw [PiRLCFirst54Invocations.valueInvocation_zero_inputRanges] at member
-    have choices : range =
-        { inputStart := 0
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.rejectSourceColumn source 0)
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 1
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.remainderSourceColumn source 0)
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 2
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.valueSourceStart source 0 + slot.val)
-          columnStride := 1 } := by
-      simpa only [PiRLCFirst54Invocations.firstValueInputRanges,
-        List.mem_cons, List.not_mem_nil, or_false] using member
-    rcases choices with rfl | rfl | rfl
-    · exact singletonRange_compatible program 0
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.rejectSourceColumn source 0)) 1
-    · exact singletonRange_compatible program 1
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.remainderSourceColumn source 0)) 1
-    · exact singletonRange_compatible program 2
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.valueSourceStart source 0 + slot.val)) 1
-
-private def laterPositionLocalCount (slot : Nat) : Nat :=
-  if slot = 0 then 0 else if slot = 54 then 3 else 6
-
-private theorem laterPositionLocalCount_le (slot : Nat) :
-    laterPositionLocalCount slot ≤ 6 := by
-  unfold laterPositionLocalCount
-  by_cases zero : slot = 0
-  · simp [zero]
-  · by_cases last : slot = 54
-    · simp [zero, last]
-    · simp [zero, last]
-
-set_option maxRecDepth 100000 in -- fixed-size: 55 First54 position templates
-private theorem laterPosition_layout
-    (program : Lifecycle.Stage1.Application.Program) (source round : Nat)
-    (slot : Fin First54Step.slotCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (roundLt : round + 1 < PiRLCFirst54Invocations.roundCount) :
-    CompactInvocationPrivate program
-      (PiRLCFirst54Invocations.positionInvocation source (round + 1) slot.val)
-      (laterPositionLocalCount slot.val) := by
-  constructor
-  · rw [PiRLCFirst54Invocations.positionInvocation_localStart]
-    change Spartan.sourceToSpartan
-        (PiRLCStarts.selectorFreshStart source +
-          PiRLCFirst54Invocations.roundFreshPrefix (round + 1) +
-          PiRLCFirst54Invocations.positionFreshPrefix (round + 1) slot.val) +
-          laterPositionLocalCount slot.val ≤
-      basePackage.layout.constantColumn
-    apply samplerFreshInterval_private _ (laterPositionLocalCount slot.val)
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-        PiRLCFirst54Invocations.roundFreshPrefix
-        PiRLCFirst54Invocations.positionFreshPrefix
-      norm_num [PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart_eq, PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-      omega
-    · have slotLt := slot.isLt
-      have countLe := laterPositionLocalCount_le slot.val
-      unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-      by_cases slotZero : slot.val = 0
-      · simp [PiRLCFirst54Invocations.roundFreshPrefix,
-          PiRLCFirst54Invocations.positionFreshPrefix, slotZero]
-        rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
-          PiRLCStarts.commitmentFreshStart_eq]
-        norm_num [PiRLCFirst54Invocations.sourceCount,
-          PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-          First54Step.slotCount, laterPositionLocalCount]
-          at sourceLt roundLt slotLt countLe ⊢
-        omega
-      · simp [PiRLCFirst54Invocations.roundFreshPrefix,
-          PiRLCFirst54Invocations.positionFreshPrefix, slotZero]
-        rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
-          PiRLCStarts.commitmentFreshStart_eq]
-        norm_num [PiRLCFirst54Invocations.sourceCount,
-          PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-          First54Step.slotCount] at sourceLt roundLt slotLt countLe ⊢
-        omega
-  · intro range member
-    rw [PiRLCFirst54Invocations.positionInvocation_succ_inputRanges] at member
-    have choices : range =
-        { inputStart := 0
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.rejectSourceColumn source (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 1
-          inputCount := First54Step.slotCount
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.previousPositionSourceStart source
-              (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 56
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.positionSourceStart source (round + 1) +
-              slot.val)
-          columnStride := 1 } := by
-      simpa only [PiRLCFirst54Invocations.laterPositionInputRanges,
-        List.mem_cons, List.not_mem_nil, or_false] using member
-    rcases choices with rfl | rfl | rfl
-    · exact singletonRange_compatible program 0
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.rejectSourceColumn source (round + 1))) 1
-    · apply samplerRange_compatible
-      · unfold PiRLCFirst54Invocations.previousPositionSourceStart
-          PiRLCFirst54Invocations.positionSourceStart
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart
-          First54.roundPrivateCount
-        change 20064823 ≤
-          20064823 + source * 15504 + 8528 + round * 109
-        omega
-      · intro offset offsetLt
-        unfold PiRLCFirst54Invocations.previousPositionSourceStart
-          PiRLCFirst54Invocations.positionSourceStart
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart
-          First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
-        norm_num [PiRLCFirst54Invocations.sourceCount,
-          PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-          First54Step.slotCount, First54ValueStep.outputCount]
-          at sourceLt roundLt offsetLt ⊢
-        omega
-    · exact singletonRange_compatible program 56
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.positionSourceStart source (round + 1) +
-            slot.val)) 1
-
-set_option maxRecDepth 100000 in -- fixed-size: 54 First54 value templates
-private theorem laterValue_layout
-    (program : Lifecycle.Stage1.Application.Program) (source round : Nat)
-    (slot : Fin First54ValueStep.outputCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (roundLt : round + 1 < PiRLCFirst54Invocations.roundCount) :
-    CompactInvocationPrivate program
-      (PiRLCFirst54Invocations.valueInvocation source (round + 1) slot.val) 4 := by
-  constructor
-  · rw [PiRLCFirst54Invocations.valueInvocation_localStart]
-    change Spartan.sourceToSpartan
-        (PiRLCStarts.selectorFreshStart source +
-          PiRLCFirst54Invocations.roundFreshPrefix (round + 1) +
-          PiRLCFirst54Invocations.valueFreshPrefix (round + 1) slot.val) + 4 ≤
-      basePackage.layout.constantColumn
-    apply samplerFreshInterval_private _ 4
-    · unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-        PiRLCFirst54Invocations.roundFreshPrefix
-        PiRLCFirst54Invocations.valueFreshPrefix
-        PiRLCFirst54Invocations.positionFreshCount
-      norm_num [PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart_eq, PiRLCStarts.phaseLogicalStart,
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset]
-      omega
-    · have slotLt := slot.isLt
-      unfold PiRLCStarts.selectorFreshStart
-        PiRLCStarts.samplerSourceFreshStart
-        PiRLCFirst54Invocations.roundFreshPrefix
-        PiRLCFirst54Invocations.valueFreshPrefix
-        PiRLCFirst54Invocations.positionFreshCount
-      rw [show PiRLCStarts.samplerFreshStart = 20380717 by rfl,
-        PiRLCStarts.commitmentFreshStart_eq]
-      norm_num [PiRLCFirst54Invocations.sourceCount,
-        PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-        First54ValueStep.outputCount] at sourceLt roundLt slotLt ⊢
-      omega
-  · intro range member
-    rw [PiRLCFirst54Invocations.valueInvocation_succ_inputRanges] at member
-    have choices : range =
-        { inputStart := 0
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.rejectSourceColumn source (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 1
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.remainderSourceColumn source (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 2
-          inputCount := First54Step.slotCount
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.previousPositionSourceStart source
-              (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 57
-          inputCount := First54ValueStep.outputCount
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.previousValueSourceStart source
-              (round + 1))
-          columnStride := 1 } ∨
-      range =
-        { inputStart := 111
-          inputCount := 1
-          columnStart := PiRLCFirst54Invocations.finalColumn
-            (PiRLCFirst54Invocations.valueSourceStart source (round + 1) +
-              slot.val)
-          columnStride := 1 } := by
-      simpa only [PiRLCFirst54Invocations.laterValueInputRanges,
-        List.mem_cons, List.not_mem_nil, or_false] using member
-    rcases choices with rfl | rfl | rfl | rfl | rfl
-    · exact singletonRange_compatible program 0
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.rejectSourceColumn source (round + 1))) 1
-    · exact singletonRange_compatible program 1
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.remainderSourceColumn source (round + 1))) 1
-    · apply samplerRange_compatible
-      · unfold PiRLCFirst54Invocations.previousPositionSourceStart
-          PiRLCFirst54Invocations.positionSourceStart
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        change 20064823 ≤
-          20064823 + source * 15504 + 8528 + round * 109
-        omega
-      · intro offset offsetLt
-        unfold PiRLCFirst54Invocations.previousPositionSourceStart
-          PiRLCFirst54Invocations.positionSourceStart
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
-        norm_num [PiRLCFirst54Invocations.sourceCount,
-          PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-          First54Step.slotCount, First54ValueStep.outputCount]
-          at sourceLt roundLt offsetLt ⊢
-        omega
-    · apply samplerRange_compatible
-      · unfold PiRLCFirst54Invocations.previousValueSourceStart
-          PiRLCFirst54Invocations.valueSourceStart First54.valueOffset
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        change 20064823 ≤
-          20064823 + source * 15504 + 8528 + round * 109 + 55
-        omega
-      · intro offset offsetLt
-        unfold PiRLCFirst54Invocations.previousValueSourceStart
-          PiRLCFirst54Invocations.valueSourceStart First54.valueOffset
-          First54.positionOffset PiRLCStarts.selectorLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart First54.roundPrivateCount
-        rw [show PiRLCStarts.samplerLogicalStart = 20064823 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
-        norm_num [PiRLCFirst54Invocations.sourceCount,
-          PiRLCFirst54Invocations.roundCount, First54.candidateCount,
-          First54Step.slotCount, First54ValueStep.outputCount]
-          at sourceLt roundLt offsetLt ⊢
-        omega
-    · exact singletonRange_compatible program 111
-        (PiRLCFirst54Invocations.finalColumn
-          (PiRLCFirst54Invocations.valueSourceStart source (round + 1) +
-            slot.val)) 1
-
-set_option maxRecDepth 100000 in -- fixed-size: 55 First54 position templates
-private theorem firstPosition_row
-    (program : Lifecycle.Stage1.Application.Program) (source : Nat)
-    (slot : Fin First54Step.slotCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (row : CompactTemplateRow)
-    (rowMember : row ∈
-      (PiRLCFirst54Templates.firstPositionTemplate slot).rows) :
-    instantiateCompactRow
-        (shiftCompactRowInvocation program
-          (PiRLCFirst54Invocations.positionInvocation source 0 slot.val)) row =
-      CompactRows.renameRow (shiftColumn program)
-        (instantiateCompactRow
-          (PiRLCFirst54Invocations.positionInvocation source 0 slot.val) row) := by
-  have sourceMember := rowMember
-  change row ∈ (CompactRows.compactConstraintTemplate
-    PiRLCFirst54Templates.firstPositionInputCount
-    PiRLCFirst54Templates.firstPositionOutputInput
-    (PiRLCFirst54Templates.firstPositionRecipe slot)).rows at sourceMember
-  have within := compactConstraintTemplate_rowWithin
-    PiRLCFirst54Templates.firstPositionInputCount
-    PiRLCFirst54Templates.firstPositionOutputInput
-    (PiRLCFirst54Templates.firstPositionRecipe slot) row
-    (PiRLCFirst54Templates.firstPosition_constraint_varsBelow slot)
-    sourceMember
-  rw [PiRLCFirst54Templates.firstPosition_constraintFreshCount] at within
-  exact instantiateCompactRow_mapColumns_of_within
-    (shiftCompactRowInvocation program
-      (PiRLCFirst54Invocations.positionInvocation source 0 slot.val))
-    (PiRLCFirst54Invocations.positionInvocation source 0 slot.val)
-    (shiftColumn program) PiRLCFirst54Templates.firstPositionInputCount 0 row
-    within
-    (shiftedCompactColumn program
-      (PiRLCFirst54Invocations.positionInvocation source 0 slot.val)
-      PiRLCFirst54Templates.firstPositionInputCount 0
-      (firstPosition_layout program source slot sourceLt))
-
-set_option maxRecDepth 100000 in -- fixed-size: 55 First54 position templates
-private theorem laterPosition_row
-    (program : Lifecycle.Stage1.Application.Program) (source round : Nat)
-    (slot : Fin First54Step.slotCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (roundLt : round + 1 < PiRLCFirst54Invocations.roundCount)
-    (row : CompactTemplateRow)
-    (rowMember : row ∈
-      (PiRLCFirst54Templates.laterPositionTemplate slot).rows) :
-    instantiateCompactRow
-        (shiftCompactRowInvocation program
-          (PiRLCFirst54Invocations.positionInvocation source (round + 1)
-            slot.val)) row =
-      CompactRows.renameRow (shiftColumn program)
-        (instantiateCompactRow
-          (PiRLCFirst54Invocations.positionInvocation source (round + 1)
-            slot.val) row) := by
-  have sourceMember := rowMember
-  change row ∈ (CompactRows.compactConstraintTemplate
-    PiRLCFirst54Templates.laterPositionInputCount
-    PiRLCFirst54Templates.laterPositionOutputInput
-    (PiRLCFirst54Templates.laterPositionRecipe slot)).rows at sourceMember
-  have within := compactConstraintTemplate_rowWithin
-    PiRLCFirst54Templates.laterPositionInputCount
-    PiRLCFirst54Templates.laterPositionOutputInput
-    (PiRLCFirst54Templates.laterPositionRecipe slot) row
-    (PiRLCFirst54Templates.laterPosition_constraint_varsBelow slot)
-    sourceMember
-  rw [PiRLCFirst54Templates.laterPosition_constraintFreshCount] at within
-  change CompactTemplateRowWithin
-    PiRLCFirst54Templates.laterPositionInputCount
-    (laterPositionLocalCount slot.val) row at within
-  exact instantiateCompactRow_mapColumns_of_within
-    (shiftCompactRowInvocation program
-      (PiRLCFirst54Invocations.positionInvocation source (round + 1) slot.val))
-    (PiRLCFirst54Invocations.positionInvocation source (round + 1) slot.val)
-    (shiftColumn program) PiRLCFirst54Templates.laterPositionInputCount
-    (laterPositionLocalCount slot.val) row within
-    (shiftedCompactColumn program
-      (PiRLCFirst54Invocations.positionInvocation source (round + 1) slot.val)
-      PiRLCFirst54Templates.laterPositionInputCount
-      (laterPositionLocalCount slot.val)
-      (laterPosition_layout program source round slot sourceLt roundLt))
-
-set_option maxRecDepth 100000 in -- fixed-size: 54 First54 value templates
-private theorem firstValue_row
-    (program : Lifecycle.Stage1.Application.Program) (source : Nat)
-    (slot : Fin First54ValueStep.outputCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (row : CompactTemplateRow)
-    (rowMember : row ∈
-      (PiRLCFirst54Templates.firstValueTemplate slot).rows) :
-    instantiateCompactRow
-        (shiftCompactRowInvocation program
-          (PiRLCFirst54Invocations.valueInvocation source 0 slot.val)) row =
-      CompactRows.renameRow (shiftColumn program)
-        (instantiateCompactRow
-          (PiRLCFirst54Invocations.valueInvocation source 0 slot.val) row) := by
-  have sourceMember := rowMember
-  change row ∈ (CompactRows.compactConstraintTemplate
-    PiRLCFirst54Templates.firstValueInputCount
-    PiRLCFirst54Templates.firstValueOutputInput
-    (PiRLCFirst54Templates.firstValueRecipe slot)).rows at sourceMember
-  have within := compactConstraintTemplate_rowWithin
-    PiRLCFirst54Templates.firstValueInputCount
-    PiRLCFirst54Templates.firstValueOutputInput
-    (PiRLCFirst54Templates.firstValueRecipe slot) row
-    (PiRLCFirst54Templates.firstValue_constraint_varsBelow slot) sourceMember
-  rw [PiRLCFirst54Templates.firstValue_constraintFreshCount] at within
-  exact instantiateCompactRow_mapColumns_of_within
-    (shiftCompactRowInvocation program
-      (PiRLCFirst54Invocations.valueInvocation source 0 slot.val))
-    (PiRLCFirst54Invocations.valueInvocation source 0 slot.val)
-    (shiftColumn program) PiRLCFirst54Templates.firstValueInputCount 4 row
-    within
-    (shiftedCompactColumn program
-      (PiRLCFirst54Invocations.valueInvocation source 0 slot.val)
-      PiRLCFirst54Templates.firstValueInputCount 4
-      (firstValue_layout program source slot sourceLt))
-
-set_option maxRecDepth 100000 in -- fixed-size: 54 First54 value templates
-private theorem laterValue_row
-    (program : Lifecycle.Stage1.Application.Program) (source round : Nat)
-    (slot : Fin First54ValueStep.outputCount)
-    (sourceLt : source < PiRLCFirst54Invocations.sourceCount)
-    (roundLt : round + 1 < PiRLCFirst54Invocations.roundCount)
-    (row : CompactTemplateRow)
-    (rowMember : row ∈
-      (PiRLCFirst54Templates.laterValueTemplate slot).rows) :
-    instantiateCompactRow
-        (shiftCompactRowInvocation program
-          (PiRLCFirst54Invocations.valueInvocation source (round + 1)
-            slot.val)) row =
-      CompactRows.renameRow (shiftColumn program)
-        (instantiateCompactRow
-          (PiRLCFirst54Invocations.valueInvocation source (round + 1)
-            slot.val) row) := by
-  have sourceMember := rowMember
-  change row ∈ (CompactRows.compactConstraintTemplate
-    PiRLCFirst54Templates.laterValueInputCount
-    PiRLCFirst54Templates.laterValueOutputInput
-    (PiRLCFirst54Templates.laterValueRecipe slot)).rows at sourceMember
-  have within := compactConstraintTemplate_rowWithin
-    PiRLCFirst54Templates.laterValueInputCount
-    PiRLCFirst54Templates.laterValueOutputInput
-    (PiRLCFirst54Templates.laterValueRecipe slot) row
-    (PiRLCFirst54Templates.laterValue_constraint_varsBelow slot) sourceMember
-  rw [PiRLCFirst54Templates.laterValue_constraintFreshCount] at within
-  exact instantiateCompactRow_mapColumns_of_within
-    (shiftCompactRowInvocation program
-      (PiRLCFirst54Invocations.valueInvocation source (round + 1) slot.val))
-    (PiRLCFirst54Invocations.valueInvocation source (round + 1) slot.val)
-    (shiftColumn program) PiRLCFirst54Templates.laterValueInputCount 4 row
-    within
-    (shiftedCompactColumn program
-      (PiRLCFirst54Invocations.valueInvocation source (round + 1) slot.val)
-      PiRLCFirst54Templates.laterValueInputCount 4
-      (laterValue_layout program source round slot sourceLt roundLt))
-
-private theorem baseTemplates_eq_first54PackageTemplates :
-    basePackage.compactRowTemplates =
-      PiRLCFirst54Invocations.packageTemplates := by
-  change Data.compactRowTemplates () = _
-  rw [Data.compactRowTemplates_eq]
-  rfl
-
-theorem first54Rows
-    (program : Lifecycle.Stage1.Application.Program)
-    (invocation : CompactRowInvocation)
-    (invocationMember : invocation ∈ PiRLCFirst54Invocations.invocations)
-    (template : CompactRowTemplate)
-    (templateEquation : basePackage.compactRowTemplates[
-      invocation.templateIndex]? = some template)
-    (row : CompactTemplateRow) (rowMember : row ∈ template.rows) :
-    instantiateCompactRow
-        (shiftCompactRowInvocation program invocation) row =
-      CompactRows.renameRow (shiftColumn program)
-        (instantiateCompactRow invocation row) := by
-  unfold PiRLCFirst54Invocations.invocations at invocationMember
-  rcases List.mem_flatMap.mp invocationMember with
-    ⟨source, sourceMember, sourceInvocationMember⟩
-  have sourceLt := List.mem_range.mp sourceMember
-  unfold PiRLCFirst54Invocations.sourceInvocations at sourceInvocationMember
-  rcases List.mem_flatMap.mp sourceInvocationMember with
-    ⟨round, roundMember, roundInvocationMember⟩
-  have roundLt := List.mem_range.mp roundMember
-  unfold PiRLCFirst54Invocations.roundInvocations at roundInvocationMember
-  rcases List.mem_append.mp roundInvocationMember with
-      positionMember | valueMember
-  · unfold PiRLCFirst54Invocations.positionInvocations at positionMember
-    rcases List.mem_map.mp positionMember with ⟨slot, _slotMember, rfl⟩
-    rw [baseTemplates_eq_first54PackageTemplates] at templateEquation
-    cases round with
-    | zero =>
-        rw [PiRLCFirst54Invocations.positionInvocation_zero_template]
-          at templateEquation
-        have equals := Option.some.inj templateEquation
-        subst template
-        exact firstPosition_row program source slot sourceLt row rowMember
-    | succ previous =>
-        rw [PiRLCFirst54Invocations.positionInvocation_succ_template]
-          at templateEquation
-        have equals := Option.some.inj templateEquation
-        subst template
-        exact laterPosition_row program source previous slot sourceLt roundLt
-          row rowMember
-  · unfold PiRLCFirst54Invocations.valueInvocations at valueMember
-    rcases List.mem_map.mp valueMember with ⟨slot, _slotMember, rfl⟩
-    rw [baseTemplates_eq_first54PackageTemplates] at templateEquation
-    cases round with
-    | zero =>
-        rw [PiRLCFirst54Invocations.valueInvocation_zero_template]
-          at templateEquation
-        have equals := Option.some.inj templateEquation
-        subst template
-        exact firstValue_row program source slot sourceLt row rowMember
-    | succ previous =>
-        rw [PiRLCFirst54Invocations.valueInvocation_succ_template]
-          at templateEquation
-        have equals := Option.some.inj templateEquation
-        subst template
-        exact laterValue_row program source previous slot sourceLt roundLt
-          row rowMember
 
 private theorem combination_layout
     (program : Lifecycle.Stage1.Application.Program)
@@ -981,7 +372,7 @@ private theorem combination_layout
         rw [PiRLCStarts.challengeWordStart_eq]
         have sourceLt := source.isLt
         rw [show PiRLCStarts.phaseLogicalStart = 20064823 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 20328391 by rfl]
+          show PiRLCStarts.commitmentLogicalStart = 20120226 by rfl]
         norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
           at sourceLt offsetLt ⊢
         omega
@@ -1181,7 +572,7 @@ private theorem commitment_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
-  · change 21124348 + 17 * (22 * 1 * 8100) ≤ 28973248
+  · change 20198868 + 17 * (22 * 1 * 8100) ≤ 28047768
     norm_num
   · exact commitmentValueRange_compatible program source block cell
 
@@ -1198,7 +589,7 @@ private theorem publicInput_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
-  · change 24153748 + 17 * (5 * 1 * 8100) ≤ 28973248
+  · change 23228268 + 17 * (5 * 1 * 8100) ≤ 28047768
     norm_num
   · exact publicInputValueRange_compatible program source block cell
 
@@ -1215,7 +606,7 @@ private theorem evalK_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
-  · change 24842248 + 17 * (1 * 2 * 8100) ≤ 28973248
+  · change 23916768 + 17 * (1 * 2 * 8100) ≤ 28047768
     norm_num
   · exact evalKValueRange_compatible program source block cell
 
@@ -1232,7 +623,7 @@ private theorem evalA_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
-  · change 25117648 + 17 * (14 * 2 * 8100) ≤ 28973248
+  · change 24192168 + 17 * (14 * 2 * 8100) ≤ 28047768
     norm_num
   · exact evalAValueRange_compatible program source block cell
 
@@ -1309,10 +700,8 @@ private theorem combinationTemplateSelection
         PiRLCCombinationTemplates.templateIndex source.val lane.val]? =
       some (PiRLCCombinationTemplates.template
         (PiRLCCombinationInvocations.firstSource source.val) lane) := by
-  rw [baseTemplates_eq_first54PackageTemplates]
-  unfold PiRLCFirst54Invocations.packageTemplates
-  rw [List.getElem?_append_left
-    (PiRLCCombinationTemplates.templateIndex_lt source.val lane)]
+  change PiRLCCombinationTemplates.templates[
+    PiRLCCombinationTemplates.templateIndex source.val lane.val]? = _
   exact PiRLCCombinationTemplates.template_getElem? source.val lane
 
 private theorem combinationFamilyRows

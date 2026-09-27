@@ -8,8 +8,6 @@ use std::process::{Command, Output};
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(neo_metal_shaders)");
     println!("cargo:rerun-if-changed=shaders/goldilocks.metal");
-    println!("cargo:rerun-if-changed=shaders/seeded_ajtai.metal");
-    println!("cargo:rerun-if-changed=shaders/lane_commitments.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/assignments.metal");
     println!("cargo:rerun-if-changed=shaders/carried.metal");

@@ -1,28 +1,17 @@
 # Nightstream Wiki
 
 The current prover API and benchmark are in [`nightstream`](../crates/nightstream/README.md).
-The lifecycle, frontend, and decider pages below describe the retained
-`neo-fold-legacy` implementation. They do not describe memory proving or a
-production compression backend in the new crate.
+Nightstream combines SuperNeo folding with HyperNova-style recursion over
+Goldilocks, Ajtai commitments, and Poseidon2 transcripts. The active formal
+authority is `formal/nightstream-fprime`.
 
-Nightstream combines SuperNeo folding for CCS, HyperNova Construction 2, and
-Nebula memory checking. The active protocol uses Goldilocks, a degree-two
-extension field, Ajtai commitments, and Poseidon2 transcripts.
+There is one application assembly and witness execution path. The wide
+PiRLC sampler is part of its canonical layout. The old lifecycle, WASM bridge,
+and Spartan consumer are retired. The current terminal verifier checks the
+fresh relation and running witness openings.
 
-The code is research software. It is not production-ready and has not had an
-independent audit.
-
-## Current model
-
-Each step folds fresh CCS claims into a low-norm running accumulator through
-PiCCS, PiRLC, and PiDEC. The recursive R1CS and Nebula frontends compile F' so
-that a recursive step verifies the preceding NIFS fold. The terminal path
-closes the accumulator relation and can prove its sparse R1CS with the WIP
-Spartan and WHIR backend.
-
-Optimized CPU and PaperExact paths are implemented. Metal performs device work
-on supported Apple builds. CUDA is a required backend target, but its canonical
-kernel is not implemented and selection fails explicitly.
+The code remains research software. Independent review and the concrete
+Fiat–Shamir security argument are separate from component conformance.
 
 ## Sections
 
@@ -32,8 +21,8 @@ kernel is not implemented and selection fails explicitly.
 | [Glossary](glossary.md) | Paper symbols and code names |
 | [Protocol](protocol/index.md) | SuperNeo, HyperNova, parameters, transcripts |
 | [Architecture](architecture/index.md) | Crate and module ownership |
-| [Frontends](architecture/frontends.md) | Direct CCS, recursive R1CS, and Nebula |
-| [Decider](architecture/decider.md) | Terminal relation and WIP Spartan |
+| [Frontends](architecture/frontends.md) | Application programs and package binding |
+| [Decider](architecture/decider.md) | Fresh relation and running openings |
 | [Crates](crates/index.md) | Per-crate reference |
 | [Testing](development/testing.md) | Test rules and active checks |
 | [Formal](formal/index.md) | Lean projects and evidence boundaries |

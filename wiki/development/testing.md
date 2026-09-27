@@ -19,7 +19,7 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib appli
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 ```
 
-CI runs these commands as separate steps. The legacy suite is not part of CI.
+CI runs the selected Rust regression suites. Lean remains a local check.
 Until a Mac runner is available, run the Metal relation check locally on a
 supported Mac:
 
@@ -27,23 +27,9 @@ supported Mac:
 timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-features --features metal --lib session::joint::relation::tests
 ```
 
-## neo-fold-legacy test areas
+## Formal and complete-fold checks
 
-| Directory | Scope |
-|---|---|
-| `direct_ccs/` | Direct R1CS conversion and rejection checks |
-| `f_prime/` | F' image, lowering, selective rows, and recursive relation |
-| `nebula/` | Memory relation, segments, lane commitments, and lifecycle |
-| `nifs/` | NIFS round trips, fixed adapters, and crosschecks |
-| `reductions/` | PiCCS, PiRLC, PiDEC, and transcript binding |
-| `gadgets/` | R1CS primitives and Poseidon2 transcript gadgets |
-| `system/` | Lifecycle, decider, formal-conformance, and red-team checks |
-| `perf/` | Ignored performance snapshots |
-
-## Formal checks
-
-Use only the validation wrapper in
-`formal/nightstream-lean/scripts/validate.sh`. Lean commands have a
-25-minute cap. Read
-[formal/nightstream-lean/AGENTS.md](../../formal/nightstream-lean/AGENTS.md)
-before a Lean change.
+Use `formal/nightstream-fprime/scripts/validate.sh` for Lean. Each command
+has a 25-minute cap. Read the active project's `AGENTS.md` before editing.
+[Golden conformance](../../scripts/GOLDEN_CONFORMANCE.md) runs two fresh native
+folds, Lean comparisons, and exact terminal rejection checks.

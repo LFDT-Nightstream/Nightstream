@@ -1,40 +1,15 @@
 # Lifecycle
 
-`crates/neo-fold-legacy/src/lifecycle/` owns the public direct-CCS lifecycle.
+`crates/nightstream/src/lifecycle/` owns proving, extension, and terminal
+verification. A caller compiles or loads a `Circuit`, selects a prover and
+verifier with an explicit security minimum, calls `prove` and `extend`, then
+checks the expected final state with `Verifier::verify`.
 
-```text
-preprocess
-  -> prove
-  -> extend
-  -> finish_uncompressed
-  -> verify_uncompressed
-```
+Each recursive step runs PiCCS, PiRLC, and PiDEC and constructs the next F′
+witness. The selected application and recursive verifier belong to the same
+sealed package. See the [API guide](../../crates/nightstream/README.md).
 
-`UncompressedAudit` retains per-step data.
-`verify_uncompressed_audit` replays that data and is linear in the number of
-steps. `Uncompressed` drops the audit trail and checks the terminal state.
-
-The recursive R1CS and Nebula frontends compile the authoritative F' induction
-and can use terminal-only verification across recursive steps. Direct CCS does
-not compile that induction, so its multi-chunk path uses audit replay.
-
-## Terminal proof
-
-`build_decider_statement` creates the public image and witness for the
-terminal relation. The recursive R1CS terminal path compiles that relation and
-calls `wip-spartan` through `finish_with_spartan`; `verify_spartan`
-checks the result.
-
-## Verifier checks
-
-Terminal verification recomputes or checks:
-
-- the final NIFS fold;
-- the final accumulator commitments;
-- public-input projections;
-- low-norm witness entries;
-- committed-evaluation relations;
-- recursive F' links when the frontend supplies them; and
-- Nebula lane openings when configured.
-
-A digest is never used as proof authority without these checks.
+Terminal verification checks the fresh relation and the running commitment
+openings, public values, norms, Pad evaluations, and all matrix evaluations.
+It recomputes the bound public state. Matching digests do not replace these
+checks. The maintained API has no separate legacy audit or Spartan route.

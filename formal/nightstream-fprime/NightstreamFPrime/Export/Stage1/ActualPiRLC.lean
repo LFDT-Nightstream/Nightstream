@@ -75,10 +75,10 @@ theorem prefixRowsZero_implies_batch
           (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv ordinary assignment))
           (PiCCS.v1_1.Formal.outputBindingFinalState relation
             (PiCCSInvocations.parentInterface relationLogicalWidth relationPublicFits)
-            PiCCSInputs.phaseOffset)) PiRLCFirst54DirectSchedule.sourceCount =
-      some ⟨ActualPiRLCSampling.challenge geometry assignment,
+            PiCCSInputs.phaseOffset)) PiRLCSamplerPoseidonPlan.sourceCount =
+      ⟨ActualPiRLCSampling.challenge geometry assignment,
         ActualPiRLCStates.state (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)
-          assignment ⟨16, by decide⟩ ⟨8, by decide⟩⟩ := by
+          assignment ⟨16, by decide⟩ ⟨1, by decide⟩⟩ := by
   have parts := (DirectPiRLCSamplerCompletePrefixPlan.rowsZero_iff relation geometry assignment).mp rows
   have samplerPrefix := parts.1
   change (DirectPiDECPrefixPlan.samplerPrefixPlan relation
@@ -86,15 +86,11 @@ theorem prefixRowsZero_implies_batch
   rw [DirectPiDECPrefixPlan.samplerPrefixPlan, Plan.append_rowsZero_iff] at samplerPrefix
   have piCcsRows := samplerPrefix.1
   rw [DirectPiDECPrefixPlan.piCcsCompletePlan, Plan.append_rowsZero_iff] at piCcsRows
-  have piRlcRows := parts.2.2.1
-  change (PiRLCRetainedPlan.plan _ _).RowsZero assignment at piRlcRows
-  have selectorRows := (PiRLCRetainedPlan.rowsZero_iff _ _ assignment).mp piRlcRows
   have semantics := PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
     (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment one samplerPrefix.2
   dsimp only
   rw [← initial_eq_decoded_state relation _ _ assignment one piCcsRows.2]
-  exact ActualPiRLCSampling.rowsZero_implies_batch relation geometry assignment one parts.2.1
-    selectorRows.2 semantics
+  exact ActualPiRLCSampling.rowsZero_implies_batch relation geometry assignment one parts.2.1 semantics
 
 theorem productChallenge_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -134,10 +130,10 @@ theorem selectedRowsAndPublic_imply_batch
           (PiCCS.v1_1.Formal.evalRunning interface PiCCSInputs.phaseOffset env)
           (PiCCS.v1_1.Formal.evalFresh interface PiCCSInputs.phaseOffset env)
           (PiCCS.v1_1.Formal.evalProof relation interface PiCCSInputs.phaseOffset env template)).outgoingState
-        PiRLCFirst54DirectSchedule.sourceCount =
-      some ⟨ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment,
+        PiRLCSamplerPoseidonPlan.sourceCount =
+      ⟨ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment,
         ActualPiRLCStates.state (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry
-          (DirectApplicationPrefixPlan.prefixGeometry geometry)) assignment ⟨16, by decide⟩ ⟨8, by decide⟩⟩ := by
+          (DirectApplicationPrefixPlan.prefixGeometry geometry)) assignment ⟨16, by decide⟩ ⟨1, by decide⟩⟩ := by
   let geometry := PerApplicationFixedPoint.geometry application
   let relation := PerApplicationFixedPoint.relation application fits
   have publicBound : RecursivePublicOutputPlan.publicInput geometry assignment =
@@ -155,7 +151,7 @@ theorem selectedRowsAndPublic_imply_batch
     application fits ajtai template assignment one accepted
   dsimp only
   exact (congrArg (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state
-    PiRLCFirst54DirectSchedule.sourceCount) piCcs.outgoingState).symm.trans sampler
+    PiRLCSamplerPoseidonPlan.sourceCount) piCcs.outgoingState).symm.trans sampler
 
 /-- The actual product challenges are precisely the production NIFS key response. -/
 theorem selectedRowsAndPublic_imply_keyChallenges
@@ -185,6 +181,6 @@ theorem selectedRowsAndPublic_imply_keyChallenges
       some (ActualPiRLCSampling.challenge (DirectApplicationPrefixPlan.prefixGeometry geometry) assignment) := by
   have batch := selectedRowsAndPublic_imply_batch application fits ajtai template assignment digest
     publicEqual accepted
-  exact congrArg (Option.map Transcript.PiRlcSampler.Batch.challenges) batch
+  exact congrArg (fun batch => some batch.challenges) batch
 
 end NightstreamFPrime.Export.Stage1.ActualPiRLC

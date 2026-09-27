@@ -37,7 +37,6 @@ namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81StrongSet
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet
 
 /-- Exact predicate supplied to `PiRLC.Algebra.challengeValid`. -/
 def challengeValid (value : RingF) : Prop := ProductionMember value

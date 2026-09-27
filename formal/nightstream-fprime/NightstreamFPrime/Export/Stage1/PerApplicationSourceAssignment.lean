@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
-import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
-import NightstreamFPrime.Layout.PiRLC.v1_1.Preservation
-import NightstreamFPrime.Layout.Stage1.SpartanRows
+import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the source copy from a completed Spartan prefix and the application-owned
@@ -142,7 +140,7 @@ theorem source_ofCompleted
     (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
       application) → F)
     (column : Nat) (bound : column < Spartan.SourceColumnCount) :
-    PiRLCFirst54DirectPlan.baseEnv application
+    PiRLCProductPlan.baseEnv application
       (ofCompleted application target applicationPrivate) column =
         Spartan.pullback target column := by
   have mappedBound : Spartan.sourceToSpartan column <
@@ -160,97 +158,17 @@ theorem source_ofCompleted
   rw [SourceCompiler.sourceEnv_at]
   exact shifted_ofCompleted application target applicationPrivate _ mappedBound
 
-/-- Actual PiRLC rows in the completed Spartan prefix imply the strict norm
-bound on the complete canonical carrier after the source copy. The phase's
-existing soundness and completeness interfaces establish its row scope. The
-fixed PiRLC input assumptions follow from `PiRLCInputBounds.assumptions` for
-the copied source. No bit, scope, source-equality, or cryptographic premise
-is supplied; the existing Ajtai key is used by the phase interfaces. -/
-theorem completeAssignment_norm_of_completedRows
+/-- Copying a completed source uses the same total field encoding as every
+canonical assignment, so all carrier coordinates satisfy the norm bound. -/
+theorem completeAssignment_norm_of_completed
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
     (target : Env)
-    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
-      application) → F)
-    (rows : holdsFlat (Spartan.pullback target)
-      (Formal.opsAt (PerApplicationFixedPoint.relation application fits)
-        PiRLCInputs.interface PiRLCInputs.phaseOffset))
+    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)
     (column : Fin (Phi81CarrierLayout.carrierWidth
       (PerApplicationFixedPoint.logicalWidth application))) :
     centeredMagnitude
       ((canonicalRawValues application
-        (ofCompleted application target applicationPrivate)).completeAssignment column) < 2 := by
-  let raw := canonicalRawValues application
-    (ofCompleted application target applicationPrivate)
-  have assumptions := PiRLCInputBounds.assumptions
-    (PerApplicationFixedPoint.relation application fits) (Spartan.pullback target)
-  have phase := (Formal.circuit
-    (PerApplicationFixedPoint.relation application fits) ajtai PiRLCInputs.interface).soundness
-      (Spartan.pullback target) PiRLCInputs.phaseOffset assumptions
-      (holdsFlat_implies_holds _ _ rows)
-  have phaseScope := NightstreamFPrime.Layout.PiRLC.v1_1.plan_constraints_varsBelow_of_phase
-    (PerApplicationFixedPoint.relation application fits) ajtai PiRLCInputs.interface
-    PiRLCInputs.phaseOffset (Spartan.pullback target) assumptions phase
-  change ∀ expression ∈ flatConstraints
-      (Formal.opsAt (PerApplicationFixedPoint.relation application fits)
-        PiRLCInputs.interface PiRLCInputs.phaseOffset),
-    expression.VarsBelow (PiRLCInputs.phaseOffset + Formal.logicalPrivateCount) at phaseScope
-  have endpoint : PiRLCInputs.phaseOffset + Formal.logicalPrivateCount ≤
-      Spartan.SourceColumnCount := by
-    rw [Spartan.sourceColumnCount_eq]
-    norm_num [PiRLCInputs.phaseOffset, Formal.logicalPrivateCount]
-  have scope : ∀ expression ∈ flatConstraints
-      (Formal.opsAt (PerApplicationFixedPoint.relation application fits)
-        PiRLCInputs.interface PiRLCInputs.phaseOffset),
-      expression.VarsBelow Spartan.SourceColumnCount := by
-    intro expression member
-    exact Expr.VarsBelow.mono expression (phaseScope expression member) endpoint
-  have copiedRows : holdsFlat (PiRLCFirst54DirectPlan.baseEnv application raw.base)
-      (Formal.opsAt (PerApplicationFixedPoint.relation application fits)
-        PiRLCInputs.interface PiRLCInputs.phaseOffset) := by
-    apply constraintsHold_of_agree_below (Spartan.pullback target)
-      (PiRLCFirst54DirectPlan.baseEnv application raw.base)
-      _ Spartan.SourceColumnCount scope _ rows
-    intro index bound
-    exact source_ofCompleted application target applicationPrivate index bound
-  exact PerApplicationCanonicalAssignment.completeAssignment_norm_of_piRlcRows
-    fits raw (PiRLCInputBounds.assumptions
-      (PerApplicationFixedPoint.relation application fits) _) copiedRows column
-
-/-- The actual complete physical prefix supplies the PiRLC constraints needed
-by the canonical norm proof. Thus every coordinate of the same copied and
-completed carrier is strictly below two; no separate phase-row or bit premise
-is needed by the complete assignment consumer. -/
-theorem completeAssignment_norm_of_physical
-    (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
-    (ajtai : AjtaiKey
-      (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
-      (publicFits := PerApplicationFixedPoint.publicFits application))
-    (target : Env)
-    (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
-      application) → F)
-    (physical : R1CS.RowsHold target
-      (Spartan.remappedRows (PerApplicationFixedPoint.relation application fits)))
-    (column : Fin (Phi81CarrierLayout.carrierWidth
-      (PerApplicationFixedPoint.logicalWidth application))) :
-    centeredMagnitude
-      ((canonicalRawValues application
-        (ofCompleted application target applicationPrivate)).completeAssignment column) < 2 := by
-  let relation := PerApplicationFixedPoint.relation application fits
-  have allRows := (Spartan.remappedRows_hold relation target).mp physical
-  have throughD := ((PilotPiCCSPiRLCPiDECRunningTransition.physicalHolds_iff
-    relation (Spartan.pullback target)).mp allRows).1
-  have throughR := ((PilotPiCCSPiRLCPiDEC.physicalHolds_iff relation
-    (Spartan.pullback target)).mp throughD).1
-  have rRows := ((PilotPiCCSPiRLC.physicalHolds_iff relation
-    (Spartan.pullback target)).mp throughR).2
-  have logicalRows := NightstreamFPrime.Layout.PiRLC.v1_1.physical_implies_holdsFlat
-    relation PiRLCInputs.interface PiRLCInputs.phaseOffset (Spartan.pullback target) rRows
-  exact completeAssignment_norm_of_completedRows application fits ajtai target
-    applicationPrivate logicalRows column
+        (ofCompleted application target applicationPrivate)).completeAssignment column) < 2 :=
+  PerApplicationCanonicalAssignment.completeAssignment_norm _ column
 
 end NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment

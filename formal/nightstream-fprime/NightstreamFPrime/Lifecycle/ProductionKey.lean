@@ -135,25 +135,25 @@ def absorbFullOutput (s : Transcript.State)
       (List.finRange productionShape.coefficientCount).flatMap fun l =>
         serializeK (out.matrixCoordinate i j l)))
 
-/-- The exact 17-value `ρ` batch from the post-output state, or explicit
-sampler shortfall. -/
-def piRlcResponse (s : Transcript.State) :
+/-- The exact 17-value `ρ` batch; the production sampler is total. The
+optional result is the generic NIFS key interface, not a sampler failure mode. -/
+def piRlcResponse (state : Transcript.State) :
     Option (Fin (Nifs.PaperProfile.arity).total → RingF) :=
-  Transcript.PiRlcSampler.piRlcChallenges s
-    (Nifs.PaperProfile.arity).total
+  some (Transcript.PiRlcSampler.piRlcChallenges state (Nifs.PaperProfile.arity).total)
 
 theorem piRlcResponse_valid
-    (s : Transcript.State)
+    (state : Transcript.State)
     (response : Fin (Nifs.PaperProfile.arity).total → RingF)
-    (success : piRlcResponse s = some response)
+    (returned : piRlcResponse state = some response)
     (index : Fin (Nifs.PaperProfile.arity).total) :
     Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (response index) := by
-  unfold piRlcResponse Transcript.PiRlcSampler.piRlcChallenges at success
-  rw [Option.map_eq_some_iff] at success
-  rcases success with ⟨batch, batchEq, responseEq⟩
-  rw [← responseEq]
-  exact Transcript.PiRlcSampler.piRlcChallenges_member
-    (by simpa using batchEq) index
+  have same := Option.some.inj returned
+  rw [← same]
+  exact Transcript.PiRlcSampler.piRlcChallenges_member state _ index
+
+theorem piRlcResponse_ne_none (state : Transcript.State) :
+    piRlcResponse state ≠ none := by
+  simp [piRlcResponse]
 
 /-- The Stage 1 production NIFS key for one logical relation and one
 verifier-owned Ajtai key. -/

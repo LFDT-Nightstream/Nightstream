@@ -179,7 +179,7 @@ private theorem nifs_complete
     priorFixed advertisedFixed digestFixed values context
   let proof := PiCCSProofInputs.relationProof relation values template
   let fresh := PiCCSProofInputs.protocolFresh logicalWidth publicFits (encHash (stateHash prior)) values
-  obtain ⟨cAccepted, available, _, _, _⟩ := PiDECProtocolCompleteness.verifierInputs relation ajtai
+  obtain ⟨cAccepted, _, _, _⟩ := PiDECProtocolCompleteness.verifierInputs relation ajtai
     (prior.running functionIndex) fresh proof result accepted
   obtain ⟨p, pEnd, pConstraints⟩ := PilotNifsCompleteness.pilot_prefix prior advertised digest
     priorFixed advertisedFixed digestFixed values context outputHash
@@ -224,7 +224,7 @@ private theorem nifs_complete
     exact (cAfter index (by rw [cFirst]; omega)).trans (c.agrees index (Or.inl below))
   obtain ⟨r, rOperations, _, _, rSampled, rParent⟩ := PiRLCProtocolCompleteness.completePrefix_after_c
     relation ajtai prior (encHash (stateHash prior)) advertised digest priorFixed advertisedFixed digestFixed
-    values context template available pPhysical (fun index support => pAgrees index (Or.inr support))
+    values context template pPhysical (fun index support => pAgrees index (Or.inr support))
     c cOperations cPhysical (by simpa only [cFirst] using cAfter)
   let rPlan := NightstreamFPrime.Layout.PiRLC.v1_1.plan relation PiRLCInputs.interface PiRLCInputs.phaseOffset
   have rConstraints : rPlan.constraints = flatConstraints r.operations := by

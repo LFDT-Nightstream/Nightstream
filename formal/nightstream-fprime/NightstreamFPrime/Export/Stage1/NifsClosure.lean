@@ -9,7 +9,7 @@ existing selected public checker. Preparation returns its supplied context.
 Thus no provider correctness, call-value equality or preparation-law equality
 is a premise of the final consumer.
 
-The external FS transfer, low-norm hypothesis, caller clocks and their bounds
+The external FS transfer, caller clocks and their bounds
 and moments remain explicit. Identity preparation does not implement an
 adversary translation or an efficient sampler for the context law. Its clock
 is the supplied experiment label, not a claim about arbitrary preprocessing.
@@ -176,6 +176,75 @@ theorem source_probability_linear_bound :
     continuation program checkClock accessClock
   exact lower.trans (le_of_eq (storedEvent.trans
     (HyperNovaSourceLaw.source_event_mass_eq inputs contexts originalFirstPhase continuation program).symm))
+
+include bounded in
+/-- The selected source-return bound with the sampler term made explicit.
+The supplied raw and balanced game correspondences specify the FS boundary;
+the loss between those games is the proved cached block-oracle comparison.
+The returned event, fixed key, concrete provider and extraction losses are
+identical to `source_probability_linear_bound`. -/
+theorem source_probability_linear_bound_with_sampler {OracleState : Type*}
+    (sampleQueries : Nat → Nat)
+    (experiment : NonInteractive.PiRlcSampler.OracleModel.Program OracleState)
+    (initial : OracleState)
+    (test : NonInteractive.PiRlcSampler.OracleModel.Outcome OracleState → ℝ)
+    (nonnegative : ∀ outcome, 0 ≤ test outcome) (atMostOne : ∀ outcome, test outcome ≤ 1)
+    (rawTransfer :
+      g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey
+        (fun context => PiCCSInputCheck.running (inputs context))
+        (fun context => PiCCSInputCheck.fresh (inputs context)) law) - deltaFS Q ≤
+      NonInteractive.PiRlcSampler.average (fun tape => test
+        (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
+          NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)))
+    (balancedTransfer :
+      NonInteractive.PiRlcSampler.balancedAverage (fun tape => test
+        (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
+          NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)) ≤
+      FiatShamirTransfer.originalSuccessProbability relation productionAjtaiKey
+        (fun context => PiCCSInputCheck.running (inputs context))
+        (fun context => PiCCSInputCheck.fresh (inputs context))
+        law originalFirstPhase abortTape
+        (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
+        (InteractiveComposition.firstPhase originalFirstPhase
+          (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)) :
+    let running := fun context => PiCCSInputCheck.running (inputs context)
+    let fresh := fun context => PiCCSInputCheck.fresh (inputs context)
+    let contexts := FiatShamirTransfer.contextLaw relation law
+    let program := PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
+      assignmentSubClock scalarActionClock
+    let sourceProgram := fun context => PiCCSStoredSourceProbability.sourceProgram
+      (inputs context) (checkClock context) (accessClock context)
+    let continuation := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts
+      (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+      abortTape
+      (NifsExtractionProvider.provider inputs contexts
+        (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
+        tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+      sampleQueries Q * NonInteractive.PiRlcSampler.distance -
+      InteractiveComposition.weakLoss relation productionAjtaiKey -
+      IndependentExecution.testError productionShape 9 -
+      AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
+        originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram contexts *
+          PaperProfile.arity.total ≤
+      ((HyperNovaSourceLaw.law inputs contexts originalFirstPhase continuation program).toOuterMeasure
+        {sample | SourceReturned PiCCSStoredWitnessCheck.commit productionGlobalParams
+          (PiCCSStoredWitnessCheck.statement (inputs sample.1)) sample.2}).toReal := by
+  have model := FiatShamirTransfer.FiatShamirModel.of_blockOracle relation productionAjtaiKey
+    (fun context => PiCCSInputCheck.running (inputs context))
+    (fun context => PiCCSInputCheck.fresh (inputs context)) law originalFirstPhase abortTape
+    (NifsExtractionProvider.provider inputs (FiatShamirTransfer.contextLaw relation law)
+        (InteractiveComposition.firstPhase originalFirstPhase
+          (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context))))
+        tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable)
+    g deltaFS sampleQueries Q experiment initial test nonnegative atMostOne rawTransfer balancedTransfer
+  have result := source_probability_linear_bound inputs law originalFirstPhase abortTape
+    tapes rawCall suffixCheckClock storageClock parentClock storageBound storageBounded suffixSummable
+    g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) Q model
+    scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock
+    checkClock accessClock bounds bounded
+  simpa only [FiatShamirTransfer.samplerTransferError, sub_add_eq_sub_sub] using result
 
 include model bounded in
 /-- The actual stored source event and the prepared reduction use the same

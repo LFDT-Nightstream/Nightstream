@@ -293,12 +293,11 @@ theorem transcriptForm_eval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment
       (PiCCSPoseidonPreservation.sourceAssignment program
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)))
+        (PiRLCRetainedPreservation.sourceAssignment program base groupValue)))
     (index : TranscriptIndex) (lane : Fin 8) :
     (transcriptForm geometry index lane).eval assignment =
       PiCCSTranscriptReadout.env
@@ -311,7 +310,7 @@ theorem transcriptForm_eval
     (PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.phaseStart index lane)
   rw [PermutationOutput.Readout.env_outputColumn]
   have values := congrFun (PiCCSPoseidonPreservation.outputState_baseEnv geometry
-    assignment base groupValue products sboxes (invocation index)) lane
+    assignment base groupValue sboxes (invocation index)) lane
   have startEq :
       (PiCCSPoseidonPreservation.physicalInvocation (invocation index)).witnessStart =
         PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.phaseStart index :=
@@ -326,19 +325,18 @@ theorem pointForm_eval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment
       (PiCCSPoseidonPreservation.sourceAssignment program
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)))
+        (PiRLCRetainedPreservation.sourceAssignment program base groupValue)))
     (coordinate : Fin Lifecycle.productionShape.cubeVariables) (component : Fin 2) :
     (pointForm geometry coordinate component).eval assignment =
       PiCCSTranscriptReadout.env
         (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base))
         (Spartan.sourceToSpartan (pointSource coordinate component)) := by
   rw [pointSource_eq_transcriptSource]
-  exact transcriptForm_eval geometry assignment base groupValue products sboxes
+  exact transcriptForm_eval geometry assignment base groupValue sboxes
     (pointInvocation coordinate component) 0
 
 end NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms

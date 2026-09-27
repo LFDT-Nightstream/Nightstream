@@ -16,12 +16,13 @@ mod value;
 
 const MAGIC: &[u8; 8] = b"NSFPREP1";
 
-// The native reference has 32,037,533 array/u64 nodes. Compiler outputs have
-// N0 + W + 4*[W>0] + 4*[L>0] nodes, with W+L <= 7,701 from the selected key.
-// The maximum at W=7,700/L=1 exceeds the W=4/L=7,696 reference by 7,696 nodes.
-// Derivation: nightstream/tests/evidence/prepared-package-20260922/fixed-source-bound.md.
-const NATIVE_REFERENCE_NODES: usize = 32_037_533;
-const MAX_FIXED_SOURCE_NODES: usize = NATIVE_REFERENCE_NODES + 7_696;
+// Compiler output has N0 + W + 4*[W>0] + 4*[L>0] numeric/array nodes.
+// The unchanged maximum key permits floor((MAX_CARRIER_WIDTH - fixedWidth)/41)
+// application fields. W=maximum-1, L=1 attains the largest envelope.
+// Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
+const NATIVE_REFERENCE_NODES: usize = 31_971_934;
+const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 242_275_092) / 41;
+const MAX_FIXED_SOURCE_NODES: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;
 // Compact numeric-array JSON needs at most 20 decimal digits and one separator
 // per node; array delimiters fit this bound as well.
 const MAX_FIXED_SOURCE_BYTES: u64 = 21 * MAX_FIXED_SOURCE_NODES as u64;

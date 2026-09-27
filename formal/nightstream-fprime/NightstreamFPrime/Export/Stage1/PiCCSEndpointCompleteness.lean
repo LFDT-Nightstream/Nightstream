@@ -122,10 +122,10 @@ theorem rowsZero_of_completed
   let selected := descriptor rowIndex
   have direct := endpointValue_of_completed application relation target suffix physical selected.1 selected.2
   have source := sourceForm_eval (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)
-    raw.assignment raw.base raw.groupValue raw.products
+    raw.assignment raw.base raw.groupValue
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior selected.1 selected.2
   have bound := endpointColumn_lt_source selected.1 selected.2
-  have same := packageEnv_sourceAssignment application raw.base raw.groupValue raw.products _ bound
+  have same := packageEnv_sourceAssignment application raw.base raw.groupValue _ bound
   have copied := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
     physical (endpointColumn selected.1 selected.2) bound
   have sourceValue : (sourceForm (PerApplicationCanonicalEncodes.piCcsOrdinaryGeometry application)

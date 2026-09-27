@@ -91,7 +91,7 @@ private theorem form_value
       target (Spartan.liftPilotColumn (PilotSpartan.sourceToSpartan location.sourceColumn)) := by
   have value := PilotOrdinaryDirectPlan.Location.form_eval
     (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment
-    raw.base raw.groupValue raw.products
+    raw.base raw.groupValue
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary location
   refine value.trans ?_
   rw [baseEq]
@@ -127,7 +127,7 @@ private theorem ordinary_rows
   intro raw
   apply (PilotOrdinaryDirectPlan.rowsZero_iff_rowsHold
     (PerApplicationCanonicalEncodes.pilotOrdinaryGeometry application) raw.assignment
-    raw.base raw.groupValue raw.products (PerApplicationCanonicalAssignment.assignment_one raw)
+    raw.base raw.groupValue (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary).mpr
   apply R1CS.rowsHold_of_agree _ PilotOrdinaryDirectSource.Target
     (fun column => target (Spartan.liftPilotColumn column)) _ PilotOrdinaryDirectSource.sourceRows_varsSatisfy

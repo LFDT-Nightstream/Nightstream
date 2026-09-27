@@ -1,45 +1,31 @@
 # Parameters
 
-`neo-params` owns the SuperNeo Appendix B.2 Goldilocks profile and the exact
-shape census. `neo-fold-legacy::paper::params::Params` is the protocol-layer
-wrapper.
+The maintained Nightstream Goldilocks profile uses the following exact
+values. It is not the SuperNeo Appendix B.2 reference profile.
 
-## Appendix B.2 core
-
-| Symbol | Value |
+| Parameter | Value |
 |---|---:|
-| q | 2^64 - 2^32 + 1 |
-| eta | 81 |
-| d | 54 |
-| kappa | 18 |
-| m | 2^30 |
-| b | 2 |
-| k_rho | 14 |
-| B | 2^14 |
-| T | 216 |
-| s | 2 |
-| lambda | 125 |
+| Field modulus | 2^64 − 2^32 + 1 |
+| Cyclotomic index / ring degree | 81 / 54 |
+| Ajtai rank | 22 |
+| Decomposition base `b` | 2 |
+| `k_rho` | 16 |
+| Norm bound `B` | 65536 |
+| Expansion factor `T` | 216 |
+| Extension degree | 2 |
+| Sum-check rounds | 28 |
+| Maximum key columns | 4,708,530 |
 
-`Params::production()` returns these paper values unchanged.
+The selected package uses a prefix of the fixed key and zero extension to
+the same domain. Its emitted setup gives the exact prefix length. The key
+seed, rank, profile, and transcript schedule are bound to the package.
 
-## Shape-derived lambda
+PiRLC combines 17 claims. Each challenge uses four transcript field elements
+as one base-p integer, reduces modulo `5^54`, and decodes 54 digits in
+`{−2,…,2}`. It cannot fail. Under uniform field draws, its statistical distance
+from the uniform strong set is below `2^-132` per challenge. This is a sampler
+bound, not a complete security estimate for concrete Poseidon2 execution.
 
-A concrete one-joint relation has an exact combined error census. It includes
-the joint SumCheck term, the paper mixing term, and the coordinate-fork term.
-
-`Params::for_r1cs_shape` and `Params::for_ccs_shape` keep the Appendix B.2
-core and bind the strongest lambda supported by that exact census. There is no
-repository-invented minimum or safety margin. The selected lambda is evidence
-about the relation, not a product security target.
-
-Callers that have an authoritative minimum can use the explicit `*_with`
-constructors. Those constructors reject a shape that cannot meet the supplied
-minimum and margin.
-
-## Other checks
-
-- The PiRLC guard enforces `(K + k) * T * (b - 1) < B`.
-- The assignment and row domains must fit the Appendix B.2 bounds.
-- The extension degree remains `s = 2`.
-- The exact PiRLC sampler schedule is derived from the Appendix B.2 lambda.
-- Poseidon2 parameters come from `neo_params::poseidon2_goldilocks`.
+Callers must choose a positive statistical-security minimum. The shape
+estimator does not replace the explicit Fiat–Shamir and fixed-key MSIS
+assumptions in the formal security argument.

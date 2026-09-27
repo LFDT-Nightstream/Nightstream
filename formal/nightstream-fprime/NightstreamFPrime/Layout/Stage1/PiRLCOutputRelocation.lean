@@ -123,7 +123,7 @@ private theorem evalAOutput_shift
     omega]
   exact ringKOutput_shift _ _ _ _ _ _
 
-private theorem commitmentOutput_supported
+theorem commitmentOutput_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -140,10 +140,10 @@ private theorem commitmentOutput_supported
     omega
   · rw [CommitmentCombination.logicalPrivateCount_eq]
     unfold Formal.commitmentOffset Formal.samplerOffset
-    rw [SamplerChain.logicalPrivateCount_eq]
+    rw [SamplerChain.counts.1]
     norm_num [Formal.logicalPrivateCount]
 
-private theorem publicInputOutput_supported
+theorem publicInputOutput_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -162,10 +162,10 @@ private theorem publicInputOutput_supported
   · rw [PublicInputCombination.logicalPrivateCount_eq]
     unfold Formal.publicInputOffset Formal.commitmentOffset
       Formal.samplerOffset
-    rw [SamplerChain.logicalPrivateCount_eq]
+    rw [SamplerChain.counts.1]
     norm_num [Formal.logicalPrivateCount]
 
-private theorem evalKOutput_supported
+theorem evalKOutput_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -191,7 +191,7 @@ private theorem evalKOutput_supported
     rw [EvalKCombination.logicalPrivateCount_eq]
     unfold Formal.evalKOffset Formal.publicInputOffset
       Formal.commitmentOffset Formal.samplerOffset
-    rw [SamplerChain.logicalPrivateCount_eq]
+    rw [SamplerChain.counts.1]
     norm_num [Formal.logicalPrivateCount]
   unfold KSupported EvalKCombination.output RingKCombination.output
   exact ⟨
@@ -206,7 +206,7 @@ private theorem evalKOutput_supported
       (Fin.cast EvalKCombination.coefficientCount_eq coefficient)
       RingKCombination.c1Cell⟩
 
-private theorem evalAOutput_supported
+theorem evalAOutput_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -233,7 +233,7 @@ private theorem evalAOutput_supported
     rw [EvalACombination.logicalPrivateCount_eq]
     unfold Formal.evalAOffset Formal.evalKOffset Formal.publicInputOffset
       Formal.commitmentOffset Formal.samplerOffset
-    rw [SamplerChain.logicalPrivateCount_eq]
+    rw [SamplerChain.counts.1]
     norm_num [Formal.logicalPrivateCount]
   unfold KSupported EvalACombination.output RingKCombination.output
   exact ⟨

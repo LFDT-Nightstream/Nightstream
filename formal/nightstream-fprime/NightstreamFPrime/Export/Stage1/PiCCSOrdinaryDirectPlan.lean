@@ -224,9 +224,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (location : Location) :
     (location.form geometry).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base
@@ -307,7 +306,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       by_cases proof : index.val < proofInputCount
       · rw [form, dif_pos proof,
           LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
-        change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+        change PiRLCRetainedPreservation.sourceAssignment program base groupValue
             (RunningTransitionRetainedBlocks.packageSourceColumn program
               (proofLogicalSource index) (proofLogicalSource_lt index)) = _
         rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
@@ -337,10 +336,10 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
             omega
           rw [sourceEq]
           exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
-            assignment base groupValue products encodes.sboxes decoded.1 decoded.2
+            assignment base groupValue encodes.sboxes decoded.1 decoded.2
         · rw [form, dif_neg proof, dif_neg transcript,
             LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
-          change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+          change PiRLCRetainedPreservation.sourceAssignment program base groupValue
               (RunningTransitionRetainedBlocks.packageSourceColumn program
                 (proofLogicalSource index) (proofLogicalSource_lt index)) = _
           rw [RunningTransitionDirectPlan.sourceAssignment_packageSource]
@@ -665,9 +664,8 @@ theorem sourceMap_form_eval_of_target
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (column : Fin Spartan.spartanColumnCount)
     (support : PiCCSOrdinarySourceSupport.Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
@@ -677,7 +675,7 @@ theorem sourceMap_form_eval_of_target
     | none => endpointForm geometry column
     | some value => value.location.form geometry).eval assignment = _
   rw [found]
-  rw [Location.form_eval geometry assignment base groupValue products
+  rw [Location.form_eval geometry assignment base groupValue
     encodes decoded.location]
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
@@ -690,9 +688,8 @@ private theorem preservesCombination
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
       combination)
@@ -701,7 +698,7 @@ private theorem preservesCombination
       assignment (RunningTransitionDirectPlan.transitionEnv program base)
       combination bounded := by
   intro term member
-  exact sourceMap_form_eval_of_target geometry assignment base groupValue products
+  exact sourceMap_form_eval_of_target geometry assignment base groupValue
     encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 private theorem programRow_support
@@ -740,9 +737,8 @@ theorem inputs_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs relation geometry).sourceMap index) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
@@ -757,11 +753,11 @@ theorem inputs_preserve
       PiCCSOrdinaryDirectSource.SupportedProgram.toProgram,
       PiCCSOrdinaryDirectSource.supportedProgram] using directScope
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 /-- Exact row-local preservation for the explicit canonical PiCCS row. -/
@@ -776,9 +772,8 @@ theorem programRow_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (index : Fin 811669) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
@@ -786,11 +781,11 @@ theorem programRow_preserve
       (PiCCSOrdinaryDirectSource.programRow_bounded relation index) := by
   have scope := programRow_support relation index
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 /-- Exact sparse forms for one canonical Lean-lowered PiCCS ordinary row. -/
@@ -875,10 +870,9 @@ theorem rowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)) :
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     (plan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv program base)
         (PiCCSOrdinaryDirectSource.sourceRows relationLogicalWidth
@@ -892,8 +886,7 @@ theorem rowsZero_iff_rowsHold
       (PiCCSOrdinaryDirectSource.programRow relation index)
       (PiCCSOrdinaryDirectSource.programRow_bounded relation index)
       assignment (RunningTransitionDirectPlan.transitionEnv program base) one
-      (programRow_preserve relation geometry assignment base groupValue
-        products encodes index)
+      (programRow_preserve relation geometry assignment base groupValue encodes index)
     exact (OrdinaryRow.planOfForms_residual_zero_iff
       (by norm_num [Lifecycle.cubeVariables]) (rowForms relation geometry)
       assignment (RunningTransitionDirectPlan.transitionEnv program base)
@@ -905,8 +898,7 @@ theorem rowsZero_iff_rowsHold
       (PiCCSOrdinaryDirectSource.programRow relation index)
       (PiCCSOrdinaryDirectSource.programRow_bounded relation index)
       assignment (RunningTransitionDirectPlan.transitionEnv program base) one
-      (programRow_preserve relation geometry assignment base groupValue
-        products encodes index)
+      (programRow_preserve relation geometry assignment base groupValue encodes index)
     exact (OrdinaryRow.planOfForms_residual_zero_iff
       (by norm_num [Lifecycle.cubeVariables]) (rowForms relation geometry)
       assignment (RunningTransitionDirectPlan.transitionEnv program base)

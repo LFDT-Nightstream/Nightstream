@@ -29,7 +29,7 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 252695531 := by
+    completeLogicalWidth program = 242275092 := by
   unfold completeLogicalWidth freshStart logicalStart prefixLogicalWidth
   rw [PiDECRetainedGeometry.completeLogicalWidth_eq,
     PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock_coordinateCount,
@@ -92,11 +92,8 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (logicalStart program) (logicalFits geometry) assignment source
   fresh : (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock program).EncodesAt
     (freshStart program) (freshFits geometry) assignment source
-  reject : (PiRLCFirst54RetainedBlocks.rejectBlock program).EncodesAt
-    (PiRLCRetainedGeometry.rejectStart program)
-    (PiRLCRetainedGeometry.rejectFits (piRlcGeometry geometry)) assignment source
-  symbol : (PiRLCFirst54RetainedBlocks.symbolBlock program).EncodesAt
-    (PiRLCRetainedGeometry.symbolStart program)
-    (PiRLCRetainedGeometry.symbolFits (piRlcGeometry geometry)) assignment source
+  challenge : (PiRLCRetainedGeometry.challengeBlock program).EncodesAt
+    (PiRLCRetainedGeometry.challengeStart program)
+    (PiRLCRetainedGeometry.challengeFits (piRlcGeometry geometry)) assignment source
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry

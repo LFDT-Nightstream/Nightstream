@@ -6,7 +6,7 @@ import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
 /-!
 Owns selected accepted-next completeness from actual old openings.
-The recursive branch fixes its C prefix before actual sampler success. The
+The recursive branch fixes its C prefix before the total sampler runs. The
 base branch uses canonical dummy advice and retains the default running claims.
 Both call the actual selected assignment constructor and compute the fresh
 commitment from that same carrier. No security or work law is claimed.
@@ -121,12 +121,12 @@ theorem terminal_of_memberships
     exact runningMember
   · exact freshMember
 
-/-- An accepted prior payload and the actual sampler success construct the
+/-- An accepted prior payload and valid application advice construct the
 normal local proof and an accepted successor envelope. The same returned
 child assignments and actual canonical fresh carrier occur in that envelope.
 No accepted local proof, child validity, physical rows, or assignment-correctness
 callback is a caller premise. This is deterministic completeness only. -/
-theorem recursive_extend_of_sampler_success
+theorem recursive_extend
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
     (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup
@@ -142,8 +142,8 @@ theorem recursive_extend_of_sampler_success
            input := (key.statement (payload.running functionIndex) payload.fresh).verifierInput key.lift } :
           PiCCS.TranscriptReplay.Statement K Transcript.State productionShape)
         { rounds := fun round => (messages round).toMessage }
-      ∀ rho : Fin key.arity.total → RingF,
-        key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho →
+      ∃ rho : Fin key.arity.total → RingF,
+        key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho ∧
         ∃ (proof : Lifecycle.Proof 9)
           (result : Running
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -176,11 +176,12 @@ theorem recursive_extend_of_sampler_success
   let key := ProductionKey.key relation productionAjtaiKey
   let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits productionSetup).digest4
   obtain ⟨messages, fullOutput, continuation⟩ :=
-    HyperNovaCompleteness.recursive_nifs_of_sampler_success statement payload accepted
+    HyperNovaCompleteness.recursive_nifs statement payload accepted
   refine ⟨messages, fullOutput, ?_⟩
-  intro coins rho sampled
-  obtain ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, childrenMember⟩ :=
-    continuation rho sampled
+  intro coins
+  obtain ⟨rho, sampled, proof, result, children, roundsEq, outputEq, sampleEq, verified, childrenMember⟩ :=
+    continuation
+  refine ⟨rho, sampled, ?_⟩
   let before := HyperNovaStepData.input statement payload advice proof
   let after := HyperNovaStepData.output statement advice result
   obtain ⟨step, priorWellFormed, nextWellFormed, freshPublic, resultEq⟩ :=
@@ -203,12 +204,12 @@ theorem recursive_extend_of_sampler_success
   exact ⟨proof, result, children, raw, roundsEq, outputEq, sampleEq, verified,
     childrenMember, actualAdvice, digest, nextAccepted⟩
 
-/-- The accepted initial envelope constructs a first canonical step when
-the actual sampler on the existing zero proof succeeds. The dummy verifier
+/-- The accepted initial envelope constructs a first canonical step using
+the total sampler on the existing zero proof. The dummy verifier
 result is used by the physical constructor. The new terminal envelope keeps
 the default running claims and their proved zero openings. No opening of the
 dummy fresh claim or its verifier-produced children is assumed or claimed. -/
-theorem base_extend_of_sampler_success
+theorem base_extend
     (statement : HyperNovaHistory.Statement) (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup statement .bottom)
     (adviceWidth : advice.length = Stage1.Poseidon2HashChainV1.messageWordCount) :
@@ -224,9 +225,6 @@ theorem base_extend_of_sampler_success
       current := statement.zi
       running := fun _ => defaultRunning
       pc := 1 }
-    ∀ rho : Fin key.arity.total → RingF,
-      key.piRlcChallenges defaultRunning (Nifs.BaseCompleteness.baseFresh prior)
-        Nifs.BaseCompleteness.zeroProof = some rho →
       ∃ (dummyResult : Running
           (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
           (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -248,7 +246,7 @@ theorem base_extend_of_sampler_success
               publicInputs := fun _ => encHash raw.outputDigest }
             freshWitness := raw.completeAssignment
             pc := 1 }) := by
-  intro relation key context prior rho sampled
+  intro relation key context prior
   obtain ⟨valid, zero, sameInitial⟩ :=
     (PerApplicationTerminal.holds_bottom_iff application fits productionSetup statement).mp accepted
   let seeded : Input KeyDigest AppState AppWitness
@@ -290,8 +288,8 @@ theorem base_extend_of_sampler_success
   have freshPublic : before.fresh.publicInputs ⟨0, by decide⟩ =
       encHash (stateHash (priorHashPreimage (setup relation productionAjtaiKey context.toList) before)) := by
     rfl
-  obtain ⟨dummyResult, verified⟩ := Nifs.BaseCompleteness.zeroProof_verify_of_sampler
-    relation productionAjtaiKey prior rho sampled
+  obtain ⟨dummyResult, verified⟩ := Nifs.BaseCompleteness.zeroProof_verify
+    relation productionAjtaiKey prior
   have beforeVerified : Nifs.PaperNonInteractive.verify key
       (before.running functionIndex) before.fresh before.nifsProof = some dummyResult := by
     simpa only [before, PiDECBaseCompleteness.canonicalInput, seeded] using! verified

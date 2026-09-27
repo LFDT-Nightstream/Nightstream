@@ -1,218 +1,169 @@
-import NightstreamFPrime.Export.Stage1.ActualPiRLCCandidates
+import NightstreamFPrime.Export.Stage1.ActualPiRLCStates
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 
-/-!
-Owns exact bounded sampling from arbitrary accepted decoder, selector and
-Poseidon rows. The output is the retained First54 value list, and the source
-is the concrete verifier stream from the retained PiCCS endpoint.
--/
+/-! Accepted ordinary rows determine the wide reduction of the actual retained
+transcript draw. The checked words feed the product plan directly. This proof
+applies to arbitrary assignments; canonical witness encoding is not a premise. -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLCSampling
 
-open NightstreamFPrime.Layout
-open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
-open NightstreamFPrime.Gadgets.Sampling
-open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Circuit NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.Stage1 NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Gadgets.Sampling
+open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-open NightstreamFPrime.Spec.Sampling
-open Spec.Folding.Nifs.NonInteractive.PiRlcSampler (sourceAt)
-open Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
-open ActualPiRLCCandidates (inputs verifierCandidate)
+open PiRLCSamplerOrdinaryDirectPlan (Location resolvedEnv poseidonGeometry)
+open PiRLCSamplerOrdinaryRetainedBlocks (sourceCount)
 
 variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-def candidates
-    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
-    List Chunk :=
-  FirstAccepted.streamPrefix
-    (sourceAt Transcript.PiRlcSampler.specification
-      (ActualPiRLCStates.initialState (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)
-        assignment) source.val).stream candidateBound
-
-theorem candidatePrefix_eq
-    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
-    (First54.semanticCandidates First54.candidateCount).map
-        (fun round => verifierCandidate geometry assignment ⟨source, round⟩) =
-      candidates geometry assignment source := by
-  unfold candidates First54.semanticCandidates First54.candidateStream FirstAccepted.streamPrefix
-  simp only [First54.candidateCount, candidateBound]
-  change ((List.range 64).map First54.candidateIndex).map
-      (fun round : Fin First54.candidateCount => verifierCandidate geometry assignment ⟨source, round⟩) = _
-  rw [List.map_map]
-  apply List.map_congr_left
-  intro index member
-  have indexLt : index < 64 := List.mem_range.mp member
-  simp [verifierCandidate, First54.candidateIndex, First54.candidateCount,
-    Nat.mod_eq_of_lt indexLt]
-
-theorem rowsZero_implies_acceptedSymbols
-    (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
-    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
-    (decoderRows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
-    (semantics : PiRLCSamplerPoseidonPreservation.CanonicalSemantics
-      (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment)
-    (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
-    FirstAccepted.acceptedSymbols
-        (First54.semanticVerifier (ActualPiRLCSelector.interface (inputs geometry) assignment source)
-          0 (ActualPiRLCSelector.decodedEnv (inputs geometry) assignment source))
-        (First54.semanticCandidates First54.candidateCount) =
-      (FirstAccepted.acceptedSymbols verifier (candidates geometry assignment source)).map
-        Sampler.coefficientWord := by
-  let selected := First54.semanticVerifier
-    (ActualPiRLCSelector.interface (inputs geometry) assignment source) 0
-    (ActualPiRLCSelector.decodedEnv (inputs geometry) assignment source)
-  let chunk := fun round => verifierCandidate geometry assignment ⟨source, round⟩
-  have acceptsEq : selected.accepts = verifier.accepts ∘ chunk := by
-    funext round
-    exact (ActualPiRLCCandidates.rowsZero_implies_selector_verifier relation geometry assignment
-      one decoderRows semantics source round).1
-  have symbolEq : selected.symbol = Sampler.coefficientWord ∘ verifier.symbol ∘ chunk := by
-    funext round
-    exact (ActualPiRLCCandidates.rowsZero_implies_selector_verifier relation geometry assignment
-      one decoderRows semantics source round).2
-  change FirstAccepted.acceptedSymbols selected (First54.semanticCandidates First54.candidateCount) = _
-  rw [← candidatePrefix_eq geometry assignment source]
-  change FirstAccepted.acceptedSymbols selected (First54.semanticCandidates First54.candidateCount) =
-    (FirstAccepted.acceptedSymbols verifier
-      ((First54.semanticCandidates First54.candidateCount).map chunk)).map Sampler.coefficientWord
-  simp only [FirstAccepted.acceptedSymbols, FirstAccepted.acceptedCandidates,
-    List.filter_map, List.map_map, acceptsEq, symbolEq]
-  rfl
-
-/-- The real bounded verifier succeeds and returns exactly the retained words. -/
-theorem rowsZero_implies_boundedSample
-    (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
-    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth)
-    (one : assignment (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
-    (decoderRows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
-    (selectorRows : (PiRLCFirst54DirectPlan.plan (inputs geometry)).RowsZero assignment)
-    (semantics : PiRLCSamplerPoseidonPreservation.CanonicalSemantics
-      (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment)
-    (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
-    ∃ coefficients,
-      FirstAccepted.boundedSample verifier coefficientCount (candidates geometry assignment source) =
-          some coefficients ∧
-        ActualPiRLCSelector.outputValues (inputs geometry) assignment source =
-          coefficients.map Sampler.coefficientWord := by
-  have selector := ActualPiRLCCandidates.rowsZero_implies_bounded_selector relation geometry
-    assignment one decoderRows selectorRows source
-  have symbols := rowsZero_implies_acceptedSymbols relation geometry assignment one decoderRows
-    semantics source
-  have counts := congrArg List.length symbols
-  simp only [FirstAccepted.acceptedSymbols, List.length_map] at counts
-  have enough := (FirstAccepted.boundedSample_eq_some_iff.mp selector).1
-  change coefficientCount ≤ _ at enough
-  unfold FirstAccepted.acceptedCount at enough
-  rw [counts] at enough
-  refine ⟨FirstAccepted.firstAccepted verifier coefficientCount (candidates geometry assignment source),
-    FirstAccepted.boundedSample_eq_some_iff.mpr ⟨enough, rfl⟩, ?_⟩
-  rw [FirstAccepted.bounded_success_exact selector]
-  unfold FirstAccepted.firstAccepted
-  rw [symbols, List.map_take]
-  rfl
-
 def challenge
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
-    RingF :=
-  fun lane => ((inputs geometry).value
-    (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).eval assignment - 2
+    (assignment : Assignment F logicalWidth) (source : Fin sourceCount) : RingF :=
+  fun lane => ((Location.word source lane).form geometry).eval assignment - 2
 
-theorem boundedSample_implies_challenge
+private theorem decoded_location
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (assignment : Assignment F logicalWidth) (source : Fin PiRLCFirst54DirectSchedule.sourceCount)
-    (coefficients : List Coefficient)
-    (success : FirstAccepted.boundedSample verifier coefficientCount
-      (candidates geometry assignment source) = some coefficients)
-    (output : ActualPiRLCSelector.outputValues (inputs geometry) assignment source =
-      coefficients.map Sampler.coefficientWord) :
-    challenge geometry assignment source =
-      Phi81StrongSet.embedScalar (Transcript.PiRlcSampler.scalarOfList coefficients) := by
-  have coefficientLength := FirstAccepted.bounded_success_length success
-  funext lane
-  have coefficientLt : lane.val < coefficients.length := by
-    rw [coefficientLength]
-    exact lane.isLt
-  have outputLt : lane.val < First54.outputCount := lane.isLt
-  have word : ((inputs geometry).value
-      (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).eval assignment =
-      Sampler.coefficientWord (coefficients.getD lane.val ⟨2, by decide⟩) := by
-    have selected := congrArg (fun values : List F => values.getD lane.val 0) output
-    simpa [ActualPiRLCSelector.outputValues, PiRLCProductSourceBlocks.challengeValueDescriptor,
-      List.getD_eq_getElem?_getD, coefficientLt, outputLt] using! selected
-  change ((inputs geometry).value
-      (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).eval assignment - 2 = _
-  rw [word, Sampler.coefficientWord_sub_two_eq_embedCoefficient]
-  rfl
+    (assignment : Assignment F logicalWidth) (location : Location) :
+    (Spartan.pullback (resolvedEnv geometry assignment)) location.sourceColumn =
+      (location.form geometry).eval assignment := by
+  unfold Spartan.pullback resolvedEnv PiRLCSamplerOrdinaryDirectPlan.resolvedForm
+    PiRLCSamplerOrdinaryDirectPlan.classifyTarget
+  rw [Spartan.spartanToSource_sourceToSpartan _ location.sourceColumn_lt]
+  cases location with
+  | poseidon source lane =>
+      simp only [PiRLCSamplerOrdinaryDirectPlan.classifySource_poseidonEntry]
+  | logical source position =>
+      change (match PiRLCSamplerOrdinaryDirectPlan.classifySource
+          (PiRLCSamplerOrdinaryRetainedBlocks.logicalSource source position) with
+        | none => SparseForm.empty | some found => found.form geometry).eval assignment = _
+      rw [PiRLCSamplerOrdinaryDirectPlan.classifySource_logical]
+  | fresh source position =>
+      change (match PiRLCSamplerOrdinaryDirectPlan.classifySource
+          (PiRLCSamplerOrdinaryRetainedBlocks.freshSource source position) with
+        | none => SparseForm.empty | some found => found.form geometry).eval assignment = _
+      rw [PiRLCSamplerOrdinaryDirectPlan.classifySource_fresh]
+  | word source position =>
+      change (match PiRLCSamplerOrdinaryDirectPlan.classifySource
+          (PiRLCStarts.challengeWordStart source.val + position.val) with
+        | none => SparseForm.empty | some found => found.form geometry).eval assignment = _
+      rw [PiRLCSamplerOrdinaryDirectPlan.classifySource_word]
 
-/-- Each retained challenge is the successful result of the actual verifier sampler. -/
+private theorem range_inputs (source : Fin sourceCount) :
+    WideReduction.Assumptions
+      (PiRLCSamplerOrdinaryRows.rangeInterface
+        (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source.val)
+      (PiRLCStarts.rangeLogicalStart source.val) := by
+  intro lane
+  rw [PiRLCSamplerOrdinaryDirectSource.rangeSource_eq_var]
+  change PiRLCStarts.samplerSourceLogicalStart source.val + 584 + lane.val <
+    PiRLCStarts.samplerSourceLogicalStart source.val + 592
+  rw [Nat.add_assoc]
+  exact Nat.add_lt_add_left (by have bound : lane.val < 4 := lane.isLt; omega) _
+
+private theorem draw_eq_verifier
+    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (semantics : PiRLCSamplerPoseidonPreservation.CanonicalSemantics
+      (poseidonGeometry geometry) assignment)
+    (source : Fin sourceCount) :
+    WideReduction.drawOf
+        (WideReduction.Program.coreInterface (PiRLCSamplerOrdinaryRows.rangeInterface
+          (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source.val)
+          (PiRLCStarts.rangeLogicalStart source.val))
+        (Spartan.pullback (resolvedEnv geometry assignment))
+        (WideReduction.Program.coreOffset (PiRLCStarts.rangeLogicalStart source.val)) =
+      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt
+        (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) source.val := by
+  funext lane
+  simp only [WideReduction.drawOf, WideReduction.Program.coreInterface,
+    PiRLCSamplerOrdinaryDirectSource.rangeSource_eq_var, Expr.eval]
+  change (Spartan.pullback (resolvedEnv geometry assignment))
+    (Location.poseidon source lane).sourceColumn = _
+  rw [decoded_location]
+  have stateEq := congrArg (fun state : Poseidon2.State => state.getD lane.val 0)
+    (ActualPiRLCStates.entry_eq_verifier (poseidonGeometry geometry) assignment semantics source)
+  rw [ActualPiRLCStates.state, List.getD_eq_get _ _
+    ⟨lane.val, by have bounded : lane.val < 4 := lane.isLt; simp only [List.length_ofFn]; omega⟩] at stateEq
+  simpa only [List.get_ofFn, Fin.cast_mk, Sampler.rateLane, Location.form, Location.poseidonInvocation,
+    PiRLCSamplerPoseidonPreservation.outputValue, SparseLayer.evalState,
+    Transcript.PiRlcSampler.enterScalar,
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt,
+    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block] using stateEq
+
+/-- Every retained coefficient is forced by the exact verifier draw. -/
 theorem rowsZero_implies_challenge
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
-    (decoderRows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
-    (selectorRows : (PiRLCFirst54DirectPlan.plan (inputs geometry)).RowsZero assignment)
+    (rows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
     (semantics : PiRLCSamplerPoseidonPreservation.CanonicalSemantics
-      (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment)
-    (source : Fin PiRLCFirst54DirectSchedule.sourceCount) :
+      (poseidonGeometry geometry) assignment)
+    (source : Fin sourceCount) :
     Transcript.PiRlcSampler.sampleRingChallenge
-        (ActualPiRLCStates.initialState (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)
-          assignment) source.val = some (challenge geometry assignment source) := by
-  obtain ⟨coefficients, success, output⟩ := rowsZero_implies_boundedSample relation geometry
-    assignment one decoderRows selectorRows semantics source
-  change ((FirstAccepted.boundedSample verifier coefficientCount (candidates geometry assignment source)).map
-    Transcript.PiRlcSampler.scalarOfList).map Phi81StrongSet.embedScalar = _
-  rw [success]
-  exact congrArg some (boundedSample_implies_challenge geometry assignment source coefficients
-    success output).symm
+        (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) source.val =
+      challenge geometry assignment source := by
+  let env := resolvedEnv geometry assignment
+  have ordinary := (PiRLCSamplerOrdinaryDirectPlan.rowsZero_iff_rowsHold
+    relation geometry assignment one).mp rows
+  change R1CS.RowsHold env ((PiRLCSamplerOrdinaryRows.rows
+    (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)).map Rows.CompiledRow.toR1CS) at ordinary
+  have packet := PiRLCSamplerOrdinaryRows.rows_imply_sourceRows
+    (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source env (@ordinary)
+  rw [PiRLCSamplerOrdinaryRows.sourceRows, List.map_append, R1CS.rowsHold_append] at packet
+  have decoded := PiRLCSamplerOrdinaryRows.rangeRows_imply_spec
+    (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
+    source.val env (range_inputs source) packet.1
+  have words := PiRLCSamplerOrdinaryRows.wordRows_imply_spec source.val env packet.2
+  have draw := draw_eq_verifier (relationLogicalWidth := relationLogicalWidth)
+    (relationPublicFits := relationPublicFits) geometry assignment semantics source
+  funext position
+  have digit := decoded position
+  change WideReduction.digitValue (Spartan.pullback env)
+      (WideReduction.Program.coreOffset (PiRLCStarts.rangeLogicalStart source.val)) position.val = _ at digit
+  rw [draw] at digit
+  have word := words position
+  change (Spartan.pullback env) (Location.word source position).sourceColumn = _ at word
+  rw [decoded_location] at word
+  change _ = (WideReduction.Program.outputWord _ position).eval (Spartan.pullback env) at word
+  rw [WideReduction.Program.outputWord_eval, digit] at word
+  change _ = ((Location.word source position).form geometry).eval assignment - 2
+  rw [word]
+  exact (SamplerChain.centered_digit _).symm
 
-/-- The complete verifier batch agrees with all retained challenges and its final state. -/
+/-- All 17 challenges and the final state agree with the total verifier batch. -/
 theorem rowsZero_implies_batch
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
-    (decoderRows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
-    (selectorRows : (PiRLCFirst54DirectPlan.plan (inputs geometry)).RowsZero assignment)
+    (rows : (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).RowsZero assignment)
     (semantics : PiRLCSamplerPoseidonPreservation.CanonicalSemantics
-      (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment) :
+      (poseidonGeometry geometry) assignment) :
     Transcript.PiRlcSampler.piRlcChallengesWithState
-        (ActualPiRLCStates.initialState (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)
-          assignment) PiRLCFirst54DirectSchedule.sourceCount =
-      some ⟨challenge geometry assignment,
-        ActualPiRLCStates.state (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment
-          ⟨16, by decide⟩ ⟨8, by decide⟩⟩ := by
-  have challenges := Transcript.PiRlcSampler.piRlcChallenges_eq_some_of_pointwise
-    (ActualPiRLCStates.initialState (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment)
-    (challenge geometry assignment)
-    (rowsZero_implies_challenge relation geometry assignment one decoderRows selectorRows semantics)
-  cases batchEq : Transcript.PiRlcSampler.piRlcChallengesWithState
-      (ActualPiRLCStates.initialState (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment)
-      PiRLCFirst54DirectSchedule.sourceCount with
-  | none => simp [Transcript.PiRlcSampler.piRlcChallenges, batchEq] at challenges
-  | some batch =>
-      have challengeEq : batch.challenges = challenge geometry assignment := by
-        simpa [Transcript.PiRlcSampler.piRlcChallenges, batchEq] using challenges
-      have stateEq := (Transcript.PiRlcSampler.piRlcChallengesWithState_finalState batchEq).trans
-        (ActualPiRLCStates.final_eq_stateAt _ _ semantics).symm
-      apply congrArg some
-      cases batch with
-      | mk actualChallenges actualState =>
-          dsimp only at challengeEq stateEq
-          cases challengeEq
-          cases stateEq
-          rfl
+        (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) sourceCount =
+      ⟨challenge geometry assignment,
+        ActualPiRLCStates.state (poseidonGeometry geometry) assignment
+          ⟨16, by decide⟩ ⟨1, by decide⟩⟩ := by
+  have challenges : (fun source : Fin sourceCount => Transcript.PiRlcSampler.sampleRingChallenge
+      (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) source.val) =
+        challenge geometry assignment := by
+    funext source
+    exact rowsZero_implies_challenge relation geometry assignment one rows semantics source
+  change Transcript.PiRlcSampler.Batch.mk
+    (Transcript.PiRlcSampler.piRlcChallengesWithState
+      (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) sourceCount).challenges
+    (Transcript.PiRlcSampler.piRlcChallengesWithState
+      (ActualPiRLCStates.initialState (poseidonGeometry geometry) assignment) sourceCount).finalState = _
+  apply congrArg₂ Transcript.PiRlcSampler.Batch.mk
+  · exact (Transcript.PiRlcSampler.piRlcChallengesWithState_challenges _ _).trans challenges
+  · rw [Transcript.PiRlcSampler.piRlcChallengesWithState_finalState,
+      ActualPiRLCStates.final_eq_stateAt _ _ semantics]
+    rfl
 
 end NightstreamFPrime.Export.Stage1.ActualPiRLCSampling

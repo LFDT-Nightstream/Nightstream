@@ -158,37 +158,6 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    #[cfg(feature = "legacy-adapter")]
-    pub(crate) fn ajtai_lane_commitments_from_masks(
-        &self,
-        _ops_plan: &MetalAjtaiLowNormPlan,
-        _mem_plan: &MetalAjtaiLowNormPlan,
-        _masks: &MetalWitnessMasks,
-        _count: usize,
-        _full_cols: usize,
-        _ranges: &neo_fold_legacy::paper::relations::LaneRanges,
-    ) -> Result<(Vec<u64>, Duration), MetalError> {
-        Err(MetalError::Unavailable)
-    }
-
-    #[cfg(feature = "legacy-adapter")]
-    pub fn sis_accumulator_digest(
-        &self,
-        _config: neo_fold_legacy::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
-        _fields: &[neo_math::F],
-    ) -> Result<[neo_math::F; 4], MetalError> {
-        Err(MetalError::Unavailable)
-    }
-
-    #[cfg(feature = "legacy-adapter")]
-    pub(crate) fn sis_accumulator_digest_resident(
-        &self,
-        _config: neo_fold_legacy::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
-        _fields: &[neo_math::F],
-    ) -> Result<[neo_math::F; 4], MetalError> {
-        Err(MetalError::Unavailable)
-    }
-
     pub fn fold_k_table(&self, _table: &[KWords], _challenge: KWords) -> Result<Vec<KWords>, MetalError> {
         Err(MetalError::Unavailable)
     }

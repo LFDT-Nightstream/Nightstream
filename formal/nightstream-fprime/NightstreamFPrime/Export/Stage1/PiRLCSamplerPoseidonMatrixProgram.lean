@@ -2,11 +2,11 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 
 /-!
-Owns the compact matrix program for the 153 PiRLC sampler Poseidon2
+Owns the compact matrix program for the 34 PiRLC sampler Poseidon2
 invocations. The package carries the cross-family previous-state wires and
 one optional constant per invocation lane.
 
-This module does not own sampler digit or selector rows.
+This module does not own sampler reduction or coefficient-word rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
@@ -44,13 +44,13 @@ def piCcsPreviousRule (program : Program) : PoseidonInput.Rule where
       (PiCCSPoseidonPlan.retainedStart program)) piCcsFinalSlotBase 0
 
 def samplerPreviousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨1, 152, 0, 8⟩
+  region := ⟨1, 33, 0, 8⟩
   term := .external
     (RetainedBlock.ofSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
       (PiRLCSamplerPoseidonPlan.retainedStart program)) 78 86
 
 def entryRule : PoseidonInput.Rule where
-  region := ⟨0, 153, 0, 8⟩
+  region := ⟨0, 34, 0, 8⟩
   term := .optionalConstant constants 8
 
 def inputProgram (program : Program) : PoseidonInput.Program where
@@ -71,7 +71,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (block geometry).rowCount = 14382 := by
+    (block geometry).rowCount = 3196 := by
   calc
     (block geometry).rowCount =
         PiRLCSamplerPoseidonPlan.invocationCount * 94 := by
@@ -79,13 +79,13 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.oneColumn geometry) (inputProgram program)
-    _ = 14382 := by
+    _ = 3196 := by
       norm_num [PiRLCSamplerPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 14382 := by
+    (matrixProgram geometry).rowCount = 3196 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

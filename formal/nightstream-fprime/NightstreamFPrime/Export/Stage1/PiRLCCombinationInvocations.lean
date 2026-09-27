@@ -322,19 +322,9 @@ def sourceChallenge (source : Nat) (lane : Fin ringDegree) : Expr :=
   Expr.var (challengeSourceStart source + lane.val) - 2
 
 theorem samplerChallenge_eq_sourceChallenge
-    (samplerInterface : SamplerChain.Interface)
     (source : Fin CombinationFamily.sourceCount) (lane : Fin ringDegree) :
-    SamplerChain.challengeExpr samplerInterface PiRLCInputs.phaseOffset source lane =
-      sourceChallenge source.val lane := by
-  unfold SamplerChain.challengeExpr Sampler.outputChallenge Sampler.outputWord
-    Sampler.outputSlot NightstreamFPrime.Gadgets.Sampling.First54.output
-    NightstreamFPrime.Gadgets.Sampling.First54.valueOffset
-    NightstreamFPrime.Gadgets.Sampling.First54.positionOffset
-    NightstreamFPrime.Gadgets.Sampling.First54ValueStep.output
-    Sampler.selectorOffset Sampler.windowBase SamplerChain.sourceOffset
-    sourceChallenge challengeSourceStart
-  rw [PiRLCStarts.challengeWordStart_eq]
-  congr 3
+    SamplerChain.outputChallenge PiRLCInputs.phaseOffset source lane =
+      sourceChallenge source.val lane := rfl
 
 def sourceValue (valueStride source block cell : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat)
@@ -619,10 +609,7 @@ theorem commitmentSourceConstraint_eq_stepAssertion
     simpa [productionCommitmentFamilyInterface,
       CommitmentCombination.familyInterface, Formal.commitmentInterface,
       productionSharedInterface, Formal.atOffset] using
-        samplerChallenge_eq_sourceChallenge
-          (Formal.samplerInterface
-            (productionSharedInterface (logicalWidth := logicalWidth)
-              (publicFits := publicFits))) source current
+        samplerChallenge_eq_sourceChallenge source current
   · intro current
     simpa [productionCommitmentFamilyInterface,
       CommitmentCombination.familyInterface, Formal.commitmentInterface,
@@ -662,10 +649,7 @@ theorem publicInputSourceConstraint_eq_stepAssertion
     simpa [productionPublicInputFamilyInterface,
       PublicInputCombination.familyInterface, Formal.publicInputInterface,
       productionSharedInterface, Formal.atOffset] using
-        samplerChallenge_eq_sourceChallenge
-          (Formal.samplerInterface
-            (productionSharedInterface (logicalWidth := logicalWidth)
-              (publicFits := publicFits))) source current
+        samplerChallenge_eq_sourceChallenge source current
   · intro current
     simpa [productionPublicInputFamilyInterface,
       PublicInputCombination.familyInterface, Formal.publicInputInterface,
@@ -702,10 +686,7 @@ theorem evalKSourceConstraint_eq_stepAssertion
     simpa [productionEvalKFamilyInterface, RingKCombination.familyInterface,
       EvalKCombination.ringInterface, Formal.evalKInterface,
       productionSharedInterface, Formal.atOffset] using
-        samplerChallenge_eq_sourceChallenge
-          (Formal.samplerInterface
-            (productionSharedInterface (logicalWidth := logicalWidth)
-              (publicFits := publicFits))) source current
+        samplerChallenge_eq_sourceChallenge source current
   · intro current
     simpa [productionEvalKFamilyInterface, RingKCombination.familyInterface,
       EvalKCombination.ringInterface, Formal.evalKInterface,
@@ -742,10 +723,7 @@ theorem evalASourceConstraint_eq_stepAssertion
     simpa [productionEvalAFamilyInterface, RingKCombination.familyInterface,
       EvalACombination.ringInterface, Formal.evalAInterface,
       productionSharedInterface, Formal.atOffset] using
-        samplerChallenge_eq_sourceChallenge
-          (Formal.samplerInterface
-            (productionSharedInterface (logicalWidth := logicalWidth)
-              (publicFits := publicFits))) source current
+        samplerChallenge_eq_sourceChallenge source current
   · intro current
     simpa [productionEvalAFamilyInterface, RingKCombination.familyInterface,
       EvalACombination.ringInterface, Formal.evalAInterface,
@@ -861,10 +839,7 @@ theorem inputColumnOfRanges_eq (logicalStart blockCount cellCount valueStride
     norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.phaseLogicalStart,
       PiRLCInputs.phaseOffset]
   have challengeLocal : Spartan.piCcsPhaseOffset ≤ challengeSourceStart source := by
-    unfold challengeSourceStart PiRLCStarts.challengeWordStart
-      PiRLCStarts.selectorLogicalStart PiRLCStarts.samplerSourceLogicalStart
-      PiRLCStarts.samplerLogicalStart
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
+    rw [challengeSourceStart, PiRLCStarts.challengeWordStart_eq]
     omega
   have challengeAffine (offset : Nat) :
       Spartan.sourceToSpartan (challengeSourceStart source + offset) =

@@ -1,6 +1,8 @@
-import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiRlcSamplerParity
 
-def main (arguments : List String) : IO UInt32 :=
-  NightstreamFPrime.Export.ParityEmitter.runIO "emitted_pi_rlc_sampler_parity"
-    NightstreamFPrime.Export.Stage1.PiRlcSamplerParity.parityValueIO arguments
+def main (arguments : List String) : IO UInt32 := do
+  let path ← match arguments with
+    | [path] | ["--", path] => pure path
+    | _ => throw (IO.userError "usage: emitPiRlcSamplerParity OUTPUT.json")
+  IO.FS.writeFile path (NightstreamFPrime.Export.Stage1.PiRlcSamplerParity.fixture.compress ++ "\n")
+  pure 0

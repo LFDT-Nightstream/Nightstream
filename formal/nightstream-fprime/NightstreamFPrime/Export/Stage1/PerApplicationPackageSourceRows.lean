@@ -30,7 +30,7 @@ def baseShapeRelation :
       Data.publicFits where
   matrices := fun _ _ _ => 0
   cubeFits := by
-    norm_num [Data.logicalWidth, VerifierContext.candidateLogicalWidth,
+    norm_num [Data.logicalWidth, PhaseReference.logicalWidth,
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
       Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
       Lifecycle.cubeVariables, Spec.ringDegree]
@@ -377,12 +377,12 @@ private theorem arithmeticIndexRanges_nodup :
   · rw [List.mem_append] at laterMember
     rcases laterMember with piDecMember | runningMember
     · have piDecBounds := piDecIndex_bounds later piDecMember
-      have piDecStart : PiDECStarts.phaseRowStart = 28847041 := rfl
+      have piDecStart : PiDECStarts.phaseRowStart = 27897132 := rfl
       rw [piDecStart] at piDecBounds
       omega
     · have runningLower := runningIndex_lower later runningMember
       have runningStart :
-          RunningTransitionArithmetic.rowStart = 28872529 := rfl
+          RunningTransitionArithmetic.rowStart = 27922620 := rfl
       rw [runningStart] at runningLower
       omega
 
@@ -420,16 +420,16 @@ theorem arithmeticRows_rowIndex_ge (index : Nat)
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have lower := (piDecIndex_bounds index piDecMember).1
-        have phaseStart : PiDECStarts.phaseRowStart = 28847041 := rfl
+        have phaseStart : PiDECStarts.phaseRowStart = 27897132 := rfl
         rw [phaseStart] at lower
         omega
       · have lower := runningIndex_lower index runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 28872529 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 27922620 := rfl
         rw [phaseStart] at lower
         omega
 
 private theorem baseRowCount_eq :
-    PerApplicationPackage.basePackage.layout.rowCount = 29218024 := by
+    PerApplicationPackage.basePackage.layout.rowCount = 28268115 := by
   unfold PerApplicationPackage.basePackage
   exact Package.circuitPackage_layout_values.1
 
@@ -458,17 +458,17 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).2
       change index < PiDECStarts.phaseRowStart at upper
-      have phaseStart : PiDECStarts.phaseRowStart = 28847041 := rfl
+      have phaseStart : PiDECStarts.phaseRowStart = 27897132 := rfl
       rw [phaseStart] at upper
       omega
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have upper := (piDecIndex_bounds index piDecMember).2
-        have phaseStart : RunningTransitionArithmetic.rowStart = 28872529 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 27922620 := rfl
         rw [phaseStart] at upper
         omega
       · have bounds := List.mem_range'_1.mp runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 28872529 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 27922620 := rfl
         rw [phaseStart] at bounds
         omega
 
@@ -1026,7 +1026,7 @@ theorem samplerPackageSourceRow?_eq_some
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
-    (application : ApplicationProgram) (index : Fin 220881)
+    (application : ApplicationProgram) (index : Fin 38811)
     (sourceIndex : Nat)
     (selected :
       PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
@@ -1038,7 +1038,7 @@ theorem samplerPackageSourceRow?_eq_some
           (logicalWidth := logicalWidth) (publicFits := publicFits) index)) := by
   let rows := PiRLCSamplerOrdinaryRows.rows
     (logicalWidth := logicalWidth) (publicFits := publicFits)
-  have rowsLength : rows.length = 220881 :=
+  have rowsLength : rows.length = 38811 :=
     PiRLCSamplerOrdinaryRows.rows_length
   have included : ∀ row ∈ rows, row ∈ baseRows := by
     intro row member

@@ -6,8 +6,8 @@
 
 use std::{fs, path::PathBuf, time::Instant};
 
-use neo_ajtai::nightstream_fprime_setup::{commit_production_signed_units, PRODUCTION_CARRIER_WIDTH};
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
+use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
     derive_pi_ccs_v1_1_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
 };
@@ -158,7 +158,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (29_225_729, 29_344_146, 29_344_146, PUBLIC_INPUTS, 29_344_425)
+        (28_275_820, 28_418_666, 28_418_666, PUBLIC_INPUTS, 28_418_945)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -386,8 +386,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 29_344_425);
-    assert_eq!(package.physical_row_count(), 29_225_729);
+    assert_eq!(package.total_column_count(), 28_418_945);
+    assert_eq!(package.physical_row_count(), 28_275_820);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),
@@ -619,7 +619,7 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
         assert_eq!(actual, expected, "caller logical transport coordinate {column}");
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
-    assert_eq!(alignment, 45);
+    assert_eq!(alignment, 50);
     // The public transport returns logical coordinates. The paper carrier
     // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
@@ -701,13 +701,26 @@ pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8
         .execute_logical_assignment(&physical)
         .expect("complete base logical transport");
     assert_eq!(logical.len(), logical_reference::evaluation::LOGICAL_WIDTH);
-    assert_eq!(PRODUCTION_CARRIER_WIDTH, logical_reference::evaluation::CARRIER_WIDTH);
+    let columns = package.logical_column_count().div_ceil(54);
+    assert_eq!(columns * 54, logical_reference::evaluation::CARRIER_WIDTH);
     assert_eq!(expected.2.len(), PUBLIC_WORDS);
     for (column, word) in expected.2.iter().copied().enumerate() {
         assert_eq!(logical.value(column).expect("public projection"), word);
     }
-    let mut carrier = logical.balanced_values().to_vec();
-    carrier.resize(PRODUCTION_CARRIER_WIDTH, 0);
+    let mut positive = vec![0u64; columns];
+    let mut negative = vec![0u64; columns];
+    for (coordinate, value) in logical.balanced_values().iter().enumerate() {
+        let bit = 1u64 << (coordinate % 54);
+        match value {
+            0 => {}
+            1 => positive[coordinate / 54] |= bit,
+            -1 => negative[coordinate / 54] |= bit,
+            _ => panic!("base carrier is not unit bounded"),
+        }
+    }
+    let carrier = Mat::compact_signed_unit_from_column_masks(54, columns, &positive, &negative)
+        .expect("complete base carrier with zero alignment tail");
+    drop((positive, negative));
     drop(logical);
     drop(physical);
     drop(package);
@@ -715,7 +728,8 @@ pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8
         "base complete carrier prepared for indexed commitment: {:?}",
         started.elapsed()
     );
-    let commitment = commit_production_signed_units(&carrier).expect("actual selected-key base commitment");
+    let commitment =
+        commit_production_signed_unit_prefix_matrix(&carrier).expect("actual selected-key base commitment");
     assert_eq!((commitment.d, commitment.kappa), (54, 22));
     let words = commitment
         .data
@@ -779,6 +793,8 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         .execute_logical_assignment(&changed_physical)
         .expect("encode the changed application's logical coordinates");
     drop(changed_physical);
+    let application_slots = package.application().witness_word_count() + package.application().private_range().len();
+    let application_start = package.logical_column_count() - application_slots * 41;
     drop(package);
 
     let relation = logical_reference::relation::Relation::decode(&sealed).expect("independent final relation");
@@ -792,7 +808,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("independent canonical matrix program");
     // DirectPiRLCSamplerCompletePrefixPlan.plan_rowCount and the concrete
     // application row-count theorem locate these 7,700 canonical rows.
-    const APPLICATION_ROW_START: usize = 6_369_850;
+    const APPLICATION_ROW_START: usize = 6_056_897;
     const APPLICATION_ROW_END: usize = APPLICATION_ROW_START + 7_700;
     let checked = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,
@@ -808,20 +824,18 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
     assert_eq!(checked, APPLICATION_ROW_END - APPLICATION_ROW_START);
 
-    // ApplicationRetainedGeometry.witnessStart = 253944883 on this identity.
     // Keep every prefix/hash/public coordinate unchanged and replace only
     // the application witness/local block family. Input/output coordinates
     // belong to the preserved pilot preimage blocks.
-    const APPLICATION_START: usize = 253_944_883;
     let mut detached = original.balanced_values().to_vec();
-    detached[APPLICATION_START..].copy_from_slice(&changed.balanced_values()[APPLICATION_START..]);
+    detached[application_start..].copy_from_slice(&changed.balanced_values()[application_start..]);
     assert_eq!(
-        &detached[..APPLICATION_START],
-        &original.balanced_values()[..APPLICATION_START]
+        &detached[..application_start],
+        &original.balanced_values()[..application_start]
     );
     assert_ne!(
-        &detached[APPLICATION_START..],
-        &original.balanced_values()[APPLICATION_START..]
+        &detached[application_start..],
+        &original.balanced_values()[application_start..]
     );
     assert!(detached.iter().all(|value| (-1..=1).contains(value)));
     drop(original);

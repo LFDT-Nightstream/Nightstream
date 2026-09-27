@@ -273,10 +273,9 @@ theorem selectedRowsAndPublic_imply_sums
       applicationRows.1.1.1
   have piRlcRows := prefixRows.2.2.1
   change (PiRLCRetainedPlan.plan _ _).RowsZero assignment at piRlcRows
-  have productRows := (PiRLCRetainedPlan.rowsZero_iff _ _ assignment).mp piRlcRows
   dsimp only
   intro descriptor
   exact rowsZero_implies_sum (DirectApplicationPrefixPlan.piDecGeometry geometry)
-    assignment one productRows.1 descriptor
+    assignment one piRlcRows descriptor
 
 end NightstreamFPrime.Export.Stage1.ActualPiRLCValues

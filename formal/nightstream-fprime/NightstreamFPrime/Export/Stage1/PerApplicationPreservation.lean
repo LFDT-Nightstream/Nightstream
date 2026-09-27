@@ -374,7 +374,7 @@ private theorem piCcsInvocation_witnessBound
     { matrices := fun _ _ _ => 0
       cubeFits := by
         norm_num [Data.logicalWidth,
-          NightstreamFPrime.Export.Stage1.VerifierContext.candidateLogicalWidth,
+          NightstreamFPrime.Export.Stage1.PhaseReference.logicalWidth,
           NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
           NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
           NightstreamFPrime.Spec.ringDegree,
@@ -408,103 +408,54 @@ private theorem samplerEntryInvocation_witnessStart
   subst invocation
   rfl
 
+open NightstreamFPrime.Layout.Stage1 in
 private theorem samplerInvocation_witnessBound
     (invocation : PermutationInvocation)
     (member : invocation ∈ PiRLCSamplerInvocations.invocations
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)) :
     invocation.witnessStart + 592 ≤ basePackage.layout.constantColumn := by
-  unfold PiRLCSamplerInvocations.invocations at member
-  rcases List.mem_flatMap.mp member with
-    ⟨source, sourceMember, sourceInvocationMember⟩
-  have sourceLt := List.mem_range.mp sourceMember
-  unfold PiRLCSamplerInvocations.sourceInvocations at sourceInvocationMember
-  rcases List.mem_append.mp sourceInvocationMember with
-      entryMember | windowMember
+  have bounded (start : Nat) (after : Spartan.piCcsPhaseOffset ≤ start)
+      (before : start + 592 < Spartan.SourceColumnCount) :
+      Spartan.sourceToSpartan start + 592 ≤ basePackage.layout.constantColumn := by
+    have mapped := Spartan.sourceToSpartan_lt_of_piCcsLocal (start + 592)
+      Spartan.SourceColumnCount (by omega) before
+    rw [Spartan.sourceToSpartan_add_of_piCcsLocal start 592 after,
+      Spartan.sourceToSpartan_sourceColumnCount] at mapped
+    exact mapped.le
+  obtain ⟨source, sourceMember, sourceInvocationMember⟩ := List.mem_flatMap.mp member
+  have sourceLt : source < 17 := List.mem_range.mp sourceMember
+  rcases List.mem_append.mp sourceInvocationMember with entryMember | advanceMember
   · rw [samplerEntryInvocation_witnessStart source invocation entryMember]
-    have sourceLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
-        PiRLCSamplerInvocations.sourceLogicalStart source := by
-      unfold PiRLCSamplerInvocations.sourceLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    apply bounded
+    · norm_num [Spartan.piCcsPhaseOffset, PiRLCSamplerInvocations.sourceLogicalStart,
+        PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
+        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.counts.1]
       omega
-    change NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (PiRLCSamplerInvocations.sourceLogicalStart source) + 592 ≤
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
-    unfold NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_neg (by
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
-        at sourceLocal ⊢
-      omega), if_neg (by
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
-        at sourceLocal ⊢
-      omega), if_neg (by omega)]
-    norm_num [PiRLCSamplerInvocations.sourceCount,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-      NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn,
-      PiRLCSamplerInvocations.sourceLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
-      at sourceLt ⊢
-    omega
-  · unfold PiRLCSamplerInvocations.windowInvocations at windowMember
-    rcases List.mem_map.mp windowMember with
-      ⟨round, roundMember, rfl⟩
-    have roundLt := List.mem_range.mp roundMember
-    have windowLocal :
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
-          NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-            source round := by
-      unfold NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
-        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-        NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    · rw [Spartan.sourceColumnCount_eq]
+      norm_num [PiRLCSamplerInvocations.sourceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
+        PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
+        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
+        PiRLC.v1_1.Sampler.counts.1]
       omega
-    change NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-          source round) + 592 ≤
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
-    unfold NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_neg (by
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
-        at windowLocal ⊢
-      omega), if_neg (by
-      norm_num [NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-        NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
-        at windowLocal ⊢
-      omega), if_neg (by omega)]
-    norm_num [PiRLCSamplerInvocations.sourceCount,
-      PiRLCSamplerInvocations.digestRoundCount,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotSourceColumnCount,
-      NightstreamFPrime.Layout.Stage1.Spartan.proofInputSourceStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset,
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsLocalStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart,
-      NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset]
-      at sourceLt roundLt ⊢
-    omega
+  · have same := List.mem_singleton.mp advanceMember
+    subst invocation
+    rw [PiRLCSamplerInvocations.advanceInvocation, Invocations.invocation_witnessStart]
+    apply bounded
+    · norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.advanceLogicalStart,
+        PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
+        PiRLCStarts.phaseLogicalStart_eq, PiRLC.v1_1.Formal.samplerOffset,
+        PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Sampler.advanceOffset,
+        PiRLC.v1_1.Sampler.rangeOffset, PiRLC.v1_1.Sampler.counts.1,
+        Gadgets.Sampling.WideReduction.Program.privateCount_eq]
+      omega
+    · rw [Spartan.sourceColumnCount_eq]
+      norm_num [PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
+        PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart_eq,
+        PiRLC.v1_1.Formal.samplerOffset, PiRLC.v1_1.SamplerChain.sourceOffset,
+        PiRLC.v1_1.Sampler.advanceOffset, PiRLC.v1_1.Sampler.rangeOffset,
+        PiRLC.v1_1.Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
+      omega
 
 theorem canonicalPermutationInvocation_witnessBound
     (invocation : PermutationInvocation)

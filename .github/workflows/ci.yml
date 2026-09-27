@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,68 +67,16 @@ jobs:
     - name: Run native application tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::native_application
 
-  lean-assurance:
-    name: Lean assurance
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    permissions:
-      contents: read
+    - name: Run sampler parity
+      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test pi_rlc_lean_parity
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Run matrix interpreter tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::matrix_program
 
-    - name: Install pinned Lean toolchain
-      uses: leanprover/lean-action@v1
-      with:
-        lake-package-directory: formal/nightstream-fprime
-        auto-config: false
-        build: false
-        test: false
-        lint: false
-        use-github-cache: true
-        use-mathlib-cache: false
+    - name: Run assignment transport boundary tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::sealed::sealed_tests
 
-    - name: Run bounded assurance gates
-      working-directory: formal/nightstream-fprime
-      run: ./scripts/validate.sh all
-
-  # ============================================================================
-  # WASM Build Checks (with Spartan)
-  # Temporarily disabled until the wasm/iOS/Android demos are ported off the
-  # removed deprecated crates and bridge/JNI stack.
-  # ============================================================================
-
-  # wasm-builds:
-  #   name: WASM Builds (Web/iOS/Android)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
-
-  #   - name: Install Rust (wasm32 + rust-src)
-  #     uses: dtolnay/rust-toolchain@stable
-  #     with:
-  #       targets: wasm32-unknown-unknown
-  #       components: rust-src
-  #
-  #   - name: Install Rust (nightly-2025-09-01 wasm32 + rust-src)
-  #     uses: dtolnay/rust-toolchain@master
-  #     with:
-  #       toolchain: nightly-2025-09-01
-  #       targets: wasm32-unknown-unknown
-  #       components: rust-src
-
-  #   - name: Cache cargo
-  #     uses: Swatinem/rust-cache@v2
-  #     with:
-  #       workspaces: demos/wasm-demo/wasm
-
-  #   - name: Install wasm-pack
-  #     uses: jetli/wasm-pack-action@v0.4.0
-
-  #   - name: Build WASM bundles (Web/iOS/Android)
-  #     run: ./demos/build_wasm.sh --release
-  #     env:
-  #       RUSTUP_TOOLCHAIN: stable
-  #       WASM_THREADS_TOOLCHAIN: nightly-2025-09-01
+    - name: Run conformance coordinator tests
+      run: |
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard
+        timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'

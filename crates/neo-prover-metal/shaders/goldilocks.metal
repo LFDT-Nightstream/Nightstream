@@ -688,7 +688,6 @@ kernel void ajtai_low_norm_products(
         gl_reduce_sum(negative_sum.lo, negative_sum.hi));
 }
 
-#include "seeded_ajtai.metal"
 
 constant ulong SIS_BALANCED_TERNARY_SHIFT = 18236498188585393201ul;
 constant ulong SIS_MODULUS_MINUS_SHIFT = 210245880829191120ul;
@@ -1030,7 +1029,6 @@ kernel void rlc_witness_mix_dense_fresh_resident_masks(
         gl_reduce_sum(negative.lo, negative.hi));
 }
 
-#include "lane_commitments.metal"
 
 #include "decomposition.metal"
 

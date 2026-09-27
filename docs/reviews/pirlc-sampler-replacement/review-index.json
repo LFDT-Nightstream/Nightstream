@@ -1,120 +1,120 @@
 {
   "schema": 1,
-  "source_commit": "726d2b8f3395d1b8c08c3dbc25d2cca6d9a7c5b7",
+  "source_commit": "02e5674207bfe7c9d10f7c5a2f7d196357d45102",
   "implementation_commit": "557f13ef6203dbb0a70d359ccad42dfcac654d34",
-  "source_manifest_sha256": "bc6f5733358d54e746933c3f3a548ba05f71a49f2b3c33f96ab51da231aea460",
+  "source_manifest_sha256": "d5901dd67c0a254d633d7d33f5881a103cce09156ff12c91ac4b9a4e47a42728",
   "dependency_seed": "Clean stock Lean 4.32.2 build; see STOCK_LEAN_VALIDATION.json.",
   "approval": "pending",
   "requests": [
     {
       "obligation": "fresh-witness-kernel",
       "target": "LeanGraph.Targets.FreshWitnessKernels",
-      "request": "132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c",
-      "file": "requests/132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c.json",
+      "request": "7adb31408f682452afc60e14e8865c09c710d433c58853c52f63c4968d83d1fa",
+      "file": "requests/7adb31408f682452afc60e14e8865c09c710d433c58853c52f63c4968d83d1fa.json",
       "response_template": "response-templates/fresh-witness-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "hypernova-linear-security",
       "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
-      "request": "b1ee9ec10987ba62c3879b8b7e6982bead595b508570c4bba86ab8359b27112b",
-      "file": "requests/b1ee9ec10987ba62c3879b8b7e6982bead595b508570c4bba86ab8359b27112b.json",
+      "request": "5bb9c1b093c1e68b1e836724a16bc1c7aae869bdaf9eedda65122879c66bb58b",
+      "file": "requests/5bb9c1b093c1e68b1e836724a16bc1c7aae869bdaf9eedda65122879c66bb58b.json",
       "response_template": "response-templates/hypernova-linear-security.json",
-      "snapshot": "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241",
+      "snapshot": "a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1",
       "outcome": "pending"
     },
     {
       "obligation": "hypernova-terminal-false-acceptance",
       "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
-      "request": "c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3",
-      "file": "requests/c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3.json",
+      "request": "dbe084b7925c6641ef200d2c226b48e1d7d57c472538d313163e6b9271033fbe",
+      "file": "requests/dbe084b7925c6641ef200d2c226b48e1d7d57c472538d313163e6b9271033fbe.json",
       "response_template": "response-templates/hypernova-terminal-false-acceptance.json",
-      "snapshot": "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241",
+      "snapshot": "a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1",
       "outcome": "pending"
     },
     {
       "obligation": "pidec-commitment-kernel",
       "target": "LeanGraph.Targets.PiDECCommitmentReplay",
-      "request": "dbb7e282b55126cd509a6f8904deda7f430eb1c486e76caaec82bd9ce9739461",
-      "file": "requests/dbb7e282b55126cd509a6f8904deda7f430eb1c486e76caaec82bd9ce9739461.json",
+      "request": "3ea8e375f28c30edebaa979d94248164c280fce8153d9bf34c2258f3bd605607",
+      "file": "requests/3ea8e375f28c30edebaa979d94248164c280fce8153d9bf34c2258f3bd605607.json",
       "response_template": "response-templates/pidec-commitment-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "pidec-evaluation-kernel",
       "target": "LeanGraph.Targets.PiDECChildEvaluationReplay",
-      "request": "dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016",
-      "file": "requests/dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016.json",
+      "request": "f5a700908af377dec484b5dd062ead797bbcdc870a6f354b7d02233cad7b475f",
+      "file": "requests/f5a700908af377dec484b5dd062ead797bbcdc870a6f354b7d02233cad7b475f.json",
       "response_template": "response-templates/pidec-evaluation-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "pidec-witness-kernel",
       "target": "LeanGraph.Targets.PiDECWitnessReplay",
-      "request": "a4dc7c4789c1d8c15790b8e1b28f3f5aaa7fea4c4537477e42287f52bbb61c45",
-      "file": "requests/a4dc7c4789c1d8c15790b8e1b28f3f5aaa7fea4c4537477e42287f52bbb61c45.json",
+      "request": "b569a547bfe3ed16515cda44b0cc3622af3f442565326d7ab8b2ae9596dbc98b",
+      "file": "requests/b569a547bfe3ed16515cda44b0cc3622af3f442565326d7ab8b2ae9596dbc98b.json",
       "response_template": "response-templates/pidec-witness-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "pirlc-witness-kernel",
       "target": "LeanGraph.Targets.PiRLCWitnessReplay",
-      "request": "ba6cf6e3acf950d62ecb765846942ede0de30c037b6309c93b324ee6d3ea9023",
-      "file": "requests/ba6cf6e3acf950d62ecb765846942ede0de30c037b6309c93b324ee6d3ea9023.json",
+      "request": "85196de0f2e1af748756ce8d1ac506af50f29faac6b0b31c5915ccf415179393",
+      "file": "requests/85196de0f2e1af748756ce8d1ac506af50f29faac6b0b31c5915ccf415179393.json",
       "response_template": "response-templates/pirlc-witness-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "recursive-loop-kernel",
       "target": "LeanGraph.Targets.CheckedRecursiveReplay",
-      "request": "600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b",
-      "file": "requests/600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b.json",
+      "request": "9816fdf02d505b2a41bdc94b7c5c24dc44b5dfac7e3aad35e0cbc99ba42de347",
+      "file": "requests/9816fdf02d505b2a41bdc94b7c5c24dc44b5dfac7e3aad35e0cbc99ba42de347.json",
       "response_template": "response-templates/recursive-loop-kernel.json",
-      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
       "outcome": "pending"
     },
     {
       "obligation": "stage1-terminal-assignment",
       "target": "LeanGraph.Targets.Stage1TerminalAssignment",
-      "request": "0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef",
-      "file": "requests/0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef.json",
+      "request": "2ae57d4585031620f69760924580e90384e5150eb17db6c8ac8a3368f1c11682",
+      "file": "requests/2ae57d4585031620f69760924580e90384e5150eb17db6c8ac8a3368f1c11682.json",
       "response_template": "response-templates/stage1-terminal-assignment.json",
-      "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
+      "snapshot": "c66dabd2330a6ca47d12962f517d4c758c14a4fb7a492547068815ecd3640061",
       "outcome": "pending"
     },
     {
       "obligation": "stage1-terminal-parent",
       "target": "LeanGraph.Targets.Stage1TerminalParent",
-      "request": "a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0",
-      "file": "requests/a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0.json",
+      "request": "2842b789e6402a17aa193a74c29e655855e6b3d96419b9846434763c3d066ca1",
+      "file": "requests/2842b789e6402a17aa193a74c29e655855e6b3d96419b9846434763c3d066ca1.json",
       "response_template": "response-templates/stage1-terminal-parent.json",
-      "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
+      "snapshot": "c66dabd2330a6ca47d12962f517d4c758c14a4fb7a492547068815ecd3640061",
       "outcome": "pending"
     }
   ],
   "snapshots": {
-    "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393": {
-      "manifest": "snapshots/2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393.json.gz",
-      "compressed_sha256": "3a3af53b3d18c25c2908afad4cc16b970e46970aac84bac68388ac30c75e172f",
+    "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803": {
+      "manifest": "snapshots/782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803.json.gz",
+      "compressed_sha256": "a9d07d51d01e131a9e0eb922a9d39712c31cd5aa5b496a3dd59640bec4854380",
       "manifest_bytes": 15559610,
-      "compressed_bytes": 3761387
+      "compressed_bytes": 3761394
     },
-    "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241": {
-      "manifest": "snapshots/53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241.json.gz",
-      "compressed_sha256": "b2e1752aeb72bab77eb2a5b05654b0e5e5e889bdd0223179ba5c6ea83be28b44",
+    "a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1": {
+      "manifest": "snapshots/a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1.json.gz",
+      "compressed_sha256": "25a83a07d621f7909eb1dc8fa284e66e781703ae2149514893c33a3a46b1b8cd",
       "manifest_bytes": 15562774,
-      "compressed_bytes": 3762694
+      "compressed_bytes": 3762701
     },
-    "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742": {
-      "manifest": "snapshots/1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742.json.gz",
-      "compressed_sha256": "8223f114ad3ced02455637149667064374916e3e2faab9cb4d4d1e5e19d3ecf7",
+    "c66dabd2330a6ca47d12962f517d4c758c14a4fb7a492547068815ecd3640061": {
+      "manifest": "snapshots/c66dabd2330a6ca47d12962f517d4c758c14a4fb7a492547068815ecd3640061.json.gz",
+      "compressed_sha256": "cf2d6fd6bad4a92503cef20665f4725ab7780072f98fc4d54e7961e075073dfe",
       "manifest_bytes": 15337857,
-      "compressed_bytes": 3703375
+      "compressed_bytes": 3703385
     }
   }
 }

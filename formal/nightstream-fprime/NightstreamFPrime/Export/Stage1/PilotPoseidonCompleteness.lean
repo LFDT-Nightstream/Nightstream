@@ -111,7 +111,7 @@ private theorem retainedSource_private
       congrArg raw.retainedSource same
     _ = raw.base baseColumn :=
       PiRLCRetainedPreservation.sourceAssignment_base application raw.base
-        raw.groupValue raw.products baseColumn
+        raw.groupValue baseColumn
     _ = PerApplicationSourceAssignment.ofCompleted application target
         applicationPrivate baseColumn :=
       congrArg (fun base : BaseValues application => base baseColumn) baseEq

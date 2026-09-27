@@ -8,8 +8,6 @@
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
-#   validate.sh emit-poseidon2-hash-chain-v1 <path>
-#   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
 #   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> [<prior-state-message>] <path>
@@ -127,7 +125,7 @@ case "$phase" in
     ;;
   pi-dec-commitment-merge-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-commitment-merge-boundaries <Lean-range> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_commitment_merge.py "$2" "$3"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_commitment_merge.py "$2" "$3"
     ;;
   pi-dec-evaluation-replay)
     if (( $# != 7 )); then echo "usage: validate.sh pi-dec-evaluation-replay pad <C-input> <Lean-parent-range> <output> <start> <end>" >&2; exit 2; fi
@@ -141,7 +139,7 @@ case "$phase" in
     ;;
   pi-dec-pad-merge-boundaries)
     if (( $# != 2 )); then echo "usage: validate.sh pi-dec-pad-merge-boundaries <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_pad_merge.py .lake/build/bin/replayPiDECEvaluation "$2"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_pad_merge.py .lake/build/bin/replayPiDECEvaluation "$2"
     ;;
   pi-dec-matrix-rows)
     if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>" >&2; exit 2; fi
@@ -159,7 +157,7 @@ case "$phase" in
     ;;
   pi-dec-parent-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_parent_input.py .lake/build/bin/replayPiDECMatrix "$2" "$3"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_parent_input.py .lake/build/bin/replayPiDECMatrix "$2" "$3"
     ;;
   pi-dec-matrix-merge)
     if (( $# < 5 )); then echo "usage: validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>..." >&2; exit 2; fi
@@ -168,7 +166,7 @@ case "$phase" in
     ;;
   pi-dec-matrix-merge-boundaries)
     if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_matrix_merge.py .lake/build/bin/mergePiDECMatrix "$2" "$3" "$4"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_matrix_merge.py .lake/build/bin/mergePiDECMatrix "$2" "$3" "$4"
     ;;
   pi-dec-evaluation-block)
     if (( $# != 3 && $# != 4 )); then echo "usage: validate.sh pi-dec-evaluation-block [<C-input>] <Lean-parent-range> <output>" >&2; exit 2; fi
@@ -206,14 +204,6 @@ case "$phase" in
   emit-expanded)
     if (( $# != 2 )); then echo "usage: validate.sh emit-expanded <path>" >&2; exit 2; fi
     capped lake exe emit -- --expanded "$2"
-    ;;
-  emit-poseidon2-hash-chain-v1)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1 <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1 "$2"
-    ;;
-  emit-poseidon2-hash-chain-v1-expanded)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1-expanded <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1-expanded "$2"
     ;;
   pilot-parity)
     if (( $# != 6 )); then

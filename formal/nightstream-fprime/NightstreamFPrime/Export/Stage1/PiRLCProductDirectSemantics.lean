@@ -30,6 +30,9 @@ theorem productSemantics_imply_commitmentCanonical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       assignmentWidth) (assignment : Assignment F assignmentWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0) :
@@ -57,7 +60,7 @@ theorem productSemantics_imply_commitmentCanonical
         cell := coordinates.2.2 }
     have zero :=
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
-        geometry assignment base product descriptor
+        geometry assignment base groupValue encoding product descriptor
     simpa only [descriptor,
       PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell
@@ -75,6 +78,9 @@ theorem productSemantics_imply_publicInputCanonical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       assignmentWidth) (assignment : Assignment F assignmentWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0) :
@@ -102,7 +108,7 @@ theorem productSemantics_imply_publicInputCanonical
         cell := coordinates.2.2 }
     have zero :=
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
-        geometry assignment base product descriptor
+        geometry assignment base groupValue encoding product descriptor
     simpa only [descriptor,
       PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell
@@ -120,6 +126,9 @@ theorem productSemantics_imply_evalKCanonical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       assignmentWidth) (assignment : Assignment F assignmentWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0) :
@@ -147,7 +156,7 @@ theorem productSemantics_imply_evalKCanonical
         cell := coordinates.2.2 }
     have zero :=
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
-        geometry assignment base product descriptor
+        geometry assignment base groupValue encoding product descriptor
     simpa only [descriptor,
       PiRLCProductSchedule.Descriptor.sourceConstraint] using zero
   · intro source block lane cell
@@ -165,6 +174,9 @@ theorem productSemantics_imply_evalACanonical
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       assignmentWidth) (assignment : Assignment F assignmentWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0) :
@@ -192,7 +204,7 @@ theorem productSemantics_imply_evalACanonical
         cell := coordinates.2.2 }
     have zero :=
       PiRLCProductSemanticCustody.sourceConstraint_zero_of_productSemantics
-        geometry assignment base product descriptor
+        geometry assignment base groupValue encoding product descriptor
     simpa only [descriptor,
       PiRLCProductSchedule.Descriptor.sourceConstraint] using! zero
   · intro source block lane cell

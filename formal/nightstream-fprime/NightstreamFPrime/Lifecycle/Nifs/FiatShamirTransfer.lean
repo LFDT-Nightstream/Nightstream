@@ -1,11 +1,12 @@
 import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
 
 /-!
 An explicit classical FS/SuperNeo game-transfer hypothesis. The owner
 approved the parametric boundary in FIAT_SHAMIR_MODEL.md on 2026-09-11 UTC.
 The real event runs the actual ProductionKey verifier: additive Poseidon2
-absorption, existing domain labels, complete C output absorption, bounded
+absorption, existing domain labels, complete C output absorption, total four-field
 R sampling, and the actual PiDEC attempt. It includes valid witnesses for
 all sixteen returned children; bare public acceptance is not this event.
 
@@ -139,6 +140,52 @@ structure FiatShamirModel (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q :
   successTransfer :
     g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
       originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider
+
+/-- Separate the proved sampler loss from the externally supplied FS error.
+`sampleQueries Q` counts block-oracle calls in the translated experiment,
+including adversarial calls and replays; it is not assumed to be 17. -/
+noncomputable def samplerTransferError (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (Q : Nat) : ℝ :=
+  deltaFS Q + sampleQueries Q * NonInteractive.PiRlcSampler.distance
+
+/-- Construct the existing transfer interface from a specified block-oracle
+experiment. The statistical comparison is proved, including repeated queries
+and observations of raw lanes. The two experiment correspondences remain the
+external FS applicability obligations: this theorem does not infer them for
+concrete Poseidon2, or assume that an arbitrary `g` is Lipschitz. No source
+witness, local verifier fact, or extractor correctness is assumed here. -/
+theorem FiatShamirModel.of_blockOracle {OracleState : Type*}
+    (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (Q : Nat)
+    (experiment : NonInteractive.PiRlcSampler.OracleModel.Program OracleState)
+    (initial : OracleState)
+    (test : NonInteractive.PiRlcSampler.OracleModel.Outcome OracleState → ℝ)
+    (nonnegative : ∀ outcome, 0 ≤ test outcome) (atMostOne : ∀ outcome, test outcome ≤ 1)
+    (rawTransfer :
+      g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
+        NonInteractive.PiRlcSampler.average (fun tape => test
+          (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
+            NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)))
+    (balancedTransfer :
+      NonInteractive.PiRlcSampler.balancedAverage (fun tape => test
+        (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
+          NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)) ≤
+        originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider) :
+    FiatShamirModel relation ajtai running fresh law originalFirstPhase abortTape provider
+      g (samplerTransferError deltaFS sampleQueries) Q := by
+  constructor
+  have comparison := (abs_le.mp (NonInteractive.PiRlcSampler.OracleModel.run_bias_bound
+    experiment initial (sampleQueries Q) test nonnegative atMostOne)).2
+  dsimp only [samplerTransferError]
+  linarith
+
+/-- The sampler contribution over a history is charged for every translated
+experiment's block-query budget. No independence between history visits is
+needed to sum these per-visit bounds. -/
+theorem samplerTransferError_sum {depth : Nat} (deltaFS : Nat → ℝ)
+    (sampleQueries : Nat → Nat) (queries : Fin depth → Nat) :
+    ∑ j, samplerTransferError deltaFS sampleQueries (queries j) =
+      (∑ j, deltaFS (queries j)) +
+        (∑ j, (sampleQueries (queries j) : ℝ)) * NonInteractive.PiRlcSampler.distance := by
+  simp only [samplerTransferError, Finset.sum_add_distrib, Finset.sum_mul]
 
 variable
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)

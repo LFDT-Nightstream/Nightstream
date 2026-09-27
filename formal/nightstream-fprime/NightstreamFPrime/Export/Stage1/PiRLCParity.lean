@@ -40,10 +40,10 @@ def combinedCommitmentValue (challenges : Fin SourceCount → RingF) : Value :=
 
 def inputPublicInputFromComputed (computed : PiCCSNonzero.Computed)
     (source : Fin SourceCount) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   Fin.addCases
-    (fun _ column => encHash (publicFits := VerifierContext.candidatePublicFits)
+    (fun _ column => encHash (publicFits := PhaseReference.publicFits)
       computed.statement.digest column)
     (fun runningSource column => PiCCSNonzero.field (runningSource.val + column.val))
     (sourceIndex source)
@@ -55,8 +55,8 @@ def inputEvaluationFromComputed (computed : PiCCSNonzero.Computed)
 
 def combinedPublicInputFromComputed (computed : PiCCSNonzero.Computed)
     (challenges : Fin SourceCount → RingF) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
     challenges (inputPublicInputFromComputed computed)
 
@@ -112,11 +112,11 @@ def commitmentHasNonzero (value : PaperAlgebra.Commitment) : Bool :=
 
 def publicInputHasNonzero
     (value : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) : Bool :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) : Bool :=
   (List.finRange
-    (FullShape VerifierContext.candidateLogicalWidth
-      VerifierContext.candidatePublicFits).publicWidth).any
+    (FullShape PhaseReference.logicalWidth
+      PhaseReference.publicFits).publicWidth).any
     fun column => decide (value column ≠ 0)
 
 def evaluationHasNonzero (value : Evaluation) : Bool :=
@@ -229,19 +229,17 @@ def resultValueFromPartials (point : PaperAlgebra.Point)
         (materializedEvaluationHasNonzero finalEvalK finalEvalA)]]
 
 def resultValue (computed : PiCCSNonzero.Computed) : Value :=
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState SourceCount with
-  | none => .array [PiCCSParity.boolValue false]
-  | some batch =>
-      (resultValueFromPartials computed.verifierRoundPoint batch (inputsNonzero computed)
-        (commitmentPartials batch.challenges inputCommitment)
-        (publicInputPartials batch.challenges (inputPublicInputFromComputed computed))
-        (evaluationPartials batch.challenges fun source =>
-          (inputEvaluationFromComputed computed source).pad)
-        ((List.finRange productionShape.matrixCount).map fun matrix =>
-          evaluationPartials batch.challenges fun source =>
-            (inputEvaluationFromComputed computed source).matrix matrix)).getD
-            (.array [PiCCSParity.boolValue false])
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+    computed.outgoingState SourceCount
+  (resultValueFromPartials computed.verifierRoundPoint batch (inputsNonzero computed)
+    (commitmentPartials batch.challenges inputCommitment)
+    (publicInputPartials batch.challenges (inputPublicInputFromComputed computed))
+    (evaluationPartials batch.challenges fun source =>
+      (inputEvaluationFromComputed computed source).pad)
+    ((List.finRange productionShape.matrixCount).map fun matrix =>
+      evaluationPartials batch.challenges fun source =>
+        (inputEvaluationFromComputed computed source).matrix matrix)).getD
+        (.array [PiCCSParity.boolValue false])
 
 abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
 
@@ -261,36 +259,32 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
     IO.asTask (prepare fun _ => inputsNonzero computed)
   let inputFamilies ← prepared inputFamiliesTask
   let input := inputValueWithFamilies computed inputFamilies packageIdentity
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState SourceCount with
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+    computed.outgoingState SourceCount
+  let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => commitmentPartials batch.challenges inputCommitment)
+  let publicInputTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => publicInputPartials batch.challenges
+      (inputPublicInputFromComputed computed))
+  let evalKTask ← IO.asTask (prio := Task.Priority.dedicated)
+    (prepare fun _ => evaluationPartials batch.challenges fun source =>
+      (inputEvaluationFromComputed computed source).pad)
+  let evalATasks ←
+    (List.finRange productionShape.matrixCount).mapM fun matrix =>
+      IO.asTask (prio := Task.Priority.dedicated) (prepare fun _ =>
+        evaluationPartials batch.challenges fun source =>
+          (inputEvaluationFromComputed computed source).matrix matrix)
+  let commitments ← prepared commitmentTask
+  let publicInputs ← prepared publicInputTask
+  let evalKs ← prepared evalKTask
+  let evalAsByMatrix ← evalATasks.mapM prepared
+  let inputsAreNonzero ← prepared inputsNonzeroTask
+  match resultValueFromPartials computed.verifierRoundPoint batch inputsAreNonzero
+      commitments publicInputs evalKs evalAsByMatrix with
+  | some result =>
+      pure <| Value.array [Value.atom 3, input, result]
   | none =>
-      pure <| .array [.atom 3, input,
-        .array [PiCCSParity.boolValue false]]
-  | some batch =>
-      let commitmentTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => commitmentPartials batch.challenges inputCommitment)
-      let publicInputTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => publicInputPartials batch.challenges
-          (inputPublicInputFromComputed computed))
-      let evalKTask ← IO.asTask (prio := Task.Priority.dedicated)
-        (prepare fun _ => evaluationPartials batch.challenges fun source =>
-          (inputEvaluationFromComputed computed source).pad)
-      let evalATasks ←
-        (List.finRange productionShape.matrixCount).mapM fun matrix =>
-          IO.asTask (prio := Task.Priority.dedicated) (prepare fun _ =>
-            evaluationPartials batch.challenges fun source =>
-              (inputEvaluationFromComputed computed source).matrix matrix)
-      let commitments ← prepared commitmentTask
-      let publicInputs ← prepared publicInputTask
-      let evalKs ← prepared evalKTask
-      let evalAsByMatrix ← evalATasks.mapM prepared
-      let inputsAreNonzero ← prepared inputsNonzeroTask
-      match resultValueFromPartials computed.verifierRoundPoint batch inputsAreNonzero
-          commitments publicInputs evalKs evalAsByMatrix with
-      | some result =>
-          pure <| Value.array [Value.atom 3, input, result]
-      | none =>
-          throw (IO.userError "incomplete PiRLC indexed partial grid")
+      throw (IO.userError "incomplete PiRLC indexed partial grid")
 
 /-- Schema 3 carries the selected package identity. The consumer checks it
 and the supplied context against its separately loaded canonical binding. -/

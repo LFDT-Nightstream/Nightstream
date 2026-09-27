@@ -6,7 +6,7 @@ Connects every row of the compact PiRLC product matrix program to the exact
 canonical product plan. This is literal sparse-form equality for all 13
 meaningful matrix ports.
 
-This module does not compose the First54 rows or later Stage 1 phases.
+Later Stage 1 phases are composed by the enclosing prefix plan.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram

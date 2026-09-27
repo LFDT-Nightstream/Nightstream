@@ -11,19 +11,18 @@ use super::{array, exact_array, field, word, Field, Result, GOLDILOCKS_MODULUS};
 
 const SEALED_SCHEMA: usize = 6;
 const INNER_SCHEMA: usize = 8;
-const TRANSPORT_SCHEMA: usize = 2;
-pub(super) const BLOCK_COUNT: usize = 30;
-const PHYSICAL_COLUMNS: usize = 29_344_425;
+const TRANSPORT_SCHEMA: usize = 3;
+pub(super) const BLOCK_COUNT: usize = 26;
+const PHYSICAL_COLUMNS: usize = 28_418_945;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 253_011_231;
-const CARRIER_WIDTH: usize = 253_011_276;
+const LOGICAL_WIDTH: usize = 242_590_792;
+const CARRIER_WIDTH: usize = 242_590_842;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
 const PHI81_GROUPS: usize = 33;
 const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
-const FIRST54_PRODUCTS: usize = 1_088;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
 #[derive(Deserialize)]
@@ -49,31 +48,6 @@ struct RawCircuit(
 
 #[derive(Deserialize)]
 struct RawLayout(u64, u64, u64, u64, u64, IgnoredAny, IgnoredAny);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SlotKind {
-    Bit,
-    Centered,
-    Field,
-}
-
-impl SlotKind {
-    fn decode(value: &Value) -> Result<Self> {
-        match word(value, "assignment slot kind")? {
-            0 => Ok(Self::Bit),
-            1 => Ok(Self::Centered),
-            2 => Ok(Self::Field),
-            _ => Err("unknown assignment slot kind".into()),
-        }
-    }
-
-    fn width(self) -> usize {
-        match self {
-            Self::Bit | Self::Centered => 1,
-            Self::Field => FIELD_COORDINATES,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SourceDomain {
@@ -102,7 +76,6 @@ struct Run {
 #[derive(Clone, Debug)]
 struct BlockPlan {
     opcode: usize,
-    kind: SlotKind,
     slot_count: usize,
     domain: SourceDomain,
     runs: Vec<Run>,
@@ -169,11 +142,13 @@ impl BlockPlan {
                 "assignment block opcode {opcode} is out of order; expected {expected_opcode}"
             ));
         }
-        let kind = SlotKind::decode(&fields[1])?;
+        if word(&fields[1], "assignment slot kind")? != 2 {
+            return Err("assignment slot is not a balanced field".into());
+        }
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            28..=29 => SourceDomain::Physical,
+            24..=25 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -182,7 +157,6 @@ impl BlockPlan {
         let runs = decode_runs(&fields[4], slot_count)?;
         Ok(Self {
             opcode,
-            kind,
             slot_count,
             domain,
             runs,
@@ -295,7 +269,7 @@ impl Phi81Plan {
             .enumerate()
             .map(|(index, value)| word(value, &format!("Phi81 selector {index}")))
             .collect::<Result<Vec<_>>>()?;
-        if tail != [7, 3402, 3456, 2, 3] {
+        if tail != [4, 0, 54, 2, 3] {
             return Err("unexpected Phi81 assignment selectors".into());
         }
         let value_sources = decode_runs(&fields[13], PHI81_INVOCATIONS)?;
@@ -317,43 +291,15 @@ impl Phi81Plan {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct First54Plan {
-    candidate_count: usize,
-    reject_opcode: usize,
-    symbol_opcode: usize,
-    output_opcode: usize,
-}
-
-impl First54Plan {
-    fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 4, "first54 assignment plan")?;
-        let values = fields
-            .iter()
-            .map(|value| word(value, "first54 assignment selector"))
-            .collect::<Result<Vec<_>>>()?;
-        if values != [FIRST54_PRODUCTS, 4, 5, 8] {
-            return Err("unexpected first54 assignment plan".into());
-        }
-        Ok(Self {
-            candidate_count: values[0],
-            reject_opcode: values[1],
-            symbol_opcode: values[2],
-            output_opcode: values[3],
-        })
-    }
-}
-
 struct Transport {
     blocks: Vec<BlockPlan>,
     phi81: Phi81Plan,
-    first54: First54Plan,
     output_digest_expressions: Vec<Value>,
 }
 
 impl Transport {
     fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 6, "assignment transport plan")?;
+        let fields = exact_array(value, 5, "assignment transport plan")?;
         if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
             return Err("unexpected assignment transport schema".into());
         }
@@ -364,16 +310,14 @@ impl Transport {
             .map(|(opcode, value)| BlockPlan::decode(value, opcode))
             .collect::<Result<Vec<_>>>()?;
         let phi81 = Phi81Plan::decode(&fields[2])?;
-        let first54 = First54Plan::decode(&fields[3])?;
-        if word(&fields[4], "output-digest block opcode")? != 23 {
+        if word(&fields[3], "output-digest block opcode")? != 19 {
             return Err("unexpected derived assignment block selector".into());
         }
         let output_digest_expressions =
-            exact_array(&fields[5], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
+            exact_array(&fields[4], OUTPUT_DIGEST_WORDS, "output-digest expressions")?.to_vec();
         Ok(Self {
             blocks,
             phi81,
-            first54,
             output_digest_expressions,
         })
     }
@@ -430,7 +374,6 @@ impl Physical<'_> {
 struct Domains<'a> {
     physical: Physical<'a>,
     groups: Vec<u64>,
-    products: Vec<u64>,
 }
 
 impl Domains<'_> {
@@ -438,13 +381,8 @@ impl Domains<'_> {
         if index < PHYSICAL_COLUMNS {
             return self.physical.value(index);
         }
-        let index = index - PHYSICAL_COLUMNS;
-        if index < self.groups.len() {
-            return Ok(self.groups[index]);
-        }
-        let index = index - self.groups.len();
-        self.products
-            .get(index)
+        self.groups
+            .get(index - PHYSICAL_COLUMNS)
             .copied()
             .ok_or_else(|| "retained assignment source is out of range".into())
     }
@@ -480,7 +418,7 @@ impl LogicalAssignment {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(29_225_729)
+            || usize::try_from(rows).ok() != Some(28_275_820)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -509,7 +447,6 @@ impl LogicalAssignment {
 
         let transport = Transport::decode(&raw_transport)?;
         let groups = derive_phi81_groups(&transport, &physical)?;
-        let products = derive_first54_products(&transport, &physical)?;
         let output_digest = transport
             .output_digest_expressions
             .iter()
@@ -518,11 +455,7 @@ impl LogicalAssignment {
         let output_digest: [u64; OUTPUT_DIGEST_WORDS] = output_digest
             .try_into()
             .map_err(|_| "output digest word count".to_string())?;
-        let domains = Domains {
-            physical,
-            groups,
-            products,
-        };
+        let domains = Domains { physical, groups };
         validate_derived_block_sources(&transport, &domains, output_digest)?;
 
         let mut values = Vec::with_capacity(LOGICAL_WIDTH);
@@ -531,7 +464,7 @@ impl LogicalAssignment {
         for block in &transport.blocks {
             let start = values.len();
             for source in block.sources() {
-                encode_slot(block.kind, domains.value(block.domain, source?)?, &mut values)?;
+                encode_slot(domains.value(block.domain, source?)?, &mut values)?;
             }
             block_ranges.push(start..values.len());
         }
@@ -623,7 +556,6 @@ pub struct PartialLogicalAssignment<'a> {
     physical: Physical<'a>,
     block_ranges: Vec<Range<usize>>,
     groups: OnceLock<Result<Vec<u64>>>,
-    products: OnceLock<Result<Vec<u64>>>,
     output_digest: OnceLock<Result<[u64; OUTPUT_DIGEST_WORDS]>>,
 }
 
@@ -645,7 +577,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         let RawLayout(rows, private, constant, public, total, _, _) = layout;
         if usize::try_from(outer_schema).ok() != Some(SEALED_SCHEMA)
             || usize::try_from(inner_schema).ok() != Some(INNER_SCHEMA)
-            || usize::try_from(rows).ok() != Some(29_225_729)
+            || usize::try_from(rows).ok() != Some(28_275_820)
             || usize::try_from(total).ok() != Some(PHYSICAL_COLUMNS)
             || usize::try_from(public).ok() != Some(PHYSICAL_PUBLIC)
             || usize::try_from(logical_public).ok() != Some(LOGICAL_PUBLIC)
@@ -675,7 +607,7 @@ impl<'a> PartialLogicalAssignment<'a> {
         for block in &transport.blocks {
             let width = block
                 .slot_count
-                .checked_mul(block.kind.width())
+                .checked_mul(FIELD_COORDINATES)
                 .ok_or_else(|| "logical assignment block width overflow".to_string())?;
             let end = cursor
                 .checked_add(width)
@@ -700,7 +632,6 @@ impl<'a> PartialLogicalAssignment<'a> {
             },
             block_ranges,
             groups: OnceLock::new(),
-            products: OnceLock::new(),
             output_digest: OnceLock::new(),
         })
     }
@@ -753,7 +684,7 @@ impl<'a> PartialLogicalAssignment<'a> {
             return Err(format!("logical assignment column {column} is outside its block"));
         }
         let coordinate = column - range.start;
-        let width = block.kind.width();
+        let width = FIELD_COORDINATES;
         let slot = coordinate / width;
         let digit = coordinate % width;
         let source = block.source(slot)?;
@@ -761,7 +692,7 @@ impl<'a> PartialLogicalAssignment<'a> {
             SourceDomain::Retained => self.retained(source)?,
             SourceDomain::Physical => self.physical.value(source)?,
         };
-        encode_slot_coordinate(block.kind, value, digit)
+        encode_slot_coordinate(value, digit)
     }
 
     fn retained(&self, index: usize) -> Result<u64> {
@@ -769,31 +700,20 @@ impl<'a> PartialLogicalAssignment<'a> {
             return self.physical.value(index);
         }
         let index = index - PHYSICAL_COLUMNS;
-        if index < PHI81_GROUP_VALUES {
-            let groups = match self
-                .groups
-                .get_or_init(|| derive_phi81_groups(&self.transport, &self.physical))
-            {
-                Ok(values) => values,
-                Err(error) => return Err(error.clone()),
-            };
-            return groups
-                .get(index)
-                .copied()
-                .ok_or_else(|| "retained Phi81 group source is out of range".into());
+        if index >= PHI81_GROUP_VALUES {
+            return Err("retained Phi81 group source is out of range".into());
         }
-        let index = index - PHI81_GROUP_VALUES;
-        let products = match self
-            .products
-            .get_or_init(|| derive_first54_products(&self.transport, &self.physical))
+        let groups = match self
+            .groups
+            .get_or_init(|| derive_phi81_groups(&self.transport, &self.physical))
         {
             Ok(values) => values,
             Err(error) => return Err(error.clone()),
         };
-        products
+        groups
             .get(index)
             .copied()
-            .ok_or_else(|| "retained first54 product source is out of range".into())
+            .ok_or_else(|| "retained Phi81 group source is out of range".into())
     }
 
     fn output_digest(&self) -> Result<[u64; OUTPUT_DIGEST_WORDS]> {
@@ -812,41 +732,21 @@ impl<'a> PartialLogicalAssignment<'a> {
     }
 }
 
-fn encode_slot_coordinate(kind: SlotKind, value: u64, coordinate: usize) -> Result<Field> {
-    if value >= GOLDILOCKS_MODULUS || coordinate >= kind.width() {
+fn encode_slot_coordinate(value: u64, coordinate: usize) -> Result<Field> {
+    if value >= GOLDILOCKS_MODULUS || coordinate >= FIELD_COORDINATES {
         return Err("logical assignment coordinate source is invalid".into());
     }
-    let balanced = match kind {
-        SlotKind::Bit => match value {
-            0 => 0,
-            1 => 1,
-            _ => return Err("bit assignment source is not zero or one".into()),
-        },
-        SlotKind::Centered => match value {
-            0 => 0,
-            1 => 1,
-            value if value == GOLDILOCKS_MODULUS - 1 => -1,
-            _ => return Err("centered assignment source is outside {-1,0,1}".into()),
-        },
-        SlotKind::Field => {
-            let negative = value > CENTERED_HALF_MODULUS;
-            let magnitude = if negative { GOLDILOCKS_MODULUS - value } else { value };
-            let power = 3u128.pow(coordinate as u32);
-            let rounded = (u128::from(magnitude) + (power - 1) / 2) / power;
-            let digit = match rounded % 3 {
-                0 => 0,
-                1 => 1,
-                2 => -1,
-                _ => unreachable!("remainder modulo three"),
-            };
-            if negative {
-                -digit
-            } else {
-                digit
-            }
-        }
+    let negative = value > CENTERED_HALF_MODULUS;
+    let magnitude = if negative { GOLDILOCKS_MODULUS - value } else { value };
+    let power = 3u128.pow(coordinate as u32);
+    let rounded = (u128::from(magnitude) + (power - 1) / 2) / power;
+    let digit = match rounded % 3 {
+        0 => 0,
+        1 => 1,
+        2 => -1,
+        _ => unreachable!("remainder modulo three"),
     };
-    match balanced {
+    match if negative { -digit } else { digit } {
         -1 => Field::checked(GOLDILOCKS_MODULUS - 1, "balanced logical coordinate"),
         0 => Ok(Field::ZERO),
         1 => Ok(Field::ONE),
@@ -931,23 +831,6 @@ fn derive_phi81_groups(transport: &Transport, physical: &Physical<'_>) -> Result
     Ok(groups)
 }
 
-fn derive_first54_products(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
-    let plan = transport.first54;
-    let reject = transport.block(plan.reject_opcode)?;
-    let symbol = transport.block(plan.symbol_opcode)?;
-    let output = transport.block(plan.output_opcode)?;
-    if output.slot_count != plan.candidate_count {
-        return Err("first54 output block has the wrong slot count".into());
-    }
-    (0..plan.candidate_count)
-        .map(|candidate| {
-            let reject = raw_block_value(reject, candidate, physical)?;
-            let symbol = raw_block_value(symbol, candidate, physical)?;
-            Ok(mul_mod(sub_mod(1, reject), symbol))
-        })
-        .collect()
-}
-
 fn validate_derived_block_sources(
     transport: &Transport,
     domains: &Domains<'_>,
@@ -959,13 +842,7 @@ fn validate_derived_block_sources(
             return Err("Phi81 group source map does not select the derived value".into());
         }
     }
-    let product = transport.block(transport.first54.output_opcode)?;
-    for slot in 0..product.slot_count {
-        if domains.value(product.domain, product.source(slot)?)? != domains.products[slot] {
-            return Err("first54 product source map does not select the derived value".into());
-        }
-    }
-    let digest = transport.block(23)?;
+    let digest = transport.block(19)?;
     if digest.slot_count != OUTPUT_DIGEST_WORDS {
         return Err("output-digest block has the wrong slot count".into());
     }
@@ -1009,27 +886,11 @@ fn append_public(digest: [u64; OUTPUT_DIGEST_WORDS], output: &mut Vec<i8>) {
     debug_assert_eq!(output.len(), LOGICAL_PUBLIC);
 }
 
-fn encode_slot(kind: SlotKind, value: u64, output: &mut Vec<i8>) -> Result<()> {
+fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<()> {
     if value >= GOLDILOCKS_MODULUS {
         return Err("assignment source value is noncanonical".into());
     }
-    let start = output.len();
-    match kind {
-        SlotKind::Bit => match value {
-            0 | 1 => output.push(value as i8),
-            _ => return Err("bit assignment source is not zero or one".into()),
-        },
-        SlotKind::Centered => match value {
-            0 => output.push(0),
-            1 => output.push(1),
-            value if value == GOLDILOCKS_MODULUS - 1 => output.push(-1),
-            _ => return Err("centered assignment source is outside {-1,0,1}".into()),
-        },
-        SlotKind::Field => encode_field(value, output),
-    }
-    if output.len() - start != kind.width() {
-        return Err("assignment slot encoder produced the wrong width".into());
-    }
+    encode_field(value, output);
     Ok(())
 }
 

@@ -469,15 +469,13 @@ def samplerEntryBlock (source : Nat) : ActionBlock :=
       source)
     (TranscriptAbsorption.actions source)
 
-def samplerWindowBlock (source round : Nat) : DirectBlock :=
+def samplerAdvanceBlock (source : Nat) : DirectBlock :=
   DirectBlock.ofState PiRLCSamplerInvocations.phase
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationRowStart
-      source round)
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-      source round)
-    (PiRLCSamplerInvocations.fastWindowState
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+    (PiRLCSamplerInvocations.fastAdvanceState
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-      source round)
+      source)
 
 theorem samplerEntryBlock_expand (source : Nat) :
     (samplerEntryBlock source).expand =
@@ -503,54 +501,30 @@ theorem samplerEntryBlock_expand (source : Nat) :
           (TranscriptAbsorption.actions source)
     _ = _ := by rfl
 
-theorem samplerWindowBlock_expand (source round : Nat) :
-    (samplerWindowBlock source round).expand =
-      PiRLCSamplerInvocations.windowInvocation
+theorem samplerAdvanceBlock_expand (source : Nat) :
+    (samplerAdvanceBlock source).expand =
+      PiRLCSamplerInvocations.advanceInvocation
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-        source round := by
-  simpa [samplerWindowBlock, PiRLCSamplerInvocations.windowInvocation,
-    PiRLCSamplerInvocations.fastWindowState_eq_windowState] using
+        source := by
+  simpa [samplerAdvanceBlock, PiRLCSamplerInvocations.advanceInvocation,
+    PiRLCSamplerInvocations.fastAdvanceState_eq] using
     DirectBlock.ofState_expand PiRLCSamplerInvocations.phase
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationRowStart
-        source round)
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-        source round)
-      (PiRLCSamplerInvocations.fastWindowState
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+      (PiRLCSamplerInvocations.fastAdvanceState
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-        source round)
+        source)
 
 def samplerSourceBlocks (source : Nat) : List Block :=
-  .actions (samplerEntryBlock source) ::
-    (List.range PiRLCSamplerInvocations.digestRoundCount).map fun round =>
-      .direct (samplerWindowBlock source round)
-
-private theorem directBlocks_expand (blocks : List DirectBlock) :
-    (blocks.map Block.direct).flatMap Block.expand =
-      blocks.map DirectBlock.expand := by
-  induction blocks with
-  | nil => rfl
-  | cons block blocks inductionHypothesis =>
-      simp only [List.map_cons, List.flatMap_cons, Block.expand,
-        inductionHypothesis, List.singleton_append]
+  [.actions (samplerEntryBlock source), .direct (samplerAdvanceBlock source)]
 
 theorem samplerSourceBlocks_expand (source : Nat) :
     (samplerSourceBlocks source).flatMap Block.expand =
       PiRLCSamplerInvocations.sourceInvocations
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-        source := by
-  unfold samplerSourceBlocks PiRLCSamplerInvocations.sourceInvocations
-    PiRLCSamplerInvocations.windowInvocations
-  simp only [List.flatMap_cons, Block.expand]
-  rw [samplerEntryBlock_expand]
-  change _ ++
-      (((List.range PiRLCSamplerInvocations.digestRoundCount).map
-        (samplerWindowBlock source)).map Block.direct).flatMap Block.expand =
-    _ ++ _
-  rw [directBlocks_expand, List.map_map]
-  apply congrArg₂ (· ++ ·) rfl
-  apply List.map_congr_left
-  intro round _member
-  exact samplerWindowBlock_expand source round
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source := by
+  simp only [samplerSourceBlocks, PiRLCSamplerInvocations.sourceInvocations,
+    List.flatMap_cons, List.flatMap_nil, Block.expand, List.append_nil,
+    samplerEntryBlock_expand, samplerAdvanceBlock_expand]
 
 def piRlcSamplerBlocks (_unit : Unit) : List Block :=
   (List.range PiRLCSamplerInvocations.sourceCount).flatMap
@@ -578,18 +552,18 @@ theorem piRlcSamplerBlocks_expand :
 
 /-! ## Random-access sampler witness starts -/
 
-def samplerStepsPerSource : Nat := 9
+def samplerStepsPerSource : Nat := 2
 
-@[simp] theorem samplerStepsPerSource_eq : samplerStepsPerSource = 9 := by
+@[simp] theorem samplerStepsPerSource_eq : samplerStepsPerSource = 2 := by
   rfl
 
-/-- One source-local block in entry-then-window order. -/
+/-- One source-local block in entry-then-advance order. -/
 def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
     Block :=
   if step.val = 0 then
     .actions (samplerEntryBlock source)
   else
-    .direct (samplerWindowBlock source (step.val - 1))
+    .direct (samplerAdvanceBlock source)
 
 /-- One source-local final invocation witness start after the canonical
 Spartan permutation. -/
@@ -600,8 +574,7 @@ def samplerSourceWitnessStartAt (source : Nat)
       (PiRLCSamplerInvocations.sourceLogicalStart source)
   else
     NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-        source (step.val - 1))
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
 
 theorem samplerSourceBlockAt_witnessStarts (source : Nat)
     (step : Fin samplerStepsPerSource) :
@@ -621,20 +594,13 @@ theorem samplerSourceBlockAt_witnessStarts (source : Nat)
       Hash.inputChunks, Spec.Poseidon2.rate]
   · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
     rw [if_neg entry, if_neg entry]
-    simp [Block.expand, samplerWindowBlock, DirectBlock.expand,
+    simp [Block.expand, samplerAdvanceBlock, DirectBlock.expand,
       DirectBlock.ofState, Invocations.invocation_witnessStart]
 
 theorem samplerSourceBlockAt_materializes (source : Nat) :
     List.ofFn (samplerSourceBlockAt source) = samplerSourceBlocks source := by
-  change List.ofFn (fun step : Fin 9 => samplerSourceBlockAt source step) = _
-  rw [List.ofFn_succ]
-  unfold samplerSourceBlocks
-  apply congrArg₂ List.cons
-  · simp [samplerSourceBlockAt]
-  · rw [List.ofFn_eq_map, ← List.map_coe_finRange_eq_range, List.map_map]
-    apply List.map_congr_left
-    intro step _member
-    simp [samplerSourceBlockAt, samplerStepsPerSource]
+  change List.ofFn (fun step : Fin 2 => samplerSourceBlockAt source step) = _
+  simp [List.ofFn_succ, samplerSourceBlockAt, samplerSourceBlocks]
 
 private theorem ofFn_decodeProd_eq_range_flatMap {Alpha : Type}
     (m n : Nat) (value : Nat → Fin n → Alpha) :

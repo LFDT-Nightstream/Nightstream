@@ -55,9 +55,8 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
     throw (IO.userError "recursive fixture: PiCCS proof rejected")
   unless decide (children.point.toList = phase.point.coordinates) do
     throw (IO.userError "recursive fixture: child point differs from the PiCCS output")
-  let some batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
       phase.outgoing productionShape.sourceCount
-    | throw (IO.userError "recursive fixture: PiRLC sampler shortfall")
   let sourcePublic : Fin productionShape.sourceCount → PublicInput :=
     Fin.addCases (PiCCSInputCheck.fresh input).publicInputs
       (PiCCSInputCheck.running input).publicInputs

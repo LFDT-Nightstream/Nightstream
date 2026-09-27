@@ -126,3 +126,7 @@ fn permutation(
     }
     Ok(state)
 }
+
+#[cfg(test)]
+#[path = "../../tests/application_internal/hash_chain_fixture.rs"]
+pub(crate) mod hash_chain_fixture;

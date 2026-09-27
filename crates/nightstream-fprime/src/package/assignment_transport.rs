@@ -10,29 +10,24 @@ use crate::WitnessAssignment;
 
 use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
 
-const TRANSPORT_SCHEMA: usize = 2;
-pub(super) const BLOCK_COUNT: usize = 30;
+const TRANSPORT_SCHEMA: usize = 3;
+pub(super) const BLOCK_COUNT: usize = 26;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
 const PHI81_GROUPS: usize = 33;
 const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
-const FIRST54_PRODUCTS: usize = 1_088;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
 const PRODUCT_GROUP_BLOCK: usize = 3;
-const FIRST54_REJECT_BLOCK: usize = 4;
-const FIRST54_SYMBOL_BLOCK: usize = 5;
-const FIRST54_VALUE_BLOCK: usize = 7;
-const FIRST54_PRODUCT_BLOCK: usize = 8;
-const OUTPUT_DIGEST_BLOCK: usize = 23;
+const CHALLENGE_WORDS_BLOCK: usize = 4;
+const OUTPUT_DIGEST_BLOCK: usize = 19;
 
 /// Lean-authored block order for the final logical assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedAssignmentPlan {
     blocks: Vec<BlockPlan>,
     phi81: Phi81Recipe,
-    first54: First54Recipe,
     output_digest_block: usize,
     output_digest_expressions: Vec<Expression>,
     physical_width: usize,
@@ -59,7 +54,6 @@ impl LoadedAssignmentPlan {
         }
 
         let groups = derive_phi81_groups(self, &physical)?;
-        let products = derive_first54_products(self, &physical)?;
         let output_digest: [u64; OUTPUT_DIGEST_WORDS] = self
             .output_digest_expressions
             .iter()
@@ -67,18 +61,14 @@ impl LoadedAssignmentPlan {
             .collect::<Result<Vec<_>, _>>()?
             .try_into()
             .map_err(|_| PackageError::Invalid("output digest word count"))?;
-        let domains = Domains {
-            physical,
-            groups,
-            products,
-        };
+        let domains = Domains { physical, groups };
         validate_derived_block_sources(self, &domains, output_digest)?;
 
         let mut values = Vec::with_capacity(self.logical_width);
         append_public(output_digest, self.logical_public_width, &mut values)?;
         for block in &self.blocks {
             for source in block.sources() {
-                encode_slot(block.kind, domains.value(block.domain, source?)?, &mut values)?;
+                encode_slot(domains.value(block.domain, source?)?, &mut values)?;
             }
         }
         if values.len() != self.logical_width {
@@ -115,31 +105,6 @@ impl LogicalAssignment {
 
     pub fn balanced_values(&self) -> &[i8] {
         &self.values
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SlotKind {
-    Bit,
-    Centered,
-    Field,
-}
-
-impl SlotKind {
-    fn decode(value: &Value) -> Result<Self, PackageError> {
-        match word(value, "assignment slot kind")? {
-            0 => Ok(Self::Bit),
-            1 => Ok(Self::Centered),
-            2 => Ok(Self::Field),
-            _ => Err(PackageError::Invalid("assignment slot kind")),
-        }
-    }
-
-    const fn coordinate_width(self) -> usize {
-        match self {
-            Self::Bit | Self::Centered => 1,
-            Self::Field => FIELD_COORDINATES,
-        }
     }
 }
 
@@ -236,7 +201,6 @@ struct Run {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BlockPlan {
     opcode: usize,
-    kind: SlotKind,
     slot_count: usize,
     domain: SourceDomain,
     runs: Vec<Run>,
@@ -316,11 +280,13 @@ impl BlockPlan {
         if opcode != expected_opcode {
             return Err(PackageError::Invalid("assignment block order"));
         }
-        let kind = SlotKind::decode(&fields[1])?;
+        if word(&fields[1], "assignment slot kind")? != 2 {
+            return Err(PackageError::Invalid("assignment slot kind"));
+        }
         let slot_count = word(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
-            28..=29 => SourceDomain::Physical,
+            24..=25 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
@@ -335,7 +301,6 @@ impl BlockPlan {
 
         Ok(Self {
             opcode,
-            kind,
             slot_count,
             domain,
             runs,
@@ -364,11 +329,7 @@ impl BlockPlan {
     }
 
     fn require_field_count(&self, count: usize) -> Result<(), PackageError> {
-        self.require_kind_count(SlotKind::Field, count)
-    }
-
-    fn require_kind_count(&self, kind: SlotKind, count: usize) -> Result<(), PackageError> {
-        if self.kind != kind || self.slot_count != count {
+        if self.slot_count != count {
             return Err(PackageError::Invalid("derived assignment block shape"));
         }
         Ok(())
@@ -519,7 +480,7 @@ impl Phi81Recipe {
             word(&fields[12], "Phi81 challenge shift")?,
             word(&fields[14], "Phi81 group output block")?,
         ];
-        if selectors != [FIRST54_VALUE_BLOCK, 3_402, 3_456, 2, PRODUCT_GROUP_BLOCK] {
+        if selectors != [CHALLENGE_WORDS_BLOCK, 0, 54, 2, PRODUCT_GROUP_BLOCK] {
             return Err(PackageError::Invalid("Phi81 assignment selectors"));
         }
         Ok(Self {
@@ -559,7 +520,7 @@ impl Phi81Recipe {
             .ok_or(PackageError::Invalid("Phi81 group count overflow"))?;
 
         challenge.require_physical_sources(physical_width)?;
-        challenge.require_field_count(58_752)?;
+        challenge.require_field_count(17 * 54)?;
         output.require_field_count(group_value_count)?;
         output.require_exact_range(physical_width, group_value_count)?;
 
@@ -594,74 +555,19 @@ impl Phi81Recipe {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct First54Recipe {
-    candidate_count: usize,
-    reject_block: usize,
-    symbol_block: usize,
-    output_block: usize,
-}
-
-impl First54Recipe {
-    fn decode(value: &Value) -> Result<Self, PackageError> {
-        let fields = exact_array(value, 4, "First54 assignment recipe")?;
-        let values = [
-            word(&fields[0], "First54 candidate count")?,
-            word(&fields[1], "First54 reject block")?,
-            word(&fields[2], "First54 symbol block")?,
-            word(&fields[3], "First54 output block")?,
-        ];
-        if values
-            != [
-                FIRST54_PRODUCTS,
-                FIRST54_REJECT_BLOCK,
-                FIRST54_SYMBOL_BLOCK,
-                FIRST54_PRODUCT_BLOCK,
-            ]
-        {
-            return Err(PackageError::Invalid("First54 assignment recipe"));
-        }
-        Ok(Self {
-            candidate_count: values[0],
-            reject_block: values[1],
-            symbol_block: values[2],
-            output_block: values[3],
-        })
-    }
-
-    fn validate(
-        &self,
-        blocks: &[BlockPlan],
-        physical_width: usize,
-        product_source_start: usize,
-    ) -> Result<(), PackageError> {
-        let reject = block(blocks, self.reject_block)?;
-        let symbol = block(blocks, self.symbol_block)?;
-        let output = block(blocks, self.output_block)?;
-        reject.require_kind_count(SlotKind::Bit, self.candidate_count)?;
-        symbol.require_field_count(self.candidate_count)?;
-        reject.require_physical_sources(physical_width)?;
-        symbol.require_physical_sources(physical_width)?;
-        output.require_field_count(self.candidate_count)?;
-        output.require_exact_range(product_source_start, self.candidate_count)?;
-        Ok(())
-    }
-}
-
-/// Decode and validate the exact six-field assignment transport.
+/// Decode and validate the exact five-field assignment transport.
 pub(super) fn decode(
     value: &Value,
     physical_width: usize,
     logical_public_width: usize,
     logical_width: usize,
 ) -> Result<LoadedAssignmentPlan, PackageError> {
-    let fields = exact_array(value, 6, "assignment transport plan")?;
+    let fields = exact_array(value, 5, "assignment transport plan")?;
     if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
         return Err(PackageError::Invalid("assignment transport schema version"));
     }
 
     let phi81 = Phi81Recipe::decode(&fields[2], physical_width)?;
-    let first54 = First54Recipe::decode(&fields[3])?;
     let group_value_count = phi81
         .invocation_count()?
         .checked_mul(phi81.group_count)
@@ -671,7 +577,6 @@ pub(super) fn decode(
     }
     let retained_width = physical_width
         .checked_add(group_value_count)
-        .and_then(|width| width.checked_add(first54.candidate_count))
         .ok_or(PackageError::Invalid("assignment retained source width overflow"))?;
     let raw_blocks = exact_array(&fields[1], BLOCK_COUNT, "assignment block plans")?;
     let blocks = raw_blocks
@@ -686,7 +591,7 @@ pub(super) fn decode(
             .checked_add(
                 block
                     .slot_count
-                    .checked_mul(block.kind.coordinate_width())
+                    .checked_mul(FIELD_COORDINATES)
                     .ok_or(PackageError::Invalid("assignment coordinate width overflow"))?,
             )
             .ok_or(PackageError::Invalid("assignment coordinate width overflow"))?;
@@ -696,18 +601,13 @@ pub(super) fn decode(
     }
 
     phi81.validate(&blocks, physical_width)?;
-    let product_source_start = physical_width
-        .checked_add(group_value_count)
-        .ok_or(PackageError::Invalid("First54 product source start overflow"))?;
-    first54.validate(&blocks, physical_width, product_source_start)?;
-
-    let output_digest_block = word(&fields[4], "output digest block selector")?;
+    let output_digest_block = word(&fields[3], "output digest block selector")?;
     if output_digest_block != OUTPUT_DIGEST_BLOCK {
         return Err(PackageError::Invalid("output digest block selector"));
     }
     let digest = block(&blocks, output_digest_block)?;
     digest.require_field_count(OUTPUT_DIGEST_WORDS)?;
-    let output_digest_expressions = decode_expressions(&fields[5], OUTPUT_DIGEST_WORDS, physical_width)?;
+    let output_digest_expressions = decode_expressions(&fields[4], OUTPUT_DIGEST_WORDS, physical_width)?;
     for (slot, expression) in output_digest_expressions.iter().enumerate() {
         let source = digest.source(slot)?;
         if expression.direct_column() != Some(source) {
@@ -718,7 +618,6 @@ pub(super) fn decode(
     Ok(LoadedAssignmentPlan {
         blocks,
         phi81,
-        first54,
         output_digest_block,
         output_digest_expressions,
         physical_width,
@@ -800,7 +699,6 @@ impl<'a> PhysicalAssignment<'a> {
 struct Domains<'a> {
     physical: PhysicalAssignment<'a>,
     groups: Vec<u64>,
-    products: Vec<u64>,
 }
 
 impl Domains<'_> {
@@ -809,11 +707,7 @@ impl Domains<'_> {
             return self.physical.value(index);
         }
         let index = index - self.physical.total_columns;
-        if let Some(value) = self.groups.get(index) {
-            return Ok(*value);
-        }
-        let index = index - self.groups.len();
-        self.products
+        self.groups
             .get(index)
             .copied()
             .ok_or(PackageError::Invalid("retained assignment source"))
@@ -933,26 +827,6 @@ fn derive_phi81_groups(
     Ok(groups)
 }
 
-fn derive_first54_products(
-    transport: &LoadedAssignmentPlan,
-    physical: &PhysicalAssignment<'_>,
-) -> Result<Vec<u64>, PackageError> {
-    let recipe = &transport.first54;
-    let reject = transport.block(recipe.reject_block)?;
-    let symbol = transport.block(recipe.symbol_block)?;
-    let output = transport.block(recipe.output_block)?;
-    if output.slot_count != recipe.candidate_count {
-        return Err(PackageError::Invalid("First54 output count"));
-    }
-    (0..recipe.candidate_count)
-        .map(|candidate| {
-            let reject = raw_block_value(reject, candidate, physical)?;
-            let symbol = raw_block_value(symbol, candidate, physical)?;
-            Ok(mul_mod(sub_mod(1, reject), symbol))
-        })
-        .collect()
-}
-
 fn validate_derived_block_sources(
     transport: &LoadedAssignmentPlan,
     domains: &Domains<'_>,
@@ -966,17 +840,6 @@ fn validate_derived_block_sources(
             .ok_or(PackageError::Invalid("Phi81 group output count"))?;
         if domains.value(group.domain, group.source(slot)?)? != expected {
             return Err(PackageError::Invalid("Phi81 group source map"));
-        }
-    }
-
-    let product = transport.block(transport.first54.output_block)?;
-    for slot in 0..product.slot_count {
-        let expected = *domains
-            .products
-            .get(slot)
-            .ok_or(PackageError::Invalid("First54 output count"))?;
-        if domains.value(product.domain, product.source(slot)?)? != expected {
-            return Err(PackageError::Invalid("First54 product source map"));
         }
     }
 
@@ -1010,7 +873,7 @@ fn append_public(
     Ok(())
 }
 
-fn encode_slot(kind: SlotKind, value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
+fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
     if value >= GOLDILOCKS_MODULUS {
         return Err(PackageError::NonCanonicalField {
             location: "logical assignment source",
@@ -1018,20 +881,8 @@ fn encode_slot(kind: SlotKind, value: u64, output: &mut Vec<i8>) -> Result<(), P
         });
     }
     let start = output.len();
-    match kind {
-        SlotKind::Bit => match value {
-            0 | 1 => output.push(value as i8),
-            _ => return Err(PackageError::Invalid("bit assignment source")),
-        },
-        SlotKind::Centered => match value {
-            0 => output.push(0),
-            1 => output.push(1),
-            value if value == GOLDILOCKS_MODULUS - 1 => output.push(-1),
-            _ => return Err(PackageError::Invalid("centered assignment source")),
-        },
-        SlotKind::Field => encode_field(value, output),
-    }
-    if output.len() - start != kind.coordinate_width() {
+    encode_field(value, output);
+    if output.len() - start != FIELD_COORDINATES {
         return Err(PackageError::Invalid("assignment slot coordinate width"));
     }
     Ok(())

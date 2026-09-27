@@ -65,9 +65,8 @@ theorem semantics_imply_piDecPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-      geometry assignment base groupValue products)
+      geometry assignment base groupValue)
     (assumptions : Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
       (PiDECArithmetic.phaseInterface relationLogicalWidth relationPublicFits)
       PiDECInputs.phaseOffset

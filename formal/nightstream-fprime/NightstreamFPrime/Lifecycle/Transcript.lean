@@ -1,15 +1,13 @@
 import NightstreamFPrime.Lifecycle.XOut
-import NightstreamFPrime.Spec.Phi81StrongSet
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 /-!
 Owns the Stage 1 Fiat–Shamir transcript over the Poseidon2 sponge: duplex
 absorb and squeeze, the Π_CCS oracle (statement absorb, one absorb per
 sum-check round, labelled `α`/`γ`/`r′` squeezes), absorption of the complete
-Π_CCS output, and the fail-closed Π_RLC challenge sampler into the strong
-set `𝓒 = {coefficients in {−2,…,2}}`. The sampler consumes eight complete
-four-lane Poseidon2 digests per scalar, exposes two little-endian 16-bit
-candidates per lane, rejects candidate `65535`, and returns no batch unless
-all 54 coefficients of every scalar exist. The absorb order is the paper's
+Π_CCS output, and the total Π_RLC challenge sampler into the strong set
+`𝓒 = {coefficients in {−2,…,2}}`. Each scalar uses one four-field Poseidon2
+window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb order is the paper's
 (SuperNeo B.1): every challenge is squeezed only after the data it must depend
 on has been absorbed. All parity-surface definitions are computable.
 -/
@@ -131,205 +129,43 @@ def piCcsOracle :
 
 namespace PiRlcSampler
 
-open NightstreamFPrime.Spec.Sampling
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open ProductionAlphabet
-open ProductionSchedule
-open ProductionStrongSet
-
-/-- Two little-endian 16-bit candidates from each of the four rate lanes. -/
-def digestChunks (state : State) : Fin chunksPerDigest → Chunk :=
-  fun position =>
-    let lane := position.val / 2
-    let part := position.val % 2
-    ⟨((state.getD lane 0).val / (2 ^ (16 * part))) % chunkModulus,
-      Nat.mod_lt _ (by decide)⟩
-
-/-- One complete digest step. The current four rate lanes are the digest;
-the successor state is the next Poseidon2 permutation. -/
-def digestBlock (state : State) (_counter : Nat) :
-    State × (Fin chunksPerDigest → Chunk) :=
-  (Poseidon2.permute state, digestChunks state)
-
-/-- Preserve the established scalar domain separator `[4, coordinate]`. -/
+/-- Enter the established scalar domain `[4, coordinate]`. -/
 def enterScalar (state : State) (coordinate : Nat) : State :=
-  absorb state [natWord 4, natWord coordinate]
+  Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.enter state coordinate
 
-/-- Concrete additive-sponge instantiation of the fixed eight-block schedule. -/
-def machine : ProductionSchedule.Machine State where
-  enterScalar := enterScalar
-  digestBlock := digestBlock
+/-- One total challenge from the verifier-owned transcript schedule. -/
+def sampleRingChallenge (initial : State) (coordinate : Nat) : RingF :=
+  Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt initial coordinate
 
-def specification : Specification State Chunk Coefficient Scalar :=
-  ProductionSchedule.specification machine assembleCoefficients
-
-/-- Convert a successful exact-length coefficient list to its scalar carrier.
-The default branch is unreachable for every successful bounded sample. -/
-def scalarOfList (coefficients : List Coefficient) : Scalar :=
-  fun position => coefficients.getD position.val ⟨2, by decide⟩
-
-/-- One indexed scalar sample from the fixed 64-candidate source. -/
-def sampleScalar (initial : State) (coordinate : Nat) : Option Scalar :=
-  let source := sourceAt specification initial coordinate
-  (FirstAccepted.boundedSample verifier coefficientCount
-    (FirstAccepted.streamPrefix source.stream candidateBound)).map scalarOfList
-
-/-- One ring challenge, or explicit failure when fewer than 54 candidates
-are accepted. -/
-def sampleRingChallenge (initial : State) (coordinate : Nat) : Option RingF :=
-  (sampleScalar initial coordinate).map Phi81StrongSet.embedScalar
-
-/-- A successful scalar sample has exactly 54 accepted coefficients. -/
-theorem sampleScalar_success_length
-    {initial : State} {coordinate : Nat} {coefficients : List Coefficient}
-    (success : FirstAccepted.boundedSample verifier coefficientCount
-      (FirstAccepted.streamPrefix
-        (sourceAt specification initial coordinate).stream candidateBound) =
-        some coefficients) :
-    coefficients.length = coefficientCount :=
-  FirstAccepted.bounded_success_length success
-
-/-- Failure is exactly bounded rejection-sampler shortfall. -/
-theorem sampleScalar_eq_none_iff_shortfall
-    (initial : State) (coordinate : Nat) :
-    sampleScalar initial coordinate = none ↔
-      ShortfallAt specification candidateBound initial coordinate := by
-  unfold sampleScalar ShortfallAt
-  change
-    Option.map scalarOfList
-        (FirstAccepted.boundedSample verifier coefficientCount
-          (FirstAccepted.streamPrefix
-            (sourceAt specification initial coordinate).stream
-            candidateBound)) = none ↔
-      FirstAccepted.Shortfall verifier coefficientCount
-        (FirstAccepted.streamPrefix
-          (sourceAt specification initial coordinate).stream candidateBound)
-  rw [Option.map_eq_none_iff]
-  exact FirstAccepted.boundedSample_eq_none_iff_shortfall
-
-/-- Every successful concrete ring challenge is in the production strong
-set. No membership claim exists on shortfall. -/
-theorem sampleRingChallenge_member
-    {initial : State} {coordinate : Nat} {challenge : RingF}
-    (success : sampleRingChallenge initial coordinate = some challenge) :
-    Phi81StrongSet.ProductionMember challenge := by
-  unfold sampleRingChallenge at success
-  cases sampled : sampleScalar initial coordinate with
-  | none => simp [sampled] at success
-  | some scalar =>
-      simp only [sampled, Option.map_some, Option.some.injEq] at success
-      subst challenge
-      exact ⟨scalar, rfl⟩
-
-/-- Successful fixed-size batch. Its `Fin` domain prevents a fallback value
-when the verifier indexes the `K+k` challenge vector. -/
 structure Batch (count : Nat) where
   challenges : Fin count → RingF
   finalState : State
 
-/-- Sample `ρ₁,…,ρ_count` in exact order. Any shortfall rejects the
-whole batch. The final state always follows every fixed digest block. -/
-def sampleBatch (initial : State) : (count : Nat) → Option (Batch count)
-  | 0 => some ⟨Fin.elim0, stateAt specification initial 0⟩
-  | count + 1 =>
-      match sampleBatch initial count, sampleRingChallenge initial count with
-      | some priorBatch, some challenge =>
-          some ⟨Fin.lastCases challenge priorBatch.challenges,
-            stateAt specification initial (count + 1)⟩
-      | _, _ => none
+/-- Compute each coefficient once; later ring operations only read the batch. -/
+def piRlcChallengesWithState (initial : State) (count : Nat) : Batch count :=
+  let values := Array.ofFn fun index : Fin count => Array.ofFn (sampleRingChallenge initial index.val)
+  { challenges := fun index lane =>
+      (values[index.val]'(by simp only [values, Array.size_ofFn]; exact index.isLt))[lane.val]'(by
+        simp only [values, Array.getElem_ofFn, Array.size_ofFn]
+        exact lane.isLt)
+    finalState := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt initial count }
 
-/-- Public computable batch entrypoint. -/
-def piRlcChallengesWithState (initial : State) (count : Nat) :
-    Option (Batch count) :=
-  sampleBatch initial count
+@[simp] theorem piRlcChallengesWithState_challenges (initial : State) (count : Nat) :
+    (piRlcChallengesWithState initial count).challenges =
+      fun index => sampleRingChallenge initial index.val := by
+  funext index lane
+  simp [piRlcChallengesWithState]
 
-def piRlcChallenges (initial : State) (count : Nat) :
-    Option (Fin count → RingF) :=
-  (piRlcChallengesWithState initial count).map Batch.challenges
+def piRlcChallenges (initial : State) (count : Nat) : Fin count → RingF :=
+  (piRlcChallengesWithState initial count).challenges
 
-/-- The successful batch state is the state after every fixed block. -/
-theorem piRlcChallengesWithState_finalState
-    {initial : State} {count : Nat} {batch : Batch count}
-    (success : piRlcChallengesWithState initial count = some batch) :
-    batch.finalState = stateAt specification initial count := by
-  induction count with
-  | zero =>
-      simp [piRlcChallengesWithState, sampleBatch] at success
-      subst batch
-      rfl
-  | succ count inductionHypothesis =>
-      rw [piRlcChallengesWithState, sampleBatch] at success
-      cases priorEq : sampleBatch initial count with
-      | none => simp [priorEq] at success
-      | some priorBatch =>
-          cases challengeEq : sampleRingChallenge initial count with
-          | none => simp [priorEq, challengeEq] at success
-          | some challenge =>
-              simp [priorEq, challengeEq] at success
-              subst batch
-              rfl
+theorem piRlcChallengesWithState_finalState (initial : State) (count : Nat) :
+    (piRlcChallengesWithState initial count).finalState = Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt initial count := rfl
 
-/-- Every indexed value in a successful batch is a strong-set challenge. -/
-theorem piRlcChallenges_member
-    {initial : State} {count : Nat} {batch : Batch count}
-    (success : piRlcChallengesWithState initial count = some batch)
-    (index : Fin count) :
-    Phi81StrongSet.ProductionMember (batch.challenges index) := by
-  induction count with
-  | zero => exact Fin.elim0 index
-  | succ count inductionHypothesis =>
-      rw [piRlcChallengesWithState, sampleBatch] at success
-      cases priorEq : sampleBatch initial count with
-      | none => simp [priorEq] at success
-      | some priorBatch =>
-          cases challengeEq : sampleRingChallenge initial count with
-          | none => simp [priorEq, challengeEq] at success
-          | some challenge =>
-              simp [priorEq, challengeEq] at success
-              subst batch
-              refine Fin.lastCases ?_ (fun prior => ?_) index
-              · simpa using sampleRingChallenge_member challengeEq
-              ·
-                have priorSuccess :
-                    piRlcChallengesWithState initial count = some priorBatch := by
-                  simpa [piRlcChallengesWithState] using priorEq
-                simpa using inductionHypothesis priorSuccess prior
-
-/-- Pointwise success is exactly enough to construct the fixed-size concrete
-challenge response. This theorem adds no fallback value and preserves the
-`Fin` index order. -/
-theorem piRlcChallenges_eq_some_of_pointwise
-    (initial : State) {count : Nat} (challenges : Fin count → RingF)
-    (success : ∀ index,
-      sampleRingChallenge initial index.val = some (challenges index)) :
-    piRlcChallenges initial count = some challenges := by
-  unfold piRlcChallenges piRlcChallengesWithState
-  induction count with
-  | zero =>
-      simp [sampleBatch]
-      funext index
-      exact Fin.elim0 index
-  | succ count inductionHypothesis =>
-      let prior : Fin count → RingF := fun index => challenges index.castSucc
-      have priorSuccess : ∀ index,
-          sampleRingChallenge initial index.val = some (prior index) := by
-        intro index
-        exact success index.castSucc
-      have mapped := inductionHypothesis prior priorSuccess
-      cases priorBatchEq : sampleBatch initial count with
-      | none => simp [priorBatchEq] at mapped
-      | some priorBatch =>
-        have priorChallenges : priorBatch.challenges = prior := by
-          simpa [priorBatchEq] using mapped
-        have lastEq : sampleRingChallenge initial count =
-            some (challenges (Fin.last count)) := by
-          simpa using success (Fin.last count)
-        rw [sampleBatch, priorBatchEq, lastEq]
-        apply congrArg some
-        funext index
-        refine Fin.lastCases ?_ (fun priorIndex => ?_) index
-        · simp
-        · simp [priorChallenges, prior]
+theorem piRlcChallenges_member (initial : State) (count : Nat) (index : Fin count) :
+    Phi81StrongSet.ProductionMember (piRlcChallenges initial count index) := by
+  rw [piRlcChallenges, piRlcChallengesWithState_challenges]
+  exact Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt_member initial index.val
 
 end PiRlcSampler
 

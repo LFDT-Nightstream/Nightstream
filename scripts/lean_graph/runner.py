@@ -17,7 +17,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from . import builds
-from .guard import build_lock, check_build_processes
+from .guard import build_lock, check_build_processes, kill_process_groups
 from .policy import CAPS, checker_key, verify_checker_sources
 from .snapshot import (EvidenceError, copy_file, dependency_keys, digest, entries, file_entry,
                        read_json, safe_relative, signature, verify, write_json)
@@ -167,11 +167,7 @@ def execute(command, work, log_path):
             except InterruptedError as error:
                 outcome, reason = "interrupted", str(error)
             finally:
-                # Also remove descendants of an exited parent before releasing the lock.
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                kill_process_groups(process.pid)
                 process.wait()
     except (OSError, EvidenceError, ValueError) as error:
         reason = str(error)

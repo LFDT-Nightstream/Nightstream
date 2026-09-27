@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 
 /-!
-Owns the compact ordinary matrix block for the 220,881 PiRLC sampler rows.
+Owns the compact ordinary matrix block for the 38,811 PiRLC sampler rows.
 The Lean-authored row schedule selects the exact physical compiled row, and
-the 35-grid substitution reconstructs its direct source forms.
+the four-grid substitution reconstructs its direct source forms.
 
 This module does not close PiRLC status or select a final package identity.
 -/
@@ -33,7 +33,7 @@ def block {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (block geometry).rowCount = 220881 := by
+    (block geometry).rowCount = 38811 := by
   exact rowSchedule_count
 
 def matrixProgram {program : Program} {logicalWidth : Nat}
@@ -43,7 +43,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 220881 := by
+    (matrixProgram geometry).rowCount = 38811 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

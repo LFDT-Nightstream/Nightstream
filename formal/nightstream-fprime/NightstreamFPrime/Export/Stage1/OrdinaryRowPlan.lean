@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.Data
 /-!
 Owns the bounded preparation plan for ordinary Stage 1 rows.
 
-The eight PiCCS packets, 544 PiRLC digest lanes, 17 selector-final packets,
+The eight PiCCS packets, 17 PiRLC reduction and 17 coefficient-word packets,
 one PiDEC packet, and one running-transition packet are independent immutable
 blocks. The emitter may prepare them concurrently, but it writes completed
 blocks in this Lean-owned order.
@@ -27,8 +27,8 @@ inductive Block where
   | ccs
   | norm
   | finalIdentity
-  | piRlcLane (source round : Nat) (lane : Fin 4)
-  | piRlcSelectorFinal (source : Nat)
+  | piRlcRange (source : Nat)
+  | piRlcWords (source : Nat)
   | explicitRows (values : List Rows.CompiledRow)
 deriving Repr
 
@@ -47,28 +47,21 @@ def Block.rows
   | .norm => PiCCSArithmetic.normRows logicalWidth publicFits
   | .finalIdentity =>
       PiCCSArithmetic.finalIdentityRows logicalWidth publicFits
-  | .piRlcLane source round lane =>
-      PiRLCSamplerOrdinaryRows.laneRows
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane
-  | .piRlcSelectorFinal source =>
-      PiRLCSamplerOrdinaryRows.selectorFinalRows source
+  | .piRlcRange source =>
+      PiRLCSamplerOrdinaryRows.rangeRows
+        (logicalWidth := logicalWidth) (publicFits := publicFits) source
+  | .piRlcWords source => PiRLCSamplerOrdinaryRows.wordRows source
   | .explicitRows values => values
 
 def piCcsBlocks (_unit : Unit) : List Block :=
   [.statementBinding, .initialClaim, .sumcheck, .evalK, .evalA, .ccs,
     .norm, .finalIdentity]
 
-def piRlcWindowBlocks (source round : Nat) : List Block :=
-  (List.finRange 4).map (Block.piRlcLane source round)
-
 def piRlcSourceBlocks (source : Nat) : List Block :=
-  (List.range PiRLCSamplerOrdinaryRows.digestRoundCount).flatMap
-      (piRlcWindowBlocks source) ++
-    [.piRlcSelectorFinal source]
+  [.piRlcRange source, .piRlcWords source]
 
 def piRlcBlocks (_unit : Unit) : List Block :=
-  (List.range PiRLCSamplerOrdinaryRows.sourceCount).flatMap
+  (List.range PiRLCSamplerInvocations.sourceCount).flatMap
     piRlcSourceBlocks
 
 def piDecBlock (_unit : Unit) : Block :=
@@ -89,19 +82,6 @@ def runningTransitionBlocks (_unit : Unit) : List Block :=
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcBlocks () ++ piDecBlocks () ++
     runningTransitionBlocks ()
-
-private theorem flatMap_map_rows {Alpha : Type}
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (values : List Alpha) (make : Alpha → Block) :
-    (values.map make).flatMap (Block.rows logicalWidth publicFits) =
-      values.flatMap fun value =>
-        (make value).rows logicalWidth publicFits := by
-  induction values with
-  | nil => rfl
-  | cons value rest inductionHypothesis =>
-      simp [inductionHypothesis]
 
 private theorem flatMap_flatMap_rows {Alpha : Type}
     (logicalWidth : Nat)
@@ -126,20 +106,6 @@ theorem piCcsBlocks_expand
   simp only [List.flatMap_cons, List.flatMap_nil, Block.rows,
     List.append_nil, List.append_assoc]
 
-theorem piRlcWindowBlocks_expand
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) :
-    (piRlcWindowBlocks source round).flatMap
-        (Block.rows logicalWidth publicFits) =
-      PiRLCSamplerOrdinaryRows.windowRows
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round := by
-  unfold piRlcWindowBlocks PiRLCSamplerOrdinaryRows.windowRows
-  rw [flatMap_map_rows]
-  rfl
-
 theorem piRlcSourceBlocks_expand
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -149,10 +115,8 @@ theorem piRlcSourceBlocks_expand
         (Block.rows logicalWidth publicFits) =
       PiRLCSamplerOrdinaryRows.sourceRows
         (logicalWidth := logicalWidth) (publicFits := publicFits) source := by
-  unfold piRlcSourceBlocks PiRLCSamplerOrdinaryRows.sourceRows
-  rw [List.flatMap_append, flatMap_flatMap_rows]
-  simp_rw [piRlcWindowBlocks_expand]
-  rfl
+  simp only [piRlcSourceBlocks, PiRLCSamplerOrdinaryRows.sourceRows,
+    List.flatMap_cons, List.flatMap_nil, Block.rows, List.append_nil]
 
 theorem piRlcBlocks_expand
     (logicalWidth : Nat)

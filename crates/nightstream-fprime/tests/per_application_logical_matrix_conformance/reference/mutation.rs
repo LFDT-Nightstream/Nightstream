@@ -7,12 +7,12 @@ use super::{array, exact_array, word, Result};
 #[derive(Clone, Copy, Debug)]
 pub enum RecipeFamily {
     Phi81,
-    First54,
+    ChallengeWords,
     OutputDigest,
 }
 
 impl RecipeFamily {
-    pub const ALL: [Self; 3] = [Self::Phi81, Self::First54, Self::OutputDigest];
+    pub const ALL: [Self; 3] = [Self::Phi81, Self::ChallengeWords, Self::OutputDigest];
 }
 
 pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Result<Vec<u8>> {
@@ -23,23 +23,26 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
         .and_then(|fields| fields.get_mut(4))
         .and_then(Value::as_array_mut)
         .ok_or_else(|| "missing assignment transport".to_string())?;
-    if transport.len() != 6 || transport[0].as_u64() != Some(2) {
+    if transport.len() != 5 || transport[0].as_u64() != Some(3) {
         return Err("unexpected assignment transport for mutation".into());
     }
     match family {
         RecipeFamily::Phi81 => {
-            shift_block_sources(transport, 7)?;
+            let first = transport[2][13][0][0]
+                .as_u64()
+                .ok_or_else(|| "missing Phi81 operand source".to_string())?;
+            transport[2][13][0][0] = Value::from(if first == 0 { 1 } else { first - 1 });
         }
-        RecipeFamily::First54 => {
+        RecipeFamily::ChallengeWords => {
             shift_block_sources(transport, 4)?;
         }
         RecipeFamily::OutputDigest => {
-            shift_block_sources(transport, 23)?;
-            let sources = block_sources(transport, 23)?;
+            shift_block_sources(transport, 19)?;
+            let sources = block_sources(transport, 19)?;
             if sources.len() != 4 {
                 return Err("output-digest block does not have four sources".into());
             }
-            transport[5] = Value::Array(
+            transport[4] = Value::Array(
                 sources
                     .into_iter()
                     .map(|source| Value::Array(vec![Value::from(0u64), Value::from(source as u64)]))

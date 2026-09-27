@@ -1,8 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 
 /-!
-Cache the two retained-source boundaries before constructing per-slot readers.
-Existing source-assignment functions own both suffixes, and BlockKind.template
+Cache the base-source boundary before constructing per-slot readers.
+The existing product source-assignment function owns the suffix, and BlockKind.template
 owns every block geometry. No retained value, slot encoding or order changes.
 -/
 
@@ -20,51 +20,42 @@ open NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan (BlockKind)
 Keeping the boundaries in a record separates preparation from column reads. -/
 structure Widths (application : Program) where
   baseWidth : Nat
-  prefixWidth : Nat
   baseWidth_eq : baseWidth = PiRLCProductPlan.baseSourceWidth application
-  prefixWidth_eq : prefixWidth = ProductRetainedBlock.sourceWidth baseWidth
-    PiRLCProductSchedule.invocationCount
 
 /-- This function returns data, not a curried column reader. The application
-width is evaluated once; the product-prefix width reuses that stored number. -/
+width is evaluated once and reused by every product-prefix read. -/
 @[noinline] def prepareWidths (application : Program) : Widths application :=
   let baseWidth := PiRLCProductPlan.baseSourceWidth application
   { baseWidth := baseWidth
-    prefixWidth := ProductRetainedBlock.sourceWidth baseWidth PiRLCProductSchedule.invocationCount
-    baseWidth_eq := rfl
-    prefixWidth_eq := rfl }
+    baseWidth_eq := rfl }
 
 private theorem sourceWidth_eq {application : Program} (widths : Widths application) :
-    FieldSuffixBlock.sourceWidth widths.prefixWidth PiRLCFirst54DirectSchedule.candidateCount =
+    ProductRetainedBlock.sourceWidth widths.baseWidth PiRLCProductSchedule.invocationCount =
       PiRLCRetainedGeometry.sourceWidth application := by
-  rw [widths.prefixWidth_eq, widths.baseWidth_eq]
+  rw [widths.baseWidth_eq]
   rfl
 
 /-- Read using numeric record fields. Fin casts affect only erased proofs;
-both suffix dispatches retain their original implementations. -/
+the product suffix retains its original implementation. -/
 @[noinline] def read {application : Program} (widths : Widths application)
     (raw : RawValues application)
     (column : Fin (PiRLCRetainedGeometry.sourceWidth application)) : F :=
-  FieldSuffixBlock.sourceAssignment widths.prefixWidth PiRLCFirst54DirectSchedule.candidateCount
-    (fun prefixColumn => ProductRetainedBlock.sourceAssignment widths.baseWidth
-      PiRLCProductSchedule.invocationCount
-      (fun base => raw.base (Fin.cast widths.baseWidth_eq base)) raw.groupValue
-      (Fin.cast widths.prefixWidth_eq prefixColumn))
-    raw.products (Fin.cast (sourceWidth_eq widths).symm column)
+  ProductRetainedBlock.sourceAssignment widths.baseWidth PiRLCProductSchedule.invocationCount
+    (fun base => raw.base (Fin.cast widths.baseWidth_eq base)) raw.groupValue
+    (Fin.cast (sourceWidth_eq widths).symm column)
 
-/-- The cache changes only where the two numeric boundaries are computed. -/
+/-- The cache changes only where the numeric boundary are computed. -/
 theorem read_eq_retainedSource {application : Program} (widths : Widths application)
     (raw : RawValues application) : read widths raw = raw.retainedSource := by
-  rcases widths with ⟨baseWidth, prefixWidth, baseWidth_eq, prefixWidth_eq⟩
+  rcases widths with ⟨baseWidth, baseWidth_eq⟩
   subst baseWidth
-  subst prefixWidth
   rfl
 
 private def usesRetainedSource : BlockKind → Bool
   | .applicationWitness | .applicationLocal => false
   | _ => true
 
-/-- Select the source type without copying any of the thirty block builders. -/
+/-- Select the source type without copying any of the 26 block builders. -/
 private theorem template_retainedWidth (application : Program) (kind : BlockKind)
     (selected : usesRetainedSource kind = true) :
     (kind.template application).sourceWidth = PiRLCRetainedGeometry.sourceWidth application := by
@@ -98,7 +89,7 @@ theorem block_eq {application : Program} (widths : Widths application)
       (template_retainedSource raw kind selected).symm
   · rfl
 
-/-- Build the same thirty-block schedule with one shared width cache. -/
+/-- Build the same 26-block schedule with one shared width cache. -/
 def expand {application : Program} (widths : Widths application)
     (raw : RawValues application) : Canonical.Schedule :=
   PerApplicationAssignmentPlan.canonicalKinds.map (block widths raw)

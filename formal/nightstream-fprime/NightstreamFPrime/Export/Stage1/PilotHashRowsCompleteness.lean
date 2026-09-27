@@ -89,7 +89,7 @@ private theorem chain_input
       ((if invocation = 0 then Hash.zeroE else
         Permutation.freshState (start + (invocation - 1) * 592 + 584)) lane).eval source := by
     by_cases first : invocation = 0
-    · simp [first, Hash.zeroE, R1CS.LinearCombination.eval_zero]
+    · simp [first, Hash.zeroE, R1CS.LinearCombination.eval_zero, Expr.eval]
     · have localBound : (invocation - 1) * 592 + 584 + lane.val <
           (chain.absorbCount + 1) * 592 := by
         have laneBound := lane.isLt
@@ -114,7 +114,7 @@ private theorem chain_input
           invocation * Poseidon2.rate + lane.val < chain.inputLength) := by
         simpa only [inputLength] using present
       rw [if_neg present, if_neg chainAbsent, previous]
-      simp
+      simp [Expr.eval]
   · rw [count]
     simp only [invocationInput, localCount, outputStart, rate, if_neg absorbing]
     change _ = (Hash.padE _ lane).eval source

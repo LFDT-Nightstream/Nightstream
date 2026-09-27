@@ -6,7 +6,7 @@ Owns canonical base advice and its pilot/C/R/D/transition witness construction. 
 HyperNova base branch permits dummy advice; this constructor selects the
 existing zero proof and fresh claim, and preserves the same semantic output.
 The verifier's dummy D output is separate from the base transition's default
-running output. Bounded sampler success remains an explicit execution premise.
+running output. The production sampler is total.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
@@ -60,7 +60,7 @@ theorem canonicalInput_preserves_base
     exact False.elim ((Nat.ne_of_gt positive) zero)
 
 /-- The canonical base advice constructs pilot, C/R/D, running-transition,
-and next-preimage rows when its actual bounded sampler succeeds. The actual
+and next-preimage rows using the total production sampler. The actual
 NIFS dummy result is preserved, while the base transition selects the semantic
 `defaultRunning`. No child opening or equality of those two values is assumed. -/
 theorem base_completePrefix
@@ -68,11 +68,7 @@ theorem base_completePrefix
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
     (step : StepHoldsFor relation ajtai context.toList
       Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
-    (zero : input.iteration = 0)
-    (challenges : Fin (ProductionKey.key relation ajtai).arity.total → RingF)
-    (sampled : (ProductionKey.key relation ajtai).piRlcChallenges defaultRunning
-      (Nifs.BaseCompleteness.baseFresh (priorHashPreimage (setup relation ajtai context.toList)
-        (canonicalInput relation ajtai context input))) Nifs.BaseCompleteness.zeroProof = some challenges) :
+    (zero : input.iteration = 0) :
     let normalized := canonicalInput relation ajtai context input
     let prior := priorHashPreimage (setup relation ajtai context.toList) normalized
     let next := nextHashPreimage (setup relation ajtai context.toList) normalized output
@@ -142,8 +138,7 @@ theorem base_completePrefix
     norm_num [goldilocksModulus]
   have priorWellFormed : StateEncoding.WellFormed prior := ⟨priorFixed, valid.1, rfl⟩
   have nextWellFormed : StateEncoding.WellFormed next := ⟨nextFixed, successor, nextPc⟩
-  obtain ⟨result, accepted⟩ := Nifs.BaseCompleteness.zeroProof_verify_of_sampler relation ajtai
-    prior challenges sampled
+  obtain ⟨result, accepted⟩ := Nifs.BaseCompleteness.zeroProof_verify relation ajtai prior
   refine ⟨normalizedStep, priorWellFormed, nextWellFormed, result, accepted, ?_⟩
   apply StepWitnessPrefix.completePrefix relation ajtai context normalized output result
     normalizedStep priorWellFormed nextWellFormed rfl accepted

@@ -1,9 +1,9 @@
 # HyperNova linear-security milestone
 
-Owner scope: the user's September 12 goal, updated for the supplied September 4
-SuperNeo v1.2 source. Work only on `nico/f-prime-constraints-cuda-formal`.
-Close this milestone before starting another. This registration uses the existing
-lean-graph schema and commands; it does not change the tool.
+This registration records the history-security criterion based on the
+September 4 SuperNeo v1.2 source. The sampler replacement keeps the original
+history event and reduction, and makes its statistical transfer loss explicit.
+The existing lean-graph schema and review process are unchanged.
 
 The final declaration is
 `NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity.history_probability_linear_bound`.
@@ -17,8 +17,16 @@ The required conclusion is
 ```
 Pr[accepted terminal] ≤ Pr[returned history advice]
   + Σ j < depth, (hashCollision_j + active_j - g(Q_j)(active_j) + deltaFS(Q_j)
+      + sampleQueries(Q_j) * samplerDistance
       + weakLoss + testError + 17 * adaptiveMsisSuccess_j).
 ```
+
+`samplerDistance < 2^-132` is proved for one uniform four-field draw.
+`sampleQueries` counts all block-oracle calls of the translated experiment,
+including adversarial calls and replays. It is not replaced by the 17 verifier
+challenges. The cumulative sampler term is
+`samplerDistance * sum_j sampleQueries(Q_j)`; `samplerTransferError_sum`
+proves this accounting. Concrete Poseidon2/FS applicability remains external.
 
 Each term uses the same actual guarded visit and source laws as the existing
 history theorem. `adaptiveMsisSuccess_j` must be the success probability of the
@@ -31,11 +39,15 @@ Required premises:
 - The initial counter is at most symbolic `depth` on its support.
 - The fixed selected continuation, source program and tapes supply the same
   operational source and all visit laws. Existing storage and primitive clock
-  bounds, correctness facts, summability and low-norm invertibility stay visible.
+  bounds, correctness facts and summability stay visible. The concrete Phi81
+  low-norm invertibility fact is supplied by its checked proof.
 - Every guarded real experiment satisfies the already approved classical
   additive-Poseidon2 `FiatShamirTransfer.FiatShamirModel`, with shared `g` and
-  `deltaFS` and its own total permutation-query count `Q_j`. This registration
-  does not construct or strengthen that external model.
+  combined error `samplerTransferError deltaFS sampleQueries` and its own total
+  permutation-query count `Q_j`. `FiatShamirModel.of_blockOracle` derives this
+  interface from an explicitly supplied raw/balanced block-oracle game transfer
+  using the proved sampler comparison. It does not instantiate that transfer
+  for concrete Poseidon2. No default query inflation or numerical model is supplied.
 - The public fixed-seed MSIS assumption can bound the computed reduction only
   after its adaptive calls, termination, expected work, preprocessing and query
   use fit the approved model. Its hardness bound remains an explicit assumption.
@@ -75,8 +87,8 @@ Use `explain hypernova-linear-security` for remaining validation and review.
 The registered gate runs static, build, axioms, the exact target check and
 declaration export, in order. General build success cannot replace the exact
 target and correspondence checks. Reuse the existing evidence store and graph
-queries. Native fixtures do not change in this proof milestone. Rust lifecycle
-conformance remains a separate required milestone in the parent goal.
+queries. Rust lifecycle conformance remains a separate required check. Sampler integration
+changes the selected artifacts, so old fixture receipts cannot validate it.
 
 Reference: `docs/superneo-paper-v1_2`, `SUPERNEO_V1_2_DELTA.md`,
 `FIAT_SHAMIR_MODEL.md` and `PUBLIC_SEED_MSIS_ASSUMPTION.md` under

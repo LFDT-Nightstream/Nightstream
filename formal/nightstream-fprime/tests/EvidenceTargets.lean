@@ -243,7 +243,11 @@ open Poseidon2HashChainV1Setup (productionAjtaiKey)
 open PiDECInputCheck (relation)
 
 /-- Exact final linear history criterion for ordinary state and tape types.
-All source, FS, depth and primitive-clock premises are stated here. This criterion does not assert hardness or an efficient FS translation. -/
+All source, FS, depth and primitive-clock premises are stated here. The
+sampler contribution is explicit per visit. `FiatShamirModel.of_blockOracle`
+constructs the combined transfer from a specified raw/balanced experiment;
+concrete Poseidon2 applicability and query inflation remain external. This
+criterion does not assert hardness or an efficient FS translation. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (State Tape : Type)
   (tapes : Visit → PublicCoins K productionShape →
@@ -273,7 +277,7 @@ def HyperNovaLinearSecurity : Prop :=
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
     (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
-    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -303,7 +307,8 @@ def HyperNovaLinearSecurity : Prop :=
         abortTape (provider j)
     (∀ j : Fin depth,
       FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+        (realLaw (visits j)) firstPhase abortTape (provider j) g
+          (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
     (initial.toOuterMeasure {input |
       PerApplicationTerminal.Holds Poseidon2HashChainV1Package.application
         Poseidon2HashChainV1Package.fits Poseidon2HashChainV1Setup.productionSetup input.1 input.2}).toReal ≤
@@ -314,7 +319,9 @@ def HyperNovaLinearSecurity : Prop :=
               {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
             (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
               g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              deltaFS (queries j) +
+              sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
+              InteractiveComposition.weakLoss relation productionAjtaiKey +
               IndependentExecution.testError productionShape 9 +
               AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
@@ -323,8 +330,17 @@ def HyperNovaLinearSecurity : Prop :=
 
 /-- The final selected history theorem discharges the literal registered
 probability criterion, including its exact operational source and events. -/
-theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity :=
-  @HyperNovaVisitedSecurity.history_probability_linear_bound
+theorem hyperNovaLinearSecurity : HyperNovaLinearSecurity := by
+  intro State Tape tapes rawCall checkClock storageClock parentClock storageBound storageBounded
+    baseSummable decEq finite nonempty initial depth depthBound originalFirstPhase abortTape
+    g deltaFS sampleQueries queries scalarSubClock inverseAdapterClock assignmentSubClock
+    scalarActionClock sourceCheckClock accessClock bounds bounded
+  simpa only [FiatShamirTransfer.samplerTransferError, add_assoc] using
+    (HyperNovaVisitedSecurity.history_probability_linear_bound tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable initial depth depthBound originalFirstPhase
+      abortTape g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) queries
+      scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock
+      accessClock bounds bounded)
 
 #audit_axioms hyperNovaLinearSecurity
 
@@ -358,7 +374,7 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
     (initial : PMF (Statement × Envelope)) (depth : Nat)
     (_depthBound : ∀ input ∈ initial.support, input.1.iteration ≤ depth)
     (originalFirstPhase : Visit → InteractivePrefix.Prover State productionShape 9)
-    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (queries : Fin depth → Nat)
+    (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (sampleQueries : Nat → Nat) (queries : Fin depth → Nat)
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
@@ -388,14 +404,17 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
         abortTape (provider j)
     (∀ j : Fin depth,
       FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
-        (realLaw (visits j)) firstPhase abortTape (provider j) g deltaFS (queries j)) →
+        (realLaw (visits j)) firstPhase abortTape (provider j) g
+          (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
     (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance input}).toReal ≤
       ∑ j : Fin depth,
           (((visits j).toOuterMeasure
               {visit | HyperNovaFirstFailure.MarkedHashCollision visit}).toReal +
             (((visits j).toOuterMeasure {visit | goodActive visit}).toReal -
               g (queries j) ((visits j).toOuterMeasure {visit | goodActive visit}).toReal +
-              deltaFS (queries j) + InteractiveComposition.weakLoss relation productionAjtaiKey +
+              deltaFS (queries j) +
+              sampleQueries (queries j) * NonInteractive.PiRlcSampler.distance +
+              InteractiveComposition.weakLoss relation productionAjtaiKey +
               IndependentExecution.testError productionShape 9 +
               AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
                 firstPhase (SupportedExtraction.publicCheck running) (extended j)
@@ -403,8 +422,17 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
                   (sourceCheckClock visit) (accessClock visit)) (contexts j) * PaperProfile.arity.total))
 
 /-- The original mixed-law event bridge discharges the registered criterion. -/
-theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance :=
-  @HyperNovaFalseAcceptance.probability_linear_bound
+theorem hyperNovaTerminalFalseAcceptance : HyperNovaTerminalFalseAcceptance := by
+  intro State Tape tapes rawCall checkClock storageClock parentClock storageBound storageBounded
+    baseSummable decEq finite nonempty initial depth depthBound originalFirstPhase abortTape
+    g deltaFS sampleQueries queries scalarSubClock inverseAdapterClock assignmentSubClock
+    scalarActionClock sourceCheckClock accessClock bounds bounded
+  simpa only [FiatShamirTransfer.samplerTransferError, add_assoc] using
+    (HyperNovaFalseAcceptance.probability_linear_bound tapes rawCall checkClock storageClock parentClock
+      storageBound storageBounded baseSummable initial depth depthBound originalFirstPhase
+      abortTape g (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) queries
+      scalarSubClock inverseAdapterClock assignmentSubClock scalarActionClock sourceCheckClock
+      accessClock bounds bounded)
 
 #audit_axioms hyperNovaTerminalFalseAcceptance
 

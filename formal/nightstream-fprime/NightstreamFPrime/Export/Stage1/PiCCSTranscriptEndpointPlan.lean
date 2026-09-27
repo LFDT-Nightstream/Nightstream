@@ -500,17 +500,16 @@ theorem sourceForm_eval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (family : Fin familyCount) (lane : Fin laneCount) :
     (sourceForm geometry family lane).eval assignment =
       PiCCSActionPayloadBlock.packageEnv program
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) (endpointColumn family lane) := by
+          program base groupValue) (endpointColumn family lane) := by
   rw [PiCCSPoseidonPreservation.packageEnv_sourceAssignment program base
-    groupValue products (endpointColumn family lane)
+    groupValue (endpointColumn family lane)
     (endpointColumn_lt_source family lane)]
   by_cases output : family.val = 3
   · have familyEq : family = outputFamily := by
@@ -536,7 +535,7 @@ theorem sourceForm_eval
         norm_num [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] <;> omega)).symm
   · rw [sourceForm, dif_neg output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
-        groupValue products encoding]
+        groupValue encoding]
     rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, proofLogicalIndex_source]
     rfl
 
@@ -603,19 +602,18 @@ theorem rowsZero_implies_endpointValue
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
     (family : Fin familyCount) (lane : Fin laneCount) :
     PiCCSPoseidonPreservation.outputValue poseidonGeometry assignment
         (endpointInvocation family) lane =
       PiCCSActionPayloadBlock.packageEnv program
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) (endpointColumn family lane) := by
+          program base groupValue) (endpointColumn family lane) := by
   have rowZero := (rowsZero_iff poseidonGeometry ordinaryGeometry assignment
     one).mp rowsZero (row family lane)
   rw [bindingForm, descriptor_row, SparseForm.add_eval,
@@ -632,7 +630,7 @@ theorem rowsZero_implies_endpointValue
       rfl
     _ = (sourceForm ordinaryGeometry family lane).eval assignment := formsEq
     _ = _ := sourceForm_eval ordinaryGeometry assignment base groupValue
-      products encoding family lane
+      encoding family lane
 
 private theorem statementFinalState_endpoint (lane : Fin laneCount) :
     StatementAbsorption.finalState
@@ -742,12 +740,11 @@ theorem rowsZero_implies_endpointState
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
     (family : Fin familyCount) :
     PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
@@ -755,12 +752,12 @@ theorem rowsZero_implies_endpointState
       List.ofFn fun lane : Fin laneCount =>
         PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products) (endpointColumn family lane) := by
+            program base groupValue) (endpointColumn family lane) := by
   unfold PiCCSPoseidonPreservation.valueState
   apply congrArg List.ofFn
   funext lane
   exact rowsZero_implies_endpointValue poseidonGeometry ordinaryGeometry
-    assignment base groupValue products one encoding rowsZero family lane
+    assignment base groupValue one encoding rowsZero family lane
 
 private theorem endpointState_eq_finalEval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -770,12 +767,11 @@ private theorem endpointState_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment)
     (family : Fin familyCount) (finalState : Layer.EState)
     (finalEndpoint : ∀ lane : Fin laneCount,
@@ -785,9 +781,9 @@ private theorem endpointState_eq_finalEval
       List.ofFn (Layer.evalState
         (PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products)) finalState) := by
+            program base groupValue)) finalState) := by
   rw [rowsZero_implies_endpointState poseidonGeometry ordinaryGeometry
-    assignment base groupValue products one encoding rowsZero family]
+    assignment base groupValue one encoding rowsZero family]
   apply congrArg List.ofFn
   funext lane
   unfold Layer.evalState
@@ -802,25 +798,24 @@ private theorem statementEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
     PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
         PiCCSTranscriptDirectSemantics.statementLast =
       List.ofFn (Layer.evalState
         (PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products))
+            program base groupValue))
         (StatementAbsorption.finalState
           (PiCCSInvocations.statementInterface Data.logicalWidth
             Data.publicFits) PiCCSInvocations.statementWitnessStart)) := by
   simpa [endpointInvocation, statementFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue products one encoding rowsZero statementFamily
+      base groupValue one encoding rowsZero statementFamily
       (StatementAbsorption.finalState
         (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.statementWitnessStart) statementFinalState_endpoint
@@ -833,25 +828,24 @@ private theorem challengeEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
     PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
         PiCCSTranscriptDirectSemantics.challengeLast =
       List.ofFn (Layer.evalState
         (PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products))
+            program base groupValue))
         (ChallengeDerivation.finalState
           (PiCCSInvocations.challengeInterface Data.logicalWidth
             Data.publicFits) PiCCSInvocations.challengeWitnessStart)) := by
   simpa [endpointInvocation, challengeFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue products one encoding rowsZero challengeFamily
+      base groupValue one encoding rowsZero challengeFamily
       (ChallengeDerivation.finalState
         (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.challengeWitnessStart) challengeFinalState_endpoint
@@ -864,25 +858,24 @@ private theorem roundEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
     PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
         PiCCSTranscriptDirectSemantics.roundLast =
       List.ofFn (Layer.evalState
         (PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products))
+            program base groupValue))
         (RoundTranscript.finalState
           (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.roundWitnessStart)) := by
   simpa [endpointInvocation, roundFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue products one encoding rowsZero roundFamily
+      base groupValue one encoding rowsZero roundFamily
       (RoundTranscript.finalState
         (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.roundWitnessStart) roundFinalState_endpoint
@@ -897,47 +890,44 @@ theorem outputEndpoint_eq_finalEval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))
+        program base groupValue))
     (rowsZero : (plan poseidonGeometry ordinaryGeometry).RowsZero assignment) :
     PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
         PiCCSTranscriptDirectSemantics.outputLast =
       List.ofFn (Layer.evalState
         (PiCCSActionPayloadBlock.packageEnv program
           (PiRLCRetainedPreservation.sourceAssignment
-            program base groupValue products))
+            program base groupValue))
         (OutputBinding.finalState
           (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.outputWitnessStart)) := by
   simpa [endpointInvocation, outputFamily] using
     endpointState_eq_finalEval poseidonGeometry ordinaryGeometry assignment
-      base groupValue products one encoding rowsZero outputFamily
+      base groupValue one encoding rowsZero outputFamily
       (OutputBinding.finalState
         (PiCCSInvocations.outputInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.outputWitnessStart) outputFinalState_endpoint
 
 def transcriptEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Env :=
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Env :=
   PiCCSTranscriptReadout.env <|
     PerApplicationPackage.baseEnv program <| SourceCompiler.sourceEnv <|
-      PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+      PiRLCRetainedPreservation.sourceAssignment program base groupValue
 
 theorem transcriptEnv_eq_transitionEnv_of_lt
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat) (bound : column < Spartan.spartanColumnCount) :
-    transcriptEnv program base groupValue products column =
+    transcriptEnv program base groupValue column =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   exact PiCCSPoseidonPreservation.readout_sourceAssignment
-    program base groupValue products column bound
+    program base groupValue column bound
 
 private theorem zeroState_eq_evalZero (env : Env) :
     Spec.Poseidon2.zeroState =

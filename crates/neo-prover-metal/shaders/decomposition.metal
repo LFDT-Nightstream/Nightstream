@@ -56,67 +56,6 @@ kernel void dec_split_base2_masks(
 }
 
 [[max_total_threads_per_threadgroup(128)]]
-kernel void dec_ring_partials(
-    device const ulong *forms [[buffer(0)]],
-    device const ulong *masks [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *partials [[buffer(3)]],
-    device const uint *active_children [[buffer(4)]],
-    device const uint *child_nonzero [[buffer(5)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong active_count = shape[1];
-    ulong form_rows = shape[2];
-    ulong cols = shape[3];
-    ulong chunks = shape[4];
-    ulong coefficient = index % RING_PRODUCT_COEFFICIENTS;
-    ulong rest = index / RING_PRODUCT_COEFFICIENTS;
-    ulong chunk = rest % chunks;
-    ulong group = rest / chunks;
-    ulong active_child = group / form_rows;
-    ulong form_row = group % form_rows;
-    if (active_child >= active_count) {
-        return;
-    }
-    ulong child = active_children[active_child];
-    if (shape[5] != 0 && child_nonzero[child] == 0) {
-        partials[index] = 0;
-        return;
-    }
-
-    ulong column_start = chunk * DEC_CHUNK_COLUMNS;
-    ulong column_end = min(column_start + DEC_CHUNK_COLUMNS, cols);
-    ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;
-    ulong term_end = coefficient < RING_DEGREE ? coefficient : RING_DEGREE - 1;
-    ulong valid = (~0ul << term_start) & ((1ul << (term_end + 1)) - 1);
-    ulong positive_lo = 0;
-    ulong positive_hi = 0;
-    ulong negative_lo = 0;
-    ulong negative_hi = 0;
-    for (ulong column = column_start; column < column_end; ++column) {
-        ulong mask_base = 2 * (child * cols + column);
-        ulong positive = masks[mask_base] & valid;
-        while (positive != 0) {
-            uint term = (uint)ctz(positive);
-            positive &= positive - 1;
-            ulong value = forms[(form_row * cols + column) * RING_DEGREE + coefficient - term];
-            ulong next = positive_lo + value;
-            positive_hi += next < positive_lo;
-            positive_lo = next;
-        }
-        ulong negative = masks[mask_base + 1] & valid;
-        while (negative != 0) {
-            uint term = (uint)ctz(negative);
-            negative &= negative - 1;
-            ulong value = forms[(form_row * cols + column) * RING_DEGREE + coefficient - term];
-            ulong next = negative_lo + value;
-            negative_hi += next < negative_lo;
-            negative_lo = next;
-        }
-    }
-    partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
-}
-
-[[max_total_threads_per_threadgroup(128)]]
 kernel void dec_sparse_ring_partials(
     device const ulong *forms [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],
@@ -192,21 +131,6 @@ kernel void dec_sparse_ring_partials(
         }
     }
     partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
-}
-
-kernel void dec_ring_sum_chunks(
-    device const ulong *partials [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *sums [[buffer(2)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong chunks = shape[4];
-    ulong group = index / RING_PRODUCT_COEFFICIENTS;
-    ulong coefficient = index % RING_PRODUCT_COEFFICIENTS;
-    ulong value = 0;
-    for (ulong chunk = 0; chunk < chunks; ++chunk) {
-        value = gl_add(value, partials[(group * chunks + chunk) * RING_PRODUCT_COEFFICIENTS + coefficient]);
-    }
-    sums[index] = value;
 }
 
 kernel void dec_sparse_ring_sum_chunks(

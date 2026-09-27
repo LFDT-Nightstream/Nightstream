@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Algebra
-import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet
 
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81StrongSet.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
+at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; adapted to own the sampler-independent challenge alphabet. -/
 
 /-!
 Goldilocks/Phi81 instantiation of the production `Pi_RLC` strong sampling set.
@@ -42,9 +41,14 @@ centered coefficients at most 4, and `3 * 4^2 < q`.
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open ProductionAlphabet
-open ProductionStrongSet
+/-- Five centered coefficient symbols, represented before subtracting two. -/
+def alphabetSize : Nat := 5
+
+/-- Number of coefficients in a Phi81 challenge. -/
+def coefficientCount : Nat := 54
+
+abbrev Coefficient := Fin alphabetSize
+abbrev Scalar := Fin coefficientCount → Coefficient
 
 /-! ## Exact Goldilocks embedding -/
 

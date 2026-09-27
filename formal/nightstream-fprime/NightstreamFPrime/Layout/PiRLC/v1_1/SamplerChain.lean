@@ -21,39 +21,33 @@ def PhysicalHolds (interface : Logical.Interface) (offset : Nat)
 /-- Physical chain rows imply the exact logical 17-sampler relation. -/
 theorem physical_implies_relation (interface : Logical.Interface)
     (offset : Nat) (env : Env)
-    (assumptions : Logical.Assumptions interface offset env)
+    (assumptions : Logical.Assumptions interface offset)
     (physical : PhysicalHolds interface offset env) :
-    Logical.RelationHolds interface offset env := by
+    Logical.SpecHolds interface offset env := by
   change R1CS.RowsHold env (physicalRows interface offset) at physical
   rw [physicalRows_eq] at physical
   have logicalRows :=
     R1CS.LoweringPlan.sound (plan interface offset) env physical
   rw [plan_constraints] at logicalRows
-  apply Logical.soundness interface offset env assumptions
+  apply Logical.soundness interface env offset assumptions
   apply holdsFlat_implies_holds
   simpa only [logicalConstraints] using! logicalRows
 
-set_option maxRecDepth 100000 in -- fixed-size: 17 scalar samplers
 theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     (env : Env) (inputs : InputsAffine interface offset)
-    (assumptions : Logical.Assumptions interface offset env)
-    (relation : Logical.RelationHolds interface offset env) :
+    (assumptions : Logical.Assumptions interface offset) :
     ∃ completed,
-      AgreesOutside env completed offset 1007199 ∧
+      AgreesOutside env completed offset 81719 ∧
       PhysicalHolds interface offset completed := by
-  rcases Logical.completeness interface offset env assumptions relation with
+  rcases Logical.complete interface env offset assumptions with
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
   have logicalAgreesFixed : AgreesOutside env logicalEnv offset
       Logical.logicalPrivateCount := by
     rw [Logical.localLength_eq] at logicalAgrees
     exact logicalAgrees
-  have logicalAssumptions : Logical.Assumptions interface offset logicalEnv :=
-    ⟨assumptions.initialBelow⟩
   have logicalScope : ∀ expression ∈ logicalConstraints interface offset,
-      expression.VarsBelow (offset + Logical.logicalPrivateCount) := by
-    simpa only [logicalConstraints] using
-      (Logical.flatConstraints_varsBelow_of_rows interface offset logicalEnv
-        logicalAssumptions logicalRows)
+      expression.VarsBelow (offset + Logical.logicalPrivateCount) :=
+    Logical.scope interface offset assumptions
   have planScope : ∀ expression ∈ (plan interface offset).constraints,
       expression.VarsBelow (plan interface offset).firstFresh := by
     rw [plan_constraints, plan_firstFresh]
@@ -66,14 +60,14 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
       planScope planLogical with
     ⟨completed, physicalAgrees, rows⟩
   have physicalAgreesFixed : AgreesOutside logicalEnv completed
-      (offset + Logical.logicalPrivateCount) 743631 := by
+      (offset + Logical.logicalPrivateCount) 26316 := by
     rw [← plan_firstFresh interface offset,
       ← freshColumnCount_eq interface offset inputs]
     exact physicalAgrees
   refine ⟨completed, ?_, ?_⟩
   · have combined := logicalAgreesFixed.append physicalAgreesFixed
-    have logicalCount : Logical.logicalPrivateCount = 263568 :=
-      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.logicalPrivateCount_eq
+    have logicalCount : Logical.logicalPrivateCount = 55403 :=
+      NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.counts.1
     rw [logicalCount] at combined
     simpa using combined
   · change R1CS.RowsHold completed (physicalRows interface offset)

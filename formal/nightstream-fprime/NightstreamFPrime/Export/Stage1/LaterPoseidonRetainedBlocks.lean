@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 /-!
 Owns zero-copy PiCCS and PiRLC sampler views of the retained later-Poseidon2
 block. PiCCS owns the first 7,604 invocations and the sampler owns the next
-153. Both views keep the original invocation-major coordinate order.
+34. Both views keep the original invocation-major coordinate order.
 
 This module does not construct matrix rows or duplicate retained values.
 -/
@@ -20,7 +20,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
 def piCcsInvocationCount : Nat := 7604
-def samplerInvocationCount : Nat := 153
+def samplerInvocationCount : Nat := 34
 
 def piCcsSlotCount : Nat :=
   piCcsInvocationCount * PoseidonRetainedSlots.rows.length
@@ -74,13 +74,13 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem samplerBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (samplerBlock program).slotCount = 13158 := by
+    (samplerBlock program).slotCount = 2924 := by
   calc
     (samplerBlock program).slotCount = samplerSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         piCcsSlotCount samplerSlotCount (samplerFits program)
-    _ = 13158 := by rfl
+    _ = 2924 := by rfl
 
 @[simp] theorem piCcsBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -98,7 +98,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem samplerBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (samplerBlock program).coordinateCount = 539478 := by
+    (samplerBlock program).coordinateCount = 119884 := by
   calc
     (samplerBlock program).coordinateCount =
         samplerSlotCount *
@@ -106,7 +106,7 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
       LowNormBlock.Block.slice_coordinateCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         piCcsSlotCount samplerSlotCount (samplerFits program)
-    _ = 539478 := by
+    _ = 119884 := by
       rw [PiRLCRetainedGeometry.laterPoseidonBlock_kind]
       rfl
 

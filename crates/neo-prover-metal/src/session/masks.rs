@@ -77,11 +77,6 @@ impl MetalWitnessMasks {
         })
     }
 
-    #[cfg(feature = "legacy-adapter")]
-    pub(super) fn matches(&self, witness_count: usize, blocks: usize) -> bool {
-        self.witness_count == witness_count && self.blocks == blocks && self.magnitudes == 1
-    }
-
     pub(super) fn matches_joint(&self, witness_count: usize, blocks: usize) -> bool {
         self.witness_count == witness_count && self.blocks == blocks
     }
@@ -188,31 +183,6 @@ impl MetalSession {
             magnitudes,
             active_witnesses,
         })
-    }
-
-    #[cfg(feature = "legacy-adapter")]
-    pub(crate) fn prepare_witness_masks(
-        &self,
-        words: &[u64],
-        witness_count: usize,
-        blocks: usize,
-        active_rows: usize,
-    ) -> Result<MetalWitnessMasks, MetalError> {
-        let expected_words = witness_count
-            .checked_mul(blocks)
-            .and_then(|values| values.checked_mul(2))
-            .ok_or(MetalError::Shape("witness mask dimensions overflow"))?;
-        if words.len() != expected_words {
-            return Err(MetalError::Shape("witness masks have inconsistent dimensions"));
-        }
-        MetalWitnessMasks::new(
-            self.buffer_from_slice(words)?,
-            words,
-            witness_count,
-            blocks,
-            1,
-            active_rows,
-        )
     }
 
     pub(crate) fn prepare_witness_digit_masks(

@@ -45,11 +45,11 @@ def families : List ProductFamily :=
     MatrixProgram.Phi81Product.Family.privateCount,
     CombinationStep.privateCount, ringDegree]
 
-/-- Final First54 value slot for source zero. -/
-def challengeSlotStart : Nat := 63 * 54
+/-- First checked coefficient word of source zero. -/
+def challengeSlotStart : Nat := 0
 
-/-- Distance between final First54 value rows of adjacent sources. -/
-def challengeSourceStride : Nat := 64 * 54
+/-- Each source owns exactly 54 checked coefficient words. -/
+def challengeSourceStride : Nat := 54
 
 def prefixGeometry {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -74,8 +74,8 @@ def block {program : Lifecycle.Stage1.Application.Program}
   families := families
   oneColumn := (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).val
   challenge := MatrixProgram.RetainedBlock.ofSemantic
-    (PiRLCFirst54RetainedBlocks.valueBlock program)
-    (PiRLCRetainedGeometry.valueStart program)
+    (PiRLCRetainedGeometry.challengeBlock program)
+    (PiRLCRetainedGeometry.challengeStart program)
   challengeSlotStart := challengeSlotStart
   challengeSourceStride := challengeSourceStride
   input := PiRLCValueMatrixProgram.substitution program

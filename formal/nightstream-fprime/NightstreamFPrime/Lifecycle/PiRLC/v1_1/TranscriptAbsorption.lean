@@ -85,9 +85,10 @@ theorem ownedSpec_iff_specHolds (interface : Interface)
     Formal.Action.eval, Formal.TraceHolds]
   rw [eval_constantWords]
   unfold NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.enterScalar
-  unfold NightstreamFPrime.Lifecycle.Transcript.absorb
+  unfold NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.enter
     Absorb.reference Hash.inputChunks frameWords
-  rfl
+  simp [Poseidon2.rate, NightstreamFPrime.Lifecycle.natWord, evalState,
+    output, ownedInterface, actions, frameWords]
 
 /-- The sole logical circuit for scalar-domain entry. -/
 def circuit (interface : Interface) (coordinate : Nat) : FormalCircuit where

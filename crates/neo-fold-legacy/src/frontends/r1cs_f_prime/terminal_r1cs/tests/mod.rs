@@ -1,1 +1,0 @@
-mod streaming_x_out_authority;

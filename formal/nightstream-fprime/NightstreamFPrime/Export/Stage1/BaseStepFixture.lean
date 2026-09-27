@@ -69,7 +69,7 @@ private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue [value.c0, value.c1])
 
 /-- Construct one base-step caller packet from the explicit fixture context.
-Sampler shortfall and an out-of-range parent fail before any file is emitted.
+An out-of-range parent fails before any file is emitted; the sampler is total.
 All 17 challenges use the fixed five-symbol alphabet and existing `T = 216`
 profile; this constructor does not select a sampler or decomposition policy. -/
 def valueIO (context : VerifierContext.Digest4) : IO Value := do
@@ -91,9 +91,8 @@ def valueIO (context : VerifierContext.Digest4) : IO Value := do
     preSumcheck.state (canonicalFinIndices productionShape.cubeVariables)
   let piCcsState := ProductionKey.absorbFullOutput rounds.2
     (PiCCSProofInputs.output zeroProof)
-  let some batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
       piCcsState productionShape.sourceCount
-    | throw (IO.userError "base-step fixture: PiRLC sampler shortfall")
   let sourcePublic : Fin productionShape.sourceCount → PublicInput :=
     Fin.addCases (fun _ : Fin productionShape.freshCount => priorPublic)
       (fun _ : Fin productionShape.runningCount => fun _ => 0)

@@ -1,6 +1,4 @@
-use neo_params::{
-    goldilocks_paper_b2, nightstream_goldilocks_k16, pi_rlc_sampler_completeness_summary, NeoParams, ParamsError,
-};
+use neo_params::{goldilocks_paper_b2, nightstream_goldilocks_k16, NeoParams, ParamsError};
 
 #[test]
 fn goldilocks_paper_b2_matches_guard_and_b() {
@@ -22,18 +20,6 @@ fn nightstream_goldilocks_k16_matches_the_frozen_binary_profile() {
     assert_eq!(p.B, nightstream_goldilocks_k16::B);
     assert_eq!(p.B, 1 << 16);
     assert_eq!(p.max_fresh_count_from_rlc_guard().unwrap(), 287);
-}
-
-#[test]
-fn pi_rlc_sampler_schedule_meets_appendix_b2_completeness() {
-    let summary = pi_rlc_sampler_completeness_summary();
-
-    assert_eq!(summary.digest_rounds, 8);
-    assert_eq!(summary.field_lanes, 32);
-    assert_eq!(summary.candidates, 64);
-    assert_eq!(summary.required, goldilocks_paper_b2::D);
-    assert_eq!(summary.completeness_bits, 136);
-    assert_eq!(summary.slack_bits, 11);
 }
 
 #[test]

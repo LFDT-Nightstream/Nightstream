@@ -7,9 +7,6 @@ connects that count to the selected production profile. No set is enumerated. -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
-open Folding.Nifs.NonInteractive.PiRlcSampler
-open ProductionAlphabet ProductionStrongSet
-
 /-- The sampler has five choices at each of its 54 coefficient positions. -/
 theorem scalar_cardinality : Nat.card Scalar = productionChallengeSetCardinality := by
   change Nat.card (Fin coefficientCount → Fin alphabetSize) = _

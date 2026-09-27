@@ -1,14 +1,14 @@
+import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
+import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
-import NightstreamFPrime.Export.Stage1.PiRLCFirst54Completeness
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
 /-!
 Owns the adjacent conversion from completed Spartan PiRLC rows to the product
-and First54 plans on the canonical retained assignment. The physical source
+plan on the canonical retained assignment. The physical source
 copy supplies the packet proofs; the assignment transport supplies the honest
-intermediate values. No caller supplies product equations or selector bits.
+intermediate values. No caller supplies product equations.
 -/
 
 set_option autoImplicit false
@@ -81,23 +81,8 @@ private theorem semantics_of_packets
   let env := RunningTransitionDirectPlan.packageEnv application base
   have families :=
     PiRLCCombinationCompleteness.remappedPackets_imply_familyInvocationRows env packets
-  have selectors :=
-    PiRLCFirst54Completeness.remappedPacket_implies_first54Invocations env packets
-  have ordinary := PiRLCSamplerCompleteness.remappedPacket_implies_ordinaryRows env packets
-  have templates : (Data.circuitPackage ()).compactRowTemplates =
-      PiRLCFirst54Invocations.packageTemplates :=
-    Data.circuitPackage_compactRowTemplates
-  refine ⟨?_, ?_⟩
-  · intro index
-    exact descriptor_sourceConstraint env families (PiRLCProductSchedule.descriptor index)
-  · intro source
-    have specification := PiRLCFirst54Conformance.packageInvocations_imply_spec
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
-      (Data.circuitPackage ()) templates source.val source.isLt env selectors ordinary
-    exact PiRLCFirst54DirectBridge.specHolds_implies_sourceHolds application base
-      (PiRLCFirst54Conformance.sourceInterface
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val)
-      source.val source specification
+  intro index
+  exact descriptor_sourceConstraint env families (PiRLCProductSchedule.descriptor index)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -148,11 +133,10 @@ theorem packets_of_completed
   exact PiRLCPackageCompleteness.remappedPhysicalRows_imply_packets relation env
     ((Spartan.remapRows_hold env _).mpr copiedRows)
 
-/-- The completed physical prefix makes the exact canonical product and
-First54 plan vanish. The actual PiRLC phase supplies its own scope and packet
-constraints. The canonical assignment transport supplies the honest Phi81
-and First54 intermediate values; no source equation, selector-bit condition,
-or equality between caller environments is a premise. -/
+/-- The completed physical prefix makes the exact canonical product plan vanish.
+The actual PiRLC phase supplies its own scope and packet constraints. The
+canonical assignment transport supplies the honest Phi81 intermediate values;
+no source equation or equality between caller environments is a premise. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -175,11 +159,8 @@ theorem rowsZero_of_completed
         (PerApplicationCanonicalEncodes.retainedGeometry application)) raw.assignment := by
     funext invocation group
     exact canonicalRawValues_groupValue_eq_honestGroupValue application base invocation group
-  have products : raw.products = PiRLCFirst54DirectPlan.honestProducts application base := by
-    funext candidate
-    exact canonicalRawValues_products_eq_honestProducts application base candidate
   have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
-  rw [groups, products] at encodes
+  rw [groups] at encodes
   exact PiRLCRetainedPlan.semantics_implies_rowsZero _ _ raw.assignment base
     (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.productValuesPreserve raw) encodes semantics

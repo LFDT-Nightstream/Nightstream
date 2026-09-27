@@ -15,40 +15,6 @@ open NightstreamFPrime.Export
 open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Export.Package
 
-/-- One indexed block for the repeated PiRLC `First54` invocations. -/
-structure First54InvocationBlock where
-  sourceCount : Nat
-  roundCount : Nat
-deriving Repr
-
-def First54InvocationBlock.format : Format First54InvocationBlock where
-  encode := fun value => .array [
-    .atom value.sourceCount,
-    .atom value.roundCount]
-  decode
-    | .array [.atom sourceCount, .atom roundCount] =>
-      .ok ⟨sourceCount, roundCount⟩
-    | _ => .error "invalid First54 invocation block"
-  decode_encode := by
-    intro value
-    cases value
-    rfl
-
-def First54InvocationBlock.expand
-    (block : First54InvocationBlock) : List CompactRowInvocation :=
-  (List.range block.sourceCount).flatMap fun source =>
-    (List.range block.roundCount).flatMap
-      (PiRLCFirst54Invocations.roundInvocations source)
-
-def canonicalFirst54Block : First54InvocationBlock where
-  sourceCount := PiRLCFirst54Invocations.sourceCount
-  roundCount := PiRLCFirst54Invocations.roundCount
-
-theorem canonicalFirst54Block_expand :
-    canonicalFirst54Block.expand =
-      PiRLCFirst54Invocations.invocations := by
-  rfl
-
 /-- Exact public parameters for one indexed PiRLC combination family. -/
 structure CombinationFamilyBlock where
   logicalStart : Nat
@@ -190,26 +156,19 @@ theorem canonicalCombinationBlock_expand :
 
 /-- A compact invocation-plan block. Each tag has one fixed Lean expansion. -/
 inductive CompactInvocationBlock where
-  | first54 (block : First54InvocationBlock)
   | combination (block : CombinationInvocationBlock)
 deriving Repr
 
 def CompactInvocationBlock.expand :
   CompactInvocationBlock → List CompactRowInvocation
-  | .first54 block => block.expand
   | .combination block => block.expand
 
 def CompactInvocationBlock.format : Format CompactInvocationBlock where
   encode
-    | .first54 block => .array [
-        .atom 0,
-        First54InvocationBlock.format.encode block]
     | .combination block => .array [
         .atom 1,
         CombinationInvocationBlock.format.encode block]
   decode
-    | .array [.atom 0, block] => do
-      pure (.first54 (← First54InvocationBlock.format.decode block))
     | .array [.atom 1, block] => do
       pure (.combination (← CombinationInvocationBlock.format.decode block))
     | _ => .error "invalid compact invocation block"
@@ -305,8 +264,7 @@ def Plan.expand (plan : Plan) : CircuitPackage :=
       plan.witnessBlocks.flatMap WitnessPlan.Block.expand }
 
 def canonicalCompactBlocks : List CompactInvocationBlock :=
-  [.first54 canonicalFirst54Block,
-   .combination canonicalCombinationBlock]
+  [.combination canonicalCombinationBlock]
 
 def canonical (_unit : Unit) : Plan where
   schemaVersion := 8
@@ -322,8 +280,7 @@ theorem canonicalCompactBlocks_expand :
   rw [Data.compactRowInvocations_eq]
   simp only [canonicalCompactBlocks, List.flatMap_cons, List.flatMap_nil,
     CompactInvocationBlock.expand, List.append_nil]
-  exact congrArg₂ (fun left right => left ++ right)
-    canonicalFirst54Block_expand canonicalCombinationBlock_expand
+  exact canonicalCombinationBlock_expand
 
 private theorem restorePlannedInvocations
     (package : CircuitPackage)

@@ -71,10 +71,10 @@ class LeanFoldCheckTests(unittest.TestCase):
                 with patch.object(check, "build_lock", return_value=contextlib.nullcontext()), \
                      patch.object(check, "check_build_processes"), \
                      patch.object(check.subprocess, "Popen", return_value=process) as popen, \
-                     patch.object(check.os, "killpg") as kill:
+                     patch.object(check, "kill_process_groups") as kill:
                     with self.assertRaisesRegex(ValueError, "failed; see"):
                         checker.phase("capped", kind, ["test"])
-                kill.assert_called_once_with(123, check.signal.SIGKILL)
+                kill.assert_called_once_with(123)
                 self.assertLessEqual(process.wait.call_args_list[0].kwargs["timeout"], cap)
                 self.assertTrue(popen.call_args.kwargs["start_new_session"])
                 if kind == "lean":

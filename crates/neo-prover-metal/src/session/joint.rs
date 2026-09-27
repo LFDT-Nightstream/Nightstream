@@ -108,7 +108,6 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     assignment_width: usize,
     coefficient_count: usize,
     range_base: u32,
-    selective_f_prime: bool,
     zero_application_padding: bool,
     rounds: usize,
     round: usize,
@@ -528,11 +527,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             .iter()
             .any(|&source| source >= fresh_count);
         drop(source_blocks);
-        #[cfg(feature = "legacy-adapter")]
-        let selective_f_prime = input.params.b == 2
-            && neo_fold_legacy::frontends::r1cs_f_prime::is_canonical_selective_low_norm_polynomial(&input.structure.f);
-        #[cfg(not(feature = "legacy-adapter"))]
-        let selective_f_prime = false;
         let (common, common_len) = session
             .build_joint_common_tables(&plan, &input, &masks, has_carried)
             .map_err(oracle_error)?;
@@ -627,7 +621,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             assignment_width: input.dims.assignment_width,
             coefficient_count,
             range_base: input.params.b,
-            selective_f_prime,
             zero_application_padding: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
@@ -761,11 +754,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .session
             .command_buffer("nightstream.pi_ccs.joint.round")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        let round_pipeline = if self.selective_f_prime {
-            &self.session.joint_selective_round_partials
-        } else {
-            &self.session.joint_round_partials
-        };
+        let round_pipeline = &self.session.joint_round_partials;
         encoder.setComputePipelineState(round_pipeline);
         unsafe {
             encoder.setBuffer_offset_atIndex(Some(application), 0, 0);
@@ -914,19 +903,6 @@ impl<'a> MetalPaperJointOracle<'a> {
 impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {
     fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, neo_reductions::PiCcsError> {
         let coefficients = self.round_coefficients().map_err(oracle_error)?;
-        if self.selective_f_prime {
-            if points.len() != coefficients.len()
-                || points
-                    .iter()
-                    .enumerate()
-                    .any(|(index, &point)| point != K::from(F::from_u64(index as u64)))
-            {
-                return Err(oracle_error(MetalError::Shape(
-                    "selective one-joint oracle received non-canonical evaluation points",
-                )));
-            }
-            return Ok(coefficients);
-        }
         Ok(points
             .iter()
             .map(|&point| {

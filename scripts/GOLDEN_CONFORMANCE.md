@@ -1,101 +1,72 @@
-# Manual golden conformance
+# Golden conformance
 
-The selected goal is CPU–Lean conformance for **1→2→3**: the first fold and
-one recursive fold, their complete input connection, and terminal checks at
-state 3. CI enforcement, Metal validation and a third independent fold are
-out of scope by owner instruction.
-
-## Fresh CPU run and Lean verification
-
-Supply the five archives named by `restore_golden_inputs.py` in one directory.
-The command checks their recorded identities and restores them into a new
-directory. Missing archives, outputs or successful phase records stop the run.
+The maintained workflow runs two fresh native folds, from state 1 through
+state 3, then checks both folds with Lean. It compares complete proof bytes,
+caller values, and physical witnesses. Lean verifies the native PiCCS messages;
+this workflow does not independently generate those proof messages in Lean.
 
 ```sh
-python3 -B scripts/golden_conformance_ci.py cpu \
-  --archives /path/to/archives --directory /path/to/new-cpu-run
+python3.12 -B scripts/golden_conformance_ci.py --directory /path/to/new-run
 ```
 
-This builds the current CPU producer, runs folds 1 and 2, checks terminal
-acceptance and rejection at state 3, and checks both fresh proofs with Lean.
-It compares complete proof bytes, caller values and physical witnesses.
-The Lean verifier receives CPU C proof messages; this is verifier conformance,
-not independent proof generation.
+The directory must not exist. The driver builds the current release test
+binary and runs each producer phase under its own cap. No old-package archive
+is needed. To compare with saved native outputs for the same package, also
+supply `--archives /path/to/archives`.
 
-The CPU coordinator also runs two production terminal rejection tests. Each
-changes two child evaluations while preserving their weighted PiDEC sum,
-then rebuilds the complete fresh witness and commitment. `opening-k` must
-reach the production `Eval_K` comparison; `opening-a` must reach `Eval_A`.
-An earlier rejection, including `FreshRelation`, fails these tests. The older
-single-child rehash mutation is a separate fresh-relation rejection case.
-To run just these tests on an existing CPU output directory:
+Lean uses the repository toolchain by default. An owner-approved compatible
+compiler can be selected for the whole command with `elan run TOOLCHAIN`;
+all Lean children still run through `formal/nightstream-fprime/scripts/validate.sh`.
+
+## Terminal rejection checks
+
+The native run checks terminal acceptance at state 3 and a changed fresh
+relation. It also changes two child evaluations while preserving their
+weighted PiDEC sum. Each balanced change gets a complete new witness and
+commitment. Verification must reach the production `Eval_K` or `Eval_A`
+comparison and reject there. An earlier rejection fails the check.
+
+Preparation and verification have separate process caps. To repeat a pair on
+an existing native output directory, use the current built test executable:
 
 ```sh
-timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-k
-timeout --signal=KILL 300 python3 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-a
+timeout --signal=KILL 300 python3.12 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-k-prepare
+timeout --signal=KILL 300 python3.12 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-k
+timeout --signal=KILL 300 python3.12 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-a-prepare
+timeout --signal=KILL 300 python3.12 -B crates/nightstream/tests/run_recursive_phase.py --binary TEST_EXECUTABLE --directory CPU_RUN_DIRECTORY --phase opening-a
 ```
 
-## Independent Lean results
+The maintained library test
+`lifecycle::tests::staged::fold::lean::golden::native_checker` reads JSON requests
+on stdin. Its `compare`, `encode`, `ccs`, and `child-handoff` operations check
+complete results, proof encoding, PiCCS mutations, and recomposition from all
+17 input sources. Current requests are registered in
+`lean_graph/obligations.json`.
 
-To generate both selected folds and run their complete comparisons:
+## Saved fixtures
 
-```sh
-python3 -B scripts/golden_conformance_ci.py independent \
-  --archives /path/to/archives --directory /path/to/new-lean-run \
-  --cpu-reference /path/to/new-cpu-run
-```
+Refresh saved fixtures only after the fresh native run and both Lean comparisons
+pass. The first checked NIFS result and caller replace the matching formal
+artifacts; its native result and proof replace `stage1_actual_nifs` fixtures.
+The maintained `golden-v1.zip` contains 19 interface files:
 
-Lean receives original witnesses and public inputs. Its generators derive
-proof messages and challenges. The first root is `independent-first`; the
-second is `independent-loop`. The second starts from restored original inputs;
-acceptance requires their complete equality with the first Lean successor.
-This command can take many hours. It does not generate 3→4.
+- For each fold 1 and 2: `native/fold-N/{pi_ccs_input.json,children.json,actual_result.json,proof.native,caller-inputs.json}`.
+- For each state 1 and 2: `native/step-N/{envelope.json,fresh-claim.json}`.
+- For each fold 1 and 2: `expected/step-N-{nifs,caller}.json`.
+- The final `native/step-3/envelope.json`.
 
-To compare already generated roots with a fresh CPU run:
-
-```sh
-python3 -B scripts/check_selected_replay.py \
-  --first-root /path/to/independent-first \
-  --second-root /path/to/independent-loop \
-  --cpu-reference /path/to/new-cpu-run \
-  --directory /path/to/new-selected-comparison
-```
-
-Keep each root's `producer-sources.json`, `original-sources`, package and
-selected `step-N-to-M` directory. No external Python driver is needed.
-The source audit requires the same Lean definitions, producer scripts,
-toolchain and package. It permits only the exact `neo-fold-clean` to
-`neo-fold-legacy` comparison-crate rename. Changed Lean computation requires
-new generation. Digests record file custody; comparisons use actual values.
-
-The check compares both complete parents, all child witnesses, proof bytes,
-caller values, physical witnesses and fresh outputs with the same CPU run.
-It projects all 17 first-successor sources and compares their complete bytes
-with the second fold's original inputs and consumed projection. It also
-checks package, context, state, message, carried parent, all 17 digest frames,
-C/R/D links and the public input consumed by C. It runs fresh terminal
-acceptance and `ce-evaluation`, `ce-matrix-evaluation` and `fresh-private`
-rejections at state 3. Success is recorded only after every check passes.
+Do not put large private witness files in this archive. Archive replay checks
+the interfaces. The fresh workflow separately requires complete physical
+witness equality and retains those witnesses in its run directory.
 
 ## Limits and records
 
-Each native or Python child keeps the repository's 300-second cap. Each Lean
-child uses `validate.sh` and keeps the 1,500-second cap. Current CPU phases use
-the 16 GiB RSS guard from `NIGHTSTREAM_CRATE_GOAL.md`, section
-“Owner-approved engine extension”. Builds share a lock within each worktree;
-other worktrees use their own locks and writable build outputs.
+Each native or Python test child has the repository's 300-second cap. Each
+Lean child has its 1,500-second cap and uses `validate.sh`. The staged native
+runner keeps the owner-approved 16 GiB RSS guard. One Lean or Rust build/test
+runs at a time. A timeout is a failed check, even if earlier phases passed.
 
-The formal project's five-round stop rule applies within
-`formal/nightstream-fprime`; the root's three-round rule applies elsewhere.
-These are existing scoped policies, not new exceptions.
-
-Keep complete inputs, output directories and command receipts with each run.
-See [the status record](../docs/reviews/nightstream-fprime-requirements/GOLDEN_CONFORMANCE.md)
-for executed checks. The older `replay_recursive_loop.py 2 all` command still
-serves the separate, broader `fresh-recursive-loop` obligation. It is not the
-selected command above.
-
-For a manual change plan, run
-`python3 -B scripts/golden_conformance_changes.py --base BASE --head HEAD`.
-Its flags request checks or a source audit; they do not certify a result or
-enforce CI. Metal flags remain advisory and are outside this selected run.
+Keep command receipts, complete inputs, and outputs with the run. The final
+`cpu-result.json` exists only after all native and fresh Lean checks pass.
+Digests in receipts identify files; they do not replace value or row checks.
+Metal compatibility and independent review are separate acceptance checks.

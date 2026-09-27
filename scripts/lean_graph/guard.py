@@ -86,6 +86,25 @@ def check_build_processes():
         raise EvidenceError("an unmanaged Lean or Rust process is active in this worktree: " + "; ".join(found))
 
 
+def kill_process_groups(pid):
+    """Stop a session child and nested groups created by validate.sh's timeout."""
+    rows = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid="], capture_output=True,
+                          text=True, check=True).stdout.splitlines()
+    processes = [tuple(map(int, row.split())) for row in rows]
+    descendants, groups = {pid}, {pid}
+    while True:
+        children = {child for child, parent, _ in processes if parent in descendants}
+        if children <= descendants:
+            break
+        descendants.update(children)
+    groups.update(group for child, _, group in processes if child in descendants)
+    for group in groups:
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def run(command, kind, cwd, no_timeout=False):
     if not command or kind not in CAPS:
         raise EvidenceError("a command and its kind are required")
@@ -117,10 +136,7 @@ def run(command, kind, cwd, no_timeout=False):
             except InterruptedError:
                 code, outcome = 130, "interrupted"
         finally:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            kill_process_groups(process.pid)
             process.wait()
             for signum, handler in handlers.items():
                 signal.signal(signum, handler)

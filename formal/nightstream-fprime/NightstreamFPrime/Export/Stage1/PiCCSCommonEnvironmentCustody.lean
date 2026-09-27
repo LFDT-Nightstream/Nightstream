@@ -98,11 +98,9 @@ theorem transcriptEnv_eq_semanticEnv_of_beforeSampler
         F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     {column : Nat} (before : column < PiRLCStarts.samplerLogicalStart) :
     Spartan.pullback
-        (PiCCSTranscriptEndpointPlan.transcriptEnv program base groupValue
-          products) column =
+        (PiCCSTranscriptEndpointPlan.transcriptEnv program base groupValue) column =
       Spartan.pullback
         (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)
         column := by
@@ -115,7 +113,7 @@ theorem transcriptEnv_eq_semanticEnv_of_beforeSampler
   have mappedBound := Spartan.sourceToSpartan_lt column sourceBound
   unfold Spartan.pullback
   rw [PiCCSTranscriptEndpointPlan.transcriptEnv_eq_transitionEnv_of_lt
-    program base groupValue products _ mappedBound]
+    program base groupValue _ mappedBound]
   rw [PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
     geometry assignment base before]
 

@@ -33,18 +33,18 @@ structure Fixture where
 does not inspect its matrices; final integration replaces this value with the
 package-selected logical relation. -/
 def fixtureRelation : ProductionKey.LogicalRelation
-    VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits where
+    PhaseReference.logicalWidth PhaseReference.publicFits where
   matrices := fun _ _ _ => 0
   cubeFits := by
-    norm_num [VerifierContext.candidateLogicalWidth,
+    norm_num [PhaseReference.logicalWidth,
       Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
       cubeVariables, ringDegree]
 
 /-- A deterministic key value used only to instantiate the concrete PiDEC
 algebra. The public PiDEC equations do not inspect key entries. -/
 def fixtureAjtaiKey : AjtaiKey
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) :=
+    (logicalWidth := PhaseReference.logicalWidth)
+    (publicFits := PhaseReference.publicFits) :=
   fun _ _ _ => 0
 
 def makeFixture (computed : PiCCSNonzero.Computed) (batch : Batch) : Fixture :=
@@ -65,10 +65,10 @@ def Fixture.evaluation (fixture : Fixture) : PaperAlgebra.Evaluation where
   matrix := fun matrix => (fixture.evalA.get matrix).toRing
 
 def parent (fixture : Fixture) : CE.Instance
-    (PaperAlgebra.Structure VerifierContext.candidateLogicalWidth)
+    (PaperAlgebra.Structure PhaseReference.logicalWidth)
     (PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
   constraintSystem :=
     NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding.relationSource
@@ -127,10 +127,10 @@ def message (fixture : Fixture) (child : Radix.ChildIndex) :
   evaluations := #[childEvaluation fixture child]
 
 def attempt (fixture : Fixture) : PiDEC.PaperVerifier.Attempt
-    (PaperAlgebra.Structure VerifierContext.candidateLogicalWidth)
+    (PaperAlgebra.Structure PhaseReference.logicalWidth)
     (PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment
       productionGlobalParams where
   parent := parent fixture
@@ -138,8 +138,8 @@ def attempt (fixture : Fixture) : PiDEC.PaperVerifier.Attempt
 
 def childPublicInput (fixture : Fixture) (child : Radix.ChildIndex) :
     PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   PublicInput.splitPublicInput (parent fixture).publicInput child
 
 def children (fixture : Fixture) :=
@@ -151,8 +151,8 @@ def recomposedCommitment (fixture : Fixture) : PaperAlgebra.Commitment :=
 
 def recomposedPublicInput (fixture : Fixture) :
     PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   PublicInput.recomposePublicInput (childPublicInput fixture)
 
 def recomposedEvaluation (fixture : Fixture) : PaperAlgebra.Evaluation :=
@@ -171,16 +171,16 @@ def accepted (fixture : Fixture) : Bool :=
 
 def unboundedPublicInput (fixture : Fixture) :
     PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   fun column => if column.val = 0 then Radix.fieldOfNat Radix.combinedBound
     else (parent fixture).publicInput column
 
 def unboundedAttempt (fixture : Fixture) : PiDEC.PaperVerifier.Attempt
-    (PaperAlgebra.Structure VerifierContext.candidateLogicalWidth)
+    (PaperAlgebra.Structure PhaseReference.logicalWidth)
     (PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment
       productionGlobalParams :=
   { attempt fixture with

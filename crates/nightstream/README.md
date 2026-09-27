@@ -68,7 +68,11 @@ engine returns an error without a CPU fallback.
 Metal retains its device session and matrix plan across folds. PiRLC, witness
 generation, and verifier control flow use the shared host code. Fixed-key
 commitments, terminal row arithmetic, and nonzero running openings use Metal.
-The GPU dependencies do not add `neo-fold-legacy` to the production graph.
+The GPU dependencies use the maintained folding and commitment interfaces.
+
+The performance and saved-production comparisons below describe the earlier
+package. They are historical measurements, not validation of the current sampler
+replacement. Current source-bound results belong in the conformance record.
 
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript

@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 Owns the first direct 14-matrix prefix that includes every PiRLC sampler row.
 
 Rows remain in protocol order: the established prefix through sampler
-Poseidon2, sampler digest-lane and fail-closed selector rows, PiRLC arithmetic,
+Poseidon2, sampler reduction and checked-word rows, PiRLC arithmetic,
 PiDEC, and the running transition. This module does not select an application
 package or close any phase status.
 -/
@@ -89,7 +89,7 @@ def transitionPlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 3879205 := by
+    (samplerPrefixPlan relation geometry).rowCount = 3868019 := by
   exact DirectPiDECPrefixPlan.samplerPrefixPlan_rowCount relation _
 
 @[simp] theorem samplerOrdinaryPlan_rowCount
@@ -98,14 +98,14 @@ def transitionPlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerOrdinaryPlan relation geometry).rowCount = 220881 := by
+    (samplerOrdinaryPlan relation geometry).rowCount = 38811 := by
   exact PiRLCSamplerOrdinaryDirectPlan.plan_rowCount relation geometry
 
 @[simp] theorem piRlcPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piRlcPlan geometry).rowCount = 1898781 := by
+    (piRlcPlan geometry).rowCount = 1779084 := by
   exact DirectPiDECPrefixPlan.piRlcPlan_rowCount _
 
 private theorem samplerCompleteRowCount_le
@@ -136,7 +136,7 @@ def samplerCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (samplerCompletePlan relation geometry).rowCount = 4100086 := by
+    (samplerCompletePlan relation geometry).rowCount = 3906830 := by
   simp [samplerCompletePlan]
 
 private theorem piRlcCompleteRowCount_le
@@ -165,7 +165,7 @@ def piRlcCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piRlcCompletePlan relation geometry).rowCount = 5998867 := by
+    (piRlcCompletePlan relation geometry).rowCount = 5685914 := by
   simp [piRlcCompletePlan]
 
 private theorem piDecCompleteRowCount_le
@@ -197,7 +197,7 @@ def piDecCompletePlan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (piDecCompletePlan relation geometry).rowCount = 6024355 := by
+    (piDecCompletePlan relation geometry).rowCount = 5711402 := by
   simp [piDecCompletePlan, piDecPlan, DirectPiDECPrefixPlan.piDecPlan,
     Layout.PiDEC.v1_1.exactRowCount_value]
 
@@ -230,7 +230,7 @@ def plan
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application
       logicalWidth) :
-    (plan relation geometry).rowCount = 6369850 := by
+    (plan relation geometry).rowCount = 6056897 := by
   simp [plan, transitionPlan, DirectPiDECPrefixPlan.transitionPlan]
 
 theorem plan_eq_of_same_shape
@@ -332,8 +332,8 @@ private theorem priorRowsZero
   rw [ProductionRelation.Plan.append_rowsZero_iff]
   exact ⟨⟨⟨samplerPrefix, piRlc⟩, piDec⟩, transition⟩
 
-/-- Complete encoding contract for the sampler-aware prefix. The old prefix
-and the two new sampler ordinary blocks encode one canonical nested source
+/-- Complete encoding contract for the sampler-aware prefix. The protocol prefix
+and the two sampler ordinary blocks encode one canonical nested source
 assignment. -/
 structure Encodes
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -341,12 +341,12 @@ structure Encodes
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    : Prop where
   prior : DirectPiDECPrefixPlan.Encodes (piDecGeometry geometry) assignment
-    base groupValue products
+    base groupValue
   samplerOrdinary : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry
     assignment (PiRLCRetainedPreservation.sourceAssignment application base
-      groupValue products)
+      groupValue)
 
 structure Semantics
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -356,9 +356,9 @@ structure Semantics
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    : Prop where
   prior : DirectPiDECPrefixPlan.Semantics relation (piDecGeometry geometry)
-    assignment base groupValue products
+    assignment base groupValue
   samplerOrdinary : R1CS.RowsHold
     (PiRLCSamplerOrdinaryDirectPlan.resolvedEnv geometry assignment)
     (PiRLCSamplerOrdinaryDirectSource.sourceRows
@@ -373,24 +373,23 @@ theorem rowsZero_implies_semantics
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Semantics relation geometry assignment base groupValue products := by
+    Semantics relation geometry assignment base groupValue := by
   have children := (rowsZero_iff relation geometry assignment).mp rowsZero
   rcases children with
     ⟨samplerPrefixRows, samplerOrdinaryRows, piRlcRows, piDecRows,
       transitionRows⟩
-  have oldRows := priorRowsZero relation geometry assignment samplerPrefixRows
+  have priorRows :=  priorRowsZero relation geometry assignment samplerPrefixRows
     piRlcRows piDecRows transitionRows
   have priorOne :
       assignment (PiDECRetainedGeometry.oneColumn (piDecGeometry geometry)) = 1 :=
     one
   refine ⟨DirectPiDECPrefixPlan.rowsZero_implies_semantics relation
-    (piDecGeometry geometry) assignment base groupValue products priorOne
-    encodes.prior oldRows, ?_⟩
+    (piDecGeometry geometry) assignment base groupValue priorOne
+    encodes.prior priorRows, ?_⟩
   exact (PiRLCSamplerOrdinaryDirectPlan.rowsZero_iff_rowsHold relation geometry
     assignment one).mp samplerOrdinaryRows
 

@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 Owns the value-preservation bridge for the direct PiRLC sampler Poseidon2
 plan. It proves the exact cross-source chain and verifier-owned entry words.
 
-This module does not own digest-lane decoding or First54 selection rows.
+The checked reduction rows are owned by the sampler ordinary plan.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation

@@ -2,11 +2,11 @@
 
 Nightstream composes two papers:
 
-- **SuperNeo** (`docs/superneo-paper/`) supplies the *folding scheme*: a lattice-based
+- **SuperNeo** (`docs/superneo-paper-v1_2/`) supplies the *folding scheme*: a lattice-based
   multi-fold for CCS built from three interactive reductions (Π_CCS, Π_RLC, Π_DEC),
   made non-interactive with a Poseidon2 Fiat-Shamir transcript. This is the `NIFS`
   primitive.
-- **HyperNova** (`docs/hypernova-paper/`) supplies the *IVC compiler*: §6.3
+- **[HyperNova](https://eprint.iacr.org/2023/573)** supplies the *IVC compiler*: §6.3
   Construction 2 turns any NIVC-compatible folding scheme into incrementally
   verifiable computation via an augmented step function `F′` that re-runs `NIFS.V`.
 
@@ -34,7 +34,7 @@ graph TD
 HyperNova instantiates NIFS with its Constructions 1+3: one sum-check round plus an
 RLC, producing **one** linearized output instance over an elliptic-curve (Pedersen)
 commitment. Nightstream's lattice setting forces two deviations
-(see `crates/neo-fold-legacy/src/paper/nifs/mod.rs`):
+(implemented in `crates/nightstream/src/folding/`):
 
 1. **Π_DEC exists.** Ajtai commitments are binding only for *low-norm* openings.
    Π_RLC's challenge mixing grows witness norm to `B = b^k`, so a third reduction

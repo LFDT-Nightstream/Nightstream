@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Select golden checks from changed repository paths.
 
-``lean_reference`` selects an independent-source/input audit. Changed Lean
-computation or inputs require regeneration. Fresh Lean verification is part
+``lean_reference`` selects regeneration of Lean results and package artifacts
+after their source or inputs change. Fresh Lean verification is part
 of ``native`` even when this flag is false. These flags do not prove success.
 """
 
@@ -16,26 +16,20 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-# Cargo path dependencies of nightstream, optional GPU adapters, and the
-# legacy golden checker, including wip-spartan. Metal is checked
+# Cargo path dependencies of nightstream, including the current golden
+# checker. Metal is checked
 # against the CPU result; CUDA currently has only an unavailable boundary.
 CRATES = {
-    "nightstream", "nightstream-fprime", "neo-fold-legacy", "wip-spartan",
+    "nightstream", "nightstream-fprime",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
     "neo-reductions", "neo-prover-metal", "neo-prover-cuda",
 }
 NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")
 BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", ".gitattributes"}
-EMBEDDED_DOCS = {
-    "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
-    "crates/neo-fold-legacy/tests/nebula_preprocessing_read_only.md",
-}
 # These records locate the original witnesses/reference archive or supply the
-# replay coordinator's measured partitions. Other review reports are receipts.
+# current input records. Other review reports are receipts.
 REPLAY_INPUTS = {
-    "INDEPENDENT_REPLAY_ASSET.json", "PIRLC_WITNESS_REPLAY_ASSET.json",
-    "PICCS_FIRST_ROUND_REPLAY.json", "PIDEC_MATRIX_RANGES.json",
     "EVIDENCE_RELEASE.json", "TERMINAL_REPLAY_INPUTS.json", "NONZERO_EXECUTION_RELEASE.json",
 }
 
@@ -74,8 +68,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     path = PurePosixPath(name)
     if not name or path.is_absolute() or ".." in path.parts or path.as_posix() != name:
         raise ValueError(f"expected a repository-relative path: {name!r}")
-    if name in EMBEDDED_DOCS:
-        return NATIVE
     if path.suffix == ".md":
         return ()
     if name in BUILD_FILES or name.startswith(".cargo/"):
@@ -83,8 +75,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     if name.startswith(("formal/nightstream-fprime/", "scripts/lean_graph/")):
         return ALL
     if (name.startswith(("scripts/golden_conformance", "scripts/tests/test_golden_conformance"))
-            or name in {"scripts/bridge_first_second.py", "scripts/check_selected_replay.py",
-                        "scripts/tests/test_bridge_first_second.py", "scripts/tests/test_check_selected_replay.py"}
             or name == "scripts/package_nightstream_fprime_bundle.py"
             or name == "scripts/fprime_stage1_review_manifest.py"
             or name.startswith(".github/workflows/")):
@@ -114,8 +104,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
             return ALL if "fixtures" in path.parts[3:4] else NATIVE
         if crate == "nightstream-fprime":
             return NATIVE
-        if crate == "neo-fold-legacy" and len(path.parts) > 3 and path.parts[3] == "nifs":
-            return ALL if "fixtures" in path.parts[4:5] else NATIVE
         return ()
     if part in {"LICENSE", "rustfmt.toml", "open-questions", "tests-paper-exact"}:
         return ()

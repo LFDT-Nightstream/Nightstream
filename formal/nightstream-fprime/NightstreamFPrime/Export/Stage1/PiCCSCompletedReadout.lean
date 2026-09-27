@@ -166,7 +166,7 @@ theorem outputValue_of_completed
     (PiRLCRetainedGeometry.laterPoseidonFits (PiCCSPoseidonPlan.prefixGeometry geometry))
     (PerApplicationCanonicalEncodes.retainedEncodes raw).laterPoseidon
   change SparseLayer.evalState raw.assignment (PiCCSPoseidonPlan.outputState geometry index) = _
-  rw [outputState_baseEnv geometry raw.assignment raw.base raw.groupValue raw.products sboxes index]
+  rw [outputState_baseEnv geometry raw.assignment raw.base raw.groupValue sboxes index]
   have slots : (fun lane : Fin 8 => PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
       ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val)) =
       fun lane : Fin 8 => target

@@ -74,7 +74,7 @@ theorem rows_toR1CS :
 
 theorem rows_length :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length =
-      1008848 := by
+      58939 := by
   rw [rows, PiCCSArithmetic.compilePacket_length,
     constraints_eq_samplerChain]
   exact
@@ -88,7 +88,7 @@ theorem rows_length :
 theorem freshCount_eq :
     R1CS.totalFreshCount
         (constraints (logicalWidth := logicalWidth) (publicFits := publicFits)) =
-      743631 := by
+      26316 := by
   rw [constraints_eq_samplerChain]
   exact
     NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.totalFreshCount_eq
@@ -105,12 +105,11 @@ theorem rows_imply_relation (env : Env)
       NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.Assumptions
         (samplerInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits))
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+        NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart)
     (holds : R1CS.RowsHold env
       ((rows (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.toR1CS)) :
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.RelationHolds
+    NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
@@ -124,8 +123,8 @@ theorem rows_imply_relation (env : Env)
   apply NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.soundness
     (samplerInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) assumptions
+    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart assumptions
   exact holdsFlat_implies_holds _ _ (by
     simpa only [NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.logicalConstraints]
       using! logical)

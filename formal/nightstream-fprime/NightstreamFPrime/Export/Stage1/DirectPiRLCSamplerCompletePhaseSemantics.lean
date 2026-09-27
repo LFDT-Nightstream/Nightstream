@@ -35,13 +35,12 @@ theorem semantics_imply_piRlcPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
-      base groupValue products)
+      base groupValue)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-      geometry assignment base groupValue products)
+      geometry assignment base groupValue)
     (assumptions : Formal.Assumptions relation
       (PiRLCInputs.interface
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
@@ -59,18 +58,17 @@ theorem semantics_imply_piRlcPhaseHolds
   let ordinaryGeometry :=
     DirectPiDECPrefixPlan.piCcsOrdinaryGeometry piDecGeometry
   apply PiRLCDirectPhaseSemantics.directSampler_imply_phaseHolds_of_productSemantics
-    relation ajtai ordinaryGeometry geometry assignment base groupValue products
+    relation ajtai ordinaryGeometry geometry assignment base groupValue
   · exact one
   · exact encodes.prior.pilotOrdinary.prior
-  · exact encodes.samplerOrdinary
+  · exact encodes.prior.running.prior.retained
   · simpa [ordinaryGeometry, piDecGeometry,
       DirectPiDECPrefixPlan.piCcsEndpointPlan] using
         semantics.prior.piCcsEndpoint
   · exact semantics.samplerOrdinary
   · simpa [piDecGeometry, DirectPiDECPrefixPlan.poseidonGeometry] using
       semantics.prior.prior.sampler
-  · exact semantics.prior.prior.piRlc.first54
-  · exact semantics.prior.prior.piRlc.product
+  · exact semantics.prior.prior.piRlc
   · exact assumptions
 
 /-- Zero rows of the sampler-complete direct prefix, its exact retained
@@ -89,11 +87,10 @@ theorem rowsZero_implies_piRlcPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
-      base groupValue products)
+      base groupValue)
     (assumptions : Formal.Assumptions relation
       (PiRLCInputs.interface
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
@@ -110,8 +107,8 @@ theorem rowsZero_implies_piRlcPhaseHolds
         (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)) := by
   have semantics :=
     DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
-      geometry assignment base groupValue products one encodes rowsZero
+      geometry assignment base groupValue one encodes rowsZero
   exact semantics_imply_piRlcPhaseHolds relation ajtai geometry assignment base
-    groupValue products one encodes semantics assumptions
+    groupValue one encodes semantics assumptions
 
 end NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics

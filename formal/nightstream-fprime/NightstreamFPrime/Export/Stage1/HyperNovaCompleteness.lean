@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 /-!
 Owns the honest selected NIFS call from an accepted recursive terminal
 payload. Its existing fresh and running witnesses supply source membership.
-C messages are fixed before actual sampler success; the normal verifier and
+C messages are fixed before the total sampler runs; the normal verifier and
 all new running openings are conclusions. No security or work law is assumed.
 -/
 
@@ -142,11 +142,11 @@ private theorem sourceHolds_of_terminalHolds
 end SourceMembership
 
 /-- An accepted selected recursive payload supplies the actual old witnesses.
-They construct one causal C prefix and, when its actual PiRLC sampler returns,
-a normal production NIFS proof with valid openings for every returned child.
+They construct one causal C prefix and a normal production NIFS proof with
+valid openings for every returned child. The production sampler is total.
 No accepted local proof, intermediate output, or new witness validity is an
 input. This does not construct the next fresh application assignment. -/
-theorem recursive_nifs_of_sampler_success
+theorem recursive_nifs
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
     (accepted : PerApplicationTerminal.Holds application fits productionSetup
       statement (.recursive payload)) :
@@ -159,8 +159,8 @@ theorem recursive_nifs_of_sampler_success
            input := (key.statement (payload.running functionIndex) payload.fresh).verifierInput key.lift } :
           PiCCS.TranscriptReplay.Statement K Transcript.State productionShape)
         { rounds := fun round => (messages round).toMessage }
-      ∀ rho : Fin key.arity.total → RingF,
-        key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho →
+      ∃ rho : Fin key.arity.total → RingF,
+        key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho ∧
         ∃ (proof : Lifecycle.Proof 9)
           (result : Running
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -189,7 +189,11 @@ theorem recursive_nifs_of_sampler_success
       (payload.running functionIndex) payload.fresh
       (sourceWitness (payload.runningWitness functionIndex) payload.freshWitness) valid
   refine ⟨messages, fullOutput, ?_⟩
-  intro coins rho sampled
+  intro coins
+  let rho := Transcript.PiRlcSampler.piRlcChallenges
+    (key.absorbPiCcsOutput coins.finalState fullOutput) key.arity.total
+  have sampled : key.piRlcResponse (key.absorbPiCcsOutput coins.finalState fullOutput) = some rho := rfl
+  refine ⟨rho, sampled, ?_⟩
   obtain ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, childValid⟩ :=
     continuation rho sampled
   refine ⟨proof, result, children, roundsEq, outputEq, sampleEq, verified, ?_⟩

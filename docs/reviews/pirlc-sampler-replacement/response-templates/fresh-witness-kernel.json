@@ -22,14 +22,14 @@
     }
   },
   "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
-  "obligation": "stage1-terminal-parent",
+  "obligation": "fresh-witness-kernel",
   "outcome": "pending",
   "policy": "430476494d19e0462830646ace8e3a7cb4bd8e0518c0489aa572f816c2b8834c",
-  "request": "a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0",
+  "request": "132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
-  "target": "LeanGraph.Targets.Stage1TerminalParent"
+  "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+  "target": "LeanGraph.Targets.FreshWitnessKernels"
 }

@@ -1,24 +1,5 @@
 {
-  "obligation": "stage1-terminal-assignment",
-  "target": "LeanGraph.Targets.Stage1TerminalAssignment",
-  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
-  "policy": "620b1b68cf9bad2bfba892f56a8dd38d2e897c92a4806afd259fc520002614cc",
-  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
-  "review": "decomposition",
-  "request": "3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0",
-  "reviewer": "",
-  "reviewed_at": "",
-  "outcome": "pending",
   "assessments": {
-    "substantiveness": {
-      "outcome": "pending",
-      "reason": ""
-    },
-    "premises": {
-      "outcome": "pending",
-      "reason": ""
-    },
     "argument": {
       "outcome": "pending",
       "reason": ""
@@ -30,6 +11,25 @@
     "parent_use": {
       "outcome": "pending",
       "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
     }
-  }
+  },
+  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "obligation": "stage1-terminal-assignment",
+  "outcome": "pending",
+  "policy": "430476494d19e0462830646ace8e3a7cb4bd8e0518c0489aa572f816c2b8834c",
+  "request": "0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef",
+  "review": "decomposition",
+  "reviewed_at": "",
+  "reviewer": "",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
+  "target": "LeanGraph.Targets.Stage1TerminalAssignment"
 }

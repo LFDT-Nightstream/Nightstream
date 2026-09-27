@@ -222,8 +222,9 @@ and Lean comparisons. The maintained archive contains 19 interface files and
 excludes large private witnesses. Follow
 [the conformance workflow](../../../scripts/GOLDEN_CONFORMANCE.md).
 
-The four [independent review requests](REVIEW.md) now bind the final source
-and current targets. All remain pending; no author acceptance was created.
+The [independent review requests](REVIEW.md) bind the current source and registry:
+four terminal/security targets and six retained replay-kernel targets. All remain
+pending; no author acceptance was created.
 
 The [review follow-up](REVIEW_FIXES.md) records stock-toolchain validation, the
 corrected application-capacity documentation, and the restored kernel-proof

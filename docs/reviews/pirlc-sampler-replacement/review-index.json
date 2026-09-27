@@ -1,59 +1,120 @@
 {
   "schema": 1,
-  "source_commit": "8dc2b67506f0d56759fa170d1dbf70779a0f47b6",
+  "source_commit": "726d2b8f3395d1b8c08c3dbc25d2cca6d9a7c5b7",
   "implementation_commit": "557f13ef6203dbb0a70d359ccad42dfcac654d34",
-  "source_manifest_sha256": "b59d7185514e7e6d2ff1168a9d143b0aabb4c53bc9366a93817647343f72f4b5",
+  "source_manifest_sha256": "bc6f5733358d54e746933c3f3a548ba05f71a49f2b3c33f96ab51da231aea460",
+  "dependency_seed": "Clean stock Lean 4.32.2 build; see STOCK_LEAN_VALIDATION.json.",
   "approval": "pending",
   "requests": [
     {
-      "obligation": "stage1-terminal-assignment",
-      "target": "LeanGraph.Targets.Stage1TerminalAssignment",
-      "request": "3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0",
-      "file": "requests/3d766c00b1d8747f44039edac01c07c17a2b69860d4d912acd57f80c38ab99b0.json",
-      "response_template": "response-templates/stage1-terminal-assignment.json",
-      "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
-      "outcome": "pending"
-    },
-    {
-      "obligation": "stage1-terminal-parent",
-      "target": "LeanGraph.Targets.Stage1TerminalParent",
-      "request": "2bcf7793c34172e930f3775722acc748232f6d5ee06c912343719f5621d34100",
-      "file": "requests/2bcf7793c34172e930f3775722acc748232f6d5ee06c912343719f5621d34100.json",
-      "response_template": "response-templates/stage1-terminal-parent.json",
-      "snapshot": "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd",
+      "obligation": "fresh-witness-kernel",
+      "target": "LeanGraph.Targets.FreshWitnessKernels",
+      "request": "132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c",
+      "file": "requests/132cdbb42749a964dc3b181e1834d43ba968217e2be404e54089d9de215d9c6c.json",
+      "response_template": "response-templates/fresh-witness-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
       "outcome": "pending"
     },
     {
       "obligation": "hypernova-linear-security",
       "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
-      "request": "131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46",
-      "file": "requests/131fae680acaa61a22c5456772bfea0959d9334e5fdc929f42e96972d6720a46.json",
+      "request": "b1ee9ec10987ba62c3879b8b7e6982bead595b508570c4bba86ab8359b27112b",
+      "file": "requests/b1ee9ec10987ba62c3879b8b7e6982bead595b508570c4bba86ab8359b27112b.json",
       "response_template": "response-templates/hypernova-linear-security.json",
-      "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
+      "snapshot": "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241",
       "outcome": "pending"
     },
     {
       "obligation": "hypernova-terminal-false-acceptance",
       "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
-      "request": "a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189",
-      "file": "requests/a9e217b7642a7b3935bbacb8c738cb652f33343676888471366b81be7dc7c189.json",
+      "request": "c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3",
+      "file": "requests/c3f58e68640c8f50c5bf1b9f7db81eb0fe3842d1980ae02694691df370f9b6e3.json",
       "response_template": "response-templates/hypernova-terminal-false-acceptance.json",
-      "snapshot": "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde",
+      "snapshot": "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-commitment-kernel",
+      "target": "LeanGraph.Targets.PiDECCommitmentReplay",
+      "request": "dbb7e282b55126cd509a6f8904deda7f430eb1c486e76caaec82bd9ce9739461",
+      "file": "requests/dbb7e282b55126cd509a6f8904deda7f430eb1c486e76caaec82bd9ce9739461.json",
+      "response_template": "response-templates/pidec-commitment-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-evaluation-kernel",
+      "target": "LeanGraph.Targets.PiDECChildEvaluationReplay",
+      "request": "dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016",
+      "file": "requests/dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016.json",
+      "response_template": "response-templates/pidec-evaluation-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-witness-kernel",
+      "target": "LeanGraph.Targets.PiDECWitnessReplay",
+      "request": "a4dc7c4789c1d8c15790b8e1b28f3f5aaa7fea4c4537477e42287f52bbb61c45",
+      "file": "requests/a4dc7c4789c1d8c15790b8e1b28f3f5aaa7fea4c4537477e42287f52bbb61c45.json",
+      "response_template": "response-templates/pidec-witness-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pirlc-witness-kernel",
+      "target": "LeanGraph.Targets.PiRLCWitnessReplay",
+      "request": "ba6cf6e3acf950d62ecb765846942ede0de30c037b6309c93b324ee6d3ea9023",
+      "file": "requests/ba6cf6e3acf950d62ecb765846942ede0de30c037b6309c93b324ee6d3ea9023.json",
+      "response_template": "response-templates/pirlc-witness-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "recursive-loop-kernel",
+      "target": "LeanGraph.Targets.CheckedRecursiveReplay",
+      "request": "600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b",
+      "file": "requests/600ea1591703ca80e6258a5a54454af7ab009f139c01736db6bfb21a72f5654b.json",
+      "response_template": "response-templates/recursive-loop-kernel.json",
+      "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "stage1-terminal-assignment",
+      "target": "LeanGraph.Targets.Stage1TerminalAssignment",
+      "request": "0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef",
+      "file": "requests/0d2a8664353bc26aab1e84de32f0613578bca91894ec7157e2f8dd2018beebef.json",
+      "response_template": "response-templates/stage1-terminal-assignment.json",
+      "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "stage1-terminal-parent",
+      "target": "LeanGraph.Targets.Stage1TerminalParent",
+      "request": "a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0",
+      "file": "requests/a0229f1496f6161fd5257a4153bd4aea1b2af85533edec701c55cf403d355fe0.json",
+      "response_template": "response-templates/stage1-terminal-parent.json",
+      "snapshot": "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742",
       "outcome": "pending"
     }
   ],
   "snapshots": {
-    "9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd": {
-      "manifest": "snapshots/9e2eabee8e0bb8e2b69e27c5da4f652441c60f9130ae6680a8be8125301028bd.json.gz",
-      "compressed_sha256": "2d9af725902bc5d68463d0ae6a7d912786fe581085681d23159ddb97db59b98b",
-      "manifest_bytes": 16118386,
-      "compressed_bytes": 3878086
+    "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393": {
+      "manifest": "snapshots/2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393.json.gz",
+      "compressed_sha256": "3a3af53b3d18c25c2908afad4cc16b970e46970aac84bac68388ac30c75e172f",
+      "manifest_bytes": 15559610,
+      "compressed_bytes": 3761387
     },
-    "c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde": {
-      "manifest": "snapshots/c1cf64b9ef8e3e5e0bcc5dd81a7b9724758f226483a13f375d9274013d5bbdde.json.gz",
-      "compressed_sha256": "aee16a97a7e39d99c3e5599a873b44c89f5bdd99f6e0f43e2defec8185d41cdc",
-      "manifest_bytes": 16343303,
-      "compressed_bytes": 3937458
+    "53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241": {
+      "manifest": "snapshots/53956c40980e2c931e2c93e722eff44e67f72cdd57ea840dd62f4e1cf3fe8241.json.gz",
+      "compressed_sha256": "b2e1752aeb72bab77eb2a5b05654b0e5e5e889bdd0223179ba5c6ea83be28b44",
+      "manifest_bytes": 15562774,
+      "compressed_bytes": 3762694
+    },
+    "1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742": {
+      "manifest": "snapshots/1db444e1177ad768c7abb8bf18e87ec57838a3cda62e7d16b2e58eab91aa4742.json.gz",
+      "compressed_sha256": "8223f114ad3ced02455637149667064374916e3e2faab9cb4d4d1e5e19d3ecf7",
+      "manifest_bytes": 15337857,
+      "compressed_bytes": 3703375
     }
   }
 }

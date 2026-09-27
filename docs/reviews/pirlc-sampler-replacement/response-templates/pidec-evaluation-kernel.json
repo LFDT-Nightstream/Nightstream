@@ -21,15 +21,15 @@
       "reason": ""
     }
   },
-  "checker": "82e51e8ff7b2c753c854f669123aad585e8eb7150a0098ee9d1a63f81125d96c",
+  "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
   "obligation": "pidec-evaluation-kernel",
   "outcome": "pending",
-  "policy": "430476494d19e0462830646ace8e3a7cb4bd8e0518c0489aa572f816c2b8834c",
-  "request": "dde19f42daedea3c5ac45e8dbe7a0d433d7bfe5e63364b9ea06032521a452016",
+  "policy": "d821d752f32aff722e1944f48724bfc306defc5f153a735e6fce2b7718eab869",
+  "request": "f5a700908af377dec484b5dd062ead797bbcdc870a6f354b7d02233cad7b475f",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "2a0b7e4f8618b6255058e9126e909e8c8ee42e1677bd39643c3d6963ec315393",
+  "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
   "target": "LeanGraph.Targets.PiDECChildEvaluationReplay"
 }

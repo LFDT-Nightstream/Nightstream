@@ -70,3 +70,11 @@ Keep command receipts, complete inputs, and outputs with the run. The final
 `cpu-result.json` exists only after all native and fresh Lean checks pass.
 Digests in receipts identify files; they do not replace value or row checks.
 Metal compatibility and independent review are separate acceptance checks.
+
+## Evidence registration
+
+The graph registers this workflow as `golden-conformance`. Its bounded
+`golden-coordinator-contract` gate checks the coordinator regressions; the full
+source-bound run and its review remain separate requirements. The six retained
+replay-kernel proofs and the missing complete independent-generation coverage
+are mapped in [REPLAY_COVERAGE.md](lean_graph/REPLAY_COVERAGE.md).

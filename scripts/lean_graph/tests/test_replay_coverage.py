@@ -4,7 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from scripts.lean_graph import records
-from scripts.lean_graph.policy import gate_order, gate_scope, load_policy
+from scripts.lean_graph.policy import gate_order, gate_scope, load_policy, validate
+from scripts.lean_graph.snapshot import EvidenceError
 
 
 class ReplayCoverageTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class ReplayCoverageTests(unittest.TestCase):
                 target = 'LeanGraph.Targets.' + suffix
                 obligation = self.policy['obligations'][name]
                 self.assertEqual(obligation['target'], target)
-                self.assertEqual(obligation['status'], 'Compiler-closed')
+                self.assertEqual(obligation['tier'], 'Compiler')
                 self.assertIn('decomposition', obligation['reviews'])
                 closures = {}
                 for gate in gate_order(self.policy, obligation['gates']):
@@ -33,6 +34,16 @@ class ReplayCoverageTests(unittest.TestCase):
                         closures.update(command['completion'].get('closures', {}))
                 self.assertIn(target, closures)
                 self.assertIn('independent-generation', obligation['gap'])
+
+    def test_policy_cannot_declare_a_closed_status(self):
+        policy = deepcopy(self.policy)
+        policy['obligations']['independent-generation']['status'] = 'Conformance-closed'
+        with self.assertRaisesRegex(EvidenceError, 'status is derived'):
+            validate(policy)
+        policy = deepcopy(self.policy)
+        policy['schema'] = 1
+        with self.assertRaisesRegex(EvidenceError, 'unsupported obligation-map schema'):
+            validate(policy)
 
     def test_golden_contract_captures_its_actual_coordinators(self):
         gates = self.policy['obligations']['golden-conformance']['gates']
@@ -66,6 +77,8 @@ class ReplayCoverageTests(unittest.TestCase):
         outcomes = {item['id']: item for item in result['obligations']}
         for name in names:
             self.assertFalse(outcomes[name]['closed'])
+            self.assertEqual(outcomes[name]['status'], 'Open')
+            self.assertEqual(outcomes[name]['tier'], 'Conformance')
             self.assertTrue(policy['obligations'][name]['open_requirements'])
         self.assertIn('implemented closing gate',
                       outcomes['independent-generation']['missing'])

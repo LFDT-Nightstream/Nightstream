@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from graphlib import TopologicalSorter
 
-from .policy import STATUSES, checker_key, gate_order
+from .policy import TIERS, checker_key, gate_order
 from .snapshot import EvidenceError, dependency_keys, digest, file_entry, read_json
 from .reviews import decomposition_results
 from .drift import describe
@@ -185,7 +185,8 @@ def report(policy, manifest, store, authority, active=None, invocation=None):
             review_states["decomposition"] = ("approved" if decision["accepted"] else
                 "diagnostic " + decision["state"] if decision.get("checker") == "diagnostic" else decision["state"])
         missing.extend("review " + review for review, state in review_states.items() if state != "approved")
-        obligations.append({"id": name, "status": obligation["status"],
+        obligations.append({"id": name, "tier": obligation["tier"],
+                            "status": f"{obligation['tier']}-closed" if not missing else "Open",
                             "phase": obligation.get("phase", "tracked scope"),
                             "closed": not missing, "missing": sorted(set(missing)),
                             "gap": obligation["gap"], "target": obligation.get("target"),
@@ -201,12 +202,13 @@ def report(policy, manifest, store, authority, active=None, invocation=None):
     phase_statuses = {}
     for phase in sorted({item["phase"] for item in obligations}):
         phase_statuses[phase], prefix = {}, True
-        for status in STATUSES:
-            selected = [item for item in obligations if item["phase"] == phase and item["status"] == status]
+        for tier in TIERS:
+            selected = [item for item in obligations if item["phase"] == phase and item["tier"] == tier]
             prefix = prefix and bool(selected) and all(item["closed"] for item in selected)
-            phase_statuses[phase][status] = prefix
-    statuses = {status: bool(phase_statuses) and all(value[status] for value in phase_statuses.values())
-                for status in STATUSES}
+            phase_statuses[phase][f"{tier}-closed"] = prefix
+    statuses = {f"{tier}-closed": bool(phase_statuses) and
+                all(value[f"{tier}-closed"] for value in phase_statuses.values())
+                for tier in TIERS}
     return {"snapshot": digest(manifest), "active": active, "statuses": statuses,
             "phase_statuses": phase_statuses,
             "obligations": obligations, "stale": stale, "rejected": rejected,
@@ -230,18 +232,18 @@ def markdown(result):
              "Active criterion: " + (result["active"]["obligation"] if result["active"] else "none"), "",
              "| Phase | Compiler-closed | Conformance-closed | Production-closed |",
              "| --- | --- | --- | --- |"]
-    lines.extend("| " + phase + " | " + " | ".join("closed" if value[status] else "open"
-                 for status in STATUSES) + " |" for phase, value in result["phase_statuses"].items())
+    lines.extend("| " + phase + " | " + " | ".join("closed" if value[f"{tier}-closed"] else "open"
+                 for tier in TIERS) + " |" for phase, value in result["phase_statuses"].items())
     lines += ["", "| Gate | Execution | Freshness | Checker | Prerequisites |",
               "| --- | --- | --- | --- | --- |"]
     lines.extend(f"| {name} | {gate['execution']} | {gate['freshness']} | {gate['checker']} | " +
                  (", ".join(gate["missing_inputs"] + gate["prerequisites"]) or "ready") + " |"
                  for name, gate in result["gates"].items())
-    lines += ["", "| Phase / criterion | Status | Remaining connection |", "| --- | --- | --- |"]
+    lines += ["", "| Phase / criterion | Tier | Status | Remaining connection |", "| --- | --- | --- | --- |"]
     for item in result["obligations"]:
         detail = "Checked against the approved target and gates." if item["closed"] else (
             item["gap"] + " Missing: " + ", ".join(item["missing"]) + ".")
-        lines.append(f"| {item['phase']} / {item['id']} | {'closed' if item['closed'] else 'open'} | {detail.replace('|', '/')} |")
+        lines.append(f"| {item['phase']} / {item['id']} | {item['tier']} | {item['status']} | {detail.replace('|', '/')} |")
     for item in result["obligations"]:
         if item["next_command"]:
             lines += ["", f"Next check for {item['id']}: `{shlex.join(item['next_command'])}`"]

@@ -5,8 +5,11 @@ kernel claims with execution by the old coordinator. Their kernel theorems
 remain. The map now registers those claims separately from the maintained
 native/Lean workflow and the missing complete independent-generation run.
 
-The registry's `status` names an assurance tier. It does not declare a pass:
-closure still requires current accepted gates, reviews, and no open requirements.
+Registry schema 2 records a `tier`: `Compiler`, `Conformance`, or `Production`.
+It cannot declare a status. Reports derive `status: Open` whenever a required
+gate, review, or other requirement is missing. Only accepted closure yields the
+owner-defined `Compiler-closed`, `Conformance-closed`, or `Production-closed`
+status. Schema 1 and authored status claims are rejected.
 
 | Retired obligation | Retained kernel registration and target | Current execution coverage |
 |---|---|---|

@@ -61,3 +61,16 @@ exceeds capacity by two coordinates and that 7,700 fields give the shipped
 
 The generic `Option` interface, audited sampler laws, published implementation
 history and PR #121 remain unchanged.
+
+## Evidence status labels
+
+Registry schema 2 declares only the assurance `tier`: `Compiler`, `Conformance`,
+or `Production`. The report computes `status: Open` while any required evidence
+or review is missing. It emits the owner-defined `*-closed` status only after
+accepted closure. Authored status claims and the old registry schema are rejected.
+No gates, targets, reviews, open requirements or closure conditions were relaxed.
+
+The label regression fails on the prior report and passes after this change.
+The graph suite runs 100 tests with one platform skip; all other tests pass.
+The stronger independent two-fold generation goal remains unmet; these review
+repairs do not close it.

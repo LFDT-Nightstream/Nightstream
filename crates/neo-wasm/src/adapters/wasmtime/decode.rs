@@ -11,6 +11,7 @@ use crate::isa::WasmOpcode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
+    pub(crate) pc: u32,
     pub(crate) text: String,
     pub(crate) memory: Option<DecodedMemoryOpcode>,
     /// Structurally decoded from `wasmparser::Operator` at map-build time.
@@ -19,9 +20,9 @@ pub(crate) struct DecodedOpcode {
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
     pub(crate) call_indirect_type_index: Option<u32>,
     pub(crate) expected_type_id: Option<u32>,
-    /// For `call` instructions: binary offset of the instruction after the call = return address.
+    /// For `call` instructions: dense PC of the instruction after the call.
     pub(crate) call_return_pc: Option<u64>,
-    /// Byte offset immediately after this instruction's encoding. For `call`
+    /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor.
     pub(crate) pc_after_instruction: u64,
 }
@@ -72,7 +73,8 @@ pub(crate) enum ControlFrameKind {
 pub(crate) struct ControlFrame {
     pub(crate) kind: ControlFrameKind,
     pub(crate) branch_target: Option<u64>,
-    pub(crate) pending_to_end: Vec<u64>,
+    /// Deferred (source PC, branch choice) edges to the end of this frame.
+    pub(crate) pending_to_end: Vec<(u64, u64)>,
     pub(crate) pending_if_false: Option<u64>,
 }
 
@@ -239,6 +241,10 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::GlobalSet { global_index } => Some((WasmOpcode::GlobalSet, Some(*global_index))),
         wasmparser::Operator::Call { function_index } => Some((WasmOpcode::Call, Some(*function_index))),
         wasmparser::Operator::CallIndirect { table_index, .. } => Some((WasmOpcode::CallIndirect, Some(*table_index))),
+        wasmparser::Operator::ReturnCall { function_index } => Some((WasmOpcode::ReturnCall, Some(*function_index))),
+        wasmparser::Operator::ReturnCallIndirect { table_index, .. } => {
+            Some((WasmOpcode::ReturnCallIndirect, Some(*table_index)))
+        }
         _ => None,
     }
 }

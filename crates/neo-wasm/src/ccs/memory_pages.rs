@@ -15,15 +15,15 @@ use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CMP_GE, COL_CMP_LOW, COL_GROW_SUCCESS, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_STACK_READ0_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
 };
-use super::{always, shared, R1csBuilder};
+use super::{always, shared, WasmTaggedR1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 const MEMORY_PAGE_OPS: &[WasmOpcode] = &[WasmOpcode::MemorySize, WasmOpcode::MemoryGrow];
 
-pub(super) fn push_memory_pages_constraints(b: &mut R1csBuilder) {
+pub(super) fn push_memory_pages_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(shared("memory page constraints", MEMORY_PAGE_OPS), |b| {
         push_size_and_grow_constraints(b);
     });
@@ -45,7 +45,7 @@ pub(super) fn push_memory_pages_constraints(b: &mut R1csBuilder) {
     });
 }
 
-fn push_size_and_grow_constraints(b: &mut R1csBuilder) {
+fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::MemorySize).unwrap(),
@@ -63,7 +63,7 @@ fn push_size_and_grow_constraints(b: &mut R1csBuilder) {
             (COL_MAX_MEMORY_PAGES_BEFORE, F::ONE),
             (COL_MEMORY_PAGES_BEFORE, -F::ONE),
         ],
-        [(COL_STACK_READ0_VALUE_LO, F::ONE)],
+        [(COL_STACK_READ_VALUE_LO[0], F::ONE)],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -71,7 +71,7 @@ fn push_size_and_grow_constraints(b: &mut R1csBuilder) {
     // after = before + success * delta.
     b.push_row(
         [(COL_GROW_SUCCESS, F::ONE)],
-        [(COL_STACK_READ0_VALUE_LO, F::ONE)],
+        [(COL_STACK_READ_VALUE_LO[0], F::ONE)],
         [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
     );
     // result = success ? before : 0xFFFFFFFF.

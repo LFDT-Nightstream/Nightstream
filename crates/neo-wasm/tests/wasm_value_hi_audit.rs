@@ -4,10 +4,8 @@ mod common;
 
 use common::assert_satisfied;
 use neo_math::F;
-use neo_wasm::layout::{
-    COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE_HI, COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ2_VALUE_HI, COL_STACK_WRITE0_VALUE_HI,
-};
+use neo_wasm::host_event_bindings::HostEventBindings;
+use neo_wasm::layout::{COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE_HI, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -20,9 +18,9 @@ fn zero_downstream_hi_reads(witnesses: &mut [Vec<F>], from: usize, honest_hi: F)
     for downstream in (from + 1)..witnesses.len() {
         let w = &mut witnesses[downstream];
         for col in [
-            COL_STACK_READ0_VALUE_HI,
-            COL_STACK_READ1_VALUE_HI,
-            COL_STACK_READ2_VALUE_HI,
+            COL_STACK_READ_VALUE_HI[0],
+            COL_STACK_READ_VALUE_HI[1],
+            COL_STACK_READ_VALUE_HI[2],
         ] {
             if w[col] == honest_hi {
                 w[col] = F::ZERO;
@@ -43,7 +41,7 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -65,11 +63,11 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a tampered i64 local.get hi limb (cells log mismatch)");
     assert!(
-        err.contains("locals_hi"),
+        err.contains("local_hi"),
         "expected locals_hi to fire on the hi-limb tamper, got: {err}",
     );
 }
@@ -84,7 +82,7 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -104,9 +102,9 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     for downstream in (get_idx + 1)..witnesses.len() {
         let w = &mut witnesses[downstream];
         for col in [
-            COL_STACK_READ0_VALUE_HI,
-            COL_STACK_READ1_VALUE_HI,
-            COL_STACK_READ2_VALUE_HI,
+            COL_STACK_READ_VALUE_HI[0],
+            COL_STACK_READ_VALUE_HI[1],
+            COL_STACK_READ_VALUE_HI[2],
         ] {
             if w[col] == F::ZERO {
                 w[col] = F::ONE;
@@ -115,11 +113,11 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     }
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a non-zero hi on a first-read of an uninitialized local");
     assert!(
-        err.contains("locals_hi") && (err.contains("read mismatch") || err.contains("zero-default")),
+        err.contains("local_hi") && (err.contains("read mismatch") || err.contains("zero-default")),
         "expected the locals_hi cells log to reject the hi-limb tamper, got: {err}",
     );
 }
@@ -136,7 +134,7 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -158,11 +156,11 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi must reject a tampered i64 global.get hi limb (cells log mismatch)");
     assert!(
-        err.contains("globals_hi"),
+        err.contains("global_hi"),
         "expected globals_hi to fire on the hi-limb tamper, got: {err}",
     );
 }
@@ -177,7 +175,7 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
     )
     .expect("valid WAT");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
 
     let (get_idx, _) = trace
@@ -199,11 +197,11 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi preload must reject a first-read tamper of an initializer hi limb");
     assert!(
-        err.contains("globals_hi") && err.contains("read mismatch"),
+        err.contains("global_hi") && err.contains("read mismatch"),
         "expected the globals_hi preload to drive a cells-log read mismatch, got: {err}",
     );
 }

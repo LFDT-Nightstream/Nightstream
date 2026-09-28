@@ -1,0 +1,24 @@
+[package]
+name = "neo-application"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+audit-html = ["dep:serde", "dep:serde_json"]
+
+[dependencies]
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true }

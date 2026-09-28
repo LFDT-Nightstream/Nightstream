@@ -1,12 +1,11 @@
 mod common;
 
+use common::audit::{prove, verify, AuditProveError};
 use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_wasm::{
-    preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched, prove,
-    verify, WasmVmSpec, WasmVmStep,
-};
+use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
+use neo_wasm::{build_wasm_relation, WasmVmStep};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
 /// witness-derived sanity checks, and return the trace + ROMs.
@@ -19,13 +18,12 @@ fn compile_and_trace(
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
-    compile_and_trace_with(wat_src, "main", &[])
+    compile_and_trace_with(wat_src, "main")
 }
 
 fn compile_and_trace_with(
     wat_src: &str,
     export: &str,
-    params: &[i32],
 ) -> (
     Vec<u8>,
     Vec<WasmVmStep>,
@@ -33,7 +31,7 @@ fn compile_and_trace_with(
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
-    let checked = common::checked_wasm_run(wat_src, export, params);
+    let checked = common::checked_wasm_run(wat_src, export);
     let pc_rom = checked.artifacts.tables.pc_rom.clone();
     let pc_edge_kinds = checked.artifacts.tables.pc_edge_kinds.clone();
     let function_entries = checked.artifacts.tables.function_entries.clone();
@@ -252,8 +250,8 @@ fn i64_load8_u_zero_extension_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8U))
         .expect("i64.load8_u row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.load8_u row should satisfy the CCS");
 
     wit[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
@@ -337,8 +335,8 @@ fn i64_load8_s_sign_extension_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8S))
         .expect("i64.load8_s row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest negative i64.load8_s row should satisfy the CCS");
     assert_eq!(
         wit[COL_STACK_WRITE0_VALUE_HI],
@@ -404,8 +402,8 @@ fn i64_load32_u_unaligned_requires_use_lane1() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load32U))
         .expect("i64.load32_u row");
     let mut wit = build_witness_vector(load);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..])
         .expect("honest unaligned i64.load32_u row should satisfy the CCS");
     assert_eq!(
@@ -446,8 +444,8 @@ fn i64_store8_width_family_pin_is_enforced() {
         .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Store8))
         .expect("i64.store8 row");
     let mut wit = build_witness_vector(store);
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let ccs = relation.r1cs().structure();
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.store8 row should satisfy the CCS");
 
     wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ZERO;
@@ -595,11 +593,11 @@ fn wasm_trace_run_with_compare_unary_and_rotate() {
 fn wasm_trace_run_with_br_table() {
     let (_, trace, pc_rom, ..) = compile_and_trace_with(
         r#"(module
-             (func (export "main") (param i32) (result i32)
+             (func (export "main") (result i32)
                (block $default
                  (block $case1
                    (block $case0
-                     local.get 0
+                     i32.const 5
                      br_table $case0 $case1 $default
                    )
                    i32.const 10
@@ -610,7 +608,6 @@ fn wasm_trace_run_with_br_table() {
                )
                i32.const 30))"#,
         "main",
-        &[5],
     );
     let row = trace
         .iter()
@@ -726,7 +723,6 @@ fn wasm_trace_run_with_basic_i64_ops() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -750,7 +746,6 @@ fn wasm_trace_run_with_aligned_i64_linear_memory() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -773,7 +768,6 @@ fn wasm_trace_run_with_unaligned_i64_linear_memory() {
                 i64.eqz)
         )"#,
         "run",
-        &[],
     );
     assert!(trace
         .iter()
@@ -908,7 +902,6 @@ fn wasm_trace_run_with_i32_wrap_i64() {
                i64.const 0x1234567889abcdef
                i32.wrap_i64))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["-1985229329"]);
     let row = checked
@@ -936,7 +929,6 @@ fn wasm_trace_run_with_i64_extend_i32() {
                i64.eq
                i32.add))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["2"]);
     let unsigned = checked
@@ -992,7 +984,6 @@ fn wasm_trace_run_with_integer_sign_extensions() {
                i64.eq
                i32.add))"#,
         "main",
-        &[],
     );
     assert_eq!(checked.run.results.as_slice(), &["5"]);
 
@@ -1043,7 +1034,7 @@ fn wasm_trace_run_folding_proof() {
     assert!(
         matches!(
             verify(&prep, &proof, wrong_output),
-            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+            Err(AuditProveError::FinalStateMismatch)
         ),
         "verify must reject a tampered claimed output value"
     );
@@ -1052,7 +1043,7 @@ fn wasm_trace_run_folding_proof() {
     assert!(
         matches!(
             verify(&prep, &proof, disabled_output),
-            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+            Err(AuditProveError::FinalStateMismatch)
         ),
         "verify must reject a claimed final state without the captured output"
     );

@@ -10,10 +10,10 @@
 use super::parse::ParsedFunctionMeta;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
-use wasmtime::{FrameHandle, Store, StoreContextMut, Val};
+use wasmtime::{FrameHandle, StoreContextMut, Val};
 
 /// Build the raw-funcref to module-local function-id map for one instance.
-pub fn build_debug_function_id_map<T: 'static>(
+pub(super) fn build_debug_function_id_map<T: 'static>(
     instance: &wasmtime::Instance,
     mut store: impl wasmtime::AsContextMut<Data = T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
@@ -23,18 +23,6 @@ pub fn build_debug_function_id_map<T: 'static>(
         let raw = func.to_raw(store.as_context_mut()) as usize;
         out.insert(raw, function_index.saturating_add(1));
         function_index = function_index.saturating_add(1);
-    }
-    Ok(out)
-}
-
-pub(crate) fn build_single_trace_store_debug_function_id_map<T: 'static>(
-    store: &mut Store<T>,
-) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
-    let mut out = BTreeMap::new();
-    for instance in store.debug_all_instances() {
-        for (raw, function_id) in build_debug_function_id_map(&instance, &mut *store)? {
-            out.insert(raw, function_id);
-        }
     }
     Ok(out)
 }
@@ -225,18 +213,6 @@ pub(crate) fn read_halfword<T>(
         frame,
         store,
     )?))
-}
-
-pub(crate) fn parse_stack_word(value: &str) -> Result<u32, WasmBuildError> {
-    parse_signed_u32(value)
-        .map_err(|err| WasmBuildError::Trace(format!("failed to parse Wasmtime operand stack value '{value}': {err}")))
-}
-
-pub(crate) fn parse_signed_u32(value: &str) -> Result<u32, WasmBuildError> {
-    let parsed = value.parse::<i128>().map_err(|err| {
-        WasmBuildError::Trace(format!("failed to parse signed i32-compatible value '{value}': {err}"))
-    })?;
-    Ok((parsed as i32) as u32)
 }
 
 pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -> Option<StackValueAccess> {

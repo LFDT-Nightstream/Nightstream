@@ -1,6 +1,7 @@
 mod common;
 
-use neo_wasm::layout::{COL_OUTPUT_VALUE_LO_AFTER, COL_PC_ROM_CALL_RETURN_CHOICE, COL_STACK_READ0_VALUE_LO};
+use neo_wasm::host_event_bindings::HostEventBindings;
+use neo_wasm::layout::{COL_OUTPUT_VALUE_LO_AFTER, COL_PC_ROM_CALL_RETURN_CHOICE, COL_STACK_READ_VALUE_LO};
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
     sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmVmStep,
@@ -71,7 +72,7 @@ fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
 #[test]
 fn call_trace_has_correct_fbp_and_call_stack_fields() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(run.results.as_slice(), &["6".to_string()], "expected add_one(5) = 6");
 
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -104,10 +105,14 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
     assert_eq!(aux_param_steps.len(), 1, "expected one call-param init row");
     let aux = aux_param_steps[0];
     assert!(
-        call_step.state_after.param_init.active,
-        "call must enter param-init mode"
+        !call_step.state_after.local_zero.active,
+        "parameter-only frame needs no zero rows"
     );
+    assert!(call_step.state_after.param_init.active);
     assert_eq!(call_step.state_after.param_init.remaining, 1);
+    assert!(!trace
+        .iter()
+        .any(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero)));
     assert!(
         aux.state_before.param_init.active,
         "aux row must execute inside param-init mode"
@@ -163,7 +168,7 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
 #[test]
 fn nested_two_param_call_trace_counts_down_param_init_rows() {
     let wasm = nested_two_param_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(run.results.as_slice(), &["11".to_string()], "expected sum2(4, 7) = 11");
 
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -205,7 +210,7 @@ fn nested_two_param_call_trace_counts_down_param_init_rows() {
 #[test]
 fn call_indirect_guest_target_initializes_params() {
     let wasm = call_indirect_param_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(
         run.results.as_slice(),
         &["6".to_string()],
@@ -234,9 +239,9 @@ fn call_indirect_guest_target_initializes_params() {
 fn call_trace_passes_witness_checks() {
     let wasm = add_one_wasm();
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    common::sanity_check_trace(&trace, &artifacts);
     common::ccs_check_trace(&trace);
 
     assert!(
@@ -250,9 +255,103 @@ fn call_trace_passes_witness_checks() {
 }
 
 #[test]
-fn halted_row_requires_empty_call_stack_depth() {
+fn reused_guest_frame_zeroes_both_lanes_before_a_local_read() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $dirty (local i64)
+                i64.const -1 local.set 0)
+            (func $read (result i64) (local i64)
+                local.get 0)
+            (func (export "main") (result i64)
+                call $dirty
+                call $read))"#,
+        "main",
+    );
+    assert_eq!(checked.run.results, ["0"]);
+    let zero_rows: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
+        .collect();
+    assert_eq!(zero_rows.len(), 2);
+    assert!(zero_rows.iter().all(|row| {
+        row.local_index == Some(0) && row.local_write_value == Some(0) && row.local_write_value_hi == Some(0)
+    }));
+    common::sanity_check_trace(&checked.trace, &checked.artifacts);
+    common::ccs_check_trace(&checked.trace);
+
+    let mut forged = neo_wasm::witness_builder::build_witness_vector(zero_rows[1]);
+    forged[neo_wasm::layout::COL_LOCAL_VALUE_HI] = neo_math::F::ONE;
+    common::assert_rejected(&forged, "local zero row cannot retain the previous high limb");
+
+    let mut omitted = checked.trace.clone();
+    let second_zero = omitted
+        .iter()
+        .rposition(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
+        .unwrap();
+    omitted.remove(second_zero);
+    let witnesses = build_witnesses(&omitted);
+    let layout = build_wasm_relation_layout();
+    assert!(neo_application::check_continuity_rows(&layout.auxiliary.continuity, &witnesses).is_err());
+
+    let mut forged_count = checked.trace.clone();
+    let call = forged_count
+        .iter_mut()
+        .find(|row| row.opcode == WasmOpcode::Call)
+        .unwrap();
+    call.state_after.local_zero.remaining = 0;
+    call.state_after.local_zero.active = false;
+    let witnesses = build_witnesses(&forged_count);
+    let preload = preload_from_program_artifacts(&checked.artifacts);
+    let error = sanity_check_memory_rows(&layout, &witnesses, &preload).unwrap_err();
+    assert!(error.contains("function_local_count"), "{error}");
+}
+
+#[test]
+fn guest_call_with_loop_only_pops_frame_at_function_end() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $count_to (param $limit i32) (result i32)
+                (local $counter i32)
+                (loop $again
+                    local.get $counter
+                    i32.const 1
+                    i32.add
+                    local.tee $counter
+                    local.get $limit
+                    i32.lt_u
+                    br_if $again)
+                local.get $counter)
+            (func (export "main") (result i32)
+                i32.const 5
+                call $count_to))"#,
+        "main",
+    );
+
+    assert_eq!(checked.run.results, ["5"]);
+    let nested_ends: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.opcode == WasmOpcode::End && row.state_before.call_stack_depth == 1)
+        .collect();
+    assert!(nested_ends.len() >= 2, "expected loop and function end rows");
+    assert!(nested_ends
+        .iter()
+        .any(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::Static && row.call_stack_pop.is_none()));
+    assert_eq!(
+        nested_ends
+            .iter()
+            .filter(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::ReturnLike && row.call_stack_pop.is_some())
+            .count(),
+        1,
+        "only the function-ending End may pop the caller frame"
+    );
+}
+
+#[test]
+fn clean_halted_row_requires_empty_call_stack_depth() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let mut final_row = trace
         .iter()
@@ -263,13 +362,38 @@ fn halted_row_requires_empty_call_stack_depth() {
     final_row.state_after.call_stack_depth = 1;
 
     let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
-    common::assert_rejected(&witness, "halted row with non-empty call stack depth");
+    common::assert_rejected(&witness, "clean halted row with non-empty call stack depth");
+}
+
+#[test]
+fn nested_trap_may_halt_with_nonempty_call_stack_depth() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func $divide (param i32 i32) (result i32)
+                local.get 0
+                local.get 1
+                i32.div_u)
+            (func (export "run") (result i32)
+                i32.const 42
+                i32.const 0
+                call $divide))"#,
+    )
+    .expect("wat parse");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace nested trap");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize nested trap");
+    let trap = trace.last().expect("terminal trap row");
+
+    assert!(trap.state_after.halted);
+    assert!(trap.state_after.trapped);
+    assert_eq!(trap.state_before.call_stack_depth, 1);
+    let witness = neo_wasm::witness_builder::build_witness_vector(trap);
+    common::assert_satisfied(&witness, "nested trap with abandoned caller frame");
 }
 
 #[test]
 fn call_row_pins_return_pc_rom_choice() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let call_row = trace
         .iter()
@@ -283,7 +407,7 @@ fn call_row_pins_return_pc_rom_choice() {
 #[test]
 fn final_halt_captures_simple_output() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let final_row = trace
         .iter()
@@ -297,9 +421,30 @@ fn final_halt_captures_simple_output() {
 }
 
 #[test]
+fn clean_halt_with_a_result_requires_output_capture() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let mut final_row = trace
+        .iter()
+        .find(|row| row.state_after.halted)
+        .expect("halted row")
+        .clone();
+
+    final_row.output_captured = false;
+    final_row.state_after.output.enabled = false;
+    final_row.state_after.output.value_lo = 0;
+    final_row.state_after.output.value_hi = 0;
+    final_row.state_after.sp = final_row.state_before.sp;
+
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    common::assert_rejected(&witness, "clean halt leaving its result uncaptured");
+}
+
+#[test]
 fn final_halt_output_low_is_row_bound() {
     let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let final_row = trace
         .iter()
@@ -316,7 +461,7 @@ fn final_halt_output_low_is_row_bound() {
 fn final_halt_output_low_is_stack_memory_bound() {
     let wasm = add_one_wasm();
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let layout = build_wasm_relation_layout();
     let mut witnesses = build_witnesses(&trace);
@@ -326,9 +471,9 @@ fn final_halt_output_low_is_stack_memory_bound() {
         .expect("halted row");
 
     witnesses[final_idx][COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
-    witnesses[final_idx][COL_STACK_READ0_VALUE_LO] = neo_math::F::from_u64(7);
+    witnesses[final_idx][COL_STACK_READ_VALUE_LO[0]] = neo_math::F::from_u64(7);
 
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .err()
         .expect("must reject output stack memory mismatch");

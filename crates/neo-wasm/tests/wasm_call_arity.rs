@@ -5,7 +5,7 @@
 mod common;
 
 use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ0_ADDR_LO, COL_TABLE_INDEX};
+use neo_wasm::layout::{COL_STACK_READ_ADDR_LO, COL_TABLE_INDEX};
 use neo_wasm::WasmOpcode;
 use p3_field::PrimeCharacteristicRing;
 
@@ -31,7 +31,6 @@ fn direct_call_with_four_params_is_provable() {
                 call $sum4))
         "#,
         "run",
-        &[],
     );
     let final_output = checked.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
@@ -61,7 +60,6 @@ fn call_indirect_with_three_params_is_provable() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let final_output = checked.trace.last().expect("final row").state_after.output;
     assert!(final_output.enabled);
@@ -89,7 +87,6 @@ fn call_indirect_rejects_table_index_decoupled_from_stack_operand() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let row_index = checked
         .trace
@@ -124,7 +121,6 @@ fn call_indirect_rejects_index_read_redirected_to_other_slot() {
                 call_indirect (type $t)))
         "#,
         "run",
-        &[],
     );
     let row_index = checked
         .trace
@@ -132,7 +128,7 @@ fn call_indirect_rejects_index_read_redirected_to_other_slot() {
         .position(|row| row.opcode == WasmOpcode::CallIndirect)
         .expect("call_indirect row");
     let mut witness = checked.witnesses[row_index].clone();
-    witness[COL_STACK_READ0_ADDR_LO] = F::ZERO;
+    witness[COL_STACK_READ_ADDR_LO[0]] = F::ZERO;
     common::assert_rejected(&witness, "index read redirected away from sp - 1");
 }
 
@@ -154,6 +150,5 @@ fn operand_held_across_call_survives() {
                 i32.add))
         "#,
         "run",
-        &[],
     );
 }

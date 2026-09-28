@@ -1,35 +1,30 @@
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
-    build_debug_function_id_map, build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode,
-    WasmPcEdgeKind, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceState, WasmtimeTraceStep,
+    build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_code,
+    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode, WasmPcEdgeKind,
+    WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceState, WasmtimeTraceStep,
 };
-use std::collections::{HashMap, HashSet};
 use wasmparser::{Parser, Payload};
 use wasmtime::{Config, Engine, Linker, Module, Store, Val};
 
 struct EmbedderStoreData {
-    trace: WasmtimeTraceState,
+    trace: WasmtimeTraceRegistry,
     host_counter: u32,
 }
 
 impl WasmTraceSink for EmbedderStoreData {
-    // Single traced instance: ignore the index and route to the one trace.
-    fn wasm_trace_state(&self, _instance_index: u32) -> Option<&WasmtimeTraceState> {
-        Some(&self.trace)
+    fn wasm_trace_registry(&self) -> &WasmtimeTraceRegistry {
+        &self.trace
     }
-
-    fn wasm_trace_state_mut(&mut self, _instance_index: u32) -> Option<&mut WasmtimeTraceState> {
-        Some(&mut self.trace)
+    fn wasm_trace_registry_mut(&mut self) -> &mut WasmtimeTraceRegistry {
+        &mut self.trace
     }
-
-    fn record_untraced_instance(&mut self, _instance_index: u32) {}
 }
 
 fn sample_steps() -> Vec<WasmtimeTraceStep> {
     vec![
         WasmtimeTraceStep {
             step: 0,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(49),
@@ -42,7 +37,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 1,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(51),
@@ -58,7 +52,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 2,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(53),
@@ -73,7 +66,6 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
         },
         WasmtimeTraceStep {
             step: 3,
-            frame_depth: 0,
             function: "DefinedFuncIndex(0)".to_string(),
             function_index: Some(0),
             pc: Some(55),
@@ -100,7 +92,8 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
         )"#,
     )
     .expect("wat");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let mut registry = WasmtimeTraceRegistry::default();
+    registry.register_module(&wasm, Default::default()).unwrap();
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -112,7 +105,7 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
     let mut store = Store::new(
         &engine,
         EmbedderStoreData {
-            trace: WasmtimeTraceState::from_program_artifacts(&artifacts),
+            trace: registry,
             host_counter: 7,
         },
     );
@@ -125,44 +118,18 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
 
     let linker = Linker::new(&engine);
     let instance = futures::executor::block_on(linker.instantiate_async(&mut store, &module)).expect("instantiate");
-    let instance_index = instance.debug_index_in_store();
-    let func_ref_ids = build_debug_function_id_map(&instance, &mut store).expect("funcref map");
-    store
-        .data_mut()
-        .wasm_trace_state_mut(instance_index)
-        .expect("registered trace")
-        .set_func_ref_ids(func_ref_ids);
-
     let func = instance.get_func(&mut store, "run").expect("exported func");
     let mut results = vec![Val::I32(0)];
     futures::executor::block_on(func.call_async(&mut store, &[], &mut results)).expect("call");
 
     assert_eq!(store.data().host_counter, 7);
-    let steps = store.data().trace.steps();
+    let steps = store.data().trace.single_instance().unwrap().steps();
     assert!(
         steps
             .iter()
             .any(|step| step.opcode_decoded == Some(WasmOpcode::I32Add)),
         "expected traced i32.add row, got {steps:?}"
     );
-}
-
-/// Embedder store data keyed by `Instance::debug_index_in_store()`.
-struct MultiInstanceSink {
-    traces: HashMap<u32, WasmtimeTraceState>,
-    untraced: HashSet<u32>,
-}
-
-impl WasmTraceSink for MultiInstanceSink {
-    fn wasm_trace_state(&self, instance_index: u32) -> Option<&WasmtimeTraceState> {
-        self.traces.get(&instance_index)
-    }
-    fn wasm_trace_state_mut(&mut self, instance_index: u32) -> Option<&mut WasmtimeTraceState> {
-        self.traces.get_mut(&instance_index)
-    }
-    fn record_untraced_instance(&mut self, instance_index: u32) {
-        self.untraced.insert(instance_index);
-    }
 }
 
 /// The `ref.func` row pushes the funcref; the following `drop` row captures it on
@@ -230,31 +197,27 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let module_a = Module::from_binary(&engine, &wasm_a).expect("module a");
     let module_b = Module::from_binary(&engine, &wasm_b).expect("module b");
 
-    let mut store = Store::new(
-        &engine,
-        MultiInstanceSink {
-            traces: HashMap::new(),
-            untraced: HashSet::new(),
-        },
-    );
-    store.set_debug_handler(WasmtimeTraceHandler::<MultiInstanceSink>::new());
+    let mut registry = WasmtimeTraceRegistry::default();
+    registry
+        .register_module(&wasm_a, Default::default())
+        .unwrap();
+    registry
+        .register_module(&wasm_b, Default::default())
+        .unwrap();
+    let mut store = Store::new(&engine, registry);
+    store.set_debug_handler(WasmtimeTraceHandler::new());
     store
         .edit_breakpoints()
         .expect("guest debug enabled")
         .single_step(true)
         .expect("single-step mode");
 
-    // Register A with its own lowering state.
+    // Instantiate A; its state is discovered when it first executes.
     let linker_a = Linker::new(&engine);
     let instance_a = futures::executor::block_on(linker_a.instantiate_async(&mut store, &module_a)).expect("inst a");
     let idx_a = instance_a.debug_index_in_store();
-    let map_a = build_debug_function_id_map(&instance_a, &mut store).expect("funcref map a");
-    let mut trace_a =
-        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_a).expect("art a"));
-    trace_a.set_func_ref_ids(map_a);
-    store.data_mut().traces.insert(idx_a, trace_a);
 
-    // Register B with A's `shared` wired in as its import.
+    // Instantiate B with A's `shared` wired in as its import.
     let shared = instance_a
         .get_func(&mut store, "shared")
         .expect("shared export");
@@ -264,11 +227,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
         .expect("define import");
     let instance_b = futures::executor::block_on(linker_b.instantiate_async(&mut store, &module_b)).expect("inst b");
     let idx_b = instance_b.debug_index_in_store();
-    let map_b = build_debug_function_id_map(&instance_b, &mut store).expect("funcref map b");
-    let mut trace_b =
-        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_b).expect("art b"));
-    trace_b.set_func_ref_ids(map_b);
-    store.data_mut().traces.insert(idx_b, trace_b);
 
     assert_ne!(idx_a, idx_b, "instances must have distinct debug indices");
 
@@ -277,14 +235,8 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let run_b = instance_b.get_func(&mut store, "run_b").expect("run_b");
     futures::executor::block_on(run_b.call_async(&mut store, &[], &mut [Val::I32(0)])).expect("call run_b");
 
-    assert!(
-        store.data().untraced.is_empty(),
-        "unexpected untraced instances: {:?}",
-        store.data().untraced
-    );
-
-    let trace_a = &store.data().traces[&idx_a];
-    let trace_b = &store.data().traces[&idx_b];
+    let trace_a = store.data().instance(idx_a).unwrap();
+    let trace_b = store.data().instance(idx_b).unwrap();
     assert!(
         trace_a.steps().iter().any(|s| s.function_index.is_some()),
         "A captured no wasm frames"
@@ -292,16 +244,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     assert!(
         trace_b.steps().iter().any(|s| s.function_index.is_some()),
         "B captured no wasm frames"
-    );
-
-    // Only executing frames are captured.
-    assert!(
-        trace_a.steps().iter().all(|s| s.frame_depth == 0),
-        "A trace has non-innermost frames"
-    );
-    assert!(
-        trace_b.steps().iter().all(|s| s.frame_depth == 0),
-        "B trace has non-innermost frames"
     );
 
     // Distinctive ops stay in the instance that executed them.
@@ -347,10 +289,14 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let (a_run_steps, a_shared_steps) = split_after_first_end(trace_a.steps()).expect("A run_a segment");
     let a_run_trace = traces_from_wasmtime_steps(a_run_steps).expect("normalize A run_a");
     let a_shared_trace = traces_from_wasmtime_steps(a_shared_steps).expect("normalize A shared");
-    let b_trace = traces_from_wasmtime_steps(trace_b.steps()).expect("normalize B run_b");
     assert!(!a_run_trace.is_empty());
     assert!(!a_shared_trace.is_empty());
-    assert!(!b_trace.is_empty());
+    // B calls across the instance boundary: from B's perspective the shared
+    // function is a host import, so proving it needs an import template.
+    let b_err = traces_from_wasmtime_steps(trace_b.steps()).expect_err("cross-instance import needs a template");
+    assert!(b_err
+        .to_string()
+        .contains("no host-event template for host import"));
 }
 
 #[test]
@@ -383,7 +329,7 @@ fn wasmtime_runtime_trace_normalizes_supported_rows() {
     )
     .expect("wat");
 
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace run");
     assert_eq!(run.results.as_slice(), &["16".to_string()]);
     let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize wasmtime trace");
     let opcodes = trace.iter().map(|row| row.opcode).collect::<Vec<_>>();
@@ -511,6 +457,34 @@ fn float_global_initializer_is_rejected_at_parse() {
 }
 
 #[test]
+fn function_type_arity_limit_is_checked_without_truncation() {
+    let params_255 = vec!["i32"; 255].join(" ");
+    let params_256 = vec!["i32"; 256].join(" ");
+    let results_255 = vec!["i32"; 255].join(" ");
+    let results_256 = vec!["i32"; 256].join(" ");
+
+    let accepted_params = wat::parse_str(format!("(module (type (func (param {params_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_params).expect("255 parameters are supported");
+    let rejected_params = wat::parse_str(format!("(module (type (func (param {params_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_params).expect_err("256 parameters must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 parameters; neo-wasm supports at most 255"),
+        "unexpected parameter-limit error: {err}",
+    );
+
+    let accepted_results = wat::parse_str(format!("(module (type (func (result {results_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_results).expect("255 results are supported");
+    let rejected_results = wat::parse_str(format!("(module (type (func (result {results_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_results).expect_err("256 results must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 results; neo-wasm supports at most 255"),
+        "unexpected result-limit error: {err}",
+    );
+}
+
+#[test]
 fn wasmtime_trace_normalizes_memory_size_and_grow_rows() {
     let wasm = wat::parse_str(
         r#"(module
@@ -584,9 +558,11 @@ fn table_get_out_of_bounds_stays_a_loud_error() {
                 ref.is_null))"#,
     )
     .expect("valid WAT");
-    let err = collect_wasmtime_steps(&wasm, "run", &[]).expect_err("table.get OOB must be a hard error");
+    let err = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
+        .expect_err("table.get OOB must be a hard error");
     assert!(
-        format!("{err:?}").contains("failed to execute"),
+        err.to_string()
+            .contains("table.get out of bounds for table 0 index 5"),
         "unexpected error: {err:?}"
     );
 }
@@ -654,7 +630,7 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     .expect("wat");
 
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let row = trace
         .iter()
@@ -1040,13 +1016,16 @@ fn wasmtime_trace_normalizes_compare_unary_and_rotate_rows() {
 
 #[test]
 fn wasmtime_trace_normalizes_br_table_rows() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func (export "run") (param i32) (result i32)
+    // One module per selector value: the selector is a baked-in constant
+    // (plain-mode locals start all-zero, so it cannot be an entry param).
+    let wat_for = |selector: i32| {
+        format!(
+            r#"(module
+            (func (export "run") (result i32)
                 (block $default
                     (block $case1
                         (block $case0
-                            local.get 0
+                            i32.const {selector}
                             br_table $case0 $case1 $default
                         )
                         i32.const 10
@@ -1056,13 +1035,14 @@ fn wasmtime_trace_normalizes_br_table_rows() {
                     return
                 )
                 i32.const 30))
-        "#,
-    )
-    .expect("wat");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        "#
+        )
+    };
 
     for (param, expected_value, expected_choice) in [(0, 10, 1_u32), (1, 20, 2_u32), (5, 30, 0_u32)] {
-        let run = collect_wasmtime_steps(&wasm, "run", &[param]).expect("trace run");
+        let wasm = wat::parse_str(wat_for(param)).expect("wat");
+        let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace run");
         let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
         let row = trace
             .iter()
@@ -1276,10 +1256,10 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
             continue;
         };
         let mut reader = body.get_operators_reader().expect("operators");
+        let mut pc_before = 0;
         while !reader.eof() {
-            let pc_before = reader.original_position() as u64;
             let operator = reader.read().expect("operator");
-            let pc_after = reader.original_position() as u64;
+            let pc_after = pc_before + 1;
             match operator {
                 wasmparser::Operator::If { .. } => {
                     if_pc = Some(pc_before);
@@ -1296,6 +1276,7 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
                 }
                 _ => {}
             }
+            pc_before = pc_after;
         }
     }
 

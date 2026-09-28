@@ -73,7 +73,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     save_envelope(&package, &envelope, &step_dir(root, step + 1), Some(&directory));
 }
 pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare_with_engine(engine);
     let envelope = load_envelope(&package, &step_dir(root, step), step);
     let expected = expected_state(step);
@@ -103,7 +103,7 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     );
 }
 pub(super) fn mutation(root: &Path, step: u64) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare();
     let original = step_dir(root, step);
     let envelope = load_envelope(&package, &original, step);
@@ -116,7 +116,7 @@ pub(super) fn mutation(root: &Path, step: u64) {
     );
 }
 pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare_with_engine(engine);
     let changed = load_envelope(&package, &root.join(format!("changed-step-{step}")), step);
     let error = package

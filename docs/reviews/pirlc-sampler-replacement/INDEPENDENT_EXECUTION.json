@@ -1,0 +1,556 @@
+{
+  "outcome": "passed",
+  "recorded_at": "2026-09-28T04:58:42.793967+00:00",
+  "scope": "Completed author-run execution of two independent Lean folds and successors. Receipts and hashes locate actual value/byte/row checks; hashes alone are not soundness evidence.",
+  "continuation": {
+    "path": "continuation-result.json",
+    "bytes": 2379,
+    "sha256": "dc53f9a3cb778e12442f85798c10181851ea7dc66fce1fb65381e62f392de416"
+  },
+  "folds": {
+    "2": {
+      "required_checks": {
+        "original_sources": [
+          {
+            "path": "step-2-to-3/logs/source-openings.command.json",
+            "bytes": 609,
+            "sha256": "b0580a0bdca4b627095c0c5173686157bca82d9626b4c275f907f64f36dcbd4f"
+          },
+          {
+            "path": "step-2-to-3/logs/source-projection.command.json",
+            "bytes": 577,
+            "sha256": "67e64c8af6e446f837fde95c8cbd743e1d9f5fecd88e8f6fd6068f4163070c25"
+          }
+        ],
+        "complete_piccs": [
+          {
+            "path": "step-2-to-3/logs/c-round-comparison.command.json",
+            "bytes": 891,
+            "sha256": "9068200f857960bab3c9431951b422f81e6094a9c9c70739321f2d449207b0b8"
+          },
+          {
+            "path": "step-2-to-3/logs/c-terminal-prefix-comparison.command.json",
+            "bytes": 1065,
+            "sha256": "f9c54a42ad4d9a36659200a7a0ae8ca5c3279f740b31925b09cf4d85f1a60f47"
+          },
+          {
+            "path": "step-2-to-3/logs/c-evaluation-comparison.command.json",
+            "bytes": 995,
+            "sha256": "73e3570d67f6c9337539770e742d943cd364dd6eebce49fd4655bffa0d1d5de6"
+          },
+          {
+            "path": "step-2-to-3/logs/c-complete-bytes.command.json",
+            "bytes": 971,
+            "sha256": "a67a309f1fe4747f983d4a3103ec44bbb17f73523dbe1a1a41d5f38f43a2e952"
+          },
+          {
+            "path": "step-2-to-3/logs/c-finish-rejections.command.json",
+            "bytes": 3189,
+            "sha256": "1000a74c909412947b41a7d561e21b27866d6de16e99b63381b42e34e8fe2f9f"
+          }
+        ],
+        "complete_private_witnesses": [
+          {
+            "path": "step-2-to-3/logs/rlc-0.command.json",
+            "bytes": 767,
+            "sha256": "f09cb9c96cf02780feffe3c7a2348445a1283def400a3439b39813370039862f"
+          },
+          {
+            "path": "step-2-to-3/logs/rlc-1.command.json",
+            "bytes": 773,
+            "sha256": "4d119c42da8b972f3401877c27100fe92575d871d89176eb2bb5e09b95c5ce97"
+          },
+          {
+            "path": "step-2-to-3/logs/digits-0.command.json",
+            "bytes": 689,
+            "sha256": "f8dc6b5b54591548b60eb831c88ec94c198c7ba403213c3fac6363c0b9256fdf"
+          },
+          {
+            "path": "step-2-to-3/logs/digits-1.command.json",
+            "bytes": 696,
+            "sha256": "835a4ba44f17dfdddf6a0dcaaef0dc37577f3ac46112a8db3345dc6a64fa2f71"
+          },
+          {
+            "path": "step-2-to-3/logs/rlc-comparison.command.json",
+            "bytes": 952,
+            "sha256": "b52d4ecd97aeaa7d2e4a52cebc657db603ea47240bff913984bb7b38e659372e"
+          },
+          {
+            "path": "step-2-to-3/logs/digits-comparison.command.json",
+            "bytes": 936,
+            "sha256": "97dc50a417aca49a0e553d6da8e2700066808cf0832cc5d4d87e4b6b20ac5752"
+          }
+        ],
+        "commitments_separate_evaluations_and_proof": [
+          {
+            "path": "step-2-to-3/logs/d-commitment-merge.command.json",
+            "bytes": 5494,
+            "sha256": "4f97ab0d63e6ffb4d984218cbf78012d3dac65d9a5de1fbc0f046a3d2fe8ab14"
+          },
+          {
+            "path": "step-2-to-3/logs/d-pad-merge.command.json",
+            "bytes": 5056,
+            "sha256": "94bb266614498f8376425b2d38bce4558475e4479b4b96170ad5c91d25ca5fbd"
+          },
+          {
+            "path": "step-2-to-3/logs/d-evaluations.command.json",
+            "bytes": 5371,
+            "sha256": "2625d92faa0d89fc5fe8c2796216afa19f75ddb7b4476d866d67574edfc97af3"
+          },
+          {
+            "path": "step-2-to-3/logs/d-finish.command.json",
+            "bytes": 1024,
+            "sha256": "1676fb738055a47f3237475adf15066d39ce4b9cf8cb61fda89befa693989d29"
+          },
+          {
+            "path": "step-2-to-3/logs/nifs-comparison.command.json",
+            "bytes": 1011,
+            "sha256": "e5bd0cf1690774c8ac103a4a3210d967f454d10574c1d7745a4ccd54bbe1b35c"
+          },
+          {
+            "path": "step-2-to-3/logs/d-finish-rejections.command.json",
+            "bytes": 1138,
+            "sha256": "e10f31eaa68d20c26eb4096ad861ef264c71a19a324a43f19c06b7e313bb0c8c"
+          }
+        ],
+        "fresh_successor": [
+          {
+            "path": "step-2-to-3/logs/caller.command.json",
+            "bytes": 932,
+            "sha256": "080809186deb911fe07c5785244958c73250cd65d75e9ad3ad8e0721f975389b"
+          },
+          {
+            "path": "step-2-to-3/logs/physical.command.json",
+            "bytes": 665,
+            "sha256": "be5aff675719640e6f550fd24748f98259ec10b23c84d5ca67e51e047b2fb336"
+          },
+          {
+            "path": "step-2-to-3/logs/physical-witness-bytes.command.json",
+            "bytes": 562,
+            "sha256": "b8952f6bc95afc81d6d25718e30375b3ae1d3992ccdc445128ae23d28012de71"
+          },
+          {
+            "path": "step-2-to-3/logs/assignment.command.json",
+            "bytes": 690,
+            "sha256": "683eb135208606d07d3c359c73faa4bb2ee545b37836bb7ae3244ad498d38e25"
+          },
+          {
+            "path": "step-2-to-3/logs/assignment-comparison.command.json",
+            "bytes": 767,
+            "sha256": "1b0bb8c1b9370fd08c1a968c175f4df0c0f47417f12d060f8f8d0e56547c1831"
+          },
+          {
+            "path": "step-2-to-3/logs/assignment-assemble.command.json",
+            "bytes": 820,
+            "sha256": "3f47404c2b1b1343aff6dfcfe813574fd19789c1ab4656873a15743d5da88525"
+          },
+          {
+            "path": "step-2-to-3/logs/canonical-rows.command.json",
+            "bytes": 748,
+            "sha256": "31aedce3f669c28a2454ce150ee1735a4416206e850fb02242b5717fe70f7506"
+          },
+          {
+            "path": "step-2-to-3/logs/canonical-row-rejections.command.json",
+            "bytes": 826,
+            "sha256": "f0e9f5140193afcdfc3c9882de7619fa4376f81fba14a6711c15193eec9a0448"
+          },
+          {
+            "path": "step-2-to-3/logs/fresh-witness-bytes.command.json",
+            "bytes": 572,
+            "sha256": "8b760af3ffef73d6f9742ff4cf15bc393aabce28251cf0379a862c0605a5469e"
+          },
+          {
+            "path": "step-2-to-3/logs/fresh-commitment-merge.command.json",
+            "bytes": 881,
+            "sha256": "c4a50e2390221c8359ff731924230e26f69701c603f0ec8399806cb4b2db7283"
+          },
+          {
+            "path": "step-2-to-3/logs/fresh-claim-comparison.command.json",
+            "bytes": 900,
+            "sha256": "679bdf02e934bc932018c3567de5c25fd461560095e8d8812a503c5f6356ec5e"
+          },
+          {
+            "path": "step-2-to-3/logs/physical-rejections.command.json",
+            "bytes": 815,
+            "sha256": "46059c3df2a384827704c9f4a74d80d0887c1fb14596500c84497c45c4911889"
+          }
+        ]
+      },
+      "completed_command_count": 973,
+      "commands_seconds": 25336.218970848015,
+      "child_matrix_ranges": 61,
+      "child_matrix_batches": 16,
+      "child_matrix_seconds": 7463.462603562279,
+      "complete_nifs_bytes": 945983,
+      "native_proof": {
+        "path": "native/fold-2/proof.native",
+        "bytes": 945983,
+        "sha256": "e381581792b94f443ff145c04f6035af83ece0d3c5b1a3add24bc73a0b4cc094"
+      },
+      "lean_result": {
+        "path": "step-2-to-3/nifs-result.json",
+        "bytes": 4737153,
+        "sha256": "ed38699e3b1f21679891f80f459630a7b9600c9b188dcff79f98eb488be4c4fe"
+      },
+      "handoff": {
+        "path": "step-2-to-3/handoff.json",
+        "bytes": 888,
+        "sha256": "1cb0c144c88e20b3ec3bc56b54967f1ec2323ee806d9f0a6c3c8bc0d3ab8f36f"
+      },
+      "canonical_rows": {
+        "active_rows": 6064606,
+        "canonical_blocks": 19,
+        "carrier_coefficients": 242590842,
+        "check_ns": 378680324750,
+        "event": "fresh_canonical_rows_checked",
+        "matrix_count": 14,
+        "padding_rows": 262370850,
+        "public_coefficients": 270,
+        "read_validate_prepare_ns": 840732833,
+        "status": "passed",
+        "tail_coefficients": 50
+      },
+      "row_scope": "Every active canonical row; padding rows are accounted structurally.",
+      "private_witness_scope": "All parent coefficients and all child coefficients through validated signed masks, including implicit zeros and tails."
+    },
+    "3": {
+      "required_checks": {
+        "original_sources": [
+          {
+            "path": "step-3-to-4/logs/source-openings.command.json",
+            "bytes": 760,
+            "sha256": "2976a777618342e62405a217ccf57ce8cc1cbcc2cf1263bdb9a54cb7a60b67bc"
+          },
+          {
+            "path": "step-3-to-4/logs/source-projection.command.json",
+            "bytes": 1043,
+            "sha256": "c6050279a8d614b499050fae975eb5621ccb28790b702cec523779616e0958ad"
+          }
+        ],
+        "complete_piccs": [
+          {
+            "path": "step-3-to-4/logs/c-round-comparison.command.json",
+            "bytes": 891,
+            "sha256": "aa526ec3506a78ebc1ffd0deb8f382db51ec1c5cb0097bde769342d9ab5b2239"
+          },
+          {
+            "path": "step-3-to-4/logs/c-terminal-prefix-comparison.command.json",
+            "bytes": 1066,
+            "sha256": "98c65e3b2b1de33d7a8a611545e2e3214a719bdbc7c57eb2f2fa8f40e766b634"
+          },
+          {
+            "path": "step-3-to-4/logs/c-evaluation-comparison.command.json",
+            "bytes": 995,
+            "sha256": "282c3a519a91be6d9f804bb202191a734b65013c0c899572eb23f0fec23d317b"
+          },
+          {
+            "path": "step-3-to-4/logs/c-complete-bytes.command.json",
+            "bytes": 971,
+            "sha256": "7a79c1aadc1dfce358bef0113e332bacf2e88939d478b7656c2a6240ace58a67"
+          },
+          {
+            "path": "step-3-to-4/logs/c-finish-rejections.command.json",
+            "bytes": 3189,
+            "sha256": "42da01a30d19b4f9a3063aeb47069873643cad08de565e0495033a56593ec0c2"
+          }
+        ],
+        "complete_private_witnesses": [
+          {
+            "path": "step-3-to-4/logs/rlc-0.command.json",
+            "bytes": 767,
+            "sha256": "284f0aaf7a76f3877dcc2f732b0a65513dbece6181417e1e82c2659d38f7d541"
+          },
+          {
+            "path": "step-3-to-4/logs/rlc-1.command.json",
+            "bytes": 774,
+            "sha256": "7c5f884cf004517f7ea4c5067e4bb90670badb8076f4c387f3abe9e58bd89249"
+          },
+          {
+            "path": "step-3-to-4/logs/digits-0.command.json",
+            "bytes": 689,
+            "sha256": "73251902fee7c8f20430e7227e523d37a38b904bd87465f12819b046f356899b"
+          },
+          {
+            "path": "step-3-to-4/logs/digits-1.command.json",
+            "bytes": 696,
+            "sha256": "fba5cc0da973d2bae41c9b1cd743c684bf1d579bdb5ba599d3281f7f9facbec5"
+          },
+          {
+            "path": "step-3-to-4/logs/rlc-comparison.command.json",
+            "bytes": 951,
+            "sha256": "1e2c222c945bcd816451a037245e8fda2ddd9603b10e3b6d726d5014fdb33d15"
+          },
+          {
+            "path": "step-3-to-4/logs/digits-comparison.command.json",
+            "bytes": 935,
+            "sha256": "8a4e9f5fb87c78e7bac45686f07c8235098f8d74004f6020703901561c7e90e1"
+          }
+        ],
+        "commitments_separate_evaluations_and_proof": [
+          {
+            "path": "step-3-to-4/logs/d-commitment-merge.command.json",
+            "bytes": 5493,
+            "sha256": "f33f7a1108eb5097bea4721e4f8064d18464380cd9fb814ac96aad953675c85f"
+          },
+          {
+            "path": "step-3-to-4/logs/d-pad-merge.command.json",
+            "bytes": 5057,
+            "sha256": "5391103b8c15d215abf83d95fba1879fcc616922930f294b16bb3eae93986759"
+          },
+          {
+            "path": "step-3-to-4/logs/d-evaluations.command.json",
+            "bytes": 5369,
+            "sha256": "de2a9dbcf2c812833d1b16dff56e1f316dcb85c287d84bb14ac582b68e4bd9bc"
+          },
+          {
+            "path": "step-3-to-4/logs/d-finish.command.json",
+            "bytes": 1024,
+            "sha256": "f0b62d0fbcb597da8c1d5283315d6d99ce9966ea77b9663938c0c841822ec604"
+          },
+          {
+            "path": "step-3-to-4/logs/nifs-comparison.command.json",
+            "bytes": 1013,
+            "sha256": "36826bcb8fd6d19cbf588b9c11d1327b314ed896bd0c1ed7032fb1434fd263d7"
+          },
+          {
+            "path": "step-3-to-4/logs/d-finish-rejections.command.json",
+            "bytes": 1139,
+            "sha256": "5903b24fddd1a326ad40f1d74bb4f8f481e0071162ab5d7c075f714eb751c9e3"
+          }
+        ],
+        "fresh_successor": [
+          {
+            "path": "step-3-to-4/logs/caller.command.json",
+            "bytes": 931,
+            "sha256": "263135c85856c807cd381b50ddb35fdad6e5acaf948690043fdc8e9f9ac08ad5"
+          },
+          {
+            "path": "step-3-to-4/logs/physical.command.json",
+            "bytes": 666,
+            "sha256": "292665d539054d4df80f431acb4823482c8bc09419c1bb410c7a85e8db4f0b10"
+          },
+          {
+            "path": "step-3-to-4/logs/physical-witness-bytes.command.json",
+            "bytes": 562,
+            "sha256": "6bec86e5c33917d53d41ca1fd73f3708f120d7c68da63684bbae18db37464136"
+          },
+          {
+            "path": "step-3-to-4/logs/assignment.command.json",
+            "bytes": 691,
+            "sha256": "48f2e29a6b42f5f1bdc79b3a69db7dad11659fa697fff5b2c151c7ccadb1252e"
+          },
+          {
+            "path": "step-3-to-4/logs/assignment-comparison.command.json",
+            "bytes": 766,
+            "sha256": "96cefd1d77edb53276fe5906b6b201ec3b27f3cac23529fbbe053f69f7b64efb"
+          },
+          {
+            "path": "step-3-to-4/logs/assignment-assemble.command.json",
+            "bytes": 820,
+            "sha256": "a2b63a4441f7bb8866ca24664f197ae527a6f0677a7d02bc1ab87e53eb14cf5a"
+          },
+          {
+            "path": "step-3-to-4/logs/canonical-rows.command.json",
+            "bytes": 749,
+            "sha256": "a9669b77e1d565f1a5598455c0b462535abde4f24acdf896993562f001fb7f3a"
+          },
+          {
+            "path": "step-3-to-4/logs/canonical-row-rejections.command.json",
+            "bytes": 826,
+            "sha256": "a057e3c128c86f81cfab34759554d1e102e4ee47eeac7684296339eb70b71696"
+          },
+          {
+            "path": "step-3-to-4/logs/fresh-witness-bytes.command.json",
+            "bytes": 572,
+            "sha256": "f94cc28270eec86b4def1956731fda289f1b635e2f6a94a2ffee0fb11f16f144"
+          },
+          {
+            "path": "step-3-to-4/logs/fresh-commitment-merge.command.json",
+            "bytes": 881,
+            "sha256": "ce4fff05d55cb5e3626613cd7ce44052fb8da93800047c8385df7fec2bed2942"
+          },
+          {
+            "path": "step-3-to-4/logs/fresh-claim-comparison.command.json",
+            "bytes": 901,
+            "sha256": "e10f72e72fb556cd16ebceeb0a0ee011e669169617a37cd5957b1115b57cabdd"
+          },
+          {
+            "path": "step-3-to-4/logs/physical-rejections.command.json",
+            "bytes": 814,
+            "sha256": "3fe8f342ba46784ba851277c6a2be285273ff60688bb7e3e4a16973253217fbc"
+          }
+        ]
+      },
+      "completed_command_count": 967,
+      "commands_seconds": 23796.300837884424,
+      "child_matrix_ranges": 61,
+      "child_matrix_batches": 11,
+      "child_matrix_seconds": 6728.381048062351,
+      "complete_nifs_bytes": 945983,
+      "native_proof": {
+        "path": "native/fold-3/proof.native",
+        "bytes": 945983,
+        "sha256": "1e8135fba2cdd2408c5551e2b520e51e95e28b1ff77a4f6ebccc02523229df59"
+      },
+      "lean_result": {
+        "path": "step-3-to-4/nifs-result.json",
+        "bytes": 5056779,
+        "sha256": "67cf1251ba57cdb5063f385c9bb96b9516a0777fe2555f54d7d23e0139468896"
+      },
+      "handoff": {
+        "path": "step-3-to-4/handoff.json",
+        "bytes": 889,
+        "sha256": "1f514dcfa7c1116200b0f4c5a8cee4047a62751fbd09e1d386b85cb69646a3bb"
+      },
+      "canonical_rows": {
+        "active_rows": 6064606,
+        "canonical_blocks": 19,
+        "carrier_coefficients": 242590842,
+        "check_ns": 317479374333,
+        "event": "fresh_canonical_rows_checked",
+        "matrix_count": 14,
+        "padding_rows": 262370850,
+        "public_coefficients": 270,
+        "read_validate_prepare_ns": 834952625,
+        "status": "passed",
+        "tail_coefficients": 50
+      },
+      "row_scope": "Every active canonical row; padding rows are accounted structurally.",
+      "private_witness_scope": "All parent coefficients and all child coefficients through validated signed masks, including implicit zeros and tails."
+    }
+  },
+  "independent_review": "pending",
+  "second_fold_exact_first_lean_feedback": {
+    "fresh-witness.json": {
+      "bytes": 105133306,
+      "sha256": "b3d093592bd292561a9a707046d917caf68d2bf5206f427242732d53303fa906"
+    },
+    "fresh-claim.json": {
+      "bytes": 39384,
+      "sha256": "d3ec7783dec9c0bd4da38cec581a921564c278478fd6ecd28aa8ec67e2da18c9"
+    },
+    "children.json": {
+      "bytes": 445439,
+      "sha256": "e18a99d008d3c7c6bcfbc14f5bc6876f3488e5bd8686d2463c28db832d4d6881"
+    },
+    "digits-0.jsonl": {
+      "bytes": 16629764,
+      "sha256": "dabd2477542d63cbbd9837db39cbe8651eedd4050f074a5e5c161637ded955b6"
+    },
+    "digits-1.jsonl": {
+      "bytes": 567520281,
+      "sha256": "2b31ddc6f82dae0492bb9deb0bd800a7cdbdb572846ddb97cebf36919aec7f90"
+    }
+  },
+  "terminal_iteration_four": {
+    "accepted": {
+      "record": {
+        "current": [
+          16198763368965890360,
+          1691348437959431888,
+          14438286767852799923,
+          3542946507773887630
+        ],
+        "engine": "Optimized",
+        "iteration": 4,
+        "package_identity": [
+          2798282647818380236,
+          1009842070586539119,
+          14473839254191436803,
+          6982549496945545207
+        ],
+        "schema": 1,
+        "scope": "new Rust terminal execution on its own generated successor; Lean comparison is a separate check",
+        "z0": [
+          202,
+          203,
+          204,
+          205
+        ]
+      },
+      "identity": {
+        "path": "native/terminal-4-accepted.json",
+        "bytes": 1489895,
+        "sha256": "ad20cd86d0d5de73b78b65e36ab9528f2d8e0bf74a835e722ae5845e4395fd6f"
+      }
+    },
+    "rejected": {
+      "record": {
+        "case": "fresh relation mismatch after public input rehash and recommit",
+        "iteration": 4,
+        "package_identity": [
+          2798282647818380236,
+          1009842070586539119,
+          14473839254191436803,
+          6982549496945545207
+        ],
+        "rejected": true,
+        "rejection": "FreshRelation(UnsatisfiedRow { row: 6064602 })",
+        "schema": 1
+      },
+      "identity": {
+        "path": "native/terminal-4-rejected.json",
+        "bytes": 278,
+        "sha256": "ceb56f27de79a8e2f9aac22d5c20c08d83b1e6c48e9016380e23b0e25f494664"
+      }
+    },
+    "opening-k-rejected": {
+      "record": {
+        "case": "opening-k",
+        "changed_children": [
+          0,
+          1
+        ],
+        "earlier_terminal_checks_passed": true,
+        "engine": "Optimized",
+        "fresh_witness_rebuilt": true,
+        "iteration": 4,
+        "package_identity": [
+          2798282647818380236,
+          1009842070586539119,
+          14473839254191436803,
+          6982549496945545207
+        ],
+        "rejected": true,
+        "rejection": "Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" }",
+        "schema": 1,
+        "verifier": "nightstream::PreparedLifecycle::verify",
+        "weighted_recomposition_preserved": true
+      },
+      "identity": {
+        "path": "native/terminal-4-opening-k-rejected.json",
+        "bytes": 466,
+        "sha256": "e8d7a72c716c151545c1f604c786f076105aec6539362fbe9b10845d439f5ff6"
+      }
+    },
+    "opening-a-rejected": {
+      "record": {
+        "case": "opening-a",
+        "changed_children": [
+          0,
+          1
+        ],
+        "earlier_terminal_checks_passed": true,
+        "engine": "Optimized",
+        "fresh_witness_rebuilt": true,
+        "iteration": 4,
+        "package_identity": [
+          2798282647818380236,
+          1009842070586539119,
+          14473839254191436803,
+          6982549496945545207
+        ],
+        "rejected": true,
+        "rejection": "Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" }",
+        "schema": 1,
+        "verifier": "nightstream::PreparedLifecycle::verify",
+        "weighted_recomposition_preserved": true
+      },
+      "identity": {
+        "path": "native/terminal-4-opening-a-rejected.json",
+        "bytes": 467,
+        "sha256": "340639f784a3883374baf8873906424ff3d52598466e2ac19b14f5cba9a56778"
+      }
+    }
+  }
+}

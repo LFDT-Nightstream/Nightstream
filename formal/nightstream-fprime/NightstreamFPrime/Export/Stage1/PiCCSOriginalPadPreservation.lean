@@ -130,7 +130,7 @@ theorem range_value (firstBlock count : Nat) (point : PaperAlgebra.Point)
               (K.embed (CarrierAction.kernelImage ⟨basis, live⟩
                 (PiCCSOriginalReads.blockAt masks source (firstBlock + offset)) output))
           else K.zero)) := by
-  rw [range, PiDECEvaluationBatch.sum_value]
+  rw [range_eq_sum, PiDECEvaluationBatch.sum_value]
   simp only [products_value]
 
 private theorem numericSum_succ (count : Nat) (term : Nat → K) :
@@ -214,7 +214,7 @@ private theorem range_succ (firstBlock count : Nat) (point : PaperAlgebra.Point)
     range firstBlock (count + 1) point masks =
       PiDECEvaluationBatch.add (range firstBlock count point masks)
         (products point masks (firstBlock + count)) := by
-  simp only [range, PiDECEvaluationBatch.sum, Nat.fold_succ]
+  simp only [range_eq_sum, PiDECEvaluationBatch.sum, Nat.fold_succ]
 
 private theorem range_eq_reference (firstBlock count : Nat) (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount) :
@@ -227,7 +227,7 @@ private theorem range_eq_reference (firstBlock count : Nat) (point : PaperAlgebr
   | zero =>
       intro _
       funext output
-      rw [range, PiDECEvaluationBatch.sum_value, PiDECEvaluationBatch.range_value]
+      rw [range_eq_sum, PiDECEvaluationBatch.sum_value, PiDECEvaluationBatch.range_value]
       simp only [Nat.zero_mul, numericSum_zero]
   | succ count ih =>
       intro bounded

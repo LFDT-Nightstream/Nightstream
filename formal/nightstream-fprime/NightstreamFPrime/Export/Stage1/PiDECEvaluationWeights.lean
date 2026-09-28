@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
+import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
 /-!
 Store a common-point weighted sum of computed base-ring rows. Each row's
@@ -19,6 +20,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
   (StoredRing)
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
+open NightstreamFPrime.Export.NativePoseidon2
 
 /-- Use the existing little-endian tensor-weight recursion. The caller's
 point fixes every factor; no table of weights is an input. -/
@@ -37,6 +39,40 @@ theorem weight_at_vertex {arity : Nat} (point : CubePoint K arity)
         ⟨NumericBooleanDomain.index vertex, NumericBooleanDomain.index_lt_twoPow vertex⟩
         point
 
+@[inline] private def word (value : F) : UInt64 :=
+  UInt64.ofNatLT value.val (Nat.lt_trans value.isLt (by decide))
+
+private theorem word_canonical (value : F) : (word value).toNat < goldilocksModulus := by
+  simpa only [word, UInt64.toNat_ofNatLT] using value.isLt
+
+private theorem word_denote (value : F) : (word value).denote = value := by
+  apply Fin.ext
+  change (word value).toNat % goldilocksModulus = value.val
+  simp only [word, UInt64.toNat_ofNatLT, Nat.mod_eq_of_lt value.isLt]
+
+@[inline] private def fieldWord (value : UInt64)
+    (canonical : value.toNat < goldilocksModulus) : F :=
+  ⟨value.toNat, canonical⟩
+
+private theorem fieldWord_denote (value : UInt64)
+    (canonical : value.toNat < goldilocksModulus) :
+    fieldWord value canonical = value.denote := by
+  apply Fin.ext
+  change value.toNat = value.toNat % goldilocksModulus
+  exact (Nat.mod_eq_of_lt canonical).symm
+
+@[inline] private def addProduct (initial weight scalar : F) : F :=
+  let result := add64 (word initial) (mul64 (word weight) (word scalar))
+  fieldWord result (add64_canonical _ _ (word_canonical initial) (mul64_canonical _ _))
+
+private theorem addProduct_value (initial weight scalar : F) :
+    addProduct initial weight scalar = initial + weight * scalar := by
+  simp only [addProduct, fieldWord_denote]
+  rw [add64_denote (word initial) (mul64 (word weight) (word scalar))
+    (word_canonical initial) (mul64_canonical (word weight) (word scalar)),
+    mul64_denote (word weight) (word scalar) (word_canonical weight) (word_canonical scalar)]
+  simp only [word_denote]
+
 /-- Update every stored extension coefficient with the same row weight.
 The embedded row has zero imaginary part, so each lane needs two base-field
 products. Materialization occurs before the next row reads the accumulator. -/
@@ -45,8 +81,8 @@ def addWeighted (rowWeight : K) (initial : MaterializedRingK)
   MaterializedRingK.ofRing fun lane =>
     let current := initial.toRing lane
     let scalar := row.get lane
-    ⟨current.c0 + rowWeight.c0 * scalar,
-     current.c1 + rowWeight.c1 * scalar⟩
+    ⟨addProduct current.c0 rowWeight.c0 scalar,
+     addProduct current.c1 rowWeight.c1 scalar⟩
 
 theorem addWeighted_value (rowWeight : K) (initial : MaterializedRingK)
     (row : StoredRing) :
@@ -55,6 +91,7 @@ theorem addWeighted_value (rowWeight : K) (initial : MaterializedRingK)
         (extensionOps.mul rowWeight (K.embed (row.get lane))) := by
   rw [addWeighted, MaterializedRingK.toRing_ofRing]
   funext lane
+  simp only [addProduct_value]
   change _ = K.add (initial.toRing lane)
     (K.mul rowWeight (K.embed (row.get lane)))
   simp only [K.add, K.mul, K.embed,

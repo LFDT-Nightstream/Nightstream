@@ -1,9 +1,76 @@
 # Canonical PiRLC sampler replacement
 
-Status: implementation and local validation complete, including a verified clean
-stock Lean 4.32.2 build and exact emitter comparison. Independent review is
-pending; this report is not merge approval. The final Lean build and axiom audits,
-fresh CPU/Lean comparisons, Rust regressions, and Metal runtime checks passed.
+Status: the sampler replacement and its original local validation are complete,
+including a verified clean stock Lean 4.32.2 build and exact emitter comparison.
+The requested follow-up, complete independent Lean generation of two consecutive
+folds, both fresh successors and iteration-four terminal checks, has passed.
+Independent review is pending; this report is not merge approval. The earlier
+Lean build and axiom audits, fresh CPU/Lean comparisons,
+Rust regressions, and Metal runtime checks passed within their stated scope.
+
+## Independent-generation follow-up
+
+Both independently generated Lean folds, 2→3 and 3→4, and both fresh successors
+passed. The second fold consumes the exact first Lean successor. Native results
+are comparison targets. The [execution index](INDEPENDENT_EXECUTION.json) binds
+the command evidence and exact handoffs; the [reproduction instructions](../../../scripts/INDEPENDENT_GENERATION.md)
+describe the maintained coordinator. Independent review remains pending.
+
+The [final validation record](INDEPENDENT_VALIDATION.json) records 98 passing
+Python regressions, the complete incremental Lean build, static checks and
+selected-identity verification. All 1,180 current Lean files match the separate
+stock-only validation tree. Evidence delivery and source binding remain separate
+from these successful checks and from independent approval.
+
+| Check | Result for both folds |
+|---|---|
+| PiCCS | All 28 rounds, transcript transitions, original-source evaluations, phase values and proof-input words match |
+| PiRLC parent | All 242,590,842 coefficients match, including the carrier tail; changed tails are rejected |
+| PiDEC witnesses | All 16 children match through complete validated signed masks, covering 3,881,453,472 coefficients, implicit zeros and tails |
+| Commitments and evaluations | All 19,008 commitment words, separate Pad values, shared point and all 14 matrix families match |
+| Complete NIFS | Every value and all 945,983 proof bytes match; changed commitments, points, public values, all matrix families and malformed encodings are rejected |
+| Caller and assignment | All 177,326 private and 278 public caller words, all seven result fields, complete physical bytes and all 26 logical assignment blocks match |
+| Canonical rows | Every one of the 6,064,606 active rows passes, with 50 carrier-tail zeros; domain padding is accounted structurally |
+| Successor | Fresh commitment, complete public claim, row rejection checks and exact feedback pass |
+
+The iteration-four production terminal accepts the independently matched
+successor in 169.53 seconds. The recomputed false-relation case is rejected in
+165.12 seconds. Balanced opening tests rebuild the complete fresh witness and
+commitment, preserve PiDEC weighted recomposition, and reach exactly
+`Running { index: 0, reason: Eval_K/Eval_A }`. Their preparation/check times are
+99.64/160.71 seconds for `Eval_K` and 99.17/161.10 seconds for `Eval_A`.
+Every native/Python test retained its 300-second cap; every Lean command retained
+its 1,500-second cap.
+
+The first native comparison run was reused with its original successful receipts
+and verified production source, package and inputs. The second native comparison
+was generated afresh. Both Lean folds were independently generated from their
+original sources, with the exact first Lean result feeding the second. Canonical
+PiCCS JSON comparison permits one final newline; the binary NIFS comparison is
+byte-exact. These executions are conformance evidence, not a universal proof of
+Rust semantics or independent reviewer approval.
+
+Replay speed changes preserve their public theorem statements. On identical
+inputs, prepared tensor weights reduce one Pad arithmetic range from 38.78 to
+7.17 seconds, and proved native field arithmetic reduces one matrix range from
+191.57 to 137.82 seconds. Every output byte matches. Affected proof targets and
+audits pass with the requested optimized compiler and in a separate stock-only
+Lean 4.32.2 cache. This follow-up check is incremental, not another clean build
+or a compiler-correctness proof.
+
+Measured scheduling keeps all 61 matrix ranges and groups the second fold into
+11 batches instead of 16. Shared loading takes 1,062.20 seconds across the second
+fold's batches, versus 1,403.65 seconds in the first. Whole matrix command time
+is 6,728.38 versus 7,463.46 seconds. The folds have different inputs, so these
+whole-run figures are not a controlled speedup comparison. The soft scheduling
+target remains 750 seconds and the hard cap remains 1,500 seconds.
+
+An earlier batch exceeded its wall-clock cap after host suspension. Its failed
+receipt and partial output remain archived; the whole batch was rerun
+successfully. Command guards now count host sleep and reject late success.
+Their regressions fail before the repair and pass afterward. Checkpoint reuse
+requires exact commands, inputs, executables and complete outputs, and a native
+checkpoint must prove that its selected test actually ran and passed.
 
 ## Scope
 

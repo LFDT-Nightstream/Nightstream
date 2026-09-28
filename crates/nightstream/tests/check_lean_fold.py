@@ -131,8 +131,14 @@ class Check:
         self.records.append(record)
         log = self.output / f"{name}.log"
         started = time.monotonic()
+        wall_started = time.time()
         process = None
         handlers = {}
+
+        def elapsed():
+            # macOS monotonic time excludes sleep; neither sleep nor a backward
+            # wall-clock adjustment may extend the command's acceptance cap.
+            return max(time.monotonic() - started, time.time() - wall_started)
 
         def interrupted(signum, _frame):
             raise InterruptedError(f"signal {signum}")
@@ -152,7 +158,15 @@ class Check:
                     if input is not None:
                         process.stdin.write(json.dumps(input).encode())
                         process.stdin.close()
-                    code = process.wait(timeout=max(0, cap - (time.monotonic() - started)))
+                    while True:
+                        remaining = cap - elapsed()
+                        if remaining <= 0:
+                            raise subprocess.TimeoutExpired(record["command"], cap)
+                        try:
+                            code = process.wait(timeout=min(1, remaining))
+                            break
+                        except subprocess.TimeoutExpired:
+                            continue
                     record.update(exit=code, outcome="passed" if code == 0 else "failed")
                 except subprocess.TimeoutExpired:
                     record.update(exit=124, outcome="timed-out")
@@ -166,7 +180,9 @@ class Check:
         finally:
             for signum, handler in handlers.items():
                 signal.signal(signum, handler)
-            record["elapsed_seconds"] = time.monotonic() - started
+            record["elapsed_seconds"] = elapsed()
+            if record.get("exit") == 0 and record["elapsed_seconds"] >= cap:
+                record.update(exit=124, outcome="timed-out")
             with (self.output / f"{name}.command.json").open("x") as stream:
                 json.dump(record, stream, indent=2)
                 stream.write("\n")

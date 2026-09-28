@@ -7,6 +7,7 @@ use crate::lifecycle::VerifyError;
 struct OpeningRequest {
     phase: String,
     directory: PathBuf,
+    step: Option<u64>,
 }
 
 #[derive(Clone, Copy)]
@@ -15,11 +16,13 @@ enum Opening {
     A,
 }
 
-fn request(phase: &str) -> PathBuf {
+fn request(phase: &str) -> (PathBuf, u64) {
     let request: OpeningRequest =
         serde_json::from_reader(std::io::stdin().lock()).expect("staged source directory on stdin");
     assert_eq!(request.phase, phase);
-    request.directory
+    let step = request.step.unwrap_or(3);
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
+    (request.directory, step)
 }
 
 fn labels(opening: Opening) -> (&'static str, &'static str) {
@@ -45,11 +48,11 @@ fn change_openings(children: &mut [CeClaim], opening: Opening, radix: K) {
 
 fn prepare_balanced_opening(opening: Opening) {
     let (phase, _) = labels(opening);
-    let root = request(&format!("{phase}-prepare"));
+    let (root, step) = request(&format!("{phase}-prepare"));
     let package = prepare();
-    let directory = fold_dir(&root, 2);
+    let directory = fold_dir(&root, step - 1);
     let record: fold::SavedNifs = load(&directory.join("nifs.json"));
-    let (state, fresh, prior, mut proof) = record.verify(&package, &step_dir(&root, 2), 2);
+    let (state, fresh, prior, mut proof) = record.verify(&package, &step_dir(&root, step - 1), step - 1);
 
     change_openings(
         &mut proof.pi_dec.children,
@@ -74,22 +77,22 @@ fn prepare_balanced_opening(opening: Opening) {
     let envelope = package
         .complete_step(packet, children, None)
         .expect("the balanced change must have a valid fresh witness");
-    assert_eq!(envelope.state(), &expected_state(3));
+    assert_eq!(envelope.state(), &expected_state(step));
     save_envelope(&package, &envelope, &root.join(phase), Some(&directory));
 }
 
 fn reject_balanced_opening(opening: Opening) {
     let (phase, reason) = labels(opening);
-    let root = request(phase);
+    let (root, step) = request(phase);
     let package = prepare();
-    let record: fold::SavedNifs = load(&fold_dir(&root, 2).join("nifs.json"));
-    let (_, _, _, mut proof) = record.verify(&package, &step_dir(&root, 2), 2);
+    let record: fold::SavedNifs = load(&fold_dir(&root, step - 1).join("nifs.json"));
+    let (_, _, _, mut proof) = record.verify(&package, &step_dir(&root, step - 1), step - 1);
     change_openings(
         &mut proof.pi_dec.children,
         opening,
         K::from(F::from_u64(params(&package).b() as u64)),
     );
-    let envelope = load_envelope(&package, &root.join(phase), 3);
+    let envelope = load_envelope(&package, &root.join(phase), step);
     for (actual, mut expected) in envelope
         .running()
         .unwrap()
@@ -102,16 +105,16 @@ fn reject_balanced_opening(opening: Opening) {
         assert_eq!(actual, &expected, "exact balanced child change");
     }
     let error = package
-        .verify(&expected_state(3), &envelope)
+        .verify(&expected_state(step), &envelope)
         .expect_err("a balanced false opening must not be accepted");
     assert!(
         matches!(error, VerifyError::Running { index: 0, reason: actual } if actual == reason),
         "the production verifier must pass all earlier checks and reach {reason}; got {error:?}"
     );
     save(
-        &root.join(format!("terminal-3-{phase}-rejected.json")),
+        &root.join(format!("terminal-{step}-{phase}-rejected.json")),
         &json!({
-            "schema": 1, "iteration": 3, "case": phase,
+            "schema": 1, "iteration": step, "case": phase,
             "verifier": "nightstream::PreparedLifecycle::verify", "engine": "Optimized",
             "package_identity": package.package_identity(), "changed_children": [0, 1],
             "weighted_recomposition_preserved": true, "fresh_witness_rebuilt": true,

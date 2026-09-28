@@ -13,7 +13,7 @@ from .snapshot import EvidenceError, digest, encoded, read_json, safe_relative
 
 # These ceilings come from the root and F-prime AGENTS.md files.
 CAPS = {"lean": 1500, "rust": 300, "python": 300, "static": 300}
-STATUSES = ("Compiler-closed", "Conformance-closed", "Production-closed")
+TIERS = ("Compiler", "Conformance", "Production")
 
 
 def gate_order(policy, selected):
@@ -71,7 +71,7 @@ def verify_checker_sources(snapshot):
 
 
 def validate(policy):
-    if policy.get("schema") != 1:
+    if policy.get("schema") != 2:
         raise EvidenceError("unsupported obligation-map schema")
     for collection in ("sources", "inputs", "gates", "obligations", "reviews"):
         if not isinstance(policy.get(collection), dict):
@@ -135,8 +135,10 @@ def validate(policy):
     for name, obligation in policy["obligations"].items():
         if not obligation.get("owner") or not obligation.get("gap"):
             raise EvidenceError(f"obligation needs its owner reference and closing connection: {name}")
-        if obligation["status"] not in STATUSES:
-            raise EvidenceError(f"invalid assurance status: {name}")
+        if "status" in obligation:
+            raise EvidenceError(f"obligation status is derived from evidence, not declared: {name}")
+        if obligation.get("tier") not in TIERS:
+            raise EvidenceError(f"invalid assurance tier: {name}")
         if not set(obligation["gates"]) <= policy["gates"].keys():
             raise EvidenceError(f"unknown obligation gate: {name}")
         if not set(obligation["reviews"]) <= policy["reviews"].keys():

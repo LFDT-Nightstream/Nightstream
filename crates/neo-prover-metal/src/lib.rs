@@ -2,8 +2,7 @@
 //!
 //! The protocol crates remain authoritative for transcript order, proof
 //! assembly, and verification. This crate owns Metal device state and the
-//! row evaluator. The default `legacy-adapter` feature also exposes the old
-//! `neo-fold-legacy` NIFS adapter. Other consumers can disable that feature.
+//! row evaluator.
 
 pub mod poseidon2;
 
@@ -13,11 +12,6 @@ compile_error!("the `metal` feature requires an Apple target");
 use std::time::Duration;
 
 use thiserror::Error;
-
-#[cfg(feature = "legacy-adapter")]
-mod adapter;
-#[cfg(feature = "legacy-adapter")]
-pub use adapter::MetalNifsProver;
 
 mod rows;
 pub use rows::MetalRowProver;

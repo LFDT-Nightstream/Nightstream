@@ -24,17 +24,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
         .package
         .encode_stage1_v1_1_inputs(packet.pi_ccs(), packet.pi_dec(), packet.application_witness())
         .unwrap();
-    if step == 1 {
-        let expected = read(artifact(
-            "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
-        ));
-        let private: Vec<u64> = serde_json::from_value(expected[2].clone()).unwrap();
-        let public: Vec<u64> = serde_json::from_value(expected[3].clone()).unwrap();
-        assert_eq!(encoded.private_values(), private);
-        assert_eq!(encoded.public_values(), public);
-        assert_eq!(json!(packet.output_digest()), expected[4][1]);
-        assert_eq!(json!(packet.next_public_input()), expected[4][2]);
-    }
+    // Export every caller word for the separate fresh Lean comparison.
     save(
         &directory.join("caller-inputs.json"),
         &json!({
@@ -83,7 +73,7 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
     save_envelope(&package, &envelope, &step_dir(root, step + 1), Some(&directory));
 }
 pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare_with_engine(engine);
     let envelope = load_envelope(&package, &step_dir(root, step), step);
     let expected = expected_state(step);
@@ -113,7 +103,7 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     );
 }
 pub(super) fn mutation(root: &Path, step: u64) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare();
     let original = step_dir(root, step);
     let envelope = load_envelope(&package, &original, step);
@@ -126,7 +116,7 @@ pub(super) fn mutation(root: &Path, step: u64) {
     );
 }
 pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
-    assert_eq!(step, 3, "selected terminal state is iteration 3");
+    assert!(matches!(step, 3 | 4), "selected terminal state is iteration 3 or 4");
     let package = prepare_with_engine(engine);
     let changed = load_envelope(&package, &root.join(format!("changed-step-{step}")), step);
     let error = package

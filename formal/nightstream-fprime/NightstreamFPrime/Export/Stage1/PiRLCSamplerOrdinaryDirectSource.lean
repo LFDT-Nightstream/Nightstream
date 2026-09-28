@@ -3,373 +3,185 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns indexed access to the exact canonical PiRLC sampler ordinary rows for the
-direct 14-matrix compiler. The source list is the established 32 digest-lane
-lowerings and one fail-closed selector assertion per scalar source.
-
-This module does not retain source values or construct final matrix rows.
--/
+/-! Indexed access and exact read support for the sampler's ordinary rows.
+Only the four transcript lanes, checked core, lowering values, and coefficient
+words are read. Temporary witness helpers do not enter the retained assignment. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 
-open NightstreamFPrime.Circuit
-open NightstreamFPrime.Layout
-open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Layout.Stage1
-open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Lifecycle.PiRLC.v1_1
-open NightstreamFPrime.Gadgets.Sampling
-open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Circuit NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.Stage1
+open NightstreamFPrime.Lifecycle NightstreamFPrime.Lifecycle.PaperAlgebra
+open NightstreamFPrime.Lifecycle.PiRLC.v1_1 NightstreamFPrime.Gadgets.Sampling
+open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Exact sampler ordinary rows after the canonical Spartan permutation. -/
 def sourceRows : List R1CS.Row :=
   (PiRLCSamplerOrdinaryRows.rows (logicalWidth := logicalWidth)
     (publicFits := publicFits)).map Rows.CompiledRow.toR1CS
 
 @[simp] theorem sourceRows_length :
-    (sourceRows (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).length = 220881 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 38811 := by
   rw [sourceRows, List.length_map]
   exact PiRLCSamplerOrdinaryRows.rows_length
 
-def poseidonSource (source round : Nat) (lane : Fin 4) : Nat :=
-  match round with
-  | 0 => PiRLCStarts.samplerSourceLogicalStart source + 584 + lane.val
-  | previous + 1 =>
-      DigestWindow.permutationOffset
-          (Sampler.windowOffset
-            (SamplerChain.sourceOffset PiRLCStarts.samplerLogicalStart source)
-            previous) +
-        584 + lane.val
+def poseidonSource (source : Nat) (lane : Fin 4) : Nat :=
+  PiRLCStarts.samplerSourceLogicalStart source + 584 + lane.val
 
-theorem fastLaneSource_eq_var (source round : Nat) (lane : Fin 4) :
-    PiRLCSamplerOrdinaryRows.fastLaneSource
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane = Expr.var (poseidonSource source round lane) := by
-  unfold PiRLCSamplerOrdinaryRows.fastLaneSource
-    PiRLCSamplerOrdinaryRows.fastWindowInitialState
-    PiRLCSamplerProjection.fastProductionWindowInitialState poseidonSource
-  cases round with
-  | zero =>
-      rw [PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
-      rfl
-  | succ previous => rfl
+def coreStart (source : Nat) : Nat :=
+  WideReduction.Program.coreOffset (PiRLCStarts.rangeLogicalStart source)
 
-def selectorSource (source : Nat) : Nat :=
-  First54.positionOffset (PiRLCStarts.selectorLogicalStart source)
-      (First54.candidateCount - 1) + First54.fullSlot.val
-
-theorem selectorFinalConstraint_source (source : Nat) :
-    PiRLCSamplerOrdinaryRows.selectorFinalConstraint source =
-      Expr.var (selectorSource source) - 1 := by
+theorem rangeSource_eq_var (source : Nat) (lane : Fin 4) (offset : Nat) :
+    (PiRLCSamplerOrdinaryRows.rangeInterface
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source).source lane offset =
+      Expr.var (poseidonSource source lane) := by
+  unfold PiRLCSamplerOrdinaryRows.rangeInterface PiRLCSamplerInvocations.fastAdvanceState
+  rw [PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
   rfl
 
-/-- Exact pre-Spartan source values used by the sampler ordinary remainder. -/
 inductive Source : Nat → Prop where
-  | poseidon (source round : Nat) (lane : Fin 4)
-      (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-      (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount) :
-      Source (poseidonSource source round lane)
-  | logical (source round lane position : Nat)
-      (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-      (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount)
-      (laneLt : lane < 4) (positionLt : position < 100) :
-      Source (PiRLCStarts.digestLaneLogicalStart source round lane + position)
-  | fresh (source round lane position : Nat)
-      (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-      (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount)
-      (laneLt : lane < 4) (positionLt : position < 303) :
-      Source (PiRLCStarts.digestLaneFreshStart source round lane + position)
-  | selector (source : Nat)
-      (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount) :
-      Source (selectorSource source)
+  | poseidon (source : Nat) (lane : Fin 4) (sourceLt : source < 17) :
+      Source (poseidonSource source lane)
+  | logical (source position : Nat) (sourceLt : source < 17) (positionLt : position < 617) :
+      Source (coreStart source + position)
+  | fresh (source position : Nat) (sourceLt : source < 17) (positionLt : position < 1548) :
+      Source (PiRLCStarts.rangeFreshStart source + position)
+  | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 54) :
+      Source (PiRLCStarts.challengeWordStart source + position)
 
-/-- Exact support after the canonical Spartan column permutation. -/
 def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
 
-private theorem laneConstraints_varsSatisfy
-    (source round : Nat) (lane : Fin 4)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-    (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount) :
-    ∀ expression ∈ PiRLCSamplerOrdinaryRows.laneConstraints
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane,
-      expression.VarsSatisfy Source := by
-  rw [PiRLCSamplerOrdinaryRows.laneConstraints_eq_fromCircuit]
-  apply DigestLane.flatConstraints_varsSatisfy
-  · rw [← PiRLCSamplerOrdinaryRows.fastLaneSource_eq]
-    rw [fastLaneSource_eq_var]
-    exact Source.poseidon source round lane sourceLt roundLt
-  · intro index bounded
-    exact Source.logical source round lane.val index sourceLt roundLt lane.isLt
-      (by simpa [DigestLane.logicalPrivateCount] using bounded)
-
-private theorem selectorConstraint_varsSatisfy (source : Nat)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount) :
-    (PiRLCSamplerOrdinaryRows.selectorFinalConstraint source).VarsSatisfy
-      Source := by
-  rw [selectorFinalConstraint_source]
-  exact Expr.VarsSatisfy.sub _ _ Source (Source.selector source sourceLt) trivial
-
-private theorem laneLowered_varsBelow
-    (source round : Nat) (lane : Fin 4)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-    (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount) :
-    ∀ row ∈ R1CS.lowerConstraints
-        (PiRLCSamplerOrdinaryRows.laneConstraints
-          (logicalWidth := logicalWidth) (publicFits := publicFits)
-          source round lane)
-        (PiRLCStarts.digestLaneFreshStart source round lane.val) |>.rows,
-      row.VarsBelow Spartan.SourceColumnCount := by
-  have scope : ∀ expression ∈ PiRLCSamplerOrdinaryRows.laneConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane,
-      expression.VarsBelow
-        (PiRLCStarts.digestLaneFreshStart source round lane.val) := by
-    intro expression member
-    apply Expr.VarsBelow.mono expression
-      (PiRLCSamplerOrdinaryRows.laneConstraints_varsBelow
-        source round lane roundLt expression member)
-    have laneLt := lane.isLt
-    norm_num [PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
-      PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-      PiRLCStarts.phaseFreshStart, PiRLCStarts.digestLaneLogicalStart,
-      PiRLCStarts.windowLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
-      PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
-      Formal.samplerOffset, Formal.logicalPrivateCount,
-      DigestLane.logicalPrivateCount] at laneLt ⊢
-    omega
-  have lowered := R1CS.lowerConstraints_rows_varsBelow
-    (PiRLCSamplerOrdinaryRows.laneConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane)
-    (PiRLCStarts.digestLaneFreshStart source round lane.val) scope
-  have freshCount : R1CS.totalFreshCount
-      (PiRLCSamplerOrdinaryRows.laneConstraints
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane) = 303 := by
-    rw [PiRLCSamplerOrdinaryRows.laneConstraints_eq_fromCircuit]
-    exact NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.totalFreshCount_eq
-      (PiRLCSamplerOrdinaryRows.laneInterface
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane)
-      (PiRLCStarts.digestLaneLogicalStart source round lane.val)
-      (PiRLCSamplerOrdinaryRows.laneInputs
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane)
-  rw [freshCount] at lowered
-  intro row member
-  apply R1CS.Row.VarsBelow.mono row (lowered row member)
-  have laneLt := lane.isLt
-  simp only [PiRLCSamplerOrdinaryRows.sourceCount] at sourceLt
-  simp only [PiRLCSamplerOrdinaryRows.digestRoundCount] at roundLt
+theorem Source.bounded {column : Nat} (supported : Source column) :
+    column < Spartan.SourceColumnCount := by
   rw [Spartan.sourceColumnCount_eq]
-  norm_num [PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
-    PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-    PiRLCStarts.phaseFreshStart, PiRLCStarts.phaseLogicalStart,
-    PiRLCInputs.phaseOffset, Formal.logicalPrivateCount] at sourceLt roundLt laneLt ⊢
+  cases supported <;>
+    simp only [poseidonSource, coreStart, WideReduction.Program.coreOffset,
+      PiRLCStarts.rangeLogicalStart, PiRLCStarts.rangeFreshStart,
+      PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
+      PiRLCStarts.phaseFreshStart, PiRLCStarts.samplerSourceLogicalStart,
+      PiRLCStarts.challengeWordStart, PiRLCStarts.samplerLogicalStart,
+      SamplerChain.sourceOffset, Sampler.rangeOffset, Sampler.wordsOffset,
+      Sampler.advanceOffset, Sampler.counts.1, WideReduction.Program.privateCount_eq,
+      Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq] at *
+  all_goals norm_num [WideReduction.HintProgram.helperCount_eq, Formal.logicalPrivateCount_eq] at *
+  all_goals omega
+
+private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 17) :
+    ∀ expression ∈ PiRLCSamplerOrdinaryRows.rangeConstraints
+        (logicalWidth := logicalWidth) (publicFits := publicFits) source,
+      expression.VarsSatisfy Source := by
+  apply WideReduction.Program.flatConstraints_varsSatisfy
+  · intro lane
+    rw [rangeSource_eq_var]
+    exact Source.poseidon source lane sourceLt
+  · intro column lower upper
+    change coreStart source ≤ column at lower
+    change column < coreStart source + 617 at upper
+    have positionLt : column - coreStart source < 617 := by omega
+    have eq : coreStart source + (column - coreStart source) = column := by omega
+    rw [← eq]
+    exact Source.logical source _ sourceLt positionLt
+
+private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 17) :
+    ∀ expression ∈ PiRLCSamplerOrdinaryRows.wordConstraints source,
+      expression.VarsSatisfy Source := by
+  apply SamplerWords.flatConstraints_varsSatisfy
+  · intro column lower upper
+    change coreStart source ≤ column at lower
+    change column < coreStart source + 617 at upper
+    have positionLt : column - coreStart source < 617 := by omega
+    have eq : coreStart source + (column - coreStart source) = column := by omega
+    rw [← eq]
+    exact Source.logical source _ sourceLt positionLt
+  · intro position bound
+    exact Source.word source position sourceLt bound
+
+private theorem range_fresh (source : Nat) :
+    R1CS.totalFreshCount (PiRLCSamplerOrdinaryRows.rangeConstraints
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source) = 1548 := by
+  have total := PiRLCSamplerOrdinaryRows.rangeRows_length
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source
+  rw [PiRLCSamplerOrdinaryRows.rangeRows, PiCCSArithmetic.compilePacket_length,
+    R1CS.totalRowCount_eq_fresh_add_length] at total
+  have length : (PiRLCSamplerOrdinaryRows.rangeConstraints
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 681 :=
+    WideReduction.Program.rowCount_eq _ _
+  rw [length] at total
   omega
 
-private theorem laneLowered_varsSatisfy
-    (source round : Nat) (lane : Fin 4)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount)
-    (roundLt : round < PiRLCSamplerOrdinaryRows.digestRoundCount) :
-    ∀ row ∈ R1CS.lowerConstraints
-        (PiRLCSamplerOrdinaryRows.laneConstraints
-          (logicalWidth := logicalWidth) (publicFits := publicFits)
-          source round lane)
-        (PiRLCStarts.digestLaneFreshStart source round lane.val) |>.rows,
+private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
+    ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.rangeConstraints
+        (logicalWidth := logicalWidth) (publicFits := publicFits) source)
+        (PiRLCStarts.rangeFreshStart source)).rows,
       row.VarsSatisfy Source := by
-  have lowered := R1CS.lowerConstraints_rows_varsSatisfy
-    (PiRLCSamplerOrdinaryRows.laneConstraints
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane)
-    (PiRLCStarts.digestLaneFreshStart source round lane.val) Source
-    (laneConstraints_varsSatisfy source round lane sourceLt roundLt)
-  have freshCount : R1CS.totalFreshCount
-      (PiRLCSamplerOrdinaryRows.laneConstraints
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane) = 303 := by
-    rw [PiRLCSamplerOrdinaryRows.laneConstraints_eq_fromCircuit]
-    exact NightstreamFPrime.Layout.PiRLC.v1_1.Leaves.DigestLane.totalFreshCount_eq
-      (PiRLCSamplerOrdinaryRows.laneInterface
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane)
-      (PiRLCStarts.digestLaneLogicalStart source round lane.val)
-      (PiRLCSamplerOrdinaryRows.laneInputs
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane)
-  rw [freshCount] at lowered
+  have lowered := R1CS.lowerConstraints_rows_varsSatisfy _
+    (PiRLCStarts.rangeFreshStart source) Source
+    (rangeConstraints_supported (logicalWidth := logicalWidth) (publicFits := publicFits) source sourceLt)
+  rw [range_fresh] at lowered
   intro row member
   apply R1CS.Row.VarsSatisfy.mono row (lowered row member)
   intro column support
-  rcases support with sourceSupport | freshSupport
-  · exact sourceSupport
-  · let position := column -
-        PiRLCStarts.digestLaneFreshStart source round lane.val
-    have positionLt : position < 303 := by
-      dsimp [position]
-      omega
-    have columnEq :
-        PiRLCStarts.digestLaneFreshStart source round lane.val + position =
-          column := by
-      dsimp [position]
-      omega
-    rw [← columnEq]
-    exact Source.fresh source round lane.val position sourceLt roundLt lane.isLt
-      positionLt
+  rcases support with supported | fresh
+  · exact supported
+  · have positionLt : column - PiRLCStarts.rangeFreshStart source < 1548 := by omega
+    have eq : PiRLCStarts.rangeFreshStart source +
+        (column - PiRLCStarts.rangeFreshStart source) = column := by omega
+    rw [← eq]
+    exact Source.fresh source _ sourceLt positionLt
 
-private theorem selectorLowered_varsBelow (source : Nat)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount) :
-    ∀ row ∈ R1CS.lowerConstraints
-        [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source]
-        (PiRLCStarts.selectorFreshStart source + 34047) |>.rows,
-      row.VarsBelow Spartan.SourceColumnCount := by
-  let start := PiRLCStarts.selectorFreshStart source + 34047
-  have scope : ∀ expression ∈
-      [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source],
-      expression.VarsBelow start := by
-    intro expression member
-    simp only [List.mem_singleton] at member
-    subst expression
-    unfold PiRLCSamplerOrdinaryRows.selectorFinalConstraint
-    apply Expr.VarsBelow.sub
-    · simp only [First54.finalFull, First54.positionOffset,
-        First54Step.output, Expr.VarsBelow]
-      norm_num [start, PiRLCStarts.selectorFreshStart,
-        PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart, PiRLCStarts.selectorLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart, PiRLCStarts.samplerLogicalStart,
-        PiRLCStarts.phaseLogicalStart, Formal.logicalPrivateCount,
-        First54.candidateCount, First54.roundPrivateCount,
-        First54.fullSlot, First54Step.slotCount, First54Step.fullSlot,
-        First54ValueStep.outputCount, Formal.samplerOffset,
-        PiRLCInputs.phaseOffset]
-      omega
-    · trivial
-  have lowered := R1CS.lowerConstraints_rows_varsBelow
-    [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source] start scope
-  have noFresh : R1CS.totalFreshCount
-      [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source] = 0 := by
-    rfl
-  rw [noFresh, Nat.add_zero] at lowered
-  intro row member
-  apply R1CS.Row.VarsBelow.mono row (lowered row member)
-  simp only [PiRLCSamplerOrdinaryRows.sourceCount] at sourceLt
-  rw [Spartan.sourceColumnCount_eq]
-  norm_num [start, PiRLCStarts.selectorFreshStart,
-    PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-    PiRLCStarts.phaseFreshStart, PiRLCStarts.phaseLogicalStart,
-    PiRLCInputs.phaseOffset,
-    Formal.logicalPrivateCount] at sourceLt ⊢
-  omega
-
-private theorem selectorLowered_varsSatisfy (source : Nat)
-    (sourceLt : source < PiRLCSamplerOrdinaryRows.sourceCount) :
-    ∀ row ∈ R1CS.lowerConstraints
-        [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source]
-        (PiRLCStarts.selectorFreshStart source + 34047) |>.rows,
+private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
+    ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.wordConstraints source)
+        (PiRLCStarts.rangeFreshStart source + 1548)).rows,
       row.VarsSatisfy Source := by
-  have lowered := R1CS.lowerConstraints_rows_varsSatisfy
-    [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source]
-    (PiRLCStarts.selectorFreshStart source + 34047) Source (by
-      intro expression member
-      simp only [List.mem_singleton] at member
-      subst expression
-      exact selectorConstraint_varsSatisfy source sourceLt)
-  have noFresh : R1CS.totalFreshCount
-      [PiRLCSamplerOrdinaryRows.selectorFinalConstraint source] = 0 := by
-    rfl
-  rw [noFresh, Nat.add_zero] at lowered
+  have lowered := R1CS.lowerConstraints_rows_varsSatisfy _
+    (PiRLCStarts.rangeFreshStart source + 1548) Source
+    (wordConstraints_supported source sourceLt)
+  have fresh := Layout.PiRLC.v1_1.Sampler.words_fresh
+    (PiRLCSamplerInvocations.sourceLogicalStart source)
+  change R1CS.totalFreshCount (PiRLCSamplerOrdinaryRows.wordConstraints source) = 0 at fresh
+  rw [fresh] at lowered
   intro row member
   apply R1CS.Row.VarsSatisfy.mono row (lowered row member)
-  intro _ support
-  rcases support with sourceSupport | freshSupport
-  · exact sourceSupport
+  intro column support
+  rcases support with supported | fresh
+  · exact supported
   · omega
 
-/-- Every canonical sampler ordinary row is confined to the exact Spartan
-source domain. -/
-theorem sourceRows_varsBelow :
-    ∀ row ∈ sourceRows (logicalWidth := logicalWidth)
-        (publicFits := publicFits),
-      row.VarsBelow Spartan.spartanColumnCount := by
-  intro row member
-  rcases List.mem_map.mp member with ⟨compiled, compiledMember, rfl⟩
-  unfold PiRLCSamplerOrdinaryRows.rows at compiledMember
-  rcases List.mem_flatMap.mp compiledMember with
-    ⟨source, sourceMember, sourceRowMember⟩
-  have sourceLt := List.mem_range.mp sourceMember
-  unfold PiRLCSamplerOrdinaryRows.sourceRows at sourceRowMember
-  rcases List.mem_append.mp sourceRowMember with windowMember | selectorMember
-  · rcases List.mem_flatMap.mp windowMember with
-      ⟨round, roundMember, windowRowMember⟩
-    have roundLt := List.mem_range.mp roundMember
-    unfold PiRLCSamplerOrdinaryRows.windowRows at windowRowMember
-    rcases List.mem_flatMap.mp windowRowMember with
-      ⟨lane, _laneMember, laneRowMember⟩
-    have mappedMember : Rows.CompiledRow.toR1CS compiled ∈
-        (PiRLCSamplerOrdinaryRows.laneRows
-          (logicalWidth := logicalWidth) (publicFits := publicFits)
-          source round lane).map Rows.CompiledRow.toR1CS :=
-      List.mem_map.mpr ⟨compiled, laneRowMember, rfl⟩
-    rw [PiRLCSamplerOrdinaryRows.laneRows_toR1CS] at mappedMember
-    exact Spartan.remapRows_varsBelow _
-      (laneLowered_varsBelow source round lane sourceLt roundLt)
-      _ mappedMember
-  · have mappedMember : Rows.CompiledRow.toR1CS compiled ∈
-        (PiRLCSamplerOrdinaryRows.selectorFinalRows source).map
-          Rows.CompiledRow.toR1CS :=
-      List.mem_map.mpr ⟨compiled, selectorMember, rfl⟩
-    rw [PiRLCSamplerOrdinaryRows.selectorFinalRows_toR1CS] at mappedMember
-    exact Spartan.remapRows_varsBelow _
-      (selectorLowered_varsBelow source sourceLt) _ mappedMember
-
-/-- Every sampler ordinary row uses only the exact retained source set after
-the canonical Spartan permutation. -/
+/-- No row reads the temporary quotient-construction helpers. -/
 theorem sourceRows_varsSatisfy :
-    ∀ row ∈ sourceRows (logicalWidth := logicalWidth)
-        (publicFits := publicFits),
+    ∀ row ∈ sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits),
       row.VarsSatisfy Target := by
   intro row member
-  rcases List.mem_map.mp member with ⟨compiled, compiledMember, rfl⟩
-  unfold PiRLCSamplerOrdinaryRows.rows at compiledMember
-  rcases List.mem_flatMap.mp compiledMember with
-    ⟨source, sourceMember, sourceRowMember⟩
-  have sourceLt := List.mem_range.mp sourceMember
-  unfold PiRLCSamplerOrdinaryRows.sourceRows at sourceRowMember
-  rcases List.mem_append.mp sourceRowMember with windowMember | selectorMember
-  · rcases List.mem_flatMap.mp windowMember with
-      ⟨round, roundMember, windowRowMember⟩
-    have roundLt := List.mem_range.mp roundMember
-    unfold PiRLCSamplerOrdinaryRows.windowRows at windowRowMember
-    rcases List.mem_flatMap.mp windowRowMember with
-      ⟨lane, _laneMember, laneRowMember⟩
-    have mappedMember : Rows.CompiledRow.toR1CS compiled ∈
-        (PiRLCSamplerOrdinaryRows.laneRows
-          (logicalWidth := logicalWidth) (publicFits := publicFits)
-          source round lane).map Rows.CompiledRow.toR1CS :=
-      List.mem_map.mpr ⟨compiled, laneRowMember, rfl⟩
-    rw [PiRLCSamplerOrdinaryRows.laneRows_toR1CS] at mappedMember
+  obtain ⟨compiled, compiledMember, rfl⟩ := List.mem_map.mp member
+  obtain ⟨source, sourceMember, sourceRowMember⟩ := List.mem_flatMap.mp compiledMember
+  have sourceLt : source < 17 := List.mem_range.mp sourceMember
+  rcases List.mem_append.mp sourceRowMember with rangeMember | wordMember
+  · have mapped : compiled.toR1CS ∈ (PiRLCSamplerOrdinaryRows.rangeRows
+        (logicalWidth := logicalWidth) (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS :=
+      List.mem_map.mpr ⟨compiled, rangeMember, rfl⟩
+    rw [PiRLCSamplerOrdinaryRows.rangeRows_toR1CS] at mapped
     exact Spartan.remapRows_varsSatisfy Source Target _
-      (laneLowered_varsSatisfy source round lane sourceLt roundLt)
-      (fun column support => ⟨column, support, rfl⟩) _ mappedMember
-  · have mappedMember : Rows.CompiledRow.toR1CS compiled ∈
-        (PiRLCSamplerOrdinaryRows.selectorFinalRows source).map
-          Rows.CompiledRow.toR1CS :=
-      List.mem_map.mpr ⟨compiled, selectorMember, rfl⟩
-    rw [PiRLCSamplerOrdinaryRows.selectorFinalRows_toR1CS] at mappedMember
+      (rangeLowered_supported source sourceLt)
+      (fun column support => ⟨column, support, rfl⟩) _ mapped
+  · have mapped : compiled.toR1CS ∈ (PiRLCSamplerOrdinaryRows.wordRows source).map Rows.CompiledRow.toR1CS :=
+      List.mem_map.mpr ⟨compiled, wordMember, rfl⟩
+    rw [PiRLCSamplerOrdinaryRows.wordRows_toR1CS] at mapped
     exact Spartan.remapRows_varsSatisfy Source Target _
-      (selectorLowered_varsSatisfy source sourceLt)
-      (fun column support => ⟨column, support, rfl⟩) _ mappedMember
+      (wordLowered_supported source sourceLt)
+      (fun column support => ⟨column, support, rfl⟩) _ mapped
+
+theorem sourceRows_varsBelow :
+    ∀ row ∈ sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits),
+      row.VarsBelow Spartan.spartanColumnCount := by
+  intro row member
+  change row.VarsSatisfy (fun column => column < Spartan.spartanColumnCount)
+  apply R1CS.Row.VarsSatisfy.mono row (sourceRows_varsSatisfy row member)
+  intro column support
+  rcases support with ⟨source, supported, rfl⟩
+  exact Spartan.sourceToSpartan_lt source supported.bounded
 
 theorem sourceRows_rowCount_le :
     (sourceRows (logicalWidth := logicalWidth)
@@ -377,12 +189,12 @@ theorem sourceRows_rowCount_le :
   rw [sourceRows_length]
   norm_num [Lifecycle.cubeVariables]
 
-def sourceListIndex (index : Fin 220881) :
+def sourceListIndex (index : Fin 38811) :
     Fin (sourceRows (logicalWidth := logicalWidth)
       (publicFits := publicFits)).length :=
   Fin.cast sourceRows_length.symm index
 
-def programRow (index : Fin 220881) : R1CS.Row :=
+def programRow (index : Fin 38811) : R1CS.Row :=
   (sourceRows (logicalWidth := logicalWidth)
     (publicFits := publicFits)).get (sourceListIndex index)
 
@@ -417,7 +229,7 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
 
 def supportedProgram : SupportedProgram
     (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)) where
-  rowCount := 220881
+  rowCount := 38811
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow (logicalWidth := logicalWidth) (publicFits := publicFits)
   exactRows := programRows_eq
@@ -435,10 +247,10 @@ def program : OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
 
 @[simp] theorem program_rowCount :
     (program (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).rowCount = 220881 := by
+      (publicFits := publicFits)).rowCount = 38811 := by
   rfl
 
-theorem programRow_bounded (index : Fin 220881) :
+theorem programRow_bounded (index : Fin 38811) :
     (programRow (logicalWidth := logicalWidth)
       (publicFits := publicFits) index).VarsBelow
         Spartan.spartanColumnCount := by
@@ -464,7 +276,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
 /-- Indexed canonical sampler rows hold exactly when the complete Lean-lowered
 row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 220881,
+    (∀ index : Fin 38811,
       (programRow (logicalWidth := logicalWidth)
         (publicFits := publicFits) index).Holds env) ↔
       R1CS.RowsHold env

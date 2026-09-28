@@ -320,11 +320,12 @@ def value (_ : Unit) : Except String Lean.Json := do
     productionGlobalParams.bigB, ringDegree, Lifecycle.cubeVariables,
     Spec.ProductionRelation.matrixCount, Spec.ProductionRelation.meaningfulPortCount]
   pure (Lean.Json.mkObj [
-    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 1),
+    ("format", .str "nightstream.shared-verifier"), ("version", jsonNat 3),
     ("id", .str "shared-recursive-verifier-v1"), ("profile", Lean.toJson profile),
     ("dependencies", strings ["poseidon2-permutation-v1", "poseidon2-external-v1", "phi81-product-v1"]),
     ("parameters", strings ["witness_words", "local_words", "application_rows"]),
     ("reference", Lean.toJson (referenceCounts ())),
+    ("application_local_index", jsonNat (assignmentOpcode .applicationLocal)),
     ("geometry", geometry ()), ("ports", ports ()), ("recursive_public", recursivePublic),
     ("children", Lean.toJson metadata.1),
     ("matrix_relocations", Lean.toJson metadata.2),

@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
 /-!
 Owns the canonical direct-plan prefix through PiRLC. Plan order is pilot
-Poseidon2, PiCCS Poseidon2, PiRLC sampler Poseidon2, then PiRLC product and
-First54 rows.
+Poseidon2, PiCCS Poseidon2, PiRLC sampler Poseidon2, then PiRLC product
+rows.
 
 This is a phase-local compiler plan. It does not include ordinary rows,
 PiDEC, accumulator, application, terminal work, or a final package identity.
@@ -117,7 +117,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan payloadForms values geometry).rowCount = 4964947 := by
+    (plan payloadForms values geometry).rowCount = 4834064 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 
@@ -147,18 +147,17 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   pilot : PilotPoseidonPlan.Semantics (pilotGeometry geometry) assignment
   piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
   piCcs : PiCCSPoseidonPreservation.CanonicalSemantics geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
   samplerEncoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
   sampler : PiRLCSamplerPoseidonPreservation.CanonicalSemantics geometry assignment
   piRlc : PiRLCRetainedPlan.Semantics program base
 
@@ -169,10 +168,9 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   retained : PiRLCRetainedPreservation.Encodes
-    (prefixGeometry geometry) assignment base groupValue products
+    (prefixGeometry geometry) assignment base groupValue
   piRlcValues : ∀ invocation,
     (values invocation).eval assignment =
       PiRLCProductPlan.baseEnv program base
@@ -183,16 +181,16 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       (PiRLCPoseidonGeometry.priorInputStart program)
       (PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)) assignment
       (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products)
+        program base groupValue)
   pilotOutputInput :
     (PiRLCPoseidonGeometry.outputInputBlock program).EncodesAt
       (PiRLCPoseidonGeometry.outputInputStart program)
       (PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)) assignment
       (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products)
+        program base groupValue)
   payload : ∀ index, (payloadForms index).eval assignment =
     PiCCSActionPayloadBlock.payloadValue program
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue)
       index
 
 theorem rowsZero_implies_semantics
@@ -203,14 +201,13 @@ theorem rowsZero_implies_semantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
-    (encodes : Encodes payloadForms values geometry assignment base groupValue products)
+    (encodes : Encodes payloadForms values geometry assignment base groupValue)
     (rowsZero : (plan payloadForms values geometry).RowsZero assignment) :
-    Semantics payloadForms geometry assignment base groupValue products := by
+    Semantics payloadForms geometry assignment base groupValue := by
   have children := (rowsZero_iff payloadForms values geometry assignment).mp rowsZero
   let prefixAssignment := PiRLCRetainedPreservation.sourceAssignment
-    program base groupValue products
+    program base groupValue
   have piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
       prefixAssignment :=
     PiCCSPoseidonPreservation.encodingOfRetained payloadForms geometry assignment
@@ -231,7 +228,7 @@ theorem rowsZero_implies_semantics
   · exact PiRLCSamplerPoseidonPreservation.rowsZero_implies_canonicalSemantics
       geometry assignment one children.2.2.1
   · exact PiRLCRetainedPlan.rowsZero_implies_semantics
-      values (prefixGeometry geometry) assignment base groupValue products one
+      values (prefixGeometry geometry) assignment base groupValue one
         encodes.piRlcValues encodes.retained children.2.2.2
 
 end NightstreamFPrime.Export.Stage1.DirectPrefixPlan

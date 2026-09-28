@@ -1,48 +1,43 @@
 # Nightstream
 
 Nightstream is a research proving system that combines SuperNeo folding for
-CCS with HyperNova Construction 2 and Nebula memory checking. The active field
+CCS with HyperNova-style recursion. The active field
 is Goldilocks with a degree-two extension. Ajtai commitments bind witnesses,
 and protocol transcripts use Poseidon2 only.
 
 Nightstream is not production-ready and has not had an independent audit.
 
-New application integrations use [`nightstream`](crates/nightstream/README.md).
-The previous lifecycle remains in [`neo-fold-legacy`](crates/neo-fold-legacy/README.md)
-for existing consumers and reference. Rust CI tests the maintained `nightstream` crate.
+Application integrations use [`nightstream`](crates/nightstream/README.md).
+There is one maintained assembly and witness path. Rust CI checks the runtime;
+local Lean validation checks the active `formal/nightstream-fprime` package.
 
 ## Implemented paths
 
 - SuperNeo NIFS: PiCCS, PiRLC, and PiDEC
 - Optimized and PaperExact reduction engines
 - HyperNova-style recursive R1CS F' induction
-- Nebula offline memory checking
-- Direct CCS folding with full-history audit verification
-- Terminal R1CS compilation and a WIP Spartan proof over WHIR
+- Terminal verification of the fresh relation and running commitment openings
 - Metal acceleration for the canonical one-joint prover on supported Apple builds
 - A required CUDA backend target that fails explicitly until its canonical
   device kernel is implemented
 
-The recursive R1CS and Nebula frontends compile the authoritative F' relation.
-Their terminal verifier checks the Construction 2 induction. The direct CCS
-frontend proves the supplied CCS instances and NIFS continuity; multi-chunk
-direct CCS proofs still require the audit replay path.
+The recursive package contains the application and verifier rows. The wide
+PiRLC sampler uses four transcript field elements per challenge and has no
+rejection or shortfall path. Its statistical bound does not replace the
+explicit Fiat–Shamir and MSIS assumptions in the security argument.
 
 ## Main crates
 
 | Crate | Ownership |
 |---|---|
 | `nightstream` | Application circuits, prepared packages, CPU/Metal proving, and terminal verification |
-| `neo-fold-legacy` | Deprecated lifecycle and frontends retained for existing consumers |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
 | `neo-math` | Goldilocks, extension-field, and ring arithmetic |
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript |
-| `wip-spartan` | Direct sparse-R1CS Spartan proof with WHIR |
 | `neo-prover-metal` | Apple Metal prover work |
 | `neo-prover-cuda` | Required CUDA backend target |
-| `neo-wasm` | WASM relation and Nebula integration |
 
 ## Prover choices
 
@@ -61,7 +56,6 @@ The proof format and verifier do not depend on the prover choice.
 cargo build --release
 timeout 300s cargo test -p neo-reductions --release
 timeout --signal=KILL 300 cargo test -p nightstream --release
-timeout 300s cargo test -p wip-spartan --release
 ```
 
 Run `cargo fmt --all` after Rust changes. All non-Lean test commands have a
@@ -69,13 +63,13 @@ five-minute cap. See [AGENTS.md](AGENTS.md) for the full project rules.
 
 For Lean proof work, [lean-graph](scripts/lean_graph/README.md) records proof
 obligations, runs and resumes validation checkpoints, and answers dependency
-queries. Its current configuration covers the Nightstream F′ pilot/PiCCS chain.
+queries. Fresh runtime and Lean comparisons use the
+[golden conformance workflow](scripts/GOLDEN_CONFORMANCE.md).
 
 ## Papers and implementation notes
 
-- [SuperNeo paper](docs/superneo-paper/)
-- [HyperNova paper](docs/hypernova-paper/)
-- [Nebula paper](docs/nebula-paper/)
+- [SuperNeo v1.2, September 4](docs/superneo-paper-v1_2/)
+- [HyperNova paper](https://eprint.iacr.org/2023/573)
 - [Wiki](wiki/index.md)
 - [Active Lean proof work](formal/nightstream-fprime/CONSTRAINT_TREE.md)
 - [Lean evidence workflow design](docs/trellis-nightstream-proposal.md)

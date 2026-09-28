@@ -65,7 +65,7 @@ def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piCcsOffset program + 4581414
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piRlcOffset program + 315894
+  piRlcOffset program + PiRLC.v1_1.Formal.logicalPrivateCount
 
 def runningOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piDecOffset program + Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount

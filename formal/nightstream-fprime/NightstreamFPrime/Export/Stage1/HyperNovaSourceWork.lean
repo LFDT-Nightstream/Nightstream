@@ -513,7 +513,6 @@ theorem expected_work_polynomial_bound
     (scalarSubClock : RingF → RingF → Nat) (inverseAdapterClock : RingF → Nat)
     (assignmentSubClock : PiRLCExtractionPrimitives.Assignment → PiRLCExtractionPrimitives.Assignment → Nat)
     (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
-    (lowNorm : Phi81StrongSet.LowNormInvertibility)
     (bounds : PiRLC.PaperForkExtractionWork.PrimitiveBounds)
     (bounded : PiRLC.PaperForkExtractionWork.Bounded
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
@@ -569,7 +568,7 @@ theorem expected_work_polynomial_bound
       (operationalContinuation continued) (call originalFirstPhase prefixClock) primitives
       (sourceProgram sourceCheckClock accessClock)
       (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey)
-      (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits lowNorm)
+      (Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility)
       (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
         assignmentSubClock scalarActionClock)
       bounds bounded accessBound

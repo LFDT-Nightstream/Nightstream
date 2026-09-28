@@ -93,11 +93,11 @@ def preparePiRlcSources :
       let head ← collect headTask
       return head.append tail
 
-/-- All original PiRLC sources, including each final selector block, retain
-the existing canonical list index. The source count comes from its owner. -/
+/-- All PiRLC sources, including their checked coefficient words, retain
+the canonical list index. The source count comes from its owner. -/
 def prepareAllPiRlc :
     IO (PreparedRowBlocks (OrdinaryRowPlan.piRlcBlocks ())) :=
-  preparePiRlcSources (List.range PiRLCSamplerOrdinaryRows.sourceCount)
+  preparePiRlcSources (List.range PiRLCSamplerInvocations.sourceCount)
 
 /-- Let the per-source preparation overlap with the other physical sources. -/
 def startAllPiRlc :

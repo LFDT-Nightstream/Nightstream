@@ -452,13 +452,13 @@ private theorem compactEnv_shiftedPiRlcLocal
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
       PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + 315894) index) :
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount) index) :
     CompactPullback.compactEnv program env (index + piRlcDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCSPiRLC.piRlcOffset
-    have relativeLt : relative < 315894 := by
+    have relativeLt : relative < Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCSPiRLC.piRlcOffset + relative = index := by
@@ -860,11 +860,6 @@ private theorem compactPiRlcInitialState_eq
   rw [PiRLCInputs.piCcsOutputState_eq_parent relation]
   exact compactPiCcsOutgoingState_eq relation program env
 
-private theorem compactPiRlcOutputSlot_val
-    (position : Fin ringDegree) :
-    (Lifecycle.PiRLC.v1_1.Sampler.outputSlot position).val = position.val := by
-  rfl
-
 private theorem compactPiRlcOutputWordSupport
     (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount)
     (position : Fin ringDegree) :
@@ -872,34 +867,20 @@ private theorem compactPiRlcOutputWordSupport
       (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val) position).VarsSatisfy
       (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-        (PilotPiCCSPiRLC.piRlcOffset + 315894)) := by
+        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount)) := by
   simp only [Lifecycle.PiRLC.v1_1.Sampler.outputWord,
-    First54.output, First54ValueStep.output, Expr.VarsSatisfy]
+    Lifecycle.PiRLC.v1_1.SamplerWords.outputWord, Expr.VarsSatisfy]
   apply Or.inr
-  constructor
-  · unfold Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-      Lifecycle.PiRLC.v1_1.Sampler.selectorOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowBase
-      First54.valueOffset First54.positionOffset
-    omega
-  · have sourceBound := source.isLt
-    have positionBound := position.isLt
-    have slotValue := compactPiRlcOutputSlot_val position
-    change source.val < 17 at sourceBound
-    change position.val < 54 at positionBound
-    unfold Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-      Lifecycle.PiRLC.v1_1.Sampler.selectorOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowBase
-      First54.valueOffset First54.positionOffset
-    norm_num [Lifecycle.PiRLC.v1_1.Sampler.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.Sampler.digestRoundCount,
-      Lifecycle.PiRLC.v1_1.DigestWindow.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.DigestLane.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.Sampler.entryPrivateCount,
-      First54.candidateCount, First54.roundPrivateCount,
-      First54Step.slotCount, First54ValueStep.outputCount,
-      First54.outputCount] at ⊢
-    omega
+  have sourceBound : source.val < 17 := source.isLt
+  have positionBound : position.val < 54 := position.isLt
+  simp only [Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset,
+    Lifecycle.PiRLC.v1_1.Sampler.counts.1,
+    Lifecycle.PiRLC.v1_1.Sampler.wordsOffset,
+    Lifecycle.PiRLC.v1_1.Sampler.advanceOffset,
+    Lifecycle.PiRLC.v1_1.Sampler.rangeOffset,
+    Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount,
+    WideReduction.Program.privateCount_eq]
+  omega
 
 private theorem compactPiRlcOutputStateSupport
     (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount) :
@@ -916,33 +897,21 @@ private theorem compactPiRlcOutputStateSupport
         (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
           PilotPiCCSPiRLC.piRlcOffset source.val))
       (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-        (PilotPiCCSPiRLC.piRlcOffset + 315894)) := by
+        (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount)) := by
   intro lane
   simp only [Lifecycle.PiRLC.v1_1.Sampler.outputState,
-    Lifecycle.PiRLC.v1_1.DigestWindow.output,
     Permutation.Owned.output, Permutation.scheduleOutput,
     Permutation.freshState, Expr.VarsSatisfy]
   apply Or.inr
-  constructor
-  · unfold Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowBase
-      Lifecycle.PiRLC.v1_1.DigestWindow.permutationOffset
-    omega
-  · have sourceBound := source.isLt
-    have laneBound := lane.isLt
-    change source.val < 17 at sourceBound
-    change lane.val < 8 at laneBound
-    unfold Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowOffset
-      Lifecycle.PiRLC.v1_1.Sampler.windowBase
-      Lifecycle.PiRLC.v1_1.DigestWindow.permutationOffset
-    norm_num [Lifecycle.PiRLC.v1_1.Sampler.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.Sampler.digestRoundCount,
-      Lifecycle.PiRLC.v1_1.DigestWindow.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.DigestLane.logicalPrivateCount,
-      Lifecycle.PiRLC.v1_1.Sampler.entryPrivateCount]
-    omega
+  have sourceBound : source.val < 17 := source.isLt
+  have laneBound : lane.val < 8 := lane.isLt
+  simp only [Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset,
+    Lifecycle.PiRLC.v1_1.Sampler.counts.1,
+    Lifecycle.PiRLC.v1_1.Sampler.advanceOffset,
+    Lifecycle.PiRLC.v1_1.Sampler.rangeOffset,
+    Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount,
+    WideReduction.Program.privateCount_eq]
+  omega
 
 private theorem compactPiRlcSourceOffset_shift
     (program : Lifecycle.Stage1.Application.Program) (source : Nat) :
@@ -973,47 +942,17 @@ private theorem compactPiRlcOutputWord_eq
       (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val) position)
     (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + 315894))
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiRlcOutputWordSupport source position)
     (compactEnv_shiftedPiRlcLocal program env)).symm
 
-private theorem compactPiRlcOutputCoefficients_eq
-    (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (source : Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount) :
-    Lifecycle.PiRLC.v1_1.Sampler.outputCoefficients (sourceEnv program env)
-        (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-          PilotPiCCSPiRLC.piRlcOffset source.val) =
-      Lifecycle.PiRLC.v1_1.Sampler.outputCoefficients
-        (CompactPullback.compactEnv program env)
-        (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
-          (AssemblerInputs.piRlcOffset program) source.val) := by
-  unfold Lifecycle.PiRLC.v1_1.Sampler.outputCoefficients First54.evalOutput
-  apply congrArg List.ofFn
-  funext slot
-  let position : Fin ringDegree :=
-    Fin.cast Lifecycle.PiRLC.v1_1.Sampler.outputCount_eq_ringDegree slot
-  have wordEq := compactPiRlcOutputWord_eq program env source position
-  simpa [Lifecycle.PiRLC.v1_1.Sampler.outputWord,
-    Lifecycle.PiRLC.v1_1.Sampler.outputSlot, position] using wordEq
-
 private theorem compactPiRlcChallenges_eq
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env) :
     Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges
-        (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (Lifecycle.PiRLC.v1_1.Formal.atOffset
-            (PiRLCInputs.interface
-              (logicalWidth := logicalWidth) (publicFits := publicFits))
-            PilotPiCCSPiRLC.piRlcOffset))
         PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env) =
       Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges
-        (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
-          (Lifecycle.PiRLC.v1_1.Formal.atOffset
-            (AssemblerInputs.piRlcInterface relation program)
-            (AssemblerInputs.piRlcOffset program)))
-        (AssemblerInputs.piRlcOffset program)
-        (CompactPullback.compactEnv program env) := by
+        (AssemblerInputs.piRlcOffset program) (CompactPullback.compactEnv program env) := by
   apply Lifecycle.PiRLC.v1_1.SamplerChain.evalChallenges_eq_of_outputWord_eq
   intro source position
   exact compactPiRlcOutputWord_eq program env source position
@@ -1064,7 +1003,7 @@ private theorem compactPiRlcOutputState_eq
       (Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset
         PilotPiCCSPiRLC.piRlcOffset source.val))
     (SupportRange.Extend (fun _ => False) PilotPiCCSPiRLC.piRlcOffset
-      (PilotPiCCSPiRLC.piRlcOffset + 315894))
+      (PilotPiCCSPiRLC.piRlcOffset + Lifecycle.PiRLC.v1_1.Formal.logicalPrivateCount))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiRlcOutputStateSupport source)
     (compactEnv_shiftedPiRlcLocal program env) lane).symm
@@ -1072,35 +1011,25 @@ private theorem compactPiRlcOutputState_eq
 private theorem compactPiRlcSampler
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
-    (sampler : Lifecycle.PiRLC.v1_1.SamplerChain.RelationHolds
+    (sampler : Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
       (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
         (Lifecycle.PiRLC.v1_1.Formal.atOffset
           (PiRLCInputs.interface
             (logicalWidth := logicalWidth) (publicFits := publicFits))
           PilotPiCCSPiRLC.piRlcOffset))
       PilotPiCCSPiRLC.piRlcOffset (sourceEnv program env)) :
-    Lifecycle.PiRLC.v1_1.SamplerChain.RelationHolds
+    Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds
       (Lifecycle.PiRLC.v1_1.Formal.samplerInterface
         (Lifecycle.PiRLC.v1_1.Formal.atOffset
           (AssemblerInputs.piRlcInterface relation program)
           (AssemblerInputs.piRlcOffset program)))
       (AssemblerInputs.piRlcOffset program)
       (CompactPullback.compactEnv program env) := by
-  apply Lifecycle.PiRLC.v1_1.SamplerChain.RelationHolds.of_cross_eval_eq
-  · intro count countBound
-    cases count with
-    | zero => exact compactPiRlcInitialState_eq relation program env
-    | succ source =>
-        let sourceIndex :
-            Fin Lifecycle.PiRLC.v1_1.SamplerChain.sourceCount :=
-          ⟨source, by omega⟩
-        simpa [Lifecycle.PiRLC.v1_1.SamplerChain.evalStateAt, sourceIndex] using
-          compactPiRlcOutputState_eq relation program env sourceIndex
-  · intro source
-    exact compactPiRlcOutputCoefficients_eq program env source
-  · intro source
-    exact compactPiRlcOutputState_eq relation program env source
-  · exact compactPiRlcChallenges_eq relation program env
+  apply Lifecycle.PiRLC.v1_1.SamplerChain.SpecHolds.of_cross_eval_eq
+  · exact compactPiRlcInitialState_eq relation program env
+  · intro source position
+    exact compactPiRlcOutputWord_eq program env source position
+  · exact compactPiRlcOutputState_eq relation program env ⟨16, by decide⟩
   · exact sampler
 
 private theorem compactPiRlcSemanticChallenges_eq
@@ -1115,7 +1044,7 @@ private theorem compactPiRlcSemanticChallenges_eq
         (AssemblerInputs.piRlcOffset program)
         (CompactPullback.compactEnv program env) := by
   funext source
-  exact congrFun (compactPiRlcChallenges_eq relation program env)
+  exact congrFun (compactPiRlcChallenges_eq program env)
     (Lifecycle.PiRLC.v1_1.Semantics.sourceIndex source)
 
 private theorem compactPiRlcOutput_eq

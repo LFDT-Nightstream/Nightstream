@@ -193,3 +193,7 @@ impl Verifier {
 #[cfg(test)]
 #[path = "../tests/circuit/compiled_circuit.rs"]
 mod compiled_circuit;
+
+#[cfg(test)]
+#[path = "../tests/circuit/hash_chain_vector.rs"]
+mod hash_chain_vector;

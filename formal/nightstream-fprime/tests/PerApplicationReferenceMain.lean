@@ -264,6 +264,9 @@ def writeSealedPackage (program : Program)
   comma handle
   writeEncoded handle ApplicationPackage.Plan.format application
   comma handle
+  writeEncoded handle PerApplicationAssignmentTransport.Plan.format
+    (PerApplicationAssignmentTransport.canonical program)
+  comma handle
   writeEncoded handle MatrixProgram.IndexRange.format
     (PerApplicationCanonicalPackage.nextPreimageRange program)
   comma handle

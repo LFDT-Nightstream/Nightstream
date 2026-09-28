@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
+import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
 /-!
 Original signed-mask assignment, complete blocks and prepared coefficient reads.
@@ -30,13 +31,12 @@ def blockAt (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Nat) : RingF :=
   PiCCSSourceImages.blockAt (assignment masks source) block
 
-/-- Evaluate signed masks in stored sparse-entry order. Positive bits take
-priority even when the supplied masks overlap. -/
+/-- Evaluate signed masks with the existing native-word sparse accumulator.
+Positive bits retain priority even when the supplied masks overlap. -/
 def maskEval (form : SparseForm ringDegree) (positive negative : Nat) : F :=
-  form.entries.foldl (fun total entry =>
-    if positive.testBit entry.column.val then total + entry.coefficient
-    else if negative.testBit entry.column.val then total + (-entry.coefficient)
-    else total) 0
+  PiDECNativeSparseEvaluation.nativeEvalSparse form fun lane =>
+    if positive.testBit lane.val then 1
+    else if negative.testBit lane.val then -1 else 0
 
 /-- Select one original mask pair and evaluate its prepared basis form.
 The complete-carrier guard preserves zero reads for arbitrary outside columns. -/

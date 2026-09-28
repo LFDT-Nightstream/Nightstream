@@ -183,11 +183,10 @@ private theorem representedSemantics_imply_stepHoldsFor
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
-      assignment base groupValue products)
+      assignment base groupValue)
     (input : Input KeyDigest AppState AppWitness
       (Running
         (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -205,7 +204,7 @@ private theorem representedSemantics_imply_stepHoldsFor
       input output)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) assignment base
-      groupValue products) :
+      groupValue) :
     StepHoldsFor (relation application fits) ajtai
       vk application input output := by
   have hashSlots := Lifecycle.Pilot.builders_imply_hash_slots
@@ -252,7 +251,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     simpa [commonEnv] using
       DirectAccumulatorCommonSemantics.semantics_imply_accumulatorHolds
         (relation application fits) ajtai vk
-        (prefixGeometry application) assignment base groupValue products one
+        (prefixGeometry application) assignment base groupValue one
         encodes.runningPrefix semantics.runningPrefix
         (PiRLCInputBounds.assumptions (relation application fits)
           (commonEnv application assignment base))
@@ -409,7 +408,7 @@ theorem rowsZero_implies_stepHoldsFor
   have one := PerApplicationCanonicalAssignment.assignment_one raw
   have encodes := PerApplicationCanonicalEncodes.encodes raw
   have semantics := PerApplicationFixedPoint.rowsZero_implies_semantics
-    application fits raw.assignment raw.base raw.groupValue raw.products one
+    application fits raw.assignment raw.base raw.groupValue one
     encodes accepted
   have canonical := PerApplicationDecodedIO.semantics_imply_canonicalStates
     application fits raw semantics
@@ -470,7 +469,7 @@ theorem rowsZero_implies_stepHoldsFor
     · rfl
   exact representedSemantics_imply_stepHoldsFor application fits ajtai
     (PerApplicationDecodedIO.contextKey raw) raw.assignment raw.base
-    raw.groupValue raw.products one encodes
+    raw.groupValue one encodes
     (PerApplicationDecodedIO.input application fits raw)
     (PerApplicationDecodedIO.output application raw) represents semantics
 
@@ -524,7 +523,7 @@ theorem verifierBoundRowsZero_implies_stepHoldsFor
   have one := PerApplicationCanonicalAssignment.assignment_one bound
   have encodes := PerApplicationCanonicalEncodes.encodes bound
   have semantics := PerApplicationFixedPoint.rowsZero_implies_semantics
-    application fits bound.assignment bound.base bound.groupValue bound.products
+    application fits bound.assignment bound.base bound.groupValue
     one encodes accepted
   have keyEq :=
     PerApplicationVerifierBoundAssignment.semantics_imply_contextKey

@@ -59,7 +59,6 @@ functions as every real packet. -/
 def zeroRaw (application : ProgramApplication) : RawValues application where
   base := fun _ => 0
   groupValue := fun _ _ => 0
-  products := fun _ => 0
 
 def entry (application : ProgramApplication) (kind : BlockKind) :
     CanonicalBlockAssignment.BlockValue :=
@@ -206,7 +205,7 @@ def canonical (application : ProgramApplication) : List BlockPlan :=
   canonicalKinds.map (BlockPlan.ofKind application)
 
 @[simp] theorem canonical_length (application : ProgramApplication) :
-    (canonical application).length = 30 := by
+    (canonical application).length = 26 := by
   simp [canonical]
 
 theorem canonical_opcodes (application : ProgramApplication) :

@@ -1,0 +1,35 @@
+{
+  "assessments": {
+    "argument": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "correspondence": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "parent_use": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "premises": {
+      "outcome": "pending",
+      "reason": ""
+    },
+    "substantiveness": {
+      "outcome": "pending",
+      "reason": ""
+    }
+  },
+  "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
+  "obligation": "pidec-commitment-kernel",
+  "outcome": "pending",
+  "policy": "4d4a4cbd52a955bbd73772c741ee2e08f421e34c0c967ebccb8a212c512e1ce9",
+  "request": "083e4b2624534f18d828cb99a18ce9ec07bbed2bc5af0a9bec4f6abb765b0242",
+  "review": "decomposition",
+  "reviewed_at": "",
+  "reviewer": "",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+  "target": "LeanGraph.Targets.PiDECCommitmentReplay"
+}

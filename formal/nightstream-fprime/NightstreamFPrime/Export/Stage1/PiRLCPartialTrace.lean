@@ -57,8 +57,8 @@ abbrev MaterializedCommitment :=
   FixedArray MaterializedRingF productionProfile.commitmentWidth
 abbrev MaterializedPublicInput :=
   FixedArray F
-    (FullShape VerifierContext.candidateLogicalWidth
-      VerifierContext.candidatePublicFits).publicWidth
+    (FullShape PhaseReference.logicalWidth
+      PhaseReference.publicFits).publicWidth
 
 def MaterializedRingF.ofRing (value : RingF) : MaterializedRingF :=
   FixedArray.ofFn value
@@ -99,21 +99,21 @@ def MaterializedCommitment.toCommitment
 
 def MaterializedPublicInput.ofPublicInput
     (value : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     MaterializedPublicInput :=
   FixedArray.ofFn value
 
 def MaterializedPublicInput.toPublicInput
     (value : MaterializedPublicInput) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   value.get
 
 @[simp] theorem MaterializedPublicInput.toPublicInput_ofPublicInput
     (value : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     (MaterializedPublicInput.ofPublicInput value).toPublicInput = value := by
   funext column
   simp [MaterializedPublicInput.ofPublicInput,
@@ -260,8 +260,8 @@ theorem commitmentPartials_indexed
 
 def publicInputStep (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     (current : MaterializedPublicInput) (source : Fin SourceCount) :
     MaterializedPublicInput :=
   MaterializedPublicInput.ofPublicInput <|
@@ -272,14 +272,14 @@ def publicInputStep (challenges : Fin SourceCount → RingF)
 
 def publicInputSemanticStep (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     (current : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits))
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits))
     (source : Fin SourceCount) :
-    PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits) :=
+    PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits) :=
   NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
     current
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
@@ -287,8 +287,8 @@ def publicInputSemanticStep (challenges : Fin SourceCount → RingF)
 
 def publicInputPartials (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     List MaterializedPublicInput :=
   scan
     (MaterializedPublicInput.ofPublicInput
@@ -297,10 +297,10 @@ def publicInputPartials (challenges : Fin SourceCount → RingF)
 
 def publicInputSemanticPartials (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
-    List (PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
+    List (PublicInput (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :=
   scan
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
     (publicInputSemanticStep challenges values)
@@ -308,8 +308,8 @@ def publicInputSemanticPartials (challenges : Fin SourceCount → RingF)
 theorem publicInputPartials_semantics
     (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     (publicInputPartials challenges values).map
         MaterializedPublicInput.toPublicInput =
       publicInputSemanticPartials challenges values := by
@@ -322,8 +322,8 @@ theorem publicInputPartials_semantics
 theorem publicInputPartials_indexed
     (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) (index : Nat) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) (index : Nat) :
     ((publicInputPartials challenges values).map
       MaterializedPublicInput.toPublicInput)[index]? =
       if index < SourceCount then
@@ -415,8 +415,8 @@ private theorem combineCommitments_eq_foldr :
 private theorem combinePublicInputs_eq_foldr :
     ∀ {count : Nat} (challenges : Fin count → RingF)
       (values : Fin count → PublicInput
-        (logicalWidth := VerifierContext.candidateLogicalWidth)
-        (publicFits := VerifierContext.candidatePublicFits)),
+        (logicalWidth := PhaseReference.logicalWidth)
+        (publicFits := PhaseReference.publicFits)),
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
         challenges values =
       (List.finRange count).foldr
@@ -491,8 +491,8 @@ private theorem commitmentAdd_zero (value : PaperAlgebra.Commitment) :
 
 private theorem publicAdd_assoc
     (left middle right : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
         (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
           left middle) right =
@@ -505,8 +505,8 @@ private theorem publicAdd_assoc
 
 private theorem publicZero_add
     (value : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
         NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
         value = value := by
@@ -515,8 +515,8 @@ private theorem publicZero_add
 
 private theorem publicAdd_zero
     (value : PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
         value
         NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero =
@@ -557,25 +557,25 @@ local instance : Std.LawfulIdentity
 
 local instance : Std.Associative
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd :
-      PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits) →
-        PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits) →
-        PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits)) :=
+      PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits) →
+        PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits) →
+        PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits)) :=
   ⟨publicAdd_assoc⟩
 
 local instance : Std.LawfulIdentity
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd :
-      PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits) →
-        PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits) →
-        PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-          (publicFits := VerifierContext.candidatePublicFits))
+      PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits) →
+        PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits) →
+        PublicInput (logicalWidth := PhaseReference.logicalWidth)
+          (publicFits := PhaseReference.publicFits))
     (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero :
-      PublicInput (logicalWidth := VerifierContext.candidateLogicalWidth)
-        (publicFits := VerifierContext.candidatePublicFits)) where
+      PublicInput (logicalWidth := PhaseReference.logicalWidth)
+        (publicFits := PhaseReference.publicFits)) where
   left_id := publicZero_add
   right_id := publicAdd_zero
 
@@ -600,8 +600,8 @@ private theorem commitmentFoldl_eq_combined
 private theorem publicInputFoldl_eq_combined
     (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     (List.finRange SourceCount).foldl
         (publicInputSemanticStep challenges values)
         NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicZero =
@@ -635,8 +635,8 @@ theorem commitmentPartials_getLast?
 theorem publicInputPartials_getLast?
     (challenges : Fin SourceCount → RingF)
     (values : Fin SourceCount → PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) :
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) :
     ((publicInputPartials challenges values).map
       MaterializedPublicInput.toPublicInput).getLast? =
       some (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs

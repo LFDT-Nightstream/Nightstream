@@ -196,6 +196,7 @@ pub(super) struct Manifest {
     dependencies: Vec<String>,
     parameters: Vec<String>,
     reference: [usize; 3],
+    pub application_local_index: usize,
     pub geometry: Geometry,
     pub ports: Vec<Port>,
     recursive_public: RecursivePublic,
@@ -218,7 +219,7 @@ impl Manifest {
     pub fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
         let manifest: Self = serde_json::from_slice(bytes)?;
         if manifest.format != "nightstream.shared-verifier"
-            || manifest.version != 1
+            || manifest.version != 3
             || manifest.id != "shared-recursive-verifier-v1"
             || manifest.profile != PROFILE
             || manifest.parameters != ["witness_words", "local_words", "application_rows"]
@@ -414,6 +415,43 @@ impl Manifest {
         {
             return Err(AssemblyError::Invalid("application port allocation"));
         }
+        let mut coordinates = g.logical_public;
+        for (index, block) in self.assignment_blocks.iter().enumerate() {
+            if block.opcode != index || block.slot_kind != 2 {
+                return Err(AssemblyError::Invalid("assignment block order or encoding"));
+            }
+            if index == self.application_local_index {
+                if coordinates != local.retained_start.eval(counts)?
+                    || block.slot_count.eval(counts)? != counts.local
+                    || block.source_domain != 1
+                {
+                    return Err(AssemblyError::Invalid("application retained allocation"));
+                }
+                let mut source = local.source_start.eval(counts)?;
+                for run in &block.source_runs {
+                    let count = run.count.eval(counts)?;
+                    if run.first.eval(counts)? != source || (count > 1 && run.step != 1) {
+                        return Err(AssemblyError::Invalid("application retained sources"));
+                    }
+                    source = source.checked_add(count).ok_or(AssemblyError::Overflow)?;
+                }
+                if source != private {
+                    return Err(AssemblyError::Invalid("application retained source coverage"));
+                }
+            }
+            coordinates = coordinates
+                .checked_add(
+                    block
+                        .slot_count
+                        .eval(counts)?
+                        .checked_mul(g.field_slot_width)
+                        .ok_or(AssemblyError::Overflow)?,
+                )
+                .ok_or(AssemblyError::Overflow)?;
+        }
+        if self.application_local_index >= self.assignment_blocks.len() || coordinates != width {
+            return Err(AssemblyError::Invalid("complete assignment block width"));
+        }
         let mut blocks = 0usize;
         let mut rows = 0usize;
         for child in &self.children {
@@ -439,6 +477,7 @@ impl Manifest {
         let layout = &reference.source.layout;
         if reference.schema != 6
             || reference.source.schema != 8
+            || reference.assignment.schema != 3
             || layout.rows != g.source_rows.eval(counts)?
             || layout.private != g.source_private.eval(counts)?
             || layout.constant != g.source_constant.eval(counts)?

@@ -1,19 +1,18 @@
+import NightstreamFPrime.Export.WitnessEncoding
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
-import NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.Witness
 
 /-!
 Owns the canonical logical witness-program IR through the running transition.
 
 The seven arithmetic children already export `WitnessBatch` recipes through
 their opaque `FormalCircuit` interfaces. This module gathers those batches in
-protocol order and remaps only their symbolic variable indices through the
-proved Stage 1 Spartan permutation. PiCCS Poseidon2 children remain represented
-by compact permutation invocations. PiRLC digest-lane batches are built
-directly and proved equal to the opaque child traversal. PiRLC permutation and
-`First54` outputs are owned by their package invocations and are not written
-again here.
+protocol order, remaps their symbolic variables through the proved Stage 1
+Spartan permutation, and balances expression sums without changing execution. PiCCS Poseidon2 children remain represented
+by compact permutation invocations. PiRLC batches come from the checked
+wide-reduction and coefficient-word circuits. Permutation invocations execute
+the hash steps; ordinary rows check the reduction and coefficient words.
 PiDEC contributes only the 54 sign-hint batches of its opaque public-input
 split child; R1CS intermediate recipes remain ordinary row instructions.
 The running transition contributes its one inverse-or-zero hint batch.
@@ -50,7 +49,7 @@ theorem remapExpr_eval (target : Env) (expression : Expr) :
   | mul left right leftIH rightIH =>
       simp [remapExpr, Expr.eval, leftIH, rightIH]
 
-def remapBatch (batch : WitnessBatch) : WitnessBatch where
+def remapBatch (batch : WitnessBatch) : WitnessBatch := WitnessEncoding.batch {
   start := NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan batch.start
   recipes := batch.recipes.map remapExpr
   hints := batch.hints.map fun hint =>
@@ -58,7 +57,7 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch where
     | .bit source index => .bit (remapExpr source) index
     | .inverseOrZero source => .inverseOrZero (remapExpr source)
     | .quotientFive source => .quotientFive (remapExpr source)
-    | .remainderFive source => .remainderFive (remapExpr source)
+    | .remainderFive source => .remainderFive (remapExpr source) }
 
 @[simp] theorem remapBatch_start (batch : WitnessBatch) :
     (remapBatch batch).start =
@@ -67,11 +66,11 @@ def remapBatch (batch : WitnessBatch) : WitnessBatch where
 
 @[simp] theorem remapBatch_recipes_length (batch : WitnessBatch) :
     (remapBatch batch).recipes.length = batch.recipes.length := by
-  simp [remapBatch]
+  simp [remapBatch, WitnessEncoding.batch]
 
 @[simp] theorem remapBatch_hints_length (batch : WitnessBatch) :
     (remapBatch batch).hints.length = batch.hints.length := by
-  simp [remapBatch]
+  simp [remapBatch, WitnessEncoding.batch]
 
 def childBatches (main : Circuit Unit) (offset : Nat) : List WitnessBatch :=
   (witnesses (Circuit.ops main offset)).map remapBatch
@@ -139,67 +138,36 @@ def finalIdentityBatches
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
     PiCCSArithmetic.finalIdentityLogicalStart
 
-private def piRlcDigestLaneBatchesFromCircuit
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) (lane : Fin 4) : List WitnessBatch :=
-  childBatches
-    (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.circuit
-      (PiRLCSamplerOrdinaryRows.laneInterface
-        (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round lane)).main
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
-      source round lane.val)
-
-def digestLaneBatches
-    (source : Expr) (offset : Nat) : List WitnessBatch :=
-  (NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnessBatchesForSource
-    source offset).map remapBatch
-
-def piRlcDigestLaneBatches
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) (lane : Fin 4) : List WitnessBatch :=
-  let offset :=
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
-      source round lane.val
-  digestLaneBatches
-    (PiRLCSamplerOrdinaryRows.fastLaneSource
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane) offset
-
-theorem piRlcDigestLaneBatches_eq_fromCircuit
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) (lane : Fin 4) :
-    piRlcDigestLaneBatches logicalWidth publicFits source round lane =
-      piRlcDigestLaneBatchesFromCircuit logicalWidth publicFits
-        source round lane := by
-  simp [piRlcDigestLaneBatches, digestLaneBatches,
-    PiRLCSamplerOrdinaryRows.fastLaneSource_eq,
-    piRlcDigestLaneBatchesFromCircuit,
-    childBatches,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnessBatchesForSource_eq,
-    NightstreamFPrime.Lifecycle.PiRLC.v1_1.DigestLane.witnesses_circuit_main]
-
-def piRlcWindowBatches
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) : List WitnessBatch :=
-  (List.finRange 4).flatMap
-    (piRlcDigestLaneBatches logicalWidth publicFits source round)
-
 def piRlcSourceBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (source : Nat) : List WitnessBatch :=
-  (List.range 8).flatMap
-    (piRlcWindowBatches logicalWidth publicFits source)
+  childBatches
+    (Gadgets.Sampling.WideReduction.Program.circuit
+      (PiRLCSamplerOrdinaryRows.rangeInterface
+        (logicalWidth := logicalWidth) (publicFits := publicFits) source)).main
+    (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
+  childBatches
+    (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+    (Layout.Stage1.PiRLCStarts.challengeWordStart source)
+
+theorem piRlcSourceBatches_eq_fromCircuit
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (source : Nat) :
+    piRlcSourceBatches logicalWidth publicFits source =
+      childBatches (PiRLC.v1_1.Sampler.rangeCircuit
+        (PiRLCSamplerInvocations.sourceInterface (logicalWidth := logicalWidth)
+          (publicFits := publicFits) source) source
+        (PiRLCSamplerInvocations.sourceLogicalStart source)).main
+        (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) ++
+      childBatches
+        (PiRLC.v1_1.SamplerWords.circuit (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)).main
+        (Layout.Stage1.PiRLCStarts.challengeWordStart source) := by
+  unfold piRlcSourceBatches
+  rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq]
+  rfl
 
 def piRlcSamplerBatches
     (logicalWidth : Nat)

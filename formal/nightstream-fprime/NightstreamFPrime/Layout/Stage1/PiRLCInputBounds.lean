@@ -79,27 +79,9 @@ private theorem samplerInitialBelow
 
 private theorem samplerChallengeBelow
     (source : Fin productionShape.sourceCount) (lane : Fin ringDegree) :
-    (PiRLC.v1_1.SamplerChain.challengeExpr
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
-          (PiRLCInputs.interface (logicalWidth := logicalWidth)
-            (publicFits := publicFits)) PiRLCInputs.phaseOffset))
-      PiRLCInputs.phaseOffset source lane).VarsBelow
-        (PiRLC.v1_1.Formal.commitmentOffset PiRLCInputs.phaseOffset) := by
-  apply Expr.VarsBelow.mono _
-    (PiRLC.v1_1.SamplerChain.challengeExpr_varsBelow
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
-          (PiRLCInputs.interface (logicalWidth := logicalWidth)
-            (publicFits := publicFits)) PiRLCInputs.phaseOffset))
-      PiRLCInputs.phaseOffset source lane)
-  have sourceBound := source.isLt
-  change source.val < 17 at sourceBound
-  norm_num [PiRLC.v1_1.SamplerChain.sourceOffset,
-    PiRLC.v1_1.Formal.commitmentOffset,
-    PiRLC.v1_1.Formal.samplerOffset,
-    PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-    PiRLC.v1_1.Sampler.logicalPrivateCount]
+    (PiRLC.v1_1.SamplerChain.outputChallenge PiRLCInputs.phaseOffset source lane).VarsBelow
+      (PiRLC.v1_1.Formal.commitmentOffset PiRLCInputs.phaseOffset) :=
+  PiRLC.v1_1.SamplerChain.outputChallenge_below PiRLCInputs.phaseOffset source lane
 
 private theorem sourceCommitmentBelow
     (source : Fin productionShape.sourceCount)
@@ -244,8 +226,7 @@ theorem assumptions
     publicInput := ?_
     eval_K := ?_
     eval_A := ?_ }
-  · refine ⟨?_⟩
-    intro lane
+  · intro lane
     simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
       PiRLC.v1_1.Formal.atOffset, PiRLCInputs.interface] using!
         samplerInitialBelow relation env lane
@@ -255,8 +236,7 @@ theorem assumptions
     · intro source lane
       simpa [shared, PiRLC.v1_1.Formal.commitmentInterface,
         PiRLC.v1_1.CommitmentCombination.familyInterface] using!
-          samplerChallengeBelow (logicalWidth := logicalWidth)
-            (publicFits := publicFits) source lane
+          samplerChallengeBelow source lane
     · intro source row lane cell
       apply Expr.VarsBelow.mono _
         (sourceCommitmentBelow (logicalWidth := logicalWidth)
@@ -267,8 +247,7 @@ theorem assumptions
       inputBelow := ?_ }
     · intro source lane
       apply Expr.VarsBelow.mono _
-        (samplerChallengeBelow (logicalWidth := logicalWidth)
-          (publicFits := publicFits) source lane)
+        (samplerChallengeBelow source lane)
       exact commitment_le_publicInput
     · intro source block lane cell
       apply Expr.VarsBelow.mono _
@@ -281,8 +260,7 @@ theorem assumptions
       inputBelow := ?_ }
     · intro source lane
       apply Expr.VarsBelow.mono _
-        (samplerChallengeBelow (logicalWidth := logicalWidth)
-          (publicFits := publicFits) source lane)
+        (samplerChallengeBelow source lane)
       exact Nat.le_trans commitment_le_publicInput publicInput_le_evalK
     · intro source block lane cell
       change (PiRLC.v1_1.RingKCombination.expressionCell cell
@@ -303,8 +281,7 @@ theorem assumptions
       inputBelow := ?_ }
     · intro source lane
       apply Expr.VarsBelow.mono _
-        (samplerChallengeBelow (logicalWidth := logicalWidth)
-          (publicFits := publicFits) source lane)
+        (samplerChallengeBelow source lane)
       exact Nat.le_trans
         (Nat.le_trans commitment_le_publicInput publicInput_le_evalK)
         evalK_le_evalA

@@ -1,7 +1,7 @@
 use neo_ajtai::{
     nightstream_fprime_setup::{
         coefficient, commit_production_signed_unit_prefix_matrices, commit_production_signed_unit_prefix_matrix,
-        PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+        MAX_MESSAGE_COLUMNS, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
     },
     AjtaiError, Commitment,
 };
@@ -112,6 +112,8 @@ fn empty_and_zero_batches_preserve_order_and_prefix_dimensions() {
         .is_empty());
     let witnesses = [
         Mat::virtual_constant(D, PRODUCTION_MESSAGE_COLUMNS as usize, F::ZERO),
+        Mat::virtual_constant(D, PRODUCTION_MESSAGE_COLUMNS as usize + 1, F::ZERO),
+        Mat::virtual_constant(D, MAX_MESSAGE_COLUMNS as usize, F::ZERO),
         Mat::zero(D, 1, F::ZERO),
         Mat::compact_signed_unit_from_column_masks(D, 2, &[0, 0], &[0, 0]).unwrap(),
     ];
@@ -123,7 +125,7 @@ fn empty_and_zero_batches_preserve_order_and_prefix_dimensions() {
 
 #[test]
 fn batch_rejects_dimensions_and_nonunit_values_at_their_input_index() {
-    let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
+    let columns = MAX_MESSAGE_COLUMNS as usize;
     let valid = column_packed(&dense(2, &[(0, 0, 1), (D - 1, 1, -1)]));
     let mut malformed = vec![
         Mat::virtual_constant(D - 1, 1, F::ZERO),

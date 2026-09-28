@@ -71,7 +71,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
   let phase ← IO.wait (Task.spawn fun _ => PiCCSInputCheck.execute ccs)
   unless phase.accepted do throw (IO.userError "C input rejected")
   report [("event", .str "point_ready"),
-    ("independence", .str "given Lean-verified Rust PiCCS output"),
+    ("input", .str "accepted PiCCS input; provenance is recorded by the caller"),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   let parentStarted ← IO.monoNanosNow
   let (parents, records) ← PiDECParentInput.read parentPaths

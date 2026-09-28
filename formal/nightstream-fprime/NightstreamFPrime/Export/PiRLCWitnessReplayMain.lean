@@ -56,7 +56,7 @@ private def replay (ccsPath sourcePath outputPath : System.FilePath)
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let ccs ← checked (PiCCSInputCheck.parse (← IO.FS.readFile ccsPath))
   let some batch := PiRLCInputCheck.sampled ccs
-    | throw (IO.userError "C rejected or PiRLC sampler shortfall")
+    | throw (IO.userError "PiCCS input rejected")
   let tables := PiRLCWitnessBlock.prepareWitnessActions batch.challenges
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
   let source ← IO.FS.Handle.mk sourcePath .read

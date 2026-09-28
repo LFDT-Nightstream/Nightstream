@@ -423,7 +423,7 @@ theorem compactPiRlcInitialState_eq_key
           (logicalWidth := logicalWidth) (publicFits := publicFits) program)
         (AssemblerInputs.piCcsOffset program)) = _ at outgoing
   simpa [PiRLC.v1_1.SamplerChain.evalInitialState,
-    PiRLC.v1_1.SamplerChain.evalStateAt, PiRLC.v1_1.Sampler.evalState,
+    PiRLC.v1_1.Sampler.evalState,
     PiRLC.v1_1.Formal.samplerInterface, PiRLC.v1_1.Formal.atOffset,
     PiRLC.v1_1.Formal.samplerOffset, AssemblerInputs.piRlcInterface,
     AssemblerInputs.piCcsOutputState, nifsProofValue,

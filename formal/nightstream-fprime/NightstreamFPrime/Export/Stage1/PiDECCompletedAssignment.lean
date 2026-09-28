@@ -93,7 +93,7 @@ theorem rowsZero_of_completed
   intro raw
   apply (PiDECDirectPlan.rowsZero_iff_rowsHold relation
     (PerApplicationCanonicalEncodes.piDecGeometry application) raw.assignment
-    raw.base raw.groupValue raw.products
+    raw.base raw.groupValue
     (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.piDec).mpr
   apply R1CS.rowsHold_of_agree _ PiDECSourceSupport.Target target _ (sourceRows_support relation)

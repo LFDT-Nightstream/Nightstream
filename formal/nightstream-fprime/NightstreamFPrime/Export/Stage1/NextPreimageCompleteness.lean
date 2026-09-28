@@ -117,7 +117,7 @@ theorem rowsZero_of_completed
     · intro index
       exact (copied_input application target suffix _ (bounds.outputInitialState index)).symm
   apply (NextPreimageDirectPlan.rowsZero_iff_rowsHold _ raw.assignment
-    raw.base raw.groupValue raw.products
+    raw.base raw.groupValue
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary.prior
     (PerApplicationCanonicalAssignment.assignment_one raw)).mpr
   exact sourceRows_of_spec _

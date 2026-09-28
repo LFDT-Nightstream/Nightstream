@@ -8,10 +8,10 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 6_377_559;
+pub const ACTIVE_ROWS: usize = 6_064_606;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 253_011_231;
-pub const CARRIER_WIDTH: usize = 253_011_276;
+pub const LOGICAL_WIDTH: usize = 242_590_792;
+pub const CARRIER_WIDTH: usize = 242_590_842;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -371,23 +371,33 @@ pub fn first_failure(
     if assignment.len() != LOGICAL_WIDTH {
         return Err("mutated logical assignment has the wrong width".into());
     }
-    const STOP: &str = "independent logical mutation detected";
-    let mut failure = None;
-    let result = program.visit_rows(0, ACTIVE_ROWS, sources, |ordinal, row| {
-        let values = evaluate_row(&row, assignment)?;
-        validate_zero_slot(&values, ordinal)?;
-        if relation.evaluate(&values) != Field::ZERO {
-            failure = Some(ordinal);
-            return Err(STOP.into());
-        }
-        Ok(())
-    });
-    match (failure, result) {
-        (Some(row), Err(error)) if error == STOP => Ok(Some(row)),
-        (None, Ok(())) => Ok(None),
-        (_, Err(error)) => Err(error),
-        (Some(_), Ok(())) => Err("logical mutation stop was lost".into()),
-    }
+    // Match the complete independent evaluator's immutable row partition.
+    // Each range retains scalar row order; the minimum is the first failure.
+    let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
+    let starts = (0..ACTIVE_ROWS).step_by(range_size).collect::<Vec<_>>();
+    let failures = starts
+        .into_par_iter()
+        .map(|start| {
+            const STOP: &str = "independent logical mutation detected";
+            let mut failure = None;
+            let result = program.visit_rows(start, (start + range_size).min(ACTIVE_ROWS), sources, |ordinal, row| {
+                let values = evaluate_row(&row, assignment)?;
+                validate_zero_slot(&values, ordinal)?;
+                if relation.evaluate(&values) != Field::ZERO {
+                    failure = Some(ordinal);
+                    return Err(STOP.into());
+                }
+                Ok(())
+            });
+            match (failure, result) {
+                (Some(row), Err(error)) if error == STOP => Ok(Some(row)),
+                (None, Ok(())) => Ok(None),
+                (_, Err(error)) => Err(error),
+                (Some(_), Ok(())) => Err("logical mutation stop was lost".into()),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(failures.into_iter().flatten().min())
 }
 
 fn validate_zero_slot(values: &[Field; MATRIX_COUNT], ordinal: usize) -> Result<()> {

@@ -106,16 +106,13 @@ theorem transcriptSpecs_to_common
         F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (specs : PiCCSInvocations.TranscriptSpecs relationLogicalWidth
       relationPublicFits
-      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-        products)) :
+      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) :
     PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits
       (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base) := by
   let transcriptSourceEnv :=
     PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-      products
   let semanticSourceEnv :=
     PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base
   let transcriptEnv := Spartan.pullback transcriptSourceEnv
@@ -125,7 +122,7 @@ theorem transcriptSpecs_to_common
         commonEnv column = transcriptEnv column := by
     intro column before
     exact (PiCCSCommonEnvironmentCustody.transcriptEnv_eq_semanticEnv_of_beforeSampler
-      geometry assignment base groupValue products before).symm
+      geometry assignment base groupValue before).symm
   have assumptions :=
     NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
       (PiCCSInvocations.parentInterface relationLogicalWidth

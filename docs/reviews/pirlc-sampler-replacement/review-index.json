@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "source_commit": "8ad1acfb04c988f1cbe2eb138f36c4dca35c3392",
+  "implementation_commit": "8ad1acfb04c988f1cbe2eb138f36c4dca35c3392",
+  "sampler_implementation_commit": "557f13ef6203dbb0a70d359ccad42dfcac654d34",
+  "source_manifest_sha256": "67e59393454eca6b3910e88d81db4764adda91f65fed2c4e7de28fea9b7ef43c",
+  "dependency_seed": "Original clean stock Lean 4.32.2 dependency seed; current proof-source compatibility is recorded in INDEPENDENT_VALIDATION.json.",
+  "approval": "pending",
+  "requests": [
+    {
+      "obligation": "fresh-witness-kernel",
+      "target": "LeanGraph.Targets.FreshWitnessKernels",
+      "request": "4448b3184a5dd2d362be4eabb3e810f2a7716a21099e108dac847fd60c5f77cb",
+      "file": "requests/4448b3184a5dd2d362be4eabb3e810f2a7716a21099e108dac847fd60c5f77cb.json",
+      "response_template": "response-templates/fresh-witness-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "hypernova-linear-security",
+      "target": "LeanGraph.Targets.HyperNovaLinearSecurity",
+      "request": "3cd9afe26b17761723e01a022c68979f40aa1d411eb98f10340332933af9d259",
+      "file": "requests/3cd9afe26b17761723e01a022c68979f40aa1d411eb98f10340332933af9d259.json",
+      "response_template": "response-templates/hypernova-linear-security.json",
+      "snapshot": "9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "hypernova-terminal-false-acceptance",
+      "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+      "request": "44672f0a0e2d454e337921092ebc90dd9a7cc5e4c9aa3ba712825bd984dfc91b",
+      "file": "requests/44672f0a0e2d454e337921092ebc90dd9a7cc5e4c9aa3ba712825bd984dfc91b.json",
+      "response_template": "response-templates/hypernova-terminal-false-acceptance.json",
+      "snapshot": "9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-commitment-kernel",
+      "target": "LeanGraph.Targets.PiDECCommitmentReplay",
+      "request": "083e4b2624534f18d828cb99a18ce9ec07bbed2bc5af0a9bec4f6abb765b0242",
+      "file": "requests/083e4b2624534f18d828cb99a18ce9ec07bbed2bc5af0a9bec4f6abb765b0242.json",
+      "response_template": "response-templates/pidec-commitment-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-evaluation-kernel",
+      "target": "LeanGraph.Targets.PiDECChildEvaluationReplay",
+      "request": "1182dbcc3c2ec8f9753b103db26df7bd2034ea690b613d1b7e8cba8065c73019",
+      "file": "requests/1182dbcc3c2ec8f9753b103db26df7bd2034ea690b613d1b7e8cba8065c73019.json",
+      "response_template": "response-templates/pidec-evaluation-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pidec-witness-kernel",
+      "target": "LeanGraph.Targets.PiDECWitnessReplay",
+      "request": "0e70b2d80ed0e81c59ee3a581610bb9f7f0902878641efc862f46942d59080dc",
+      "file": "requests/0e70b2d80ed0e81c59ee3a581610bb9f7f0902878641efc862f46942d59080dc.json",
+      "response_template": "response-templates/pidec-witness-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "pirlc-witness-kernel",
+      "target": "LeanGraph.Targets.PiRLCWitnessReplay",
+      "request": "50a869a96f84f119e8e1731fff8ec4be8bcd8f89a16184def5a392786aa43dfc",
+      "file": "requests/50a869a96f84f119e8e1731fff8ec4be8bcd8f89a16184def5a392786aa43dfc.json",
+      "response_template": "response-templates/pirlc-witness-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "recursive-loop-kernel",
+      "target": "LeanGraph.Targets.CheckedRecursiveReplay",
+      "request": "a58c8afd568b232ca319520ce13d413f1c30c1b3618bc1fb62289366d7477d26",
+      "file": "requests/a58c8afd568b232ca319520ce13d413f1c30c1b3618bc1fb62289366d7477d26.json",
+      "response_template": "response-templates/recursive-loop-kernel.json",
+      "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "stage1-terminal-assignment",
+      "target": "LeanGraph.Targets.Stage1TerminalAssignment",
+      "request": "b2a3a910cebca4376c1b1fe6ae4727b46e4f217e76b8e5c05db9e5f9d705dc3e",
+      "file": "requests/b2a3a910cebca4376c1b1fe6ae4727b46e4f217e76b8e5c05db9e5f9d705dc3e.json",
+      "response_template": "response-templates/stage1-terminal-assignment.json",
+      "snapshot": "d365c11813c2517f5bd2b575972f48496f21cf1c26ab2f549d1da4faf02be7e5",
+      "outcome": "pending"
+    },
+    {
+      "obligation": "stage1-terminal-parent",
+      "target": "LeanGraph.Targets.Stage1TerminalParent",
+      "request": "838607bedb6aaaf8f6112cd9589854e80234d85c938182fc8d08a7be7e246b04",
+      "file": "requests/838607bedb6aaaf8f6112cd9589854e80234d85c938182fc8d08a7be7e246b04.json",
+      "response_template": "response-templates/stage1-terminal-parent.json",
+      "snapshot": "d365c11813c2517f5bd2b575972f48496f21cf1c26ab2f549d1da4faf02be7e5",
+      "outcome": "pending"
+    }
+  ],
+  "snapshots": {
+    "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb": {
+      "manifest": "snapshots/477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb.json.gz",
+      "compressed_sha256": "4e2d6302754ca13d17f5312721526200fa31580f1d62b1293e6b5f43bde8f42e",
+      "manifest_bytes": 15560161,
+      "compressed_bytes": 3761561
+    },
+    "9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d": {
+      "manifest": "snapshots/9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d.json.gz",
+      "compressed_sha256": "9c81017243adf38771d12e3d6302b1ec362eed03e187e946c8d69bfa66fd3c0d",
+      "manifest_bytes": 15563325,
+      "compressed_bytes": 3762868
+    },
+    "d365c11813c2517f5bd2b575972f48496f21cf1c26ab2f549d1da4faf02be7e5": {
+      "manifest": "snapshots/d365c11813c2517f5bd2b575972f48496f21cf1c26ab2f549d1da4faf02be7e5.json.gz",
+      "compressed_sha256": "218c0ce0506ad300330a0398d1dda0b8cf502e59aa060a5b8c1c21cf777a6279",
+      "manifest_bytes": 15338228,
+      "compressed_bytes": 3703481
+    }
+  }
+}

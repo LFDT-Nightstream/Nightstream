@@ -83,7 +83,7 @@ def main():
     compared = public_width + sum(row["finish"] - row["first"] for row, _ in records)
     tail = target.columns * WIDTH - logical_width
     if args.complete:
-        assert [row["ordinal"] for row, _ in records] == list(range(30))
+        assert [row["ordinal"] for row, _ in records] == list(range(26))
         end = public_width
         for row, _ in records:
             assert row["first"] == end

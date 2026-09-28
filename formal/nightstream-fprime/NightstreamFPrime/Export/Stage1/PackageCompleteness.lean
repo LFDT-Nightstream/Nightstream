@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
-import NightstreamFPrime.Export.Stage1.PiRLCFirst54Completeness
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -100,8 +100,6 @@ structure PiRLCRowsHold (env : Env) : Prop where
       PiRLCSamplerInvocations.invocations
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits),
     PermutationInvocationHolds (Data.circuitPackage ()) invocation env
-  first54 : ∀ invocation ∈ PiRLCFirst54Invocations.invocations,
-    CompactRowInvocationHolds (Data.circuitPackage ()) invocation env
   combinations : ∀ invocation ∈ PiRLCCombinationInvocations.invocations,
     CompactRowInvocationHolds (Data.circuitPackage ()) invocation env
   arithmetic : R1CS.RowsHold env
@@ -886,9 +884,6 @@ theorem rowsHold_of_packets
       PiRLCSamplerInvocations.invocations
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits),
       PermutationInvocationHolds (Data.circuitPackage ()) invocation env)
-    (first54Invocations : ∀ invocation ∈
-      PiRLCFirst54Invocations.invocations,
-      CompactRowInvocationHolds (Data.circuitPackage ()) invocation env)
     (combinationInvocations : ∀ invocation ∈
       PiRLCCombinationInvocations.invocations,
       CompactRowInvocationHolds (Data.circuitPackage ()) invocation env)
@@ -929,10 +924,8 @@ theorem rowsHold_of_packets
     · exact piRlcInvocations invocation member
   · intro invocation member
     rw [Data.circuitPackage_compactRowInvocations,
-      Data.compactRowInvocations_eq, List.mem_append] at member
-    rcases member with member | member
-    · exact first54Invocations invocation member
-    · exact combinationInvocations invocation member
+      Data.compactRowInvocations_eq] at member
+    exact combinationInvocations invocation member
   · intro row member
     rw [Data.circuitPackage_assertionRows] at member
     unfold Data.Components.assertionRows at member
@@ -948,8 +941,6 @@ theorem piRlcRowsHold_of_packets
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
     PiRLCRowsHold env := by
   exact ⟨PiRLCSamplerCompleteness.remappedPacket_implies_permutationInvocations
-      env packets,
-    PiRLCFirst54Completeness.remappedPacket_implies_first54Invocations
       env packets,
     PiRLCCombinationCompleteness.remappedPackets_imply_packageCombinationInvocations
       env packets,
@@ -971,7 +962,7 @@ theorem rowsHold_of_phaseRows
     (runningTransition : RunningTransitionRowsHold env) :
     (Data.circuitPackage ()).RowsHold env := by
   exact rowsHold_of_packets env pilotChains piCcs.invocations
-    piRlc.permutations piRlc.first54 piRlc.combinations pilotInstructions
+    piRlc.permutations piRlc.combinations pilotInstructions
     pilotAssertions
     piCcs.arithmetic piRlc.arithmetic piDec.arithmetic
       runningTransition.arithmetic
@@ -995,7 +986,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 8908425 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 7982945 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩

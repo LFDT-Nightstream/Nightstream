@@ -26,8 +26,8 @@ def applicationOutput : AppState :=
 
 def finalOutputPreimage (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : HashPreimage
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) :=
+    (logicalWidth := PhaseReference.logicalWidth)
+    (publicFits := PhaseReference.publicFits) :=
   let transition := PiDECParity.transitionOutputPreimage fixture context
   { transition with
     iteration := transition.iteration + 1
@@ -35,12 +35,12 @@ def finalOutputPreimage (fixture : PiDECNonzero.Fixture)
 
 def finalOutputPreimageWords (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : List F :=
-  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+  serializePreimage (publicFits := PhaseReference.publicFits)
     (finalOutputPreimage fixture context)
 
 def finalOutputDigest (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : Digest :=
-  stateHash (publicFits := VerifierContext.candidatePublicFits)
+  stateHash (publicFits := PhaseReference.publicFits)
     (finalOutputPreimage fixture context)
 
 def inputValue (computed : PiCCSNonzero.Computed) : Value :=
@@ -69,13 +69,8 @@ def parityValueForFixture (computed : PiCCSNonzero.Computed)
 
 def parityValueIO (context : VerifierContext.Digest4) : IO Value := do
   let computed ← PiCCSNonzero.computeIO context.toList
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState PiRLCNonzero.SourceCount with
-  | some batch =>
-      pure (parityValueForFixture computed
-        (PiDECParity.fixtureFromComputed computed batch))
-  | none =>
-      throw (IO.userError
-        "PiRLC sampler shortfall before Poseidon2HashChainV1 fixture")
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+    computed.outgoingState PiRLCNonzero.SourceCount
+  pure (parityValueForFixture computed (PiDECParity.fixtureFromComputed computed batch))
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity

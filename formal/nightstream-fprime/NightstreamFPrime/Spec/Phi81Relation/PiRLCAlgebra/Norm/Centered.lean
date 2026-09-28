@@ -34,8 +34,6 @@ namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81StrongSet
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open ProductionAlphabet
 
 /-- Floor of half the odd Goldilocks modulus. -/
 def halfModulus : Nat := goldilocksModulus / 2

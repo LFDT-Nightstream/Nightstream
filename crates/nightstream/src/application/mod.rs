@@ -8,6 +8,8 @@ mod poseidon2;
 pub(crate) use expression::Expression;
 
 pub use builder::{ApplicationBuilder, ApplicationCircuit, ApplicationError, ApplicationWitness};
+#[cfg(test)]
+pub(crate) use poseidon2::hash_chain_fixture::two_link_hash_chain;
 pub use poseidon2::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 
 use std::{

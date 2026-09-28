@@ -47,15 +47,14 @@ theorem retainedPrefix_baseEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
     PerApplicationPackage.baseEnv program
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products)) column =
+          program base groupValue)) column =
       PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base) column := by
-  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 29336725 := by
-    change PerApplicationPackage.basePackage.layout.totalColumnCount = 29336725
+  have packageTotal : PiRLCProductPlan.basePackage.layout.totalColumnCount = 28411245 := by
+    change PerApplicationPackage.basePackage.layout.totalColumnCount = 28411245
     exact Package.circuitPackage_layout_values.2.2.2.2
   have packageBound : column < PiRLCProductPlan.basePackage.layout.totalColumnCount := by
     rw [packageTotal]
@@ -63,9 +62,8 @@ theorem retainedPrefix_baseEnv
   have shiftedBase := PiRLCProductPlan.shiftColumn_lt_baseSourceWidth program column packageBound
   have shiftedRetained : PerApplicationPackage.shiftColumn program column <
       PiRLCRetainedGeometry.sourceWidth program := by
-    unfold PiRLCRetainedGeometry.sourceWidth PiRLCFirst54DirectPlan.sourceWidth
-      PiRLCFirst54DirectPlan.prefixSourceWidth PiRLCProductPlan.sourceWidth
-      ProductRetainedBlock.sourceWidth FieldSuffixBlock.sourceWidth
+    unfold PiRLCRetainedGeometry.sourceWidth PiRLCProductPlan.sourceWidth
+      ProductRetainedBlock.sourceWidth
     omega
   unfold PerApplicationPackage.baseEnv SourceCompiler.sourceEnv
   rw [dif_pos shiftedRetained, dif_pos shiftedBase]
@@ -86,18 +84,17 @@ theorem readout_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
     PiCCSTranscriptReadout.env (PerApplicationPackage.baseEnv program
         (SourceCompiler.sourceEnv (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products))) column =
+          program base groupValue))) column =
       PiCCSTranscriptReadout.env
         (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)) column := by
   apply PermutationOutput.Readout.env_congr_at
-  · exact retainedPrefix_baseEnv program base groupValue products column bound
+  · exact retainedPrefix_baseEnv program base groupValue column bound
   · intro index lane
-    exact retainedPrefix_baseEnv program base groupValue products _
+    exact retainedPrefix_baseEnv program base groupValue _
       (PiCCSTranscriptReadout.sboxColumn_lt_spartanColumnCount index lane)
 
 /-- Actual PiCCS payload expressions read the computed transcript view of the
@@ -106,15 +103,14 @@ theorem packageEnv_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
     PiCCSActionPayloadBlock.packageEnv program
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue products) column =
+        (PiRLCRetainedPreservation.sourceAssignment program base groupValue) column =
       PiCCSTranscriptReadout.env
         (PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base))
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column) := by
-  exact readout_sourceAssignment program base groupValue products _
+  exact readout_sourceAssignment program base groupValue _
     (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt column bound)
 
 abbrev InvocationIndex := Fin PiCCSPoseidonPlan.invocationCount
@@ -123,7 +119,7 @@ def laterIndex (index : InvocationIndex) : Fin PoseidonRetainedBlock.laterInvoca
   ⟨index.val, by
     have bound : index.val < 7604 := by
       simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
-    change index.val < 7757
+    rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega⟩
 
 /-- The exact package invocation selected by the PiCCS retained block. -/
@@ -214,9 +210,8 @@ theorem retainedSource_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (index : InvocationIndex) (row : Fin PoseidonRetainedSlots.rows.length) :
-    PiCCSPoseidonPreservation.sourceAssignment application (PiRLCRetainedPreservation.sourceAssignment application base groupValue products)
+    PiCCSPoseidonPreservation.sourceAssignment application (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
         ((PiCCSPoseidonPlan.schedule application).block.source
           (PoseidonRetainedFamily.slot (PiCCSPoseidonPlan.schedule application)
             index row)) =
@@ -235,7 +230,7 @@ theorem retainedSource_sbox
   unfold PiCCSPoseidonPreservation.sourceAssignment
   rw [PiCCSActionPayloadBlock.sourceAssignment_prefix]
   change PiRLCRetainedPreservation.sourceAssignment application base
-      groupValue products
+      groupValue
       (PiRLCRetainedPreservation.baseSourceColumn application
         (applicationSboxColumn application index row)) = _
   rw [PiRLCRetainedPreservation.sourceAssignment_base]
@@ -255,12 +250,11 @@ theorem outputState_baseEnv
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment
       (sourceAssignment program (PiRLCRetainedPreservation.sourceAssignment
-        program base groupValue products))) (index : InvocationIndex) :
+        program base groupValue))) (index : InvocationIndex) :
     SparseLayer.evalState assignment (PiCCSPoseidonPlan.outputState geometry index) =
       Layer.externalF (fun lane =>
         PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
@@ -271,10 +265,10 @@ theorem outputState_baseEnv
     (PiCCSPoseidonPlan.retainedStart program)
     (PiCCSPoseidonPlan.retainedFits geometry) assignment
     (sourceAssignment program (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)) sboxes index]
+      program base groupValue)) sboxes index]
   apply congrArg Layer.externalF
   funext lane
-  exact retainedSource_sbox program base groupValue products index
+  exact retainedSource_sbox program base groupValue index
     (PoseidonRetainedSlots.finalRow lane)
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation

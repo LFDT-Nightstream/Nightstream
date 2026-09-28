@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 /-!
 Owns canonical ordinary sampler row completeness from actual cumulative
 physical rows. Agreement is restricted to the existing ordinary source set:
-Poseidon outputs, digest-lane logical/fresh cells, and final selector cells.
+Poseidon entry outputs, checked core/fresh values, and coefficient words.
 -/
 
 set_option autoImplicit false
@@ -25,61 +25,30 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PiRLCSamplerOrdinaryRetainedBlocks
 open PerApplicationAssignmentTransportExecution
 
-private theorem poseidonOutputColumn (descriptor : Lane) (lane : Fin 4) :
+private theorem poseidonOutputColumn (source : Fin sourceCount) (lane : Fin 4) :
     (PiRLCSamplerPoseidonValues.physicalInvocation
-      (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation descriptor)).witnessStart +
-        584 + (DigestWindow.rateLane lane).val =
-      Spartan.sourceToSpartan
-        (PiRLCSamplerOrdinaryDirectSource.poseidonSource descriptor.source.val descriptor.round.val lane) := by
+      (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation source)).witnessStart +
+        584 + (Sampler.rateLane lane).val =
+      Spartan.sourceToSpartan (PiRLCSamplerOrdinaryDirectSource.poseidonSource source.val lane) := by
   rw [PiRLCSamplerPoseidonValues.physicalInvocation_witnessStart_sampler]
   have decoded : PermutationPlan.samplerWitnessStartAt
-      (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation descriptor) =
-      PermutationPlan.samplerSourceWitnessStartAt descriptor.source.val
-        ⟨descriptor.round.val, Nat.lt_trans descriptor.round.isLt (by decide)⟩ := by
-    exact congrArg
-      (fun pair : Fin PiRLCSamplerInvocations.sourceCount ×
-          Fin PermutationPlan.samplerStepsPerSource =>
-        PermutationPlan.samplerSourceWitnessStartAt pair.1.val pair.2)
-      (Fin.decodeProd_encodeProd
-        (descriptor.source, (⟨descriptor.round.val,
-          Nat.lt_trans descriptor.round.isLt (by decide)⟩ :
-          Fin PermutationPlan.samplerStepsPerSource)))
+      (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation source) =
+      PermutationPlan.samplerSourceWitnessStartAt source.val ⟨0, by decide⟩ := by
+    exact congrArg (fun pair : Fin PiRLCSamplerInvocations.sourceCount ×
+        Fin PermutationPlan.samplerStepsPerSource =>
+      PermutationPlan.samplerSourceWitnessStartAt pair.1.val pair.2)
+      (Fin.decodeProd_encodeProd (source, (⟨0, by decide⟩ : Fin PermutationPlan.samplerStepsPerSource)))
   rw [decoded]
-  dsimp only [PermutationPlan.samplerSourceWitnessStartAt]
-  have mapped (start : Nat) (localStart : Spartan.piCcsPhaseOffset ≤ start) :
-      Spartan.sourceToSpartan start + 584 + lane.val =
-        Spartan.sourceToSpartan (start + 584 + lane.val) := by
-    simpa only [Nat.add_assoc] using
-      (Spartan.sourceToSpartan_add_of_piCcsLocal start (584 + lane.val) localStart).symm
-  cases roundEq : descriptor.round.val with
-  | zero =>
-      have localStart : Spartan.piCcsPhaseOffset ≤
-          PiRLCStarts.samplerSourceLogicalStart descriptor.source.val := by
-        unfold PiRLCStarts.samplerSourceLogicalStart
-        have initial : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerLogicalStart := by
-          norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.samplerLogicalStart,
-            PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset, Formal.samplerOffset]
-        omega
-      simpa only [PermutationPlan.samplerSourceWitnessStartAt, roundEq,
-        if_pos, PiRLCSamplerInvocations.sourceLogicalStart, DigestWindow.rateLane,
-        PiRLCSamplerOrdinaryDirectSource.poseidonSource] using
-          mapped (PiRLCStarts.samplerSourceLogicalStart descriptor.source.val) localStart
-  | succ previous =>
-      have localStart : Spartan.piCcsPhaseOffset ≤
-          PiRLCStarts.digestPermutationLogicalStart descriptor.source.val previous := by
-        unfold PiRLCStarts.digestPermutationLogicalStart PiRLCStarts.windowLogicalStart
-          PiRLCStarts.samplerSourceLogicalStart
-        have initial : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerLogicalStart := by
-          norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.samplerLogicalStart,
-            PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset, Formal.samplerOffset]
-        omega
-      simpa only [PermutationPlan.samplerSourceWitnessStartAt, roundEq,
-        Nat.succ_ne_zero, if_false, Nat.succ_sub_one, DigestWindow.rateLane,
-        PiRLCSamplerOrdinaryDirectSource.poseidonSource,
-        PiRLCStarts.digestPermutationLogicalStart, PiRLCStarts.windowLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart, DigestWindow.permutationOffset,
-        Sampler.windowOffset, Sampler.windowBase, SamplerChain.sourceOffset] using!
-          mapped (PiRLCStarts.digestPermutationLogicalStart descriptor.source.val previous) localStart
+  simp only [PermutationPlan.samplerSourceWitnessStartAt, if_true,
+    PiRLCSamplerInvocations.sourceLogicalStart, Sampler.rateLane]
+  have localStart : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerSourceLogicalStart source.val := by
+    simp only [PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset,
+      PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq]
+    norm_num [Spartan.piCcsPhaseOffset]
+    omega
+  simpa only [PiRLCSamplerOrdinaryDirectSource.poseidonSource, Nat.add_assoc] using
+    (Spartan.sourceToSpartan_add_of_piCcsLocal
+      (PiRLCStarts.samplerSourceLogicalStart source.val) (584 + lane.val) localStart).symm
 
 section Sources
 
@@ -88,65 +57,62 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
   (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-  (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (retained : PiRLCRetainedPreservation.Encodes
-    (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue products)
+    (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
   (ordinary : PiRLCSamplerOrdinaryRetainedGeometry.Encodes geometry assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
+    (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
   (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold
     (RunningTransitionDirectPlan.packageEnv application base))
 
-include groupValue products retained ordinary packets
+include groupValue retained ordinary packets
 
 private theorem form_source (location : PiRLCSamplerOrdinaryDirectPlan.Location) :
     (location.form geometry).eval assignment =
       RunningTransitionDirectPlan.packageEnv application base
         (Spartan.sourceToSpartan location.sourceColumn) := by
   cases location with
-  | poseidon descriptor lane =>
+  | poseidon source lane =>
       have encoding := PiRLCSamplerPoseidonPreservation.encodingOfRetained
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment
-        (PiRLCRetainedPreservation.sourceAssignment application base groupValue products)
+        (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
         _ retained.laterPoseidon
       have output := congrFun (PiRLCSamplerPoseidonValues.outputValue_of_packets
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry) assignment
-        base groupValue products encoding packets
-        (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation descriptor))
-        (DigestWindow.rateLane lane)
+        base groupValue encoding packets
+        (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation source))
+        (Sampler.rateLane lane)
       change ((PiRLCSamplerPoseidonPlan.interface
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)).output
-        (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation descriptor)
-        (DigestWindow.rateLane lane)).eval assignment = _
+        (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation source)
+        (Sampler.rateLane lane)).eval assignment = _
       exact output.trans (congrArg (RunningTransitionDirectPlan.packageEnv application base)
-        (poseidonOutputColumn descriptor lane))
-  | logical descriptor position =>
-      change (PiRLCSamplerCandidateWiring.logicalForm geometry descriptor position).eval assignment = _
-      rw [PiRLCSamplerCandidateWiring.logicalForm_eval geometry assignment _ ordinary,
-        logicalBlock_source]
+        (poseidonOutputColumn source lane))
+  | logical source position =>
+      change ((logicalBlock application).form
+        (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart application)
+        (PiRLCSamplerOrdinaryRetainedGeometry.logicalFits geometry)
+        (logicalSlot source position)).eval assignment = _
+      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.logical, logicalBlock_source]
       exact RunningTransitionDirectPlan.sourceAssignment_packageSource application base
-        groupValue products _ (logicalSource_lt descriptor position)
-  | fresh descriptor position =>
+        groupValue _ (logicalSource_lt source position)
+  | fresh source position =>
       change ((freshBlock application).form
         (PiRLCSamplerOrdinaryRetainedGeometry.freshStart application)
         (PiRLCSamplerOrdinaryRetainedGeometry.freshFits geometry)
-        (freshSlot descriptor position)).eval assignment = _
+        (freshSlot source position)).eval assignment = _
       rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.fresh,
         freshBlock_source]
       exact RunningTransitionDirectPlan.sourceAssignment_packageSource application base
-        groupValue products _ (freshSource_lt descriptor position)
-  | selector source =>
-      change ((PiRLCFirst54RetainedBlocks.positionBlock application).form
-        (PiRLCRetainedGeometry.positionStart application)
-        (PiRLCRetainedGeometry.positionFits
-          (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry))
-        (PiRLCFirst54DirectSchedule.positionIndex
-          (PiRLCFirst54DirectPlan.finalPositionDescriptor source))).eval assignment = _
-      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ retained.position,
-        PiRLCFirst54RetainedBlocks.positionBlock_source,
-        PiRLCFirst54DirectSchedule.position_positionIndex]
-      unfold PiRLCFirst54DirectPlan.retainedPositionColumn
-      rw [PiRLCRetainedPreservation.sourceAssignment_package,
-        PiRLCFirst54DirectPlan.finalPositionDescriptor_positionColumn]
+        groupValue _ (freshSource_lt source position)
+  | word source position =>
+      change ((PiRLCRetainedGeometry.challengeBlock application).form
+        (PiRLCRetainedGeometry.challengeStart application)
+        (PiRLCRetainedGeometry.challengeFits (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry))
+        (PiRLCProductSourceBlocks.challengeIndex source position)).eval assignment = _
+      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ retained.challenge]
+      simp only [PiRLCRetainedGeometry.challengeBlock, PiRLCProductSourceBlocks.challengeBlock,
+        PiRLCProductSourceBlocks.challengeIndex, Fin.decodeProd_encodeProd]
+      rw [PiRLCRetainedPreservation.sourceAssignment_package]
       rfl
 
 private theorem resolvedEnv_of_target (column : Nat)
@@ -154,16 +120,18 @@ private theorem resolvedEnv_of_target (column : Nat)
     PiRLCSamplerOrdinaryDirectPlan.resolvedEnv geometry assignment column =
       RunningTransitionDirectPlan.packageEnv application base column := by
   rcases support with ⟨source, supported, rfl⟩
-  obtain ⟨location, found⟩ := Option.isSome_iff_exists.mp
-    (PiRLCSamplerOrdinaryDirectPlan.classifySource_complete supported)
-  have same := PiRLCSamplerOrdinaryDirectPlan.classifySource_sound found
-  have bounded : source < Spartan.SourceColumnCount := by
-    rw [← same]
-    exact location.sourceColumn_lt
-  change (PiRLCSamplerOrdinaryDirectPlan.resolvedForm geometry
-    (Spartan.sourceToSpartan source)).eval assignment = _
-  rw [PiRLCSamplerRetainedCustody.resolvedForm_of_source geometry bounded found, ← same]
-  exact form_source geometry assignment base groupValue products retained ordinary packets location
+  have complete := PiRLCSamplerOrdinaryDirectPlan.classifySource_complete supported
+  cases found : PiRLCSamplerOrdinaryDirectPlan.classifySource source with
+  | none => exact False.elim (complete found)
+  | some location =>
+      have same := PiRLCSamplerOrdinaryDirectPlan.classifySource_sound found
+      have bounded : source < Spartan.SourceColumnCount := by
+        rw [← same]
+        exact location.sourceColumn_lt
+      change (PiRLCSamplerOrdinaryDirectPlan.resolvedForm geometry
+        (Spartan.sourceToSpartan source)).eval assignment = _
+      rw [PiRLCSamplerRetainedCustody.resolvedForm_of_source geometry bounded found, ← same]
+      exact form_source geometry assignment base groupValue retained ordinary packets location
 
 end Sources
 
@@ -180,22 +148,18 @@ private theorem sourceRows_eq_data :
   apply congrArg (List.map Rows.CompiledRow.toR1CS)
   unfold PiRLCSamplerOrdinaryRows.rows
   apply congrArg (fun packets : Nat → List Rows.CompiledRow =>
-    (List.range PiRLCSamplerOrdinaryRows.sourceCount).flatMap packets)
+    (List.range PiRLCSamplerInvocations.sourceCount).flatMap packets)
   funext source
-  unfold PiRLCSamplerOrdinaryRows.sourceRows
-  apply congrArg (fun rows : List Rows.CompiledRow =>
-    rows ++ PiRLCSamplerOrdinaryRows.selectorFinalRows source)
-  apply congrArg (fun packets : Nat → List Rows.CompiledRow =>
-    (List.range PiRLCSamplerOrdinaryRows.digestRoundCount).flatMap packets)
-  funext round
-  unfold PiRLCSamplerOrdinaryRows.windowRows
-  apply congrArg (fun packets : Fin 4 → List Rows.CompiledRow =>
-    (List.finRange 4).flatMap packets)
-  funext lane
-  unfold PiRLCSamplerOrdinaryRows.laneRows
-  apply congrArg (PiCCSArithmetic.compilePacket _ _)
-  unfold PiRLCSamplerOrdinaryRows.laneConstraints
-  simp only [PiRLCSamplerOrdinaryDirectSource.fastLaneSource_eq_var]
+  have interfaceEq : PiRLCSamplerOrdinaryRows.rangeInterface
+      (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits) source =
+      PiRLCSamplerOrdinaryRows.rangeInterface
+        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source := by
+    apply congrArg WideReduction.Interface.mk
+    funext lane offset
+    simp only [PiRLCSamplerInvocations.fastAdvanceState,
+      PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
+  simp only [PiRLCSamplerOrdinaryRows.sourceRows, PiRLCSamplerOrdinaryRows.rangeRows,
+    PiRLCSamplerOrdinaryRows.rangeConstraints, interfaceEq]
 
 /-- Actual cumulative physical rows make every ordinary sampler row vanish
 on the canonical retained assignment. The exact source set supplies every
@@ -230,7 +194,7 @@ theorem rowsZero_of_completed
     (PiRLCSamplerOrdinaryDirectPlan.resolvedEnv geometry raw.assignment)
     PiRLCSamplerOrdinaryDirectSource.sourceRows_varsSatisfy _ sourceRows
   intro column support
-  exact resolvedEnv_of_target geometry raw.assignment base raw.groupValue raw.products
+  exact resolvedEnv_of_target geometry raw.assignment base raw.groupValue
     (PerApplicationCanonicalEncodes.retainedEncodes raw)
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).samplerOrdinary
     packets column support

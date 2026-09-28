@@ -6,8 +6,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 Owns the Poseidon2 invocation schedule for the production PiRLC sampler
 chain.
 
-Each of the 17 scalar samplers contains one domain-entry absorption and eight
-raw digest-window permutations. The schedule uses the same canonical 592-row
+Each of the 17 scalar samplers contains one domain-entry absorption and one
+advance permutation. The schedule uses the same canonical 592-row
 template as the pilot and PiCCS transcript paths.
 -/
 
@@ -31,7 +31,6 @@ variable {logicalWidth : Nat}
 
 def phase : Nat := 7
 def sourceCount : Nat := 17
-def digestRoundCount : Nat := 8
 
 def chainInterface : SamplerChain.Interface :=
   PiRLCSamplerRows.samplerInterface
@@ -46,8 +45,7 @@ def sourceLogicalStart (source : Nat) : Nat :=
   NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart source
 
 def entryState (source : Nat) : Invocations.EState :=
-  (Sampler.entryInterface
-    (sourceInterface (logicalWidth := logicalWidth)
+  ((sourceInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits) source)).initialState
     (sourceLogicalStart source)
 
@@ -61,7 +59,6 @@ theorem fastEntryState_eq_entryState (source : Nat) :
       entryState (logicalWidth := logicalWidth) (publicFits := publicFits)
         source := by
   unfold fastEntryState entryState sourceInterface sourceLogicalStart
-    Sampler.entryInterface
   exact PiRLCSamplerProjection.fastProductionEntryState_eq source
 
 def entryTrace (source : Nat) : Trace :=
@@ -76,46 +73,30 @@ def entryInvocations (source : Nat) : List PermutationInvocation :=
   (entryTrace (logicalWidth := logicalWidth) (publicFits := publicFits)
     source).invocations
 
-def windowState (source round : Nat) : Invocations.EState :=
-  (Sampler.windowInterface
-    (sourceInterface (logicalWidth := logicalWidth)
-      (publicFits := publicFits) source)
-    source (sourceLogicalStart source) round).initialState
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
-        source round)
+def advanceState (source : Nat) : Invocations.EState :=
+  Sampler.enteredState (sourceInterface (logicalWidth := logicalWidth)
+    (publicFits := publicFits) source) source (sourceLogicalStart source)
 
-def fastWindowState (source round : Nat) : Invocations.EState :=
-  PiRLCSamplerProjection.fastProductionWindowInitialState
-    (logicalWidth := logicalWidth) (publicFits := publicFits) source round
+def fastAdvanceState (source : Nat) : Invocations.EState :=
+  PiRLCSamplerProjection.fastProductionEntryOutput
+    (logicalWidth := logicalWidth) (publicFits := publicFits) source
 
-theorem fastWindowState_eq_windowState (source round : Nat) :
-    fastWindowState (logicalWidth := logicalWidth)
-        (publicFits := publicFits) source round =
-      windowState (logicalWidth := logicalWidth)
-        (publicFits := publicFits) source round := by
-  unfold fastWindowState windowState Sampler.windowInterface
-    sourceInterface sourceLogicalStart
-  exact PiRLCSamplerProjection.fastProductionWindowInitialState_eq source round
+theorem fastAdvanceState_eq (source : Nat) :
+    fastAdvanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source =
+      advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source := by
+  unfold fastAdvanceState advanceState Sampler.enteredState sourceInterface sourceLogicalStart
+  exact PiRLCSamplerProjection.fastProductionEntryOutput_eq source
 
-def windowInvocation (source round : Nat) : PermutationInvocation :=
+def advanceInvocation (source : Nat) : PermutationInvocation :=
   invocation phase
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationRowStart
-      source round)
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-      source round)
-    (fastWindowState (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round)
-
-def windowInvocations (source : Nat) : List PermutationInvocation :=
-  (List.range digestRoundCount).map
-    (windowInvocation (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source)
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+    (fastAdvanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source)
 
 def sourceInvocations (source : Nat) : List PermutationInvocation :=
   entryInvocations (logicalWidth := logicalWidth) (publicFits := publicFits)
       source ++
-    windowInvocations (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source
+    [advanceInvocation (logicalWidth := logicalWidth) (publicFits := publicFits) source]
 
 def invocations : List PermutationInvocation :=
   (List.range sourceCount).flatMap
@@ -129,19 +110,14 @@ def invocations : List PermutationInvocation :=
     TranscriptAbsorption.actions, TranscriptAbsorption.constantWords,
     TranscriptAbsorption.frameWords, Hash.inputChunks, Spec.Poseidon2.rate]
 
-@[simp] theorem windowInvocations_length (source : Nat) :
-    (windowInvocations (logicalWidth := logicalWidth)
-      (publicFits := publicFits) source).length = digestRoundCount := by
-  simp [windowInvocations]
-
 @[simp] theorem sourceInvocations_length (source : Nat) :
     (sourceInvocations (logicalWidth := logicalWidth)
-      (publicFits := publicFits) source).length = 9 := by
-  simp [sourceInvocations, digestRoundCount]
+      (publicFits := publicFits) source).length = 2 := by
+  simp [sourceInvocations]
 
 @[simp] theorem invocations_length :
     (invocations (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).length = 153 := by
+      (publicFits := publicFits)).length = 34 := by
   simp [invocations, sourceCount]
 
 theorem entryState_affine (source : Nat) :
@@ -162,8 +138,7 @@ theorem entryTrace_state_matches (source : Nat) :
     (entryTrace (logicalWidth := logicalWidth) (publicFits := publicFits)
       source).state =
       TranscriptAbsorption.output
-        (Sampler.entryInterface
-          (sourceInterface (logicalWidth := logicalWidth)
+        ((sourceInterface (logicalWidth := logicalWidth)
             (publicFits := publicFits) source))
         source (sourceLogicalStart source) := by
   unfold entryTrace TranscriptAbsorption.output
@@ -185,8 +160,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
         source).invocations,
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     TranscriptAbsorption.SpecHolds
-      (Sampler.entryInterface
-        (sourceInterface (logicalWidth := logicalWidth)
+      ((sourceInterface (logicalWidth := logicalWidth)
           (publicFits := publicFits) source))
       source (sourceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
@@ -197,6 +171,7 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
     unfold sourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
+      SamplerChain.sourceOffset
       NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
@@ -224,117 +199,58 @@ theorem entryTrace_implies_spec (source : Nat) (env : Env)
   rw [fastEntryState_eq_entryState] at stateMatches
   rw [stateMatches] at trace
   apply (TranscriptAbsorption.ownedSpec_iff_specHolds
-    (Sampler.entryInterface
-      (sourceInterface (logicalWidth := logicalWidth)
+    ((sourceInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) source))
     source (sourceLogicalStart source)
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)).mp
   exact trace
 
-theorem windowState_affine (source round : Nat) :
-    StateAffine
-      (windowState (logicalWidth := logicalWidth) (publicFits := publicFits)
-        source round) := by
-  have inputs := NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.windowInputs
-    (sourceInterface (logicalWidth := logicalWidth)
-      (publicFits := publicFits) source)
-    source (sourceLogicalStart source) round
-  simpa [windowState, sourceLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart,
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart,
-    Sampler.windowOffset, Sampler.windowBase, Sampler.entryPrivateCount] using!
-      inputs.initialState
+theorem advanceState_affine (source : Nat) :
+    StateAffine (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source) :=
+  NightstreamFPrime.Layout.PiRLC.v1_1.Sampler.entered_affine _ _ _
 
-/-- One held raw window invocation is exactly the permutation child selected
-by the production digest-window interface. -/
-theorem windowInvocation_implies_spec (source round : Nat) (env : Env)
+/-- The held advance invocation is the permutation selected by the scalar circuit. -/
+theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
     (holds : PermutationInvocationHolds (PilotData.circuitPackage ())
-      (windowInvocation (logicalWidth := logicalWidth)
-        (publicFits := publicFits) source round) env) :
+      (advanceInvocation (logicalWidth := logicalWidth) (publicFits := publicFits) source) env) :
     Permutation.Owned.SpecHolds
-      (DigestWindow.permutationInterface
-        (Sampler.windowInterface
-          (sourceInterface (logicalWidth := logicalWidth)
-            (publicFits := publicFits) source)
-          source (sourceLogicalStart source) round)
-        (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
-          source round))
-      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-        source round)
+      (Sampler.advanceInterface (sourceInterface (logicalWidth := logicalWidth)
+        (publicFits := publicFits) source) source (sourceLogicalStart source))
+      (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
-  simp only [windowInvocation, fastWindowState_eq_windowState] at holds
-  have witnessLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
-        NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-          source round := by
-    unfold NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-      NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
+  simp only [advanceInvocation, fastAdvanceState_eq] at holds
+  have witnessLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source := by
+    unfold NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerSourceLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
       NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerOffset
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
+      Sampler.advanceOffset Sampler.rangeOffset SamplerChain.sourceOffset
     norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
     omega
   have transition := invocation_sound phase
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationRowStart
-      source round)
-    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-      source round)
-    (windowState (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round)
-    env witnessLocal
-    (windowState_affine (logicalWidth := logicalWidth)
-      (publicFits := publicFits) source round)
-    holds
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceRowStart source)
+    (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
+    (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source)
+    env witnessLocal (advanceState_affine (logicalWidth := logicalWidth) (publicFits := publicFits) source) holds
   unfold Permutation.Owned.SpecHolds
   calc
-    List.ofFn (Layer.evalState
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-        (Permutation.Owned.output
-          (DigestWindow.permutationInterface
-            (Sampler.windowInterface
-              (sourceInterface (logicalWidth := logicalWidth)
-                (publicFits := publicFits) source)
-              source (sourceLogicalStart source) round)
-            (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
-              source round))
-          (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-            source round))) =
-        List.ofFn (Layer.evalState
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-          (permutationOutput
-            (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-              source round))) := by rfl
+    _ = List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (permutationOutput (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source))) := rfl
     _ = List.ofFn (Permutation.runF Permutation.schedule
-          (Layer.evalState
-            (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-            (windowState (logicalWidth := logicalWidth)
-              (publicFits := publicFits) source round))) :=
+        (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+          (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       congrArg List.ofFn transition
     _ = Permutation.runReference Permutation.schedule
-          (List.ofFn (Layer.evalState
-            (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-            (windowState (logicalWidth := logicalWidth)
-              (publicFits := publicFits) source round))) :=
+        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+          (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       Permutation.runF_eq_reference _ _
     _ = Spec.Poseidon2.permute
-          (List.ofFn (Layer.evalState
-            (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-            (windowState (logicalWidth := logicalWidth)
-              (publicFits := publicFits) source round))) :=
+        (List.ofFn (Layer.evalState (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+          (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source))) :=
       Permutation.runReference_schedule _
-    _ = Spec.Poseidon2.permute
-          (List.ofFn (Layer.evalState
-            (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
-            ((DigestWindow.permutationInterface
-              (Sampler.windowInterface
-                (sourceInterface (logicalWidth := logicalWidth)
-                  (publicFits := publicFits) source)
-                source (sourceLogicalStart source) round)
-              (NightstreamFPrime.Layout.Stage1.PiRLCStarts.windowLogicalStart
-                source round)).initialState
-              (NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestPermutationLogicalStart
-                source round)))) := by rfl
+    _ = _ := rfl
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations

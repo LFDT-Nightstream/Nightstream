@@ -1,10 +1,13 @@
 # Nightstream SuperNeo protocol contract
 
-Status: **implementation specification selected; production assurance open**.
+Status: **historical specification record; current implementation correspondence open**.
 
-This package defines the protocol that Nightstream must implement. It does not
-state that the current Lean model, Rust verifier, circuit, decider, or deployed
-verifier conforms to the contract.
+This package preserves the earlier selected contract and its review records.
+Its fixed geometry and bounded sampler describe that historical revision,
+not the current wide-sampler implementation. The maintained production proof
+authority is [Nightstream F′](../formal/nightstream-fprime/ASSURANCE_SURFACE.md).
+No compatibility path implements this historical sampler. The old review
+records do not certify the current Lean model, Rust verifier, or circuit.
 
 ## Assurance path
 
@@ -72,7 +75,10 @@ security evidence.
 The earlier `formal/nightstream-lean` project is absent from this checkout.
 Its former paths are not available evidence. The affected artifacts are
 unresolved and the Lean proof obligations remain open; historical paths remain
-in the sealed migration record. Refreshing this package does not renew old
+in the sealed migration record. The legacy Rust evidence producers and their checkers are also removed. Their
+historical paths are unresolved evidence. The maintained implementation is
+checked by `scripts/golden_conformance_ci.py`; those results do not establish
+refinement of this older contract. Refreshing this package does not renew old
 review receipts or establish a production security claim.
 
 ## Editing model

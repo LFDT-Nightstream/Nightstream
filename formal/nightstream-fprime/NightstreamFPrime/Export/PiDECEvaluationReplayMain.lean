@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
+import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
@@ -18,6 +19,7 @@ namespace NightstreamFPrime.Export.PiDECEvaluationReplay
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic (StoredAssignment)
 open NightstreamFPrime.Export.Codec
@@ -48,11 +50,13 @@ private def decodeBlock (line : String) :
   | _ => throw "expected parent block and coefficient array"
 
 private def computeBlock (point : CubePoint K Lifecycle.cubeVariables)
+    (tables : Array K × Array K)
     (block : Nat) (parent : StoredAssignment ringDegree) : IO Products := do
   let some children := StoredSplit.splitChecked parent
     | throw (IO.userError s!"parent exceeds the strict B bound at block {block}")
   let weights := Vector.ofFn fun lane : Fin ringDegree =>
-    PiDECEvaluationWeights.weight point (block * ringDegree + lane.val)
+    PiCCSTensorWeights.lookup extensionOps point.coordinates tables
+      (block * ringDegree + lane.val)
   return PiDECPadWeightedProduct.products weights children
 
 private def collect (initial : Products)
@@ -147,6 +151,7 @@ private def pad (ccsPath parentPath outputPath : System.FilePath)
   let ccs ← checked (PiCCSInputCheck.parse (← IO.FS.readFile ccsPath))
   let phase ← IO.wait (Task.spawn fun _ => PiCCSInputCheck.execute ccs)
   unless phase.accepted do throw (IO.userError "C input rejected")
+  let tables := PiCCSTensorWeights.prepare extensionOps phase.point.coordinates
   let pointReady ← IO.monoNanosNow
   let input ← IO.FS.Handle.mk parentPath .read
   let headerLine ← input.getLine
@@ -174,7 +179,7 @@ private def pad (ccsPath parentPath outputPath : System.FilePath)
         throw (IO.userError "duplicate or out-of-range parent block")
       next := block + 1
       if start ≤ block && block < finish then
-        pending := pending.push (← IO.asTask (computeBlock phase.point block values))
+        pending := pending.push (← IO.asTask (computeBlock phase.point tables block values))
         if pending.size ≥ workers then
           accumulated ← collect accumulated pending
           pending := #[]

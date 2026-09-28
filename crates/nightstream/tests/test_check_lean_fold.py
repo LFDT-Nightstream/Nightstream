@@ -71,10 +71,11 @@ class LeanFoldCheckTests(unittest.TestCase):
                 with patch.object(check, "build_lock", return_value=contextlib.nullcontext()), \
                      patch.object(check, "check_build_processes"), \
                      patch.object(check.subprocess, "Popen", return_value=process) as popen, \
-                     patch.object(check.os, "killpg") as kill:
+                     patch.object(check.time, "monotonic", side_effect=[0, 0, cap, cap]), \
+                     patch.object(check, "kill_process_groups") as kill:
                     with self.assertRaisesRegex(ValueError, "failed; see"):
                         checker.phase("capped", kind, ["test"])
-                kill.assert_called_once_with(123, check.signal.SIGKILL)
+                kill.assert_called_once_with(123)
                 self.assertLessEqual(process.wait.call_args_list[0].kwargs["timeout"], cap)
                 self.assertTrue(popen.call_args.kwargs["start_new_session"])
                 if kind == "lean":
@@ -82,6 +83,30 @@ class LeanFoldCheckTests(unittest.TestCase):
                 record = json.loads((output / "capped.command.json").read_text())
                 self.assertEqual((record["exit"], record["outcome"], record["cap_seconds"]), (124, "timed-out", cap))
                 self.assertTrue((output / "capped.log").exists())
+
+    def test_suspension_counts_toward_cap_even_when_child_exits_successfully(self):
+        for child_exits in (False, True):
+            with self.subTest(child_exits=child_exits):
+                output = self.directory / str(child_exits)
+                output.mkdir()
+                checker = check.Check(self.directory, 1, output, Path("unused-native-checker"))
+                process = MagicMock(pid=123)
+                process.wait.side_effect = ([0, 0] if child_exits else
+                                           [subprocess.TimeoutExpired(["test"], 1), -9])
+                clock = [0, 0, 301] if child_exits else [0, 0, 301, 301]
+                with patch.object(check, "build_lock", return_value=contextlib.nullcontext()), \
+                     patch.object(check, "check_build_processes"), \
+                     patch.object(check.subprocess, "Popen", return_value=process), \
+                     patch.object(check.time, "monotonic", return_value=0), \
+                     patch.object(check.time, "time", side_effect=clock), \
+                     patch.object(check, "kill_process_groups") as kill:
+                    with self.assertRaisesRegex(ValueError, "failed; see"):
+                        checker.phase("suspended", "python", ["test"])
+                kill.assert_called_once_with(123)
+                self.assertLessEqual(process.wait.call_args_list[0].kwargs["timeout"], 1)
+                record = json.loads((output / "suspended.command.json").read_text())
+                self.assertEqual((record["exit"], record["outcome"]), (124, "timed-out"))
+                self.assertEqual(record["elapsed_seconds"], 301)
 
     def test_successful_child_data_and_command_receipt_have_distinct_paths(self):
         checker = check.Check(self.directory, 1, self.directory, Path("unused-native-checker"))

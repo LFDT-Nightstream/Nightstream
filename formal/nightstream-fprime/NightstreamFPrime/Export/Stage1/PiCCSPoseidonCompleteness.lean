@@ -55,7 +55,7 @@ include relation physical in
 private theorem source_value (column : Nat) (bound : column < Spartan.SourceColumnCount) :
     PiCCSActionPayloadBlock.packageEnv application (raw).retainedSource column =
       Spartan.pullback target column := by
-  exact (packageEnv_sourceAssignment application (raw).base (raw).groupValue (raw).products column bound).trans
+  exact (packageEnv_sourceAssignment application (raw).base (raw).groupValue column bound).trans
     (PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix physical column bound)
 
 include relation physical in
@@ -74,14 +74,14 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
       ((PiCCSPoseidonPlan.schedule application).block.source
         (PoseidonRetainedFamily.slot (PiCCSPoseidonPlan.schedule application) index row)) =
       target ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput row).val) := by
-  refine (retainedSource_sbox application (raw).base (raw).groupValue (raw).products index row).trans ?_
+  refine (retainedSource_sbox application (raw).base (raw).groupValue index row).trans ?_
   apply PerApplicationSourceAssignment.packageEnv_ofCompleted
   have before := PoseidonRetainedBlock.laterWitnessStart_bound (laterIndex index)
   change (physicalInvocation index).witnessStart + 592 ≤
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 592 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 29336446 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 28410966 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +

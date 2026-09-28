@@ -203,7 +203,7 @@ private theorem applicationInputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28410966 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.inputColumn_value]
     norm_num [ApplicationInputs.currentWordStart,
@@ -244,7 +244,7 @@ private theorem applicationOutputEnv_eq_transition
       PiRLCProductPlan.basePackage.layout.constantColumn := by
     have indexBound := index.isLt
     have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-        29336446 :=
+        28410966 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant, ApplicationInputs.outputColumn_value]
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
@@ -437,13 +437,13 @@ theorem semantics_imply_canonicalStates
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     StateDecoder.Canonical (priorState raw) ∧
       StateDecoder.Canonical (outputState raw) := by
   have piCcs :=
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
       (relation application fits) (prefixGeometry application) raw.assignment
-      raw.base raw.groupValue raw.products semantics.runningPrefix
+      raw.base raw.groupValue semantics.runningPrefix
   have binding := piCcs.statementBinding.state
   constructor
   · apply priorCanonical_of_stateBinding raw
@@ -462,12 +462,12 @@ theorem semantics_imply_contextKeys
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     StateDecoder.keyDigest (outputState raw) = contextKey raw := by
   have piCcs :=
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
       (relation application fits) (prefixGeometry application) raw.assignment
-      raw.base raw.groupValue raw.products semantics.runningPrefix
+      raw.base raw.groupValue semantics.runningPrefix
   have preserved := piCcs.statementBinding.state.contextPreserved
   unfold contextKey StateDecoder.keyDigest
   apply StateDecoder.slice_congr
@@ -858,7 +858,7 @@ theorem semantics_imply_nextIterationWord
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     natWord ((input application fits raw).iteration + 1) =
       natWord (StateDecoder.iteration (outputState raw)) := by
   let word : Fin PilotProduction.stateHashWords :=
@@ -896,7 +896,7 @@ theorem semantics_imply_nextInitialState
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     StateDecoder.initialState (outputState raw) =
       StateDecoder.initialState (priorState raw) := by
   unfold StateDecoder.initialState
@@ -934,7 +934,7 @@ theorem semantics_imply_nextSerialization
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     serializePreimage (publicFits := PerApplicationFixedPoint.publicFits application)
         (nextHashPreimage
           (setup (relation application fits) ajtai (contextKey raw))
@@ -1000,7 +1000,7 @@ theorem nextHashPreimageRepresents
     (canonical : StateDecoder.Canonical (outputState raw))
     (semantics : DirectApplicationPrefixPlan.Semantics
       (relation application fits) (geometry application) raw.assignment
-      raw.base raw.groupValue raw.products) :
+      raw.base raw.groupValue) :
     Lifecycle.OutputHash.RepresentsPreimage PilotProduction.outputInterface
       (Lifecycle.Pilot.outputOffset PilotProduction.interface
         PilotProduction.witnessOffset)

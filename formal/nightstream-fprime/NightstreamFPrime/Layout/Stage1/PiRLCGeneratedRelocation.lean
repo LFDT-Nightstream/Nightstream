@@ -22,23 +22,21 @@ theorem samplerOutputState_shift
     Sampler.outputState right coordinate (leftOffset + delta) =
       state delta (Sampler.outputState left coordinate leftOffset) := by
   funext lane
-  simp only [Sampler.outputState, DigestWindow.output,
+  simp only [Sampler.outputState,
     Permutation.Owned.output, Permutation.scheduleOutput,
     Permutation.freshState, state, expression]
   congr 1
-  unfold Sampler.windowOffset Sampler.windowBase
-    DigestWindow.permutationOffset
+  unfold Sampler.advanceOffset Sampler.rangeOffset
   omega
 
 theorem samplerOutputWord_shift
     (leftOffset delta : Nat) (position : Fin ringDegree) :
     Sampler.outputWord (leftOffset + delta) position =
       expression delta (Sampler.outputWord leftOffset position) := by
-  simp only [Sampler.outputWord, First54.output, First54ValueStep.output,
+  simp only [Sampler.outputWord, SamplerWords.outputWord,
     expression]
   congr 1
-  unfold First54.valueOffset First54.positionOffset Sampler.selectorOffset
-    Sampler.windowBase
+  unfold Sampler.wordsOffset Sampler.advanceOffset Sampler.rangeOffset
   omega
 
 theorem stateAtExpr_shift
@@ -62,13 +60,13 @@ theorem stateAtExpr_shift
             SamplerChain.stateAtExpr right (leftOffset + delta) source }
         source (SamplerChain.sourceOffset leftOffset source) delta
 
-theorem challengeExpr_shift
-    (left right : SamplerChain.Interface) (leftOffset delta : Nat)
+theorem outputChallenge_shift
+    (leftOffset delta : Nat)
     (source : Fin SamplerChain.sourceCount) (lane : Fin ringDegree) :
-    SamplerChain.challengeExpr right (leftOffset + delta) source lane =
+    SamplerChain.outputChallenge (leftOffset + delta) source lane =
       expression delta
-        (SamplerChain.challengeExpr left leftOffset source lane) := by
-  unfold SamplerChain.challengeExpr Sampler.outputChallenge
+        (SamplerChain.outputChallenge leftOffset source lane) := by
+  unfold SamplerChain.outputChallenge Sampler.outputChallenge
   rw [show SamplerChain.sourceOffset (leftOffset + delta) source.val =
       SamplerChain.sourceOffset leftOffset source.val + delta by
     unfold SamplerChain.sourceOffset

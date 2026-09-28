@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 16, 64];
+const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 4, 1];
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(

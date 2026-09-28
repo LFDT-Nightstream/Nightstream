@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
-import NightstreamFPrime.Export.Stage1.PiRLCSamplerSelectorCustody
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
@@ -27,23 +27,23 @@ private theorem samplerLogicalStart_eq :
   rfl
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 20328391 := by
+    PiRLCStarts.commitmentLogicalStart = 20120226 := by
   rfl
 
 private theorem phaseFreshStart_eq :
-    PiRLCStarts.phaseFreshStart = 20380717 := by
+    PiRLCStarts.phaseFreshStart = 20172552 := by
   exact PiRLCStarts.phaseFreshStart_eq
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 20348587 := by
+    PiRLCStarts.publicInputLogicalStart = 20140422 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 20353177 := by
+    PiRLCStarts.evalKLogicalStart = 20145012 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 20355013 := by
+    PiRLCStarts.evalALogicalStart = 20146848 := by
   rfl
 
 private theorem commitmentValue_beforeTranscript
@@ -309,71 +309,27 @@ private theorem ordinaryLocation_outsideProductInterval
     location.sourceColumn < PiRLCStarts.commitmentLogicalStart ∨
       PiRLCStarts.phaseFreshStart ≤ location.sourceColumn := by
   cases location with
-  | poseidon descriptor sourceLane =>
+  | poseidon source position =>
       left
-      rcases descriptor with ⟨source, round, lane⟩
-      have sourceBound := source.isLt
-      have roundBound := round.isLt
-      have laneBound := sourceLane.isLt
-      change source.val < 17 at sourceBound
-      change round.val < 8 at roundBound
-      change sourceLane.val < 4 at laneBound
-      rw [commitmentLogicalStart_eq]
-      cases roundValue : round.val with
-      | zero =>
-          simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-            PiRLCSamplerOrdinaryDirectSource.poseidonSource, roundValue,
-            PiRLCStarts.samplerSourceLogicalStart]
-          rw [samplerLogicalStart_eq]
-          omega
-      | succ previous =>
-          simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-            PiRLCSamplerOrdinaryDirectSource.poseidonSource, roundValue,
-            Sampler.windowOffset, Sampler.windowBase,
-            SamplerChain.sourceOffset, DigestWindow.permutationOffset,
-            Sampler.logicalPrivateCount, Sampler.entryPrivateCount,
-            DigestWindow.logicalPrivateCount, DigestLane.logicalPrivateCount]
-          rw [samplerLogicalStart_eq]
-          omega
-  | logical descriptor position =>
-      left
-      have sourceBound := descriptor.source.isLt
-      have roundBound := descriptor.round.isLt
-      have laneBound := descriptor.lane.isLt
-      have positionBound := position.isLt
-      change descriptor.source.val < 17 at sourceBound
-      change descriptor.round.val < 8 at roundBound
-      change descriptor.lane.val < 4 at laneBound
-      change position.val < 100 at positionBound
-      rw [commitmentLogicalStart_eq]
-      simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryRetainedBlocks.logicalSource,
-        PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart]
-      rw [samplerLogicalStart_eq]
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 4 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn, samplerLogicalStart_eq, commitmentLogicalStart_eq]
       omega
-  | fresh descriptor position =>
+  | logical source position =>
+      left
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 617 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn, samplerLogicalStart_eq, commitmentLogicalStart_eq]
+      omega
+  | word source position =>
+      left
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 54 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn, samplerLogicalStart_eq, commitmentLogicalStart_eq]
+      omega
+  | fresh source position =>
       right
-      rw [phaseFreshStart_eq]
-      simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryRetainedBlocks.freshSource,
-        PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
-        PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart]
-      rw [phaseFreshStart_eq]
-      omega
-  | selector source =>
-      left
-      have sourceBound := source.isLt
-      change source.val < 17 at sourceBound
-      rw [commitmentLogicalStart_eq]
-      simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryDirectSource.selectorSource,
-        PiRLCStarts.selectorLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart, First54.positionOffset,
-        First54.candidateCount, First54.roundPrivateCount,
-        First54Step.slotCount, First54ValueStep.outputCount,
-        First54.fullSlot, First54Step.fullSlot]
-      rw [samplerLogicalStart_eq]
+      change PiRLCStarts.phaseFreshStart ≤ PiRLCStarts.phaseFreshStart + source.val * 1548 + position.val
       omega
 
 private theorem stateLocation_beforeProductInterval
@@ -383,12 +339,12 @@ private theorem stateLocation_beforeProductInterval
   have stepBound := location.step.isLt
   have laneBound := location.lane.isLt
   change location.source.val < 17 at sourceBound
-  change location.step.val < 9 at stepBound
+  change location.step.val < 2 at stepBound
   change location.lane.val < 8 at laneBound
   rw [commitmentLogicalStart_eq]
   simp [PiRLCSamplerRetainedCustody.StateLocation.sourceColumn,
     PiRLCSamplerRetainedCustody.stateOutputOffset,
-    Sampler.logicalPrivateCount, DigestWindow.logicalPrivateCount]
+    Sampler.counts.1, PiRLCSamplerRetainedCustody.stateStepStride]
   rw [samplerLogicalStart_eq]
   omega
 
@@ -452,7 +408,7 @@ private theorem samplerLogicalStart_lt_baseConstant :
     PiRLCStarts.samplerLogicalStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      29336446 := by
+      28410966 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [samplerLogicalStart_eq, constant]
   norm_num
@@ -461,7 +417,7 @@ private theorem phaseFreshStart_lt_baseConstant :
     PiRLCStarts.phaseFreshStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      29336446 := by
+      28410966 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [phaseFreshStart_eq, constant]
   norm_num
@@ -470,26 +426,38 @@ private theorem evalTwo_env_independent (left right : Env) :
     (2 : Expr).eval left = (2 : Expr).eval right := by
   rfl
 
-/-- The product challenge coefficient is the retained final First54 value in
-both the complete sampler view and the product-plan base view. -/
+/-- The product and sampler read the same checked coefficient word. -/
 theorem semanticEnv_challengeColumn_eq_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
-    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
-      logicalWidth) (assignment : Assignment F logicalWidth)
+    (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (descriptor : PiRLCProductSchedule.Descriptor)
-    (lane : Fin ringDegree) :
-    Spartan.pullback
-        (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    Spartan.pullback (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)
         (descriptor.challengeColumn lane) =
-      PiRLCProductPlan.baseEnv program base
-        (descriptor.challengeColumn lane) := by
-  rw [PiRLCProductSourceBlocks.challengeColumn_eq_first54Value]
-  simpa [PiRLCFirst54DirectPlan.baseEnv] using
-    PiRLCSamplerSelectorCustody.semanticEnv_value_eq_baseEnv geometry
-      assignment base
-        (PiRLCProductSourceBlocks.challengeValueDescriptor descriptor.source
-          lane)
+      PiRLCProductPlan.baseEnv program base (descriptor.challengeColumn lane) := by
+  let location := PiRLCSamplerOrdinaryDirectPlan.Location.word descriptor.source lane
+  have found : PiRLCSamplerOrdinaryDirectPlan.classifyTarget
+      (Spartan.sourceToSpartan (descriptor.challengeColumn lane)) = some location := by
+    unfold PiRLCSamplerOrdinaryDirectPlan.classifyTarget
+    change (match Spartan.spartanToSource (Spartan.sourceToSpartan location.sourceColumn) with
+      | none => none | some column => PiRLCSamplerOrdinaryDirectPlan.classifySource column) = _
+    rw [Spartan.spartanToSource_sourceToSpartan _ location.sourceColumn_lt]
+    exact PiRLCSamplerOrdinaryDirectPlan.classifySource_word descriptor.source lane
+  unfold Spartan.pullback PiRLCSamplerRetainedCustody.semanticEnv
+    PiRLCSamplerOrdinaryDirectPlan.resolvedEnv PiRLCSamplerOrdinaryDirectPlan.resolvedForm
+  rw [found]
+  change ((PiRLCRetainedGeometry.challengeBlock program).form
+    (PiRLCRetainedGeometry.challengeStart program)
+    (PiRLCRetainedGeometry.challengeFits (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry))
+    (PiRLCProductSourceBlocks.challengeIndex descriptor.source lane)).eval assignment = _
+  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.challenge]
+  exact (congrArg (PiRLCRetainedPreservation.sourceAssignment program base groupValue)
+    (PiRLCProductSourceBlocks.challengeBlock_source program descriptor lane)).trans
+    (PiRLCRetainedPreservation.sourceAssignment_challengeColumn program base groupValue descriptor lane)
 
 /-- Every product input value precedes the sampler and therefore has the same
 canonical transition value in both environments. -/
@@ -581,6 +549,9 @@ private theorem challengeExpr_evalRing_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     CombinationStep.evalRing
         (Spartan.pullback
@@ -592,7 +563,7 @@ private theorem challengeExpr_evalRing_eq
   simp only [CombinationStep.evalRing,
     PiRLCProductSchedule.Descriptor.challengeExpr, Expr.eval_sub,
     Expr.eval_var]
-  rw [semanticEnv_challengeColumn_eq_baseEnv geometry assignment base
+  rw [semanticEnv_challengeColumn_eq_baseEnv geometry assignment base groupValue encoding
     descriptor lane]
   exact congrArg
     (fun value => PiRLCProductPlan.baseEnv program base
@@ -658,6 +629,9 @@ theorem sourceConstraint_eval_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     descriptor.sourceConstraint.eval
         (Spartan.pullback
@@ -668,7 +642,7 @@ theorem sourceConstraint_eval_eq
   simp only [Expr.eval_sub, Expr.eval_hadd, CombinationStep.mulExpr_eval]
   rw [outputExpr_eval_eq geometry assignment base descriptor,
     priorExpr_eval_eq geometry assignment base descriptor,
-    challengeExpr_evalRing_eq geometry assignment base descriptor,
+    challengeExpr_evalRing_eq geometry assignment base groupValue encoding descriptor,
     valueExpr_evalRing_eq geometry assignment base descriptor]
 
 /-- Invocation-indexed direct product semantics yield the exact decoded
@@ -678,6 +652,9 @@ theorem sourceConstraint_zero_of_productSemantics
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (encoding : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0)
@@ -686,7 +663,7 @@ theorem sourceConstraint_zero_of_productSemantics
         (Spartan.pullback
           (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)) =
       0 := by
-  rw [sourceConstraint_eval_eq geometry assignment base descriptor]
+  rw [sourceConstraint_eval_eq geometry assignment base groupValue encoding descriptor]
   have zero := product descriptor.invocation
   rw [PiRLCProductSchedule.descriptor_invocation] at zero
   exact zero

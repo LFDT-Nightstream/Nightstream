@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Export.PermutationOutput
@@ -24,7 +25,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 private def laterIndex (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) :
     Fin PoseidonRetainedBlock.laterInvocationCount :=
   ⟨LaterPoseidonRetainedBlocks.piCcsInvocationCount + current.val, by
-    have bounded : current.val < 153 := by
+    have bounded : current.val < 34 := by
       simpa only [PiRLCSamplerPoseidonPlan.invocationCount_eq] using current.isLt
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     simp only [LaterPoseidonRetainedBlocks.piCcsInvocationCount]
@@ -135,11 +136,10 @@ theorem source_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (current : Fin PiRLCSamplerPoseidonPlan.invocationCount)
     (row : Fin PoseidonRetainedSlots.rows.length) :
     PiRLCSamplerPoseidonPreservation.sourceAssignment application
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue products)
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
       ((PiRLCSamplerPoseidonPlan.schedule application).block.source
         (PoseidonRetainedFamily.slot (PiRLCSamplerPoseidonPlan.schedule application) current row)) =
       RunningTransitionDirectPlan.packageEnv application base
@@ -170,9 +170,8 @@ theorem outputValue_of_packets
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold
       (RunningTransitionDirectPlan.packageEnv application base))
     (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) :
@@ -180,10 +179,10 @@ theorem outputValue_of_packets
       fun lane : Fin 8 => RunningTransitionDirectPlan.packageEnv application base
         ((physicalInvocation current).witnessStart + 584 + lane.val) := by
   rw [PiRLCSamplerPoseidonPreservation.outputValue_sourceAssignment geometry assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue products) encoding]
+    (PiRLCRetainedPreservation.sourceAssignment application base groupValue) encoding]
   have sourceEq : (fun lane : Fin 8 =>
       PiRLCSamplerPoseidonPreservation.sourceAssignment application
-        (PiRLCRetainedPreservation.sourceAssignment application base groupValue products)
+        (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
         ((PiRLCSamplerPoseidonPlan.schedule application).block.source
           (PoseidonRetainedFamily.slot (PiRLCSamplerPoseidonPlan.schedule application)
             current (PoseidonRetainedSlots.finalRow lane)))) =
@@ -191,7 +190,7 @@ theorem outputValue_of_packets
         ((physicalInvocation current).witnessStart +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val) := by
     funext lane
-    exact source_sbox application base groupValue products current _
+    exact source_sbox application base groupValue current _
   rw [sourceEq]
   exact (PermutationOutput.invocation_finalLayer (physicalInvocation current)
     (RunningTransitionDirectPlan.packageEnv application base)

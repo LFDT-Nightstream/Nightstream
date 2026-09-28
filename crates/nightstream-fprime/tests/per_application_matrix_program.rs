@@ -8,8 +8,8 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::load_poseidon2_hash_chain_v1_package;
 
-const LOGICAL_ROWS: usize = 6_377_559;
-const LOGICAL_COLUMNS: usize = 253_011_231;
+const LOGICAL_ROWS: usize = 6_064_606;
+const LOGICAL_COLUMNS: usize = 242_590_792;
 const ZERO_MATRIX: usize = 13;
 
 fn artifact_path() -> PathBuf {

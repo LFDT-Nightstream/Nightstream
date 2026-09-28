@@ -41,22 +41,23 @@ def physicalRows (interface : Logical.Interface) (offset : Nat) :
 
 theorem freshColumnCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    (plan interface offset).freshColumnCount = 743631 := by
-  change R1CS.totalFreshCount (logicalConstraints interface offset) = 743631
+    (plan interface offset).freshColumnCount = 26316 := by
+  change R1CS.totalFreshCount (logicalConstraints interface offset) = 26316
   exact totalFreshCount_eq interface offset inputs
 
 theorem rowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    (plan interface offset).rowCount = 1008848 := by
+    (plan interface offset).rowCount = 58939 := by
   rw [R1CS.LoweringPlan.rowCount_eq, plan_constraints,
     totalRowCount_eq interface offset inputs]
 
 theorem next_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    (plan interface offset).next = offset + 1007199 := by
+    (plan interface offset).next = offset + 81719 := by
   rw [R1CS.LoweringPlan.next_eq, plan_firstFresh,
     freshColumnCount_eq interface offset inputs]
-  change offset + 263568 + 743631 = offset + 1007199
-  omega
+  change offset + NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.logicalPrivateCount +
+    26316 = offset + 81719
+  rw [NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain.counts.1]
 
 end NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain

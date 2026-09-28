@@ -27,35 +27,20 @@ structure Prepared (program : Program) where
   baseWidth_eq : baseWidth = PiRLCProductPlan.baseSourceWidth program
   phi81 : Phi81GroupRecipe
   phi81_eq : phi81 = phi81GroupRecipe program
-  first54 : First54ProductRecipe
-  first54_eq : first54 = first54ProductRecipe
   challenge : CanonicalBlockAssignment.BlockValue
   challenge_eq : challenge =
     PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
-  reject : CanonicalBlockAssignment.BlockValue
-  reject_eq : reject =
-    PerApplicationAssignmentBlocks.entry program first54.rejectBlock
-  symbol : CanonicalBlockAssignment.BlockValue
-  symbol_eq : symbol =
-    PerApplicationAssignmentBlocks.entry program first54.symbolBlock
 
 /-- Return a record, not a curried slot reader. Each selected block and the
 numeric source width are constructed before any product callback is used. -/
 @[noinline] def prepare (program : Program) : Prepared program :=
   let phi81 := phi81GroupRecipe program
-  let first54 := first54ProductRecipe
   { baseWidth := PiRLCProductPlan.baseSourceWidth program
     baseWidth_eq := rfl
     phi81 := phi81
     phi81_eq := rfl
-    first54 := first54
-    first54_eq := rfl
     challenge := PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
-    challenge_eq := rfl
-    reject := PerApplicationAssignmentBlocks.entry program first54.rejectBlock
-    reject_eq := rfl
-    symbol := PerApplicationAssignmentBlocks.entry program first54.symbolBlock
-    symbol_eq := rfl }
+    challenge_eq := rfl }
 
 /-- Reuse the total source reader with the stored numeric width. Fin.cast
 changes only the erased bound proof, not the physical source coordinate. -/
@@ -148,12 +133,6 @@ def groupValue {program : Program} (prepared : Prepared program)
     (challengeRing prepared base descriptor) (valueRing prepared base descriptor)
     descriptor.lane group
 
-/-- First54 keeps the existing accepted-symbol product. -/
-def productValue {program : Program} (prepared : Prepared program)
-    (base : BaseValues program) (candidate : Nat) : F :=
-  (1 - blockValue prepared base prepared.reject candidate) *
-    blockValue prepared base prepared.symbol candidate
-
 /-- Exact equality for every retained Phi81 invocation and group. -/
 theorem groupValue_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
@@ -168,29 +147,11 @@ theorem groupValue_eq {program : Program} (prepared : Prepared program)
   rw [prepared.phi81_eq]
   rfl
 
-/-- Exact equality for every retained First54 candidate. -/
-theorem productValue_eq {program : Program} (prepared : Prepared program)
-    (base : BaseValues program)
-    (candidate : Fin PiRLCFirst54DirectSchedule.candidateCount) :
-    productValue prepared base candidate.val =
-      (PerApplicationAssignmentTransportExecution.canonicalRawValues program base).products
-        candidate := by
-  unfold productValue
-  rw [blockValue_eq prepared base prepared.reject
-    prepared.first54.rejectBlock prepared.reject_eq,
-    blockValue_eq prepared base prepared.symbol
-    prepared.first54.symbolBlock prepared.symbol_eq]
-  change PerApplicationAssignmentTransportProducts.first54ProductValue
-    prepared.first54 program base candidate.val = _
-  rw [prepared.first54_eq]
-  rfl
-
-/-- Supply the same physical base and the two cached product callbacks. -/
+/-- Supply the same physical base and the cached Phi81 product callback. -/
 def rawValues {program : Program} (prepared : Prepared program)
     (base : BaseValues program) : RawValues program where
   base := base
   groupValue := fun invocation group => groupValue prepared base invocation group.val
-  products := fun candidate => productValue prepared base candidate.val
 
 /-- The entire packet is unchanged, so the existing assignment schedule and
 all of its refinement theorems apply without a new assignment premise. -/
@@ -198,10 +159,8 @@ theorem rawValues_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program) :
     rawValues prepared base =
       PerApplicationAssignmentTransportExecution.canonicalRawValues program base := by
-  apply congrArg₂ (RawValues.mk base)
-  · funext invocation group
-    exact groupValue_eq prepared base invocation group
-  · funext candidate
-    exact productValue_eq prepared base candidate
+  apply congrArg (RawValues.mk base)
+  funext invocation group
+  exact groupValue_eq prepared base invocation group
 
 end NightstreamFPrime.Export.Stage1.CachedAssignmentProducts

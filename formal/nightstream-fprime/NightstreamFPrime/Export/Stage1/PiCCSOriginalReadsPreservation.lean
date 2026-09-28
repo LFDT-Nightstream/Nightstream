@@ -47,29 +47,14 @@ theorem blockAt_lane (masks : Array (Array (Nat × Nat)))
     congrArg Prod.snd decoded
   simp only [assignment, blockIndex, laneIndex]
 
-/-- Direct signed accumulation equals the existing sparse evaluation for
+/-- Native signed accumulation equals the existing sparse evaluation for
 arbitrary masks and coefficients, including positive/negative overlap. -/
 theorem maskEval_eq_evalSparse (form : SparseForm ringDegree) (positive negative : Nat) :
     maskEval form positive negative =
       form.evalSparse (fun lane =>
         if positive.testBit lane.val then 1
         else if negative.testBit lane.val then -1 else 0) := by
-  unfold maskEval SparseForm.evalSparse
-  apply congrArg (fun step : F → SparseEntry ringDegree → F => form.entries.foldl step 0)
-  funext total entry
-  dsimp only
-  split_ifs
-  · exact congrArg (fun value : F => total + value) (Fin.mul_one entry.coefficient).symm
-  · apply congrArg (fun value : F => total + value)
-    calc
-      -entry.coefficient = -(1 * entry.coefficient) :=
-        congrArg (fun value : F => -value) (Fin.one_mul entry.coefficient).symm
-      _ = (-1) * entry.coefficient := (Lean.Grind.Fin.neg_mul (1 : F) entry.coefficient).symm
-      _ = entry.coefficient * (-1) := Fin.mul_comm _ _
-  · calc
-      total = total + (0 : F) := (Fin.add_zero total).symm
-      _ = total + entry.coefficient * 0 :=
-        congrArg (fun value : F => total + value) (Fin.mul_zero entry.coefficient).symm
+  exact PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec form _
 
 /-- The mask reader is the old prepared reader for every supplied table.
 The complete-carrier guard covers arbitrary column widths and zero suffixes. -/

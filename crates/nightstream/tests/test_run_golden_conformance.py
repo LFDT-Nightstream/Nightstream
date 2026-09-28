@@ -63,9 +63,11 @@ class GoldenConformanceTests(unittest.TestCase):
             })
         return subprocess.CompletedProcess(command, 0)
 
-    def invoke(self):
+    def invoke(self, references=True):
         argv = ["run_golden_conformance.py", "--binary", str(self.binary),
-                "--directory", str(self.directory), "--references", str(self.references)]
+                "--directory", str(self.directory)]
+        if references:
+            argv += ["--references", str(self.references)]
         with patch.object(sys, "argv", argv), patch.object(runner, "source_identity", return_value={"commit": "test"}), \
                 patch.object(runner.subprocess, "run", side_effect=self.execute), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -75,13 +77,20 @@ class GoldenConformanceTests(unittest.TestCase):
         return [dict(zip(command[6::2], command[7::2])) for command in self.calls
                 if Path(command[5]).name == "run_recursive_phase.py"]
 
+    def test_no_archives_preserves_all_native_checks_and_reports_the_scope(self):
+        self.assertEqual(self.invoke(references=False), 0)
+        self.assertEqual(len(self.calls), 22)
+        record = runner.read(self.directory / "conformance.json")
+        self.assertIsNone(record["references"])
+        self.assertNotIn("with archive output comparisons", record["scope"])
+
     def test_cpu_runs_selected_folds_with_one_openings_phase_each(self):
         self.assertEqual(self.invoke(), 0)
         phases = self.phase_calls()
         expected = ["base"]
         for step in (1, 2):
             expected += ["sources", "ccs", "rlc", "split", "openings", "nifs", "successor"]
-        expected += ["terminal", "mutation", "reject", "opening-k", "opening-a"]
+        expected += ["terminal", "mutation", "reject", "opening-k-prepare", "opening-k", "opening-a-prepare", "opening-a"]
         self.assertEqual([call["--phase"] for call in phases], expected)
         self.assertEqual([call["--step"] for call in phases if call["--phase"] == "openings"],
                          ["1", "2"])
@@ -120,6 +129,13 @@ class GoldenConformanceTests(unittest.TestCase):
         self.assertEqual(self.invoke(), 1)
         self.assertEqual(self.phase_calls()[-1]["--phase"], "opening-k")
         self.assertFalse((self.directory / "comparison-fold-2.json").exists())
+        self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
+
+    def test_failed_opening_preparation_stops_before_verification(self):
+        self.failed_phase = "opening-k-prepare"
+        self.assertEqual(self.invoke(), 1)
+        self.assertEqual(self.phase_calls()[-1]["--phase"], "opening-k-prepare")
+        self.assertNotIn("opening-k", [call["--phase"] for call in self.phase_calls()])
         self.assertEqual(runner.read(self.directory / "conformance.json")["outcome"], "failed")
 
 

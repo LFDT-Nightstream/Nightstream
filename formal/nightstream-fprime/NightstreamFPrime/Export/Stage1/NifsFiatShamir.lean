@@ -12,8 +12,8 @@ FiatShamirModel is the owner-approved parametric game-transfer hypothesis.
 The real event is the actual verifier's acceptance with witnesses for its
 exact children. Its law and the interactive context marginal are shared.
 No adversary translation, query bound, or FS model instance is constructed.
-Low-norm invertibility, declared clock bounds, preparation/call refinement,
-and moment bounds remain separate hypotheses. The work conclusion is for
+Declared clock bounds, preparation/call refinement, and moment bounds remain
+separate hypotheses. The work conclusion is for
 the existing prepared extractor clock, not machine or simulator time.
 -/
 
@@ -60,13 +60,12 @@ variable {Context State Tape : Type*}
   (scalarActionClock : RingF → PiRLCExtractionPrimitives.Assignment → Nat)
   (checkClock : Context → PiCCSStoredSourceProbability.CheckClock)
   (accessClock : Context → PiCCSStoredSourceProbability.AccessClock)
-  (lowNorm : Phi81StrongSet.LowNormInvertibility)
   (bounds : PrimitiveBounds)
   (bounded : Bounded (PaperExtractionAlgebra.extractionAlgebra productionAjtaiKey).ring
     (PiRLCExtractionPrimitives.program scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock) bounds)
 
-include model lowNorm bounded in
+include model bounded in
 /-- The selected stored source event has the conditional FS/MSIS lower bound,
 and the same prepared reduction has the supplied polynomial declared-work
 bound. Both local Correct obligations are discharged by the selected owners.
@@ -151,7 +150,6 @@ theorem finishValue_probability_and_expected_work {SetupTape : Type*}
       assignmentSubClock scalarActionClock)
     (fun context => PiCCSStoredSourceProbability.sourceProgram
       (inputs context) (checkClock context) (accessClock context))
-    lowNorm
     (PiRLCExtractionPrimitives.program_correct scalarSubClock inverseAdapterClock
       assignmentSubClock scalarActionClock)
     bounds bounded

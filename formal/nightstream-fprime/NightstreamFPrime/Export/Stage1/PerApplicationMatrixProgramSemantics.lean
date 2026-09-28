@@ -74,7 +74,7 @@ structure SourceCustody (application : ApplicationProgram)
     sourceRow (PilotOrdinaryMatrixProgram.rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow application
         (PilotOrdinaryDirectSource.programRow index))
-  samplerOrdinary : ∀ index : Fin 220881, ∀ sourceIndex,
+  samplerOrdinary : ∀ index : Fin 38811, ∀ sourceIndex,
     PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some

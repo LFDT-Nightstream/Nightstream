@@ -152,10 +152,21 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
-    // The selected key permits W+L=7,701. The largest fixed envelope uses
-    // W=7,700 and L=1, because both nonempty private segments add array nodes.
-    // Count actual assembler output independently of the loader's bound.
-    for (witness, has_local, expected_nodes) in [(7_700, true, 32_045_229), (0, false, 32_037_521)] {
+    // The fixed maximum key, not the reference application's prefix, bounds
+    // application capacity. Both nonempty private segments add array nodes.
+    let key_width = neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
+    let fixed_width = manifest
+        .geometry
+        .logical_width
+        .eval(Counts {
+            witness: 0,
+            local: 0,
+            rows: 4,
+        })
+        .unwrap();
+    let maximum_fields = (key_width - fixed_width) / 41;
+    assert_eq!(maximum_fields, 292_329);
+    for (witness, has_local, expected_nodes) in [(maximum_fields - 1, true, 32_264_258), (0, false, 31_971_922)] {
         let mut builder = ApplicationBuilder::new(witness).unwrap();
         if has_local {
             builder.affine(Affine::constant(Goldilocks::ZERO)).unwrap();
@@ -164,8 +175,7 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         let application = builder.finish(input.map(Affine::from)).unwrap();
         if has_local {
             let counts = Counts::of(&application);
-            assert_eq!((counts.witness, counts.local, counts.rows), (7_700, 1, 5));
-            let key_width = neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
+            assert_eq!((counts.witness, counts.local, counts.rows), (maximum_fields - 1, 1, 5));
             assert!(manifest.geometry.logical_width.eval(counts).unwrap() <= key_width);
             assert!(
                 manifest
@@ -274,4 +284,32 @@ fn manifest_rejects_missing_children_changed_roles_profile_and_dimensions() {
             rows: 0
         })
         .is_err());
+}
+
+#[test]
+fn manifest_requires_one_current_reference_and_the_application_local_block() {
+    let original: Value = serde_json::from_slice(manifest_bytes()).unwrap();
+    Manifest::parse(&serde_json::to_vec(&original).unwrap()).unwrap();
+    for version in [1, 2] {
+        let mut invalid = original.clone();
+        invalid["version"] = json!(version);
+        assert!(Manifest::parse(&serde_json::to_vec(&invalid).unwrap()).is_err());
+    }
+    let mut missing = original.clone();
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("application_local_index");
+    let mut paired = original.clone();
+    paired["selected_reference"] = original["reference"].clone();
+    let mut wrong_block = original.clone();
+    wrong_block["application_local_index"] = json!(0);
+    let mut wrong_source = original.clone();
+    let index = original["application_local_index"].as_u64().unwrap() as usize;
+    wrong_source["assignment_blocks"][index]["source_domain"] = json!(0);
+    let mut detached_source = original.clone();
+    detached_source["assignment_blocks"][index]["source_runs"][0]["first"][0] = json!(0);
+    for invalid in [missing, paired, wrong_block, wrong_source, detached_source] {
+        assert!(Manifest::parse(&serde_json::to_vec(&invalid).unwrap()).is_err());
+    }
 }

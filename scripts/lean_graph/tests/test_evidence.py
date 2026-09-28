@@ -48,18 +48,18 @@ class EvidenceFixture(unittest.TestCase):
                    "completion": {"patterns": ["^fixture validity checked$"],
                                   "tests": ["required_case"]}}
         self.policy = {
-            "schema": 1, "sources": {"code": {"roots": ["src"], "exclude": ["*.md"]}},
+            "schema": 2, "sources": {"code": {"roots": ["src"], "exclude": ["*.md"]}},
             "inputs": {"fixture": {}, "package": {}}, "identity_inputs": ["package"],
             "gates": {"validity": {"sources": ["code"], "inputs": ["fixture"],
                                     "identity_bound": True, "commands": [command]}},
             "reviews": {"meaning": {"scope": "exact registered target"}},
             "obligations": {
-                "compiler": {"owner": "owner criterion", "status": "Compiler-closed",
+                "compiler": {"owner": "owner criterion", "tier": "Compiler",
                              "target_required": True, "target": "Test.Target",
                              "gates": ["validity"], "reviews": ["meaning"], "gap": "Prove Target."},
-                "conformance": {"owner": "owner conformance", "status": "Conformance-closed",
+                "conformance": {"owner": "owner conformance", "tier": "Conformance",
                                 "gates": ["validity"], "reviews": ["meaning"], "gap": "Check input."},
-                "production": {"owner": "owner production", "status": "Production-closed",
+                "production": {"owner": "owner production", "tier": "Production",
                                "gates": [], "reviews": [], "gap": "Production verifier is not selected."}}}
         self.authority_path = self.root / "checker"
         self.authority_path.mkdir()
@@ -103,6 +103,11 @@ class EvidenceTests(EvidenceFixture):
         self.assertTrue(result["statuses"]["Compiler-closed"])
         self.assertTrue(result["statuses"]["Conformance-closed"])
         self.assertFalse(result["statuses"]["Production-closed"])
+        outcomes = {item["id"]: item for item in result["obligations"]}
+        self.assertEqual(outcomes["compiler"]["tier"], "Compiler")
+        self.assertEqual(outcomes["compiler"]["status"], "Compiler-closed")
+        self.assertEqual(outcomes["production"]["tier"], "Production")
+        self.assertEqual(outcomes["production"]["status"], "Open")
 
     def test_nonzero_opening_with_zero_matrix_evaluation_is_valid(self):
         shutil.copyfile(FIXTURES / "nonzero.json", self.fixture)
@@ -338,7 +343,8 @@ class EvidenceTests(EvidenceFixture):
         command = {"kind": "python", "cwd": "src", "argv": [sys.executable, "-c", "pass"],
                    "completion": {"patterns": ["done"]}}
         # Simulate expiry at the project cap; do not wait five minutes for a harness test.
-        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, patch("os.killpg") as kill:
+        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, \
+                patch("scripts.lean_graph.runner.kill_process_groups") as kill:
             child = process.return_value
             child.pid = os.getpid()
             child.communicate.side_effect = subprocess.TimeoutExpired(command["argv"], 300)
@@ -346,20 +352,21 @@ class EvidenceTests(EvidenceFixture):
             result = execute(command, work, self.root / "timeout.log")
             self.assertEqual(result["outcome"], "timed-out")
             child.communicate.assert_called_once_with(None, timeout=300)
-            kill.assert_called_with(child.pid, signal.SIGKILL)
+            kill.assert_called_with(child.pid)
 
     def test_interrupt_kills_process_group_and_records_failure(self):
         work = self.root / "work"
         (work / "source/src").mkdir(parents=True)
         command = {"kind": "python", "cwd": "src", "argv": [sys.executable, "-c", "pass"],
                    "completion": {"patterns": ["done"]}}
-        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, patch("os.killpg") as kill:
+        with patch("scripts.lean_graph.runner.subprocess.Popen") as process, \
+                patch("scripts.lean_graph.runner.kill_process_groups") as kill:
             child = process.return_value
             child.pid, child.returncode = os.getpid(), -signal.SIGKILL
             child.communicate.side_effect = InterruptedError("signal 15")
             result = execute(command, work, self.root / "interrupt.log")
             self.assertEqual(result["outcome"], "interrupted")
-            kill.assert_called_with(child.pid, signal.SIGKILL)
+            kill.assert_called_with(child.pid)
 
     def test_incomplete_record_never_counts_as_pass(self):
         _, manifest = self.run_validity()

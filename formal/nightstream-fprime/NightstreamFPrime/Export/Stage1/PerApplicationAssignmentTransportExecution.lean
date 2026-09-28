@@ -35,23 +35,20 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev BaseValues (program : Program) :=
   PerApplicationAssignmentTransportProducts.BaseValues program
 
-/-- Derive the two retained product suffixes from the serialized recipes. -/
+/-- Derive the retained Phi81 group values from the serialized recipes. -/
 def rawValues (program : Program) (plan : Plan) (base : BaseValues program) :
     RawValues program where
   base := base
   groupValue := fun invocation group =>
     PerApplicationAssignmentTransportProducts.phi81GroupValue
       plan.phi81 program base invocation group.val
-  products := fun candidate =>
-    PerApplicationAssignmentTransportProducts.first54ProductValue
-      plan.first54 program base candidate.val
 
-/-- Raw values derived from the exact transport carried by schema 6. -/
+/-- Raw values derived from the exact transport carried by the canonical plan. -/
 def canonicalRawValues (program : Program) (base : BaseValues program) :
     RawValues program :=
   rawValues program (PerApplicationAssignmentTransport.canonical program) base
 
-/-- The schema-6 Phi81 recipe computes the existing honest retained group. -/
+/-- The canonical Phi81 recipe computes the existing honest retained group. -/
 theorem canonicalRawValues_groupValue_eq_honestGroupValue
     (program : Program) (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
@@ -67,19 +64,6 @@ theorem canonicalRawValues_groupValue_eq_honestGroupValue
   exact
     PerApplicationAssignmentTransportProducts.canonical_phi81GroupValue_eq_honestGroupValue
       (canonicalRawValues program base) invocation group
-
-/-- The schema-6 First54 recipe computes the existing honest product. -/
-theorem canonicalRawValues_products_eq_honestProducts
-    (program : Program) (base : BaseValues program)
-    (candidate : Fin PiRLCFirst54DirectSchedule.candidateCount) :
-    (canonicalRawValues program base).products candidate =
-      PiRLCFirst54DirectPlan.honestProducts program base candidate := by
-  change
-    PerApplicationAssignmentTransportProducts.first54ProductValue
-        first54ProductRecipe program base candidate.val = _
-  exact
-    PerApplicationAssignmentTransportProducts.canonical_first54ProductValue_eq_honestProducts
-      (canonicalRawValues program base) candidate
 
 /-- Canonical run lookup selects the exact Lean-owned source index. -/
 private theorem canonical_runSource (program : Program) (kind : BlockKind)
@@ -318,7 +302,7 @@ private theorem canonicalBlock_coordinateCount (program : Program)
   rw [canonicalBlock_slotCount program raw kind,
     canonicalBlock_kind program raw kind]
 
-/-- Interpret the serialized block order. The list has 30 function-valued
+/-- Interpret the serialized block order. The list has 26 function-valued
 entries; it contains no expanded slot or coordinate list. -/
 private def transportSchedule (program : Program) (plan : Plan)
     (raw : RawValues program) : CanonicalBlockAssignment.Schedule :=
@@ -436,7 +420,7 @@ private theorem canonical_execute_eq_plan_execute (program : Program)
   · rw [dif_neg publicRegion, dif_neg publicRegion]
     exact canonicalBlocks_coordinateAt program raw _
 
-/-- Execute only the exact schema-6 plan. Structural equality checks every
+/-- Execute only the exact canonical plan. Structural equality checks every
 serialized field; a mutation fails closed. -/
 def execute (program : Program) (plan : Plan) (base : BaseValues program) :
     Option (Assignment F (PerApplicationFixedPoint.logicalWidth program)) :=
@@ -445,7 +429,7 @@ def execute (program : Program) (plan : Plan) (base : BaseValues program) :
   else
     none
 
-/-- The real schema-6 interpreter returns the exact canonical logical
+/-- The real canonical interpreter returns the exact canonical logical
 assignment. -/
 theorem canonical_execute_eq_assignment (program : Program)
     (base : BaseValues program) :
@@ -455,7 +439,7 @@ theorem canonical_execute_eq_assignment (program : Program)
   rw [if_pos rfl, canonical_execute_eq_plan_execute,
     PerApplicationAssignmentPlan.execute_eq_assignment]
 
-/-- The accepted schema-6 output agrees with the canonical assignment at
+/-- The accepted canonical output agrees with the canonical assignment at
 every logical column. -/
 theorem canonical_execute_eq_assignment_pointwise (program : Program)
     (base : BaseValues program)

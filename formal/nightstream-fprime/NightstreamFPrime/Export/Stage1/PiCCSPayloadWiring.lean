@@ -199,13 +199,12 @@ theorem form_eval_source {program : Program} {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) = 1) :
     (form geometry index).eval assignment =
       PiCCSActionPayloadBlock.payloadValue program
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue products)
+        (PiRLCRetainedPreservation.sourceAssignment program base groupValue)
         index := by
   rw [form_eval geometry index assignment one]
   unfold PiCCSActionPayloadBlock.payloadValue
@@ -217,10 +216,10 @@ theorem form_eval_source {program : Program} {logicalWidth : Nat}
       (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount supported)⟩
   exact (PiCCSAssignmentSoundness.decodedEnv_preserves geometry assignment column).symm.trans
     ((PiCCSOrdinaryDirectPlan.sourceMap_form_eval_of_target geometry assignment
-      base groupValue products encodes column
+      base groupValue encodes column
       (PiCCSOrdinarySourceSupport.source_target source supported)).trans
       (PiCCSPoseidonPreservation.packageEnv_sourceAssignment program base
-        groupValue products source
+        groupValue source
         (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount supported)).symm)
 
 end NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring

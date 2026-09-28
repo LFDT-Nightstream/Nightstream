@@ -5,12 +5,11 @@ Run from the repository root under the native graph guard.
 import argparse
 import copy
 import json
-import os
 from pathlib import Path
 import subprocess
 
 P = 18446744069414584321
-CARRIER_BYTES = 54 * 4685394
+CARRIER_BYTES = 54 * 4492423
 
 def require(condition, message):
     if not condition:
@@ -36,7 +35,7 @@ def main():
         result = subprocess.run(
             ["bash", "scripts/validate.sh", "lean-executable",
              str(formal / ".lake/build/bin" / executable), *map(str, arguments)],
-            cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
+            cwd=formal, capture_output=True, timeout=300)
         log = result.stdout + result.stderr
         (directory / (name + ".log")).write_bytes(log)
         require(result.returncode != 0, name + ": malformed input accepted")
@@ -77,7 +76,7 @@ def main():
         ("physical-truncated", empty, [0, 1], "physical file size differs"),
         ("physical-noncanonical", noncanonical, [0, 1], "noncanonical physical word"),
         ("assignment-reversed", physical_path, [2, 1], "assignment block range"),
-        ("assignment-outside", physical_path, [30, 31], "assignment block range"),
+        ("assignment-outside", physical_path, [26, 27], "assignment block range"),
         ("assignment-negative", physical_path, [-1, 1], "indices must be natural"),
     ]:
         output = directory / (name + "-output")
@@ -97,7 +96,7 @@ def main():
         ("carrier-nonunit", invalid_code, [0, 1], "non-unit fresh coefficient"),
         ("carrier-tail", invalid_tail, [0, 1], "nonzero tail padding"),
         ("commitment-reversed", empty, [2, 1], "range is outside"),
-        ("commitment-outside", empty, [0, 4685395], "range is outside"),
+        ("commitment-outside", empty, [0, 4492424], "range is outside"),
         ("commitment-negative", empty, [-1, 1], "bounds must be natural"),
     ]:
         output = directory / (name + ".json")
@@ -107,11 +106,11 @@ def main():
         output, "output already exists", True)
     rows = [[0] * 54 for _ in range(22)]
     for name, data, reason in [
-        ("merge-gap", [1, 4685394, 1, 4685394, rows], "gap, overlap or invalid endpoint"),
-        ("merge-incomplete", [1, 4685394, 0, 1, rows], "do not cover the complete carrier"),
-        ("merge-row-count", [1, 4685394, 0, 4685394, rows[:-1]], "wrong key-row count"),
-        ("merge-lane-count", [1, 4685394, 0, 4685394, [row[:-1] for row in rows]], "wrong size"),
-        ("merge-noncanonical", [1, 4685394, 0, 4685394, [[P] + row[1:] for row in rows]], "noncanonical"),
+        ("merge-gap", [1, 4492423, 1, 4492423, rows], "gap, overlap or invalid endpoint"),
+        ("merge-incomplete", [1, 4492423, 0, 1, rows], "do not cover the complete carrier"),
+        ("merge-row-count", [1, 4492423, 0, 4492423, rows[:-1]], "wrong key-row count"),
+        ("merge-lane-count", [1, 4492423, 0, 4492423, [row[:-1] for row in rows]], "wrong size"),
+        ("merge-noncanonical", [1, 4492423, 0, 4492423, [[P] + row[1:] for row in rows]], "noncanonical"),
     ]:
         source, output = directory / (name + "-input.json"), directory / (name + ".json")
         source.write_text(json.dumps(data, separators=(",", ":")))

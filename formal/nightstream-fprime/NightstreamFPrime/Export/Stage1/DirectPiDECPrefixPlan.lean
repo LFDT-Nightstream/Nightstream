@@ -186,13 +186,13 @@ def transitionPlan
 @[simp] theorem samplerPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPlan geometry).rowCount = 14382 := by
+    (samplerPlan geometry).rowCount = 3196 := by
   simp [samplerPlan, DirectPrefixPlan.samplerPlan]
 
 @[simp] theorem piRlcPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPlan geometry).rowCount = 1898781 := by
+    (piRlcPlan geometry).rowCount = 1779084 := by
   simp [piRlcPlan, DirectPrefixPlan.piRlcPlan]
 
 private theorem piCcsPoseidonRowCount_le
@@ -357,7 +357,7 @@ def samplerPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 3879205 := by
+    (samplerPrefixPlan relation geometry).rowCount = 3868019 := by
   simp [samplerPrefixPlan]
 
 private theorem piRlcPrefixRowCount_le
@@ -384,7 +384,7 @@ def piRlcPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPrefixPlan relation geometry).rowCount = 5777986 := by
+    (piRlcPrefixPlan relation geometry).rowCount = 5647103 := by
   simp [piRlcPrefixPlan]
 
 private theorem piDecPrefixRowCount_le
@@ -414,7 +414,7 @@ def piDecPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piDecPrefixPlan relation geometry).rowCount = 5803474 := by
+    (piDecPrefixPlan relation geometry).rowCount = 5672591 := by
   simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 private theorem totalRowCount_le
@@ -443,7 +443,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 6148969 := by
+    (plan relation geometry).rowCount = 6018086 := by
   simp [plan, transitionPlan]
 
 /-- The complete ordered prefix depends on the verified relation shape, but
@@ -527,15 +527,13 @@ structure Encodes
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   running : DirectRunningPrefixPlan.Encodes (piCcsPayload geometry) (piRlcValues geometry) (runningGeometry geometry) assignment
-    base groupValue products
+    base groupValue
   pilotOrdinary : PilotOrdinaryDirectPlan.Encodes
-    (pilotOrdinaryGeometry geometry) assignment base groupValue products
+    (pilotOrdinaryGeometry geometry) assignment base groupValue
   piDec : PiDECRetainedGeometry.Encodes geometry assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-      products)
+    (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
 
 structure Semantics
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -544,18 +542,16 @@ structure Semantics
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   prior : DirectPrefixPlan.Semantics (piCcsPayload geometry) (poseidonGeometry geometry) assignment base
-    groupValue products
+    groupValue
   pilot : Lifecycle.Pilot.SpecHolds PilotProduction.interface
     PilotProduction.witnessOffset
     (PilotSpartan.pullback
       (PilotOrdinaryDirectPlan.pilotEnv application base))
   piCcsTranscript : PiCCSInvocations.TranscriptSpecs relationLogicalWidth
     relationPublicFits
-    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-      products)
+    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)
   piCcsEndpoint : (piCcsEndpointPlan geometry).RowsZero assignment
   piCcsOrdinary : R1CS.RowsHold
     (RunningTransitionDirectPlan.transitionEnv application base)
@@ -578,11 +574,10 @@ theorem rowsZero_implies_semantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
-    Semantics relation geometry assignment base groupValue products := by
+    Semantics relation geometry assignment base groupValue := by
   have children := (rowsZero_iff relation geometry assignment).mp rowsZero
   rcases children with ⟨pilotRows, piCcsPoseidonRows, piCcsOrdinaryRows,
     pilotOrdinaryRows, pilotBindingRows, piCcsEndpointRows, samplerRows,
@@ -593,7 +588,7 @@ theorem rowsZero_implies_semantics
       assignment).mpr
     exact ⟨pilotRows, piCcsPoseidonRows, samplerRows, piRlcRows⟩
   have prior := DirectPrefixPlan.rowsZero_implies_semantics
-      (piCcsPayload geometry) (piRlcValues geometry) (poseidonGeometry geometry) assignment base groupValue products one
+      (piCcsPayload geometry) (piRlcValues geometry) (poseidonGeometry geometry) assignment base groupValue one
       encodes.running.prior directPrefixRows
   have pilotOne : assignment
       (PilotOrdinaryDirectPlan.oneColumn
@@ -601,60 +596,56 @@ theorem rowsZero_implies_semantics
     exact one
   have pilotOrdinaryRowsHold :=
     (PilotOrdinaryDirectPlan.rowsZero_iff_rowsHold
-      (pilotOrdinaryGeometry geometry) assignment base groupValue products
+      (pilotOrdinaryGeometry geometry) assignment base groupValue
       pilotOne encodes.pilotOrdinary).mp pilotOrdinaryRows
   have pilotBinding :=
     (PilotDigestBindingPlan.rowsZero_iff_matches
       (pilotOrdinaryGeometry geometry) assignment pilotOne).mp pilotBindingRows
   have pilotEncoding : PilotPoseidonPreservation.Encoding
       (PilotDirectSemantics.poseidonGeometry
-        (pilotOrdinaryGeometry geometry)) assignment base groupValue products :=
+        (pilotOrdinaryGeometry geometry)) assignment base groupValue :=
     { priorInput := encodes.running.prior.pilotPriorInput
       outputInput := encodes.running.prior.pilotOutputInput }
   have pilotHashes := PilotPoseidonPreservation.semantics_imply_hashFacts
     (PilotDirectSemantics.poseidonGeometry (pilotOrdinaryGeometry geometry))
     assignment (PilotOrdinaryDirectPlan.pilotEnv application base) pilotOne
-    (PilotPoseidonPreservation.priorInputForm_eval _ assignment base groupValue
-      products pilotEncoding)
-    (PilotPoseidonPreservation.outputInputForm_eval _ assignment base groupValue
-      products pilotEncoding)
+    (PilotPoseidonPreservation.priorInputForm_eval _ assignment base groupValue pilotEncoding)
+    (PilotPoseidonPreservation.outputInputForm_eval _ assignment base groupValue pilotEncoding)
     prior.pilot
   have pilotSpec := PilotDirectSemantics.implies_spec
     (pilotOrdinaryGeometry geometry) assignment
     (PilotOrdinaryDirectPlan.pilotEnv application base) pilotHashes
     pilotOrdinaryRowsHold pilotBinding
     (fun lane => PilotOrdinaryDirectPlan.Location.form_eval
-      (pilotOrdinaryGeometry geometry) assignment base groupValue products
+      (pilotOrdinaryGeometry geometry) assignment base groupValue
       encodes.pilotOrdinary (.priorDigest lane))
     (fun lane => PilotOrdinaryDirectPlan.Location.form_eval
-      (pilotOrdinaryGeometry geometry) assignment base groupValue products
+      (pilotOrdinaryGeometry geometry) assignment base groupValue
       encodes.pilotOrdinary (.outputState lane))
   have traces := PiCCSTranscriptDirectSemantics.indexedSemantics_implies_traces
     (poseidonGeometry geometry) assignment
     (PiCCSActionPayloadBlock.packageEnv application
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (PiCCSPoseidonPreservation.indexedSemantics (poseidonGeometry geometry)
       assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products) prior.piCcs)
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue) prior.piCcs)
   refine ⟨prior, pilotSpec, ?_, piCcsEndpointRows, ?_, ?_, ?_⟩
   · exact PiCCSTranscriptEndpointPlan.traces_and_endpoints_imply_transcriptSpecs
       (relationLogicalWidth := relationLogicalWidth)
       (relationPublicFits := relationPublicFits)
       (poseidonGeometry geometry) assignment
-      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue products)
+      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)
       traces
       (PiCCSTranscriptEndpointPlan.rowsZero_implies_endpointState
         (poseidonGeometry geometry) (piCcsOrdinaryGeometry geometry) assignment
-        base groupValue products one encodes.pilotOrdinary.prior piCcsEndpointRows)
+        base groupValue one encodes.pilotOrdinary.prior piCcsEndpointRows)
   · exact (PiCCSOrdinaryDirectPlan.rowsZero_iff_rowsHold relation
-      (piCcsOrdinaryGeometry geometry) assignment base groupValue products one
+      (piCcsOrdinaryGeometry geometry) assignment base groupValue one
       encodes.pilotOrdinary.prior).mp piCcsOrdinaryRows
   · exact (PiDECDirectPlan.rowsZero_iff_rowsHold relation geometry assignment
-      base groupValue products one encodes.piDec).mp piDecRows
+      base groupValue one encodes.piDec).mp piDecRows
   · exact (RunningTransitionDirectPlan.rowsZero_iff_physical relation
-      (runningGeometry geometry) assignment base groupValue products one
+      (runningGeometry geometry) assignment base groupValue one
       encodes.running.transition).mp transitionRows
 
 theorem rowsZero_implies_piCcsSpecHolds
@@ -665,22 +656,19 @@ theorem rowsZero_implies_piCcsSpecHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
     Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback
-        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-          products)) := by
+        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) := by
   have semantics := rowsZero_implies_semantics relation geometry assignment base
-    groupValue products one encodes rowsZero
+    groupValue one encodes rowsZero
   have ordinaryAtTranscript : R1CS.RowsHold
-      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-        products)
+      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)
       (PiCCSOrdinaryDirectSource.sourceRows relationLogicalWidth
         relationPublicFits) := by
     apply R1CS.rowsHold_of_agree_below
@@ -688,17 +676,15 @@ theorem rowsZero_implies_piCcsSpecHolds
         relationPublicFits)
       Spartan.spartanColumnCount
       (RunningTransitionDirectPlan.transitionEnv application base)
-      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-        products)
+      (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)
       (PiCCSOrdinaryDirectSource.sourceRows_varsBelow relation)
     · intro column bound
       exact PiCCSTranscriptEndpointPlan.transcriptEnv_eq_transitionEnv_of_lt
-        application base groupValue products column bound
+        application base groupValue column bound
     · exact semantics.piCcsOrdinary
   have packets := PiCCSArithmetic.arithmeticRows_imply_packetHolds
     relationLogicalWidth relationPublicFits
-    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-      products) ordinaryAtTranscript
+    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue) ordinaryAtTranscript
   have assumptions :=
     NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
@@ -707,12 +693,10 @@ theorem rowsZero_implies_piCcsSpecHolds
       (PiCCSInputs.externalInputsLinear relationLogicalWidth
         relationPublicFits)
       (Spartan.pullback
-        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-          products))
+        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue))
   have arithmetic := PiCCSArithmetic.packetHolds_imply_arithmeticSpecs
     relationLogicalWidth relationPublicFits relation
-    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-      products) assumptions packets
+    (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue) assumptions packets
   refine {
     statementBinding := arithmetic.statementBinding_parent
     statementAbsorption :=
@@ -740,20 +724,18 @@ theorem rowsZero_implies_piCcsPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
     Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
       PiCCSInputs.phaseOffset
       (Spartan.pullback
-        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue
-          products)) template := by
+        (PiCCSTranscriptEndpointPlan.transcriptEnv application base groupValue)) template := by
   apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds relation ajtai
   exact rowsZero_implies_piCcsSpecHolds relation geometry assignment base
-    groupValue products one encodes rowsZero
+    groupValue one encodes rowsZero
 
 theorem rowsZero_implies_piDecPhaseHolds
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -766,9 +748,8 @@ theorem rowsZero_implies_piDecPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (assumptions : Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
       (PiDECArithmetic.phaseInterface relationLogicalWidth
         relationPublicFits)
@@ -784,7 +765,7 @@ theorem rowsZero_implies_piDecPhaseHolds
   have children := (rowsZero_iff relation geometry assignment).mp rowsZero
   rcases children with ⟨_, _, _, _, _, _, _, _, piDecRows, _⟩
   exact PiDECDirectPlan.rowsZero_implies_phaseHolds relation ajtai geometry
-    assignment base groupValue products one encodes.piDec assumptions
+    assignment base groupValue one encodes.piDec assumptions
     piDecRows
 
 end NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan

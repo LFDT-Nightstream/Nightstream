@@ -33,7 +33,7 @@ def main():
             "manifest.json", "public.bin", *(row["file"] for row in local)}
         rows.extend((row, directory) for row in local)
     rows.sort(key=lambda pair: pair[0]["ordinal"])
-    assert [row["ordinal"] for row, _ in rows] == list(range(30))
+    assert [row["ordinal"] for row, _ in rows] == list(range(26))
     next_column = 270
     for row, directory in rows:
         assert row["file"] == f'block-{row["ordinal"]}.bin'
@@ -72,6 +72,7 @@ def main():
     }
     with witness_path.open("x") as output:
         json.dump(witness, output, separators=(",", ":"))
+        output.write("\n")
     print(json.dumps({"status": "passed", "logical_width": logical_width,
                       "carrier_coefficients": len(carrier), "tail_coefficients": len(carrier) - logical_width,
                       "physical_fields": physical_fields, "blocks": columns}))

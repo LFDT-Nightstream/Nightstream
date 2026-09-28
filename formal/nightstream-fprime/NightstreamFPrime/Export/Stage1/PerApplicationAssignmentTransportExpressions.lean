@@ -77,9 +77,9 @@ private theorem packageEnv_outputDigest_eq_pilot
     outputDigest_pilot_lt lane
   change PiCCSActionPayloadBlock.packageEnv program
       (PiRLCRetainedPreservation.sourceAssignment program raw.base
-        raw.groupValue raw.products) column = _
+        raw.groupValue) column = _
   rw [PiCCSPoseidonPreservation.packageEnv_sourceAssignment program raw.base
-    raw.groupValue raw.products column sourceBound]
+    raw.groupValue column sourceBound]
   unfold PilotSpartan.pullback PilotOrdinaryDirectPlan.pilotEnv
   have sourceMap :
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan column =

@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
 import NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
@@ -191,31 +192,13 @@ theorem piCcsOutputStateBelow
   omega
 
 private theorem samplerChallengeBelow
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (_relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program)
     (source : Fin productionShape.sourceCount) (lane : Fin ringDegree) :
-    (PiRLC.v1_1.SamplerChain.challengeExpr
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
-          (AssemblerInputs.piRlcInterface relation program)
-          (AssemblerInputs.piRlcOffset program)))
+    (PiRLC.v1_1.SamplerChain.outputChallenge
       (AssemblerInputs.piRlcOffset program) source lane).VarsBelow
-        (PiRLC.v1_1.Formal.commitmentOffset
-          (AssemblerInputs.piRlcOffset program)) := by
-  apply Expr.VarsBelow.mono _
-    (PiRLC.v1_1.SamplerChain.challengeExpr_varsBelow
-      (PiRLC.v1_1.Formal.samplerInterface
-        (PiRLC.v1_1.Formal.atOffset
-          (AssemblerInputs.piRlcInterface relation program)
-          (AssemblerInputs.piRlcOffset program)))
-      (AssemblerInputs.piRlcOffset program) source lane)
-  have sourceBound := source.isLt
-  change source.val < 17 at sourceBound
-  norm_num [PiRLC.v1_1.SamplerChain.sourceOffset,
-    PiRLC.v1_1.Formal.commitmentOffset,
-    PiRLC.v1_1.Formal.samplerOffset,
-    PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-    PiRLC.v1_1.Sampler.logicalPrivateCount]
+        (PiRLC.v1_1.Formal.commitmentOffset (AssemblerInputs.piRlcOffset program)) := by
+  exact PiRLC.v1_1.SamplerChain.outputChallenge_below _ source lane
 
 private theorem sourceCommitmentBelow
     (program : Lifecycle.Stage1.Application.Program)
@@ -318,8 +301,7 @@ def piRlcAssumptions
     publicInput := ?_
     eval_K := ?_
     eval_A := ?_ }
-  · refine ⟨?_⟩
-    intro lane
+  · intro lane
     simpa [shared, PiRLC.v1_1.Formal.samplerInterface,
       PiRLC.v1_1.Formal.atOffset, AssemblerInputs.piRlcInterface] using!
         piCcsOutputStateBelow relation program env lane
@@ -516,7 +498,7 @@ theorem piRlcInitialState_eq_of_agree_below
         (PiRLC.v1_1.Formal.samplerOffset
           (AssemblerInputs.piRlcOffset program)) right := by
   unfold PiRLC.v1_1.SamplerChain.evalInitialState
-    PiRLC.v1_1.SamplerChain.evalStateAt PiRLC.v1_1.Sampler.evalState
+    PiRLC.v1_1.Sampler.evalState
     NightstreamFPrime.Gadgets.Poseidon2.Layer.evalState
   apply congrArg List.ofFn
   funext lane
@@ -606,6 +588,12 @@ private theorem piDecSourceOffset_le
     AssemblerInputs.priorOffset
   omega
 
+private theorem below_of_interval (expression : Expr) {start finish : Nat}
+    (supported : expression.VarsSatisfy (SupportRange.Extend (fun _ => False) start finish)) :
+    expression.VarsBelow finish := by
+  apply (Expr.varsSatisfy_lt_iff_varsBelow expression finish).mp
+  exact supported.mono expression (fun _ support => support.elim False.elim And.right)
+
 /-- Every compact PiDEC input is owned before its phase allocation. -/
 def piDecInputsBelow
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -614,8 +602,6 @@ def piDecInputsBelow
       (AssemblerInputs.piDecInterface relation program)
       (AssemblerInputs.piDecOffset program) := by
   let piRlc := AssemblerInputs.piRlcInterface relation program
-  let shared := PiRLC.v1_1.Formal.atOffset piRlc
-    (AssemblerInputs.piRlcOffset program)
   have source := PiDECInputs.inputsBelow relation
   have sourceLe := piDecSourceOffset_le program
   refine {
@@ -637,113 +623,19 @@ def piDecInputsBelow
     messageEval_A := ?_
     digit := ?_ }
   · intro row lane
-    apply Expr.VarsBelow.mono _
-      (PiDECInputs.combinationOutput_varsBelow
-        (PiRLC.v1_1.CommitmentCombination.familyInterface
-          (PiRLC.v1_1.Formal.commitmentInterface shared))
-        (PiRLC.v1_1.Formal.commitmentOffset
-          (AssemblerInputs.piRlcOffset program)) row lane
-        PiRLC.v1_1.CommitmentCombination.cell)
-    rw [PiRLC.v1_1.CommitmentCombination.logicalPrivateCount_eq]
-    norm_num [PiRLC.v1_1.Formal.commitmentOffset,
-      PiRLC.v1_1.Formal.samplerOffset,
-      PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-      PiRLC.v1_1.SamplerChain.sourceCount_eq,
-      PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
+    exact below_of_interval _ (PiRLCOutputRelocation.commitmentOutput_supported
+      piRlc (AssemblerInputs.piRlcOffset program) row lane)
   · intro column
-    apply Expr.VarsBelow.mono _
-      (PiDECInputs.combinationOutput_varsBelow
-        (PiRLC.v1_1.PublicInputCombination.familyInterface
-          (PiRLC.v1_1.Formal.publicInputInterface shared))
-        (PiRLC.v1_1.Formal.publicInputOffset
-          (AssemblerInputs.piRlcOffset program))
-        (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex
-          (FullShape logicalWidth publicFits) column)
-        (NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex
-          column) PiRLC.v1_1.PublicInputCombination.cell)
-    rw [PiRLC.v1_1.PublicInputCombination.logicalPrivateCount_eq]
-    norm_num [PiRLC.v1_1.Formal.publicInputOffset,
-      PiRLC.v1_1.Formal.commitmentOffset,
-      PiRLC.v1_1.Formal.samplerOffset,
-      PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-      PiRLC.v1_1.SamplerChain.sourceCount_eq,
-      PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
+    exact below_of_interval _ (PiRLCOutputRelocation.publicInputOutput_supported
+      piRlc (AssemblerInputs.piRlcOffset program) column)
   · intro coefficient
-    constructor
-    · apply Expr.VarsBelow.mono _
-        (PiDECInputs.combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalKCombination.ringInterface
-              (PiRLC.v1_1.Formal.evalKInterface shared)))
-          (PiRLC.v1_1.Formal.evalKOffset
-            (AssemblerInputs.piRlcOffset program))
-          PiRLC.v1_1.EvalKCombination.block
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
-            coefficient) PiRLC.v1_1.RingKCombination.c0Cell)
-      rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      norm_num [PiRLC.v1_1.Formal.evalKOffset,
-        PiRLC.v1_1.Formal.publicInputOffset,
-        PiRLC.v1_1.Formal.commitmentOffset,
-        PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-        PiRLC.v1_1.SamplerChain.sourceCount_eq,
-        PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
-    · apply Expr.VarsBelow.mono _
-        (PiDECInputs.combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalKCombination.ringInterface
-              (PiRLC.v1_1.Formal.evalKInterface shared)))
-          (PiRLC.v1_1.Formal.evalKOffset
-            (AssemblerInputs.piRlcOffset program))
-          PiRLC.v1_1.EvalKCombination.block
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
-            coefficient) PiRLC.v1_1.RingKCombination.c1Cell)
-      rw [PiRLC.v1_1.EvalKCombination.logicalPrivateCount_eq]
-      norm_num [PiRLC.v1_1.Formal.evalKOffset,
-        PiRLC.v1_1.Formal.publicInputOffset,
-        PiRLC.v1_1.Formal.commitmentOffset,
-        PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-        PiRLC.v1_1.SamplerChain.sourceCount_eq,
-        PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
+    have supported := PiRLCOutputRelocation.evalKOutput_supported
+      piRlc (AssemblerInputs.piRlcOffset program) coefficient
+    exact ⟨below_of_interval _ supported.1, below_of_interval _ supported.2⟩
   · intro matrix coefficient
-    constructor
-    · apply Expr.VarsBelow.mono _
-        (PiDECInputs.combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalACombination.ringInterface
-              (PiRLC.v1_1.Formal.evalAInterface shared)))
-          (PiRLC.v1_1.Formal.evalAOffset
-            (AssemblerInputs.piRlcOffset program)) matrix
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
-            coefficient) PiRLC.v1_1.RingKCombination.c0Cell)
-      rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      norm_num [PiRLC.v1_1.Formal.evalAOffset,
-        PiRLC.v1_1.Formal.evalKOffset,
-        PiRLC.v1_1.Formal.publicInputOffset,
-        PiRLC.v1_1.Formal.commitmentOffset,
-        PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-        PiRLC.v1_1.SamplerChain.sourceCount_eq,
-        PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
-    · apply Expr.VarsBelow.mono _
-        (PiDECInputs.combinationOutput_varsBelow
-          (PiRLC.v1_1.RingKCombination.familyInterface
-            (PiRLC.v1_1.EvalACombination.ringInterface
-              (PiRLC.v1_1.Formal.evalAInterface shared)))
-          (PiRLC.v1_1.Formal.evalAOffset
-            (AssemblerInputs.piRlcOffset program)) matrix
-          (Fin.cast PiRLC.v1_1.EvalKCombination.coefficientCount_eq
-            coefficient) PiRLC.v1_1.RingKCombination.c1Cell)
-      rw [PiRLC.v1_1.EvalACombination.logicalPrivateCount_eq]
-      norm_num [PiRLC.v1_1.Formal.evalAOffset,
-        PiRLC.v1_1.Formal.evalKOffset,
-        PiRLC.v1_1.Formal.publicInputOffset,
-        PiRLC.v1_1.Formal.commitmentOffset,
-        PiRLC.v1_1.Formal.samplerOffset,
-        PiRLC.v1_1.SamplerChain.logicalPrivateCount,
-        PiRLC.v1_1.SamplerChain.sourceCount_eq,
-        PiRLC.v1_1.Sampler.logicalPrivateCount, AssemblerInputs.piDecOffset]
+    have supported := PiRLCOutputRelocation.evalAOutput_supported
+      piRlc (AssemblerInputs.piRlcOffset program) matrix coefficient
+    exact ⟨below_of_interval _ supported.1, below_of_interval _ supported.2⟩
   · intro child row lane
     simpa [AssemblerInputs.piDecInterface] using!
       Expr.VarsBelow.mono _ (source.messageCommitment child row lane) sourceLe

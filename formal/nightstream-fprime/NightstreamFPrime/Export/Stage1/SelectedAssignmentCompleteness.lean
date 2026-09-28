@@ -142,8 +142,8 @@ theorem complete
       (PerApplicationFixedPoint.geometry application) raw.assignment).mpr
     exact ⟨⟨⟨prefixRows, applicationRows⟩, nextPlanRows⟩, publicRows⟩
   exact ⟨raw, allRows,
-    PerApplicationSourceAssignment.completeAssignment_norm_of_physical
-      application fits ajtai target suffix physical,
+    PerApplicationSourceAssignment.completeAssignment_norm_of_completed
+      application target suffix,
     publicInput, actualWitness, outputDigest⟩
 
 end NightstreamFPrime.Export.Stage1.SelectedAssignmentCompleteness

@@ -81,7 +81,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 5310442 := by
+    (plan relation payloadForms values geometry).rowCount = 5179559 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -108,13 +108,12 @@ structure Encodes
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   prior : DirectPrefixPlan.Encodes payloadForms values (prefixGeometry geometry) assignment
-    base groupValue products
+    base groupValue
   transition : RunningTransitionRetainedGeometry.Encodes geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
 
 structure Semantics
     {program : Lifecycle.Stage1.Application.Program}
@@ -126,10 +125,9 @@ structure Semantics
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   prior : DirectPrefixPlan.Semantics payloadForms (prefixGeometry geometry) assignment base
-    groupValue products
+    groupValue
   transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
     logicalWidth publicFits
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback
@@ -165,19 +163,18 @@ theorem rowsZero_implies_semantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes payloadForms values geometry assignment base groupValue products)
+    (encodes : Encodes payloadForms values geometry assignment base groupValue)
     (rowsZero : (plan relation payloadForms values geometry).RowsZero assignment) :
-    Semantics relation payloadForms geometry assignment base groupValue products := by
+    Semantics relation payloadForms geometry assignment base groupValue := by
   have children := (rowsZero_iff relation payloadForms values geometry assignment).mp rowsZero
   refine ⟨?_, ?_⟩
   · exact DirectPrefixPlan.rowsZero_implies_semantics
-      payloadForms values (prefixGeometry geometry) assignment base groupValue products
+      payloadForms values (prefixGeometry geometry) assignment base groupValue
       (prefixOne geometry assignment one) encodes.prior children.1
   · exact (RunningTransitionDirectPlan.rowsZero_iff_physical
-      relation geometry assignment base groupValue products one
+      relation geometry assignment base groupValue one
       encodes.transition).mp children.2
 
 end NightstreamFPrime.Export.Stage1.DirectRunningPrefixPlan

@@ -196,11 +196,11 @@ theorem computedParent_eq_combined (input : Input) (batch : Batch) (values : Val
       exact matrices matrix
   have publicCanonical : values.publicInput.toPublicInput =
       Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
-        (shape := FullShape VerifierContext.candidateLogicalWidth VerifierContext.candidatePublicFits)
+        (shape := FullShape PhaseReference.logicalWidth PhaseReference.publicFits)
         batch.challenges (PiRLCInputCheck.publicInputs input) := Option.some.inj hx
   have widthEquality := combinePublicInputs_width
-    VerifierContext.candidateLogicalWidth PiDECInputCheck.logicalWidth
-    VerifierContext.candidatePublicFits PiDECInputCheck.publicFits
+    PhaseReference.logicalWidth PiDECInputCheck.logicalWidth
+    PhaseReference.publicFits PiDECInputCheck.publicFits
     batch.challenges (PiRLCInputCheck.publicInputs input)
   have publicSelected (column : Fin 270) : values.publicInput.get column =
       Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs

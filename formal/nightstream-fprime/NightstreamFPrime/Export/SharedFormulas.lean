@@ -95,19 +95,6 @@ private def exportPoseidonStep (accumulated : PoseidonAccumulator)
     rows := accumulated.rows ++
       result.rows.map (fun row => wireRow row.meaningfulForm) }
 
-/-- Export the existing final pins without constructing the preceding trace. -/
-def directOutputRows {width : Nat} (interface : PoseidonSboxPlan.Interface width) :
-    List (PinRow.Forms width) :=
-  List.ofFn fun lane =>
-    { selector := PoseidonSboxPlan.selector interface
-      value := SparseForm.add (interface.output lane)
-        (SparseForm.scale (-1) (PoseidonSboxPlan.directOutput interface lane)) }
-
-theorem directOutputRows_eq {width : Nat} (interface : PoseidonSboxPlan.Interface width) :
-    directOutputRows interface = PoseidonSboxPlan.outputRows interface := by
-  simp only [directOutputRows, PoseidonSboxPlan.outputRows,
-    PoseidonSboxPlan.outputDifference, PoseidonSboxPlan.trace_state_eq_directOutput]
-
 /-- Serialize each existing step against local state ports before substituting
 its predecessor. This keeps the partial-round linear sums as a DAG. -/
 def poseidonVariant (_ : Unit) : Variant :=
@@ -117,9 +104,7 @@ def poseidonVariant (_ : Unit) : Variant :=
   let compiled := (List.finRange Permutation.schedule.length).foldl
     exportPoseidonStep initial
   { linearForms := compiled.linearForms
-    rows := compiled.rows ++
-      (directOutputRows poseidonInterface).map
-        (fun row => wireRow row.meaningfulForm)
+    rows := compiled.rows
     outputRegisters := (List.range 8).map fun lane =>
       poseidonInputs + 8 * (Permutation.schedule.length - 1) + lane }
 
@@ -132,13 +117,11 @@ def poseidonComponent (_ : Unit) : Component where
   variant := fun _ => poseidonVariant ()
   definitions := [
     "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.compileStep",
-    "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.outputRows",
     "NightstreamFPrime.Gadgets.Poseidon2.Permutation.schedule"]
   contracts := [
     "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.compileStep_sound",
-    "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.rowsZero_implies_permute",
-    "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.rowsZero_of_equations",
-    "NightstreamFPrime.Export.SharedFormulas.directOutputRows_eq",
+    "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan.planRowsZero_implies_permute",
+    "NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan.equations_imply_planRowsZero",
     "NightstreamFPrime.Layout.MatrixProgram.Poseidon.Block.rowWithInput?_ofSemantic"]
 
 def externalVariant (_ : Unit) : Variant :=

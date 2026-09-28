@@ -70,7 +70,7 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 4_390_174;
+const EXPECTED_ACTIVE_ROWS: usize = 4_131_470;
 const EXPECTED_LOGICAL_COLUMNS: usize = 173_939_080;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
@@ -78,7 +78,7 @@ const EXPECTED_PHYSICAL_ROWS: usize = 28_275_820;
 const EXPECTED_PHYSICAL_COLUMNS: usize = 28_418_945;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
-const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 94;
+const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 108;
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(

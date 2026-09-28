@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
 
 /-!
 Sum a contiguous ordered vector of loaded Poseidon interfaces. Each interface
-contributes its existing 94-row invocation sum at the corresponding global
+contributes its existing 86-row invocation sum at the corresponding global
 row offset. All partial and final arithmetic stays in the existing Lean
 extension-ring batch operations.
 -/
@@ -25,7 +25,7 @@ The Nat branch outside the vector is never visited by the counted sum. -/
     Vector MaterializedRingK matrixCount :=
   PiDECEvaluationBatch.sum count fun index =>
     if live : index < count then
-      PiDECMatrixInvocation.sum (firstRow + 94 * index) point
+      PiDECMatrixInvocation.sum (firstRow + 86 * index) point
         (PiDECMatrixInvocation.prepare read (interfaces.get ⟨index, live⟩))
     else PiDECEvaluationBatch.zero matrixCount
 

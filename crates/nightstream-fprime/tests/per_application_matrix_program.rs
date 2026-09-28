@@ -8,7 +8,7 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::load_poseidon2_hash_chain_v1_package;
 
-const LOGICAL_ROWS: usize = 4_390_174;
+const LOGICAL_ROWS: usize = 4_131_470;
 const LOGICAL_COLUMNS: usize = 173_939_080;
 const ZERO_MATRIX: usize = 13;
 

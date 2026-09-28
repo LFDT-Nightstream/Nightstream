@@ -398,7 +398,7 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 4_390_174);
+    assert_eq!(result.active_rows, 4_131_470);
     assert_eq!(result.relation_terms, 74);
     assert_eq!(result.carrier_padding_columns, 50);
     assert_eq!(
@@ -458,14 +458,18 @@ fn direct_ccs_assignment_matches_full_physical_assignment() {
     let binding = package.production_verifier_binding().unwrap();
     let (private_inputs, public_inputs, _, _) =
         concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    let started = std::time::Instant::now();
     let physical = package
         .execute_witness(&private_inputs, &public_inputs)
         .unwrap();
     let expected = package.execute_logical_assignment(&physical).unwrap();
+    eprintln!("full_physical_then_ccs={:?}", started.elapsed());
     drop(physical);
+    let started = std::time::Instant::now();
     let direct = package
         .execute_ccs_assignment(&private_inputs, &public_inputs)
         .unwrap();
+    eprintln!("direct_ccs={:?}", started.elapsed());
     assert!(direct.balanced_values() == expected.balanced_values());
     drop((direct, expected));
 

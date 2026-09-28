@@ -377,9 +377,9 @@ theorem outputInputProgram_state?
 theorem priorBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
-    (global : Fin (PilotPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PilotPoseidonPlan.invocationCount * 86)) :
     (priorBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PilotPoseidonPlan.priorInterface geometry) decoded.1 decoded.2) := by
@@ -396,9 +396,9 @@ theorem priorBlock_row?
 theorem outputBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
-    (global : Fin (PilotPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PilotPoseidonPlan.invocationCount * 86)) :
     (outputBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PilotPoseidonPlan.outputInterface geometry) decoded.1 decoded.2) := by

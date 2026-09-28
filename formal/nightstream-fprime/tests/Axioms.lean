@@ -1,3 +1,9 @@
+import tests.ConstraintReductionResearch
+import tests.AxiomsDirectPhysicalExecution
+import tests.PoseidonPinReductionResearch
+import tests.RunningTransitionReducedMatrixResearch
+import tests.RunningTransitionReductionResearch
+import tests.RunningTransitionScratchResearch
 import tests.AxiomsPiRlcSampler
 import tests.FreshWitnessEvidence import tests.AxiomsSharedExports
 import NightstreamFPrime

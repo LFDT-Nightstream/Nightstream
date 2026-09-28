@@ -173,6 +173,8 @@ pub struct LoadedPerApplicationPackage {
     next_preimage_rows: std::ops::Range<usize>,
     logical_public_input_count: usize,
     structural_identifier: [u64; 4],
+    // Set only after recomputing the selected identity from the package contents.
+    direct_product_outputs: bool,
     relation_value_words: Vec<u64>,
     application_words: Vec<u64>,
     application_identity: ApplicationIdentity,
@@ -336,9 +338,8 @@ impl LoadedPerApplicationPackage {
         self.assignment_plan.execute(&self.circuit.layout, physical)
     }
 
-    /// Construct the CCS assignment directly for the fixed selected package.
-    /// Other applications retain full physical execution. The selected identity
-    /// binds the complete package, including all witness recipes and sources.
+    /// Construct the CCS assignment directly after computing the selected identity.
+    /// Other applications and prepared artifacts retain full physical execution.
     pub fn execute_ccs_assignment(
         &self,
         private_inputs: &[u64],
@@ -353,11 +354,10 @@ impl LoadedPerApplicationPackage {
         public_values: &[u64],
         application_values: Option<&[Goldilocks]>,
     ) -> Result<LogicalAssignment, PackageError> {
-        let direct_product_outputs = self.structural_identifier == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER;
         let source = self.circuit.execute_assignment_source(
             private_inputs,
             public_values,
-            direct_product_outputs,
+            self.direct_product_outputs,
             application_values,
         )?;
         self.assignment_plan.execute(&self.circuit.layout, &source)
@@ -617,7 +617,9 @@ pub fn load_prepared_application_records(
     let computed = native_relation_identifier(&fixed_envelope, decoded.application())?;
     let application_identity = native_application_identity(decoded.application())?;
     let source = super::prepared::snapshot(&fixed_envelope)?;
-    Ok(decoded.bind(computed, application_identity, source))
+    let mut package = decoded.bind(computed, application_identity, source);
+    package.direct_product_outputs = computed == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER;
+    Ok(package)
 }
 
 pub(super) struct NativePackage {
@@ -650,6 +652,7 @@ impl NativePackage {
             next_preimage_rows: self.next_preimage_rows,
             logical_public_input_count: self.logical_public_input_count,
             structural_identifier,
+            direct_product_outputs: false,
             relation_value_words: self.relation_value_words,
             application_words: Vec::new(),
             application_identity,
@@ -845,6 +848,7 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
         next_preimage_rows,
         logical_public_input_count,
         structural_identifier: computed,
+        direct_product_outputs: computed == POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
         relation_value_words,
         application_words,
         application_identity,

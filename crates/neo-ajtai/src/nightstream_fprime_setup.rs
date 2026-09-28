@@ -23,7 +23,7 @@ const WORD_RADIX: u128 = 1_u128 << 32;
 pub const SETUP_ID: &[u8] = b"nightstream-ajtai-chacha20-wide256-v1";
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 4_492_423;
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 3_221_095;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 // Approved public-seed MSIS matrix; applications bind their exact key prefix.
 // Lean authority: Poseidon2HashChainV1Setup.approvedMsis_carrierWidth.

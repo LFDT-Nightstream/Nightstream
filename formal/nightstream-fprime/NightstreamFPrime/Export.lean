@@ -302,4 +302,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 
+import NightstreamFPrime.Export.Stage1.CanonicalDirectPhysicalExecution
+
 /-! Export layer root. Lists the modules of this layer explicitly. -/

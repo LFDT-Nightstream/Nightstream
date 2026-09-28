@@ -8,7 +8,7 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 4_390_174;
+pub const ACTIVE_ROWS: usize = 4_131_470;
 pub const PADDED_ROWS: usize = 1 << 28;
 pub const LOGICAL_WIDTH: usize = 173_939_080;
 pub const CARRIER_WIDTH: usize = 173_939_130;

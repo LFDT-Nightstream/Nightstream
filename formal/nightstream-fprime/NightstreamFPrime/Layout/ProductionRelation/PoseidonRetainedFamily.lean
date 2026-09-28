@@ -106,8 +106,7 @@ def familyInterface {sourceWidth invocationCount logicalWidth : Nat}
     PoseidonSboxFamilyPlan.Interface logicalWidth invocationCount :=
   { oneColumn := oneColumn
     input := input
-    sboxOutput := form schedule start fits
-    output := outputState schedule start fits }
+    sboxOutput := form schedule start fits }
 
 @[simp] theorem family_invocationInterface
     {sourceWidth invocationCount logicalWidth : Nat}

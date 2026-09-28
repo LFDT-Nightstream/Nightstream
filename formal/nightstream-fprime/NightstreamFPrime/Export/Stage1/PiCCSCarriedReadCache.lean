@@ -93,11 +93,11 @@ private theorem cached_columns_eq {columns : Nat}
   simp only [columnValue, dif_pos column.isLt]
 
 /-- Share each requested block and each complete K column read across both
-scalar projections and all 94 numeric rows of the same invocation. -/
+scalar projections and all 86 numeric rows of the same invocation. -/
 def invocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (interface : PoseidonSboxPlan.Interface columns) :
-    Vector (Vector K Spec.ProductionRelation.matrixCount) 94 :=
+    Vector (Vector K Spec.ProductionRelation.matrixCount) 86 :=
   let blockCache := prepareCache (interfaceKeys interface) blocks
   let read : Fin columns → K :=
     PiCCSCarriedRead.read basis (cachedRead blockCache blocks)

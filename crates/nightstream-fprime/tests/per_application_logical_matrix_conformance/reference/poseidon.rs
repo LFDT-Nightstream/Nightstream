@@ -8,7 +8,7 @@ use super::{
     RetainedKind, RowForms,
 };
 
-const ROWS_PER_INVOCATION: usize = 94;
+const ROWS_PER_INVOCATION: usize = 86;
 const SBOX_ROWS_PER_INVOCATION: usize = 86;
 const WIDTH: usize = 8;
 
@@ -179,11 +179,7 @@ impl Block {
         }
         let invocation = ordinal / ROWS_PER_INVOCATION;
         let local_row = ordinal % ROWS_PER_INVOCATION;
-        if local_row < SBOX_ROWS_PER_INVOCATION {
-            self.sbox_row(logical_width, invocation, local_row)
-        } else {
-            self.pin_row(logical_width, invocation, local_row - SBOX_ROWS_PER_INVOCATION)
-        }
+        self.sbox_row(logical_width, invocation, local_row)
     }
 
     pub fn visit_rows(
@@ -293,12 +289,6 @@ impl Block {
             state = to_state(external_layer(&outputs)?);
         }
 
-        for lane in 0..WIDTH {
-            let local_row = SBOX_ROWS_PER_INVOCATION + lane;
-            if (local_start..local_end).contains(&local_row) {
-                visit(local_row, pin_ports(self.one_column, state[lane].clone()))?;
-            }
-        }
         Ok(())
     }
 
@@ -356,31 +346,6 @@ impl Block {
         }
         Err("Poseidon2 S-box row is out of range".into())
     }
-
-    fn pin_row(&self, logical_width: usize, invocation: usize, lane: usize) -> Result<RowForms> {
-        if lane >= WIDTH {
-            return Err("Poseidon2 pin lane is out of range".into());
-        }
-        let final_base = checked_add(
-            checked_mul(invocation, SBOX_ROWS_PER_INVOCATION, "Poseidon2 final state")?,
-            78,
-            "Poseidon2 final state",
-        )?;
-        let final_state = (0..WIDTH)
-            .map(|selected| {
-                self.retained.form(
-                    logical_width,
-                    checked_add(final_base, selected, "Poseidon2 final state")?,
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let output = external_layer(&final_state)?[lane].clone();
-        let difference = output.clone().append(output.scaled(-Field::ONE));
-        let mut row = empty_row();
-        row[1] = Form::singleton(self.one_column, Field::ONE);
-        row[4] = difference;
-        Ok(row)
-    }
 }
 
 fn empty_state() -> [Form; WIDTH] {
@@ -420,13 +385,5 @@ fn sbox_ports(one_column: usize, input: Form, output: Form) -> RowForms {
     row[1] = Form::singleton(one_column, Field::ONE);
     row[4] = output;
     row[5] = input;
-    row
-}
-
-fn pin_ports(one_column: usize, output: Form) -> RowForms {
-    let difference = output.clone().append(output.scaled(-Field::ONE));
-    let mut row = empty_row();
-    row[1] = Form::singleton(one_column, Field::ONE);
-    row[4] = difference;
     row
 }

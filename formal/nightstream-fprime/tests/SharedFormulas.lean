@@ -75,8 +75,6 @@ private def referencePoseidon (_ : Unit) : List (List WireForm) × List WireForm
       Vector.ofFn fun lane => normalized (result.state lane)
     state := stateValues.get
     rows := rows ++ result.rows.map (fun row => normalizedRow row.meaningfulForm)
-  rows := rows ++ (directOutputRows interface).map
-    (fun row => normalizedRow row.meaningfulForm)
   pure (rows, List.ofFn fun lane => WireForm.ofSemantic (normalized (state lane)))
 
 private def ensure (condition : Bool) (message : String) : Except String Unit :=
@@ -85,7 +83,7 @@ private def ensure (condition : Bool) (message : String) : Except String Unit :=
 def check : IO Unit := do
   let checks : Except String Unit := do
     let poseidon := poseidonVariant ()
-    ensure (poseidon.rows.length == 94) "Poseidon2 row footprint changed"
+    ensure (poseidon.rows.length == 86) "Poseidon2 row footprint changed"
     ensure ((← expanded 95 poseidon) == referencePoseidon ())
       "Poseidon2 template differs from the existing step formulas"
     let external := externalVariant ()
@@ -119,7 +117,6 @@ def check : IO Unit := do
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rowsZero_implies_ringProduct
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ProductSumPlan.rowsZero_iff_equations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
-#audit_axioms NightstreamFPrime.Export.SharedFormulas.directOutputRows_eq
 
 #eval check
 

@@ -11,7 +11,7 @@ def require(condition, message):
         raise ValueError(message)
 
 def compare(actual, expected):
-    require(actual == expected, "complete fresh claim bytes differ")
+    require(actual.removesuffix(b"\n") == expected.removesuffix(b"\n"), "complete fresh claim bytes differ")
 
 def canonical(words):
     return all(type(word) is int and 0 <= word < P for word in words)
@@ -26,7 +26,7 @@ def main():
     output = Path(args.claim_output)
     require(not output.exists(), "claim output already exists")
     commitment = json.loads(Path(args.commitment).read_text())
-    require(len(commitment) == 5 and commitment[:4] == [1, 4685394, 0, 4685394],
+    require(len(commitment) == 5 and commitment[:4] == [1, 4492423, 0, 4492423],
             "expected the complete selected Lean commitment")
     rows = commitment[4]
     require(len(rows) == 22 and all(len(row) == 54 and canonical(row) for row in rows),
@@ -53,7 +53,7 @@ def main():
     else:
         raise ValueError("changed final commitment target was accepted")
     with output.open("xb") as stream:
-        stream.write(actual)
+        stream.write(actual + b"\n")
     print(json.dumps({"status": "passed", "commitment_coefficients": 1188,
                       "public_coefficients": 270, "complete_claim_bytes": len(actual),
                       "changed_target_rejected": True}))

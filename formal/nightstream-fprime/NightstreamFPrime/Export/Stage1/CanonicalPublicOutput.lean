@@ -42,7 +42,7 @@ theorem rowsZero {application : Program} (raw : RawValues application) :
   rw [publicInput_eq raw, decodeHashWord_encHash]
   have held := PilotOrdinaryDirectPlan.Location.form_eval
     (RecursivePublicOutputPlan.pilotOrdinaryGeometry (PerApplicationFixedPoint.geometry application))
-    raw.assignment raw.base raw.groupValue raw.products
+    raw.assignment raw.base raw.groupValue
     (PerApplicationCanonicalEncodes.samplerPrefixEncodes raw).prior.pilotOrdinary
     (.outputDigest word)
   exact held.trans (outputDigest_word raw word).symm

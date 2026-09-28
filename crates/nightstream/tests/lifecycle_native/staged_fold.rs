@@ -642,21 +642,9 @@ pub(super) fn nifs(root: &Path, step: u64) {
     let record = SavedNifs { parent, children };
     let (_, fresh, running, proof) = record.verify(&package, &step_dir(root, step), step);
     let wire = proof.canonical_bytes();
-    if step == 1 {
-        assert_eq!(
-            wire,
-            fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stage1_actual_nifs/proof.native"))
-                .unwrap()
-        );
-        let expected = read(artifact("nightstream-fprime-stage1-base-nifs-result-v1.json"));
-        let state = record
-            .parent
-            .transcript_state
-            .map(|value| value.as_canonical_u64());
-        assert_eq!(json!(state), expected[7][9]);
-        assert_eq!(json!(state), expected[9][14]);
-        assert_eq!(record.parent.transcript_absorbed, 0);
-    }
+    // Fresh proof verification above precedes export. The golden checker
+    // owns saved-result and complete proof-byte comparisons.
+    assert_eq!(record.parent.transcript_absorbed, 0);
     lean::export(
         &directory,
         &package,

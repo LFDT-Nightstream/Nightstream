@@ -3,6 +3,8 @@ from contextlib import nullcontext
 import importlib.util
 import os
 from pathlib import Path
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -83,6 +85,31 @@ class GuardWorktreeTests(unittest.TestCase):
 
 
 class GuardDeadlineTests(unittest.TestCase):
+    def test_cleanup_reaches_nested_timeout_group(self):
+        child_code = "import os, signal; print(os.getpgrp(), flush=True); signal.pause()"
+        command = ["timeout", "--signal=KILL", str(guard.CAPS["python"]),
+                   sys.executable, "-c", child_code]
+        parent_code = "import subprocess, sys; subprocess.run(sys.argv[1:], check=True)"
+        process = subprocess.Popen([sys.executable, "-c", parent_code, *command],
+                                   stdout=subprocess.PIPE, text=True, start_new_session=True)
+        nested_group = None
+        try:
+            nested_group = int(process.stdout.readline())
+            self.assertNotEqual(nested_group, process.pid)
+            with patch.object(guard.os, "killpg", wraps=os.killpg) as kill:
+                guard.kill_process_groups(process.pid)
+            killed = {call.args[0] for call in kill.call_args_list}
+            self.assertEqual(killed, {process.pid, nested_group})
+            process.wait(timeout=guard.CAPS["python"])
+        finally:
+            for group in {process.pid, nested_group} - {None}:
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            process.wait()
+            process.stdout.close()
+
     def test_no_timeout_keeps_lock_and_propagates_to_nested_lean(self):
         for kind, command in [
                 ("lean", ["bash", "scripts/validate.sh", "build"]),
@@ -94,7 +121,7 @@ class GuardDeadlineTests(unittest.TestCase):
                 with patch.object(guard, "build_lock", return_value=nullcontext()) as lock, \
                         patch.object(guard, "check_build_processes") as processes, \
                         patch.object(guard.subprocess, "Popen", return_value=child) as launch, \
-                        patch.object(guard.os, "killpg"):
+                        patch.object(guard, "kill_process_groups"):
                     result = guard.run(command, kind, Path.cwd(), no_timeout=True)
                 lock.assert_called_once()
                 processes.assert_called_once()

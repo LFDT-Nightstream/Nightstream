@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# Validation defaults to the project cap; an owner-authorized zero disables it.
+# Validation enforces the project cap and reports every requested target.
 #   validate.sh static            boundary checks only (no Lean)
-#   validate.sh build [target]    lake build (default: the two libraries)
+#   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh identity          recompute canonical binding and compare pins
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>
 #   validate.sh emit <path>       lake exe emit -- <path>
 #   validate.sh emit-expanded <path>
-#   validate.sh emit-poseidon2-hash-chain-v1 <path>
-#   validate.sh emit-poseidon2-hash-chain-v1-expanded <path>
 #   validate.sh pilot-parity <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh base-step-fixture <vk0> <vk1> <vk2> <vk3> <path>
 #   validate.sh recursive-step-fixture <context[4]> <PiCCS-input> <child-running> [<prior-state-message>] <path>
@@ -54,8 +52,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 CAP="${LEAN_TIMEOUT_SECONDS:-1500}"
-if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 0 || CAP > 1500 )); then
-  echo "LEAN_TIMEOUT_SECONDS must be 0 (owner-authorized no timeout) or between 1 and 1500" >&2; exit 2
+if [[ ! "$CAP" =~ ^[0-9]+$ ]] || (( CAP < 1 || CAP > 1500 )); then
+  echo "LEAN_TIMEOUT_SECONDS must be between 1 and 1500" >&2; exit 2
 fi
 LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-$(getconf _NPROCESSORS_ONLN)}"
 if [[ ! "$LEAN_NUM_THREADS" =~ ^[0-9]+$ ]] || (( LEAN_NUM_THREADS < 1 )); then
@@ -65,22 +63,11 @@ export LEAN_NUM_THREADS
 echo "[parallel] LEAN_NUM_THREADS=${LEAN_NUM_THREADS}"
 
 capped() {
-  local start=$SECONDS
-  if (( CAP == 0 )); then
-    echo "[no timeout] $*"
-    "$@"
-  else
-    echo "[bounded ${CAP}s] $*"
-    # -k kills hard 10 s after the cap; exit 124 marks a timeout.
-    timeout -k 10 "$CAP" "$@"
-  fi
-  local rc=$?
-  if (( CAP == 0 )); then
-    echo "[no timeout] exit=$rc elapsed=$((SECONDS - start))s"
-  else
-    echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
-  fi
-  if (( rc == 124 )); then echo "[bounded] TIMEOUT is a failed gate" >&2; fi
+  local start=$SECONDS rc=0
+  echo "[bounded ${CAP}s] $*"
+  timeout --signal=KILL "$CAP" "$@" || rc=$?
+  echo "[bounded] exit=$rc elapsed=$((SECONDS - start))s"
+  if (( rc == 124 || rc == 137 )); then echo "[bounded] TIMEOUT is a failed gate" >&2; fi
   return $rc
 }
 
@@ -97,7 +84,11 @@ case "$phase" in
     shift
     capped "$@"
     ;;
-  build)  capped lake build "${2:-NightstreamFPrime}" ;;
+  build)
+    shift
+    if (( $# == 0 )); then set -- NightstreamFPrime; fi
+    capped lake build "$@"
+    ;;
   axioms) capped lake build NightstreamFPrimeTests ;;
   pi-ccs-first-round)
     if (( $# != 6 )); then echo "usage: validate.sh pi-ccs-first-round <public-input> <original-sources> <output> <first-pair> <end-pair>" >&2; exit 2; fi
@@ -134,7 +125,7 @@ case "$phase" in
     ;;
   pi-dec-commitment-merge-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-commitment-merge-boundaries <Lean-range> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_commitment_merge.py "$2" "$3"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_commitment_merge.py "$2" "$3"
     ;;
   pi-dec-evaluation-replay)
     if (( $# != 7 )); then echo "usage: validate.sh pi-dec-evaluation-replay pad <C-input> <Lean-parent-range> <output> <start> <end>" >&2; exit 2; fi
@@ -148,7 +139,7 @@ case "$phase" in
     ;;
   pi-dec-pad-merge-boundaries)
     if (( $# != 2 )); then echo "usage: validate.sh pi-dec-pad-merge-boundaries <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_pad_merge.py .lake/build/bin/replayPiDECEvaluation "$2"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_pad_merge.py .lake/build/bin/replayPiDECEvaluation "$2"
     ;;
   pi-dec-matrix-rows)
     if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-rows <new-output.jsonl> <first-block> <last-block-exclusive>" >&2; exit 2; fi
@@ -166,7 +157,7 @@ case "$phase" in
     ;;
   pi-dec-parent-boundaries)
     if (( $# != 3 )); then echo "usage: validate.sh pi-dec-parent-boundaries <valid-C-input> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_parent_input.py .lake/build/bin/replayPiDECMatrix "$2" "$3"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_parent_input.py .lake/build/bin/replayPiDECMatrix "$2" "$3"
     ;;
   pi-dec-matrix-merge)
     if (( $# < 5 )); then echo "usage: validate.sh pi-dec-matrix-merge <C-input> <complete-Pad> <new-output> <matrix-ranges>..." >&2; exit 2; fi
@@ -175,7 +166,7 @@ case "$phase" in
     ;;
   pi-dec-matrix-merge-boundaries)
     if (( $# != 4 )); then echo "usage: validate.sh pi-dec-matrix-merge-boundaries <valid-C-input> <complete-Pad> <new-results-directory>" >&2; exit 2; fi
-    timeout -k 10 300 python3 -B tests/pi_dec_matrix_merge.py .lake/build/bin/mergePiDECMatrix "$2" "$3" "$4"
+    timeout --signal=KILL 300 python3 -B tests/pi_dec_matrix_merge.py .lake/build/bin/mergePiDECMatrix "$2" "$3" "$4"
     ;;
   pi-dec-evaluation-block)
     if (( $# != 3 && $# != 4 )); then echo "usage: validate.sh pi-dec-evaluation-block [<C-input>] <Lean-parent-range> <output>" >&2; exit 2; fi
@@ -213,14 +204,6 @@ case "$phase" in
   emit-expanded)
     if (( $# != 2 )); then echo "usage: validate.sh emit-expanded <path>" >&2; exit 2; fi
     capped lake exe emit -- --expanded "$2"
-    ;;
-  emit-poseidon2-hash-chain-v1)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1 <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1 "$2"
-    ;;
-  emit-poseidon2-hash-chain-v1-expanded)
-    if (( $# != 2 )); then echo "usage: validate.sh emit-poseidon2-hash-chain-v1-expanded <path>" >&2; exit 2; fi
-    capped lake exe emit -- --poseidon2-hash-chain-v1-expanded "$2"
     ;;
   pilot-parity)
     if (( $# != 6 )); then

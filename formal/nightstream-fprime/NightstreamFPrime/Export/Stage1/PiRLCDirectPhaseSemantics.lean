@@ -38,16 +38,11 @@ theorem directSampler_imply_specHolds_of_combinationRows
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
-        groupValue products))
-    (samplerEncoding :
-      PiRLCSamplerOrdinaryRetainedGeometry.Encodes samplerGeometry assignment
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          products))
+        groupValue))
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
       ordinaryGeometry).RowsZero assignment)
@@ -59,8 +54,6 @@ theorem directSampler_imply_specHolds_of_combinationRows
       PiRLCSamplerPoseidonPreservation.CanonicalSemantics
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
         assignment)
-    (sourceHolds : ∀ source,
-      PiRLCFirst54DirectPlan.SourceHolds program base source)
     (combinationRows : Package.PiRLCCombinationRowsHold
       (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment base))
     (assumptions : Formal.Assumptions relation
@@ -81,17 +74,17 @@ theorem directSampler_imply_specHolds_of_combinationRows
     PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment base
   let sourceEnv := Spartan.pullback targetEnv
   have chainAssumptions : SamplerChain.Assumptions
-      (PiRLCSamplerOrdinaryRows.chainInterface
+      (PiRLCSamplerInvocations.chainInterface
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
-      PiRLCStarts.samplerLogicalStart sourceEnv := by
-    simpa [sourceEnv, targetEnv, PiRLCSamplerOrdinaryRows.chainInterface,
+      PiRLCStarts.samplerLogicalStart := by
+    simpa [sourceEnv, targetEnv, PiRLCSamplerInvocations.chainInterface,
       PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using!
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
-      ordinaryGeometry samplerGeometry assignment base groupValue products one
-      piCcsEncoding samplerEncoding endpointRows ordinaryRows
-      poseidonSemantics sourceHolds chainAssumptions
+      ordinaryGeometry samplerGeometry assignment base groupValue one
+      piCcsEncoding endpointRows ordinaryRows
+      poseidonSemantics chainAssumptions
   refine {
     inputBinding := ?_
     sampler := ?_
@@ -105,7 +98,7 @@ theorem directSampler_imply_specHolds_of_combinationRows
     intro operation member
     cases member
   · simpa [sourceEnv, targetEnv,
-      PiRLCSamplerOrdinaryRows.chainInterface,
+      PiRLCSamplerInvocations.chainInterface,
       PiRLCSamplerRows.samplerInterface,
       PiRLCSamplerRows.sharedInterface] using! samplerChain
   · simpa [sourceEnv, targetEnv,
@@ -161,16 +154,14 @@ theorem directSampler_imply_specHolds_of_productSemantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
-        groupValue products))
-    (samplerEncoding :
-      PiRLCSamplerOrdinaryRetainedGeometry.Encodes samplerGeometry assignment
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          products))
+        groupValue))
+    (retained : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry samplerGeometry)
+      assignment base groupValue)
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
       ordinaryGeometry).RowsZero assignment)
@@ -182,8 +173,6 @@ theorem directSampler_imply_specHolds_of_productSemantics
       PiRLCSamplerPoseidonPreservation.CanonicalSemantics
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
         assignment)
-    (sourceHolds : ∀ source,
-      PiRLCFirst54DirectPlan.SourceHolds program base source)
     (productSemantics : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0)
@@ -205,17 +194,17 @@ theorem directSampler_imply_specHolds_of_productSemantics
     PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment base
   let sourceEnv := Spartan.pullback targetEnv
   have chainAssumptions : SamplerChain.Assumptions
-      (PiRLCSamplerOrdinaryRows.chainInterface
+      (PiRLCSamplerInvocations.chainInterface
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits))
-      PiRLCStarts.samplerLogicalStart sourceEnv := by
-    simpa [sourceEnv, targetEnv, PiRLCSamplerOrdinaryRows.chainInterface,
+      PiRLCStarts.samplerLogicalStart := by
+    simpa [sourceEnv, targetEnv, PiRLCSamplerInvocations.chainInterface,
       PiRLCSamplerRows.samplerInterface, PiRLCSamplerRows.sharedInterface] using!
         assumptions.sampler
   have samplerChain :=
     PiRLCSamplerFullSemantics.directSemantics_imply_samplerChain relation
-      ordinaryGeometry samplerGeometry assignment base groupValue products one
-      piCcsEncoding samplerEncoding endpointRows ordinaryRows
-      poseidonSemantics sourceHolds chainAssumptions
+      ordinaryGeometry samplerGeometry assignment base groupValue one
+      piCcsEncoding endpointRows ordinaryRows
+      poseidonSemantics chainAssumptions
   refine {
     inputBinding := ?_
     sampler := ?_
@@ -229,7 +218,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
     intro operation member
     cases member
   · simpa [sourceEnv, targetEnv,
-      PiRLCSamplerOrdinaryRows.chainInterface,
+      PiRLCSamplerInvocations.chainInterface,
       PiRLCSamplerRows.samplerInterface,
       PiRLCSamplerRows.sharedInterface] using! samplerChain
   · simpa [sourceEnv, targetEnv,
@@ -239,7 +228,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
       PiRLCStarts.phaseLogicalStart] using
       PiRLCProductDirectSemantics.productSemantics_imply_commitmentCanonical
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
-        samplerGeometry assignment base productSemantics
+        samplerGeometry assignment base groupValue retained productSemantics
   · simpa [sourceEnv, targetEnv,
       PiRLCCombinationInvocations.productionPublicInputFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
@@ -247,7 +236,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
       PiRLCStarts.phaseLogicalStart] using
       PiRLCProductDirectSemantics.productSemantics_imply_publicInputCanonical
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
-        samplerGeometry assignment base productSemantics
+        samplerGeometry assignment base groupValue retained productSemantics
   · simpa [sourceEnv, targetEnv,
       PiRLCCombinationInvocations.productionEvalKFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
@@ -255,7 +244,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
       PiRLCStarts.phaseLogicalStart] using
       PiRLCProductDirectSemantics.productSemantics_imply_evalKCanonical
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
-        samplerGeometry assignment base productSemantics
+        samplerGeometry assignment base groupValue retained productSemantics
   · simpa [sourceEnv, targetEnv,
       PiRLCCombinationInvocations.productionEvalAFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
@@ -263,7 +252,7 @@ theorem directSampler_imply_specHolds_of_productSemantics
       PiRLCStarts.phaseLogicalStart] using
       PiRLCProductDirectSemantics.productSemantics_imply_evalACanonical
         (logicalWidth := relationLogicalWidth) (publicFits := relationPublicFits)
-        samplerGeometry assignment base productSemantics
+        samplerGeometry assignment base groupValue retained productSemantics
   · apply OutputBinding.soundness
     intro operation member
     cases member
@@ -286,16 +275,11 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
-        groupValue products))
-    (samplerEncoding :
-      PiRLCSamplerOrdinaryRetainedGeometry.Encodes samplerGeometry assignment
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          products))
+        groupValue))
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
       ordinaryGeometry).RowsZero assignment)
@@ -307,8 +291,6 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
       PiRLCSamplerPoseidonPreservation.CanonicalSemantics
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
         assignment)
-    (sourceHolds : ∀ source,
-      PiRLCFirst54DirectPlan.SourceHolds program base source)
     (combinationRows : Package.PiRLCCombinationRowsHold
       (PiRLCSamplerRetainedCustody.semanticEnv samplerGeometry assignment base))
     (assumptions : Formal.Assumptions relation
@@ -327,9 +309,8 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
           base)) := by
   apply Semantics.spec_implies_phaseHolds
   exact directSampler_imply_specHolds_of_combinationRows relation
-    ordinaryGeometry samplerGeometry assignment base groupValue products one
-    piCcsEncoding samplerEncoding endpointRows ordinaryRows poseidonSemantics
-    sourceHolds combinationRows assumptions
+    ordinaryGeometry samplerGeometry assignment base groupValue one
+    piCcsEncoding endpointRows ordinaryRows poseidonSemantics combinationRows assumptions
 
 /-- The self-derived product plan and retained sampler evidence entail the
 deterministic PiRLC accepted predicate and verifier-owned sampler replay. -/
@@ -349,16 +330,14 @@ theorem directSampler_imply_phaseHolds_of_productSemantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
       assignment (PiRLCRetainedPreservation.sourceAssignment program base
-        groupValue products))
-    (samplerEncoding :
-      PiRLCSamplerOrdinaryRetainedGeometry.Encodes samplerGeometry assignment
-        (PiRLCRetainedPreservation.sourceAssignment program base groupValue
-          products))
+        groupValue))
+    (retained : PiRLCRetainedPreservation.Encodes
+      (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry samplerGeometry)
+      assignment base groupValue)
     (endpointRows : (PiCCSTranscriptEndpointPlan.plan
       (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
       ordinaryGeometry).RowsZero assignment)
@@ -370,8 +349,6 @@ theorem directSampler_imply_phaseHolds_of_productSemantics
       PiRLCSamplerPoseidonPreservation.CanonicalSemantics
         (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry samplerGeometry)
         assignment)
-    (sourceHolds : ∀ source,
-      PiRLCFirst54DirectPlan.SourceHolds program base source)
     (productSemantics : ∀ invocation,
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (PiRLCProductPlan.baseEnv program base) = 0)
@@ -391,8 +368,7 @@ theorem directSampler_imply_phaseHolds_of_productSemantics
           base)) := by
   apply Semantics.spec_implies_phaseHolds
   exact directSampler_imply_specHolds_of_productSemantics relation
-    ordinaryGeometry samplerGeometry assignment base groupValue products one
-    piCcsEncoding samplerEncoding endpointRows ordinaryRows poseidonSemantics
-    sourceHolds productSemantics assumptions
+    ordinaryGeometry samplerGeometry assignment base groupValue one
+    piCcsEncoding retained endpointRows ordinaryRows poseidonSemantics productSemantics assumptions
 
 end NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics

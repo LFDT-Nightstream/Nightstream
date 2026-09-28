@@ -85,7 +85,7 @@ wire_tuple!(ApplicationPlan {
     batches: Vec<Batch>, instructions: Vec<Instruction>, rows: Vec<Row>,
 });
 wire_tuple!(Assignment {
-    schema: usize, blocks: Vec<AssignmentBlock>, phi81: Value, first54: Value,
+    schema: usize, blocks: Vec<AssignmentBlock>, phi81: Value,
     digest_block: usize, digest_expressions: Vec<Value>,
 });
 wire_tuple!(AssignmentBlock {

@@ -221,7 +221,7 @@ private theorem piRlcPhase_of_piCcs
   let samplerInterface := PiRLC.v1_1.Formal.samplerInterface
     (PiRLC.v1_1.Formal.atOffset piRlcInterface piRlcOffset)
   have samplerRight :=
-    PiRLC.v1_1.SamplerChain.relationHolds_of_initial_and_agree_from
+    PiRLC.v1_1.SamplerChain.specHolds_of_initial_and_agree_from
       samplerInterface (PiRLC.v1_1.Formal.samplerOffset piRlcOffset)
       left right (by simpa [samplerInterface, piRlcInterface, piRlcOffset]
         using initialStateEq) (by
@@ -232,7 +232,7 @@ private theorem piRlcPhase_of_piCcs
         piRlcLeft.sampler)
   have challengesEq :=
     PiRLC.v1_1.SamplerChain.evalChallenges_eq_of_agree_from
-      samplerInterface (PiRLC.v1_1.Formal.samplerOffset piRlcOffset)
+      (PiRLC.v1_1.Formal.samplerOffset piRlcOffset)
       left right (by
         intro index bounded
         apply localAgrees index

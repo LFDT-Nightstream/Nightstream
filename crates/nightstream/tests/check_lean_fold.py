@@ -26,7 +26,7 @@ sys.path[:0] = [str(TESTS), str(ROOT / "scripts"), str(FORMAL / "scripts")]
 from compare_recursive_outputs import equal, load  # noqa: E402
 from check_identity import rust_code  # noqa: E402
 from generate_lean_mutations import CHILDREN, MATRICES, numeric_json  # noqa: E402
-from lean_graph.guard import build_lock, check_build_processes  # noqa: E402
+from lean_graph.guard import build_lock, check_build_processes, kill_process_groups  # noqa: E402
 from lean_graph.policy import CAPS  # noqa: E402
 from project_replay_sources import commitment, field, original_running, vector, wrapped_field  # noqa: E402
 
@@ -122,15 +122,23 @@ class Check:
         self.originals[source] = target
         return target
 
-    def phase(self, name, kind, command, cwd=ROOT):
+    def phase(self, name, kind, command, cwd=ROOT, input=None):
         cap = CAPS["lean" if kind == "lean" else "rust"]
         record = {"name": name, "kind": kind, "command": list(map(str, command)),
                   "cwd": str(cwd), "cap_seconds": cap, "outcome": "failed-to-start"}
+        if input is not None:
+            record["input"] = input
         self.records.append(record)
         log = self.output / f"{name}.log"
         started = time.monotonic()
+        wall_started = time.time()
         process = None
         handlers = {}
+
+        def elapsed():
+            # macOS monotonic time excludes sleep; neither sleep nor a backward
+            # wall-clock adjustment may extend the command's acceptance cap.
+            return max(time.monotonic() - started, time.time() - wall_started)
 
         def interrupted(signum, _frame):
             raise InterruptedError(f"signal {signum}")
@@ -142,28 +150,39 @@ class Check:
                 if kind == "lean":
                     environment["LEAN_TIMEOUT_SECONDS"] = str(cap)
                 process = subprocess.Popen(record["command"], cwd=cwd, env=environment,
-                                           stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+                                           stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
+                                           stdin=subprocess.PIPE if input is not None else None)
                 for signum in (signal.SIGINT, signal.SIGTERM):
                     handlers[signum] = signal.signal(signum, interrupted)
                 try:
-                    code = process.wait(timeout=max(0, cap - (time.monotonic() - started)))
+                    if input is not None:
+                        process.stdin.write(json.dumps(input).encode())
+                        process.stdin.close()
+                    while True:
+                        remaining = cap - elapsed()
+                        if remaining <= 0:
+                            raise subprocess.TimeoutExpired(record["command"], cap)
+                        try:
+                            code = process.wait(timeout=min(1, remaining))
+                            break
+                        except subprocess.TimeoutExpired:
+                            continue
                     record.update(exit=code, outcome="passed" if code == 0 else "failed")
                 except subprocess.TimeoutExpired:
                     record.update(exit=124, outcome="timed-out")
                 except InterruptedError:
                     record.update(exit=130, outcome="interrupted")
                 finally:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    kill_process_groups(process.pid)
                     process.wait()
         except Exception as error:
             record.update(exit=1, error=str(error))
         finally:
             for signum, handler in handlers.items():
                 signal.signal(signum, handler)
-            record["elapsed_seconds"] = time.monotonic() - started
+            record["elapsed_seconds"] = elapsed()
+            if record.get("exit") == 0 and record["elapsed_seconds"] >= cap:
+                record.update(exit=124, outcome="timed-out")
             with (self.output / f"{name}.command.json").open("x") as stream:
                 json.dump(record, stream, indent=2)
                 stream.write("\n")
@@ -180,7 +199,6 @@ class Check:
         for name in ("envelope.json", "fresh-claim.json"):
             self.snapshot(self.directory / f"step-{step}" / name, Path(f"step-{step}") / name)
         folder = self.output / "inputs" / relative
-        shutil.copyfile(folder / "proof.native", folder / "proof.bin")
         return folder
 
     def verify_fold(self, step, folder, identity, package):
@@ -195,16 +213,20 @@ class Check:
         equal(len(lean), 10, "complete Lean C/R/D result")
         for accepted in (lean[5][0], lean[7][0], lean[9][0], lean[9][16][0]):
             equal(accepted, 1, "Lean verifier acceptance")
-        log = self.phase(f"step-{step}-native-comparison", "native",
-                         [self.native_checker, "check-owned-nifs", package, folder, result])
+        checker = [self.native_checker, "--exact",
+                   "lifecycle::tests::staged::fold::lean::golden::native_checker", "--ignored", "--nocapture"]
+        log = self.phase(f"step-{step}-native-comparison", "native", checker,
+                         input={"operation": "compare", "package": str(package),
+                                "directory": str(folder), "lean": str(result)})
         for marker in ("complete_nifs_wire=passed", "saved_actual_pi_dec=passed complete_fields=17 normal_wrapper=true",
                        "actual_selected_nifs_Lean_comparison=passed"):
             require(marker in log, f"native comparison omitted {marker}")
         wire = self.output / f"step-{step}-lean-proof.native"
-        self.phase(f"step-{step}-wire", "native", [self.native_checker, "encode-lean-nifs", result, wire])
+        self.phase(f"step-{step}-wire", "native", checker,
+                   input={"operation": "encode", "lean": str(result), "output": str(wire)})
         compare_files(wire, folder / "proof.native", "Lean/native proof wire")
         rejected = re.findall(r"^pi_dec_mutation=(\S+) rejected=", log, re.MULTILINE)
-        # Exact families in neo-fold-legacy/tests/nifs/pi_dec_actual_mutations.rs.
+        # Exact families in lifecycle_native/golden_dec.rs.
         expected = {f"child_{child}_commitment" for child in range(CHILDREN)} | {
             f"child_eval_A{matrix}" for matrix in range(MATRICES)
         } | {f"nonzero_eval_A{matrix}_padding" for matrix in range(MATRICES)} | {
@@ -245,12 +267,6 @@ class Check:
         successor = load(self.snapshot(self.directory / f"step-{self.step + 1}/envelope.json", "successor-envelope.json"))
         equal([successor["iteration"], successor["z0"], successor["current"]],
               [self.step + 1, request[1], lean_caller[4][0]], "returned successor state")
-        native_physical = self.snapshot(self.directory / f"fold-{self.step}/physical.bin", "native-physical.bin")
-        physical = self.output / "lean-physical.bin"
-        self.lean("physical-build", "build", "replayPhysicalWitness")
-        self.lean("physical", "lean-executable", FORMAL / ".lake/build/bin/replayPhysicalWitness", caller_path, physical)
-        compare_files(physical, native_physical, "complete physical witness")
-
         generated = self.output / "mutation-inputs"
         self.phase("mutation-inputs", "python", [sys.executable, "-B", TESTS / "generate_lean_mutations.py",
                    folder / "pi_ccs_input.json", folder / "children.json", generated])
@@ -258,12 +274,21 @@ class Check:
         log = self.lean("mutations", "pi-dec-mutations", *identity, folder / "pi_ccs_input.json",
                         folder / "children.json", generated / manifest["changed_ccs_input"],
                         generated / manifest["mutation_directory"])
-        return {"caller": counts, "physical_bytes": physical.stat().st_size,
+        return {"caller": counts,
                 "Lean_rejections": mutation_rejections(manifest, log),
                 "native_D_rejections": native_mutations,
                 "independent_proof_generation": False,
-                "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte, caller and physical-witness equality. "
+                "scope": "Fresh Lean verifier acceptance/rejection, complete native proof-byte and caller equality. "
                          "C proof messages are native inputs. Independent proof generation and terminal opening checks are separate."}
+
+    def compare_physical_witness(self):
+        native_physical = self.snapshot(self.directory / f"fold-{self.step}/physical.bin", "native-physical.bin")
+        physical = self.output / "lean-physical.bin"
+        self.lean("physical-build", "build", "replayPhysicalWitness")
+        self.lean("physical", "lean-executable", FORMAL / ".lake/build/bin/replayPhysicalWitness",
+                  self.output / f"step-{self.step}-caller.json", physical)
+        compare_files(physical, native_physical, "complete physical witness")
+        return physical.stat().st_size
 
 
 def main():
@@ -281,6 +306,8 @@ def main():
               "outcome": "failed", "commands": checker.records}
     try:
         result.update(checker.run())
+        result["physical_bytes"] = checker.compare_physical_witness()
+        result["scope"] += " Complete fresh native and Lean physical witnesses were compared byte for byte."
         for source, snapshot in checker.originals.items():
             compare_files(source, snapshot, "original source changed during checking")
         result["outcome"] = "passed"

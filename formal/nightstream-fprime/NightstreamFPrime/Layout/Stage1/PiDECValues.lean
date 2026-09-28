@@ -1,43 +1,43 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
 
 /-! Production PiDEC start values. Allocation consumers use PiDECStarts; this
-module checks the unchanged default profile values. -/
+module checks the current production profile values. -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 theorem phaseStarts_eq :
     [phaseLogicalStart, phaseRowStart, phaseFreshStart] =
-      [29022496, 28847041, 29022766] := by
+      [28097016, 27897132, 28097286] := by
   rfl
 
 theorem childLogicalStarts_eq :
     [inputLogicalStart, publicInputLogicalStart, commitmentLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [29022496, 29022496, 29022766, 29022766, 29022766, 29022766] := by
+    [28097016, 28097016, 28097286, 28097286, 28097286, 28097286] := by
   rfl
 
 theorem childRowStarts_eq :
     [inputRowStart, publicInputRowStart, commitmentRowStart, evalKRowStart,
       evalARowStart, outputRowStart] =
-    [28847041, 28847041, 28869721, 28870909, 28871017, 28872529] := by
+    [27897132, 27897132, 27919812, 27921000, 27921108, 27922620] := by
   rfl
 
 theorem childFreshStarts_eq :
     [inputFreshStart, publicInputFreshStart, commitmentFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [29022766, 29022766, 29040586, 29040586, 29040586, 29040586] := by
+    [28097286, 28097286, 28115106, 28115106, 28115106, 28115106] := by
   rfl
 
 theorem scalarStarts_eq (source : Nat) :
-    scalarLogicalStart source = 29022496 + source ∧
-      scalarRowStart source = 28847041 + source * 84 ∧
-      scalarFreshStart source = 29022766 + source * 66 := by
+    scalarLogicalStart source = 28097016 + source ∧
+      scalarRowStart source = 27897132 + source * 84 ∧
+      scalarFreshStart source = 28097286 + source * 66 := by
   refine ⟨?_, rfl, rfl⟩
-  change 29022496 + source * 1 = 29022496 + source
+  change 28097016 + source * 1 = 28097016 + source
   rw [Nat.mul_one]
 
 theorem finalBoundaries_eq :
-    outputRowStart = 28872529 ∧ outputFreshStart = 29040586 := by
+    outputRowStart = 27922620 ∧ outputFreshStart = 28115106 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiDECStarts
@@ -56,14 +56,14 @@ variable {logicalWidth : Nat}
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =
-        [28847041, 28869721, 28870909, 28871017, 28872529, 28872529,
-          29218024] ∧
+        [27897132, 27919812, 27921000, 27921108, 27922620, 27922620,
+          28268115] ∧
       cumulativePhysicalColumns relation =
-        [29022496, 29040586, 29040586, 29040586, 29040586, 29040586,
-          29336724] ∧
+        [28097016, 28115106, 28115106, 28115106, 28115106, 28115106,
+          28411244] ∧
       cumulativeJointDomains relation =
-        [29022496, 29040586, 29040586, 29040586, 29040586, 29040586,
-          29336724] := by
+        [28097016, 28115106, 28115106, 28115106, 28115106, 28115106,
+          28411244] := by
   rcases PilotPiCCSPiRLCPiDEC.cumulativeFootprints_eq relation with ⟨rows, columns⟩
   have joint : PilotPiCCSPiRLCPiDEC.cumulativeJointDomains relation =
       List.zipWith max

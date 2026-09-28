@@ -73,8 +73,7 @@ def commitmentInterface
     (interface : Interface logicalWidth publicFits) :
     CommitmentCombination.Interface where
   challenge := fun _ source =>
-    SamplerChain.challengeExpr (samplerInterface interface)
-      interface.baseOffset source
+    SamplerChain.outputChallenge interface.baseOffset source
   input := fun offset source => (interface.input offset source).commitment
 
 def publicInputInterface
@@ -84,8 +83,7 @@ def publicInputInterface
     (interface : Interface logicalWidth publicFits) :
     PublicInputCombination.Interface logicalWidth publicFits where
   challenge := fun _ source =>
-    SamplerChain.challengeExpr (samplerInterface interface)
-      interface.baseOffset source
+    SamplerChain.outputChallenge interface.baseOffset source
   input := fun offset source => (interface.input offset source).publicInput
 
 def evalKInterface
@@ -94,8 +92,7 @@ def evalKInterface
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : EvalKCombination.Interface where
   challenge := fun _ source =>
-    SamplerChain.challengeExpr (samplerInterface interface)
-      interface.baseOffset source
+    SamplerChain.outputChallenge interface.baseOffset source
   input := fun offset source => (interface.input offset source).evaluation.eval_K
 
 def evalAInterface
@@ -104,8 +101,7 @@ def evalAInterface
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : EvalACombination.Interface where
   challenge := fun _ source =>
-    SamplerChain.challengeExpr (samplerInterface interface)
-      interface.baseOffset source
+    SamplerChain.outputChallenge interface.baseOffset source
   input := fun offset source => (interface.input offset source).evaluation.eval_A
 
 def inputBindingOffset (offset : Nat) : Nat := offset
@@ -248,10 +244,10 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 315894
-def logicalRowCount : Nat := 317543
+def logicalPrivateCount : Nat := 107729
+def logicalRowCount : Nat := 84949
 
-theorem logicalPrivateCount_eq : logicalPrivateCount = 315894 := by
+theorem logicalPrivateCount_eq : logicalPrivateCount = 107729 := by
   rfl
 
 structure Assumptions
@@ -262,7 +258,7 @@ structure Assumptions
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) : Prop where
   sampler : SamplerChain.Assumptions (samplerInterface (atOffset interface offset))
-    (samplerOffset offset) env
+    (samplerOffset offset)
   commitment : CommitmentCombination.Assumptions
     (commitmentInterface (atOffset interface offset)) (commitmentOffset offset) env
   publicInput : PublicInputCombination.Assumptions
@@ -281,7 +277,7 @@ structure SpecHolds
     (env : Env) : Prop where
   inputBinding : InputBinding.SpecHolds relation
     (inputBindingInterface (atOffset interface offset)) (inputBindingOffset offset) env
-  sampler : SamplerChain.RelationHolds
+  sampler : SamplerChain.SpecHolds
     (samplerInterface (atOffset interface offset)) (samplerOffset offset) env
   commitment : CommitmentCombination.SpecHolds
     (commitmentInterface (atOffset interface offset)) (commitmentOffset offset) env
@@ -493,7 +489,7 @@ theorem localLength_eq
       logicalPrivateCount := by
   change localLength (opsAt relation interface offset) = logicalPrivateCount
   simp [opsAt, localLength, logicalPrivateCount,
-    SamplerChain.logicalPrivateCount_eq]
+    SamplerChain.counts.1]
 
 theorem flatConstraints_length
     {logicalWidth : Nat}
@@ -505,6 +501,6 @@ theorem flatConstraints_length
       logicalRowCount := by
   rw [flatConstraints_length_eq_rowCount]
   change rowCount (opsAt relation interface offset) = logicalRowCount
-  simp [opsAt, rowCount, logicalRowCount, SamplerChain.logicalRowCount_eq]
+  simp [opsAt, rowCount, logicalRowCount, SamplerChain.counts.2]
 
 end NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal

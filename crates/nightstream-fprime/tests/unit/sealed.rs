@@ -52,36 +52,28 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
     const LOGICAL_PUBLIC_WIDTH: usize = 270;
     const PHI81_INVOCATIONS: usize = 52_326;
     const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * 33;
-    const FIRST54_PRODUCTS: usize = 1_088;
 
-    let product_source_start = PHYSICAL_WIDTH + PHI81_GROUP_VALUES;
     let mut logical_width = LOGICAL_PUBLIC_WIDTH;
     let blocks = (0..crate::package::assignment_transport::BLOCK_COUNT)
         .map(|opcode| {
-            let (kind, slot_count, source_first) = match opcode {
-                3 => (2, PHI81_GROUP_VALUES, PHYSICAL_WIDTH),
-                4 => (0, FIRST54_PRODUCTS, 0),
-                5 => (2, FIRST54_PRODUCTS, 0),
-                7 => (2, 58_752, 0),
-                8 => (2, FIRST54_PRODUCTS, product_source_start),
-                23 => (2, 4, 0),
-                _ => (0, 0, 0),
+            let (slot_count, source_first) = match opcode {
+                3 => (PHI81_GROUP_VALUES, PHYSICAL_WIDTH),
+                4 => (17 * 54, 0),
+                19 => (4, 0),
+                _ => (0, 0),
             };
-            let source_domain = match opcode {
-                28..=29 => 1,
-                _ => 0,
-            };
-            logical_width += slot_count * if kind == 2 { 41 } else { 1 };
+            let source_domain = usize::from(opcode >= 24);
+            logical_width += slot_count * 41;
             let runs = if slot_count == 0 {
                 Vec::new()
             } else {
                 vec![json!([source_first, usize::from(slot_count > 1), slot_count])]
             };
-            json!([opcode, kind, slot_count, source_domain, runs])
+            json!([opcode, 2, slot_count, source_domain, runs])
         })
         .collect::<Vec<_>>();
     let transport = json!([
-        2,
+        3,
         blocks,
         [
             54,
@@ -93,15 +85,14 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             5,
             33,
             [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]],
-            7,
-            3402,
-            3456,
+            4,
+            0,
+            54,
             2,
             [[0, 1, PHI81_INVOCATIONS]],
             3
         ],
-        [FIRST54_PRODUCTS, 4, 5, 8],
-        23,
+        19,
         [[0, 0], [0, 1], [0, 2], [0, 3]]
     ]);
 
@@ -112,10 +103,14 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
     assert_eq!(plan.kind_codes(), canonical.as_slice());
 
     for (pointer, value, expected) in [
-        ("/0", json!(1), "assignment transport schema version"),
-        ("/1/28/3", json!(2), "assignment source domain"),
-        ("/4", json!(26), "output digest block selector"),
+        ("/0", json!(2), "assignment transport schema version"),
+        ("/1/24/3", json!(2), "assignment source domain"),
+        ("/3", json!(26), "output digest block selector"),
         ("/1/17/0", json!(18), "assignment block order"),
+        ("/1/4/1", json!(0), "assignment slot kind"),
+        ("/2/9", json!(7), "Phi81 assignment selectors"),
+        ("/2/10", json!(3402), "Phi81 assignment selectors"),
+        ("/2/11", json!(3456), "Phi81 assignment selectors"),
     ] {
         let mut invalid = transport.clone();
         *invalid
@@ -277,7 +272,7 @@ fn application_plan_rejects_assertion_not_immediately_before_next_preimage() {
 #[test]
 fn terminal_layout_retains_the_exact_outer_relation_shape() {
     let raw = json!([1, [0, 17, 16, 1]]);
-    let layout = super::super::validate_terminal(raw.as_array().expect("terminal option"), 8, 17)
+    let layout = super::super::validate_terminal(raw.as_array().expect("terminal option"), 17)
         .expect("valid terminal option")
         .expect("present terminal layout");
     assert_eq!(layout.row_start(), 0);
@@ -292,7 +287,7 @@ fn terminal_layout_rejects_each_changed_authoritative_field() {
         let mut raw = json!([1, [0, 17, 16, 1]]);
         raw[1][index] = json!(raw[1][index].as_u64().expect("terminal word") + 1);
         assert!(matches!(
-            super::super::validate_terminal(raw.as_array().expect("terminal option"), 8, 17),
+            super::super::validate_terminal(raw.as_array().expect("terminal option"), 17),
             Err(PackageError::Invalid("pilot terminal option"))
         ));
     }

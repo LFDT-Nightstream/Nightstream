@@ -32,9 +32,8 @@ theorem semantics_imply_piCcsSpecHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-      geometry assignment base groupValue products) :
+      geometry assignment base groupValue) :
     Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
@@ -70,7 +69,7 @@ theorem semantics_imply_piCcsSpecHolds
     relationLogicalWidth relationPublicFits relation semanticEnv assumptions
       packets
   have transcripts := PiCCSTranscriptCommonSemantics.transcriptSpecs_to_common
-    relation geometry assignment base groupValue products
+    relation geometry assignment base groupValue
       semantics.prior.piCcsTranscript
   refine {
     statementBinding := arithmetic.statementBinding_parent
@@ -103,9 +102,8 @@ theorem semantics_imply_piCcsPhaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-      geometry assignment base groupValue products) :
+      geometry assignment base groupValue) :
     Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface relationLogicalWidth
         relationPublicFits)
@@ -115,6 +113,6 @@ theorem semantics_imply_piCcsPhaseHolds
       template := by
   apply Lifecycle.PiCCS.v1_1.Formal.spec_implies_phaseHolds relation ajtai
   exact semantics_imply_piCcsSpecHolds relation geometry assignment base
-    groupValue products semantics
+    groupValue semantics
 
 end NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics

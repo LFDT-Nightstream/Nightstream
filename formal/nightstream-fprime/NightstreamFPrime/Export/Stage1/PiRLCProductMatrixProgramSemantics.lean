@@ -183,23 +183,11 @@ theorem descriptor?_wireDescriptor
           source (CombinationStep.indexOf block lane cell)
 
 theorem challengeSlot_eq
-    (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (lane : Fin ringDegree) :
+    (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :
     challengeSlotStart + source.val * challengeSourceStride + lane.val =
-      (PiRLCFirst54DirectSchedule.valueIndex
-        (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).val := by
+      (PiRLCProductSourceBlocks.challengeIndex source lane).val := by
   simp [challengeSlotStart, challengeSourceStride,
-    PiRLCProductSourceBlocks.challengeValueDescriptor,
-    PiRLCFirst54DirectSchedule.valueIndex,
-    PiRLCFirst54DirectSchedule.candidateIndex,
-    PiRLCFirst54DirectSchedule.candidateCount,
-    PiRLCFirst54DirectSchedule.sourceCount,
-    PiRLCFirst54DirectSchedule.roundCount,
-    PiRLCFirst54Invocations.sourceCount,
-    PiRLCFirst54Invocations.roundCount,
-    First54ValueStep.outputCount, First54.candidateCount,
-    Fin.encodeProd]
-  ring
+    PiRLCProductSourceBlocks.challengeIndex, Fin.encodeProd, ringDegree, Nat.mul_comm]
 
 @[simp] theorem block_oneColumn?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -220,12 +208,10 @@ theorem challenge_form?
         (inputs geometry)
           descriptor.invocation lane) := by
   have direct := MatrixProgram.RetainedBlock.form?_ofSemantic
-    (PiRLCFirst54RetainedBlocks.valueBlock program)
-    (PiRLCRetainedGeometry.valueStart program)
-    (PiRLCRetainedGeometry.valueFits (prefixGeometry geometry))
-    (PiRLCFirst54DirectSchedule.valueIndex
-      (PiRLCProductSourceBlocks.challengeValueDescriptor
-        descriptor.source lane))
+    (PiRLCRetainedGeometry.challengeBlock program)
+    (PiRLCRetainedGeometry.challengeStart program)
+    (PiRLCRetainedGeometry.challengeFits (prefixGeometry geometry))
+    (PiRLCProductSourceBlocks.challengeIndex descriptor.source lane)
   rw [← challengeSlot_eq descriptor.source lane] at direct
   simpa [block, PiRLCProductPlan.challengeForm,
     inputs, PiRLCRetainedInputs.productInputs] using direct

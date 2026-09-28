@@ -97,9 +97,10 @@ def profileWords : List F :=
     List Nat).map Poseidon2.ofNat
 
 /-- Fixed digest-only PiCCS schedule descriptor: state digest, fresh source,
-all causal rounds, complete output, then fail-closed PiRLC sampling. -/
+all causal rounds, complete output, then total PiRLC sampling. The last two
+words bind four canonical field draws and one permutation advance per scalar. -/
 def scheduleWords : List F :=
-  ([1, 1, 1, cubeVariables, 10, 17, 14, 54, 16, 64] : List Nat).map
+  ([1, 1, 1, cubeVariables, 10, 17, 14, 54, 4, 1] : List Nat).map
     Poseidon2.ofNat
 
 def contextDomain : List F :=

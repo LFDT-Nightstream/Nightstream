@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 /-!
 Owns the direct sampler permutation plan from actual cumulative physical
 rows. Entry inputs use the preceding physical sampler output, with the first
-entry using the actual C endpoint. Windows use the preceding sampler step.
+entry using the actual C endpoint. Each advance uses its scalar entry output.
 The canonical template rows supply every retained S-box equation.
 -/
 
@@ -46,13 +46,13 @@ private theorem sourceWitnessStart
 private theorem sourceStart_local (source step : Nat) :
     Spartan.piCcsPhaseOffset ≤
       (if step = 0 then PiRLCStarts.samplerSourceLogicalStart source
-       else PiRLCStarts.digestPermutationLogicalStart source (step - 1)) := by
+       else PiRLCStarts.advanceLogicalStart source) := by
   have initial : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerLogicalStart := by
     norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, PiRLCInputs.phaseOffset, Formal.samplerOffset]
   split <;>
-    simp only [PiRLCStarts.digestPermutationLogicalStart, PiRLCStarts.windowLogicalStart,
-      PiRLCStarts.samplerSourceLogicalStart] <;> omega
+    simp only [PiRLCStarts.advanceLogicalStart, Sampler.advanceOffset, Sampler.rangeOffset,
+      PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset] <;> omega
 
 private theorem invocation_input (phase rowStart start : Nat) (state : Layer.EState)
     (affine : NightstreamFPrime.Layout.Poseidon2.StateAffine state) (env : Env) :
@@ -90,7 +90,7 @@ private theorem entry_absorb (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
   fin_cases lane <;>
     simp [Layer.evalState, Hash.absorbE, PiRLCSamplerCompleteness.entryWords,
       TranscriptAbsorption.constantWords, TranscriptAbsorption.frameWords,
-      PiRLCSamplerPoseidonPlan.entryWord]
+      PiRLCSamplerPoseidonPlan.entryWord, Expr.eval]
 
 section Values
 
@@ -99,13 +99,12 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
   (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-  (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
+    (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
   (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold
     (RunningTransitionDirectPlan.packageEnv application base))
 
-include groupValue products encoding packets
+include groupValue encoding packets
 
 private theorem output_state
     (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
@@ -115,14 +114,14 @@ private theorem output_state
       Layer.evalState (Spartan.pullback (RunningTransitionDirectPlan.packageEnv application base))
         (Permutation.scheduleOutput
           (if step.val = 0 then PiRLCStarts.samplerSourceLogicalStart source.val
-           else PiRLCStarts.digestPermutationLogicalStart source.val (step.val - 1))) := by
+           else PiRLCStarts.advanceLogicalStart source.val)) := by
   rw [PiRLCSamplerPoseidonValues.outputValue_of_packets geometry assignment base
-    groupValue products encoding packets]
+    groupValue encoding packets]
   funext lane
   rw [sourceWitnessStart]
   have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
     (if step.val = 0 then PiRLCStarts.samplerSourceLogicalStart source.val
-     else PiRLCStarts.digestPermutationLogicalStart source.val (step.val - 1))
+     else PiRLCStarts.advanceLogicalStart source.val)
     (584 + lane.val) (sourceStart_local source.val step.val)
   by_cases first : step.val = 0
   · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_pos,
@@ -134,29 +133,21 @@ private theorem output_state
   · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_false] at mapped ⊢
     change _ = RunningTransitionDirectPlan.packageEnv application base
       (Spartan.sourceToSpartan
-        (PiRLCStarts.digestPermutationLogicalStart source.val (step.val - 1) + 584 + lane.val))
+        (PiRLCStarts.advanceLogicalStart source.val + 584 + lane.val))
     apply congrArg (RunningTransitionDirectPlan.packageEnv application base)
     simpa only [Nat.add_assoc] using mapped.symm
 
-private theorem previous_window
-    (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
-    (round : Fin PiRLCSamplerOrdinaryRetainedBlocks.roundCount) :
+private theorem previous_advance (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
     PiRLCSamplerPoseidonPreservation.previousValue geometry assignment
-      (PiRLCSamplerPoseidonPlan.invocation source (windowStep round)) =
+      (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩) =
       Layer.evalState (Spartan.pullback (RunningTransitionDirectPlan.packageEnv application base))
-        (PiRLCSamplerInvocations.windowState
-          (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val round.val) := by
-  rw [previousValue_window, output_state geometry assignment base groupValue products encoding packets]
-  rw [← PiRLCSamplerInvocations.fastWindowState_eq_windowState]
-  unfold PiRLCSamplerInvocations.fastWindowState
-  rcases round with ⟨round, bounded⟩
-  cases round with
-  | zero =>
-      rw [PiRLCSamplerProjection.fastProductionWindowInitialState,
-        PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
-      rfl
-  | succ previous =>
-      rfl
+        (PiRLCSamplerInvocations.advanceState
+          (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val) := by
+  rw [previousValue_advance, output_state geometry assignment base groupValue encoding packets]
+  rw [← PiRLCSamplerInvocations.fastAdvanceState_eq]
+  unfold PiRLCSamplerInvocations.fastAdvanceState
+  rw [PiRLCSamplerProjection.fastProductionEntryOutput_eq_scheduleOutput]
+  rfl
 
 omit packets in
 private theorem sboxes_of_invocation
@@ -187,7 +178,7 @@ private theorem sboxes_of_invocation
     (PiRLCSamplerPoseidonPlan.retainedStart application)
     (PiRLCSamplerPoseidonPlan.retainedFits geometry) assignment
     (PiRLCSamplerPoseidonPreservation.sourceAssignment application
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     encoding.sboxes current row]
   rw [PiRLCSamplerPoseidonValues.source_sbox,
     PoseidonRetainedSlots.output_eq_input_add_local]
@@ -207,9 +198,8 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
   (assignment : Assignment F logicalWidth)
   (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
   (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-  (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
   (encoding : PiRLCSamplerPoseidonPreservation.Encoding geometry assignment
-    (PiRLCRetainedPreservation.sourceAssignment application base groupValue products))
+    (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
   (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold
     (RunningTransitionDirectPlan.packageEnv application base))
   (initial : PiRLCSamplerPoseidonPreservation.piCcsFinalValue geometry assignment =
@@ -217,7 +207,7 @@ variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Na
       (PiRLCSamplerProjection.productionInitialState
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)))
 
-include groupValue products encoding packets initial
+include groupValue encoding packets initial
 
 private theorem previous_entry (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
     PiRLCSamplerPoseidonPreservation.previousValue geometry assignment
@@ -232,15 +222,13 @@ private theorem previous_entry (source : Fin PiRLCSamplerPoseidonPlan.sourceCoun
   | zero => exact initial
   | succ previous =>
       rw [previousValue_entrySucc]
-      have output := output_state geometry assignment base groupValue products encoding packets
-        ⟨previous, by omega⟩ ⟨8, by decide⟩
+      have output := output_state geometry assignment base groupValue encoding packets
+        ⟨previous, by omega⟩ ⟨1, by decide⟩
       simpa only [PiRLCSamplerProjection.fastChainedEntryStateFrom,
-        PiRLCStarts.digestPermutationLogicalStart, PiRLCStarts.windowLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart, Sampler.digestRoundCount,
-        DigestWindow.permutationOffset, Sampler.windowOffset, Sampler.windowBase,
-        SamplerChain.sourceOffset] using! output
+        PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
+        Nat.one_ne_zero, if_false] using! output
 
-omit geometry assignment groupValue products encoding initial in
+omit geometry assignment groupValue encoding initial in
 private theorem entry_rows (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
     PermutationInvocationHolds (PilotData.circuitPackage ())
       (Invocations.invocation PiRLCSamplerInvocations.phase
@@ -259,7 +247,7 @@ private theorem entry_inputValue (source : Fin PiRLCSamplerPoseidonPlan.sourceCo
       Layer.evalState (Spartan.pullback (RunningTransitionDirectPlan.packageEnv application base))
         (PiRLCSamplerCompleteness.entryPermutationState source.val) := by
   let current := PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩
-  have previous := previous_entry geometry assignment base groupValue products encoding packets initial source
+  have previous := previous_entry geometry assignment base groupValue encoding packets initial source
   have decodedInput : PiRLCSamplerPoseidonPreservation.canonicalInput geometry assignment current =
       fun lane => PiRLCSamplerPoseidonPreservation.previousValue geometry assignment current lane +
         PiRLCSamplerPoseidonPlan.entryWord source lane := by
@@ -288,7 +276,7 @@ private theorem entry_input
         PoseidonScheduleTrace.canonicalState := by
   exact (PiRLCSamplerPoseidonPreservation.inputState_eval geometry assignment one
     (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩)).trans
-      ((entry_inputValue geometry assignment base groupValue products encoding packets initial source).trans
+      ((entry_inputValue geometry assignment base groupValue encoding packets initial source).trans
         (invocation_input PiRLCSamplerInvocations.phase
           (PiRLCStarts.entryRowStart source.val)
           (PiRLCSamplerInvocations.sourceLogicalStart source.val)
@@ -338,47 +326,42 @@ private theorem entry_sboxes
         PoseidonScheduleTrace.canonicalState :=
     (congrArg (fun index => SparseLayer.evalState assignment
       ((PiRLCSamplerPoseidonPlan.interface geometry).input index)) atEntry).trans
-      (entry_input geometry assignment base groupValue products encoding packets initial one source)
-  exact sboxes_of_invocation geometry assignment base groupValue products encoding
+      (entry_input geometry assignment base groupValue encoding packets initial one source)
+  exact sboxes_of_invocation geometry assignment base groupValue encoding
     one current (Invocations.invocation PiRLCSamplerInvocations.phase
       (PiRLCStarts.entryRowStart source.val)
       (PiRLCSamplerInvocations.sourceLogicalStart source.val)
       (PiRLCSamplerCompleteness.entryPermutationState source.val)) witnessEq inputEq (entry_rows base packets source)
 
 omit initial in
-private theorem window_sboxes
+private theorem advance_sboxes
     (one : assignment (PiRLCSamplerPoseidonPlan.oneColumn geometry) = 1)
-    (source : Fin PiRLCSamplerPoseidonPlan.sourceCount)
-    (round : Fin PiRLCSamplerOrdinaryRetainedBlocks.roundCount) :
+    (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
     PoseidonSboxPlan.SboxEquations
       (PoseidonSboxFamilyPlan.invocationInterface (PiRLCSamplerPoseidonPlan.interface geometry)
-        (PiRLCSamplerPoseidonPlan.invocation source (windowStep round))) assignment := by
+        (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩)) assignment := by
   let env := RunningTransitionDirectPlan.packageEnv application base
-  let state := PiRLCSamplerInvocations.windowState
-    (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val round.val
+  let state := PiRLCSamplerInvocations.advanceState
+    (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source.val
   let actual := Invocations.invocation PiRLCSamplerInvocations.phase
-    (PiRLCStarts.digestPermutationRowStart source.val round.val)
-    (PiRLCStarts.digestPermutationLogicalStart source.val round.val) state
+    (PiRLCStarts.advanceRowStart source.val) (PiRLCStarts.advanceLogicalStart source.val) state
   have rows : PermutationInvocationHolds (PilotData.circuitPackage ()) actual env := by
-    simpa only [PiRLCSamplerInvocations.windowInvocation,
-      PiRLCSamplerInvocations.fastWindowState_eq_windowState] using
-      PiRLCSamplerCompleteness.remappedPacket_implies_windowPermutation env packets source round
-  apply sboxes_of_invocation geometry assignment base groupValue products encoding
-    one (PiRLCSamplerPoseidonPlan.invocation source (windowStep round)) actual _ _ rows
+    simpa only [PiRLCSamplerInvocations.advanceInvocation, PiRLCSamplerInvocations.fastAdvanceState_eq] using
+      PiRLCSamplerCompleteness.remappedPacket_implies_advancePermutation env packets source
+  apply sboxes_of_invocation geometry assignment base groupValue encoding
+    one (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩) actual _ _ rows
   · rw [sourceWitnessStart]
-    simp only [PermutationPlan.samplerSourceWitnessStartAt, windowStep,
-      Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false, if_false, Nat.add_sub_cancel_right]
-    rfl
-  · rw [invocation_input _ _ _ _
-      (PiRLCSamplerInvocations.windowState_affine source.val round.val) env]
+    simp only [PermutationPlan.samplerSourceWitnessStartAt, Nat.one_ne_zero, if_false,
+      actual, Invocations.invocation_witnessStart]
+  · rw [invocation_input _ _ _ _ (PiRLCSamplerInvocations.advanceState_affine source.val) env]
     change SparseLayer.evalState assignment
       (PiRLCSamplerPoseidonPlan.inputState geometry
-        (PiRLCSamplerPoseidonPlan.invocation source (windowStep round))) = _
+        (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩)) = _
     rw [PiRLCSamplerPoseidonPreservation.inputState_eval geometry assignment one]
     unfold PiRLCSamplerPoseidonPreservation.canonicalInput
     rw [PiRLCSamplerPoseidonPlan.descriptor_invocation]
-    simp only [windowStep, Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false, if_false]
-    exact previous_window geometry assignment base groupValue products encoding packets source round
+    simp only [Nat.one_ne_zero, if_false]
+    exact previous_advance geometry assignment base groupValue encoding packets source
 
 end Inputs
 
@@ -463,15 +446,12 @@ theorem rowsZero_of_completed
   rcases step with ⟨step, bounded⟩
   cases step with
   | zero =>
-      exact entry_sboxes geometry raw.assignment raw.base raw.groupValue raw.products
+      exact entry_sboxes geometry raw.assignment raw.base raw.groupValue
         encoding packets initial one current source same.symm
   | succ previous =>
+      have previousZero : previous = 0 := by change previous + 1 < 2 at bounded; omega
+      subst previous
       rw [← same]
-      let round : Fin PiRLCSamplerOrdinaryRetainedBlocks.roundCount := ⟨previous, by
-        change previous + 1 < 9 at bounded
-        change previous < 8
-        omega⟩
-      exact window_sboxes geometry raw.assignment raw.base raw.groupValue raw.products
-        encoding packets one source round
+      exact advance_sboxes geometry raw.assignment raw.base raw.groupValue encoding packets one source
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonCompleteness

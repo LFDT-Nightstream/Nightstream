@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
+import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 
 /-! Complete original-source Pad block ranges. Each pair of weighted bar
 keys is shared by all 17 original blocks. No split or source omission is used.
@@ -12,6 +13,8 @@ namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
   (StoredRing)
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
@@ -38,6 +41,25 @@ order. The complete-block reader defines positions beyond the carrier as zero. -
 def range (firstBlock count : Nat) (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) :
     Vector MaterializedRingK productionShape.sourceCount :=
-  PiDECEvaluationBatch.sum count fun offset => products point masks (firstBlock + offset)
+  let tables := PiCCSTensorWeights.prepare extensionOps point.coordinates
+  PiDECEvaluationBatch.sum count fun offset =>
+    let block := firstBlock + offset
+    if (masks[block]?.getD #[]).isEmpty then
+      PiDECEvaluationBatch.zero productionShape.sourceCount
+    else
+      let blockWeights := Vector.ofFn fun basis : Fin ringDegree =>
+        PiCCSTensorWeights.lookup extensionOps point.coordinates tables
+          (block * ringDegree + basis.val)
+      PiDECPadWeightedProduct.products blockWeights (blockValues masks block)
+
+/-- Preparing the two coordinate tables preserves every original block sum,
+including arbitrary points, source masks and range endpoints. -/
+theorem range_eq_sum (firstBlock count : Nat) (point : PaperAlgebra.Point)
+    (masks : Array (Array (Nat × Nat))) :
+    range firstBlock count point masks =
+      PiDECEvaluationBatch.sum count (fun offset => products point masks (firstBlock + offset)) := by
+  simp only [range, PiCCSTensorWeights.lookup_prepare extensionOps
+    (NumericBooleanDomain.WeightProductLaws.ofInterpolationEvaluationLaws extensionLaws)]
+  rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSOriginalPad

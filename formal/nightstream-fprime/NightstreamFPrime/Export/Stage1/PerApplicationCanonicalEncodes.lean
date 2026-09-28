@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 /-!
 Owns the proof that the compact per-application assignment canonically encodes
 every retained Stage 1 block. A structural cursor consumes one block at a time.
-No proof normalizes the complete 33-block schedule or an expanded slot list.
+No proof normalizes the complete retained-block schedule or an expanded slot list.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
@@ -121,8 +121,7 @@ def retainedGeometry (application : Program) :=
           DirectApplicationPrefixPlan.prefixGeometry <|
             PerApplicationFixedPoint.geometry application
 
-attribute [local simp] PiRLCFirst54RetainedBlocks.sourceWidth
-  PiRLCRetainedGeometry.sourceWidth
+attribute [local simp] PiRLCRetainedGeometry.sourceWidth
 
 private def position0 {application : Program} (raw : RawValues application) :
     Position raw (PiRLCRetainedGeometry.priorPoseidonStart application)
@@ -169,9 +168,9 @@ private def position3 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position4 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.rejectStart application)
+    Position raw (PiRLCRetainedGeometry.challengeStart application)
       (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCFirst54RetainedBlocks.rejectBlock application)
+      (PiRLCRetainedGeometry.challengeBlock application)
       raw.retainedSource where
   cursor := (position3 raw).next
   after := tail raw 5
@@ -180,9 +179,9 @@ private def position4 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position5 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.symbolStart application)
+    Position raw (PiRLCRetainedGeometry.productOutputStart application)
       (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCFirst54RetainedBlocks.symbolBlock application)
+      (PiRLCRetainedGeometry.productOutputBlock application)
       raw.retainedSource where
   cursor := (position4 raw).next
   after := tail raw 6
@@ -190,54 +189,10 @@ private def position5 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position4, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-private def position6 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.positionStart application)
-      (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCFirst54RetainedBlocks.positionBlock application)
-      raw.retainedSource where
-  cursor := (position5 raw).next
-  after := tail raw 7
-  head := by
-    simp [Position.next, Cursor.next, position5, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position7 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.valueStart application)
-      (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCFirst54RetainedBlocks.valueBlock application)
-      raw.retainedSource where
-  cursor := (position6 raw).next
-  after := tail raw 8
-  head := by
-    simp [Position.next, Cursor.next, position6, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position8 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.first54ProductStart application)
-      (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCFirst54RetainedBlocks.productBlock application)
-      raw.retainedSource where
-  cursor := (position7 raw).next
-  after := tail raw 9
-  head := by
-    simp [Position.next, Cursor.next, position7, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position9 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCRetainedGeometry.productOutputStart application)
-      (PiRLCRetainedGeometry.sourceWidth application)
-      (PiRLCRetainedGeometry.productOutputBlock application)
-      raw.retainedSource where
-  cursor := (position8 raw).next
-  after := tail raw 10
-  head := by
-    simp [Position.next, Cursor.next, position8, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
 /-- The first retained prefix is encoded by structural schedule succession. -/
 theorem retainedEncodes {application : Program} (raw : RawValues application) :
     PiRLCRetainedPreservation.Encodes (retainedGeometry application)
-      raw.assignment raw.base raw.groupValue raw.products where
+      raw.assignment raw.base raw.groupValue where
   priorPoseidon := (position0 raw).encodes
     (PiRLCRetainedGeometry.priorPoseidonFits (retainedGeometry application))
   outputPoseidon := (position1 raw).encodes
@@ -246,64 +201,56 @@ theorem retainedEncodes {application : Program} (raw : RawValues application) :
     (PiRLCRetainedGeometry.laterPoseidonFits (retainedGeometry application))
   productGroup := (position3 raw).encodes
     (PiRLCRetainedGeometry.productGroupFits (retainedGeometry application))
-  reject := (position4 raw).encodes
-    (PiRLCRetainedGeometry.rejectFits (retainedGeometry application))
-  symbol := (position5 raw).encodes
-    (PiRLCRetainedGeometry.symbolFits (retainedGeometry application))
-  position := (position6 raw).encodes
-    (PiRLCRetainedGeometry.positionFits (retainedGeometry application))
-  value := (position7 raw).encodes
-    (PiRLCRetainedGeometry.valueFits (retainedGeometry application))
-  first54Product := (position8 raw).encodes
-    (PiRLCRetainedGeometry.first54ProductFits (retainedGeometry application))
-  productOutput := (position9 raw).encodes
+  challenge := (position4 raw).encodes
+    (PiRLCRetainedGeometry.challengeFits (retainedGeometry application))
+  productOutput := (position5 raw).encodes
     (PiRLCRetainedGeometry.productOutputFits (retainedGeometry application))
 
 attribute [local simp] PiRLCPoseidonGeometry.sourceWidth
   RunningTransitionRetainedBlocks.sourceWidth
 
-private def position10 {application : Program} (raw : RawValues application) :
+private def position6 {application : Program} (raw : RawValues application) :
     Position raw (PiRLCPoseidonGeometry.priorInputStart application)
       (PiRLCPoseidonGeometry.sourceWidth application)
       (PiRLCPoseidonGeometry.priorInputBlock application)
       raw.retainedSource where
-  cursor := (position9 raw).next
-  after := tail raw 11
+  cursor := (position5 raw).next
+  after := tail raw 7
   head := by
-    simp [Position.next, Cursor.next, position9, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position5, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-private def position11 {application : Program} (raw : RawValues application) :
+private def position7 {application : Program} (raw : RawValues application) :
     Position raw (PiRLCPoseidonGeometry.outputInputStart application)
       (PiRLCPoseidonGeometry.sourceWidth application)
       (PiRLCPoseidonGeometry.outputInputBlock application)
       raw.retainedSource where
-  cursor := (position10 raw).next
-  after := tail raw 12
+  cursor := (position6 raw).next
+  after := tail raw 8
   head := by
-    simp [Position.next, Cursor.next, position10, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position6, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-private def position12 {application : Program} (raw : RawValues application) :
+private def position8 {application : Program} (raw : RawValues application) :
     Position raw (RunningTransitionRetainedGeometry.piDecStart application)
       (RunningTransitionRetainedBlocks.sourceWidth application)
       (RunningTransitionRetainedBlocks.piDecBlock application)
       raw.retainedSource where
-  cursor := (position11 raw).next
-  after := tail raw 13
+  cursor := (position7 raw).next
+  after := tail raw 9
   head := by
-    simp [Position.next, Cursor.next, position11, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position7, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-private def position13 {application : Program} (raw : RawValues application) :
+private def position9 {application : Program} (raw : RawValues application) :
     Position raw (RunningTransitionRetainedGeometry.freshStart application)
       (RunningTransitionRetainedBlocks.sourceWidth application)
       (RunningTransitionRetainedBlocks.freshBlock application)
       raw.retainedSource where
-  cursor := (position12 raw).next
-  after := tail raw 14
+  cursor := (position8 raw).next
+  after := tail raw 10
   head := by
-    simp [Position.next, Cursor.next, position12, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position8, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 def runningGeometry (application : Program) :=
@@ -330,7 +277,7 @@ private theorem priorInputSource_eq (application : Program)
       Layout.Stage1.Spartan.sourceToSpartan_add_of_pilotPriorPrivate
         0 slot.val (by change 0 + slot.val < 49393; omega)
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      29336446 :=
+      28410966 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 0 + slot.val = PerApplicationPackage.shiftColumn application
@@ -364,7 +311,7 @@ private theorem outputInputSource_eq (application : Program)
     rw [if_pos (by change 49393 + slot.val < 98786; omega)]
     rw [Layout.PilotSpartan.secondPrivateStart_value]
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-      29336446 :=
+      28410966 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   apply Fin.ext
   change 49393 + slot.val = PerApplicationPackage.shiftColumn application
@@ -391,7 +338,7 @@ private theorem transitionStateEncodes {application : Program}
     (PiRLCPoseidonGeometry.priorInputFits
       (RunningTransitionRetainedGeometry.pilotGeometry (runningGeometry application)))
     fits raw.assignment raw.retainedSource
-    ((position10 raw).encodes (PiRLCPoseidonGeometry.priorInputFits
+    ((position6 raw).encodes (PiRLCPoseidonGeometry.priorInputFits
       (RunningTransitionRetainedGeometry.pilotGeometry (runningGeometry application))))
   intro slot coordinate
   have selected : parent.source
@@ -426,7 +373,7 @@ private theorem transitionOutputEncodes {application : Program}
       (RunningTransitionRetainedGeometry.outputFits (runningGeometry application))
       raw.assignment raw.retainedSource := by
   intro slot coordinate
-  have value := (position11 raw).encodes
+  have value := (position7 raw).encodes
     (PiRLCPoseidonGeometry.outputInputFits
       (RunningTransitionRetainedGeometry.pilotGeometry (runningGeometry application)))
     slot coordinate
@@ -447,9 +394,9 @@ private theorem transitionEncodes {application : Program}
       raw.assignment raw.retainedSource where
   state := transitionStateEncodes raw
   output := transitionOutputEncodes raw
-  piDec := (position12 raw).encodes
+  piDec := (position8 raw).encodes
     (RunningTransitionRetainedGeometry.piDecFits (runningGeometry application))
-  fresh := (position13 raw).encodes
+  fresh := (position9 raw).encodes
     (RunningTransitionRetainedGeometry.freshFits (runningGeometry application))
   sboxes := PiCCSPoseidonPlan.retainedBlock_encodesAt
     (RunningTransitionRetainedGeometry.poseidonGeometry (runningGeometry application))
@@ -461,11 +408,55 @@ attribute [local simp] PiCCSOrdinaryRetainedBlocks.sourceWidth
   PilotOrdinaryRetainedBlocks.sourceWidth PiDECRetainedBlocks.sourceWidth
   PiRLCSamplerOrdinaryRetainedBlocks.sourceWidth
 
-private def position14 {application : Program} (raw : RawValues application) :
+private def position10 {application : Program} (raw : RawValues application) :
     Position raw
       (PiCCSOrdinaryRetainedGeometry.freshPublicInputStart application)
       (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock application)
+      raw.retainedSource where
+  cursor := (position9 raw).next
+  after := tail raw 11
+  head := by
+    simp [Position.next, Cursor.next, position9, tail, RawValues.schedule,
+      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
+
+private def position11 {application : Program} (raw : RawValues application) :
+    Position raw (PiCCSOrdinaryRetainedGeometry.priorLastStart application)
+      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
+      (PiCCSOrdinaryRetainedBlocks.priorLastBlock application)
+      raw.retainedSource where
+  cursor := (position10 raw).next
+  after := tail raw 12
+  head := by
+    simp [Position.next, Cursor.next, position10, tail, RawValues.schedule,
+      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
+
+private def position12 {application : Program} (raw : RawValues application) :
+    Position raw (PiCCSOrdinaryRetainedGeometry.outputLastStart application)
+      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
+      (PiCCSOrdinaryRetainedBlocks.outputLastBlock application)
+      raw.retainedSource where
+  cursor := (position11 raw).next
+  after := tail raw 13
+  head := by
+    simp [Position.next, Cursor.next, position11, tail, RawValues.schedule,
+      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
+
+private def position13 {application : Program} (raw : RawValues application) :
+    Position raw (PiCCSOrdinaryRetainedGeometry.expectedContextStart application)
+      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
+      (PiCCSOrdinaryRetainedBlocks.expectedContextBlock application)
+      raw.retainedSource where
+  cursor := (position12 raw).next
+  after := tail raw 14
+  head := by
+    simp [Position.next, Cursor.next, position12, tail, RawValues.schedule,
+      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
+
+private def position14 {application : Program} (raw : RawValues application) :
+    Position raw (PiCCSOrdinaryRetainedGeometry.proofLogicalStart application)
+      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
+      (PiCCSOrdinaryRetainedBlocks.proofLogicalBlock application)
       raw.retainedSource where
   cursor := (position13 raw).next
   after := tail raw 15
@@ -474,9 +465,9 @@ private def position14 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position15 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.priorLastStart application)
+    Position raw (PiCCSOrdinaryRetainedGeometry.outputEndpointStart application)
       (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.priorLastBlock application)
+      (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock application)
       raw.retainedSource where
   cursor := (position14 raw).next
   after := tail raw 16
@@ -485,9 +476,9 @@ private def position15 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position16 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.outputLastStart application)
+    Position raw (PiCCSOrdinaryRetainedGeometry.freshStart application)
       (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.outputLastBlock application)
+      (PiCCSOrdinaryRetainedBlocks.freshBlock application)
       raw.retainedSource where
   cursor := (position15 raw).next
   after := tail raw 17
@@ -496,9 +487,9 @@ private def position16 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position17 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.expectedContextStart application)
-      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.expectedContextBlock application)
+    Position raw (PilotOrdinaryRetainedGeometry.canonicalLocalStart application)
+      (PilotOrdinaryRetainedBlocks.sourceWidth application)
+      (PilotOrdinaryRetainedBlocks.canonicalLocalBlock application)
       raw.retainedSource where
   cursor := (position16 raw).next
   after := tail raw 18
@@ -507,9 +498,9 @@ private def position17 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position18 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.proofLogicalStart application)
-      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.proofLogicalBlock application)
+    Position raw (PilotOrdinaryRetainedGeometry.canonicalFreshStart application)
+      (PilotOrdinaryRetainedBlocks.sourceWidth application)
+      (PilotOrdinaryRetainedBlocks.canonicalFreshBlock application)
       raw.retainedSource where
   cursor := (position17 raw).next
   after := tail raw 19
@@ -518,9 +509,9 @@ private def position18 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position19 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.outputEndpointStart application)
-      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock application)
+    Position raw (PilotOrdinaryRetainedGeometry.outputDigestStart application)
+      (PilotOrdinaryRetainedBlocks.sourceWidth application)
+      (PilotOrdinaryRetainedBlocks.outputDigestBlock application)
       raw.retainedSource where
   cursor := (position18 raw).next
   after := tail raw 20
@@ -529,10 +520,9 @@ private def position19 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position20 {application : Program} (raw : RawValues application) :
-    Position raw (PiCCSOrdinaryRetainedGeometry.freshStart application)
-      (PiCCSOrdinaryRetainedBlocks.sourceWidth application)
-      (PiCCSOrdinaryRetainedBlocks.freshBlock application)
-      raw.retainedSource where
+    Position raw (PiDECRetainedGeometry.logicalStart application)
+      (PiDECRetainedBlocks.sourceWidth application)
+      (PiDECRetainedBlocks.logicalBlock application) raw.retainedSource where
   cursor := (position19 raw).next
   after := tail raw 21
   head := by
@@ -540,10 +530,9 @@ private def position20 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position21 {application : Program} (raw : RawValues application) :
-    Position raw (PilotOrdinaryRetainedGeometry.canonicalLocalStart application)
-      (PilotOrdinaryRetainedBlocks.sourceWidth application)
-      (PilotOrdinaryRetainedBlocks.canonicalLocalBlock application)
-      raw.retainedSource where
+    Position raw (PiDECRetainedGeometry.freshStart application)
+      (PiDECRetainedBlocks.sourceWidth application)
+      (PiDECRetainedBlocks.freshBlock application) raw.retainedSource where
   cursor := (position20 raw).next
   after := tail raw 22
   head := by
@@ -551,9 +540,9 @@ private def position21 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position22 {application : Program} (raw : RawValues application) :
-    Position raw (PilotOrdinaryRetainedGeometry.canonicalFreshStart application)
-      (PilotOrdinaryRetainedBlocks.sourceWidth application)
-      (PilotOrdinaryRetainedBlocks.canonicalFreshBlock application)
+    Position raw (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart application)
+      (PiRLCSamplerOrdinaryRetainedBlocks.sourceWidth application)
+      (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock application)
       raw.retainedSource where
   cursor := (position21 raw).next
   after := tail raw 23
@@ -562,56 +551,14 @@ private def position22 {application : Program} (raw : RawValues application) :
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 private def position23 {application : Program} (raw : RawValues application) :
-    Position raw (PilotOrdinaryRetainedGeometry.outputDigestStart application)
-      (PilotOrdinaryRetainedBlocks.sourceWidth application)
-      (PilotOrdinaryRetainedBlocks.outputDigestBlock application)
+    Position raw (PiRLCSamplerOrdinaryRetainedGeometry.freshStart application)
+      (PiRLCSamplerOrdinaryRetainedBlocks.sourceWidth application)
+      (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application)
       raw.retainedSource where
   cursor := (position22 raw).next
   after := tail raw 24
   head := by
     simp [Position.next, Cursor.next, position22, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position24 {application : Program} (raw : RawValues application) :
-    Position raw (PiDECRetainedGeometry.logicalStart application)
-      (PiDECRetainedBlocks.sourceWidth application)
-      (PiDECRetainedBlocks.logicalBlock application) raw.retainedSource where
-  cursor := (position23 raw).next
-  after := tail raw 25
-  head := by
-    simp [Position.next, Cursor.next, position23, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position25 {application : Program} (raw : RawValues application) :
-    Position raw (PiDECRetainedGeometry.freshStart application)
-      (PiDECRetainedBlocks.sourceWidth application)
-      (PiDECRetainedBlocks.freshBlock application) raw.retainedSource where
-  cursor := (position24 raw).next
-  after := tail raw 26
-  head := by
-    simp [Position.next, Cursor.next, position24, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position26 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart application)
-      (PiRLCSamplerOrdinaryRetainedBlocks.sourceWidth application)
-      (PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock application)
-      raw.retainedSource where
-  cursor := (position25 raw).next
-  after := tail raw 27
-  head := by
-    simp [Position.next, Cursor.next, position25, tail, RawValues.schedule,
-      Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
-
-private def position27 {application : Program} (raw : RawValues application) :
-    Position raw (PiRLCSamplerOrdinaryRetainedGeometry.freshStart application)
-      (PiRLCSamplerOrdinaryRetainedBlocks.sourceWidth application)
-      (PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application)
-      raw.retainedSource where
-  cursor := (position26 raw).next
-  after := tail raw 28
-  head := by
-    simp [Position.next, Cursor.next, position26, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 def samplerGeometry (application : Program) :=
@@ -634,7 +581,7 @@ private theorem piCcsOrdinaryEncodes {application : Program}
       (piCcsOrdinaryGeometry application) raw.assignment raw.retainedSource where
   priorInput := by
     intro slot coordinate
-    have value := (position10 raw).encodes
+    have value := (position6 raw).encodes
       (PiRLCPoseidonGeometry.priorInputFits
         (PiCCSOrdinaryRetainedGeometry.pilotGeometry
           (piCcsOrdinaryGeometry application))) slot coordinate
@@ -649,25 +596,25 @@ private theorem piCcsOrdinaryEncodes {application : Program}
     rw [priorInputSource_eq application slot] at value
     exact value
   outputInput := transitionOutputEncodes raw
-  freshPublicInput := (position14 raw).encodes
+  freshPublicInput := (position10 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.freshPublicInputFits
       (piCcsOrdinaryGeometry application))
-  priorLast := (position15 raw).encodes
+  priorLast := (position11 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.priorLastFits
       (piCcsOrdinaryGeometry application))
-  outputLast := (position16 raw).encodes
+  outputLast := (position12 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.outputLastFits
       (piCcsOrdinaryGeometry application))
-  expectedContext := (position17 raw).encodes
+  expectedContext := (position13 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.expectedContextFits
       (piCcsOrdinaryGeometry application))
-  proofLogical := (position18 raw).encodes
+  proofLogical := (position14 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.proofLogicalFits
       (piCcsOrdinaryGeometry application))
-  outputEndpoint := (position19 raw).encodes
+  outputEndpoint := (position15 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.outputEndpointFits
       (piCcsOrdinaryGeometry application))
-  fresh := (position20 raw).encodes
+  fresh := (position16 raw).encodes
     (PiCCSOrdinaryRetainedGeometry.freshFits
       (piCcsOrdinaryGeometry application))
   sboxes := PiCCSPoseidonPlan.retainedBlock_encodesAt
@@ -685,7 +632,7 @@ theorem productValuesPreserve {application : Program} (raw : RawValues applicati
         ((PiRLCProductSchedule.descriptor invocation).valueColumn
           (PiRLCProductSchedule.descriptor invocation).lane) :=
   PiRLCValueWiring.form_eval_source (piCcsOrdinaryGeometry application)
-    invocation raw.assignment raw.base raw.groupValue raw.products
+    invocation raw.assignment raw.base raw.groupValue
     (piCcsOrdinaryEncodes raw)
 
 private theorem directPrefixEncodes {application : Program}
@@ -694,19 +641,19 @@ private theorem directPrefixEncodes {application : Program}
       (DirectPiDECPrefixPlan.piCcsPayload (piDecGeometry application))
       (DirectPiDECPrefixPlan.piRlcValues (piDecGeometry application))
       (poseidonGeometry application) raw.assignment
-      raw.base raw.groupValue raw.products where
+      raw.base raw.groupValue where
   retained := retainedEncodes raw
   piRlcValues := productValuesPreserve raw
-  pilotPriorInput := (position10 raw).encodes
+  pilotPriorInput := (position6 raw).encodes
     (PiRLCPoseidonGeometry.priorInputFits
       (DirectPrefixPlan.pilotGeometry (poseidonGeometry application)))
-  pilotOutputInput := (position11 raw).encodes
+  pilotOutputInput := (position7 raw).encodes
     (PiRLCPoseidonGeometry.outputInputFits
       (DirectPrefixPlan.pilotGeometry (poseidonGeometry application)))
   payload := by
     intro index
     exact PiCCSPayloadWiring.form_eval_source (piCcsOrdinaryGeometry application)
-      index raw.assignment raw.base raw.groupValue raw.products
+      index raw.assignment raw.base raw.groupValue
       (piCcsOrdinaryEncodes raw) (PerApplicationCanonicalAssignment.assignment_one raw)
 
 /-- Canonical assignment evidence through the running-instance transition. -/
@@ -715,27 +662,27 @@ theorem runningPrefixEncodes {application : Program} (raw : RawValues applicatio
       (DirectPiDECPrefixPlan.piCcsPayload (piDecGeometry application))
       (DirectPiDECPrefixPlan.piRlcValues (piDecGeometry application))
       (runningGeometry application)
-      raw.assignment raw.base raw.groupValue raw.products :=
+      raw.assignment raw.base raw.groupValue :=
   ⟨directPrefixEncodes raw, transitionEncodes raw⟩
 
 private theorem pilotAddedEncodes {application : Program}
     (raw : RawValues application) :
     PilotOrdinaryRetainedGeometry.Encodes (pilotOrdinaryGeometry application)
       raw.assignment raw.retainedSource where
-  canonicalLocal := (position21 raw).encodes
+  canonicalLocal := (position17 raw).encodes
     (PilotOrdinaryRetainedGeometry.canonicalLocalFits
       (pilotOrdinaryGeometry application))
-  canonicalFresh := (position22 raw).encodes
+  canonicalFresh := (position18 raw).encodes
     (PilotOrdinaryRetainedGeometry.canonicalFreshFits
       (pilotOrdinaryGeometry application))
-  outputDigest := (position23 raw).encodes
+  outputDigest := (position19 raw).encodes
     (PilotOrdinaryRetainedGeometry.outputDigestFits
       (pilotOrdinaryGeometry application))
 
 private theorem pilotOrdinaryEncodes {application : Program}
     (raw : RawValues application) :
     PilotOrdinaryDirectPlan.Encodes (pilotOrdinaryGeometry application)
-      raw.assignment raw.base raw.groupValue raw.products :=
+      raw.assignment raw.base raw.groupValue :=
   ⟨piCcsOrdinaryEncodes raw, pilotAddedEncodes raw⟩
 
 private theorem piDecRetainedEncodes {application : Program}
@@ -754,17 +701,17 @@ private theorem piDecRetainedEncodes {application : Program}
   parentEvalA := PiDECValueWiring.parentEvalAEncodes
     (piDecGeometry application) raw.assignment raw.retainedSource
     (retainedEncodes raw).productOutput
-  proof := (position12 raw).encodes
+  proof := (position8 raw).encodes
     (PiDECRetainedGeometry.proofFits (piDecGeometry application))
-  logical := (position24 raw).encodes
+  logical := (position20 raw).encodes
     (PiDECRetainedGeometry.logicalFits (piDecGeometry application))
-  fresh := (position25 raw).encodes
+  fresh := (position21 raw).encodes
     (PiDECRetainedGeometry.freshFits (piDecGeometry application))
 
 private theorem piDecPrefixEncodes {application : Program}
     (raw : RawValues application) :
     DirectPiDECPrefixPlan.Encodes (piDecGeometry application) raw.assignment
-      raw.base raw.groupValue raw.products :=
+      raw.base raw.groupValue :=
   ⟨runningPrefixEncodes raw, pilotOrdinaryEncodes raw,
     piDecRetainedEncodes raw⟩
 
@@ -772,41 +719,40 @@ private theorem samplerOrdinaryEncodes {application : Program}
     (raw : RawValues application) :
     PiRLCSamplerOrdinaryRetainedGeometry.Encodes (samplerGeometry application)
       raw.assignment raw.retainedSource where
-  logical := (position26 raw).encodes
+  logical := (position22 raw).encodes
     (PiRLCSamplerOrdinaryRetainedGeometry.logicalFits
       (samplerGeometry application))
-  fresh := (position27 raw).encodes
+  fresh := (position23 raw).encodes
     (PiRLCSamplerOrdinaryRetainedGeometry.freshFits
       (samplerGeometry application))
-  reject := (retainedEncodes raw).reject
-  symbol := (retainedEncodes raw).symbol
+  challenge := (retainedEncodes raw).challenge
 
 /-- Canonical assignment evidence through the complete sampler prefix. -/
 theorem samplerPrefixEncodes {application : Program} (raw : RawValues application) :
     DirectPiRLCSamplerCompletePrefixPlan.Encodes (samplerGeometry application)
-      raw.assignment raw.base raw.groupValue raw.products :=
+      raw.assignment raw.base raw.groupValue :=
   ⟨piDecPrefixEncodes raw, samplerOrdinaryEncodes raw⟩
 
-private def position28 {application : Program} (raw : RawValues application) :
+private def position24 {application : Program} (raw : RawValues application) :
     Position raw (ApplicationRetainedGeometry.witnessStart application)
       (ApplicationRetainedBlocks.sourceWidth application)
       (ApplicationRetainedBlocks.witnessBlock application)
       raw.applicationSource where
-  cursor := (position27 raw).next
-  after := tail raw 29
+  cursor := (position23 raw).next
+  after := tail raw 25
   head := by
-    simp [Position.next, Cursor.next, position27, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position23, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-private def position29 {application : Program} (raw : RawValues application) :
+private def position25 {application : Program} (raw : RawValues application) :
     Position raw (ApplicationRetainedGeometry.localStart application)
       (ApplicationRetainedBlocks.sourceWidth application)
       (ApplicationRetainedBlocks.localBlock application)
       raw.applicationSource where
-  cursor := (position28 raw).next
-  after := tail raw 30
+  cursor := (position24 raw).next
+  after := tail raw 26
   head := by
-    simp [Position.next, Cursor.next, position28, tail, RawValues.schedule,
+    simp [Position.next, Cursor.next, position24, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
 def applicationGeometry (application : Program) :=
@@ -825,7 +771,7 @@ private theorem retainedSource_applicationColumn {application : Program}
       (PiRLCRetainedPreservation.baseSourceColumn application
         (applicationBaseColumn column)) = raw.applicationSource column := by
   exact PiRLCRetainedPreservation.sourceAssignment_base application raw.base
-    raw.groupValue raw.products (applicationBaseColumn column)
+    raw.groupValue (applicationBaseColumn column)
 
 private theorem applicationInputEncodes {application : Program}
     (raw : RawValues application) :
@@ -845,7 +791,7 @@ private theorem applicationInputEncodes {application : Program}
     (PiRLCPoseidonGeometry.priorInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
     fits raw.assignment raw.retainedSource
-    ((position10 raw).encodes (PiRLCPoseidonGeometry.priorInputFits
+    ((position6 raw).encodes (PiRLCPoseidonGeometry.priorInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application))))
   intro slot coordinate
   have selected : parent.source (ApplicationDirectPlan.Location.preimageWord slot) =
@@ -886,7 +832,7 @@ private theorem applicationOutputEncodes {application : Program}
     (PiRLCPoseidonGeometry.outputInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application)))
     fits raw.assignment raw.retainedSource
-    ((position11 raw).encodes (PiRLCPoseidonGeometry.outputInputFits
+    ((position7 raw).encodes (PiRLCPoseidonGeometry.outputInputFits
       (ApplicationRetainedGeometry.pilotGeometry (applicationGeometry application))))
   intro slot coordinate
   have selected : parent.source (ApplicationDirectPlan.Location.preimageWord slot) =
@@ -914,17 +860,17 @@ private theorem applicationRetainedEncodes {application : Program}
     ApplicationRetainedGeometry.Encodes (applicationGeometry application)
       raw.assignment raw.applicationSource where
   input := applicationInputEncodes raw
-  witness := (position28 raw).encodes
+  witness := (position24 raw).encodes
     (ApplicationRetainedGeometry.witnessFits (applicationGeometry application))
   output := applicationOutputEncodes raw
-  localValues := (position29 raw).encodes
+  localValues := (position25 raw).encodes
     (ApplicationRetainedGeometry.localFits (applicationGeometry application))
 
 /-- One raw packet constructs the complete final assignment-encoding contract.
 No caller supplies `DirectApplicationPrefixPlan.Encodes`. -/
 theorem encodes {application : Program} (raw : RawValues application) :
     DirectApplicationPrefixPlan.Encodes (applicationGeometry application)
-      raw.assignment raw.base raw.groupValue raw.products :=
+      raw.assignment raw.base raw.groupValue :=
   ⟨samplerPrefixEncodes raw, applicationRetainedEncodes raw⟩
 
 end NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes

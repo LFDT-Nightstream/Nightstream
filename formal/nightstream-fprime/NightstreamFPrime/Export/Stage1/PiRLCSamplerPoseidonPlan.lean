@@ -2,12 +2,12 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 
 /-!
 Owns the direct Poseidon2 plan for the 17 PiRLC scalar samplers. Each source
-has one verifier-domain entry permutation followed by eight digest-window
-permutations. The global invocation order is source-major and step-major.
+has one verifier-domain entry permutation followed by one advance
+permutation. The global invocation order is source-major and step-major.
 
 The entry payload is the verifier-owned constant pair `[4, source]`; it needs
-no retained payload block. This module does not own the digest-lane or
-First54 rows.
+no retained payload block. This module does not own the checked wide-reduction
+rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
@@ -19,12 +19,12 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
 def sourceCount : Nat := 17
-def invocationsPerSource : Nat := 9
+def invocationsPerSource : Nat := 2
 def invocationCount : Nat := sourceCount * invocationsPerSource
 
 @[simp] theorem sourceCount_eq : sourceCount = 17 := by rfl
-@[simp] theorem invocationsPerSource_eq : invocationsPerSource = 9 := by rfl
-@[simp] theorem invocationCount_eq : invocationCount = 153 := by rfl
+@[simp] theorem invocationsPerSource_eq : invocationsPerSource = 2 := by rfl
+@[simp] theorem invocationCount_eq : invocationCount = 34 := by rfl
 
 def descriptor (invocation : Fin invocationCount) :
     Fin sourceCount × Fin invocationsPerSource :=
@@ -49,13 +49,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).slotCount = 13158 := by
+    (retainedBlock program).slotCount = 2924 := by
   rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.samplerBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 539478 := by
+    (retainedBlock program).coordinateCount = 119884 := by
   rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.samplerBlock_coordinateCount]
 
@@ -195,7 +195,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 14382 := by
+    (plan geometry).rowCount = 3196 := by
   rw [plan, PoseidonSboxFamilyPlan.plan_rowCount, invocationCount_eq]
 
 theorem rowsZero_iff

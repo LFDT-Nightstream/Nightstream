@@ -25,16 +25,15 @@ DEFAULT_MANIFEST = Path("FPRIME_STAGE1_REVIEW_MANIFEST.json")
 RECURSIVE_ROOTS = (
     Path("formal/nightstream-fprime"),
     Path("crates/nightstream-fprime"),
-    Path("crates/neo-fold-legacy"),
+    Path("crates/nightstream"),
     Path("crates/neo-math"),
     Path("crates/neo-params"),
     Path("crates/neo-ccs"),
     Path("crates/neo-ajtai"),
     Path("crates/neo-transcript"),
     Path("crates/neo-reductions"),
-    Path("crates/wip-spartan"),
     Path("decisions"),
-    Path("docs/superneo-paper-v1_1"),
+    Path("docs/superneo-paper-v1_2"),
 )
 
 EXPLICIT_FILES = (
@@ -76,6 +75,25 @@ REQUIRED_ARTIFACTS = (
         "formal/nightstream-fprime/artifacts/"
         "nightstream-fprime-ajtai-setup-v1-parity.json"
     ),
+)
+
+# The crate ships these four canonical formal artifacts through file links.
+# Bind the link text and hash each target once under its authoritative path.
+ARTIFACT_ALIASES = {
+    Path("crates/nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"):
+        Path("formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    **{
+        Path("crates/nightstream/tests/fixtures/lean") / name:
+            Path("formal/nightstream-fprime/artifacts") / name
+        for name in (
+            "nightstream-fprime-stage1-base-nifs-result-v1.json",
+            "nightstream-fprime-stage1-actual-recursive-step-fixture-v1.json",
+            "nightstream-fprime-stage1-base-step-fixture-v1.json",
+        )
+    },
+}
+REQUIRED_ARTIFACTS += tuple(
+    target for target in ARTIFACT_ALIASES.values() if target not in REQUIRED_ARTIFACTS
 )
 
 EXCLUDED_DIRECTORY_NAMES = {
@@ -231,7 +249,7 @@ def collect_tree(
             relative = source.relative_to(REPO_ROOT)
             if not selected_path(relative, output_relative):
                 continue
-            if source.is_symlink():
+            if source.is_symlink() and relative not in ARTIFACT_ALIASES:
                 raise ManifestError(f"unexpected source symlink: {relative}")
             if not source.is_file():
                 raise ManifestError(f"unexpected non-file source: {relative}")
@@ -294,7 +312,7 @@ def entry_class(relative: Path) -> str:
         return "artifact"
     if relative in OWNER_FILES or is_relative_to(relative, Path("decisions")):
         return "owner"
-    if is_relative_to(relative, Path("docs/superneo-paper-v1_1")):
+    if is_relative_to(relative, Path("docs/superneo-paper-v1_2")):
         return "paper"
     if "tests" in relative.parts:
         return "test"
@@ -325,6 +343,22 @@ def hash_entry(
 ) -> tuple[dict[str, object], tuple[int, int, int, int, int, int]]:
     source = REPO_ROOT / relative
     path_before = source.lstat()
+    if relative in ARTIFACT_ALIASES:
+        target = ARTIFACT_ALIASES[relative]
+        expected = os.path.relpath(REPO_ROOT / target, source.parent)
+        if not stat.S_ISLNK(path_before.st_mode) or os.readlink(source) != expected:
+            raise ManifestError(f"canonical artifact alias changed: {relative}")
+        reject_symlink_components(target)
+        if target not in REQUIRED_ARTIFACTS or not (REPO_ROOT / target).is_file():
+            raise ManifestError(f"canonical artifact target is missing: {target}")
+        payload = os.fsencode(expected)
+        signature = stat_signature(path_before)
+        if stat_signature(source.lstat()) != signature:
+            raise ManifestError(f"artifact alias changed while hashed: {relative}")
+        return ({"class": "artifact-alias", "path": relative.as_posix(),
+                 "mode": "120000", "bytes": len(payload),
+                 "sha256": hashlib.sha256(payload).hexdigest(),
+                 "target": target.as_posix()}, signature)
     if not stat.S_ISREG(path_before.st_mode):
         raise ManifestError(f"source changed to a non-file: {relative}")
 

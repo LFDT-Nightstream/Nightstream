@@ -14,7 +14,7 @@ def decode(kind, data):
     value = json.loads(data)
     require(isinstance(value, list) and len(value) == 6, "wrong range field count")
     version, rows, first, finish, point, sources = value
-    require(version == 1 and rows == (6377559 if kind == "matrix" else 4685394), "wrong selected evaluation schema or domain")
+    require(version == 1 and rows == (6064606 if kind == "matrix" else 4492423), "wrong selected evaluation schema or domain")
     require(isinstance(first, int) and isinstance(finish, int) and 0 <= first < finish <= rows,
             "invalid evaluation range")
     require(len(point) == 28 and len(sources) == 17, "wrong point or source count")

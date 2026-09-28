@@ -3,9 +3,10 @@
 Work branch: `nico/nightstream-crate`, based on
 `9787d8e77069246e3e2afc7dcfab755556fd5023`.
 At the migration checkpoint, `neo-fold-clean` was the unchanged reference and
-was used only for development comparisons. It is now retained as
-`neo-fold-legacy`; `nightstream` has no dependency on it. Historical names and
-paths below describe the measured source revisions.
+was used only for development comparisons. That legacy implementation has
+been removed. Historical names and paths below describe the measured source
+revisions; they are not commands for the current package. See
+[the maintained workflow](../../scripts/GOLDEN_CONFORMANCE.md) for fresh checks.
 
 The selected implementation goal is complete. The
 [fresh replay receipt](tests/evidence/fresh-recursive-replay.json) records all
@@ -1375,7 +1376,6 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --test per_
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::saved_proof_and_transcript_match_lean -- --exact
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle poseidon_base_step_matches_lean_and_verifies -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --test circuit_lifecycle rust_addition_base_step_verifies -- --exact --ignored --nocapture
-timeout --signal=KILL 300 cargo test -p neo-fold-legacy --release --test nightstream_baseline unchanged_old_poseidon_base_lifecycle -- --exact --ignored --nocapture
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::tests::base::base_extension_matches_full_lean_assignment_and_terminal -- --exact --ignored --nocapture
 ```
 

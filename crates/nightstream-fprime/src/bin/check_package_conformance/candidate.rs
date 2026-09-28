@@ -8,10 +8,10 @@ use std::{
 };
 
 use neo_ajtai::nightstream_fprime_setup::{
-    commit_production_signed_units, PRODUCTION_CARRIER_WIDTH, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED,
-    PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+    commit_production_signed_unit_prefix_matrix, MAX_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+    SETUP_ID,
 };
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{load_per_application_package, LoadedPerApplicationPackage};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -20,7 +20,7 @@ use serde_json::Value;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
-const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 16, 64];
+const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 4, 1];
 
 // Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 3.
 #[derive(Deserialize)]
@@ -127,19 +127,19 @@ pub fn check_sparse_commitment(path: &Path) {
     let LeanSparseCommitment(schema, authority, support, expected_rows) =
         serde_json::from_value(read_metadata(path)).expect("Lean sparse-commitment schema");
     assert_eq!(schema, 1);
+    let columns = *authority
+        .get(SETUP_ID.len() + 2)
+        .expect("Lean key column count");
+    assert!((1..=MAX_MESSAGE_COLUMNS).contains(&columns), "approved key prefix");
     require_words(
         &authority,
-        &setup_authority_words(PRODUCTION_MESSAGE_COLUMNS),
+        &setup_authority_words(columns),
         "Lean sparse-commitment raw authority",
     );
     assert_eq!(authority.len(), 73);
     assert_eq!(
         support,
-        [
-            [0, 0, 1],
-            [32_768, 27, MODULUS - 1],
-            [PRODUCTION_MESSAGE_COLUMNS - 1, 53, 1],
-        ],
+        [[0, 0, 1], [32_768, 27, MODULUS - 1], [columns - 1, 53, 1],],
         "canonical Lean block/lane/scalar support"
     );
     assert_eq!(expected_rows.len(), PRODUCTION_VERIFIER_ROWS as usize);
@@ -147,21 +147,23 @@ pub fn check_sparse_commitment(path: &Path) {
         expected_rows.iter().all(|row| row.len() == 54),
         "complete Lean commitment rows"
     );
-    let mut carrier = vec![0_i8; PRODUCTION_CARRIER_WIDTH];
+    let mut positive = vec![0u64; columns as usize];
+    let mut negative = vec![0u64; columns as usize];
     for [block, lane, scalar] in &support {
-        assert!(
-            *block < PRODUCTION_MESSAGE_COLUMNS && *lane < 54,
-            "sparse support range"
-        );
-        let coordinate = usize::try_from(*block * 54 + *lane).expect("sparse carrier coordinate");
-        assert_eq!(carrier[coordinate], 0, "distinct sparse carrier coordinate");
-        carrier[coordinate] = match *scalar {
-            1 => 1,
-            value if value == MODULUS - 1 => -1,
+        assert!(*block < columns && *lane < 54, "sparse support range");
+        let block = usize::try_from(*block).expect("sparse block index");
+        let bit = 1u64 << lane;
+        assert_eq!((positive[block] | negative[block]) & bit, 0, "distinct support");
+        match *scalar {
+            1 => positive[block] |= bit,
+            value if value == MODULUS - 1 => negative[block] |= bit,
             _ => panic!("sparse support scalar is not a signed unit"),
-        };
+        }
     }
-    let actual = commit_production_signed_units(&carrier).expect("actual full-carrier selected-key commitment");
+    let carrier = Mat::compact_signed_unit_from_column_masks(54, columns as usize, &positive, &negative)
+        .expect("complete candidate carrier");
+    let actual =
+        commit_production_signed_unit_prefix_matrix(&carrier).expect("actual full-carrier candidate-key commitment");
     assert_eq!((actual.d, actual.kappa), (54, PRODUCTION_VERIFIER_ROWS as usize));
     assert_eq!(actual.data.len(), expected_rows.len() * 54);
     for (row, expected) in expected_rows.iter().enumerate() {
@@ -330,7 +332,7 @@ pub fn run(
     assert_eq!(
         inputs.len(),
         input_count,
-        "mode paths: physical=expanded; logical/mutations=none; assignment=PiCCS,PiDEC,application-parities; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,folded-metadata; commitment=fixture,output; detached=fixture"
+        "mode paths: physical=expanded; logical/mutations=none; assignment=PiCCS,PiDEC,application-parities; base=expanded,fixture; recursive/recursive-mutations=expanded,fixture,base,PiCCS-input,children,PiCCS-result,complete-NIFS-result; commitment=fixture,output; detached=fixture"
     );
     let started = Instant::now();
     let Candidate { package, bytes } = Candidate::load(candidate_path, binding_path, setup_path, expected);
@@ -365,7 +367,7 @@ pub fn run(
             let input = fs::read(&inputs[3]).expect("preceding PiCCS input");
             let children = fs::read(&inputs[4]).expect("checked child claims");
             let result = fs::read(&inputs[5]).expect("preceding PiCCS result");
-            let folded = fs::read(&inputs[6]).expect("checked folded metadata");
+            let folded = fs::read(&inputs[6]).expect("checked complete NIFS result");
             super::recursive_checks::check_fixture(&fixture, &base, &input, &children, &result, &folded);
             if mode == "recursive-mutations" {
                 super::base_checks::check_caller_mutations(package, bytes, fixture, expanded);

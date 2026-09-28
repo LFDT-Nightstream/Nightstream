@@ -85,7 +85,7 @@ private def physicalIndex (index : Index) :
     have bound : index.val < 718 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-    change index.val < 7757
+    rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega⟩
 
 def invocation (index : Index) : PermutationInvocation :=
@@ -99,7 +99,7 @@ theorem invocation_witnessStart (index : Index) :
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
       rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-      change index.val < 7757
+      rw [PoseidonRetainedBlock.laterInvocationCount_eq]
       omega⟩
   have listEq := congrArg
     (fun values : List PermutationInvocation => values[index.val]?)
@@ -109,11 +109,11 @@ theorem invocation_witnessStart (index : Index) :
   have physicalBound : index.val <
       PoseidonRetainedBlock.basePackage.permutationInvocations.length := by
     rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-    change index.val < 7757
+    rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega
   have dataBound : index.val < (Data.permutationInvocations ()).length := by
     rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-    change index.val < 7757
+    rw [PoseidonRetainedBlock.laterInvocationCount_eq]
     omega
   rw [List.getElem?_eq_getElem physicalBound,
     List.getElem?_eq_getElem dataBound] at listEq

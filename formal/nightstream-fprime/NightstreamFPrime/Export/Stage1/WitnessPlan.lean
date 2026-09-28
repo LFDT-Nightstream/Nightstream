@@ -4,10 +4,9 @@ import NightstreamFPrime.Export.Stage1.WitnessProgram
 Owns the compact witness plan for the PiRLC sampler, PiDEC, and running-
 transition suffix.
 
-Each lane carries its logical start and source expression once. The fixed Lean
-expansion reconstructs the nine canonical-u64 and candidate-decoder batches.
-The structural expansion proof fixes all source, round, and lane bounds and
-their order without evaluating the closed schedule.
+Each scalar carries the current reduction's canonical witness batches. The
+structural expansion proof fixes source order without materializing the
+complete witness schedule.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessPlan
@@ -21,73 +20,25 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 inductive Block where
-  | digestLane (logicalStart : Nat) (source : Expr)
   | batches (values : List WitnessBatch)
 deriving Repr
 
 def Block.format : Format Block where
   encode
-    | .digestLane logicalStart source => .array [
-        .atom 0,
-        .atom logicalStart,
-        exprFormat.encode source]
-    | .batches values => .array [
-        .atom 1,
-        (list WitnessBatch.format).encode values]
+    | .batches values => .array [.atom 1, (list WitnessBatch.format).encode values]
   decode
-    | .array [.atom 0, .atom logicalStart, source] => do
-      pure (.digestLane logicalStart (← exprFormat.decode source))
     | .array [.atom 1, values] => do
       pure (.batches (← (list WitnessBatch.format).decode values))
     | _ => .error "invalid witness plan block"
   decode_encode := by
     intro block
     cases block
-    · simp only
-      rw [exprFormat.decode_encode]
-      rfl
-    · simp only
-      rw [(list WitnessBatch.format).decode_encode]
-      rfl
+    simp only
+    rw [(list WitnessBatch.format).decode_encode]
+    rfl
 
 def Block.expand : Block → List WitnessBatch
-  | .digestLane logicalStart source =>
-      WitnessProgram.digestLaneBatches source logicalStart
   | .batches values => values
-
-def laneBlock
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) (lane : Fin 4) : Block :=
-  let logicalStart :=
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.digestLaneLogicalStart
-      source round lane.val
-  .digestLane logicalStart
-    (PiRLCSamplerOrdinaryRows.fastLaneSource
-      (logicalWidth := logicalWidth) (publicFits := publicFits)
-      source round lane)
-
-@[simp] theorem laneBlock_expand
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) (lane : Fin 4) :
-    (laneBlock logicalWidth publicFits source round lane).expand =
-      WitnessProgram.piRlcDigestLaneBatches logicalWidth publicFits
-        source round lane := by
-  unfold laneBlock Block.expand
-    WitnessProgram.piRlcDigestLaneBatches
-  rfl
-
-private theorem flatMap_map_expand {Alpha : Type}
-    (values : List Alpha) (make : Alpha → Block) :
-    (values.map make).flatMap Block.expand =
-      values.flatMap fun value => (make value).expand := by
-  induction values with
-  | nil => rfl
-  | cons value rest inductionHypothesis =>
-      simp [inductionHypothesis]
 
 private theorem flatMap_flatMap_expand {Alpha : Type}
     (values : List Alpha) (blocks : Alpha → List Block) :
@@ -95,47 +46,19 @@ private theorem flatMap_flatMap_expand {Alpha : Type}
       values.flatMap fun value => (blocks value).flatMap Block.expand := by
   induction values with
   | nil => rfl
-  | cons value rest inductionHypothesis =>
-      simp [inductionHypothesis]
+  | cons value rest inductionHypothesis => simp [inductionHypothesis]
 
-def windowBlocks
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) : List Block :=
-  (List.finRange 4).map
-    (laneBlock logicalWidth publicFits source round)
-
-theorem windowBlocks_expand
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (source round : Nat) :
-    (windowBlocks logicalWidth publicFits source round).flatMap Block.expand =
-      WitnessProgram.piRlcWindowBatches logicalWidth publicFits
-        source round := by
-  unfold windowBlocks WitnessProgram.piRlcWindowBatches
-  rw [flatMap_map_expand]
-  simp_rw [laneBlock_expand]
-
-def sourceBlocks
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+def sourceBlocks (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (source : Nat) : List Block :=
-  (List.range 8).flatMap
-    (windowBlocks logicalWidth publicFits source)
+  [.batches (WitnessProgram.piRlcSourceBatches logicalWidth publicFits source)]
 
-theorem sourceBlocks_expand
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+theorem sourceBlocks_expand (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (source : Nat) :
     (sourceBlocks logicalWidth publicFits source).flatMap Block.expand =
       WitnessProgram.piRlcSourceBatches logicalWidth publicFits source := by
-  unfold sourceBlocks WitnessProgram.piRlcSourceBatches
-  rw [flatMap_flatMap_expand]
-  simp_rw [windowBlocks_expand]
+  simp only [sourceBlocks, List.flatMap_cons, List.flatMap_nil, Block.expand, List.append_nil]
 
 def piRlcBlocks
     (logicalWidth : Nat)

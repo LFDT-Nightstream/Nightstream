@@ -3,7 +3,7 @@
 
 No C proof or expected output is read. This is a checked format projection,
 not a substitute for source opening, state/public, or running-parent checks.
-Bootstrap retains the existing check-owned-sources gate. Feedback takes the
+Bootstrap requires the maintained native source-opening check. Feedback takes the
 independent Lean D claims and private ranges plus the Lean fresh witness/claim.
 Constants are the selected Poseidon2HashChainV1 b=2, k_rho=16 profile.
 """
@@ -15,7 +15,7 @@ from pathlib import Path
 import tempfile
 
 P = 18446744069414584321
-D, BLOCKS, LOGICAL, CHILDREN, PUBLIC, MATRICES = 54, 4685394, 253011231, 16, 270, 14
+D, BLOCKS, LOGICAL, CHILDREN, PUBLIC, MATRICES = 54, 4492423, 242590792, 16, 270, 14
 MASK = (1 << D) - 1
 
 

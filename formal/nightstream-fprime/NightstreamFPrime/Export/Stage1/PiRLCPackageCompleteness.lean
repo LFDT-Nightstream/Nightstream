@@ -31,7 +31,7 @@ private theorem samplerFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.samplerPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      743631 := by
+      26316 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_1.PacketBoundaries.samplerPacketConstraints
   exact NightstreamFPrime.Layout.PiRLC.v1_1.SamplerChain.totalFreshCount_eq
     (NightstreamFPrime.Lifecycle.PiRLC.v1_1.Formal.samplerInterface
@@ -264,7 +264,7 @@ theorem completePackets
         phaseInterface PiRLCInputs.phaseOffset (Spartan.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (Spartan.sourceToSpartan PiRLCInputs.phaseOffset) 8908425 ∧
+          (Spartan.sourceToSpartan PiRLCInputs.phaseOffset) 7982945 ∧
         RemappedPacketRowsHold completed := by
   rcases PiRLCPhysicalCompleteness.completePhysicalRows relation ajtai env
       assumptions phase with ⟨completed, agrees, physical⟩

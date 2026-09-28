@@ -38,7 +38,6 @@ namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81StrongSet
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 
 /-! ## Executable raw support -/

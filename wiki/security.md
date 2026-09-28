@@ -1,42 +1,22 @@
 # Security
 
-Nightstream is research software. It has no independent audit. Do not deploy
-it as a production verifier.
+Nightstream is research software. Independent review and a complete numerical
+security claim for concrete Poseidon2 execution remain open.
 
-## Assumptions
+The formal argument keeps these boundaries explicit:
 
-- Ajtai commitment binding is based on the selected Module-SIS parameters.
-- SuperNeo reductions use the paper's low-norm and decomposition conditions.
-- Fiat-Shamir uses Poseidon2 and the classical random-oracle analysis.
-- Sum-check challenges use the configured Goldilocks extension field.
-- The terminal Spartan path relies on its sum-check and WHIR commitment
-  assumptions.
+- Binding for the selected fixed-seed Ajtai key requires its same-key MSIS assumption.
+- Concrete Poseidon2 requires the stated collision and Fiat–Shamir transfer assumptions.
+- The wide sampler's bias bound assumes uniform field draws; it is not itself a random-oracle theorem for the sponge.
+- The low-norm Phi81 invertibility fact is proved for the selected strong set.
+- Completeness and soundness are separate obligations.
 
-The repository does not claim quantum-prover extraction or security in the
-quantum random-oracle model.
+The verifier checks actual relation rows, commitments, norms, public values,
+Pad openings, and all matrix openings. A carried digest must be recomputed
+from authoritative data or replayed into the verifier-driven transcript.
+Self-consistent rehashing is not evidence of a valid witness.
 
-## Enforced boundaries
-
-- Verifier-owned preprocessing fixes the relation and Ajtai setup.
-- Protocol-binding paths use Poseidon2 only.
-- A digest compresses data but is not proof authority.
-- Verifiers recompute carried digests or replay them into an authoritative
-  transcript.
-- Final accumulator claims are checked against witness openings, public-input
-  projections, norm bounds, and committed-evaluation relations.
-- Red-team tests mutate proof and transcript fields and require rejection.
-
-## Open security work
-
-- The direct CCS frontend does not prove the recursive F' induction. Its
-  multi-chunk path requires full-history audit replay.
-- `wip-spartan` is connected to the terminal R1CS path, but it still needs
-  focused cryptographic review and performance analysis.
-- The CUDA backend has no canonical device kernel. It fails explicitly and
-  does not claim CPU work as CUDA work.
-- Side-channel resistance has not been established.
-- Parameter selection and the complete end-to-end security argument need
-  independent review.
-
-The contribution rules in [AGENTS.md](../AGENTS.md) are part of this security
-boundary.
+See the [assurance surface](../formal/nightstream-fprime/ASSURANCE_SURFACE.md)
+for the exact theorem boundaries and executed evidence. No security claim
+for a removed frontend or compression backend transfers to the maintained
+implementation.

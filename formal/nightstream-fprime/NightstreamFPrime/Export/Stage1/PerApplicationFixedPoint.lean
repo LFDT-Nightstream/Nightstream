@@ -46,18 +46,18 @@ bounds owned by one concrete application. -/
 def fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      239217427)
+      240167336)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      239098731)
+      240024211)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 353427) :
+      ApplicationRetainedBlocks.localCount application ≤ 638056) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
   carrier := by
     apply (ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff
       application).2
-    exact carrierWords.trans (by decide)
+    exact carrierWords
 
 def geometry (application : Lifecycle.Stage1.Application.Program) :
     ApplicationRetainedGeometry.Geometry application
@@ -112,7 +112,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      6056897 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
@@ -143,18 +143,17 @@ theorem rowsZero_implies_semantics
     (assignment : Assignment F (logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment
       (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)
-      assignment base groupValue products)
+      assignment base groupValue)
     (accepted : (structuralPlan application fits).RowsZero assignment) :
     DirectApplicationPrefixPlan.Semantics (relation application fits)
-      (geometry application) assignment base groupValue products
+      (geometry application) assignment base groupValue
         := by
   apply DirectApplicationPrefixPlan.rowsZero_implies_semantics
     (relation application fits) fits.package (geometry application) assignment
-    base groupValue products one encodes
+    base groupValue one encodes
   rw [plan_fixedPoint application fits]
   exact accepted
 

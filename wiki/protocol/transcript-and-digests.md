@@ -41,11 +41,9 @@ Three layers use Fiat-Shamir differently:
 |---|---|
 | SuperNeo chunk (Π_CCS → Π_RLC → Π_DEC) | Derives the folding challenges (α, γ, r′, ρ_i) from a Poseidon2 transcript that has absorbed the structure, instances, and prior prover messages. |
 | F′ (Construction 2) | *Recomputes* the SuperNeo transcript to re-run NIFS.V in-circuit; separately hashes the compact Construction-2 public image (`x_out`). The image hash is linkage, not a substitute for the folding transcript. |
-| Spartan compression | Invents no new SuperNeo challenges; proves the F′ transcript and terminal relation checks were satisfied. |
 
-Legacy rejection tests in
-`crates/neo-fold-legacy/tests/reductions/nifs_v_transcript.rs` check that PiRLC and
-PiDEC cannot use a fresh transcript instead of continuing the PiCCS transcript.
+Current sampler parity checks compare Rust with Lean. The staged fold checks
+verify the complete continued C/R/D transcript and its returned values.
 
 ## Digest authority rules
 
@@ -60,12 +58,10 @@ invariants the code is audited against:
 3. Self-consistent digest chains are not evidence of soundness: if an attacker can
    mutate data and re-digest upward, the verifier must still fail.
 
-`crates/neo-fold-legacy/src/paper/digest.rs` owns the digest taxonomy: structure and
-params digests (recomputed from preprocessing, never trusted from the wire),
-`state_x_out_digest` (the Construction-2 hash chain), accumulator digests, and the
-chunk public digest. In-circuit mirrors live in `paper/f_prime/digest_circuit.rs` and
-are byte-for-byte parity-tested against the native functions
-(`tests/f_prime/digest_circuit.rs`).
+`nightstream-fprime/src/identity.rs` owns package and verifier-context binding.
+`nightstream/src/folding/transcript.rs` and `lifecycle/inputs.rs` own the fold
+transcript and state inputs. The active Lean package supplies the corresponding
+protocol and circuit definitions.
 
 A concrete consequence of rule 1: the F′ chain's `acc_digest` commits to the public CE
 claims, but the terminal verifier still independently checks the opened witnesses

@@ -42,8 +42,8 @@ def commitmentValue (value : PaperAlgebra.Commitment) : Value :=
 
 def publicInputValue
     (value : PaperAlgebra.PublicInput
-      (logicalWidth := VerifierContext.candidateLogicalWidth)
-      (publicFits := VerifierContext.candidatePublicFits)) : Value :=
+      (logicalWidth := PhaseReference.logicalWidth)
+      (publicFits := PhaseReference.publicFits)) : Value :=
   PiCCSParity.fieldWordsValue (serializePublicInput value)
 
 def evalKValue (value : PaperAlgebra.Evaluation) : Value :=
@@ -152,8 +152,8 @@ def childrenValue (fixture : PiDECNonzero.Fixture) : Value :=
     (childValue fixture))
 
 def transitionRunning (fixture : PiDECNonzero.Fixture) : Running
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) where
+    (logicalWidth := PhaseReference.logicalWidth)
+    (publicFits := PhaseReference.publicFits) where
   point := (PiDECNonzero.parent fixture).point
   commitments := PiDECNonzero.childCommitment fixture
   publicInputs := PiDECNonzero.childPublicInput fixture
@@ -161,8 +161,8 @@ def transitionRunning (fixture : PiDECNonzero.Fixture) : Running
 
 def transitionOutputPreimage (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : HashPreimage
-    (logicalWidth := VerifierContext.candidateLogicalWidth)
-    (publicFits := VerifierContext.candidatePublicFits) where
+    (logicalWidth := PhaseReference.logicalWidth)
+    (publicFits := PhaseReference.publicFits) where
   verifierKeys := fun _ => context
   iteration := 7
   z0 := PiCCSNonzero.stateZ0
@@ -172,12 +172,12 @@ def transitionOutputPreimage (fixture : PiDECNonzero.Fixture)
 
 def transitionOutputPreimageWords (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : List F :=
-  serializePreimage (publicFits := VerifierContext.candidatePublicFits)
+  serializePreimage (publicFits := PhaseReference.publicFits)
     (transitionOutputPreimage fixture context)
 
 def transitionOutputDigest (fixture : PiDECNonzero.Fixture)
     (context : KeyDigest) : Digest :=
-  stateHash (publicFits := VerifierContext.candidatePublicFits)
+  stateHash (publicFits := PhaseReference.publicFits)
     (transitionOutputPreimage fixture context)
 
 def allMessageEvaluationsNonzero (fixture : PiDECNonzero.Fixture) : Bool :=
@@ -234,19 +234,14 @@ def parityValueForFixture (fixture : PiDECNonzero.Fixture)
 
 def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
   let computed := PiCCSNonzero.compute () context.toList
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState PiRLCNonzero.SourceCount with
-  | some batch =>
-      parityValueForFixture (fixtureFromComputed computed batch) context packageIdentity
-  | none => .array [.atom 2, .array [], rejectedValue]
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+    computed.outgoingState PiRLCNonzero.SourceCount
+  parityValueForFixture (fixtureFromComputed computed batch) context packageIdentity
 
 def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value := do
   let computed ← PiCCSNonzero.computeIO context.toList
-  match Transcript.PiRlcSampler.piRlcChallengesWithState
-      computed.outgoingState PiRLCNonzero.SourceCount with
-  | some batch =>
-      pure (parityValueForFixture (fixtureFromComputed computed batch)
-        context packageIdentity)
-  | none => throw (IO.userError "PiRLC sampler shortfall before PiDEC fixture")
+  let batch := Transcript.PiRlcSampler.piRlcChallengesWithState
+    computed.outgoingState PiRLCNonzero.SourceCount
+  pure (parityValueForFixture (fixtureFromComputed computed batch) context packageIdentity)
 
 end NightstreamFPrime.Export.Stage1.PiDECParity

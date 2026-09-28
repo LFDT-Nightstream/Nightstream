@@ -2,6 +2,26 @@
 // by Rust. Key tiles exist only in threadgroup memory and are shared by all
 // witnesses. The output is a partial Phi81 ring product for each witness.
 
+inline uint production_chacha_rotl(uint value, uint amount) {
+    return (value << amount) | (value >> (32 - amount));
+}
+
+inline void production_chacha_quarter_round(
+    thread uint *state,
+    uint a,
+    uint b,
+    uint c,
+    uint d) {
+    state[a] += state[b];
+    state[d] = production_chacha_rotl(state[d] ^ state[a], 16);
+    state[c] += state[d];
+    state[b] = production_chacha_rotl(state[b] ^ state[c], 12);
+    state[a] += state[b];
+    state[d] = production_chacha_rotl(state[d] ^ state[a], 8);
+    state[c] += state[d];
+    state[b] = production_chacha_rotl(state[b] ^ state[c], 7);
+}
+
 inline ulong production_ajtai_coefficient(
     device const uint *seed, uint row, uint column, uint lane) {
     uint initial[16] = {
@@ -12,14 +32,14 @@ inline ulong production_ajtai_coefficient(
     uint words[16];
     for (uint i = 0; i < 16; ++i) words[i] = initial[i];
     for (uint round = 0; round < 10; ++round) {
-        seeded_ajtai_quarter_round(words, 0, 4, 8, 12);
-        seeded_ajtai_quarter_round(words, 1, 5, 9, 13);
-        seeded_ajtai_quarter_round(words, 2, 6, 10, 14);
-        seeded_ajtai_quarter_round(words, 3, 7, 11, 15);
-        seeded_ajtai_quarter_round(words, 0, 5, 10, 15);
-        seeded_ajtai_quarter_round(words, 1, 6, 11, 12);
-        seeded_ajtai_quarter_round(words, 2, 7, 8, 13);
-        seeded_ajtai_quarter_round(words, 3, 4, 9, 14);
+        production_chacha_quarter_round(words, 0, 4, 8, 12);
+        production_chacha_quarter_round(words, 1, 5, 9, 13);
+        production_chacha_quarter_round(words, 2, 6, 10, 14);
+        production_chacha_quarter_round(words, 3, 7, 11, 15);
+        production_chacha_quarter_round(words, 0, 5, 10, 15);
+        production_chacha_quarter_round(words, 1, 6, 11, 12);
+        production_chacha_quarter_round(words, 2, 7, 8, 13);
+        production_chacha_quarter_round(words, 3, 4, 9, 14);
     }
     for (uint i = 0; i < 8; ++i) words[i] += initial[i];
     // For x = 2^32, x^2 = x - 1 and x^6 = 1 modulo Goldilocks.

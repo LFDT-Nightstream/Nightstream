@@ -19,7 +19,9 @@ from lean_graph.policy import CAPS  # noqa: E402
 
 TEST = "lifecycle::tests::staged::run_phase"
 OPENING_TESTS = {
+    "opening-k-prepare": "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_k_witness",
     "opening-k": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+    "opening-a-prepare": "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_a_witness",
     "opening-a": "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
 }
 # NIGHTSTREAM_CRATE_GOAL.md, current owner-approved RSS guard.
@@ -57,6 +59,13 @@ def run_test(command: list[str], request: dict, output) -> dict:
     if sys.platform not in ("linux", "darwin"):
         raise ValueError(f"RSS guard does not support {sys.platform}")
     started = time.monotonic()
+    wall_started = time.time()
+
+    def elapsed():
+        # Count host sleep even where the monotonic clock pauses, and never
+        # extend the cap when the wall clock moves backward.
+        return max(time.monotonic() - started, time.time() - wall_started)
+
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     # Keep the inherited process group so an outer timeout also stops the test.
     # The Rust phase starts no children.
@@ -75,7 +84,7 @@ def run_test(command: list[str], request: dict, output) -> dict:
         data = json.dumps(request).encode()
         try:
             while True:
-                remaining = CAPS["rust"] - (time.monotonic() - started)
+                remaining = CAPS["rust"] - elapsed()
                 if remaining <= 0:
                     code, outcome = 124, "timed-out"
                     break
@@ -86,7 +95,7 @@ def run_test(command: list[str], request: dict, output) -> dict:
                     break
                 except subprocess.TimeoutExpired:
                     data = None  # communicate retains any unwritten request bytes.
-                remaining = CAPS["rust"] - (time.monotonic() - started)
+                remaining = CAPS["rust"] - elapsed()
                 if remaining <= 0:
                     code, outcome = 124, "timed-out"
                     break
@@ -96,7 +105,7 @@ def run_test(command: list[str], request: dict, output) -> dict:
                         # The kernel can remove the address space before wait
                         # reports exit. Use only the existing deadline to reap;
                         # the mandatory final peak check still applies below.
-                        remaining = CAPS["rust"] - (time.monotonic() - started)
+                        remaining = CAPS["rust"] - elapsed()
                         if remaining <= 0:
                             code, outcome = 124, "timed-out"
                             break
@@ -129,8 +138,11 @@ def run_test(command: list[str], request: dict, output) -> dict:
     peak = max(sampled_peak, after.ru_maxrss * (1 if sys.platform == "darwin" else 1024))
     if peak > RSS_CAP_BYTES and code == 0:
         code, outcome = 1, "memory-cap"
+    elapsed_seconds = elapsed()
+    if elapsed_seconds >= CAPS["rust"] and code == 0:
+        code, outcome = 124, "timed-out"
     return {
-        "elapsed_seconds": time.monotonic() - started, "exit": code, "outcome": outcome,
+        "elapsed_seconds": elapsed_seconds, "exit": code, "outcome": outcome,
         "process_exit": process.returncode,
         "user_seconds": after.ru_utime - before.ru_utime,
         "system_seconds": after.ru_stime - before.ru_stime,

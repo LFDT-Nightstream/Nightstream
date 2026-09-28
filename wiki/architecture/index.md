@@ -1,51 +1,24 @@
 # Architecture
 
-## Core proof dependencies
+`nightstream` owns the public application and lifecycle API. It compiles an
+application against the single exported recursive verifier in
+`nightstream-fprime`. Production compilation and execution do not run Lean.
 
-This graph describes the retained `neo-fold-legacy` implementation. The current
-prover is [`nightstream`](../../crates/nightstream/README.md).
-
-```mermaid
-graph BT
-    params["neo-params"]
-    math["neo-math"]
-    ccs["neo-ccs"]
-    transcript["neo-transcript"]
-    ajtai["neo-ajtai"]
-    reductions["neo-reductions"]
-    spartan["wip-spartan"]
-    fold["neo-fold-legacy"]
-
-    math --> params
-    ccs --> math
-    transcript --> ccs
-    ajtai --> ccs
-    reductions --> ajtai
-    reductions --> transcript
-    spartan --> params
-    fold --> reductions
-    fold --> spartan
-```
-
-Arrows point to dependencies. Accelerator and application crates depend on
-this core.
-
-## neo-fold-legacy ownership
-
-| Area | Ownership |
+| Owner | Responsibility |
 |---|---|
-| `lifecycle/` | Public preprocess, prove, extend, finish, and verify calls |
-| `paper/` | Relations, NIFS, Construction 2, F', digests, and decider contract |
-| `frontends/` | Direct CCS, recursive R1CS, Nebula, and Bellpepper conversion |
-| `engine/` | R1CS builder, protocol gadgets, and full-history audit relation |
+| `nightstream/src/application` | Application program and witness construction |
+| `nightstream/src/assembly` | Assemble that program with the shared verifier |
+| `nightstream/src/circuit.rs` | Compile, save, and load the circuit package |
+| `nightstream/src/folding` | PiCCS, PiRLC, PiDEC, and verifier-driven transcript |
+| `nightstream/src/lifecycle` | Prove, extend, and verify the terminal state |
+| `nightstream-fprime/src/package` | Sealed format, exact rows, and witness recipes |
+| `neo-reductions` | Folding arithmetic and sum-check engines |
+| `neo-ajtai` | Fixed-key commitments and low-norm decomposition |
+| `formal/nightstream-fprime` | Protocol, circuit, layout, and export proofs |
 
-The public API uses lifecycle names. Internal state-machine constructors stay
-private. `paper/` does not depend on application frontends. Protocol-binding
-hashes use Poseidon2.
+The application compiler uses one general path. The wide sampler replaces
+the old sampler in the canonical layout; it does not add a second package.
+Protocol-binding hashes use Poseidon2.
 
-## Pages
-
-- [Lifecycle](lifecycle.md)
-- [Frontends](frontends.md)
-- [Terminal proof and decider](decider.md)
-- [Nebula F′ paper contract](nebula-f-prime-paper-contract.md)
+See [lifecycle](lifecycle.md), [applications](frontends.md), and
+[terminal verification](decider.md).

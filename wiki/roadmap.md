@@ -1,38 +1,15 @@
-# Roadmap
+# Remaining work
 
-## Implemented
+The maintained path is the `nightstream` application compiler, SuperNeo
+folding, the exported HyperNova-style recursive verifier, and terminal
+opening checks. CPU and Metal share the same protocol and package.
 
-- SuperNeo PiCCS, PiRLC, and PiDEC
-- Optimized and PaperExact engines
-- Recursive R1CS F' induction
-- Nebula memory checking
-- Direct CCS audit verification
-- Terminal R1CS compilation
-- WIP Spartan with Goldilocks, Poseidon2, and WHIR
-- Metal device work on supported Apple builds
-- Public backend choices for optimized CPU, PaperExact, CUDA, and Metal
+Keep the active Lean proofs, exact exported rows, Rust witness execution,
+and saved conformance fixtures aligned. Complete the concrete Fiat–Shamir
+applicability argument and obtain independent review. The shape estimator
+alone does not establish total system security.
 
-## Required work
-
-### CUDA
-
-Implement the canonical one-joint NIFS kernel. It must match the optimized CPU
-and PaperExact transcript, proof bytes, output claims, and terminal openings.
-Until then, CUDA construction returns an explicit unavailable error.
-
-### Terminal backend
-
-Audit and optimize `wip-spartan`. Complete the deployment-facing verifier
-boundary and measure the terminal relation on representative applications.
-
-### Protocol assurance
-
-Keep the Lean model aligned with the Rust relation, complete the remaining
-correspondence proofs, review the concrete parameters, and obtain an
-independent security audit.
-
-### Frontends
-
-Keep direct CCS as an explicit audit path. Add a new production frontend only
-when it supplies an authoritative fixed relation and a terminal-induction
-proof.
+CUDA's canonical device kernel and a compressed terminal backend require
+separate implementation and validation. Removed legacy consumers are not
+alternate supported paths. Add application interfaces only when their
+semantics are bound to the maintained verifier package.

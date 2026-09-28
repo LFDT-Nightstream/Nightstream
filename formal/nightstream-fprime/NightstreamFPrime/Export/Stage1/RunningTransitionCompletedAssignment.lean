@@ -48,7 +48,7 @@ theorem rowsZero_of_completed
     (Spartan.pullback target)).mp throughR.1
   apply (RunningTransitionDirectPlan.rowsZero_iff_physical relation
     (PerApplicationCanonicalEncodes.runningGeometry application) raw.assignment
-    raw.base raw.groupValue raw.products
+    raw.base raw.groupValue
     (PerApplicationCanonicalAssignment.assignment_one raw)
     (PerApplicationCanonicalEncodes.runningPrefixEncodes raw).transition).mpr
   apply R1CS.rowsHold_of_agree_below _ Spartan.SourceColumnCount

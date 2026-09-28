@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
-import NightstreamFPrime.Export.Stage1.PiRLCFirst54RetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 
@@ -16,7 +15,7 @@ def poseidonAndProductCoordinates : Nat :=
     DirectPiRLCProductFootprint.retainedCoordinateCount
 
 @[simp] theorem poseidonAndProductCoordinates_eq :
-    poseidonAndProductCoordinates = 185240460 := by
+    poseidonAndProductCoordinates = 184820866 := by
   unfold poseidonAndProductCoordinates
   rw [PoseidonRetainedBlock.retainedCoordinateCount_eq,
     DirectPiRLCProductFootprint.retainedCoordinateCount_eq]
@@ -27,31 +26,14 @@ theorem poseidonAndProductCoordinates_le_cube :
   rw [poseidonAndProductCoordinates_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
-def throughFirst54Coordinates
-    (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  poseidonAndProductCoordinates +
-    PiRLCFirst54RetainedBlocks.retainedCoordinateCount program
-
-@[simp] theorem throughFirst54Coordinates_eq
-    (program : Lifecycle.Stage1.Application.Program) :
-    throughFirst54Coordinates program = 187799436 := by
-  simp [throughFirst54Coordinates, poseidonAndProductCoordinates_eq]
-
-theorem throughFirst54Coordinates_le_cube
-    (program : Lifecycle.Stage1.Application.Program) :
-    throughFirst54Coordinates program ≤
-      2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  rw [throughFirst54Coordinates_eq]
-  norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
-
 def throughPiRLCProductSourcesCoordinates
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  throughFirst54Coordinates program +
+  poseidonAndProductCoordinates +
     PiRLCProductSourceBlocks.retainedCoordinateCount program
 
 @[simp] theorem throughPiRLCProductSourcesCoordinates_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    throughPiRLCProductSourcesCoordinates program = 189944802 := by
+    throughPiRLCProductSourcesCoordinates program = 187003870 := by
   simp [throughPiRLCProductSourcesCoordinates]
 
 theorem throughPiRLCProductSourcesCoordinates_le_cube

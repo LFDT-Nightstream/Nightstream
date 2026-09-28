@@ -7,7 +7,6 @@ The successful production run and original-source provenance are separate.
 
 import copy
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -36,9 +35,9 @@ def main():
     ccs, commitments, evaluations = original
     require(len(ccs) == 7 and ccs[0] == 2 and len(ccs[3]) == 28,
             "expected a complete baseline C input")
-    require(len(commitments) == 5 and commitments[:4] == [1, 4685394, 0, 4685394],
+    require(len(commitments) == 5 and commitments[:4] == [1, 4492423, 0, 4492423],
             "expected complete selected baseline commitments")
-    require(len(evaluations) == 5 and evaluations[:2] == [1, 4685394],
+    require(len(evaluations) == 5 and evaluations[:2] == [1, 4492423],
             "expected complete selected baseline evaluations")
     require(len(commitments[4]) == 22 and len(commitments[4][21]) == 16 and
             len(commitments[4][21][15]) == 54, "wrong baseline commitment shape")
@@ -71,7 +70,7 @@ def main():
                    "from-replay", *package, *map(str, selected), *output_arguments]
         # Project rejection-test cap. The caller supplies the outer graph guard;
         # this child uses validate.sh directly and starts no nested graph guard.
-        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=None if os.environ.get("LEAN_TIMEOUT_SECONDS") == "0" else 300)
+        result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
         log = result.stdout + result.stderr
         (case / "run.log").write_bytes(log)
         for path, content in before.items():

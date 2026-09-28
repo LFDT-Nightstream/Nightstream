@@ -26,85 +26,29 @@ private theorem ordinaryLocation_beforePiDECProof
     location.sourceColumn < PiDECInputs.proofInputStart := by
   rw [PiDECInputs.proofInputStart, PiRLCStarts.finalBoundaries_eq.2]
   cases location with
-  | poseidon descriptor sourceLane =>
-      rcases descriptor with ⟨source, round, lane⟩
-      have sourceBound := source.isLt
-      have roundBound := round.isLt
-      have sourceLaneBound := sourceLane.isLt
-      change source.val < 17 at sourceBound
-      change round.val < 8 at roundBound
-      change sourceLane.val < 4 at sourceLaneBound
-      cases roundValue : round.val with
-      | zero =>
-          simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-            PiRLCSamplerOrdinaryDirectSource.poseidonSource, roundValue,
-            PiRLCStarts.samplerSourceLogicalStart,
-            PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
-            PiRLCInputs.phaseOffset, Formal.samplerOffset_eq,
-            PiDECInputs.proofInputStart]
-          omega
-      | succ previous =>
-          simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-            PiRLCSamplerOrdinaryDirectSource.poseidonSource, roundValue,
-            Sampler.windowOffset, Sampler.windowBase,
-            SamplerChain.sourceOffset, DigestWindow.permutationOffset,
-            Sampler.logicalPrivateCount, Sampler.entryPrivateCount,
-            DigestWindow.logicalPrivateCount, DigestLane.logicalPrivateCount,
-            PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
-            PiRLCInputs.phaseOffset, Formal.samplerOffset_eq,
-            PiDECInputs.proofInputStart]
-          omega
-  | logical descriptor position =>
-      rcases descriptor with ⟨source, round, lane⟩
-      have sourceBound := source.isLt
-      have roundBound := round.isLt
-      have laneBound := lane.isLt
-      have positionBound := position.isLt
-      change source.val < 17 at sourceBound
-      change round.val < 8 at roundBound
-      change lane.val < 4 at laneBound
-      change position.val < 100 at positionBound
-      norm_num [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryRetainedBlocks.logicalSource,
-        PiRLCSamplerOrdinaryRetainedBlocks.logicalCountPerLane,
-        PiRLCStarts.digestLaneLogicalStart, PiRLCStarts.windowLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart,
-        PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
-        PiRLCInputs.phaseOffset, Formal.samplerOffset_eq,
-        PiDECInputs.proofInputStart] at sourceBound roundBound laneBound positionBound ⊢
+  | poseidon source position =>
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 4 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn]
+      simp only [PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq]
       omega
-  | fresh descriptor position =>
-      rcases descriptor with ⟨source, round, lane⟩
-      have sourceBound := source.isLt
-      have roundBound := round.isLt
-      have laneBound := lane.isLt
-      have positionBound := position.isLt
-      change source.val < 17 at sourceBound
-      change round.val < 8 at roundBound
-      change lane.val < 4 at laneBound
-      change position.val < 303 at positionBound
-      norm_num [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryRetainedBlocks.freshSource,
-        PiRLCSamplerOrdinaryRetainedBlocks.freshCountPerLane,
-        PiRLCStarts.digestLaneFreshStart, PiRLCStarts.windowFreshStart,
-        PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
-        PiRLCStarts.phaseFreshStart, PiRLCStarts.phaseLogicalStart,
-        PiRLCInputs.phaseOffset, Formal.logicalPrivateCount_eq,
-        PiDECInputs.proofInputStart] at sourceBound roundBound laneBound positionBound ⊢
+  | logical source position =>
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 617 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn]
+      simp only [PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq]
       omega
-  | selector source =>
-      have sourceBound := source.isLt
-      change source.val < 17 at sourceBound
-      simp [PiRLCSamplerOrdinaryDirectPlan.Location.sourceColumn,
-        PiRLCSamplerOrdinaryDirectSource.selectorSource,
-        PiRLCStarts.selectorLogicalStart,
-        PiRLCStarts.samplerSourceLogicalStart,
-        PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
-        PiRLCInputs.phaseOffset, Formal.samplerOffset_eq,
-        First54.positionOffset, First54.candidateCount,
-        First54.roundPrivateCount, First54Step.slotCount,
-        First54ValueStep.outputCount, First54.fullSlot,
-        First54Step.fullSlot, PiDECInputs.proofInputStart]
+  | word source position =>
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 54 := position.isLt
+      rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn]
+      simp only [PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq]
+      omega
+  | fresh source position =>
+      have sourceLt : source.val < 17 := source.isLt
+      have positionLt : position.val < 1548 := position.isLt
+      change PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val < 28047768
+      rw [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq]
       omega
 
 private theorem stateLocation_beforePiDECProof
@@ -118,7 +62,7 @@ private theorem stateLocation_beforePiDECProof
     PiRLCSamplerRetainedCustody.stateOutputOffset,
     PiRLCSamplerPoseidonPlan.sourceCount,
     PiRLCSamplerPoseidonPlan.invocationsPerSource, Spec.Poseidon2.width,
-    Sampler.logicalPrivateCount, DigestWindow.logicalPrivateCount,
+    Sampler.counts.1, PiRLCSamplerRetainedCustody.stateStepStride,
     PiRLCStarts.samplerLogicalStart, PiRLCStarts.phaseLogicalStart,
     PiRLCInputs.phaseOffset, Formal.samplerOffset_eq,
     PiDECInputs.proofInputStart] at sourceBound stepBound laneBound ⊢

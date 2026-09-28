@@ -366,9 +366,8 @@ theorem sourceMap_form_eval_of_target
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment program base groupValue products))
+      (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (column : Fin Spartan.spartanColumnCount) (support : Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base column.val := by
@@ -379,7 +378,7 @@ theorem sourceMap_form_eval_of_target
   rw [found]
   rw [Location.form_eval geometry assignment _ encodes decoded.location]
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource program base
-    groupValue products decoded.location.sourceColumn
+    groupValue decoded.location.sourceColumn
     decoded.location.sourceColumn_lt]
   have mappedLocation :
       Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
@@ -395,10 +394,8 @@ private theorem preservesCombination
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
       combination) (scope : combination.VarsSatisfy Target) :
@@ -406,7 +403,7 @@ private theorem preservesCombination
       assignment (RunningTransitionDirectPlan.transitionEnv application base)
       combination bounded := by
   intro term member
-  exact sourceMap_form_eval_of_target geometry assignment base groupValue products
+  exact sourceMap_form_eval_of_target geometry assignment base groupValue
     encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 def inputs {application : Lifecycle.Stage1.Application.Program}
@@ -424,10 +421,8 @@ theorem inputs_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (scope : ∀ index, (sourceProgram.row index).VarsSatisfy Target) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs sourceProgram geometry).sourceMap index) assignment
@@ -436,11 +431,11 @@ theorem inputs_preserve
   intro index
   have rowScope := scope index
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ rowScope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ rowScope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ rowScope.2.2⟩
 
 structure SupportedProgram (rows : List R1CS.Row) where
@@ -733,11 +728,9 @@ private theorem compiledRowsZero_iff
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (source.toProgram.compile (inputs source.toProgram geometry)).toPlan.RowsZero
         assignment ↔
       source.toProgram.Holds
@@ -745,7 +738,7 @@ private theorem compiledRowsZero_iff
   exact OrdinarySourcePlan.Program.rowsZero_iff source.toProgram
     (inputs source.toProgram geometry) assignment
     (RunningTransitionDirectPlan.transitionEnv application base) one
-    (inputs_preserve source.toProgram geometry assignment base groupValue products
+    (inputs_preserve source.toProgram geometry assignment base groupValue
       encodes source.supported)
 
 theorem publicRowsZero_iff_rowsHold
@@ -756,17 +749,15 @@ theorem publicRowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (publicPlan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         (PiDECOrdinaryDirectSource.publicRows relationLogicalWidth
           relationPublicFits) := by
   rw [publicPlan, compiledRowsZero_iff (publicSource relation) geometry assignment
-    base groupValue products one encodes]
+    base groupValue one encodes]
   exact publicHolds_iff_rowsHold relation _
 
 theorem commitmentRowsZero_iff_rowsHold
@@ -777,17 +768,15 @@ theorem commitmentRowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (commitmentPlan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         (PiDECOrdinaryDirectSource.commitmentRows relationLogicalWidth
           relationPublicFits) := by
   rw [commitmentPlan, compiledRowsZero_iff (commitmentSource relation) geometry
-    assignment base groupValue products one encodes]
+    assignment base groupValue one encodes]
   exact commitmentHolds_iff_rowsHold relation _
 
 theorem evalKRowsZero_iff_rowsHold
@@ -798,17 +787,15 @@ theorem evalKRowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (evalKPlan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         (PiDECOrdinaryDirectSource.evalKRows relationLogicalWidth
           relationPublicFits) := by
   rw [evalKPlan, compiledRowsZero_iff (evalKSource relation) geometry assignment
-    base groupValue products one encodes]
+    base groupValue one encodes]
   exact evalKHolds_iff_rowsHold relation _
 
 theorem evalARowsZero_iff_rowsHold
@@ -819,17 +806,15 @@ theorem evalARowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (evalAPlan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         (PiDECOrdinaryDirectSource.evalARows relationLogicalWidth
           relationPublicFits) := by
   rw [evalAPlan, compiledRowsZero_iff (evalASource relation) geometry assignment
-    base groupValue products one encodes]
+    base groupValue one encodes]
   exact evalAHolds_iff_rowsHold relation _
 
 /-- The assembled direct plan vanishes exactly when all canonical PiDEC source
@@ -842,11 +827,9 @@ theorem rowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (plan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         (PiDECOrdinaryDirectSource.sourceRows relationLogicalWidth
@@ -854,14 +837,10 @@ theorem rowsZero_iff_rowsHold
   rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [recompositionPlan, ProductionRelation.Plan.append_rowsZero_iff]
   rw [evaluationPlan, ProductionRelation.Plan.append_rowsZero_iff]
-  rw [publicRowsZero_iff_rowsHold relation geometry assignment base groupValue
-    products one encodes]
-  rw [commitmentRowsZero_iff_rowsHold relation geometry assignment base groupValue
-    products one encodes]
-  rw [evalKRowsZero_iff_rowsHold relation geometry assignment base groupValue
-    products one encodes]
-  rw [evalARowsZero_iff_rowsHold relation geometry assignment base groupValue
-    products one encodes]
+  rw [publicRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [commitmentRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [evalKRowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
+  rw [evalARowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes]
   simp only [PiDECOrdinaryDirectSource.sourceRows, R1CS.rowsHold_append]
   constructor
   · rintro ⟨publicHolds, commitmentHolds, evalKHolds, evalAHolds⟩
@@ -878,18 +857,15 @@ theorem rowsZero_iff_canonicalRowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products)) :
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue)) :
     (plan relation geometry).RowsZero assignment ↔
       R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base)
         ((PiDECArithmetic.canonicalPlan relationLogicalWidth
           relationPublicFits).rows.map
           Rows.CompiledRow.toR1CS) := by
-  exact (rowsZero_iff_rowsHold relation geometry assignment base groupValue
-    products one encodes).trans
+  exact (rowsZero_iff_rowsHold relation geometry assignment base groupValue one encodes).trans
       (predicate_iff_of_eq
         (R1CS.RowsHold (RunningTransitionDirectPlan.transitionEnv application base))
         PiDECOrdinaryDirectSource.sourceRows_eq_canonical)
@@ -907,11 +883,9 @@ theorem rowsZero_implies_phaseHolds
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
-      (PiRLCRetainedPreservation.sourceAssignment application base groupValue
-        products))
+      (PiRLCRetainedPreservation.sourceAssignment application base groupValue))
     (assumptions :
       Lifecycle.PiDEC.v1_1.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface relationLogicalWidth
@@ -926,8 +900,7 @@ theorem rowsZero_implies_phaseHolds
         (Spartan.pullback
           (RunningTransitionDirectPlan.transitionEnv application base)) := by
   have canonicalRows :=
-    (rowsZero_iff_canonicalRowsHold relation geometry assignment base groupValue
-      products one encodes).mp accepted
+    (rowsZero_iff_canonicalRowsHold relation geometry assignment base groupValue one encodes).mp accepted
   have exactRows := PiDECArithmetic.Plan.rows_to_layout
     (PiDECArithmetic.canonicalPlan relationLogicalWidth relationPublicFits)
     (PiDECArithmetic.canonicalLayoutPlan relation)

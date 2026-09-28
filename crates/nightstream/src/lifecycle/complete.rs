@@ -3,7 +3,7 @@
 //! supplies the fresh assignment committed under the fixed production key.
 //! Full CE evaluations and terminal acceptance remain verifier obligations.
 
-use neo_ajtai::nightstream_fprime_setup::PRODUCTION_MESSAGE_COLUMNS;
+use neo_ajtai::nightstream_fprime_setup::MAX_MESSAGE_COLUMNS;
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::project_x_from_witness_mat;
@@ -162,7 +162,7 @@ impl PreparedLifecycle {
         let logical = self.package.execute_logical_assignment(&physical)?;
         drop(physical);
         let blocks = self.structure.m.div_ceil(D);
-        if logical.len() != self.structure.m || blocks == 0 || blocks > PRODUCTION_MESSAGE_COLUMNS as usize {
+        if logical.len() != self.structure.m || blocks == 0 || blocks > MAX_MESSAGE_COLUMNS as usize {
             return Err(CompleteStepError::Input(
                 "fresh logical assignment differs from the fixed-key carrier",
             ));

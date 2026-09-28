@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 
 /-!
 Owns acceptance of the canonical base dummy by the complete production NIFS
-verifier when its actual bounded sampler succeeds. Public-input bounds are
+verifier using its total transcript sampler. Public-input bounds are
 derived from the encoded prior hash and valid sampled challenges. Acceptance
 does not assert a fresh opening or valid openings for the dummy D children.
 -/
@@ -238,14 +238,15 @@ private theorem verify_some_of_checks
     PiDEC.PaperVerifier.PublicInputSplit.checked_eq_some _ _ accepted.parentBounded]
   rfl
 
-/-- The zero base messages pass the actual PiDEC checks after successful
-sampling. This is verifier acceptance, not validity of the dummy child openings. -/
-theorem zeroProof_piDecCheck_of_sampler
-    (challenges : Fin (ProductionKey.key relation ajtai).arity.total → RingF)
-    (sampled : (ProductionKey.key relation ajtai).piRlcChallenges defaultRunning
-      (baseFresh prior) zeroProof = some challenges) :
+/-- The zero base messages pass the actual PiDEC checks with the total
+production sampler. This is verifier acceptance, not validity of the dummy child openings. -/
+theorem zeroProof_piDecCheck :
     Nifs.PaperNonInteractive.piDecCheck (ProductionKey.key relation ajtai)
       defaultRunning (baseFresh prior) zeroProof = true := by
+  let key := ProductionKey.key relation ajtai
+  let challenges := Transcript.PiRlcSampler.piRlcChallenges
+    (key.piCcsExecution defaultRunning (baseFresh prior) zeroProof).outgoingState key.arity.total
+  have sampled : key.piRlcChallenges defaultRunning (baseFresh prior) zeroProof = some challenges := rfl
   apply piDecCheck_of_sampled_parent relation (ProductionKey.key relation ajtai)
     defaultRunning (baseFresh prior) zeroProof challenges sampled
   refine ⟨zeroProof_parentBounded relation ajtai prior challenges sampled, rfl, ?_,
@@ -267,17 +268,14 @@ theorem zeroProof_piDecCheck_of_sampler
     rw [parent_evaluations_zero relation ajtai prior challenges, recomposed_evaluations_zero]
 
 /-- The canonical base dummy is accepted by the complete production NIFS
-verifier when its actual bounded sampler succeeds. The result uses the
+verifier using its total transcript sampler. The result uses the
 verifier-computed point and split public inputs; no child opening is asserted. -/
-theorem zeroProof_verify_of_sampler
-    (challenges : Fin (ProductionKey.key relation ajtai).arity.total → RingF)
-    (sampled : (ProductionKey.key relation ajtai).piRlcChallenges defaultRunning
-      (baseFresh prior) zeroProof = some challenges) :
+theorem zeroProof_verify :
     ∃ output, Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       defaultRunning (baseFresh prior) zeroProof = some output := by
   exact verify_some_of_checks relation (ProductionKey.key relation ajtai)
     defaultRunning (baseFresh prior) zeroProof
     (zeroProof_piCcsCheck relation ajtai prior)
-    (zeroProof_piDecCheck_of_sampler relation ajtai prior challenges sampled)
+    (zeroProof_piDecCheck relation ajtai prior)
 
 end NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness

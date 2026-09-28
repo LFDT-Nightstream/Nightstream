@@ -1,7 +1,7 @@
 """Focused projection tests. Execute separately under the existing 300-second cap.
 
 Only carrier extent and logical width are reduced. The fixture keeps all five
-public blocks and one partial final block, with the production nine-lane tail.
+public blocks and one partial final block, with the production alignment tail.
 It retains 54 lanes, 16 children, 270 public words and 14 matrices.
 """
 import contextlib
@@ -21,6 +21,7 @@ SPEC.loader.exec_module(projection)
 D, P = projection.D, projection.P
 LOGICAL = projection.PUBLIC + projection.LOGICAL % D
 BLOCKS = (LOGICAL + D - 1) // D
+LAST_LANE = LOGICAL % D - 1
 
 
 def encoded(value):
@@ -66,7 +67,7 @@ class ProjectionTests(unittest.TestCase):
         self.claim = {"c": {"d": 54, "kappa": 22, "data": [wrapped(0) for _ in range(1188)]},
                       "x": [wrapped(value) for value in self.x], "m_in": 270, "adv": None}
         positive, negative = [0] * BLOCKS, [0] * BLOCKS
-        positive[0], positive[-1] = 1, 1 << 8
+        positive[0], positive[-1] = 1, 1 << LAST_LANE
         self.fresh = matrix(positive, negative)
         self.save(self.source / "fresh-witness.json", self.fresh)
         self.save(self.source / "fresh-claim.json", self.claim)
@@ -100,7 +101,7 @@ class ProjectionTests(unittest.TestCase):
         self.range_file(self.second, self.second_rows)
         self.expected_sources = "".join(encoded(value) for value in [
             [1, 54, 17, BLOCKS], [0, [[0, 1, 0]]], [1, [[1, 0, 1 << 53]]],
-            [BLOCKS - 1, [[0, 1 << 8, 0], [1, 1 << 53, 0], [16, 1 << 52, 0]]], []])
+            [BLOCKS - 1, [[0, 1 << LAST_LANE, 0], [1, 1 << 53, 0], [16, 1 << 52, 0]]], []])
 
     def save(self, path, value):
         path.write_text(encoded(value))
@@ -147,7 +148,7 @@ class ProjectionTests(unittest.TestCase):
 
     def test_fresh_tail_both_modes(self):
         changed = copy.deepcopy(self.fresh)
-        changed["packed_signed_unit"]["bits"]["ColumnMasks"]["positive"][-1] |= 1 << 53
+        changed["packed_signed_unit"]["bits"]["ColumnMasks"]["positive"][-1] |= 1 << (LAST_LANE + 1)
         self.save(self.source / "fresh-witness.json", changed)
         for mode in ("original", "feedback"):
             with self.subTest(mode=mode):

@@ -600,8 +600,7 @@ theorem selectedRowsAndPublic_imply_parentForChallenges
   have prefixRows := (DirectPiRLCSamplerCompletePrefixPlan.rowsZero_iff relation samplerGeometry assignment).mp parts.1.1.1
   have piRlcRows := prefixRows.2.2.1
   change (PiRLCRetainedPlan.plan _ _).RowsZero assignment at piRlcRows
-  have productRows := (PiRLCRetainedPlan.rowsZero_iff _ _ assignment).mp piRlcRows
-  have combined := rowsZero_implies_combinedParent relation ajtai samplerGeometry assignment one productRows.1
+  have combined := rowsZero_implies_combinedParent relation ajtai samplerGeometry assignment one piRlcRows
   have piCcs := PiCCSDecodedPhase.selectedRowsZero_implies_phaseHolds
     application fits ajtai canonical assignment one accepted
   have keyInputs := AccumulatorSemantics.piRlcInputs_eq_keyOutputs relation ajtai env piCcs

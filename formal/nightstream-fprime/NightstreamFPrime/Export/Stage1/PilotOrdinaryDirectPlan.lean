@@ -304,14 +304,13 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
   prior : PiCCSOrdinaryRetainedGeometry.Encodes (piCcsGeometry geometry)
     assignment (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
   added : PilotOrdinaryRetainedGeometry.Encodes geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
-      program base groupValue products)
+      program base groupValue)
 
 theorem Location.stage1SourceColumn_lt (location : Location) :
     location.sourceColumn < Spartan.SourceColumnCount := by
@@ -324,15 +323,14 @@ theorem sourceAssignment_at
     {program : Lifecycle.Stage1.Application.Program}
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (location : Location) :
-    PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+    PiRLCRetainedPreservation.sourceAssignment program base groupValue
         (RunningTransitionRetainedBlocks.packageSourceColumn program
           location.sourceColumn location.stage1SourceColumn_lt) =
       pilotEnv program base
         (PilotSpartan.sourceToSpartan location.sourceColumn) := by
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource
-    program base groupValue products location.sourceColumn
+    program base groupValue location.sourceColumn
     location.stage1SourceColumn_lt]
   rw [← RunningTransitionDirectPlan.transitionEnv_of_outside program base
     location.sourceColumn location.stage1SourceColumn_lt (by
@@ -418,9 +416,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
+      28411245 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 7438682 + (584 + lane.val) < 29336725
+  change 7438682 + (584 + lane.val) < 28411245
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -430,9 +428,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      29336725 := Package.circuitPackage_layout_values.2.2.2.2
+      28411245 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 14750146 + (584 + lane.val) < 29336725
+  change 14750146 + (584 + lane.val) < 28411245
   omega
 
 private theorem priorLastBlock_source
@@ -485,8 +483,7 @@ theorem Location.form_eval
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (location : Location) :
     (location.form geometry).eval assignment =
       pilotEnv program base
@@ -498,14 +495,14 @@ theorem Location.form_eval
         (PiCCSOrdinaryRetainedGeometry.priorLastStart program)
         (PiCCSOrdinaryRetainedGeometry.priorLastFits (piCcsGeometry geometry))
         assignment (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.prior.priorLast
+          program base groupValue) encodes.prior.priorLast
         (finalSlot lane)]
       rw [priorLastBlock_source program lane]
-      change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+      change PiRLCRetainedPreservation.sourceAssignment program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.priorDigest lane).sourceColumn
             (Location.priorDigest lane).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.priorDigest lane)
+      exact sourceAssignment_at base groupValue (.priorDigest lane)
   | priorPublic index =>
       rw [form, LowNormBlock.Block.form_eval
         (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock program)
@@ -513,66 +510,66 @@ theorem Location.form_eval
         (PiCCSOrdinaryRetainedGeometry.freshPublicInputFits
           (piCcsGeometry geometry)) assignment
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.prior.freshPublicInput index]
+          program base groupValue) encodes.prior.freshPublicInput index]
       change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products
+          program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.priorPublic index).sourceColumn
             (Location.priorPublic index).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.priorPublic index)
+      exact sourceAssignment_at base groupValue (.priorPublic index)
   | canonicalLocal index =>
       rw [form, LowNormBlock.Block.form_eval
         (PilotOrdinaryRetainedBlocks.canonicalLocalBlock program)
         (PilotOrdinaryRetainedGeometry.canonicalLocalStart program)
         (PilotOrdinaryRetainedGeometry.canonicalLocalFits geometry) assignment
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.added.canonicalLocal index]
+          program base groupValue) encodes.added.canonicalLocal index]
       change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products
+          program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.canonicalLocal index).sourceColumn
             (Location.canonicalLocal index).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.canonicalLocal index)
+      exact sourceAssignment_at base groupValue (.canonicalLocal index)
   | outputState lane =>
       rw [form, LowNormBlock.Block.form_eval
         (PiCCSOrdinaryRetainedBlocks.outputLastBlock program)
         (PiCCSOrdinaryRetainedGeometry.outputLastStart program)
         (PiCCSOrdinaryRetainedGeometry.outputLastFits (piCcsGeometry geometry))
         assignment (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.prior.outputLast
+          program base groupValue) encodes.prior.outputLast
         (finalSlot lane)]
       rw [outputLastBlock_source program lane]
-      change PiRLCRetainedPreservation.sourceAssignment program base groupValue products
+      change PiRLCRetainedPreservation.sourceAssignment program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.outputState lane).sourceColumn
             (Location.outputState lane).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.outputState lane)
+      exact sourceAssignment_at base groupValue (.outputState lane)
   | canonicalFresh index =>
       rw [form, LowNormBlock.Block.form_eval
         (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program)
         (PilotOrdinaryRetainedGeometry.canonicalFreshStart program)
         (PilotOrdinaryRetainedGeometry.canonicalFreshFits geometry) assignment
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.added.canonicalFresh index]
+          program base groupValue) encodes.added.canonicalFresh index]
       change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products
+          program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.canonicalFresh index).sourceColumn
             (Location.canonicalFresh index).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.canonicalFresh index)
+      exact sourceAssignment_at base groupValue (.canonicalFresh index)
   | outputDigest lane =>
       rw [form, LowNormBlock.Block.form_eval
         (PilotOrdinaryRetainedBlocks.outputDigestBlock program)
         (PilotOrdinaryRetainedGeometry.outputDigestStart program)
         (PilotOrdinaryRetainedGeometry.outputDigestFits geometry) assignment
         (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products) encodes.added.outputDigest lane]
+          program base groupValue) encodes.added.outputDigest lane]
       change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue products
+          program base groupValue
           (RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.outputDigest lane).sourceColumn
             (Location.outputDigest lane).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue products (.outputDigest lane)
+      exact sourceAssignment_at base groupValue (.outputDigest lane)
 
 theorem priorDigest_form_eval_chainOutput
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -628,8 +625,7 @@ theorem sourceMap_form_eval_of_target
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (column : Fin PilotSpartan.spartanColumnCount)
     (support : Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
@@ -639,7 +635,7 @@ theorem sourceMap_form_eval_of_target
     | none => SparseForm.empty
     | some value => value.location.form geometry).eval assignment = _
   rw [found]
-  rw [Location.form_eval geometry assignment base groupValue products encodes
+  rw [Location.form_eval geometry assignment base groupValue encodes
     decoded.location]
   have mappedLocation :
       PilotSpartan.sourceToSpartan decoded.location.sourceColumn =
@@ -653,8 +649,7 @@ private theorem preservesCombination
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded
       PilotSpartan.spartanColumnCount combination)
@@ -662,8 +657,7 @@ private theorem preservesCombination
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
       assignment (pilotEnv program base) combination bounded := by
   intro term member
-  exact sourceMap_form_eval_of_target geometry assignment base groupValue
-    products encodes ⟨term.1, bounded term member⟩ (scope term member)
+  exact sourceMap_form_eval_of_target geometry assignment base groupValue encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 private theorem programRow_support
     (index : Fin 1330) :
@@ -684,8 +678,7 @@ theorem inputs_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products) :
+    (encodes : Encodes geometry assignment base groupValue) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs geometry).sourceMap index) assignment (pilotEnv program base)
       (PilotOrdinaryDirectSource.program.row index)
@@ -698,11 +691,11 @@ theorem inputs_preserve
       PilotOrdinaryDirectSource.SupportedProgram.toProgram,
       PilotOrdinaryDirectSource.supportedProgram] using directScope
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 theorem programRow_preserve
@@ -711,19 +704,18 @@ theorem programRow_preserve
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (index : Fin 1330) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (pilotEnv program base) (PilotOrdinaryDirectSource.programRow index)
       (PilotOrdinaryDirectSource.programRow_bounded index) := by
   have scope := programRow_support index
   exact ⟨
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.1,
-    preservesCombination geometry assignment base groupValue products encodes
+    preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
 def rowForms
@@ -756,9 +748,8 @@ theorem rowsZero_iff_rowsHold
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products) :
+    (encodes : Encodes geometry assignment base groupValue) :
     (plan geometry).RowsZero assignment ↔
       R1CS.RowsHold (pilotEnv program base)
         PilotOrdinaryDirectSource.sourceRows := by
@@ -771,7 +762,7 @@ theorem rowsZero_iff_rowsHold
       (PilotOrdinaryDirectSource.programRow index)
       (PilotOrdinaryDirectSource.programRow_bounded index) assignment
       (pilotEnv program base) one
-      (programRow_preserve geometry assignment base groupValue products encodes
+      (programRow_preserve geometry assignment base groupValue encodes
         index)
     exact (OrdinaryRow.planOfForms_residual_zero_iff
       (by norm_num [Lifecycle.cubeVariables]) (rowForms geometry) assignment
@@ -783,7 +774,7 @@ theorem rowsZero_iff_rowsHold
       (PilotOrdinaryDirectSource.programRow index)
       (PilotOrdinaryDirectSource.programRow_bounded index) assignment
       (pilotEnv program base) one
-      (programRow_preserve geometry assignment base groupValue products encodes
+      (programRow_preserve geometry assignment base groupValue encodes
         index)
     exact (OrdinaryRow.planOfForms_residual_zero_iff
       (by norm_num [Lifecycle.cubeVariables]) (rowForms geometry) assignment

@@ -123,7 +123,6 @@ import NightstreamFPrime
 #audit_axioms NightstreamFPrime.Export.Stage1.Data.circuitPackage_compactRowInvocations
 #audit_axioms NightstreamFPrime.Export.Stage1.CompactRows.instantiateRows_eq_package
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piCcsArithmeticRows
-#audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonicalFirst54Block_expand
 #audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonicalCombinationBlock_expand
 #audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonicalCompactBlocks_expand
 #audit_axioms NightstreamFPrime.Export.Stage1.PackagePlan.canonical_expand

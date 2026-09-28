@@ -16,38 +16,13 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
-
-private theorem available_of_sampleBatch
-    (initial : Transcript.State) (count : Nat) (batch : Transcript.PiRlcSampler.Batch count)
-    (success : Transcript.PiRlcSampler.sampleBatch initial count = some batch) :
-    Available Transcript.PiRlcSampler.specification count candidateBound initial := by
-  induction count with
-  | zero => exact ⟨⟨fun coordinate => Fin.elim0 coordinate⟩, trivial⟩
-  | succ count ih =>
-      rw [Transcript.PiRlcSampler.sampleBatch] at success
-      cases previous : Transcript.PiRlcSampler.sampleBatch initial count with
-      | none => simp [previous] at success
-      | some prior =>
-          cases sampled : Transcript.PiRlcSampler.sampleRingChallenge initial count with
-          | none => simp [previous, sampled] at success
-          | some challenge =>
-              obtain ⟨priorExecution, _⟩ := ih prior previous
-              obtain ⟨scalar, scalarSample, _⟩ := Option.map_eq_some_iff.mp sampled
-              obtain ⟨coefficients, coefficientSample, _⟩ := Option.map_eq_some_iff.mp scalarSample
-              obtain ⟨execution, _⟩ := Sampling.FirstAccepted.BoundedExecution.exists_of_bounded_success
-                coefficientSample
-              refine ⟨{ execution := ?_ }, trivial⟩
-              exact Fin.lastCases execution priorExecution.execution
-
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- An accepted NIFS run supplies C acceptance, actual bounded sampler
-availability, and the D checks for the same transcript-derived challenges. -/
+/-- An accepted NIFS run supplies C acceptance and the D checks for the
+same transcript-derived challenges. -/
 theorem verifierInputs
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -56,8 +31,6 @@ theorem verifierInputs
     (accepted : Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       running fresh proof = some output) :
     PiCCS.Accepted (ProductionKey.key relation ajtai) running fresh proof ∧
-    Available Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount candidateBound
-      ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).outgoingState ∧
     ∃ challenges,
       (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof = some challenges ∧
       PiDEC.PaperVerifier.Accepted (ProductionKey.key relation ajtai).piDecAlgebra
@@ -75,15 +48,7 @@ theorem verifierInputs
   change (key.piRlcChallenges running fresh proof).map
     (key.parentForChallenges running fresh proof) = some parent at parentEq
   obtain ⟨challenges, sampled, parentValue⟩ := Option.map_eq_some_iff.mp parentEq
-  have availability : Available Transcript.PiRlcSampler.specification
-      PiRLC.v1_1.SamplerChain.sourceCount candidateBound
-      (key.piCcsExecution running fresh proof).outgoingState := by
-    change (Transcript.PiRlcSampler.piRlcChallengesWithState
-      (key.piCcsExecution running fresh proof).outgoingState Nifs.PaperProfile.arity.total).map
-        Transcript.PiRlcSampler.Batch.challenges = some challenges at sampled
-    obtain ⟨batch, batchSample, _⟩ := Option.map_eq_some_iff.mp sampled
-    exact available_of_sampleBatch _ _ batch batchSample
-  refine ⟨cCheck, availability, challenges, sampled, ?_⟩
+  refine ⟨cCheck, challenges, sampled, ?_⟩
   rw [parentValue, attemptValue]
   exact checks
 
@@ -329,24 +294,17 @@ private theorem rValues_eq_of_agree
   let interface := PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
   constructor
   · funext source lane
-    change PiRLC.v1_1.SamplerChain.evalChallenge
-        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset interface PiRLCInputs.phaseOffset))
-        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset) after
-        (PiRLC.v1_1.Semantics.sourceIndex source) lane =
-      PiRLC.v1_1.SamplerChain.evalChallenge
-        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset interface PiRLCInputs.phaseOffset))
-        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset) before
-        (PiRLC.v1_1.Semantics.sourceIndex source) lane
-    rw [← PiRLC.v1_1.SamplerChain.challengeExpr_eval,
-      ← PiRLC.v1_1.SamplerChain.challengeExpr_eval]
+    change (PiRLC.v1_1.SamplerChain.outputChallenge
+        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
+        (PiRLC.v1_1.Semantics.sourceIndex source) lane).eval after =
+      (PiRLC.v1_1.SamplerChain.outputChallenge
+        (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
+        (PiRLC.v1_1.Semantics.sourceIndex source) lane).eval before
     apply Expr.eval_eq_of_agree_below _
       (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) after before _ agrees
-    apply Expr.VarsBelow.mono _ (PiRLC.v1_1.SamplerChain.challengeExpr_varsBelow _ _ _ _)
-    have sourceBound := (PiRLC.v1_1.Semantics.sourceIndex source).isLt
-    change (PiRLC.v1_1.Semantics.sourceIndex source).val < 17 at sourceBound
-    norm_num [PiRLC.v1_1.SamplerChain.sourceOffset, PiRLC.v1_1.Formal.samplerOffset,
-      PiRLC.v1_1.Sampler.logicalPrivateCount, PiRLC.v1_1.Formal.logicalPrivateCount]
-    omega
+    apply Expr.VarsBelow.mono _ (PiRLC.v1_1.SamplerChain.outputChallenge_below _ _ _)
+    rw [PiRLC.v1_1.SamplerChain.counts.1]
+    exact Nat.add_le_add_left (by decide : 55403 ≤ 107729) PiRLCInputs.phaseOffset
   · have pointEq : PiRLC.v1_1.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
         PiRLC.v1_1.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
       apply point_ext
@@ -427,7 +385,7 @@ theorem completePrefix_after_r
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset afterR) := by
     rw [currentValues.1, currentValues.2]
     exact rParent
-  obtain ⟨_, _, challenges, sampled, checks⟩ := verifierInputs relation ajtai running fresh proof result accepted
+  obtain ⟨_, challenges, sampled, checks⟩ := verifierInputs relation ajtai running fresh proof result accepted
   have challengeEq : PiRLC.v1_1.Semantics.evalChallenges
       (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
       PiRLCInputs.phaseOffset afterR = challenges := Option.some.inj (afterSampled.symm.trans sampled)
@@ -502,8 +460,8 @@ variable
   (template : Proof 9)
 
 /-- An actual accepted NIFS run constructs the canonical local C/R/D
-prefixes and their exact running output. C acceptance, sampler availability,
-and the D parent bound all follow from that run. State framing and context are
+prefixes and their exact running output. C acceptance and the D parent bound
+follow from that run; the sampler is total. State framing and context are
 the outer circuit's fixed input prerequisites. No child opening, generated
 phase specification, or generated output value is a premise. -/
 theorem completePrefix_from
@@ -539,12 +497,12 @@ theorem completePrefix_from
           RunningTransitionInputs.piDecRunningOutput relation d.current = result := by
   let proof := PiCCSProofInputs.relationProof relation values template
   let fresh := PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values
-  obtain ⟨cAccepted, available, _, _, _⟩ := verifierInputs relation ajtai
+  obtain ⟨cAccepted, _, _, _⟩ := verifierInputs relation ajtai
     (prior.running functionIndex) fresh proof result accepted
   obtain ⟨c, r, cOperations, rOperations, cRowsAtR, _, rSampled, rParent⟩ :=
     PiRLCProtocolCompleteness.completePrefix_from relation ajtai prior priorPublic advertised digest
       priorFixed advertisedFixed digestFixed values context template priorPc advertisedPc
-      priorContext advertisedContext cAccepted available initial source
+      priorContext advertisedContext cAccepted initial source
   obtain ⟨d, dOperations, rRows, dPhase, dOutput⟩ := completePrefix_after_r relation ajtai
     (prior.running functionIndex) fresh proof result accepted c.current r rOperations rSampled rParent
     r.current (fun _ _ => rfl)
@@ -571,8 +529,8 @@ theorem completePrefix_from
 
 
 /-- An actual accepted NIFS run constructs the canonical local C/R/D
-prefixes and their exact running output. C acceptance, sampler availability,
-and the D parent bound all follow from that run. State framing and context are
+prefixes and their exact running output. C acceptance and the D parent bound
+follow from that run; the sampler is total. State framing and context are
 the outer circuit's fixed input prerequisites. No child opening, generated
 phase specification, or generated output value is a premise. -/
 theorem completePrefix

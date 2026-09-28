@@ -3,17 +3,14 @@ members = [
   "crates/neo-params", 
   "crates/neo-math", 
   # Implementation crates
-  "crates/wip-spartan",
   "crates/neo-transcript",
   "crates/neo-ajtai",
   "crates/neo-ccs",
   "crates/neo-reductions",
   "crates/neo-prover-cuda",
   "crates/neo-prover-metal",
-  "crates/neo-fold-legacy",
   "crates/nightstream-fprime",
   "crates/nightstream",
-  "crates/neo-wasm",
 ]
 exclude = [
   "external/Spartan2",
@@ -44,19 +41,9 @@ p3-poseidon2 = "=0.5.3"
 p3-challenger = "=0.5.3"
 bincode = "1.3"
 
-# Direct Spartan backend
-wip-spartan = { path = "crates/wip-spartan" }
-
-# Circuit dependencies
-bellpepper-core = { version = "0.4" }
-ff = { version = "0.13" }
-
 # Benches & tests
 criterion = { version = "0.6", features = ["html_reports"] }
 proptest = "1.6.0"
-
-# For sha256 test
-bellpepper = "0.4.1"
 
 [profile.dev]
 opt-level = 1

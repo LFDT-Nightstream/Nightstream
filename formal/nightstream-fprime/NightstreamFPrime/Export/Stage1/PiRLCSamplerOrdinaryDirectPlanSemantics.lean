@@ -27,7 +27,7 @@ variable {relationLogicalWidth : Nat}
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :
-    (plan relation geometry).rowCount = 220881 := by
+    (plan relation geometry).rowCount = 38811 := by
   rfl
 
 theorem plan_eq_of_same_shape

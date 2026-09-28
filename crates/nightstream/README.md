@@ -68,7 +68,11 @@ engine returns an error without a CPU fallback.
 Metal retains its device session and matrix plan across folds. PiRLC, witness
 generation, and verifier control flow use the shared host code. Fixed-key
 commitments, terminal row arithmetic, and nonzero running openings use Metal.
-The GPU dependencies do not add `neo-fold-legacy` to the production graph.
+The GPU dependencies use the maintained folding and commitment interfaces.
+
+The performance and saved-production comparisons below describe the earlier
+package. They are historical measurements, not validation of the current sampler
+replacement. Current source-bound results belong in the conformance record.
 
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
@@ -272,12 +276,14 @@ Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
 verifier component and binds the resulting application and circuit identity.
 
-The current `Circuit` uses a prefix of the selected production commitment key.
-Private input words plus generated local words must be at most **7,701**. This
-comes from the existing layout
-`252,695,531 + 41 × (private_words + local_words)` and the selected key's
-253,011,276-coefficient capacity. The exported row and domain checks also apply.
-A larger application needs a separately supported key; preparation rejects it.
+Each `Circuit` uses the production commitment-key prefix required by its
+application. Private input words plus generated local words must be at most
+**292,329**. The logical width is
+`242,275,092 + 41 × (private_words + local_words)`, and the maximum key supports
+254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
+uses 4,492,423 columns; this smaller prefix is not the application capacity limit.
+The exported row and domain checks also apply. See the
+[capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
@@ -291,8 +297,8 @@ contract is `NIGHTSTREAM_CRATE_GOAL.md` in the repository root. See the
 and the separate maintainer workflow.
 
 The Cargo package includes the saved test inputs. Tests use package-local data
-and do not run Lean. The crate has no production or development dependency on
-`neo-fold-legacy`. The old timing baseline lives in the legacy crate.
+and do not run Lean. Historical timing measurements in the validation records
+apply only to their recorded source and package.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.

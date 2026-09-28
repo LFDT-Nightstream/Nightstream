@@ -18,11 +18,11 @@ def main():
     directory.mkdir()
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
-    header = [1, 54, 17, 4685394]
+    header = [1, 54, 17, 4492423]
     cases = {
         "zero": [],
         "last-source": [[0, [[16, 2 ** 54 - 1, 0]]]],
-        "last-source-tail": [[4685393, [[16, 2 ** 53, 2 ** 52]]]],
+        "last-source-tail": [[header[3] - 1, [[16, 2 ** 53, 2 ** 52]]]],
     }
 
     def capture(name, records, terminated=True, extra=""):
@@ -75,7 +75,7 @@ def main():
         matched.append(name)
 
     invalid = [
-        ("overlap-tail", capture("overlap-tail", [[4685393, [[16, 1, 1]]]]),
+        ("overlap-tail", capture("overlap-tail", [[header[3] - 1, [[16, 1, 1]]]]),
          "invalid signed-unit source masks"),
         ("missing-terminator", capture("missing-terminator", [], terminated=False),
          "missing source terminator"),

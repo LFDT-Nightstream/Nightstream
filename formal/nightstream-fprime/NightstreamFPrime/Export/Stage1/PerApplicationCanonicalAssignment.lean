@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 /-!
 Owns the canonical low-norm assignment constructor for one Lean-authored
 application. One raw value packet supplies the package source values and the
-two derived PiRLC value families. The assignment uses the exact retained-block
+derived PiRLC product values. The assignment uses the exact retained-block
 order already owned by the direct Stage 1 geometry.
 
 This module constructs values only. It does not assume row acceptance or
@@ -59,7 +59,6 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 structure RawValues (application : Program) where
   base : Fin (PiRLCProductPlan.baseSourceWidth application) → F
   groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F
-  products : Fin PiRLCFirst54DirectSchedule.candidateCount → F
 
 namespace RawValues
 
@@ -76,7 +75,7 @@ def outputDigest {application : Program} (raw : RawValues application) : Digest 
 def retainedSource {application : Program} (raw : RawValues application) :
     Fin (PiRLCRetainedGeometry.sourceWidth application) → F :=
   PiRLCRetainedPreservation.sourceAssignment application raw.base
-    raw.groupValue raw.products
+    raw.groupValue
 
 def applicationSource {application : Program} (raw : RawValues application) :
     Fin (ApplicationRetainedBlocks.sourceWidth application) → F :=
@@ -94,15 +93,7 @@ def schedule {application : Program} (raw : RawValues application) :
       raw.retainedSource
   , Canonical.ofBlock (PiRLCRetainedGeometry.productGroupBlock application)
       raw.retainedSource
-  , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.rejectBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.symbolBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.positionBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.valueBlock application)
-      raw.retainedSource
-  , Canonical.ofBlock (PiRLCFirst54RetainedBlocks.productBlock application)
+  , Canonical.ofBlock (PiRLCRetainedGeometry.challengeBlock application)
       raw.retainedSource
   , Canonical.ofBlock (PiRLCRetainedGeometry.productOutputBlock application)
       raw.retainedSource
@@ -158,7 +149,7 @@ def schedule {application : Program} (raw : RawValues application) :
 end RawValues
 
 @[simp] theorem schedule_length {application : Program}
-    (raw : RawValues application) : raw.schedule.length = 30 := by
+    (raw : RawValues application) : raw.schedule.length = 26 := by
   rfl
 
 /-- The block schedule has exactly the final logical width after its 270-word
@@ -204,9 +195,7 @@ theorem schedule_width {application : Program} (raw : RawValues application) :
     PiRLCPoseidonGeometry.priorInputStart
     PiRLCRetainedGeometry.prefixLogicalWidth
     PiRLCRetainedGeometry.productOutputStart
-    PiRLCRetainedGeometry.first54ProductStart
-    PiRLCRetainedGeometry.valueStart PiRLCRetainedGeometry.positionStart
-    PiRLCRetainedGeometry.symbolStart PiRLCRetainedGeometry.rejectStart
+    PiRLCRetainedGeometry.challengeStart
     PiRLCRetainedGeometry.productGroupStart
     PiRLCRetainedGeometry.laterPoseidonStart
     PiRLCRetainedGeometry.outputPoseidonStart

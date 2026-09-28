@@ -4,9 +4,9 @@ import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 
 /-!
 Owns construction of the canonical local C/R witnesses from protocol inputs.
-The C constructor supplies its transcript state; the R constructor consumes
-actual bounded sampler availability at that state. Existing source support
-preserves C through R, and the resulting R output is the production parent.
+The C constructor supplies its transcript state; the R constructor samples
+from that state without a failure condition. Existing source support preserves
+C through R, and the resulting R output is the production parent.
 This module adds no rows and does not construct the pilot or physical lowering.
 -/
 
@@ -140,12 +140,6 @@ physical fresh interval. Agreement is needed only below the logical C end;
 the constructor derives C semantics, the actual sampler state, and R outputs.
 No equality on the physical fresh cells is required. -/
 theorem completePrefix_after_c
-    (available : Folding.Nifs.NonInteractive.PiRlcSampler.Available
-      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
-      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      ((ProductionKey.key relation ajtai).piCcsExecution (prior.running functionIndex)
-        (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-        (relationProof relation values template)).outgoingState)
     (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       PiCCSProtocolCompleteness.environment prior priorPublic output digest
@@ -178,40 +172,9 @@ theorem completePrefix_after_c
             (PiRLC.v1_1.Semantics.evalChallenges
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
-  have cRows : holds afterC
-      (Circuit.ops (Formal.main relation (relationInterface relation)) PiCCSInputs.phaseOffset) := by
-    rw [Formal.main_ops, ← cOperations]
-    apply holdsFlat_implies_holds
-    intro expression member
-    exact (expression.eval_eq_of_agree_below
-      (PiCCSInputs.phaseOffset + localLength c.operations) afterC c.current
-      (c.scope expression member) preserved).trans (c.rows expression member)
-  have cAssumptions := NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.production relation
-    (relationInterface relation) PiCCSInputs.phaseOffset
-    (PiCCSInputs.externalInputsLinear logicalWidth publicFits) afterC
-  have cPhase := Formal.spec_implies_phaseHolds relation ajtai (relationInterface relation)
-    PiCCSInputs.phaseOffset afterC (relationProof relation values template)
-    (Formal.soundness relation (relationInterface relation) afterC PiCCSInputs.phaseOffset cAssumptions cRows)
-  have cRead := protocol_readback relation prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template initial source afterC (fun index below =>
-      (preserved index (Nat.lt_of_lt_of_le below (Nat.le_add_right _ _))).trans
-        (c.agrees index (Or.inl below)))
-  have stateEq := initialState_eq_of_phase relation ajtai afterC
-    (relationProof relation values template) cPhase
-  rw [cRead.1, cRead.2.1, cRead.2.2] at stateEq
-  have actualAvailable : Folding.Nifs.NonInteractive.PiRlcSampler.Available
-      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
-      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      (PiRLC.v1_1.SamplerChain.evalInitialState
-        (PiRLC.v1_1.Formal.samplerInterface (PiRLC.v1_1.Formal.atOffset
-          (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
-          PiRLCInputs.phaseOffset)) (PiRLC.v1_1.Formal.samplerOffset PiRLCInputs.phaseOffset)
-        afterC) := by
-    rw [stateEq]
-    exact available
-  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_1.Formal.completePrefix_of_available relation ajtai
+  obtain ⟨r, rOperations, rPhase⟩ := PiRLC.v1_1.Formal.completePrefix_with_phase relation ajtai
     (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) afterC
-    PiRLCInputs.phaseOffset (PiRLCInputBounds.assumptions relation afterC) actualAvailable
+    PiRLCInputs.phaseOffset (PiRLCInputBounds.assumptions relation afterC)
   have cLimit : PiCCSInputs.phaseOffset + localLength c.operations ≤ PiRLCInputs.phaseOffset := by
     rw [cOperations, ← Formal.main_ops, Formal.localLength_eq]
     change NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
@@ -277,7 +240,7 @@ theorem completePrefix_after_c
   exact ⟨r, rOperations, rowsPreserved, rPhase, challenges, parent⟩
 
 
-/-- Accepted typed protocol inputs and actual bounded sampler availability
+/-- Accepted typed protocol inputs and the total sampler
 construct the canonical local C/R witnesses. R preserves the constructed C
 rows and its output is the exact production-key parent for the same statement,
 proof, and transcript-derived challenges. No generated phase output is assumed. -/
@@ -289,12 +252,6 @@ theorem completePrefix_from
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
       (relationProof relation values template))
-    (available : Folding.Nifs.NonInteractive.PiRlcSampler.Available
-      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
-      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      ((ProductionKey.key relation ajtai).piCcsExecution (prior.running functionIndex)
-        (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-        (relationProof relation values template)).outgoingState)
     (initial : Env)
     (source : ∀ index, PiCCSOrdinarySourceSupport.External index → initial index =
       PiCCSProtocolCompleteness.environment prior priorPublic output digest
@@ -328,12 +285,12 @@ theorem completePrefix_from
     prior priorPublic output digest priorFixed outputFixed digestFixed values context relation
     ajtai template priorPc outputPc priorContext outputContext accepted initial source
   obtain ⟨r, completed⟩ := completePrefix_after_c relation ajtai prior priorPublic output digest
-    priorFixed outputFixed digestFixed values context template available initial source
+    priorFixed outputFixed digestFixed values context template initial source
     c cOperations c.current (fun _ _ => rfl)
   exact ⟨c, r, cOperations, completed⟩
 
 
-/-- Accepted typed protocol inputs and actual bounded sampler availability
+/-- Accepted typed protocol inputs and the total sampler
 construct the canonical local C/R witnesses. R preserves the constructed C
 rows and its output is the exact production-key parent for the same statement,
 proof, and transcript-derived challenges. No generated phase output is assumed. -/
@@ -345,12 +302,7 @@ theorem completePrefix
       (prior.running functionIndex)
       (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
       (relationProof relation values template))
-    (available : Folding.Nifs.NonInteractive.PiRlcSampler.Available
-      Transcript.PiRlcSampler.specification PiRLC.v1_1.SamplerChain.sourceCount
-      Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      ((ProductionKey.key relation ajtai).piCcsExecution (prior.running functionIndex)
-        (PiCCSProofInputs.protocolFresh logicalWidth publicFits priorPublic values)
-        (relationProof relation values template)).outgoingState) :
+ :
     ∃ c : Sequence.Prefix
         (PiCCSProtocolCompleteness.environment prior priorPublic output digest
           priorFixed outputFixed digestFixed values context) PiCCSInputs.phaseOffset,
@@ -379,7 +331,7 @@ theorem completePrefix
               (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits))
               PiRLCInputs.phaseOffset r.current) := by
   exact completePrefix_from relation ajtai prior priorPublic output digest priorFixed outputFixed
-    digestFixed values context template priorPc outputPc priorContext outputContext accepted available
+    digestFixed values context template priorPc outputPc priorContext outputContext accepted
     (PiCCSProtocolCompleteness.environment prior priorPublic output digest
       priorFixed outputFixed digestFixed values context) (fun _ _ => rfl)
 

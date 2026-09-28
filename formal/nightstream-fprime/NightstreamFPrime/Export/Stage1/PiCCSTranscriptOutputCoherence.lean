@@ -60,7 +60,7 @@ theorem canonicalOutput_of_packageRows {application : Program}
   change SparseLayer.evalState raw.assignment
       (PiCCSPoseidonPlan.outputState geometry index) = _
   rw [PiCCSPoseidonPreservation.outputState_baseEnv geometry raw.assignment
-    raw.base raw.groupValue raw.products sboxes index]
+    raw.base raw.groupValue sboxes index]
   exact (packageRows_imply_finalLayer _
     (PerApplicationCanonicalPreservation.packageRows_imply_validatedPrefix
       application (SourceCompiler.sourceEnv raw.base) rows) index).symm
@@ -110,7 +110,7 @@ theorem physicalTranscript_source
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
       rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-      change index.val < 7757
+      change index.val < 7638
       omega⟩
   have same : physicalInvocation (PiCCSTranscriptOutputForms.invocation index) =
       (Data.permutationInvocations ()).get selected := by
@@ -122,7 +122,7 @@ theorem physicalTranscript_source
     have leftBound : index.val <
         PoseidonRetainedBlock.basePackage.permutationInvocations.length := by
       rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-      change index.val < 7757
+      change index.val < 7638
       omega
     rw [List.getElem?_eq_getElem leftBound,
       List.getElem?_eq_getElem selected.isLt] at listEq

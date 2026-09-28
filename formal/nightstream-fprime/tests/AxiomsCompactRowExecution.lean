@@ -1,5 +1,4 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope
-import NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates
 import NightstreamFPrime.Export.Stage1.StoredCompactCompletion
 import NightstreamFPrime.Export.Stage1.CompactRowRelocation
 import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
@@ -30,16 +29,6 @@ import tests.AxiomAudit
 #audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactCompletion.execute_compactTemplate
 #audit_axioms NightstreamFPrime.Export.Stage1.StoredCompactCompletion.execute_compactConstraintTemplate
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates.positionRecipe_varsBelow
 
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCFirst54Templates.valueRecipe_varsBelow
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.combination_outputRecipe
-
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.firstPosition_recipe
-
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.laterPosition_recipe
-
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.firstValue_recipe
-
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCCompactRecipeScope.laterValue_recipe

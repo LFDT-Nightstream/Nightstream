@@ -100,7 +100,7 @@ theorem rowCount_le
   have packageRows := fits.rows
   rw [PerApplicationPackage.package_rowCount] at packageRows
   have baseRows : PerApplicationPackage.basePackage.layout.rowCount =
-      29218024 := by
+      28268115 := by
     simpa [PerApplicationPackage.basePackage] using
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.1
   rw [baseRows] at packageRows
@@ -182,7 +182,7 @@ def plan
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     (plan relation fits geometry).rowCount =
-      6369850 + (PerApplicationPackage.applicationPlan application).rowCount +
+      6056897 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
@@ -235,29 +235,29 @@ theorem applicationSourceWidth_le_baseSourceWidth
   rw [PerApplicationPackage.package_totalColumnCount]
   unfold PerApplicationPackage.addedPrivateColumnCount
   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      29336725 := by
+      28411245 := by
     exact Package.circuitPackage_layout_values.2.2.2.2
-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 29336446 := by
+  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 28410966 := by
     exact Layout.Stage1.Spartan.privateColumnCount_eq
   rw [baseTotal, privateCount]
-  change 29336446 + application.witnessWordCount +
+  change 28410966 + application.witnessWordCount +
         localLength (ApplicationPackage.operations application
           (ApplicationPackage.productionColumns application)
-          (29336446 + application.witnessWordCount)) +
+          (28410966 + application.witnessWordCount)) +
         R1CS.totalFreshCount
           (ApplicationPackage.constraints application
             (ApplicationPackage.productionColumns application)
-            (29336446 + application.witnessWordCount)) ≤
-      29336725 + (application.witnessWordCount +
+            (28410966 + application.witnessWordCount)) ≤
+      28411245 + (application.witnessWordCount +
         (PerApplicationPackage.applicationPlan application).privateCount)
-  change _ ≤ 29336725 + (application.witnessWordCount +
+  change _ ≤ 28411245 + (application.witnessWordCount +
     (localLength (ApplicationPackage.operations application
       (ApplicationPackage.productionColumns application)
-      (29336446 + application.witnessWordCount)) +
+      (28410966 + application.witnessWordCount)) +
     R1CS.totalFreshCount
       (ApplicationPackage.constraints application
         (ApplicationPackage.productionColumns application)
-        (29336446 + application.witnessWordCount))))
+        (28410966 + application.witnessWordCount))))
   omega
 
 /-- The application reads the same complete package source assignment as the
@@ -289,9 +289,9 @@ structure Encodes
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Encodes
-    (prefixGeometry geometry) assignment base groupValue products
+    (prefixGeometry geometry) assignment base groupValue
   /-- Input/output facts refer to the existing pilot coordinates. Only the
   witness/local fields describe new application suffix coordinates. -/
   applicationEncoding : ApplicationRetainedGeometry.Encodes geometry assignment
@@ -306,9 +306,9 @@ structure Semantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F) : Prop where
+    : Prop where
   runningPrefix : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
-    (prefixGeometry geometry) assignment base groupValue products
+    (prefixGeometry geometry) assignment base groupValue
   applicationSemantics : Lifecycle.Stage1.Application.Holds application.step
     (Layout.Stage1.ApplicationInputs.interface application)
     (Layout.Stage1.ApplicationInputs.localStart application)
@@ -341,15 +341,14 @@ theorem rowsZero_implies_semantics
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
-    (products : Fin PiRLCFirst54DirectSchedule.candidateCount → F)
     (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
-    (encodes : Encodes geometry assignment base groupValue products)
+    (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation fits geometry).RowsZero assignment) :
-    Semantics relation geometry assignment base groupValue products := by
+    Semantics relation geometry assignment base groupValue := by
   have children := (rowsZero_iff relation fits geometry assignment).mp rowsZero
   refine ⟨?_, ?_, ?_, ?_⟩
   · exact DirectPiRLCSamplerCompletePrefixPlan.rowsZero_implies_semantics relation
-      (prefixGeometry geometry) assignment base groupValue products
+      (prefixGeometry geometry) assignment base groupValue
       (prefixOne geometry assignment one) encodes.runningPrefix children.1.1.1
   · have rows := (ApplicationDirectPlan.rowsZero_iff_rowsHold fits geometry
       assignment (applicationSource application base)
@@ -357,7 +356,7 @@ theorem rowsZero_implies_semantics
     exact ApplicationDirectSource.rowsHold_implies_applicationHolds application
       (ApplicationDirectPlan.sourceEnv (applicationSource application base)) rows
   · exact NextPreimageDirectPlan.rowsZero_implies_spec
-      (piCcsOrdinaryGeometry geometry) assignment base groupValue products
+      (piCcsOrdinaryGeometry geometry) assignment base groupValue
       encodes.runningPrefix.prior.pilotOrdinary.prior one children.1.2
   · exact (RecursivePublicOutputPlan.rowsZero_iff_matches geometry assignment
       one).mp children.2

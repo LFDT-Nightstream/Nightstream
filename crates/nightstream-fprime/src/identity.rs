@@ -35,7 +35,7 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     54,
     22,
 ];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 16, 64];
+const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 4, 1];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";
@@ -43,22 +43,22 @@ const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 
 pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
-    12_322_613_552_781_674_794,
-    11_618_660_216_342_328_080,
-    8_890_015_725_622_288_919,
-    10_115_040_070_495_147_315,
+    10_399_493_082_217_691_252,
+    12_446_518_666_506_690_329,
+    1_813_819_713_387_457_721,
+    9_406_193_360_901_034_503,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
-    9_705_822_157_724_451_396,
-    520_958_727_644_325_895,
-    9_285_622_073_986_934_000,
-    874_020_794_279_380_938,
+    2_798_282_647_818_380_236,
+    1_009_842_070_586_539_119,
+    14_473_839_254_191_436_803,
+    6_982_549_496_945_545_207,
 ];
 pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
-    4_227_073_942_771_477_570,
-    16_912_780_434_901_028_030,
-    9_096_788_017_067_844_745,
-    11_810_418_611_163_981_283,
+    6_548_923_502_318_024_247,
+    10_758_504_829_621_102_555,
+    9_025_540_937_081_052_320,
+    16_349_174_509_930_321_794,
 ];
 
 /// Verifier-owned context derived from one identity-checked package and the

@@ -12,63 +12,13 @@ namespace NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Package
-open NightstreamFPrime.Gadgets.Sampling
 open PackagePlan
-
-private theorem first54_selection_lt {index : Nat} {template : CompactRowTemplate}
-    (selected : PiRLCFirst54Invocations.packageTemplates[index]? = some template) :
-    index < (Data.compactRowTemplates ()).length := by
-  have found : (Data.compactRowTemplates ())[index]? = some template := by
-    simpa only [Data.compactRowTemplates_eq,
-      PiRLCFirst54Invocations.packageTemplates] using selected
-  rcases List.getElem?_eq_some_iff.mp found with ⟨bounded, _value⟩
-  exact bounded
-
-private theorem position_index_lt (source round : Nat)
-    (slot : Fin First54Step.slotCount) :
-    (PiRLCFirst54Invocations.positionInvocation source round slot.val).templateIndex <
-      (Data.compactRowTemplates ()).length := by
-  cases round with
-  | zero =>
-      exact first54_selection_lt
-        (PiRLCFirst54Invocations.positionInvocation_zero_template source slot)
-  | succ round =>
-      exact first54_selection_lt
-        (PiRLCFirst54Invocations.positionInvocation_succ_template source round slot)
-
-private theorem value_index_lt (source round : Nat)
-    (slot : Fin First54ValueStep.outputCount) :
-    (PiRLCFirst54Invocations.valueInvocation source round slot.val).templateIndex <
-      (Data.compactRowTemplates ()).length := by
-  cases round with
-  | zero =>
-      exact first54_selection_lt
-        (PiRLCFirst54Invocations.valueInvocation_zero_template source slot)
-  | succ round =>
-      exact first54_selection_lt
-        (PiRLCFirst54Invocations.valueInvocation_succ_template source round slot)
-
-private theorem first54_block_index_lt (block : First54InvocationBlock)
-    (invocation : CompactRowInvocation) (member : invocation ∈ block.expand) :
-    invocation.templateIndex < (Data.compactRowTemplates ()).length := by
-  unfold First54InvocationBlock.expand at member
-  rcases List.mem_flatMap.mp member with ⟨source, _sourceMember, roundMember⟩
-  rcases List.mem_flatMap.mp roundMember with ⟨round, _roundMember, invocationMember⟩
-  unfold PiRLCFirst54Invocations.roundInvocations at invocationMember
-  rcases List.mem_append.mp invocationMember with positionMember | valueMember
-  · unfold PiRLCFirst54Invocations.positionInvocations at positionMember
-    rcases List.mem_map.mp positionMember with ⟨slot, _slotMember, rfl⟩
-    exact position_index_lt source round slot
-  · unfold PiRLCFirst54Invocations.valueInvocations at valueMember
-    rcases List.mem_map.mp valueMember with ⟨slot, _slotMember, rfl⟩
-    exact value_index_lt source round slot
 
 private theorem combination_selection (source : Nat) (lane : Fin ringDegree) :
     (Data.compactRowTemplates ())[
         PiRLCCombinationTemplates.templateIndex source lane.val]? =
       some (PiRLCCombinationTemplates.template (source == 0) lane) := by
-  rw [Data.compactRowTemplates_eq,
-    List.getElem?_append_left (PiRLCCombinationTemplates.templateIndex_lt source lane)]
+  rw [Data.compactRowTemplates_eq]
   exact PiRLCCombinationTemplates.template_getElem? source lane
 
 private theorem combination_family_index_lt (sourceCount : Nat)
@@ -101,13 +51,12 @@ private theorem combination_block_index_lt (block : CombinationInvocationBlock)
   · exact combination_family_index_lt block.sourceCount block.evalA
       PiRLCCombinationInvocations.evalAValueSourceStart invocation evalAMember
 
-/-- Both block constructors guarantee template bounds for every invocation
+/-- The combination constructor guarantees template bounds for every invocation
 they emit. No restriction on their numeric count or geometry fields is needed. -/
 theorem block_templateIndex_lt (block : CompactInvocationBlock)
     (invocation : CompactRowInvocation) (member : invocation ∈ block.expand) :
     invocation.templateIndex < (Data.compactRowTemplates ()).length := by
   cases block with
-  | first54 block => exact first54_block_index_lt block invocation member
   | combination block => exact combination_block_index_lt block invocation member
 
 /-- The canonical plan inherits the constructor-level bound without expanding

@@ -603,6 +603,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_value
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_eq_rows
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.range_eq_sum
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalPad.complete_eq_evaluationFamily
 

@@ -12,7 +12,9 @@ primitives return their values and work together.
 Expected polynomial time follows from polynomial bounds on the computed
 uniform-call mean and the correct primitive implementations. Individual oracle
 calls can have unbounded work. No uniform or Fiat–Shamir law is asserted for
-the bounded Poseidon sampler; its exact shortfall remains a separate event.
+the concrete Poseidon2 transcript. The total sampler's proved distribution
+comparison belongs to `NonInteractive.PiRlcSampler`; FS applicability remains
+a separate assumption.
 -/
 
 set_option autoImplicit false

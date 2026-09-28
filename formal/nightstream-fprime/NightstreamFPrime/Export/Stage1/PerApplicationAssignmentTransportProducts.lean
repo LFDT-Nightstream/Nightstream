@@ -4,10 +4,10 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 
 /-!
-Owns the value-level interpreter for the two compact derived-product recipes
+Owns the value-level interpreter for the compact Phi81 group recipe
 in the per-application assignment transport. The interpreter reads only the
 physical base assignment. It does not construct retained coordinates or the
-final 30-block assignment.
+final 26-block assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
@@ -126,323 +126,47 @@ private theorem baseBlockValue_eq_source (program : Program) (base : BaseValues 
   dsimp only
   rw [dif_pos sourceBound]
 
-/-- Recipe arithmetic selects the final First54 value for the same source and
-coefficient lane. -/
+/-- Recipe arithmetic selects the same source and coefficient word. -/
 private theorem canonical_challengeSlot
-    (source : Fin PiRLCCombinationInvocations.sourceCount)
-    (lane : Fin ringDegree) :
+    (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :
     (phi81GroupRecipe program).challengeSlotBase +
         source.val * (phi81GroupRecipe program).challengeSourceStride + lane.val =
-      (PiRLCFirst54DirectSchedule.valueIndex
-        (PiRLCProductSourceBlocks.challengeValueDescriptor source lane)).val := by
-  simpa [phi81GroupRecipe,
-    PiRLCProductMatrixProgram.challengeSlotStart,
-    PiRLCProductMatrixProgram.challengeSourceStride] using
-      PiRLCProductMatrixProgram.challengeSlot_eq source lane
+      (PiRLCProductSourceBlocks.challengeIndex source lane).val := by
+  exact PiRLCProductMatrixProgram.challengeSlot_eq source lane
 
-/-- The retained First54 value block exposes its physical package source at
-the same value descriptor. -/
-private theorem first54Value_sourceIndex (program : Program)
-    (descriptor : PiRLCFirst54DirectSchedule.Value) :
-    PerApplicationAssignmentBlocks.sourceIndex program .first54Value
-        (PiRLCFirst54DirectSchedule.valueIndex descriptor) =
-      (PiRLCFirst54DirectPlan.retainedValueColumn program descriptor).val := by
-  unfold PerApplicationAssignmentBlocks.sourceIndex
-    PerApplicationAssignmentBlocks.entry
-    PerApplicationAssignmentBlocks.zeroRaw
-    PerApplicationAssignmentPlan.BlockKind.expand
-    PerApplicationCanonicalAssignment.Canonical.ofBlock
-    CanonicalBlockAssignment.ofBlock
-  change ((PiRLCFirst54RetainedBlocks.valueBlock program).source
-    (PiRLCFirst54DirectSchedule.valueIndex descriptor)).val = _
-  rw [PiRLCFirst54RetainedBlocks.valueBlock_source]
-  rw [PiRLCFirst54DirectSchedule.value_valueIndex]
-
-private theorem first54Reject_sourceIndex (program : Program)
-    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
-    PerApplicationAssignmentBlocks.sourceIndex program .first54Reject
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate) =
-      (PiRLCFirst54DirectPlan.retainedRejectColumn program candidate).val := by
-  unfold PerApplicationAssignmentBlocks.sourceIndex
-    PerApplicationAssignmentBlocks.entry
-    PerApplicationAssignmentBlocks.zeroRaw
-    PerApplicationAssignmentPlan.BlockKind.expand
-    PerApplicationCanonicalAssignment.Canonical.ofBlock
-    CanonicalBlockAssignment.ofBlock
-  change ((PiRLCFirst54RetainedBlocks.rejectBlock program).source
-    (PiRLCFirst54DirectSchedule.candidateIndex candidate)).val = _
-  rw [PiRLCFirst54RetainedBlocks.rejectBlock_source]
-  rw [PiRLCFirst54DirectSchedule.candidate_candidateIndex]
-
-private theorem first54Symbol_sourceIndex (program : Program)
-    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
-    PerApplicationAssignmentBlocks.sourceIndex program .first54Symbol
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate) =
-      (PiRLCFirst54DirectPlan.retainedSymbolColumn program candidate).val := by
-  unfold PerApplicationAssignmentBlocks.sourceIndex
-    PerApplicationAssignmentBlocks.entry
-    PerApplicationAssignmentBlocks.zeroRaw
-    PerApplicationAssignmentPlan.BlockKind.expand
-    PerApplicationCanonicalAssignment.Canonical.ofBlock
-    CanonicalBlockAssignment.ofBlock
-  change ((PiRLCFirst54RetainedBlocks.symbolBlock program).source
-    (PiRLCFirst54DirectSchedule.candidateIndex candidate)).val = _
-  rw [PiRLCFirst54RetainedBlocks.symbolBlock_source]
-  rw [PiRLCFirst54DirectSchedule.candidate_candidateIndex]
-
-private theorem canonical_first54Value_read
-    {program : Program}
+private theorem canonical_challenge_read
     (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (descriptor : PiRLCFirst54DirectSchedule.Value) :
-    baseBlockValue program raw.base .first54Value
-        (PiRLCFirst54DirectSchedule.valueIndex descriptor).val =
-      PiRLCFirst54DirectPlan.outputValue program raw.base descriptor := by
-  have slotBound :
-      (PiRLCFirst54DirectSchedule.valueIndex descriptor).val <
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Value).block.slotCount := by
-    change (PiRLCFirst54DirectSchedule.valueIndex descriptor).val <
-      PiRLCFirst54DirectSchedule.valueCount
-    exact (PiRLCFirst54DirectSchedule.valueIndex descriptor).isLt
-  have sourceIndexEq :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Value
-          ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-            slotBound⟩ =
-        (PiRLCFirst54DirectPlan.retainedValueColumn program descriptor).val := by
-    simpa only using! first54Value_sourceIndex program descriptor
-  have sourceBound :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Value
-          ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-            slotBound⟩ < PiRLCProductPlan.baseSourceWidth program := by
-    rw [sourceIndexEq]
-    exact PiRLCFirst54DirectPlan.retainedValueColumn_val_lt_baseSourceWidth
-      program descriptor
-  have sourceEq :
-      PiRLCRetainedPreservation.baseSourceColumn program
-          ⟨PerApplicationAssignmentBlocks.sourceIndex program
-            .first54Value
-              ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-                slotBound⟩, sourceBound⟩ =
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Value).block.source
-            ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-              slotBound⟩ := by
+    (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
+    baseBlockValue program raw.base .challengeWords
+        (PiRLCProductSourceBlocks.challengeIndex descriptor.source lane).val =
+      PiRLCProductPlan.baseEnv program raw.base (descriptor.challengeColumn lane) := by
+  let index := PiRLCProductSourceBlocks.challengeIndex descriptor.source lane
+  have slotBound : index.val <
+      (PerApplicationAssignmentBlocks.entry program .challengeWords).block.slotCount := index.isLt
+  have sourceEq : PerApplicationAssignmentBlocks.sourceIndex program .challengeWords
+        ⟨index.val, slotBound⟩ = (PiRLCProductPlan.challengeColumn program descriptor lane).val := by
+    change ((PiRLCProductSourceBlocks.challengeBlock program).source index).val = _
+    rw [PiRLCProductSourceBlocks.challengeBlock_source]
+  have sourceBound : (PiRLCProductPlan.challengeColumn program descriptor lane).val <
+      PiRLCProductPlan.baseSourceWidth program :=
+    PiRLCProductPlan.baseColumn_val_lt_baseSourceWidth program _ _
+  have read := baseBlockValue_eq_source program raw.base .challengeWords index.val
+    slotBound (by rw [sourceEq]; exact sourceBound)
+  have same : (⟨PerApplicationAssignmentBlocks.sourceIndex program .challengeWords
+      ⟨index.val, slotBound⟩, by rw [sourceEq]; exact sourceBound⟩ :
+      Fin (PiRLCProductPlan.baseSourceWidth program)) =
+      ⟨(PiRLCProductPlan.challengeColumn program descriptor lane).val, sourceBound⟩ := by
     apply Fin.ext
-    rfl
-  let geometry := PerApplicationCanonicalEncodes.retainedGeometry program
-  have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
-  have preserves := PiRLCRetainedPreservation.first54Inputs_preserves
-    geometry raw.assignment raw.base raw.groupValue raw.products
-      (PerApplicationCanonicalAssignment.assignment_one raw) encodes
-  calc
-    baseBlockValue program raw.base .first54Value
-        (PiRLCFirst54DirectSchedule.valueIndex descriptor).val =
-      raw.base
-        ⟨PerApplicationAssignmentBlocks.sourceIndex program .first54Value
-          ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-            slotBound⟩, sourceBound⟩ :=
-      baseBlockValue_eq_source program raw.base .first54Value _ slotBound
-        sourceBound
-    _ =
-      raw.retainedSource
-        ((PerApplicationAssignmentBlocks.entry program
-          .first54Value).block.source
-            ⟨(PiRLCFirst54DirectSchedule.valueIndex descriptor).val,
-              slotBound⟩) := by
-      unfold PerApplicationCanonicalAssignment.RawValues.retainedSource
-      rw [← sourceEq]
-      exact (PiRLCRetainedPreservation.sourceAssignment_base program raw.base
-        raw.groupValue raw.products ⟨_, sourceBound⟩).symm
-    _ = ((PiRLCFirst54RetainedBlocks.valueBlock program).form
-          (PiRLCRetainedGeometry.valueStart program)
-          (PiRLCRetainedGeometry.valueFits geometry)
-          (PiRLCFirst54DirectSchedule.valueIndex descriptor)).eval
-        raw.assignment := by
-      symm
-      simpa [PerApplicationAssignmentBlocks.entry,
-        PerApplicationAssignmentBlocks.zeroRaw,
-        PerApplicationAssignmentPlan.BlockKind.expand,
-        PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using!
-          (LowNormBlock.Block.form_eval
-            (PiRLCFirst54RetainedBlocks.valueBlock program)
-            (PiRLCRetainedGeometry.valueStart program)
-            (PiRLCRetainedGeometry.valueFits geometry) raw.assignment
-            raw.retainedSource encodes.value
-            (PiRLCFirst54DirectSchedule.valueIndex descriptor))
-    _ = PiRLCFirst54DirectPlan.outputValue program raw.base descriptor := by
-      simpa [PiRLCFirst54DirectPlan.valueOutputForm,
-        PiRLCRetainedInputs.first54Inputs] using preserves.outputValue descriptor
+    exact sourceEq
+  rw [same] at read
+  have encoded := PiRLCRetainedPreservation.sourceAssignment_base program raw.base raw.groupValue
+    ⟨(PiRLCProductPlan.challengeColumn program descriptor lane).val, sourceBound⟩
+  change PiRLCRetainedPreservation.sourceAssignment program raw.base raw.groupValue
+      (PiRLCProductPlan.challengeColumn program descriptor lane) = _ at encoded
+  rw [PiRLCRetainedPreservation.sourceAssignment_challengeColumn] at encoded
+  exact read.trans encoded.symm
 
-private theorem canonical_first54Reject_read
-    {program : Program}
-    (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
-    baseBlockValue program raw.base .first54Reject
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate).val =
-      PiRLCFirst54DirectPlan.rejectValue program raw.base candidate := by
-  have slotBound :
-      (PiRLCFirst54DirectSchedule.candidateIndex candidate).val <
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Reject).block.slotCount := by
-    change (PiRLCFirst54DirectSchedule.candidateIndex candidate).val <
-      PiRLCFirst54DirectSchedule.candidateCount
-    exact (PiRLCFirst54DirectSchedule.candidateIndex candidate).isLt
-  have sourceIndexEq :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Reject
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩ =
-        (PiRLCFirst54DirectPlan.retainedRejectColumn program candidate).val := by
-    simpa only using! first54Reject_sourceIndex program candidate
-  have sourceBound :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Reject
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩ < PiRLCProductPlan.baseSourceWidth program := by
-    rw [sourceIndexEq]
-    exact PiRLCFirst54DirectPlan.retainedRejectColumn_val_lt_baseSourceWidth
-      program candidate
-  have sourceEq :
-      PiRLCRetainedPreservation.baseSourceColumn program
-          ⟨PerApplicationAssignmentBlocks.sourceIndex program
-            .first54Reject
-              ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-                slotBound⟩, sourceBound⟩ =
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Reject).block.source
-            ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-              slotBound⟩ := by
-    apply Fin.ext
-    rfl
-  let geometry := PerApplicationCanonicalEncodes.retainedGeometry program
-  have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
-  have preserves := PiRLCRetainedPreservation.first54Inputs_preserves
-    geometry raw.assignment raw.base raw.groupValue raw.products
-      (PerApplicationCanonicalAssignment.assignment_one raw) encodes
-  calc
-    baseBlockValue program raw.base .first54Reject
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate).val =
-      raw.base
-        ⟨PerApplicationAssignmentBlocks.sourceIndex program .first54Reject
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩, sourceBound⟩ :=
-      baseBlockValue_eq_source program raw.base .first54Reject _ slotBound
-        sourceBound
-    _ =
-      raw.retainedSource
-        ((PerApplicationAssignmentBlocks.entry program
-          .first54Reject).block.source
-            ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-              slotBound⟩) := by
-      unfold PerApplicationCanonicalAssignment.RawValues.retainedSource
-      rw [← sourceEq]
-      exact (PiRLCRetainedPreservation.sourceAssignment_base program raw.base
-        raw.groupValue raw.products ⟨_, sourceBound⟩).symm
-    _ = ((PiRLCFirst54RetainedBlocks.rejectBlock program).form
-          (PiRLCRetainedGeometry.rejectStart program)
-          (PiRLCRetainedGeometry.rejectFits geometry)
-          (PiRLCFirst54DirectSchedule.candidateIndex candidate)).eval
-        raw.assignment := by
-      symm
-      simpa [PerApplicationAssignmentBlocks.entry,
-        PerApplicationAssignmentBlocks.zeroRaw,
-        PerApplicationAssignmentPlan.BlockKind.expand,
-        PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using!
-          (LowNormBlock.Block.form_eval
-            (PiRLCFirst54RetainedBlocks.rejectBlock program)
-            (PiRLCRetainedGeometry.rejectStart program)
-            (PiRLCRetainedGeometry.rejectFits geometry) raw.assignment
-            raw.retainedSource encodes.reject
-            (PiRLCFirst54DirectSchedule.candidateIndex candidate))
-    _ = PiRLCFirst54DirectPlan.rejectValue program raw.base candidate := by
-      simpa [PiRLCFirst54DirectPlan.rejectForm,
-        PiRLCRetainedInputs.first54Inputs] using preserves.reject candidate
-
-private theorem canonical_first54Symbol_read
-    {program : Program}
-    (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (candidate : PiRLCFirst54DirectSchedule.Candidate) :
-    baseBlockValue program raw.base .first54Symbol
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate).val =
-      PiRLCFirst54DirectPlan.symbolValue program raw.base candidate := by
-  have slotBound :
-      (PiRLCFirst54DirectSchedule.candidateIndex candidate).val <
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Symbol).block.slotCount := by
-    change (PiRLCFirst54DirectSchedule.candidateIndex candidate).val <
-      PiRLCFirst54DirectSchedule.candidateCount
-    exact (PiRLCFirst54DirectSchedule.candidateIndex candidate).isLt
-  have sourceIndexEq :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Symbol
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩ =
-        (PiRLCFirst54DirectPlan.retainedSymbolColumn program candidate).val := by
-    simpa only using! first54Symbol_sourceIndex program candidate
-  have sourceBound :
-      PerApplicationAssignmentBlocks.sourceIndex program .first54Symbol
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩ < PiRLCProductPlan.baseSourceWidth program := by
-    rw [sourceIndexEq]
-    exact PiRLCFirst54DirectPlan.retainedSymbolColumn_val_lt_baseSourceWidth
-      program candidate
-  have sourceEq :
-      PiRLCRetainedPreservation.baseSourceColumn program
-          ⟨PerApplicationAssignmentBlocks.sourceIndex program
-            .first54Symbol
-              ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-                slotBound⟩, sourceBound⟩ =
-        (PerApplicationAssignmentBlocks.entry program
-          .first54Symbol).block.source
-            ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-              slotBound⟩ := by
-    apply Fin.ext
-    rfl
-  let geometry := PerApplicationCanonicalEncodes.retainedGeometry program
-  have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
-  have preserves := PiRLCRetainedPreservation.first54Inputs_preserves
-    geometry raw.assignment raw.base raw.groupValue raw.products
-      (PerApplicationCanonicalAssignment.assignment_one raw) encodes
-  calc
-    baseBlockValue program raw.base .first54Symbol
-        (PiRLCFirst54DirectSchedule.candidateIndex candidate).val =
-      raw.base
-        ⟨PerApplicationAssignmentBlocks.sourceIndex program .first54Symbol
-          ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-            slotBound⟩, sourceBound⟩ :=
-      baseBlockValue_eq_source program raw.base .first54Symbol _ slotBound
-        sourceBound
-    _ =
-      raw.retainedSource
-        ((PerApplicationAssignmentBlocks.entry program
-          .first54Symbol).block.source
-            ⟨(PiRLCFirst54DirectSchedule.candidateIndex candidate).val,
-              slotBound⟩) := by
-      unfold PerApplicationCanonicalAssignment.RawValues.retainedSource
-      rw [← sourceEq]
-      exact (PiRLCRetainedPreservation.sourceAssignment_base program raw.base
-        raw.groupValue raw.products ⟨_, sourceBound⟩).symm
-    _ = ((PiRLCFirst54RetainedBlocks.symbolBlock program).form
-          (PiRLCRetainedGeometry.symbolStart program)
-          (PiRLCRetainedGeometry.symbolFits geometry)
-          (PiRLCFirst54DirectSchedule.candidateIndex candidate)).eval
-        raw.assignment := by
-      symm
-      simpa [PerApplicationAssignmentBlocks.entry,
-        PerApplicationAssignmentBlocks.zeroRaw,
-        PerApplicationAssignmentPlan.BlockKind.expand,
-        PerApplicationCanonicalAssignment.Canonical.ofBlock,
-        CanonicalBlockAssignment.ofBlock] using!
-          (LowNormBlock.Block.form_eval
-            (PiRLCFirst54RetainedBlocks.symbolBlock program)
-            (PiRLCRetainedGeometry.symbolStart program)
-            (PiRLCRetainedGeometry.symbolFits geometry) raw.assignment
-            raw.retainedSource encodes.symbol
-            (PiRLCFirst54DirectSchedule.candidateIndex candidate))
-    _ = PiRLCFirst54DirectPlan.symbolValue program raw.base candidate := by
-      simpa [PiRLCFirst54DirectPlan.symbolForm,
-        PiRLCRetainedInputs.first54Inputs] using preserves.symbol candidate
-
-/-- Challenge ring selected by the recipe's First54 value block. -/
+/-- Challenge ring selected by the checked coefficient-word block. -/
 def challengeRing (recipe : Phi81GroupRecipe) (program : Program)
     (base : BaseValues program) (descriptor : PiRLCProductSchedule.Descriptor) :
     RingF :=
@@ -509,12 +233,6 @@ def phi81GroupValue (recipe : Phi81GroupRecipe) (program : Program)
   let descriptor := PiRLCProductSchedule.descriptor invocation
   ringGroupValue recipe (challengeRing recipe program base descriptor)
     (valueRing recipe program base descriptor) descriptor.lane group
-
-/-- Complete base-only First54 accepted-symbol product evaluator. -/
-def first54ProductValue (recipe : First54ProductRecipe) (program : Program)
-    (base : BaseValues program) (candidate : Nat) : F :=
-  (1 - baseBlockValue program base recipe.rejectBlock candidate) *
-    baseBlockValue program base recipe.symbolBlock candidate
 
 private theorem groups_map {Alpha Beta : Type} (map : Alpha → Beta) :
     ∀ values : List Alpha,
@@ -635,7 +353,7 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
     exact PerApplicationCanonicalAssignment.assignment_one raw
   have encodes := PerApplicationCanonicalEncodes.retainedEncodes raw
   have preserves := PiRLCRetainedPreservation.productInputs_preserves
-    values geometry raw.assignment raw.base raw.groupValue raw.products
+    values geometry raw.assignment raw.base raw.groupValue
       (PerApplicationCanonicalEncodes.productValuesPreserve raw) encodes
   have challengeRead :
       challengeRing (phi81GroupRecipe program) program raw.base descriptor =
@@ -646,13 +364,7 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
     have slotEq := canonical_challengeSlot (program := program) descriptor.source lane
     dsimp only [phi81GroupRecipe] at slotEq
     rw [slotEq]
-    rw [canonical_first54Value_read raw
-      (PiRLCProductSourceBlocks.challengeValueDescriptor
-        descriptor.source lane)]
-    unfold PiRLCFirst54DirectPlan.outputValue
-      PiRLCFirst54DirectPlan.baseEnv
-    rw [← PiRLCProductSourceBlocks.challengeColumn_eq_first54Value
-      descriptor lane]
+    rw [canonical_challenge_read raw descriptor lane]
     rfl
   have valueRead :
       valueRing (phi81GroupRecipe program) program raw.base descriptor =
@@ -715,27 +427,5 @@ theorem canonical_phi81GroupValue_eq_honestGroupValue
         (PiRLCProductPlan.valueState inputs invocation) descriptor.lane
         raw.assignment group)
 
-/-- The canonical base-only First54 executor computes the exact honest
-accepted-symbol product used by the existing First54 plan. -/
-theorem canonical_first54ProductValue_eq_honestProducts
-    {program : Program}
-    (raw : PerApplicationCanonicalAssignment.RawValues program)
-    (candidate : Fin PiRLCFirst54DirectSchedule.candidateCount) :
-    first54ProductValue first54ProductRecipe program raw.base candidate.val =
-      PiRLCFirst54DirectPlan.honestProducts program raw.base candidate := by
-  let descriptor := PiRLCFirst54DirectSchedule.candidate candidate
-  have indexEq :
-      (PiRLCFirst54DirectSchedule.candidateIndex descriptor).val =
-        candidate.val := by
-    exact congrArg Fin.val
-      (PiRLCFirst54DirectSchedule.candidateIndex_candidate candidate)
-  unfold first54ProductValue
-  change
-    (1 - baseBlockValue program raw.base .first54Reject candidate.val) *
-        baseBlockValue program raw.base .first54Symbol candidate.val =
-      (1 - PiRLCFirst54DirectPlan.rejectValue program raw.base descriptor) *
-        PiRLCFirst54DirectPlan.symbolValue program raw.base descriptor
-  rw [← indexEq, canonical_first54Reject_read raw descriptor,
-    canonical_first54Symbol_read raw descriptor]
 
 end NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts

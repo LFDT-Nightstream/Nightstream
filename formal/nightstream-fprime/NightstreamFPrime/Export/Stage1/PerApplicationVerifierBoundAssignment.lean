@@ -80,7 +80,7 @@ private theorem expectedContextTargetBound (lane : Fin 4) :
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have bound := lane.isLt
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      29336725 :=
+      28411245 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   norm_num [Spartan.expectedContextPublicStart] at bound ⊢
@@ -96,7 +96,7 @@ private theorem shiftedExpectedContext
   have lower : ¬ Spartan.expectedContextPublicStart + lane.val <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        29336446 :=
+        28410966 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart] at laneBound ⊢
@@ -104,7 +104,7 @@ private theorem shiftedExpectedContext
   have startLower : ¬ Spartan.expectedContextPublicStart <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        29336446 :=
+        28410966 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]
@@ -171,8 +171,7 @@ theorem semantics_imply_contextKey
       (relation application fits) (PerApplicationFixedPoint.geometry application)
       (bind fits commitmentSetup raw).assignment
       (bind fits commitmentSetup raw).base
-      (bind fits commitmentSetup raw).groupValue
-      (bind fits commitmentSetup raw).products) :
+      (bind fits commitmentSetup raw).groupValue) :
     PerApplicationDecodedIO.contextKey (bind fits commitmentSetup raw) =
       verifierContextDigest fits commitmentSetup := by
   let bound := bind fits commitmentSetup raw
@@ -180,7 +179,7 @@ theorem semantics_imply_contextKey
     DirectPiCCSCommonPhaseSemantics.semantics_imply_piCcsSpecHolds
       (relation application fits)
       (PerApplicationDecodedIO.prefixGeometry application) bound.assignment
-      bound.base bound.groupValue bound.products semantics.runningPrefix
+      bound.base bound.groupValue semantics.runningPrefix
   have context := piCcs.statementBinding.state.priorContext
   unfold PerApplicationDecodedIO.contextKey StateDecoder.keyDigest
     StateDecoder.slice

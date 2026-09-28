@@ -19,8 +19,9 @@ describe the maintained coordinator. Independent review remains pending.
 The [final validation record](INDEPENDENT_VALIDATION.json) records 98 passing
 Python regressions, the complete incremental Lean build, static checks and
 selected-identity verification. All 1,180 current Lean files match the separate
-stock-only validation tree. Evidence delivery and source binding remain separate
-from these successful checks and from independent approval.
+stock-only validation tree. The [delivery index](INDEPENDENT_EVIDENCE.md) binds the uploaded outputs,
+source versions, retained failed attempts and terminal evidence. All archives
+passed fresh-download byte checks. Independent approval remains separate.
 
 | Check | Result for both folds |
 |---|---|

@@ -24,12 +24,12 @@
   "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
   "obligation": "pidec-witness-kernel",
   "outcome": "pending",
-  "policy": "d821d752f32aff722e1944f48724bfc306defc5f153a735e6fce2b7718eab869",
-  "request": "b569a547bfe3ed16515cda44b0cc3622af3f442565326d7ab8b2ae9596dbc98b",
+  "policy": "4d4a4cbd52a955bbd73772c741ee2e08f421e34c0c967ebccb8a212c512e1ce9",
+  "request": "0e70b2d80ed0e81c59ee3a581610bb9f7f0902878641efc862f46942d59080dc",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "782012e125cc9d81945dae48e6f8c0e80fc59e96bc5560864fc1321356366803",
+  "snapshot": "477453766fc1dc3543213c4fc705cc897db256254ab9e6e2a1004c23d26fd9fb",
   "target": "LeanGraph.Targets.PiDECWitnessReplay"
 }

@@ -1,6 +1,6 @@
 mod common;
 
-use neo_application::decomposition_bit_count;
+use neo_application::{decomposition_bit_count, range_checked_variable_widths};
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
@@ -159,10 +159,25 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
 fn canonical_preprocessing_audits_declared_widths() {
     let digest = [0u8; 32];
     let batch_size = 2;
+    let relation = build_wasm_relation().expect("base relation");
+    let base_widths = range_checked_variable_widths(relation.columns());
+    let single_width = neo_wasm::batch::build_batched_wasm_ccs(1)
+        .expect("relation with lookup constraints")
+        .sparse_r1cs
+        .m;
+    assert!(single_width > base_widths.len(), "lookup advice must be included");
     let prep = neo_wasm::preprocess::preprocess_seeded_batched(batch_size, digest).expect("canonical preprocessing");
+    let widths = &prep.plan().app_private_var_widths;
     assert_eq!(
-        prep.plan().app_private_var_widths.len(),
-        batch_size * RANGE_CHECKED_WITNESS_WIDTH,
+        widths.len(),
+        batch_size * single_width,
         "the canonical plan must declare (and thus have audited) the typed widths"
     );
+    for block in widths.chunks_exact(single_width) {
+        assert_eq!(&block[..base_widths.len()], base_widths.as_slice());
+        assert!(
+            block[base_widths.len()..].iter().all(|&width| width == 1),
+            "lookup advice must have audited Boolean widths"
+        );
+    }
 }

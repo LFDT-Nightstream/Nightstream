@@ -1,140 +1,129 @@
-# Constraint reduction with the current PiRLC sampler
+# Phi81 and Poseidon constraint reduction
 
-## Scope and acceptance
+## Scope
 
-This ports the completed reductions from PR #121 onto
-`nico/f-prime-constraints-cuda-formal` at
+This ports the Phi81 quotient and Poseidon output-row reductions from PR #121
+onto `nico/f-prime-constraints-cuda-formal` at
 `fe9d3b4f0809cfc88a114ad263f0b328bee84385`, including PR #124.
-The four-field total sampler, its 26 assignment blocks, and its soundness and
-completeness obligations remain selected. The profile is Nightstream Goldilocks:
-`b = 2`, `k_rho = 16`, `B = 65536`. Protocol binding uses Poseidon2.
+It keeps the total four-field PiRLC sampler and all 26 assignment blocks.
+The Nightstream Goldilocks profile uses `b = 2`, `k_rho = 16`, and `B = 65536`.
+Protocol binding uses Poseidon2.
 
-Acceptance requires the completed quotient, direct-assignment and Poseidon
-reductions; Lean proofs and axiom checks; independent matrix and assignment
-checks before identity promotion; Rust rejection tests; and two fresh native
-folds with complete Lean verifier, caller and physical-witness comparisons.
-The final verifier also checks fresh rows and complete commitment openings.
-The unfinished running-transition research is retained at its original scope.
-It is not selected by the production layout.
+The prover uses the existing full physical witness execution and then constructs
+the logical assignment. The optional product shortcut, its public methods and
+mode flag, and its proof support have been removed. Unselected running-transition
+research and its test roots have also been removed. The earlier commit retains
+that work in Git history.
 
-## Resulting layout
+Acceptance requires sound and complete Lean reductions, unchanged package bytes
+after the cleanup, complete matrix and assignment checks, the restored witness
+path, and the relevant CI tests.
 
-| Measure | Base with PR #124 | This port | Reduction |
-| --- | ---: | ---: | ---: |
-| Logical coordinates | 242,590,792 | 173,939,080 | 68,651,712 |
-| Padded coordinates | 242,590,842 | 173,939,130 | 68,651,712 |
-| Commitment columns | 4,492,423 | 3,221,095 | 1,271,328 |
-| Active rows | 6,064,606 | 4,131,470 | 1,933,136 |
+## Layout and matrix cost
 
-The physical reference keeps 28,275,820 rows and 28,418,945 columns.
+| Measure | Base with PR #124 | This PR |
+| --- | ---: | ---: |
+| Logical coordinates | 242,590,792 | 173,939,080 |
+| Padded coordinates | 242,590,842 | 173,939,130 |
+| Commitment columns | 4,492,423 | 3,221,095 |
+| Active rows | 6,064,606 | 4,131,470 |
+| Logical matrix nonzeros | 2,304,743,568 | 2,970,234,034 |
+| Sum-check rounds | 28 | 28 |
+
+Rows decrease by 31.9%, and logical coordinates decrease by 28.3%.
+Matrix nonzeros increase by 28.9%. The base nonzero total comes from the supplied
+independent review; the current total matches our complete matrix comparison.
+Slots 6 and 8–12 are now empty. Slot 13 remains the required zero matrix.
+The sum-check domain stays at `2^28`; the row reduction does not reduce its
+round count. Fewer active rows alone do not imply the same reduction in time.
+
+The physical reference still has 28,275,820 rows and 28,418,945 columns.
 The logical assignment has 270 public coordinates and 50 alignment zeros.
-The fixed maximum key remains 4,708,530 columns; only the selected prefix changes.
+The fixed maximum key has 4,708,530 columns. Its application capacity grows from
+292,329 to 1,966,761 witness and local fields.
 
-Each Phi81 product uses 108 distinct evaluation points to check a quotient
-polynomial identity. This saves 1,674,432 rows. The quotient has degree at most
-52; its last stored coefficient is zero. The Lean soundness proof also covers
-arbitrary supplied quotients, rather than assuming the witness recipe.
+The reviewer supplied these single-run Mac measurements at `d563417cd`:
 
-Each retained Poseidon permutation uses 86 nonlinear rows. Its eight outputs
-are derived from the final S-box values. Removing the eight output pin rows
-from 32,338 invocations saves another 258,704 rows.
+| Phase | Base | Before scope cleanup |
+| --- | ---: | ---: |
+| PiCCS proving | 55.2 s | 47.8 s |
+| PiCCS peak memory | 12.1 GiB | 10.2 GiB |
+| Fresh commitment | 29.2 s | 28.0 s |
 
-The fixed prepared envelope has 31,971,918 JSON nodes. At the existing key
-capacity, the compiler permits 1,966,761 application witness and local fields.
-The exact decoder bound is 33,938,686 nodes and 712,712,406 bytes. The existing
-compiler-bound test constructs that boundary; these are measured and derived
-bounds, not new profile choices.
+This update did not repeat that timing comparison. These are measurements from
+the review, not a whole-prover speed guarantee for all applications.
 
-## Proof and implementation links
+## Proof and implementation
 
-- `Phi81Relation.QuotientProduct.equations_iff_identity`, `sound`, `complete`,
-  and `exists_quotient_iff` connect the evaluation equations to the ring product.
-  `quotientCoeff_eq_quotient` connects the executable coefficient recipe.
-- `CanonicalDirectPhysicalExecution.events_safe`, `execute_agree`, and
-  `successful_assignment_eq` prove scratch-read safety, equal failure behavior,
-  and equal retained assignment and output digest. The sampler support covers
-  the current wide reduction and canonical-word witnesses.
-- `PoseidonRetainedRows.rowsZero_iff` and the retained matrix bridges connect the
-  86-row representation to the same Poseidon result.
-- Rust has an independent convolution and polynomial-division reference. Tests
-  cover every basis product, full-field inputs, and a false product that passes
-  the first 107 evaluation points but fails at the last point.
+Each Phi81 ring product uses 108 distinct points to check a quotient polynomial
+identity of degree at most 107. The rows constrain arbitrary supplied quotients.
+The honest quotient has degree at most 52 and a zero last coefficient.
+This change removes 1,674,432 rows and 68,651,712 logical coordinates.
 
-Direct CCS construction is enabled only after recomputing the selected
-structural identity. Prepared loading retains cached identities as metadata
-and uses full product checks. Supplied native application values still pass
-through their existing checks.
+`Phi81Relation.QuotientProduct.equations_iff_identity`, `sound`, `complete`,
+and `exists_quotient_iff` connect the rows to the ring product.
+`quotientCoeff_eq_quotient` connects the executable recipe. The Rust reference
+uses independent convolution and polynomial division. Tests cover every basis
+product, full-field values, and a false product that passes 107 points and fails
+at the final point. CI now runs the quotient witness tests.
+
+Each retained Poseidon permutation has 86 nonlinear rows. Its outputs are
+derived from the final S-box values. Removing eight tautological output rows
+from 32,338 invocations saves 258,704 rows.
+`PoseidonRetainedRows.rowsZero_iff` and the matrix bridges prove equivalence.
+All production quotient and Poseidon proof obligations remain in the axiom audit.
+
+The matrix operand and recipe use quotient names. The obsolete per-lane decoder
+and its unused audits are removed. The existing generic retained-block geometry
+still uses a one-element product index.
 
 ## Validation
 
-The complete Lean production build, test library, static checks and axiom audit
-pass with stock Lean 4.32.2. The final audit covers 4,392 build jobs and uses only
-`propext`, `Classical.choice`, and `Quot.sound`. The direct proof compiled after
-making its read-bound lemma generic; no proof limit was raised.
+The report's original artifact checks are recorded at `d563417cd` in
+[VALIDATION.json](VALIDATION.json): all physical coefficients and all 14 logical
+matrices; complete nonzero and base assignments; detached-application, matrix,
+recipe and digest mutations; setup and binding parity.
 
-Before pin promotion, the candidate passed these independent checks:
+That run also passed 22 native phases, including both folds and successors,
+final acceptance, and rebuilt false-opening rejection cases. Both folds matched
+all ten Lean C/R/D result fields, 945,983 proof bytes, 177,326 private and 278
+public caller words, all seven caller result fields, and 227,351,560 physical
+witness bytes. Its longest native phase took 147.92 seconds, with 9.21 GiB peak
+RSS. The 19-file golden archive contains the checked interfaces and no private
+witness matrices. See [the workflow](../../../scripts/GOLDEN_CONFORMANCE.md).
 
-| Gate | Evidence | Seconds |
-| --- | --- | ---: |
-| Physical matrices | Complete ordered coefficient comparison | 30.11 |
-| Logical matrices | All 14 matrices | 39.08 |
-| Matrix mutations | Block order, in-range column and canonical coefficient changes rejected | 75.24 |
-| Nonzero assignment | All 4,131,470 rows, 74 terms, 50 zeros, assignment/digest/recipe mutations | 219.68 |
-| Base assignment | All physical rows and every logical coordinate | 83.59 |
-| Detached application | Replacement satisfies its own rows; canonical relation rejects the detached suffix | 75.69 |
-| Sparse commitment | All 1,188 coefficients of the selected sparse input | 0.03 |
+After the scope cleanup, the complete production build and axiom audit pass
+with stock Lean 4.32.2: 4,202 and 4,343 jobs. The audited axioms remain
+`propext`, `Classical.choice`, and `Quot.sound`.
+All 109 Python CI tests pass. The norm replay now derives
+`INPUT_CODES = (CARRIER + 3) // 4`, giving 43,484,783 codes per source.
+Its registration checks 739,241,311 encoded values and 11,827,860,976 decoded
+bytes. The new complete-profile manifest regression fails before this fix and
+passes afterward; it also rejects a truncated source.
 
-The detached-application test first exposed an old row offset. It now derives
-the range from the decoded canonical blocks. The sampler-writer rejection test
-was also updated for the quotient recipe's new field positions.
+The regenerated canonical package is byte-for-byte identical to the checked
+artifact. The full Nightstream Rust suite passes: 45 tests and 12 documented
+ignored tests. Both quotient witness tests pass. The complete independent
+assignment and mutation test passes in 228.83 seconds.
 
-Rust validation passes: the initial 70-test F-prime unit run; targeted checks
-after the cached-identity fix, including its regression; direct/full assignment
-and changed-package fallback; package, pilot, binding, component and setup
-checks; all seven assembly tests; and the
-selected-key prefix check. The cached-identity test fails before the fix and
-passes afterward. The compiler-bound test also failed before updating the
-assembler from the old 15-field product record to the 11-field quotient record.
+Both successors were rebuilt from the checked native NIFS messages using full
+witness execution. The first new successor supplies the second statement.
+Each caller, physical witness, logical carrier, commitment, and state file
+matches the earlier checked output byte for byte. These two phases took 59.48
+and 65.53 seconds. No fixture or identity change was needed.
 
-The direct/full test compares the complete assignment and invalid-input errors.
-Its paired witness-plus-assignment measurement is 1.54 seconds for full physical
-execution and 1.43 seconds for direct execution. This is one component run,
-not a whole-prover benchmark. The canonical package emitter took 41 seconds,
-the physical reference 10 seconds, and the binding emitter 94 seconds.
+Each native test uses the 300-second cap; each Lean command
+uses the 1,500-second cap. No proof limit, Cargo feature, environment setting,
+hash family, or profile parameter is added.
 
-All 22 fresh native phases pass: base; both C/R/D folds and successors;
-iteration-three acceptance; rejection after changing and recommitting the fresh
-public input; and balanced `Eval_K` and `Eval_A` mutations. Each balanced case
-has a rebuilt valid fresh witness and preserves PiDEC weighted recomposition.
-It reaches the corresponding complete-opening rejection.
+## Limits
 
-The longest native phase took 147.92 seconds. Peak RSS was 9,887,068,160 bytes
-(9.21 GiB), below the existing owner-approved 16 GiB guard. Each native command
-retained the 300-second cap. Each Lean command retained the 1,500-second cap;
-the fold coordinators also had an outer 1,500-second cap.
+Native code supplies the C proof messages for the Lean comparisons. These are
+concrete conformance checks, not independent Lean proof generation or a universal
+proof of Rust semantics. The complete independent norm-prefix producer was not
+rerun for this update; its registration and input framing were tested.
+Spartan was not run.
 
-Both fresh Lean comparisons pass. For each fold they check the complete
-ten-field C/R/D result, all 945,983 proof bytes, all 177,326 private and 278
-public caller words, all seven caller result fields, and all 227,351,560
-physical witness bytes. Lean and native mutation checks pass as well.
-
-The checked first-fold result and caller replace the formal and native fixtures.
-The refreshed `golden-v1.zip` contains exactly the 19 documented interface
-files; every archived byte was compared with its checked source. It contains
-no private witness matrices. The public state/message request is unchanged.
-The four saved application tests and the retained complete-fold mutation test
-also pass after fixture promotion.
-See [the workflow](../../../scripts/GOLDEN_CONFORMANCE.md) and
-[validation records](VALIDATION.json).
-
-## Scope limits and review
-
-These executions check the selected concrete package and inputs. They are not
-a universal proof of Rust semantics. Native code supplies the C proof messages
-for the Lean fold checks; independent Lean proof generation is a separate task.
-Spartan was not run: `FPRIME_STAGE1_GOAL.md` excludes it from this work.
-
-The retained running-transition reduction still lacks the aggregate production
-layout connection. No production count or acceptance claim uses that research.
-The September 4 external review targets the removed `neo-fold-clean` frontend;
-that code is absent from this branch, so its finding does not apply to this port.
+Further matrix-count and 107-point reductions are outside this change.
+The September 4 external report targets the removed `neo-fold-clean` frontend;
+that finding does not apply to this branch.

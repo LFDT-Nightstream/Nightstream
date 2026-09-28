@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
 /-!
 Proves that the compact PiRLC product matrix block selects the exact
-invocation-major SuperNeo family schedule and retained forms used by
+complete-ring SuperNeo family schedule and retained forms used by
 `PiRLCProductPlan`.
 -/
 
@@ -64,36 +64,6 @@ def wireDescriptor : PiRLCProductSchedule.Descriptor →
   rcases descriptor with ⟨family, source, block, lane, cell⟩
   cases family <;> rfl
 
-@[simp] theorem wireDescriptor_block
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (wireDescriptor descriptor).block.val = descriptor.block.val := by
-  rcases descriptor with ⟨family, source, block, lane, cell⟩
-  cases family
-  all_goals
-    simp [wireDescriptor, MatrixProgram.Phi81Product.Descriptor.block,
-      MatrixProgram.Phi81Product.Descriptor.coordinates,
-      coordinates_indexOf]
-
-@[simp] theorem wireDescriptor_lane
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (wireDescriptor descriptor).lane.val = descriptor.lane.val := by
-  rcases descriptor with ⟨family, source, block, lane, cell⟩
-  cases family
-  all_goals
-    simp [wireDescriptor, MatrixProgram.Phi81Product.Descriptor.lane,
-      MatrixProgram.Phi81Product.Descriptor.coordinates,
-      coordinates_indexOf]
-
-@[simp] theorem wireDescriptor_cell
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (wireDescriptor descriptor).cell.val = descriptor.cell.val := by
-  rcases descriptor with ⟨family, source, block, lane, cell⟩
-  cases family
-  all_goals
-    simp [wireDescriptor, MatrixProgram.Phi81Product.Descriptor.cell,
-      MatrixProgram.Phi81Product.Descriptor.coordinates,
-      coordinates_indexOf]
-
 @[simp] theorem wireDescriptor_invocation
     (descriptor : PiRLCProductSchedule.Descriptor) :
     (wireDescriptor descriptor).invocation = descriptor.invocation.val := by
@@ -113,74 +83,6 @@ def wireDescriptor : PiRLCProductSchedule.Descriptor →
       MatrixProgram.Phi81Product.Family.invocationCount,
       MatrixProgram.Phi81Product.Family.privateCount,
       CombinationStep.privateCount, Fin.encodeProd, ringDegree] <;> omega
-
-/-- The encoded four-family selector chooses the exact authoritative
-descriptor and no Rust-selected schedule. -/
-theorem descriptor?_wireDescriptor
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    MatrixProgram.Phi81Product.descriptor? families descriptor.invocation.val =
-      some (wireDescriptor descriptor) := by
-  rcases descriptor with ⟨family, source, block, lane, cell⟩
-  cases family
-  · change descriptorFrom?
-        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
-        (Fin.encodeProd (source,
-          CombinationStep.indexOf block lane cell)).val =
-      some {
-        family := commitmentFamily
-        familyOffset := commitmentOffset
-        source
-        coordinate := CombinationStep.indexOf block lane cell }
-    exact descriptorFrom?_head commitmentFamily
-      [publicInputFamily, evalKFamily, evalAFamily] 0 source
-        (CombinationStep.indexOf block lane cell)
-  · change descriptorFrom?
-        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
-        (commitmentFamily.invocationCount +
-          (Fin.encodeProd (source,
-            CombinationStep.indexOf block lane cell)).val) =
-      some {
-        family := publicInputFamily
-        familyOffset := publicInputOffset
-        source
-        coordinate := CombinationStep.indexOf block lane cell }
-    rw [descriptorFrom?_tail]
-    exact descriptorFrom?_head publicInputFamily [evalKFamily, evalAFamily]
-      (0 + commitmentFamily.invocationCount) source
-        (CombinationStep.indexOf block lane cell)
-  · change descriptorFrom?
-        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
-        (commitmentFamily.invocationCount +
-          (publicInputFamily.invocationCount +
-            (Fin.encodeProd (source,
-              CombinationStep.indexOf block lane cell)).val)) =
-      some {
-        family := evalKFamily
-        familyOffset := evalKOffset
-        source
-        coordinate := CombinationStep.indexOf block lane cell }
-    rw [descriptorFrom?_tail, descriptorFrom?_tail]
-    exact descriptorFrom?_head evalKFamily [evalAFamily]
-      ((0 + commitmentFamily.invocationCount) +
-        publicInputFamily.invocationCount) source
-          (CombinationStep.indexOf block lane cell)
-  · change descriptorFrom?
-        [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily] 0
-        (commitmentFamily.invocationCount +
-          (publicInputFamily.invocationCount +
-            (evalKFamily.invocationCount +
-              (Fin.encodeProd (source,
-                CombinationStep.indexOf block lane cell)).val))) =
-      some {
-        family := evalAFamily
-        familyOffset := evalAOffset
-        source
-        coordinate := CombinationStep.indexOf block lane cell }
-    rw [descriptorFrom?_tail, descriptorFrom?_tail, descriptorFrom?_tail]
-    exact descriptorFrom?_head evalAFamily []
-      (((0 + commitmentFamily.invocationCount) +
-        publicInputFamily.invocationCount) + evalKFamily.invocationCount)
-          source (CombinationStep.indexOf block lane cell)
 
 theorem challengeSlot_eq
     (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :
@@ -288,7 +190,7 @@ theorem group_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (descriptor : PiRLCProductSchedule.Descriptor) :
-    (block geometry).group.form? logicalWidth
+    (block geometry).quotient.form? logicalWidth
         (wireDescriptor descriptor).invocation =
       some (PiRLCProductPlan.groupForm
         (inputs geometry) descriptor.invocation 0) := by
@@ -317,12 +219,6 @@ theorem output_form?
     descriptor.invocation
   simpa [block, PiRLCProductPlan.outputForm,
     inputs, PiRLCRetainedInputs.productInputs, wireDescriptor_invocation] using direct
-
-@[simp] theorem wireDescriptor_lane_eq
-    (descriptor : PiRLCProductSchedule.Descriptor) :
-    (wireDescriptor descriptor).lane = descriptor.lane := by
-  apply Fin.ext
-  exact wireDescriptor_lane descriptor
 
 @[simp] theorem wireDescriptor_privateCount
     (descriptor : PiRLCProductSchedule.Descriptor) :

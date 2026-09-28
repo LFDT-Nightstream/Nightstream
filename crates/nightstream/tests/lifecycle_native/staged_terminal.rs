@@ -37,8 +37,8 @@ pub(super) fn successor(root: &Path, step: u64, engine: EvaluationEngine) {
             "next_public_input": packet.next_public_input(),
         }),
     );
-    // Export the full physical reference from the current native caller arrays.
-    // complete_step constructs the direct CCS assignment below.
+    // Use only the current native caller arrays. This is the same witness
+    // executor used by complete_step; no Lean output enters either call.
     let started = Instant::now();
     let physical = package
         .package

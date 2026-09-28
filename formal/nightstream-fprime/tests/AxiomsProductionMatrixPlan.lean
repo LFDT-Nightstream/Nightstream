@@ -3,7 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECValueWiring
 import NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
 import tests.AxiomAudit
-import tests.RunningTransitionReducedMatrixResearch
 import NightstreamFPrime.Layout.BalancedTernary
 import NightstreamFPrime.Layout.LowNormAssignment
 import NightstreamFPrime.Layout.LowNormBlock

@@ -73,8 +73,8 @@ requires the second source projection to use the exact first Lean successor.
 It binds the Lean producers, native comparison code and coordinator sources.
 These tests cannot close the required complete two-fold execution or its
 independent review. The retained norm-prefix gate now uses the current carrier:
-60,647,711 values per source after two folds, for 1,031,011,087 encoded values
-across all 17 sources. Decoding yields 16,496,177,392 bytes.
+43,484,783 values per source after two folds, for 739,241,311 encoded values
+across all 17 sources. Decoding yields 11,827,860,976 bytes.
 
 The remaining phase-specific producer gates and all six kernel proofs are
 useful components. Historical old-package receipts and the current golden

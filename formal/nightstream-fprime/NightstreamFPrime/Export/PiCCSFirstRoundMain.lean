@@ -384,14 +384,14 @@ private def carriedRows (program : MatrixProgram.Program)
       | .phi81Product product =>
           if cacheSparse then
             let localRow := index - firstRow
-            let some descriptor := MatrixProgram.Phi81Product.descriptor?
-                product.families (localRow / 34)
+            let some descriptor := MatrixProgram.Phi81Product.ringDescriptor?
+                product.families (localRow / 108)
               | throw (IO.userError "carried product descriptor failed to load")
             let some interface := PiDECProductInterface.interface? product
                 PiCCSSourceImages.logicalWidth descriptor
               | throw (IO.userError "carried product interface failed to load")
             let values := PiCCSCarriedReadCache.productInvocation basis blocks interface
-            let row : Fin 34 := ⟨localRow % 34, Nat.mod_lt _ (by decide)⟩
+            let row : Fin 108 := ⟨localRow % 108, Nat.mod_lt _ (by decide)⟩
             let some value := values.get row
               | throw (IO.userError "carried product row failed to load")
             return (some (index - row.val, values.toArray), value)

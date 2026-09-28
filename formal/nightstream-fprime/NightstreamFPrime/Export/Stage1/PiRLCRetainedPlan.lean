@@ -12,9 +12,9 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open PiRLCRetainedGeometry PiRLCRetainedInputs PiRLCRetainedPreservation
 
-def rowCount : Nat := 1779084
+def rowCount : Nat := 104652
 
-@[simp] theorem rowCount_eq : rowCount = 1779084 := rfl
+@[simp] theorem rowCount_eq : rowCount = 104652 := rfl
 
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (values : Values logicalWidth)
@@ -40,7 +40,7 @@ theorem rowsZero_implies_semantics
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (oneColumn geometry) = 1)
     (valuePreserves : ∀ invocation,
       (values invocation).eval assignment =

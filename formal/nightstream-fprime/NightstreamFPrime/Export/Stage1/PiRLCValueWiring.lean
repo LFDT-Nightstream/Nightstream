@@ -208,7 +208,7 @@ theorem form_eval_source
     (invocation : Fin PiRLCProductSchedule.invocationCount)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     (form geometry invocation).eval assignment =

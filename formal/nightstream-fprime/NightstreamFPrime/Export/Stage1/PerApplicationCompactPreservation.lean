@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
+import NightstreamFPrime.Export.Stage1.PiRLCCombinationScratchGeometry
 
 /-!
 Owns the production construction of compact-row shift compatibility for the
@@ -21,75 +22,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-private theorem sum_take_add_getD_le_sum (values : List Nat) (index : Nat) :
-    (values.take index).sum + values.getD index 0 ≤ values.sum := by
-  induction values generalizing index with
-  | nil => simp
-  | cons head rest inductionHypothesis =>
-      cases index with
-      | zero => simp
-      | succ previous =>
-          simp only [List.take_succ_cons, List.sum_cons, List.getD_cons_succ]
-          have tail := inductionHypothesis previous
-          omega
-
-private theorem laneFreshPrefix_add_cost_le (lane : Nat) :
-    PiRLCCombinationInvocations.laneFreshPrefix lane +
-        PiRLCCombinationInvocations.laneFreshCost lane ≤ 8100 := by
-  have bound := sum_take_add_getD_le_sum
-    PiRLCCombinationInvocations.laneFreshCosts lane
-  rw [PiRLCCombinationInvocations.laneFreshCosts_sum] at bound
-  exact bound
-
-private theorem laneFreshCost_eq (lane : Fin ringDegree) :
-    PiRLCCombinationInvocations.laneFreshCost lane.val =
-      NightstreamFPrime.Layout.PiRLC.v1_1.CombinationStep.laneFreshCount lane := by
-  unfold PiRLCCombinationInvocations.laneFreshCost
-    PiRLCCombinationInvocations.laneFreshCosts
-  rw [List.getD_eq_get _ _ ⟨lane.val, by simp⟩]
-  simp
-
-private theorem coordinateFreshEnd_le
-    {blockCount cellCount : Nat} (block : Fin blockCount)
-    (lane : Fin ringDegree) (cell : Fin cellCount) :
-    PiRLCCombinationInvocations.coordinateFreshPrefix cellCount block.val
-        lane.val cell.val +
-      PiRLCCombinationInvocations.laneFreshCost lane.val ≤
-        PiRLCCombinationInvocations.sourceFreshCount blockCount cellCount := by
-  let cost := PiRLCCombinationInvocations.laneFreshCost lane.val
-  let lanePrefix := PiRLCCombinationInvocations.laneFreshPrefix lane.val
-  have laneBound : lanePrefix + cost ≤ 8100 :=
-    laneFreshPrefix_add_cost_le lane.val
-  have cellSucc : cell.val + 1 ≤ cellCount := by omega
-  have cellPart : cell.val * cost + cost ≤ cellCount * cost := by
-    calc
-      cell.val * cost + cost = (cell.val + 1) * cost := by ring
-      _ ≤ cellCount * cost := Nat.mul_le_mul_right cost cellSucc
-  have lanePart :
-      cellCount * lanePrefix + cell.val * cost + cost ≤ cellCount * 8100 := by
-    calc
-      cellCount * lanePrefix + cell.val * cost + cost =
-          cellCount * lanePrefix + (cell.val * cost + cost) := by omega
-      _ ≤ cellCount * lanePrefix + cellCount * cost :=
-        Nat.add_le_add_left cellPart _
-      _ = cellCount * (lanePrefix + cost) := by ring
-      _ ≤ cellCount * 8100 := Nat.mul_le_mul_left cellCount laneBound
-  have blockSucc : block.val + 1 ≤ blockCount := by omega
-  unfold PiRLCCombinationInvocations.coordinateFreshPrefix
-    PiRLCCombinationInvocations.sourceFreshCount
-  change block.val * cellCount * 8100 + cellCount * lanePrefix +
-      cell.val * cost + cost ≤ blockCount * cellCount * 8100
-  calc
-    block.val * cellCount * 8100 + cellCount * lanePrefix +
-        cell.val * cost + cost =
-        block.val * cellCount * 8100 +
-          (cellCount * lanePrefix + cell.val * cost + cost) := by omega
-    _ ≤ block.val * cellCount * 8100 + cellCount * 8100 :=
-      Nat.add_le_add_left lanePart _
-    _ = (block.val + 1) * (cellCount * 8100) := by ring
-    _ ≤ blockCount * (cellCount * 8100) :=
-      Nat.mul_le_mul_right (cellCount * 8100) blockSucc
-    _ = blockCount * cellCount * 8100 := by ring
+open PiRLCCombinationScratchGeometry (coordinateFreshEnd_le laneFreshCost_eq)
 
 private theorem shiftRange_private
     (program : Lifecycle.Stage1.Application.Program)

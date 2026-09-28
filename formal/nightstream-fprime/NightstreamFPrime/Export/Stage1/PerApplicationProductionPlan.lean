@@ -147,7 +147,7 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .piCcsEndpoint => 32
   | .samplerPoseidon => 3196
   | .samplerOrdinary => 38811
-  | .piRlc => 1779084
+  | .piRlc => 104652
   | .piDec => 25488
   | .runningTransition => 345495
   | .application => (PerApplicationPackage.applicationPlan application).rowCount

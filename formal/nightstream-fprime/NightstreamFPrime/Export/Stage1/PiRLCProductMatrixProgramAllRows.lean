@@ -26,7 +26,7 @@ theorem matrixProgram_plan_row?
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PiRLCProductPlan.plan
         (inputs geometry)).forms global) := by
-  change Fin (PiRLCProductSchedule.invocationCount * 34) at global
+  change Fin (PiRLCProductRingSchedule.invocationCount * 108) at global
   simpa [PiRLCProductPlan.plan, Phi81ProductFamilyPlan.plan,
     ProductionRelation.Plan.indexed] using
       (matrixProgram_row? geometry sourceRow global)

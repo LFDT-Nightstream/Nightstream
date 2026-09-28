@@ -74,6 +74,105 @@ private theorem step_size (inputColumn : Nat → Nat) (localStart localCount : N
       · have same := Option.some.inj success
         rw [← same, write_size]
 
+private theorem run_size (inputColumn : Nat → Nat) (localStart localCount : Nat)
+    (values : Array F) (rows : List CompactTemplateRow) (after : Array F)
+    (success : run inputColumn localStart localCount values rows = some after) :
+    after.size = values.size := by
+  induction rows generalizing values with
+  | nil =>
+      exact congrArg Array.size (Option.some.inj success).symm
+  | cons row rest inductionHypothesis =>
+      cases first : step inputColumn localStart localCount values row with
+      | none =>
+          simp only [run, first, Option.bind_none] at success
+          cases success
+      | some middle =>
+          have tail : run inputColumn localStart localCount middle rest = some after := by
+            simpa only [run, first, Option.bind_some] using success
+          exact (inductionHypothesis middle tail).trans
+            (step_size inputColumn localStart localCount values row middle first)
+
+/-- Every successful compact execution preserves the complete array size. -/
+theorem execute_size (inputColumn : Nat → Nat) (localStart : Nat)
+    (template : CompactRowTemplate) (values after : Array F)
+    (success : execute inputColumn localStart template values = some after) :
+    after.size = values.size := by
+  unfold execute at success
+  split at success
+  · have same := run_size inputColumn localStart template.localColumnCount
+      _ template.rows after success
+    simpa only [write_size] using same
+  · cases success
+
+private theorem step_agreesOutside (inputColumn : Nat → Nat)
+    (localStart localCount : Nat) (values : Array F) (row : CompactTemplateRow)
+    (after : Array F) (fits : localStart + localCount ≤ values.size)
+    (success : step inputColumn localStart localCount values row = some after) :
+    AgreesOutside (asEnv values) (asEnv after) localStart localCount := by
+  unfold step at success
+  cases selected : row.outputLocal with
+  | none =>
+      simp only [selected] at success
+      split_ifs at success
+      have same := Option.some.inj success
+      rw [← same]
+      intro _ _
+      rfl
+  | some localIndex =>
+      simp only [selected] at success
+      split_ifs at success with inside
+      have same := Option.some.inj success
+      rw [← same, asEnv_write values (localStart + localIndex) _ (by omega)]
+      intro column outside
+      simp only [Env.set, if_neg (by omega : column ≠ localStart + localIndex)]
+
+private theorem run_agreesOutside (inputColumn : Nat → Nat)
+    (localStart localCount : Nat) (values : Array F)
+    (rows : List CompactTemplateRow) (after : Array F)
+    (fits : localStart + localCount ≤ values.size)
+    (success : run inputColumn localStart localCount values rows = some after) :
+    AgreesOutside (asEnv values) (asEnv after) localStart localCount := by
+  induction rows generalizing values with
+  | nil =>
+      have same := Option.some.inj success
+      rw [← same]
+      intro _ _
+      rfl
+  | cons row rest inductionHypothesis =>
+      cases first : step inputColumn localStart localCount values row with
+      | none =>
+          simp only [run, first, Option.bind_none] at success
+          cases success
+      | some middle =>
+          have sameSize := step_size inputColumn localStart localCount values row middle first
+          have middleFits : localStart + localCount ≤ middle.size := by
+            rw [sameSize]
+            exact fits
+          have tail : run inputColumn localStart localCount middle rest = some after := by
+            simpa only [run, first, Option.bind_some] using success
+          have firstAgrees := step_agreesOutside inputColumn localStart localCount
+            values row middle fits first
+          have tailAgrees := inductionHypothesis middle middleFits tail
+          intro column outside
+          exact (tailAgrees column outside).trans (firstAgrees column outside)
+
+/-- The guarded rows can change only their declared local interval after the
+initial output write. The successful execution supplies both write bounds;
+no per-template local-output premise is needed. -/
+theorem execute_agreesOutside (inputColumn : Nat → Nat) (localStart : Nat)
+    (template : CompactRowTemplate) (values after : Array F)
+    (success : execute inputColumn localStart template values = some after) :
+    AgreesOutside
+      (asEnv (write values (inputColumn template.outputInput)
+        (template.outputRecipe.eval (fun input => asEnv values (inputColumn input)))))
+      (asEnv after) localStart template.localColumnCount := by
+  unfold execute at success
+  split at success
+  · rename_i fits
+    exact run_agreesOutside inputColumn localStart template.localColumnCount
+      _ template.rows after (by simpa only [write_size] using fits.2) success
+  · cases success
+
 /-- Stored and functional row checks agree exactly, including rejection.
 The local interval and the row's declared output must both be valid. -/
 theorem step_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)

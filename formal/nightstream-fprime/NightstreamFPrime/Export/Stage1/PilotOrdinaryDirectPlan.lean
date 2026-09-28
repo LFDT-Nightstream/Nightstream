@@ -304,7 +304,7 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   prior : PiCCSOrdinaryRetainedGeometry.Encodes (piCcsGeometry geometry)
     assignment (PiRLCRetainedPreservation.sourceAssignment
       program base groupValue)
@@ -322,7 +322,7 @@ theorem Location.stage1SourceColumn_lt (location : Location) :
 theorem sourceAssignment_at
     {program : Lifecycle.Stage1.Application.Program}
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (location : Location) :
     PiRLCRetainedPreservation.sourceAssignment program base groupValue
         (RunningTransitionRetainedBlocks.packageSourceColumn program
@@ -482,7 +482,7 @@ theorem Location.form_eval
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
     (location : Location) :
     (location.form geometry).eval assignment =
@@ -624,7 +624,7 @@ theorem sourceMap_form_eval_of_target
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
     (column : Fin PilotSpartan.spartanColumnCount)
     (support : Target column.val) :
@@ -648,7 +648,7 @@ private theorem preservesCombination
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded
@@ -677,7 +677,7 @@ theorem inputs_preserve
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
       ((inputs geometry).sourceMap index) assignment (pilotEnv program base)
@@ -703,7 +703,7 @@ theorem programRow_preserve
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
     (index : Fin 1330) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
@@ -747,7 +747,7 @@ theorem rowsZero_iff_rowsHold
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue) :
     (plan geometry).RowsZero assignment ↔

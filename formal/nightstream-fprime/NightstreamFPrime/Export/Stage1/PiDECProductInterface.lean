@@ -46,10 +46,10 @@ theorem loadFin?_value {Alpha : Type} (count : Nat)
       simp only [loadFin?, Phi81Product.loadFin?,
         inductionHypothesis, select_eq_cases]
 
-/-- The existing retained operands and guards, using the proved direct loader. -/
+/-- The quotient operands and guards, using the proved direct loader. -/
 def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
     (descriptor : Phi81Product.Descriptor) :
-    Option (ProductSumPlan.Interface logicalWidth) := do
+    Option (Phi81ProductPlan.Interface logicalWidth) := do
   let oneColumn ← block.oneColumn? logicalWidth
   let challenge ← loadFin? ringDegree fun lane =>
     block.challenge.form? logicalWidth
@@ -57,31 +57,29 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
         descriptor.source.val * block.challengeSourceStride + lane.val)
   let input ← loadFin? ringDegree fun lane =>
     block.input.form? logicalWidth (descriptor.invocationAtLane lane)
-  let groupOutput ← loadFin? 33 fun group =>
-    block.group.form? logicalWidth (descriptor.invocation * 33 + group.val)
+  let quotient ← loadFin? ringDegree fun lane =>
+    block.group.form? logicalWidth (descriptor.invocationAtLane lane)
   let prior ← if descriptor.source.val = 0 then
-      some SparseForm.empty
+      some (fun _ => SparseForm.empty)
     else
-      block.output.form? logicalWidth
-        (descriptor.invocation - descriptor.family.privateCount)
-  let output ← block.output.form? logicalWidth descriptor.invocation
+      loadFin? ringDegree fun lane =>
+        block.output.form? logicalWidth
+          (descriptor.invocationAtLane lane - descriptor.family.privateCount)
+  let output ← loadFin? ringDegree fun lane =>
+    block.output.form? logicalWidth (descriptor.invocationAtLane lane)
   let left : Phi81ProductPlan.State logicalWidth := fun lane =>
-    SparseForm.add (challenge lane)
-      (SparseForm.singleton oneColumn (-2))
-  pure {
-    oneColumn
-    terms := Phi81ProductPlan.terms left input descriptor.lane
-    groupOutput
-    prior
-    output }
+    SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
+  pure { oneColumn, left, right := input, quotient, prior, output }
 
-/-- Exact interface equality without shape, validity or successful-load premises. -/
+/-- Exact equality includes all missing-input rejections. -/
 theorem interface?_value (block : Phi81Product.Block) (logicalWidth : Nat)
     (descriptor : Phi81Product.Descriptor) :
     interface? block logicalWidth descriptor =
       block.interface? logicalWidth descriptor := by
-  simp only [interface?, Phi81Product.Block.interface?,
-    Phi81Product.Block.challengeState?, Phi81Product.Block.inputState?,
-    Phi81Product.Block.groupOutput?, loadFin?_value]
+  by_cases first : descriptor.source.val = 0 <;>
+    simp [interface?, Phi81Product.Block.interface?,
+      Phi81Product.Block.challengeState?, Phi81Product.Block.inputState?,
+      Phi81Product.Block.quotientState?, Phi81Product.Block.priorState?,
+      Phi81Product.Block.outputState?, loadFin?_value, first]
 
 end NightstreamFPrime.Export.Stage1.PiDECProductInterface

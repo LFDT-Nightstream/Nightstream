@@ -94,11 +94,10 @@ def check : IO Unit := do
       WireForm.ofSemantic (normalized (SparseLayer.external input lane))
     ensure ((← expanded 8 external) == ([], expected))
       "external-layer template differs from its Lean owner"
-    for lane in List.finRange ringDegree do
-      let variant := phi81Variant lane
-      variant.validate 144
-      ensure (variant.rows.length == 34) "Phi81 row footprint changed"
-      ensure (variant.linearForms.isEmpty) "Phi81 has unexpected registers"
+    let variant := phi81Variant 0
+    variant.validate 271
+    ensure (variant.rows.length == 108) "Phi81 row footprint changed"
+    ensure (variant.linearForms.isEmpty) "Phi81 has unexpected registers"
     let forward : Variant :=
       { linearForms := [⟨[⟨1, 1⟩]⟩], rows := [], outputRegisters := [] }
     ensure (!(forward.validate 1).isOk) "forward reference was accepted"
@@ -117,7 +116,7 @@ def check : IO Unit := do
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.rowsZero_of_equations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Poseidon.Block.rowWithInput?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.SparseLayer.eval_external
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.terms_total
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rowsZero_implies_ringProduct
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.ProductSumPlan.rowsZero_iff_equations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
 #audit_axioms NightstreamFPrime.Export.SharedFormulas.directOutputRows_eq

@@ -116,7 +116,7 @@ impl Stage1StepInputs {
 impl PreparedLifecycle {
     /// Replay the native NIFS verifier and construct the exact recursive
     /// caller packet. The package owns the context, parameters and fixed pc.
-    /// `execute_step_witness` executes the selected relation on this data.
+    /// `complete_step` executes the selected relation on this data.
     pub fn step_inputs(
         &self,
         state: &Stage1State,

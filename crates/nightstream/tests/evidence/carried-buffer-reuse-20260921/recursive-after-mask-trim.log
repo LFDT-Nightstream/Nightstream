@@ -1,0 +1,6 @@
+
+running 1 test
+poseidon preparation engine=Metal elapsed=35.003312875s
+poseidon base proving elapsed=6.820502292s
+poseidon public extend step=2 started
+test poseidon_metal_recursive_lifecycle has been running for over 60 seconds

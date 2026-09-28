@@ -1,0 +1,813 @@
+{
+  "schema": 1,
+  "scope": "Complete independent selected fresh witness and commitment execution; procedure/value kernel refinements. Whole physical completion and PiCCS carried-source Q proofs remain open.",
+  "base_sha": "ad46cb74940d5e85735b59c04751604330d2ab8d",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "environment": {
+    "host": "original Linux benchmark host",
+    "lean": "4.30.0",
+    "workers": 16,
+    "cpu": "AMD Ryzen 7 7700X 8-Core Processor",
+    "parallel_measurement_policy": "No other agents, builds or benchmarks ran during recorded timed invocations."
+  },
+  "profile": {
+    "decomposition_base": 2,
+    "k_rho": 16,
+    "carrier_blocks": 4685394,
+    "ring_degree": 54,
+    "key_rows": 22,
+    "logical_coefficients": 253011231,
+    "carrier_coefficients": 253011276,
+    "zero_tail": 45,
+    "key_protocol_package": "Unchanged selected Poseidon2 hash-chain-v1 package and production Ajtai setup."
+  },
+  "inputs": {
+    "caller": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json",
+      "bytes": 1446131,
+      "sha256": "d7bb65dd4179a009a412498e231471781dc96db739b296d3344fba1cc8890945"
+    },
+    "caller_derivation": "INDEPENDENT_NIFS_CALLER_REPLAY.json: independently generated C/R/D outputs, original iteration2 state and next message.",
+    "rust_use": "Native fresh witness and fresh claim enter comparison commands only."
+  },
+  "coverage": {
+    "physical_fields": 29344425,
+    "strictly_increasing_events": 1419747,
+    "physical_assertions": 201386,
+    "logical_blocks": 30,
+    "all_carrier_coefficients_compared": 253011276,
+    "fresh_witness_bytes": 107246512,
+    "commitment_coefficients_compared": 1188,
+    "fresh_public_coefficients_compared": 270,
+    "fresh_claim_bytes": 39448,
+    "changed_target_rejected": true,
+    "malformed_and_existing_output_cases": 26,
+    "populated_commitment_blocks": 3197570,
+    "zero_commitment_blocks": 1487824
+  },
+  "outputs": {
+    "physical-values.bin": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin",
+      "bytes": 234755400,
+      "sha256": "7e18d6e6e508827368edd262002d0dd6a65bbbd2f5a4adc86be6fc1ca147f80e"
+    },
+    "fresh-carrier.bin": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-carrier.bin",
+      "bytes": 253011276,
+      "sha256": "9c57f1e5fb490c6c8d05d8f6c3a362d973fe434453ee51033815b7e221265ae0"
+    },
+    "fresh-witness.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-witness.json",
+      "bytes": 107246512,
+      "sha256": "3a44cd134dc235908dc75f1f1e592cdf12c5849e565c1bf111a21dda4c5a9a28"
+    },
+    "fresh-complete-commitment.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-complete-commitment.json",
+      "bytes": 24334,
+      "sha256": "5f5187a8d1a51b636220dd0b2ecf036e7b1ca3c116408614f4de5b677975441b"
+    },
+    "fresh-claim-checked.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-claim-checked.json",
+      "bytes": 39448,
+      "sha256": "839f0ea46f8c474ca1d35b460ecb737e4800493dbde3c3e3f75ab5943f2c3bdc"
+    }
+  },
+  "proofs": {
+    "target": "LeanGraph.Targets.FreshWitnessKernels",
+    "witness": "LeanGraph.Targets.freshWitnessKernels",
+    "allowed_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "owners": [
+      "StoredWitnessExecution.executeRecipes_eq",
+      "StoredWitnessExecution.executeHints_eq",
+      "StoredPermutationExecution.execute_eq",
+      "CachedAssignmentPlan.expand_eq",
+      "CachedAssignmentProducts.rawValues_eq",
+      "FreshCommitmentBlock.accumulatePrepared_value",
+      "PiDECCommitmentFold.sum_value"
+    ],
+    "premises": "Stored writes fit their supplied arrays; permutation destination covers592cells; cached records carry equality proofs for their original widths, recipes and blocks. Commitment setup, row and block retain their original finite indices.",
+    "not_proved_here": "Ordered compact-row execution equals the existing lowering completion, whole selected physical-plan satisfaction, and the prior selected-source PiCCS Q connection."
+  },
+  "performance": {
+    "physical": {
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-physical-run-1.log",
+      "events": [
+        {
+          "assertions": 201386,
+          "event": "physical_plan_ready",
+          "events": 1419747,
+          "fields": 29344425,
+          "prepare_ns": 2383497937
+        },
+        {
+          "compute_ns": 23266679084,
+          "event": "physical_values_ready",
+          "fields": 29344425
+        },
+        {
+          "assert_ns": 93293571,
+          "assertions": 201386,
+          "event": "physical_assertions_passed"
+        },
+        {
+          "bytes": 234755400,
+          "event": "physical_values_saved",
+          "fields": 29344425,
+          "write_ns": 3695505764
+        }
+      ],
+      "command_results": [
+        {
+          "outcome": "passed",
+          "exit": 0,
+          "cap_seconds": 1500,
+          "elapsed_seconds": 29.863948601996526,
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            ".lake/build/bin/replayPhysicalWitness",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json",
+            "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin"
+          ],
+          "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+          "evidence": "development diagnostic only"
+        }
+      ],
+      "wall_clock": "0:29.91",
+      "peak_rss_kib": 2516672
+    },
+    "assignment_blocks": [
+      {
+        "compute_write_ns": 3230201722,
+        "file": "block-0.bin",
+        "finish": 43546370,
+        "first": 270,
+        "ordinal": 0,
+        "slots": 1062100
+      },
+      {
+        "compute_write_ns": 3669162098,
+        "file": "block-1.bin",
+        "finish": 87092470,
+        "first": 43546370,
+        "ordinal": 1,
+        "slots": 1062100
+      },
+      {
+        "compute_write_ns": 2298317726,
+        "file": "block-2.bin",
+        "finish": 114443652,
+        "first": 87092470,
+        "ordinal": 2,
+        "slots": 667102
+      },
+      {
+        "compute_write_ns": 60748305407,
+        "file": "block-3.bin",
+        "finish": 185240730,
+        "first": 114443652,
+        "ordinal": 3,
+        "slots": 1726758
+      },
+      {
+        "compute_write_ns": 174174,
+        "file": "block-4.bin",
+        "finish": 185241818,
+        "first": 185240730,
+        "ordinal": 4,
+        "slots": 1088
+      },
+      {
+        "compute_write_ns": 813635,
+        "file": "block-5.bin",
+        "finish": 185286426,
+        "first": 185241818,
+        "ordinal": 5,
+        "slots": 1088
+      },
+      {
+        "compute_write_ns": 5470975,
+        "file": "block-6.bin",
+        "finish": 185346266,
+        "first": 185286426,
+        "ordinal": 6,
+        "slots": 59840
+      },
+      {
+        "compute_write_ns": 40014949,
+        "file": "block-7.bin",
+        "finish": 187755098,
+        "first": 185346266,
+        "ordinal": 7,
+        "slots": 58752
+      },
+      {
+        "compute_write_ns": 1108043,
+        "file": "block-8.bin",
+        "finish": 187799706,
+        "first": 187755098,
+        "ordinal": 8,
+        "slots": 1088
+      },
+      {
+        "compute_write_ns": 151389455,
+        "file": "block-9.bin",
+        "finish": 189945072,
+        "first": 187799706,
+        "ordinal": 9,
+        "slots": 52326
+      },
+      {
+        "compute_write_ns": 64621044,
+        "file": "block-10.bin",
+        "finish": 191970185,
+        "first": 189945072,
+        "ordinal": 10,
+        "slots": 49393
+      },
+      {
+        "compute_write_ns": 71811639,
+        "file": "block-11.bin",
+        "finish": 193995298,
+        "first": 191970185,
+        "ordinal": 11,
+        "slots": 49393
+      },
+      {
+        "compute_write_ns": 71383221,
+        "file": "block-12.bin",
+        "finish": 196014466,
+        "first": 193995298,
+        "ordinal": 12,
+        "slots": 49248
+      },
+      {
+        "compute_write_ns": 474002667,
+        "file": "block-13.bin",
+        "finish": 208156124,
+        "first": 196014466,
+        "ordinal": 13,
+        "slots": 296138
+      },
+      {
+        "compute_write_ns": 12015812167,
+        "file": "block-14.bin",
+        "finish": 208167194,
+        "first": 208156124,
+        "ordinal": 14,
+        "slots": 270
+      },
+      {
+        "compute_write_ns": 1836639,
+        "file": "block-15.bin",
+        "finish": 208191466,
+        "first": 208167194,
+        "ordinal": 15,
+        "slots": 592
+      },
+      {
+        "compute_write_ns": 1780745,
+        "file": "block-16.bin",
+        "finish": 208215738,
+        "first": 208191466,
+        "ordinal": 16,
+        "slots": 592
+      },
+      {
+        "compute_write_ns": 177504629,
+        "file": "block-17.bin",
+        "finish": 208215902,
+        "first": 208215738,
+        "ordinal": 17,
+        "slots": 4
+      },
+      {
+        "compute_write_ns": 297848342,
+        "file": "block-18.bin",
+        "finish": 212925900,
+        "first": 208215902,
+        "ordinal": 18,
+        "slots": 114878
+      },
+      {
+        "compute_write_ns": 65993,
+        "file": "block-19.bin",
+        "finish": 212926228,
+        "first": 212925900,
+        "ordinal": 19,
+        "slots": 8
+      },
+      {
+        "compute_write_ns": 1287102832,
+        "file": "block-20.bin",
+        "finish": 242922033,
+        "first": 212926228,
+        "ordinal": 20,
+        "slots": 731605
+      },
+      {
+        "compute_write_ns": 208288,
+        "file": "block-21.bin",
+        "finish": 242932857,
+        "first": 242922033,
+        "ordinal": 21,
+        "slots": 264
+      },
+      {
+        "compute_write_ns": 1574631,
+        "file": "block-22.bin",
+        "finish": 242965165,
+        "first": 242932857,
+        "ordinal": 22,
+        "slots": 788
+      },
+      {
+        "compute_write_ns": 174955744,
+        "file": "block-23.bin",
+        "finish": 242965329,
+        "first": 242965165,
+        "ordinal": 23,
+        "slots": 4
+      },
+      {
+        "compute_write_ns": 201655,
+        "file": "block-24.bin",
+        "finish": 242976399,
+        "first": 242965329,
+        "ordinal": 24,
+        "slots": 270
+      },
+      {
+        "compute_write_ns": 30154203,
+        "file": "block-25.bin",
+        "finish": 243707019,
+        "first": 242976399,
+        "ordinal": 25,
+        "slots": 17820
+      },
+      {
+        "compute_write_ns": 38644688,
+        "file": "block-26.bin",
+        "finish": 245937419,
+        "first": 243707019,
+        "ordinal": 26,
+        "slots": 54400
+      },
+      {
+        "compute_write_ns": 340847035,
+        "file": "block-27.bin",
+        "finish": 252695531,
+        "first": 245937419,
+        "ordinal": 27,
+        "slots": 164832
+      },
+      {
+        "compute_write_ns": 36117,
+        "file": "block-28.bin",
+        "finish": 252695695,
+        "first": 252695531,
+        "ordinal": 28,
+        "slots": 4
+      },
+      {
+        "compute_write_ns": 22702952,
+        "file": "block-29.bin",
+        "finish": 253011231,
+        "first": 252695695,
+        "ordinal": 29,
+        "slots": 7696
+      }
+    ],
+    "assignment_command_seconds": [
+      34.26,
+      37.42,
+      93.29
+    ],
+    "fresh_commitment_range_seconds": [
+      7.12,
+      7.12,
+      267.08
+    ],
+    "fresh_commitment_compute_seconds": 277.148400584,
+    "fresh_commitment_peak_rss_kib": 608048,
+    "interpretation": "Fresh single-message workload, not the earlier16-child PiDEC baseline. No end-to-end speedup ratio is claimed. Compilation and per-command preparation are separate from coefficient work.",
+    "local_diagnostics": "The600-word recipe/permutation comparisons and first-slot source/encoding profiles are diagnostic only. The compiler deferred pure source evaluation across inner timers; combined slot work is reported, not fabricated per-stage proportions.",
+    "stopped_baseline": "The unchanged assignment reader was stopped at140.79s after45056output bytes. Those bytes and both sampled slots match the optimized outputs exactly. No complete baseline runtime is available.",
+    "largest_recorded_assignment_costs": "Product group block60.748s; fresh-public block12.016s. Both complete blocks match every target coefficient.",
+    "final_code_assignment": {
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-assignment-final.log",
+      "command_seconds": 114.64,
+      "prepare_seconds": 17.119955743,
+      "compute_write_seconds": 96.985695679,
+      "peak_rss_kib": 1691212,
+      "blocks": [
+        {
+          "compute_write_ns": 3268022124,
+          "file": "block-0.bin",
+          "finish": 43546370,
+          "first": 270,
+          "ordinal": 0,
+          "slots": 1062100
+        },
+        {
+          "compute_write_ns": 3234289111,
+          "file": "block-1.bin",
+          "finish": 87092470,
+          "first": 43546370,
+          "ordinal": 1,
+          "slots": 1062100
+        },
+        {
+          "compute_write_ns": 2182218594,
+          "file": "block-2.bin",
+          "finish": 114443652,
+          "first": 87092470,
+          "ordinal": 2,
+          "slots": 667102
+        },
+        {
+          "compute_write_ns": 72485803258,
+          "file": "block-3.bin",
+          "finish": 185240730,
+          "first": 114443652,
+          "ordinal": 3,
+          "slots": 1726758
+        },
+        {
+          "compute_write_ns": 181108,
+          "file": "block-4.bin",
+          "finish": 185241818,
+          "first": 185240730,
+          "ordinal": 4,
+          "slots": 1088
+        },
+        {
+          "compute_write_ns": 854481,
+          "file": "block-5.bin",
+          "finish": 185286426,
+          "first": 185241818,
+          "ordinal": 5,
+          "slots": 1088
+        },
+        {
+          "compute_write_ns": 5613009,
+          "file": "block-6.bin",
+          "finish": 185346266,
+          "first": 185286426,
+          "ordinal": 6,
+          "slots": 59840
+        },
+        {
+          "compute_write_ns": 44585716,
+          "file": "block-7.bin",
+          "finish": 187755098,
+          "first": 185346266,
+          "ordinal": 7,
+          "slots": 58752
+        },
+        {
+          "compute_write_ns": 1167313,
+          "file": "block-8.bin",
+          "finish": 187799706,
+          "first": 187755098,
+          "ordinal": 8,
+          "slots": 1088
+        },
+        {
+          "compute_write_ns": 154558349,
+          "file": "block-9.bin",
+          "finish": 189945072,
+          "first": 187799706,
+          "ordinal": 9,
+          "slots": 52326
+        },
+        {
+          "compute_write_ns": 66886529,
+          "file": "block-10.bin",
+          "finish": 191970185,
+          "first": 189945072,
+          "ordinal": 10,
+          "slots": 49393
+        },
+        {
+          "compute_write_ns": 75239408,
+          "file": "block-11.bin",
+          "finish": 193995298,
+          "first": 191970185,
+          "ordinal": 11,
+          "slots": 49393
+        },
+        {
+          "compute_write_ns": 73652453,
+          "file": "block-12.bin",
+          "finish": 196014466,
+          "first": 193995298,
+          "ordinal": 12,
+          "slots": 49248
+        },
+        {
+          "compute_write_ns": 489304465,
+          "file": "block-13.bin",
+          "finish": 208156124,
+          "first": 196014466,
+          "ordinal": 13,
+          "slots": 296138
+        },
+        {
+          "compute_write_ns": 12429816716,
+          "file": "block-14.bin",
+          "finish": 208167194,
+          "first": 208156124,
+          "ordinal": 14,
+          "slots": 270
+        },
+        {
+          "compute_write_ns": 1887393,
+          "file": "block-15.bin",
+          "finish": 208191466,
+          "first": 208167194,
+          "ordinal": 15,
+          "slots": 592
+        },
+        {
+          "compute_write_ns": 1795843,
+          "file": "block-16.bin",
+          "finish": 208215738,
+          "first": 208191466,
+          "ordinal": 16,
+          "slots": 592
+        },
+        {
+          "compute_write_ns": 183902743,
+          "file": "block-17.bin",
+          "finish": 208215902,
+          "first": 208215738,
+          "ordinal": 17,
+          "slots": 4
+        },
+        {
+          "compute_write_ns": 306406512,
+          "file": "block-18.bin",
+          "finish": 212925900,
+          "first": 208215902,
+          "ordinal": 18,
+          "slots": 114878
+        },
+        {
+          "compute_write_ns": 56886,
+          "file": "block-19.bin",
+          "finish": 212926228,
+          "first": 212925900,
+          "ordinal": 19,
+          "slots": 8
+        },
+        {
+          "compute_write_ns": 1340541963,
+          "file": "block-20.bin",
+          "finish": 242922033,
+          "first": 212926228,
+          "ordinal": 20,
+          "slots": 731605
+        },
+        {
+          "compute_write_ns": 236851,
+          "file": "block-21.bin",
+          "finish": 242932857,
+          "first": 242922033,
+          "ordinal": 21,
+          "slots": 264
+        },
+        {
+          "compute_write_ns": 1669678,
+          "file": "block-22.bin",
+          "finish": 242965165,
+          "first": 242932857,
+          "ordinal": 22,
+          "slots": 788
+        },
+        {
+          "compute_write_ns": 186414258,
+          "file": "block-23.bin",
+          "finish": 242965329,
+          "first": 242965165,
+          "ordinal": 23,
+          "slots": 4
+        },
+        {
+          "compute_write_ns": 228815,
+          "file": "block-24.bin",
+          "finish": 242976399,
+          "first": 242965329,
+          "ordinal": 24,
+          "slots": 270
+        },
+        {
+          "compute_write_ns": 31350939,
+          "file": "block-25.bin",
+          "finish": 243707019,
+          "first": 242976399,
+          "ordinal": 25,
+          "slots": 17820
+        },
+        {
+          "compute_write_ns": 41690035,
+          "file": "block-26.bin",
+          "finish": 245937419,
+          "first": 243707019,
+          "ordinal": 26,
+          "slots": 54400
+        },
+        {
+          "compute_write_ns": 353654634,
+          "file": "block-27.bin",
+          "finish": 252695531,
+          "first": 245937419,
+          "ordinal": 27,
+          "slots": 164832
+        },
+        {
+          "compute_write_ns": 29034,
+          "file": "block-28.bin",
+          "finish": 252695695,
+          "first": 252695531,
+          "ordinal": 28,
+          "slots": 4
+        },
+        {
+          "compute_write_ns": 23637461,
+          "file": "block-29.bin",
+          "finish": 253011231,
+          "first": 252695695,
+          "ordinal": 29,
+          "slots": 7696
+        }
+      ]
+    }
+  },
+  "validation": {
+    "static": "passed",
+    "lean_build": "passed",
+    "axioms": "passed",
+    "graph_tests": 85,
+    "complete_assignment": "passed",
+    "complete_native_witness_bytes": "cmp passed",
+    "complete_commitment_and_claim": "passed",
+    "rejections": 26,
+    "kernel_target_and_metadata": "passed",
+    "native_test_target_build": "passed: cargo test -p neo-fold-clean --release --no-run",
+    "final_code_full_assignment": "passed: all 253,011,276 carrier cells match Rust, and all 253,011,231 logical bytes equal the earlier Lean output",
+    "final_graph_tests": "passed:85tests after final graph recipe update"
+  },
+  "evidence": {
+    "directory": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf",
+    "source_and_artifact_manifest": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-source-and-artifacts.json",
+    "commands_and_results": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-generation-and-validation.json",
+    "large_files": "Outside Git; original targets and evidence are unchanged.",
+    "reproduction": "Existing lean-graph fresh-witness-kernel and independent-fresh-witness gates encode the complete producer/comparison order. Release upload and protected fresh-download replay remain separate.",
+    "final_assignment_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-assignment-final",
+    "final_before_after_log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-assignment-final-before-after.log",
+    "final_metadata_log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-witness-final-metadata.log",
+    "native_test_build_log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-native-test-build.log",
+    "final_graph_test_log": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/fresh-final-graph-tests.log"
+  },
+  "open_items": [
+    "Prove the ordered compact-row and whole selected physical completion connection.",
+    "PiCCSCarriedSource check11 still requires owner approval; ten earlier attempts remain counted.",
+    "Release delivery and protected source-bound reproduction remain external."
+  ],
+  "pending_source_patch_sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133",
+  "attempts": {
+    "stored_recipe_proof": 2,
+    "stored_permutation_proof": 1,
+    "cached_assignment_proof": 2,
+    "cached_products_proof": 2,
+    "fresh_commitment_proof": 1,
+    "fresh_kernel_target": 1
+  },
+  "review": {
+    "reviewer": "GPT-6 xhigh subagent replay_profile_review",
+    "result": "No actionable errors found in the new executors, caches, mappings, complete/tail coverage, serialization or source independence.",
+    "scope": "Source review only. The full physical/compact completion proof and carried-source check11 stay open."
+  },
+  "source_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/FreshAssignmentReplayMain.lean": {
+      "bytes": 7805,
+      "sha256": "1002a133ff3bd30806777a3a826b9567d48dff5ac1321e8cab8995965d2d2213"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/FreshCommitmentReplayMain.lean": {
+      "bytes": 7328,
+      "sha256": "163873c6fae505d69a16c7c00fe750215b9c3203c6a2915d55542217638085fb"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CachedAssignmentPlan.lean": {
+      "bytes": 5692,
+      "sha256": "38b8bba0f5363fe69a1a47fd0da666dbbb1a3c626168f3ec8f9e7d8b827a9fe0"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CachedAssignmentProducts.lean": {
+      "bytes": 9625,
+      "sha256": "111f4f2d9abd76017cf54f08e581e062493f26e4035b9af49d9d1fa151212c90"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/FreshCommitmentBlock.lean": {
+      "bytes": 2190,
+      "sha256": "eb752b095e2b4954de9cb93a4666188da6ebe161b51580399d2b06420b46e53e"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredPermutationExecution.lean": {
+      "bytes": 5366,
+      "sha256": "d56ad80b04ca1230522fc6a4274a571688e3960406ec6a45eacd922f2cabb9b2"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredPhysicalPlan.lean": {
+      "bytes": 6944,
+      "sha256": "8b0d1c42d2c59ee7f2dc737312522030be782a4e4d7290a9b2da3727bcc2d755"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredWitnessExecution.lean": {
+      "bytes": 5132,
+      "sha256": "4a4693fd944fd6228e4919d791580a9725133f1c3ecf373d5358ad3a053874da"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/StoredPhysicalReplayMain.lean": {
+      "bytes": 8006,
+      "sha256": "19e38047acac3cfb1c838c599e364e60214249de66b21b1884db8c988426a509"
+    },
+    "formal/nightstream-fprime/lakefile.toml": {
+      "bytes": 7123,
+      "sha256": "55a634cddd1b88a108f6050277ad5e92c7f86fc765141838a1110ce3b9b994a8"
+    },
+    "formal/nightstream-fprime/scripts/assemble_fresh_assignment.py": {
+      "bytes": 3672,
+      "sha256": "ee9bd417bb6da7c448f040cb4d306b21775b5edcf9ddaa20b757f13b7bfcd56e"
+    },
+    "formal/nightstream-fprime/tests/Axioms.lean": {
+      "bytes": 126828,
+      "sha256": "ca99cad2a5e47f88e53bd65a4234fc3851d1844aacac3d12d7930c9ef3ce63d5"
+    },
+    "formal/nightstream-fprime/tests/AxiomsCachedAssignmentPlan.lean": {
+      "bytes": 328,
+      "sha256": "4437e5487f6b77003d8d1a2c02a6239c3b0477c3ed3f219318c4eee8b2f2ac4d"
+    },
+    "formal/nightstream-fprime/tests/AxiomsCachedAssignmentProducts.lean": {
+      "bytes": 345,
+      "sha256": "001dfbbeb64a31d6a31d006ae7ead05b5a0a2cb2024c9cbacbe897cb160cc787"
+    },
+    "formal/nightstream-fprime/tests/AxiomsFreshCommitmentBlock.lean": {
+      "bytes": 177,
+      "sha256": "88266be403c69275bb892c12b93a917ab29686cb67a09f5a786914e5ce6b8bd5"
+    },
+    "formal/nightstream-fprime/tests/AxiomsStoredWitnessExecution.lean": {
+      "bytes": 833,
+      "sha256": "d62123a17fa287be7ea097bce60ebeffdda2731b45e8865b01696e5215648d26"
+    },
+    "formal/nightstream-fprime/tests/EvidenceAcceptance.lean": {
+      "bytes": 2166,
+      "sha256": "3f14941bad836a54ca40a61893d0abf8282015c5de769468010bda4ce70c5eb4"
+    },
+    "formal/nightstream-fprime/tests/FreshWitnessEvidence.lean": {
+      "bytes": 3109,
+      "sha256": "3a73d3dd29ae50f74599bcb3e18c3a663a078d05e9750b5b6d09018e15390da8"
+    },
+    "formal/nightstream-fprime/tests/StoredWitnessExecutionCheck.lean": {
+      "bytes": 2878,
+      "sha256": "9476e718d6ca505ad9c3399054929bf8ddc2cd5eaca48aefbf9c206768748ebe"
+    },
+    "formal/nightstream-fprime/tests/check_fresh_assignment_bytes.py": {
+      "bytes": 4848,
+      "sha256": "e62a3c9d4d3416e1d8d70c26f69c0922f4eefee998498056df238de6860bf5d2"
+    },
+    "formal/nightstream-fprime/tests/check_fresh_commitment_bytes.py": {
+      "bytes": 2481,
+      "sha256": "e0bfdeb8d70f25f28db76dc89eee3d5b78ddb7e85b71243c26bb0f7ab36fb0a7"
+    },
+    "formal/nightstream-fprime/tests/check_stored_witness_rejection.py": {
+      "bytes": 6251,
+      "sha256": "bd6a41477896395d04888016fc40e9d14575d400f31dbf825fc50eb8e46787a6"
+    },
+    "scripts/lean_graph/FreshWitnessMetadata.lean": {
+      "bytes": 90,
+      "sha256": "18017e39af5814127da56bfa31f9253361dabc6b1c41612af6ec6d9b49c5f329"
+    },
+    "scripts/lean_graph/STAGE1_BASELINE.md": {
+      "bytes": 33700,
+      "sha256": "2292e57f71f4060cf0850af0c80079349d9841abf1384fea32f5a7ea183aebaf"
+    },
+    "scripts/lean_graph/obligations.json": {
+      "bytes": 237635,
+      "sha256": "933a88882d41e705f2f9f25816970204857cd00c1977743bd779d188a0721a46"
+    }
+  },
+  "executables": {
+    "replayPhysicalWitness": {
+      "bytes": 136415432,
+      "sha256": "c594dc29bcc2973e7b67a425fee8d71c70573b92ad54c900c30b83b61c54b13e"
+    },
+    "replayFreshAssignment": {
+      "bytes": 136097640,
+      "sha256": "e2a84768777b05a99084b77f0cb72726ac1dcae1a6ca75778aed3716553a5b49"
+    },
+    "replayFreshCommitment": {
+      "bytes": 136096648,
+      "sha256": "e269e1fb13da737457982850c83cfa5c066cdcbd9475a4248666f113fd108917"
+    }
+  }
+}

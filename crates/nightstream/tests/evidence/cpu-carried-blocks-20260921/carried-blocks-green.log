@@ -1,0 +1,9 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 11.04s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 1 test
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_table_has_no_flat_combined_witness ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+

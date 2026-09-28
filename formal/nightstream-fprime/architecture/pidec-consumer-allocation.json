@@ -1,0 +1,325 @@
+{
+  "source_commit": "8b53b2504281adf99b4856fff9e875a7f155be2c",
+  "target": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry",
+  "exit_code": 0,
+  "seconds": 91.35,
+  "errors": [],
+  "patch_sha256": "dd2d9b0c9e5bbe6c49f0100d7d8a5b21d48f4b36d7a1b5ec442bd1da579bebbe",
+  "log_sha256": "fa563ab589d5ed797103c9890173ef84a6aee4c50babffa537a211a780cc8e13",
+  "scope": "Extra unused sign-hint cell in each of 270 scalar invocations. The actual NIFS matrix-entry consumer passes after the listed parent/package/default-value refresh. This is not a full-library allocation test or a production profile change.",
+  "parent_patch": {
+    "path": "scripts/fixtures/pidec_parent_values_8b53b250.patch",
+    "sha256": "4af5b317fd794f60a4b6318ccd7aa94931eb1bfaa1a3bd3255dd12b84d678da3"
+  },
+  "leaf_patch": "scripts/fixtures/signed_split_extra_cell.patch",
+  "pin_changes": [
+    {
+      "path": "Layout/Stage1/RunningTransitionLowering.lean",
+      "before": 29040587,
+      "after": 29040857,
+      "occurrences": 1
+    },
+    {
+      "path": "Layout/Stage1/RunningTransitionLowering.lean",
+      "before": 29336724,
+      "after": 29336994,
+      "occurrences": 1
+    },
+    {
+      "path": "Layout/Stage1/RunningTransitionSourceSupportData.lean",
+      "before": 29336724,
+      "after": 29336994,
+      "occurrences": 1
+    },
+    {
+      "path": "Layout/Stage1/Spartan.lean",
+      "before": 14614208,
+      "after": 14614478,
+      "occurrences": 2
+    },
+    {
+      "path": "Layout/Stage1/Spartan.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 5
+    },
+    {
+      "path": "Layout/Stage1/Spartan.lean",
+      "before": 29336721,
+      "after": 29336991,
+      "occurrences": 2
+    },
+    {
+      "path": "Layout/Stage1/Spartan.lean",
+      "before": 29336724,
+      "after": 29336994,
+      "occurrences": 2
+    },
+    {
+      "path": "Layout/Stage1/Spartan.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/Package.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/Package.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PerApplicationPackage.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PerApplicationPackage.lean",
+      "before": 239098731,
+      "after": 239098461,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/PerApplicationFixedPoint.lean",
+      "before": 239098731,
+      "after": 239098461,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PerApplicationFixedPoint.lean",
+      "before": 353427,
+      "after": 353157,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PiRLCSamplerOrdinaryRetainedGeometry.lean",
+      "before": 253944883,
+      "after": 253955953,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/ApplicationRetainedGeometry.lean",
+      "before": 253944883,
+      "after": 253955953,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/ApplicationRetainedGeometry.lean",
+      "before": 353428,
+      "after": 353158,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/ApplicationRetainedGeometry.lean",
+      "before": 353427,
+      "after": 353157,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PerApplicationCanonicalPackage.lean",
+      "before": 253944883,
+      "after": 253955953,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/Poseidon2HashChainV1Package.lean",
+      "before": 254260583,
+      "after": 254271653,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/Poseidon2HashChainV1Package.lean",
+      "before": 29344425,
+      "after": 29344695,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PiDECCommitmentMatrixWork.lean",
+      "before": 254260583,
+      "after": 254271653,
+      "occurrences": 7
+    },
+    {
+      "path": "Export/Stage1/PiDECCommitmentMatrixEntry.lean",
+      "before": 254260583,
+      "after": 254271653,
+      "occurrences": 3
+    },
+    {
+      "path": "Export/Stage1/Poseidon2HashChainV1SetupAuthority.lean",
+      "before": 4708530,
+      "after": 4708735,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/Poseidon2HashChainV1Setup.lean",
+      "before": 254260620,
+      "after": 254271690,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/Poseidon2HashChainV1Setup.lean",
+      "before": 4708530,
+      "after": 4708735,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PerApplicationSourceProjection.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 4
+    },
+    {
+      "path": "Export/Stage1/DirectApplicationPrefixPlan.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 6
+    },
+    {
+      "path": "Export/Stage1/DirectApplicationPrefixPlan.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 3
+    },
+    {
+      "path": "Export/Stage1/PiCCSOrdinaryMatrixProgram.lean",
+      "before": 29336447,
+      "after": 29336717,
+      "occurrences": 10
+    },
+    {
+      "path": "Export/Stage1/PiCCSOrdinaryMatrixProgram.lean",
+      "before": 29336721,
+      "after": 29336991,
+      "occurrences": 9
+    },
+    {
+      "path": "Export/Stage1/PiCCSPoseidonPlan/RetainedValues.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/PiRLCFirst54DirectPlan.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PiRLCProductPlan.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 2
+    },
+    {
+      "path": "Export/Stage1/PiRLCProductPlan.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 4
+    },
+    {
+      "path": "Export/Stage1/PilotOrdinaryDirectPlan.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 4
+    },
+    {
+      "path": "Export/Stage1/PilotPoseidonPreservation.lean",
+      "before": 29336446,
+      "after": 29336716,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/PilotPoseidonPreservation.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/RunningTransitionDirectPlan.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 1
+    },
+    {
+      "path": "Export/Stage1/RunningTransitionRetainedBlocks.lean",
+      "before": 29336724,
+      "after": 29336994,
+      "occurrences": 3
+    },
+    {
+      "path": "Export/Stage1/RunningTransitionRetainedBlocks.lean",
+      "before": 29336725,
+      "after": 29336995,
+      "occurrences": 1
+    },
+    {
+      "path": "Lifecycle/PiDEC/v1_1/PublicInputSplit/Values.lean",
+      "before": "exactPrivateCount = 270 := by",
+      "after": "exactPrivateCount = 540 := by",
+      "occurrences": 1
+    },
+    {
+      "path": "Layout/PiDEC/v1_1/Values.lean",
+      "before": "freshColumnCount = 67 := by rfl",
+      "after": "freshColumnCount = 68 := by rfl",
+      "occurrences": 1
+    },
+    {
+      "path": "Layout/PiDEC/v1_1/Values.lean",
+      "before": "18090",
+      "after": "18360",
+      "occurrences": 8
+    }
+  ],
+  "previous_frontiers": [
+    {
+      "round": 1,
+      "seconds": 120.48,
+      "declaration": "PerApplicationPackage.package_totalColumnCount_le_twoPow28_iff",
+      "reason": "The extra physical columns reduce the application column budget by270."
+    },
+    {
+      "round": 2,
+      "seconds": 101.07,
+      "declaration": "PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq",
+      "reason": "The extra source cells add270*41 retained coordinates, shifting later widths and setup dimensions."
+    }
+  ],
+  "preserved": "Production sources restored. In the probe: cube 2^28, row/fresh counts, 7700 application words, public coordinates, seed, verifierRows 22 and retained prefixes before PiDEC are unchanged.",
+  "interpretation": "The actual consumer compiles after the allowed affected geometry updates. Copied values still span Layout and Export; deriving them from shared owners remains architecture work.",
+  "default_source_gates": {
+    "static": {
+      "result": "passed",
+      "log_sha256": "a455f2e96811e39d3e4c3fb44f1267ff1719dbc7d4e1e9a3e85238cc06f96893",
+      "last_lines": [
+        "[layout-interfaces] PiDEC data interfaces exclude complete row plans",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "log_sha256": "8e7ac9a3ca7e22ab1f3c4a0d4c0c2567481410698b1f4b6b4e5e092ee49babcd",
+      "last_lines": [
+        "Build completed successfully (3813 jobs).",
+        "[bounded] exit=0 elapsed=1s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "log_sha256": "765be037f194eed47878385380b8b3523e52d8bbff3843f6e221fd3f8e927afa",
+      "last_lines": [
+        "Build completed successfully (3920 jobs).",
+        "[bounded] exit=0 elapsed=1s"
+      ]
+    }
+  },
+  "identity_evidence": "architecture/lowering-map-boundary.json: production Lean definitions are unchanged since that passing identity check; subsequent changes are guard scripts and evidence.",
+  "external_review": "01:20 UTC, 2026-09-11: the external review is unchanged; the second review file is absent."
+}

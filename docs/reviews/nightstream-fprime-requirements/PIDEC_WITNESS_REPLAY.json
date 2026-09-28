@@ -1,0 +1,672 @@
+{
+  "schema": 1,
+  "milestone": "PiDEC complete private-witness replay",
+  "outcome": "local_checkpoint_passed",
+  "source_base_commit": "9d01f7a4c5b386a80dc98f621e2e5f58067a0585",
+  "source_cut": "New code is identified by the file hashes below; the containing checkpoint commit supplies its final Git identity.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "ring_degree": 54,
+    "carrier_width": 253011276,
+    "blocks": 4685394,
+    "tail_coefficients_per_child": 45
+  },
+  "independence": {
+    "input": "Exact Lean PiRLC parent output ranges, linked to PIRLC_WITNESS_REPLAY.json and its original source-opening evidence.",
+    "remaining_rust_input": "PiCCS messages and final claims remain verified Rust inputs until independent PiCCS replay. No Rust child witness enters the Lean computation.",
+    "comparison_target": "Fresh native signed-binary split of the current Rust R parent. The native producer also recomputes its commitments; independent Lean commitment/evaluation replay is still open.",
+    "coverage": "Both signed masks are lossless values. Lean computes all 16x54 digits for each nonzero parent block; omitted parent/child blocks mean exact zero and the comparator checks every omitted block. No sampling or commitment-only equality is used."
+  },
+  "theorems": {
+    "total_kernel": "NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.kernel_eq_spec",
+    "selected_honest_witness": "NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness.splitChecked_honestWitness",
+    "selected_block": "NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness.splitChecked_block_honestWitness",
+    "exact_target": "LeanGraph.Targets.PiDECWitnessReplay"
+  },
+  "source_files": [
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Spec/Phi81Relation/PiDECAlgebra/StoredSplit.lean",
+      "bytes": 5137,
+      "sha256": "0853b54f1970ee0ea364aa231878b9fb1c660e713de04d81bacf8abbb5bd8f7d"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECStoredSplitHonestWitness.lean",
+      "bytes": 4931,
+      "sha256": "c5c0dc16f1687260730f065a4a66e2cf8faa82585417f76dc805d9f09fef0c4e"
+    },
+    {
+      "path": "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECWitnessReplayMain.lean",
+      "bytes": 5977,
+      "sha256": "17f5c3f209b084ca5d259a93da3fc505500d6e3ca3e41093c1349251e4f74263"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_pidec_replay.rs",
+      "bytes": 7196,
+      "sha256": "8647b2baf59e436b773fb8f07f8d4f3842b8cdab0df7ece55a08867b71fbcc08"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_pirlc_replay.rs",
+      "bytes": 8713,
+      "sha256": "b60d0946d4a6896eb31a1bb20d6d456e5f54814d7ad1cf14cafa1fa88e69b8e5"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/nifs/stage1_parent.rs",
+      "bytes": 21414,
+      "sha256": "b0ad690c81d08844650d0220a621aab90251f8c7694214df72af8055547ff663"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+      "bytes": 29174,
+      "sha256": "8ffece3a7e319b8753dec420b6f307facbc6320f88dec64a28d20748030408c7"
+    },
+    {
+      "path": "formal/nightstream-fprime/tests/pi_dec_witness_replay.py",
+      "bytes": 2209,
+      "sha256": "1ec0e7fa381693910d2feae87dd73cb26beffaf09ee6f2173c1b47c63bb8396b"
+    }
+  ],
+  "parent_ranges": [
+    {
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+      "bytes": 47310348,
+      "sha256": "306d0a4b392da3478652ba85f9f3e4d57c834b2e7f8a4c779c6e0e08090469b4"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.jsonl",
+      "bytes": 1749669091,
+      "sha256": "36c4b9fe2289e3ec4871b2137acee19750c8d39c04665bb6df8269200095d3ef"
+    }
+  ],
+  "computed_ranges": [
+    {
+      "path": "/tmp/nightstream-pidec-replay-range-0-74272.jsonl",
+      "bytes": 16682774,
+      "sha256": "cddf38f72fb5950152a1055da6687d20456f22600a3cf78cb1c046a7ea06fecb"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-replay-range-74272-4685394.jsonl",
+      "bytes": 595896069,
+      "sha256": "c2b08a53e13efae41610b28104710ce14d2440973889dbf0303a738bfd28162b"
+    }
+  ],
+  "native_children": [
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-0.json",
+      "bytes": 102021062,
+      "sha256": "62aeb61b2e902baa1105e4ccc7aea9e7b8ef14585a6395eacfae79bb2933234a"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-1.json",
+      "bytes": 101644886,
+      "sha256": "e1f80efb90a916a484336ca8ec1c1855d295d1cfe925741e33e81bf0c7eafdb2"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-2.json",
+      "bytes": 99898099,
+      "sha256": "f449c7774893bce7e3baade64cf1042a91c86b3ac94b8296fba4aba991273818"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-3.json",
+      "bytes": 96154908,
+      "sha256": "1ccd2deda31c167d9013a8aab418d7f7ab4e2425341ea29b400c4d6f372f6a98"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-4.json",
+      "bytes": 91874096,
+      "sha256": "f098e0998a1bf90b4659449d15413d4af02c3f587519452961c90bc2b0b17792"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-5.json",
+      "bytes": 68396626,
+      "sha256": "c874ec597da5fb920de2743282e9b642f9c82e5a9f912d51781850ca2d3974a9"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-6.json",
+      "bytes": 19882979,
+      "sha256": "fe9bbb6c159d9c2cef2aded2bdae523c1859e453e8fa05ef6ededda3ceee60eb"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-7.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-8.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-9.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-10.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-11.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-12.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-13.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-14.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "path": "/tmp/nightstream-pidec-current-material-1/digit-15.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    }
+  ],
+  "native_split": {
+    "path": "/tmp/nightstream-pidec-current-material-1/split.json",
+    "bytes": 506360,
+    "sha256": "356f9d77260205fc92bd1e49ffed535d6d8944fe733858698399b03bc9c46d6c"
+  },
+  "gates": {
+    "kernel_eq_spec": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 1.6666700888890773,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 2164896,
+      "log": {
+        "path": "/tmp/nightstream-pidec-kernel-eq-spec-1.log",
+        "bytes": 3087,
+        "sha256": "3dbc98d59b1578522bfd5cdaf9ac033981e3ce72a984d92556139b855ead27fc"
+      },
+      "completion_lines": []
+    },
+    "selected_honest_witness": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 2.619604361942038,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 3848120,
+      "log": {
+        "path": "/tmp/nightstream-pidec-honest-witness-2.log",
+        "bytes": 126100,
+        "sha256": "66c8c54687491e122fc1dcc2466676d725434de5ef6310e947f609585187ac4b"
+      },
+      "completion_lines": []
+    },
+    "executable_build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 16.74848110601306,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "replayPiDECWitness"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 3917852,
+      "log": {
+        "path": "/tmp/nightstream-pidec-replay-build-1.log",
+        "bytes": 128258,
+        "sha256": "b0d365cf3e35e78959f4116c8e4ee26c7a90470af669e493d05c0ef9dad1ec57"
+      },
+      "completion_lines": []
+    },
+    "pilot": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 7.027741392957978,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-witness-replay",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-replay-pilot-0-1.jsonl",
+        "0",
+        "1"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 1479772,
+      "log": {
+        "path": "/tmp/nightstream-pidec-replay-pilot-0-1.log",
+        "bytes": 127315,
+        "sha256": "1cbb2343aa66757eef4ec906f34ac5b50ba99239cb5ca05aba0521ec412e5119"
+      },
+      "completion_lines": [
+        "pidec_Lean_witness_range=passed start=0 end=1 computed_blocks=1 child_coefficients=864 workers=16"
+      ]
+    },
+    "prefix": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 8.377864283043891,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-witness-replay",
+        "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-replay-range-0-74272.jsonl",
+        "0",
+        "74272"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 1502416,
+      "log": {
+        "path": "/tmp/nightstream-pidec-replay-range-0-74272.log",
+        "bytes": 127357,
+        "sha256": "cddd91e018c6fc468b30903fd5cebd11a4002974796dcf9471f3e26a4f076a06"
+      },
+      "completion_lines": [
+        "pidec_Lean_witness_range=passed start=0 end=74272 computed_blocks=74272 child_coefficients=64171008 workers=16"
+      ]
+    },
+    "suffix": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 142.14833883498795,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-witness-replay",
+        "/tmp/nightstream-pirlc-replay-parallel-range-74272-4685394.jsonl",
+        "/tmp/nightstream-pidec-replay-range-74272-4685394.jsonl",
+        "74272",
+        "4685394"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 1498056,
+      "log": {
+        "path": "/tmp/nightstream-pidec-replay-range-74272-4685394.log",
+        "bytes": 127429,
+        "sha256": "165fffff50b60783cf413d1a9d4e6ea270fbabf74a31f406a25db64791f6136d"
+      },
+      "completion_lines": [
+        "pidec_Lean_witness_range=passed start=74272 end=4685394 computed_blocks=2769825 child_coefficients=3984009408 workers=16"
+      ]
+    },
+    "rust_build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 22.307544867973775,
+      "command": [
+        "cargo",
+        "build",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 663496,
+      "log": {
+        "path": "/tmp/nightstream-pidec-rust-replay-build-1.log",
+        "bytes": 1380,
+        "sha256": "06e9c1f60b70b8689f2a598394657c9ff6fecc988428439ea5ccfe1c6ef1b378"
+      },
+      "completion_lines": []
+    },
+    "current_rust_producer": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 140.99976643605623,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "check-owned-parent",
+        "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+        "/tmp/nightstream-native-nonzero-sources-1",
+        "/tmp/nightstream-pirlc-current-parent-1",
+        "/tmp/nightstream-pidec-current-material-1"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 4995680,
+      "log": {
+        "path": "/tmp/nightstream-pidec-current-producer-1.log",
+        "bytes": 2528,
+        "sha256": "782edefcf6ece849a9ea251331bc9249bf9133afd42d2be5ac7dac472658eee0"
+      },
+      "completion_lines": [
+        "actual_selected_parent=checked transcript=replayed witness_commitment=recomputed material=/tmp/nightstream-pidec-current-material-1 elapsed=140.494714199s"
+      ]
+    },
+    "comparison": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 2.769472049898468,
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--features",
+        "perf-timers",
+        "--bin",
+        "generate_pi_ccs_fixture",
+        "--",
+        "compare-pidec-replay",
+        "/tmp/nightstream-pidec-current-material-1",
+        "/tmp/nightstream-pidec-replay-range-0-74272.jsonl",
+        "/tmp/nightstream-pidec-replay-range-74272-4685394.jsonl"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 535392,
+      "log": {
+        "path": "/tmp/nightstream-pidec-full-comparison-1.log",
+        "bytes": 2268,
+        "sha256": "249fbafbc1f62bb9f9c89c9b6634aa94efff6f413f8804c66a8c36a5f5ed2094"
+      },
+      "completion_lines": [
+        "pidec_child_targets_loaded=16 elapsed=1.169530823s",
+        "pidec_child_range=matched start=0 end=74272 coefficients=64171008 elapsed=1.20384198s",
+        "pidec_child_range=matched start=74272 end=4685394 coefficients=3984009408 elapsed=2.562239874s",
+        "pidec_private_witness_replay=passed children=16 blocks=4685394 coefficients=4048180416 tail_mutation=rejected child=15 block=4685393 lane=53 range=74272..4685394 elapsed=2.562255984s"
+      ]
+    },
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 8.97795380197931,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 18044,
+      "log": {
+        "path": "/tmp/nightstream-pidec-static-3.log",
+        "bytes": 1342,
+        "sha256": "46142f9327c503fec40f5a53befb78ce1095799893a61af0be5df68be4adfe02"
+      },
+      "completion_lines": []
+    },
+    "library": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 364.0675635370426,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 11103388,
+      "log": {
+        "path": "/tmp/nightstream-pidec-library-build-2.log",
+        "bytes": 214890,
+        "sha256": "0fe2ddae32fc65ad5da885b7cd3f21df6ef9bba4969b05d6d6e79e7768e5cacb"
+      },
+      "completion_lines": []
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 4.422523836954497,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "axioms"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 3880224,
+      "log": {
+        "path": "/tmp/nightstream-pidec-axioms-1.log",
+        "bytes": 1071029,
+        "sha256": "bed7581b8f891ff0760234a833cc05ea41edd764680c533f7ee67b9319f88c25"
+      },
+      "completion_lines": []
+    },
+    "exact_target": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 2.117716063046828,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "tests/EvidenceAcceptance.lean"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 3864984,
+      "log": {
+        "path": "/tmp/nightstream-pidec-exact-target-1.log",
+        "bytes": 2574,
+        "sha256": "a3f0fd2c67509dd63accc788cfb47fa9d42f807099c4790b3143520790a9c424"
+      },
+      "completion_lines": [
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.PilotAssignment\",\"witness\":\"LeanGraph.Targets.pilotAssignment\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.PiCCSAssignment\",\"witness\":\"LeanGraph.Targets.piCCSAssignment\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.PiCCSPublicAssignment\",\"witness\":\"LeanGraph.Targets.piCCSPublicAssignment\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.Stage1Assignment\",\"witness\":\"LeanGraph.Targets.stage1Assignment\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.Stage1TerminalAssignment\",\"witness\":\"LeanGraph.Targets.stage1TerminalAssignment\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.Stage1TerminalParent\",\"witness\":\"LeanGraph.Targets.stage1TerminalParent\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.HyperNovaLinearSecurity\",\"witness\":\"LeanGraph.Targets.hyperNovaLinearSecurity\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.HyperNovaTerminalFalseAcceptance\",\"witness\":\"LeanGraph.Targets.hyperNovaTerminalFalseAcceptance\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.PiRLCWitnessReplay\",\"witness\":\"LeanGraph.Targets.piRLCWitnessReplay\"}",
+        "LEAN_GRAPH_CLOSED {\"target\":\"LeanGraph.Targets.PiDECWitnessReplay\",\"witness\":\"LeanGraph.Targets.piDECWitnessReplay\"}"
+      ]
+    },
+    "metadata": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 16.64418902003672,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "file",
+        "../../scripts/lean_graph/PiDECReplayMetadata.lean"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 4450428,
+      "log": {
+        "path": "/tmp/nightstream-pidec-metadata-1.log",
+        "bytes": 78688549,
+        "sha256": "1ab97af493421e3ef34cea8c0ff19118e4f212d2dcd5ca489e948feec891c799"
+      },
+      "completion_lines": []
+    },
+    "final_executable_build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 1500,
+      "elapsed_seconds": 3.723120874958113,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "build",
+        "replayPiDECWitness"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 3853340,
+      "log": {
+        "path": "/tmp/nightstream-pidec-executable-final-build.log",
+        "bytes": 127124,
+        "sha256": "9cc5c2e649a7cfd9a34a7ed918c78e54b96d6f45490d2f48a7107b83bc4123b3"
+      },
+      "completion_lines": []
+    },
+    "boundaries": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 20.352437434950843,
+      "command": [
+        "bash",
+        "scripts/validate.sh",
+        "pi-dec-witness-replay-boundaries",
+        "/tmp/nightstream-pidec-boundaries-1"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 1479716,
+      "log": {
+        "path": "/tmp/nightstream-pidec-boundaries-1.log",
+        "bytes": 1657,
+        "sha256": "073c5c42e5ebbf4713491a617261b3587dcd746346cb6a6f444f97b2f2064844"
+      },
+      "completion_lines": [
+        "pidec_boundary=signed_edges all_children_and_zero_blocks=matched",
+        "pidec_boundary=positive_bound rejected",
+        "pidec_boundary=negative_bound rejected",
+        "pidec_boundary=noncanonical rejected",
+        "pidec_replay_boundaries=passed"
+      ]
+    },
+    "rust_test_build": {
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 23.40956903703045,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-fold-clean",
+        "--release",
+        "--no-run"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "peak_rss_kib": 637280,
+      "log": {
+        "path": "/tmp/nightstream-pidec-rust-test-build-1.log",
+        "bytes": 14369,
+        "sha256": "cc2f52fcd20e9bbcf677af04711fcebf2b3e7cc9ef50741649a571ff732a9f8c"
+      },
+      "completion_lines": []
+    }
+  },
+  "open": [
+    "Independently compute and compare all child commitments and evaluations from these same digits before closing the full PiDEC replay.",
+    "Release upload, fresh-download reproduction and protected-checker acceptance remain separate."
+  ],
+  "ironwood": "No Ironwood source is copied by this change. The reference-prover equality pattern informed the acceptance criterion; executable authority is the existing Nightstream specification.",
+  "axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "boundary_cases": {
+    "accepted": [
+      0,
+      1,
+      -1,
+      65535,
+      -65535
+    ],
+    "rejected": [
+      65536,
+      -65536,
+      18446744069414584321
+    ],
+    "zero_blocks": "explicit and omitted zero blocks have identical output",
+    "highest_child": "both signs exercised in child 15"
+  },
+  "comparison": {
+    "children": 16,
+    "blocks": 4685394,
+    "coefficients": 4048180416,
+    "mutation": {
+      "target": "decoded native coefficient",
+      "child": 15,
+      "block": 4685393,
+      "lane": 53,
+      "range": [
+        74272,
+        4685394
+      ],
+      "outcome": "rejected"
+    }
+  },
+  "build_dependency_correction": {
+    "change": "Removed the new StoredSplit import from the broad Spec root. Export and audit roots already reach it through the selected consumer. No operation changed.",
+    "interrupted_run_seconds": 315.67231452988926,
+    "log": {
+      "path": "/tmp/nightstream-pidec-library-build-1.log",
+      "bytes": 197040,
+      "sha256": "7d95f4fea2b9956693f1494c2378c69f16bacf18a13e3c0601dfaa044cf029bc"
+    },
+    "note": "Stopped the broad build, waited for its remaining process group to terminate, then ran the ordered final static/build/axiom gates. No interrupted run is counted as passing."
+  },
+  "reviews": [
+    {
+      "path": "docs/reviews/nightstream-fprime-requirements/PIDEC_WITNESS_SOURCE_REVIEW.json",
+      "bytes": 4445,
+      "sha256": "878d03782aa0386eed9439b17dd1e5dbc8cd41d7035c3f8b990cc8e08793b35a"
+    },
+    {
+      "path": "docs/reviews/nightstream-fprime-requirements/PIDEC_WITNESS_GATE_REVIEW.json",
+      "bytes": 5133,
+      "sha256": "c6c9d40dd645447c9166562d65516ab8cdcec13fe2905d3ee584eaba7d4d46b4"
+    }
+  ],
+  "scheduled_external_review": {
+    "path": "FPRIME_STAGE1_EXTERNAL_REVIEW.md",
+    "review_date": "2026-09-04",
+    "disposition": "The finding concerns the separate Nebula frontend, not called by this selected PiDEC witness replay. No Stage 2 repair is part of this criterion."
+  }
+}

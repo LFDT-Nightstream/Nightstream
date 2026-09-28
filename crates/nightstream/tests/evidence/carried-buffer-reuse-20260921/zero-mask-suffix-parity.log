@@ -1,0 +1,36 @@
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 39.46s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 11 tests
+test engine::parity::metal_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+test engine::parity::optimized_matches_cuda ... ignored, The canonical CUDA kernel is not implemented; this is an open parity check, not a pass.
+
+thread '<unnamed>' (457175) panicked at crates/nightstream/src/engine/../../tests/engines/parity.rs:411:13:
+reference worker failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test engine::parity::crosscheck_rejects_a_worker_panic_without_updating_the_transcript ... ok
+test engine::parity::crosscheck_rejects_a_prover_error_without_updating_the_transcript ... ok
+verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::crosscheck_rejects_changed_results ... ok
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::optimized_matches_metal ... ok
+test engine::parity::crosscheck_rejects_different_rows_without_updating_the_transcript ... ok
+verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::crosscheck_matches_optimized ... ok
+verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::zero_running_matches_metal ... ok
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::selected_polynomial_matches_metal ... ok
+test engine::parity::selected_polynomial_crosscheck_matches_optimized has been running for over 60 seconds
+verify_dec_public failed: Eval_K recomposition mismatch
+verify_dec_public failed: Eval_K recomposition mismatch
+test engine::parity::selected_polynomial_crosscheck_matches_optimized ... ok
+
+test result: ok. 9 passed; 0 failed; 2 ignored; 0 measured; 15 filtered out; finished in 92.76s
+

@@ -1,0 +1,11 @@
+
+running 1 test
+poseidon preparation engine=Optimized elapsed=34.930364209s
+test poseidon_base_step_matches_lean_and_verifies has been running for over 60 seconds
+poseidon base proving elapsed=100.7048045s
+poseidon terminal verification elapsed=114.72317225s
+poseidon public lifecycle elapsed=250.358718209s
+test poseidon_base_step_matches_lean_and_verifies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 250.41s
+

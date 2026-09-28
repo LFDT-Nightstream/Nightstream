@@ -15,8 +15,6 @@ description: >-
 
 You explore a codebase, build a mental model, then context compacts. This skill produces **reusable artifacts** that survive.
 
-**Differs from codebase-archaeology:** Archaeology = understanding. This = producing a document.
-
 ---
 
 ## THE EXACT PROMPT
@@ -159,7 +157,6 @@ Auto-generate report stub on new project:
 
 | After using... | Consider... |
 |----------------|-------------|
-| codebase-archaeology | Producing this report to persist findings |
 | multi-pass-bug-hunting | Adding "Known Issues" section |
 | cross-project-pattern-extraction | Noting patterns in "Notes & Gotchas" |
 

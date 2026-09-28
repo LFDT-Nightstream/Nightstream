@@ -1,0 +1,24 @@
+{
+  "ccs_json_byte_equality": true,
+  "active_children_byte_equal": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "zero_children_checked_by_phase": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "comparison": "All active opening records match the saved CPU reference byte for byte, including commitments, parent and transcript. The phase validates all 16 split witness matrices and zero outputs. No new full C/R/D proof was assembled."
+}

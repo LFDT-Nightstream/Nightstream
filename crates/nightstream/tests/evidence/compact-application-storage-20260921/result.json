@@ -1,0 +1,39 @@
+{
+  "elapsed_seconds": 55.79465491699375,
+  "maximum_resident_bytes": 15440166912,
+  "outcome": "passed",
+  "preparation_seconds": 34.620106458,
+  "cache_seconds": 4.993856708,
+  "proving_seconds": 15.280360458,
+  "cpu_proof_and_source_bytes_equal": true,
+  "process_peak_reduced": false,
+  "opening_form_buffer_bytes": 4048180416,
+  "lean_rerun": false,
+  "general_16gb_bound": "not established",
+  "public_base": {
+    "elapsed_seconds": 52.463918374996865,
+    "maximum_resident_bytes": 10810359808,
+    "outcome": "passed",
+    "preparation_seconds": 35.141412125,
+    "proving_seconds": 6.8243925,
+    "verification_seconds": 9.663785917,
+    "cpu_to_metal_process_ratio": 4.788340525852211
+  },
+  "metal_joint_tests_passed": 10,
+  "engine_tests_passed_after_owned_parent": 9,
+  "cuda_tests_ignored": 2,
+  "allocation_regressions": "both failed before their fixes and passed after",
+  "parent_witness_released_before_commitments_and_openings": [
+    "optimized",
+    "metal"
+  ],
+  "checks": {
+    "default_all_targets": "passed",
+    "metal_cuda_and_legacy_all_targets_typecheck": "passed",
+    "changed_line_clippy_diagnostics": [],
+    "strict_clippy": "inherited errors remain; diagnostic audit used cap-lints warn",
+    "cargo_fmt_all": "passed",
+    "formal_files_changed": false,
+    "git_diff_check": "passed"
+  }
+}

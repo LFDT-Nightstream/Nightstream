@@ -1,0 +1,206 @@
+{
+  "kind": "calculated buffer sizes, not a measured lifecycle peak",
+  "carrier_width": 253011276,
+  "nonzero_witnesses": 17,
+  "old_norm_buffers_bytes": 51614300304,
+  "new_norm_prefix_peak_bytes": 6451787776,
+  "excluded": "original masks, source witnesses, matrices, common table, application tables, openings, allocator and driver overhead",
+  "stages": [
+    {
+      "fold": 1,
+      "entries_per_witness": 126505638,
+      "bytes_per_entry": 1,
+      "output_bytes": 2150595846,
+      "live_prefix_bytes_during_fold": 2150596038
+    },
+    {
+      "fold": 2,
+      "entries_per_witness": 63252819,
+      "bytes_per_entry": 1,
+      "output_bytes": 1075297923,
+      "live_prefix_bytes_during_fold": 3225895209
+    },
+    {
+      "fold": 3,
+      "entries_per_witness": 31626410,
+      "bytes_per_entry": 2,
+      "output_bytes": 1075297940,
+      "live_prefix_bytes_during_fold": 2150702135
+    },
+    {
+      "fold": 4,
+      "entries_per_witness": 15813205,
+      "bytes_per_entry": 16,
+      "output_bytes": 4301191760,
+      "live_prefix_bytes_during_fold": 5376594676
+    },
+    {
+      "fold": 5,
+      "entries_per_witness": 7906603,
+      "bytes_per_entry": 16,
+      "output_bytes": 2150596016,
+      "live_prefix_bytes_during_fold": 6451787776
+    },
+    {
+      "fold": 6,
+      "entries_per_witness": 3953302,
+      "bytes_per_entry": 16,
+      "output_bytes": 1075298144,
+      "live_prefix_bytes_during_fold": 3225894160
+    },
+    {
+      "fold": 7,
+      "entries_per_witness": 1976651,
+      "bytes_per_entry": 16,
+      "output_bytes": 537649072,
+      "live_prefix_bytes_during_fold": 1612947216
+    },
+    {
+      "fold": 8,
+      "entries_per_witness": 988326,
+      "bytes_per_entry": 16,
+      "output_bytes": 268824672,
+      "live_prefix_bytes_during_fold": 806473744
+    },
+    {
+      "fold": 9,
+      "entries_per_witness": 494163,
+      "bytes_per_entry": 16,
+      "output_bytes": 134412336,
+      "live_prefix_bytes_during_fold": 403237008
+    },
+    {
+      "fold": 10,
+      "entries_per_witness": 247082,
+      "bytes_per_entry": 16,
+      "output_bytes": 67206304,
+      "live_prefix_bytes_during_fold": 201618640
+    },
+    {
+      "fold": 11,
+      "entries_per_witness": 123541,
+      "bytes_per_entry": 16,
+      "output_bytes": 33603152,
+      "live_prefix_bytes_during_fold": 100809456
+    },
+    {
+      "fold": 12,
+      "entries_per_witness": 61771,
+      "bytes_per_entry": 16,
+      "output_bytes": 16801712,
+      "live_prefix_bytes_during_fold": 50404864
+    },
+    {
+      "fold": 13,
+      "entries_per_witness": 30886,
+      "bytes_per_entry": 16,
+      "output_bytes": 8400992,
+      "live_prefix_bytes_during_fold": 25202704
+    },
+    {
+      "fold": 14,
+      "entries_per_witness": 15443,
+      "bytes_per_entry": 16,
+      "output_bytes": 4200496,
+      "live_prefix_bytes_during_fold": 12601488
+    },
+    {
+      "fold": 15,
+      "entries_per_witness": 7722,
+      "bytes_per_entry": 16,
+      "output_bytes": 2100384,
+      "live_prefix_bytes_during_fold": 6300880
+    },
+    {
+      "fold": 16,
+      "entries_per_witness": 3861,
+      "bytes_per_entry": 16,
+      "output_bytes": 1050192,
+      "live_prefix_bytes_during_fold": 3150576
+    },
+    {
+      "fold": 17,
+      "entries_per_witness": 1931,
+      "bytes_per_entry": 16,
+      "output_bytes": 525232,
+      "live_prefix_bytes_during_fold": 1575424
+    },
+    {
+      "fold": 18,
+      "entries_per_witness": 966,
+      "bytes_per_entry": 16,
+      "output_bytes": 262752,
+      "live_prefix_bytes_during_fold": 787984
+    },
+    {
+      "fold": 19,
+      "entries_per_witness": 483,
+      "bytes_per_entry": 16,
+      "output_bytes": 131376,
+      "live_prefix_bytes_during_fold": 394128
+    },
+    {
+      "fold": 20,
+      "entries_per_witness": 242,
+      "bytes_per_entry": 16,
+      "output_bytes": 65824,
+      "live_prefix_bytes_during_fold": 197200
+    },
+    {
+      "fold": 21,
+      "entries_per_witness": 121,
+      "bytes_per_entry": 16,
+      "output_bytes": 32912,
+      "live_prefix_bytes_during_fold": 98736
+    },
+    {
+      "fold": 22,
+      "entries_per_witness": 61,
+      "bytes_per_entry": 16,
+      "output_bytes": 16592,
+      "live_prefix_bytes_during_fold": 49504
+    },
+    {
+      "fold": 23,
+      "entries_per_witness": 31,
+      "bytes_per_entry": 16,
+      "output_bytes": 8432,
+      "live_prefix_bytes_during_fold": 25024
+    },
+    {
+      "fold": 24,
+      "entries_per_witness": 16,
+      "bytes_per_entry": 16,
+      "output_bytes": 4352,
+      "live_prefix_bytes_during_fold": 12784
+    },
+    {
+      "fold": 25,
+      "entries_per_witness": 8,
+      "bytes_per_entry": 16,
+      "output_bytes": 2176,
+      "live_prefix_bytes_during_fold": 6528
+    },
+    {
+      "fold": 26,
+      "entries_per_witness": 4,
+      "bytes_per_entry": 16,
+      "output_bytes": 1088,
+      "live_prefix_bytes_during_fold": 3264
+    },
+    {
+      "fold": 27,
+      "entries_per_witness": 2,
+      "bytes_per_entry": 16,
+      "output_bytes": 544,
+      "live_prefix_bytes_during_fold": 1632
+    },
+    {
+      "fold": 28,
+      "entries_per_witness": 1,
+      "bytes_per_entry": 16,
+      "output_bytes": 272,
+      "live_prefix_bytes_during_fold": 816
+    }
+  ]
+}

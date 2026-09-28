@@ -1,0 +1,85 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 26.71s
+     Running tests/pi_ccs_rows.rs (target/release/deps/pi_ccs_rows-d4d64ed891b71c62)
+
+running 1 test
+test row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/pi_ccs_v1_1_engine_parity.rs (target/release/deps/pi_ccs_v1_1_engine_parity-0b9a835eba49e354)
+
+running 15 tests
+test canonical_codec_is_versioned_and_not_bincode ... ok
+test carried_gamma_power_handles_protocol_scale_exponents ... ok
+test paper_exact_sources_do_not_import_optimized_computation ... ok
+test one_joint_engines_are_byte_exact_for_both_rectangular_directions ... FAILED
+test v1_1_eval_k_and_eval_a_gamma_slots_are_separate ... ok
+test crosscheck_rejects_a_noncanonical_dec_split_that_recomposes ... FAILED
+test verifier_matches_the_paper_mutation_boundary ... FAILED
+test public_crosscheck_covers_v1_1_rlc_and_dec ... FAILED
+test public_crosscheck_covers_seeded_phi81_matrix_descriptors ... FAILED
+test accepting_v1_1_path_exports_receipt_and_rejects_mutations ... FAILED
+test selected_engines_reject_pretransformed_seeded_matrix_descriptors ... ok
+test full_carrier_tail_is_part_of_the_padded_identity_relation ... ok
+test v1_1_transcript_matches_the_independent_reference ... FAILED
+test public_crosscheck_compares_the_complete_execution ... FAILED
+test every_joint_round_polynomial_and_fold_matches ... ok
+
+failures:
+
+---- one_joint_engines_are_byte_exact_for_both_rectangular_directions stdout ----
+
+thread 'one_joint_engines_are_byte_exact_for_both_rectangular_directions' (596265) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:207:6:
+seed proof: InvalidInput("PaperExact v1_1 digest-only statement requires a running claim")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- crosscheck_rejects_a_noncanonical_dec_split_that_recomposes stdout ----
+
+thread 'crosscheck_rejects_a_noncanonical_dec_split_that_recomposes' (596262) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:709:6:
+PiCCS crosscheck: ProtocolError("both crosscheck provers failed (optimized: Invalid input: optimized v1_1 digest-only statement requires a running claim; PaperExact: Invalid input: PaperExact v1_1 digest-only statement requires a running claim)")
+
+---- verifier_matches_the_paper_mutation_boundary stdout ----
+
+thread 'verifier_matches_the_paper_mutation_boundary' (596283) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:640:6:
+proof: InvalidInput("optimized v1_1 digest-only statement requires a running claim")
+
+---- public_crosscheck_covers_v1_1_rlc_and_dec stdout ----
+
+thread 'public_crosscheck_covers_v1_1_rlc_and_dec' (596279) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:578:6:
+PiCCS crosscheck: ProtocolError("both crosscheck provers failed (optimized: Invalid input: optimized v1_1 digest-only statement requires a running claim; PaperExact: Invalid input: PaperExact v1_1 digest-only statement requires a running claim)")
+
+---- public_crosscheck_covers_seeded_phi81_matrix_descriptors stdout ----
+
+thread 'public_crosscheck_covers_seeded_phi81_matrix_descriptors' (596268) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:518:6:
+seeded Phi81 crosscheck proof: ProtocolError("both crosscheck provers failed (optimized: Invalid input: optimized v1_1 digest-only statement requires a running claim; PaperExact: Invalid input: PaperExact v1_1 digest-only statement requires a running claim)")
+
+---- accepting_v1_1_path_exports_receipt_and_rejects_mutations stdout ----
+
+thread 'accepting_v1_1_path_exports_receipt_and_rejects_mutations' (596259) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:431:6:
+v1_1 production proof: InvalidInput("optimized v1_1 digest-only statement requires a running claim")
+
+---- v1_1_transcript_matches_the_independent_reference stdout ----
+
+thread 'v1_1_transcript_matches_the_independent_reference' (596282) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:395:6:
+v1_1 transcript crosscheck proof: ProtocolError("both crosscheck provers failed (optimized: Invalid input: optimized v1_1 digest-only statement requires a running claim; PaperExact: Invalid input: PaperExact v1_1 digest-only statement requires a running claim)")
+
+---- public_crosscheck_compares_the_complete_execution stdout ----
+
+thread 'public_crosscheck_compares_the_complete_execution' (596267) panicked at crates/neo-reductions/tests/pi_ccs_v1_1_engine_parity.rs:360:6:
+crosscheck proof: ProtocolError("both crosscheck provers failed (optimized: Invalid input: optimized v1_1 digest-only statement requires a running claim; PaperExact: Invalid input: PaperExact v1_1 digest-only statement requires a running claim)")
+
+
+failures:
+    accepting_v1_1_path_exports_receipt_and_rejects_mutations
+    crosscheck_rejects_a_noncanonical_dec_split_that_recomposes
+    one_joint_engines_are_byte_exact_for_both_rectangular_directions
+    public_crosscheck_compares_the_complete_execution
+    public_crosscheck_covers_seeded_phi81_matrix_descriptors
+    public_crosscheck_covers_v1_1_rlc_and_dec
+    v1_1_transcript_matches_the_independent_reference
+    verifier_matches_the_paper_mutation_boundary
+
+test result: FAILED. 7 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+
+error: test failed, to rerun pass `-p neo-reductions --test pi_ccs_v1_1_engine_parity`

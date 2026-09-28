@@ -1,0 +1,7 @@
+{
+  "outcome": "passed",
+  "comparison": "Complete benchmark_started and benchmark_finished JSON records, excluding elapsed seconds only",
+  "old": "bounded-metal-time-profile-benchmark.log",
+  "new": "matrix-window-borrowed-lifecycle-profile-benchmark.log",
+  "scope": "Same initial state, message, selected profile, steps, final state and circuit identity; no timing ratio is derived across these different builds."
+}

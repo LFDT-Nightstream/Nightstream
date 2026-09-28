@@ -22,13 +22,23 @@ use std::time::Instant;
 use crate::engines::PiCcsEngine;
 use crate::error::PiCcsError;
 
+mod accelerator;
+pub use accelerator::{rlc_with_commit_refs_and_resident_witness, rlc_with_commit_refs_and_witness_mix};
+mod dec;
+pub use dec::verify_dec_public;
+mod validation;
+pub(crate) use validation::{
+    checked_superneo_d_pad, ell_n_for_ccs, ensure_superneo_width, validate_ce_claim_shape, validate_ce_claims_shape,
+    validate_dec_boundary_inputs, validate_dec_boundary_inputs_from_trusted_split, validate_mcs_claims,
+    validate_mcs_witnesses, validate_pi_ccs_outputs, validate_rlc_batch_compatibility,
+};
+
 // Re-export types that are part of the public API
 pub use crate::engines::optimized_engine::PiCcsProof;
 
 // Re-export common utilities for convenience (single import path for users)
 pub use crate::common::{
-    compute_y_from_Z_and_r,
-    ct_from_y_ring,
+    compute_v1_1_evaluations_from_z_and_r,
     format_ext,
     left_mul_acc,
     rot_rhos_from_mats,
@@ -41,198 +51,6 @@ pub use crate::common::{
     RotRing, // Ring metadata for rotation matrix sampling
 };
 
-#[inline]
-fn ensure_superneo_width(s: &CcsStructure<F>) -> Result<(), PiCcsError> {
-    if s.m == 0 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "SuperNeo-only mode requires CCS width m > 0 (got m={})",
-            s.m
-        )));
-    }
-    Ok(())
-}
-
-#[inline]
-fn ell_n_for_ccs(s: &CcsStructure<F>) -> usize {
-    s.n.next_power_of_two().max(2).trailing_zeros() as usize
-}
-
-#[inline]
-fn ell_m_for_ccs(s: &CcsStructure<F>) -> usize {
-    s.m.next_power_of_two().max(2).trailing_zeros() as usize
-}
-
-fn validate_mcs_claims(label: &str, s: &CcsStructure<F>, mcs_list: &[CcsClaim<Cmt, F>]) -> Result<(), PiCcsError> {
-    for (idx, inst) in mcs_list.iter().enumerate() {
-        if inst.m_in > s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}].m_in={} exceeds CCS width m={}",
-                inst.m_in, s.m
-            )));
-        }
-        if inst.x.len() != inst.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}].x.len()={} does not match m_in={}",
-                inst.x.len(),
-                inst.m_in
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_mcs_witnesses(
-    label: &str,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-) -> Result<(), PiCcsError> {
-    for (idx, (inst, wit)) in mcs_list.iter().zip(mcs_witnesses.iter()).enumerate() {
-        let z_len = inst
-            .m_in
-            .checked_add(wit.w.len())
-            .ok_or_else(|| PiCcsError::InvalidInput(format!("{label}: mcs_list[{idx}] witness length overflow")))?;
-        if z_len != s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}] has m_in + |w| = {} but CCS width is m={}",
-                z_len, s.m
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_ce_claim_shape(label: &str, s: &CcsStructure<F>, ce: &CeClaim<Cmt, F, K>) -> Result<(), PiCcsError> {
-    if ce.m_in > s.m {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: m_in={} exceeds CCS width m={}",
-            ce.m_in, s.m
-        )));
-    }
-    if ce.X.rows() != D || ce.X.cols() != ce.m_in {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: X has shape {}x{}, expected {}x{}",
-            ce.X.rows(),
-            ce.X.cols(),
-            D,
-            ce.m_in
-        )));
-    }
-    let ell_n = ell_n_for_ccs(s);
-    if ce.r.len() != ell_n {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: r length mismatch (expected {ell_n}, got {})",
-            ce.r.len()
-        )));
-    }
-    if ce.y_ring.len() < s.t() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: y_ring.len()={} is smaller than s.t()={}",
-            ce.y_ring.len(),
-            s.t()
-        )));
-    }
-    if ce.ct.len() < s.t() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: ct.len()={} is smaller than s.t()={}",
-            ce.ct.len(),
-            s.t()
-        )));
-    }
-    let d_pad = D.next_power_of_two();
-    for (j, row) in ce.y_ring.iter().enumerate() {
-        if row.len() < D || row.len() > d_pad {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: y_ring[{j}].len()={} must be in [{}, {}]",
-                row.len(),
-                D,
-                d_pad
-            )));
-        }
-    }
-    let has_nc_channel = !(ce.s_col.is_empty() && ce.y_zcol.is_empty());
-    if has_nc_channel && (ce.s_col.is_empty() || ce.y_zcol.is_empty()) {
-        return Err(PiCcsError::InvalidInput(format!(
-            "{label}: incomplete NC channel, expected both s_col and y_zcol"
-        )));
-    }
-    if has_nc_channel {
-        let ell_m = ell_m_for_ccs(s);
-        if ce.s_col.len() != ell_m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: s_col length mismatch (expected {ell_m}, got {})",
-                ce.s_col.len()
-            )));
-        }
-        if ce.y_zcol.len() != d_pad {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: y_zcol length mismatch (expected {d_pad}, got {})",
-                ce.y_zcol.len()
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_ce_claims_shape(label: &str, s: &CcsStructure<F>, claims: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
-    for (idx, claim) in claims.iter().enumerate() {
-        validate_ce_claim_shape(&format!("{label}[{idx}]"), s, claim)?;
-    }
-    Ok(())
-}
-
-fn validate_dec_boundary_inputs(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    z_split: &[Mat<F>],
-    child_commitments: &[Cmt],
-    ell_d: usize,
-) -> Result<(), PiCcsError> {
-    ensure_superneo_width(s)?;
-    validate_ce_claim_shape("dec_parent", s, parent)?;
-    if z_split.len() != child_commitments.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "DEC child input mismatch: |Z_split|={} but |child_commitments|={}",
-            z_split.len(),
-            child_commitments.len()
-        )));
-    }
-    if 1usize.checked_shl(ell_d as u32).is_none() {
-        return Err(PiCcsError::InvalidInput(format!("DEC ell_d overflow: ell_d={ell_d}")));
-    }
-    for (idx, z) in z_split.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("dec: Z_split[{idx}]"))?;
-    }
-    Ok(())
-}
-
-fn validate_dec_boundary_inputs_from_trusted_split(
-    s: &CcsStructure<F>,
-    parent: &CeClaim<Cmt, F, K>,
-    z_split: &[Mat<F>],
-    child_commitments: &[Cmt],
-    ell_d: usize,
-) -> Result<(), PiCcsError> {
-    ensure_superneo_width(s)?;
-    validate_ce_claim_shape("dec_parent", s, parent)?;
-    if z_split.len() != child_commitments.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "DEC child input mismatch: |Z_split|={} but |child_commitments|={}",
-            z_split.len(),
-            child_commitments.len()
-        )));
-    }
-    if 1usize.checked_shl(ell_d as u32).is_none() {
-        return Err(PiCcsError::InvalidInput(format!("DEC ell_d overflow: ell_d={ell_d}")));
-    }
-    for (idx, z) in z_split.iter().enumerate() {
-        crate::common::validate_superneo_witness_mat(z, s.m)
-            .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
-    }
-    Ok(())
-}
-
 /// Folding mode selector for engine dispatch.
 #[derive(Clone, Debug)]
 pub enum FoldingMode {
@@ -240,7 +58,38 @@ pub enum FoldingMode {
     #[cfg(feature = "paper-exact")]
     PaperExact,
     #[cfg(feature = "paper-exact")]
-    OptimizedWithCrosscheck(crate::engines::CrosscheckCfg),
+    OptimizedWithCrosscheck,
+}
+
+fn validate_selected_reduction_claims(
+    _mode: &FoldingMode,
+    label: &str,
+    structure: &CcsStructure<F>,
+    claims: &[CeClaim<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
+    validate_pi_ccs_outputs(label, structure, claims)
+}
+
+#[cfg(feature = "paper-exact")]
+fn require_rlc_crosscheck(
+    optimized: (CeClaim<Cmt, F, K>, Mat<F>),
+    reference: (CeClaim<Cmt, F, K>, Mat<F>),
+) -> Result<(CeClaim<Cmt, F, K>, Mat<F>), PiCcsError> {
+    if optimized != reference {
+        return Err(PiCcsError::ProtocolError(
+            "PiRLC optimized and PaperExact results differ".into(),
+        ));
+    }
+    Ok(optimized)
+}
+
+#[cfg(feature = "paper-exact")]
+fn require_dec_crosscheck(
+    optimized: (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool),
+    reference: (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool),
+) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool) {
+    assert_eq!(optimized, reference, "PiDEC optimized and PaperExact results differ");
+    optimized
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +97,7 @@ pub enum FoldingMode {
 // ---------------------------------------------------------------------------
 
 /// Prove Π_CCS folding.
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -284,6 +133,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     validate_ce_claims_shape("prove: me_inputs", s, me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, wit) in mcs_witnesses.iter().enumerate() {
+        crate::common::validate_fresh_witness_tail_zero(&wit.Z, s.m, &format!("prove: mcs_witnesses[{idx}].Z"))?;
         crate::common::validate_packed_witness_nc_alphabet(
             params,
             &wit.Z,
@@ -303,17 +153,16 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
             crate::engines::PaperExactEngine.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(cfg) => crate::engines::CrossCheckEngine {
+        FoldingMode::OptimizedWithCrosscheck => crate::engines::CrossCheckEngine {
             inner: OptimizedEngine,
             ref_oracle: crate::engines::PaperExactEngine,
-            cfg,
         }
         .prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log),
     }
 }
 
 /// Prove Π_CCS in the simple (k=1) case without ME inputs.
-pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -344,6 +193,7 @@ pub fn verify(
     validate_mcs_claims("verify", s, mcs_list)?;
     validate_ce_claims_shape("verify: me_inputs", s, me_inputs)?;
     validate_ce_claims_shape("verify: me_outputs", s, me_outputs)?;
+    validate_pi_ccs_outputs("verify: me_outputs", s, me_outputs)?;
     let ell_n = ell_n_for_ccs(s);
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n)?;
     let _ = crate::engines::utils::shared_me_input_r(me_outputs, ell_n)?;
@@ -358,10 +208,9 @@ pub fn verify(
             crate::engines::PaperExactEngine.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(cfg) => crate::engines::CrossCheckEngine {
+        FoldingMode::OptimizedWithCrosscheck => crate::engines::CrossCheckEngine {
             inner: crate::engines::OptimizedEngine,
             ref_oracle: crate::engines::PaperExactEngine,
-            cfg,
         }
         .verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof),
     }
@@ -408,6 +257,9 @@ where
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     validate_ce_claims_shape("rlc_with_commit: me_inputs", s, me_inputs)?;
+    validate_selected_reduction_claims(&mode, "rlc_with_commit: selected inputs", s, me_inputs)?;
+    validate_rlc_batch_compatibility("rlc_with_commit", params, me_inputs)?;
+    checked_superneo_d_pad("rlc_with_commit ell_d", ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit: Zs[{idx}]"))?;
@@ -432,10 +284,18 @@ where
             )
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => {
-            // For cross-checking, use paper-exact to verify against optimized
-            // In practice, RLC/DEC are simple algebraic operations, so we just use optimized
-            OptimizedRlcDec::rlc_with_commit(s, params, &rho_mats, me_inputs, Zs, ell_d, mix_commits)
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::rlc_with_commit(s, params, &rho_mats, me_inputs, Zs, ell_d, &mix_commits);
+            let reference = crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
+                s,
+                params,
+                &rho_mats,
+                me_inputs,
+                Zs,
+                ell_d,
+                &mix_commits,
+            );
+            return require_rlc_crosscheck(optimized, reference);
         }
     };
     Ok((out, Z_mix))
@@ -479,6 +339,9 @@ where
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     validate_ce_claims_shape("rlc_with_commit_refs: me_inputs", s, me_inputs)?;
+    validate_selected_reduction_claims(&mode, "rlc_with_commit_refs: selected inputs", s, me_inputs)?;
+    validate_rlc_batch_compatibility("rlc_with_commit_refs", params, me_inputs)?;
+    checked_superneo_d_pad("rlc_with_commit_refs ell_d", ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit_refs: Zs[{idx}]"))?;
@@ -508,16 +371,27 @@ where
             )
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => {
-            crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(
                 s,
                 params,
                 &rho_mats,
                 me_inputs,
                 Zs,
                 ell_d,
-                mix_commits,
-            )
+                &mix_commits,
+            );
+            let owned_zs: Vec<Mat<F>> = Zs.iter().map(|z| (*z).clone()).collect();
+            let reference = crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
+                s,
+                params,
+                &rho_mats,
+                me_inputs,
+                &owned_zs,
+                ell_d,
+                &mix_commits,
+            );
+            return require_rlc_crosscheck(optimized, reference);
         }
     };
     Ok((out, Z_mix))
@@ -541,6 +415,15 @@ where
     use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
         eprintln!("dec_children_with_commit input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+    if let Err(error) = validate_selected_reduction_claims(
+        &mode,
+        "dec_children_with_commit: selected parent",
+        s,
+        std::slice::from_ref(parent),
+    ) {
+        eprintln!("dec_children_with_commit input validation failed: {error}");
         return (Vec::new(), false, false, false);
     }
 
@@ -568,18 +451,26 @@ where
             )
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => {
-            // For cross-checking, use paper-exact to verify against optimized
-            // In practice, RLC/DEC are simple algebraic operations, so we just use optimized
-            OptimizedRlcDec::dec_children_with_commit(
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::dec_children_with_commit(
                 s,
                 params,
                 parent,
                 Z_split,
                 ell_d,
                 child_commitments,
-                combine_b_pows,
-            )
+                &combine_b_pows,
+            );
+            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+            );
+            require_dec_crosscheck(optimized, reference)
         }
     }
 }
@@ -598,7 +489,7 @@ pub fn dec_children_with_commit_cached<Comb>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
-    sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<F>>,
+    sparse: Option<&crate::engines::optimized_engine::SparseCache<F>>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -606,6 +497,15 @@ where
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
         eprintln!("dec_children_with_commit_cached input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+    if let Err(error) = validate_selected_reduction_claims(
+        &mode,
+        "dec_children_with_commit_cached: selected parent",
+        s,
+        std::slice::from_ref(parent),
+    ) {
+        eprintln!("dec_children_with_commit_cached input validation failed: {error}");
         return (Vec::new(), false, false, false);
     }
 
@@ -631,16 +531,28 @@ where
             combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => OptimizedRlcDec::dec_children_with_commit_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            sparse,
-        ),
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::dec_children_with_commit_cached(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+                sparse,
+            );
+            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+            );
+            require_dec_crosscheck(optimized, reference)
+        }
     }
 }
 
@@ -669,6 +581,15 @@ where
         eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
+    if let Err(error) = validate_selected_reduction_claims(
+        &mode,
+        "dec_children_with_commit_superneo_cached: selected parent",
+        s,
+        std::slice::from_ref(parent),
+    ) {
+        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {error}");
+        return (Vec::new(), false, false, false);
+    }
 
     match mode {
         FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
@@ -692,16 +613,28 @@ where
             combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            superneo_cache,
-        ),
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+                superneo_cache,
+            );
+            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+            );
+            require_dec_crosscheck(optimized, reference)
+        }
     }
 }
 
@@ -733,6 +666,15 @@ where
         eprintln!("dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
+    if let Err(error) = validate_selected_reduction_claims(
+        &mode,
+        "dec_children_with_commit_superneo_cached_with_digit_flags: selected parent",
+        s,
+        std::slice::from_ref(parent),
+    ) {
+        eprintln!("dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: {error}");
+        return (Vec::new(), false, false, false);
+    }
 
     match mode {
         FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
@@ -745,6 +687,8 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            None,
+            None,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -757,8 +701,8 @@ where
             combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => {
-            OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
                 s,
                 params,
                 parent,
@@ -766,9 +710,21 @@ where
                 digit_nonzero,
                 ell_d,
                 child_commitments,
-                combine_b_pows,
+                &combine_b_pows,
                 superneo_cache,
-            )
+                None,
+                None,
+            );
+            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+            );
+            require_dec_crosscheck(optimized, reference)
         }
     }
 }
@@ -793,7 +749,9 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+    superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
+    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
+    precomputed_openings: Option<&[neo_ccs::V1_1Evaluations<K>]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -807,13 +765,26 @@ where
         );
         return (Vec::new(), false, false, false);
     }
-    if let Err(e) = validate_dec_boundary_inputs_from_trusted_split(s, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) =
+        validate_dec_boundary_inputs_from_trusted_split(s, params, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+    if let Err(error) = validate_selected_reduction_claims(
+        &mode,
+        "dec_children_with_commit_superneo_cached_from_trusted_split_digits: selected parent",
+        s,
+        std::slice::from_ref(parent),
+    ) {
+        eprintln!(
+            "dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: {error}"
+        );
         return (Vec::new(), false, false, false);
     }
 
     match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             s,
             params,
             parent,
@@ -823,6 +794,8 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            ring_linear_forms,
+            precomputed_openings,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -835,8 +808,8 @@ where
             combine_b_pows,
         ),
         #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck(_) => {
-            OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+        FoldingMode::OptimizedWithCrosscheck => {
+            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
                 s,
                 params,
                 parent,
@@ -844,9 +817,21 @@ where
                 digit_nonzero,
                 ell_d,
                 child_commitments,
-                combine_b_pows,
+                &combine_b_pows,
                 superneo_cache,
-            )
+                ring_linear_forms,
+                precomputed_openings,
+            );
+            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+                s,
+                params,
+                parent,
+                Z_split,
+                ell_d,
+                child_commitments,
+                &combine_b_pows,
+            );
+            require_dec_crosscheck(optimized, reference)
         }
     }
 }
@@ -882,72 +867,18 @@ where
             rhos.len()
         )));
     }
+    validate_ce_claims_shape("rlc_public: inputs", s, inputs)?;
+    validate_pi_ccs_outputs("rlc_public: selected inputs", s, inputs)?;
+    validate_rlc_batch_compatibility("rlc_public", params, inputs)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    for (idx, inst) in inputs.iter().enumerate() {
-        if inst.m_in > s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public: inputs[{idx}].m_in={} exceeds CCS width m={}",
-                inst.m_in, s.m
-            )));
-        }
-    }
     let _ = crate::engines::utils::shared_me_input_r(inputs, inputs[0].r.len())?;
     let d = D;
     let m_in = inputs[0].m_in;
-    let d_pad = 1usize
-        .checked_shl(ell_d as u32)
-        .ok_or_else(|| PiCcsError::InvalidInput("rlc_public: 2^ell_d overflow".into()))?;
-    let t = inputs[0].y_ring.len();
-    let aux_len = inputs[0].aux_openings.len();
-    if t < s.t() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_public: ME input y.len() must be >= s.t() (got {}, s.t()={})",
-            t,
-            s.t()
-        )));
-    }
-    for (idx, inst) in inputs.iter().enumerate() {
-        if inst.m_in != m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public: m_in mismatch at input {idx} (expected {m_in}, got {})",
-                inst.m_in
-            )));
-        }
-        if inst.X.rows() != D || inst.X.cols() != m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public: X shape mismatch at input {idx} (got {}x{}, expected {}x{})",
-                inst.X.rows(),
-                inst.X.cols(),
-                D,
-                m_in
-            )));
-        }
-        if inst.y_ring.len() != t {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public: y.len mismatch at input {idx} (expected {t}, got {})",
-                inst.y_ring.len()
-            )));
-        }
-        if inst.aux_openings.len() != aux_len {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public: aux_openings.len mismatch at input {idx} (expected {aux_len}, got {})",
-                inst.aux_openings.len()
-            )));
-        }
-        for (j, row) in inst.y_ring.iter().enumerate() {
-            if row.len() < D || row.len() > d_pad {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public: y[{j}].len()={} at input {idx}, expected in [{}, {}]",
-                    row.len(),
-                    D,
-                    d_pad
-                )));
-            }
-        }
-    }
+    let d_pad = checked_superneo_d_pad("rlc_public ell_d", ell_d)?;
+    let matrix_count = inputs[0].eval_a.len();
 
     // X_out := Σ ρ_i · X_i
-    let mut X = Mat::zero(d, m_in, F::ZERO);
+    let mut X = Mat::zero(d, neo_ccs::superneo_public_x_cols(m_in), F::ZERO);
     for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
         left_mul_acc(&mut X, rho, &inst.X);
     }
@@ -968,18 +899,34 @@ where
         })
         .collect();
 
-    // y_out[j] := Σ ρ_i · y_(i,j)  (first D digits, keep padding)
-    let mut y_ring = vec![vec![K::ZERO; d_pad]; t];
+    // Eval_K_out := Σ rho_i · Eval_K_i.
+    let mut eval_k = vec![K::ZERO; d_pad];
+    for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
+        for k in 0..d {
+            let value = inst.eval_k[k];
+            if value == K::ZERO {
+                continue;
+            }
+            let column = &rho_k[k * d..(k + 1) * d];
+            for row in 0..d {
+                eval_k[row] += column[row] * value;
+            }
+        }
+    }
+
+    // Eval_A_out[j] := Σ rho_i · Eval_A_(i,j).
+    let mut eval_a = vec![vec![K::ZERO; d_pad]; matrix_count];
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let allow_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && t >= 128;
+    let allow_parallel =
+        rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && matrix_count >= 128;
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let _allow_parallel = false;
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if allow_parallel {
-        y_ring.par_iter_mut().enumerate().for_each(|(j, acc)| {
+        eval_a.par_iter_mut().enumerate().for_each(|(j, acc)| {
             for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-                let src = &inst.y_ring[j];
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -995,8 +942,8 @@ where
         });
     } else {
         for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for (j, acc) in y_ring.iter_mut().enumerate() {
-                let src = &inst.y_ring[j];
+            for (j, acc) in eval_a.iter_mut().enumerate() {
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -1014,8 +961,8 @@ where
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
         for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for (j, acc) in y_ring.iter_mut().enumerate() {
-                let src = &inst.y_ring[j];
+            for (j, acc) in eval_a.iter_mut().enumerate() {
+                let src = &inst.eval_a[j];
                 for k in 0..d {
                     let yk = src[k];
                     if yk == K::ZERO {
@@ -1031,80 +978,15 @@ where
         }
     }
 
-    // Optional NC channel: y_zcol := Σ ρ_i · y_zcol_i (same mixing as y_j, but independent of t).
-    let wants_nc_channel = inputs
-        .iter()
-        .any(|m| !(m.s_col.is_empty() && m.y_zcol.is_empty()));
-    let y_zcol = if wants_nc_channel {
-        if inputs[0].s_col.is_empty() || inputs[0].y_zcol.is_empty() {
-            return Err(PiCcsError::InvalidInput(
-                "rlc_public: incomplete NC channel on input 0 (expected both s_col and y_zcol)".into(),
-            ));
-        }
-        for (idx, inst) in inputs.iter().enumerate() {
-            if inst.s_col.is_empty() || inst.y_zcol.is_empty() {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public: incomplete NC channel at input {idx} (expected both s_col and y_zcol)"
-                )));
-            }
-            if inst.s_col != inputs[0].s_col {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public: s_col mismatch at input {idx}"
-                )));
-            }
-            if inst.y_zcol.len() != d_pad {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public: y_zcol len mismatch at input {idx} (expected {d_pad}, got {})",
-                    inst.y_zcol.len()
-                )));
-            }
-        }
-
-        let mut acc = vec![K::ZERO; d_pad];
-        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for k in 0..d {
-                let yk = inst.y_zcol[k];
-                if yk == K::ZERO {
-                    continue;
-                }
-                let col_off = k * d;
-                let col = &rho_k[col_off..col_off + d];
-                for r in 0..d {
-                    acc[r] += col[r] * yk;
-                }
-            }
-        }
-        acc
-    } else {
-        // Legacy: NC channel not present.
-        Vec::new()
-    };
-
-    let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
     let c = mix_rhos_commits(&rho_mats, &inputs.iter().map(|m| m.c.clone()).collect::<Vec<_>>());
 
-    // aux_openings: field-linear mix using the scalar projection of each ρ_i.
-    // We currently use the (0,0) entry, which corresponds to the constant-coefficient action.
-    let mut aux_openings = vec![K::ZERO; aux_len];
-    for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
-        let w = K::from(rho[(0, 0)]);
-        for (dst, src) in aux_openings.iter_mut().zip(inst.aux_openings.iter()) {
-            *dst += w * *src;
-        }
-    }
-
     Ok(CeClaim {
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
+        adv: None,
         c,
         X,
         r: inputs[0].r.clone(),
-        s_col: inputs[0].s_col.clone(),
-        y_ring,
-        ct,
-        aux_openings,
-        y_zcol,
+        eval_k,
+        eval_a,
         m_in,
         fold_digest: inputs[0].fold_digest,
     })
@@ -1116,8 +998,6 @@ pub struct RlcPublicVerifyPerf {
     pub rho_k_lift_ms: f64,
     pub x_ms: f64,
     pub y_ms: f64,
-    pub y_zcol_ms: f64,
-    pub aux_ms: f64,
     pub commitment_collect_ms: f64,
     pub commitment_mix_ms: f64,
     pub commitment_ms: f64,
@@ -1185,490 +1065,28 @@ fn rlc_public_matches_with_perf_impl<MR>(
     expected: &CeClaim<Cmt, F, K>,
     mix_rhos_commits: MR,
     ell_d: usize,
-    validate_input_ce_invariants: bool,
+    _validate_input_ce_invariants: bool,
 ) -> Result<(bool, RlcPublicVerifyPerf), PiCcsError>
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
     let total_started = Instant::now();
-    ensure_superneo_width(s)?;
-    if inputs.is_empty() {
-        return Err(PiCcsError::InvalidInput("rlc_public_matches: empty inputs".into()));
-    }
-    if rhos.len() != inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_public_matches: |rhos| mismatch (expected {}, got {})",
-            inputs.len(),
-            rhos.len()
-        )));
-    }
-    let rho_mats_started = Instant::now();
-    let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    let rho_mats_ms = rho_mats_started.elapsed().as_secs_f64() * 1_000.0;
-    if validate_input_ce_invariants {
-        for (idx, inst) in inputs.iter().enumerate() {
-            if inst.m_in > s.m {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public_matches: inputs[{idx}].m_in={} exceeds CCS width m={}",
-                    inst.m_in, s.m
-                )));
-            }
-        }
-        let _ = crate::engines::utils::shared_me_input_r(inputs, inputs[0].r.len())?;
-    }
-
-    let m_in = inputs[0].m_in;
-    let d_pad = 1usize
-        .checked_shl(ell_d as u32)
-        .ok_or_else(|| PiCcsError::InvalidInput("rlc_public_matches: 2^ell_d overflow".into()))?;
-    let t = inputs[0].y_ring.len();
-    let aux_len = inputs[0].aux_openings.len();
-    if t < s.t() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_public_matches: ME input y.len() must be >= s.t() (got {}, s.t()={})",
-            t,
-            s.t()
-        )));
-    }
-    for (idx, inst) in inputs.iter().enumerate() {
-        if inst.m_in != m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public_matches: m_in mismatch at input {idx} (expected {m_in}, got {})",
-                inst.m_in
-            )));
-        }
-        if inst.X.rows() != D || inst.X.cols() != m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public_matches: X shape mismatch at input {idx} (got {}x{}, expected {}x{})",
-                inst.X.rows(),
-                inst.X.cols(),
-                D,
-                m_in
-            )));
-        }
-        if inst.y_ring.len() != t {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public_matches: y.len mismatch at input {idx} (expected {t}, got {})",
-                inst.y_ring.len()
-            )));
-        }
-        if inst.aux_openings.len() != aux_len {
-            return Err(PiCcsError::InvalidInput(format!(
-                "rlc_public_matches: aux_openings.len mismatch at input {idx} (expected {aux_len}, got {})",
-                inst.aux_openings.len()
-            )));
-        }
-        for (j, row) in inst.y_ring.iter().enumerate() {
-            if row.len() < D || row.len() > d_pad {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public_matches: y[{j}].len()={} at input {idx}, expected in [{}, {}]",
-                    row.len(),
-                    D,
-                    d_pad
-                )));
-            }
-        }
-    }
-
-    if !expected.c_step_coords.is_empty()
-        || expected.u_offset != 0
-        || expected.u_len != 0
-        || expected.m_in != m_in
-        || expected.fold_digest != inputs[0].fold_digest
-        || expected.r != inputs[0].r
-        || expected.X.rows() != D
-        || expected.X.cols() != m_in
-        || expected.y_ring.len() != t
-        || expected.ct.len() != t
-        || expected.aux_openings.len() != aux_len
-    {
-        return Ok((false, RlcPublicVerifyPerf::default()));
-    }
-
-    let wants_nc_channel = inputs
-        .iter()
-        .any(|m| !(m.s_col.is_empty() && m.y_zcol.is_empty()));
-    if wants_nc_channel {
-        if inputs[0].s_col.is_empty() || inputs[0].y_zcol.is_empty() {
-            return Err(PiCcsError::InvalidInput(
-                "rlc_public_matches: incomplete NC channel on input 0 (expected both s_col and y_zcol)".into(),
-            ));
-        }
-        if expected.s_col != inputs[0].s_col || expected.y_zcol.len() != d_pad {
-            return Ok((false, RlcPublicVerifyPerf::default()));
-        }
-        for (idx, inst) in inputs.iter().enumerate() {
-            if inst.s_col.is_empty() || inst.y_zcol.is_empty() {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public_matches: incomplete NC channel at input {idx} (expected both s_col and y_zcol)"
-                )));
-            }
-            if inst.s_col != inputs[0].s_col {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public_matches: s_col mismatch at input {idx}"
-                )));
-            }
-            if inst.y_zcol.len() != d_pad {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "rlc_public_matches: y_zcol len mismatch at input {idx} (expected {d_pad}, got {})",
-                    inst.y_zcol.len()
-                )));
-            }
-        }
-    } else if !expected.s_col.is_empty() || !expected.y_zcol.is_empty() {
-        return Ok((false, RlcPublicVerifyPerf::default()));
-    }
-
-    let x_started = Instant::now();
-    for rho in 0..D {
-        for c in 0..m_in {
-            let mut want = F::ZERO;
-            for (rho_mat, inst) in rho_mats.iter().zip(inputs.iter()) {
-                for k in 0..D {
-                    want += rho_mat[(rho, k)] * inst.X[(k, c)];
-                }
-            }
-            if expected.X[(rho, c)] != want {
-                return Ok((false, RlcPublicVerifyPerf::default()));
-            }
-        }
-    }
-    let x_ms = x_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let rho_k_lift_started = Instant::now();
-    let rho_k_mats: Vec<[K; D * D]> = rho_mats
-        .iter()
-        .map(|rho| {
-            let mut flat = [K::ZERO; D * D];
-            for k in 0..D {
-                for r in 0..D {
-                    flat[k * D + r] = K::from(rho[(r, k)]);
-                }
-            }
-            flat
-        })
-        .collect();
-    let rho_k_lift_ms = rho_k_lift_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let y_started = Instant::now();
-    let mut y_row = vec![K::ZERO; d_pad];
-    for (j, expected_row) in expected.y_ring.iter().enumerate() {
-        if expected_row.len() != d_pad {
-            return Ok((false, RlcPublicVerifyPerf::default()));
-        }
-        y_row.fill(K::ZERO);
-        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            let src = &inst.y_ring[j];
-            for k in 0..D {
-                let yk = src[k];
-                if yk == K::ZERO {
-                    continue;
-                }
-                let col = &rho_k[k * D..k * D + D];
-                for r in 0..D {
-                    y_row[r] += col[r] * yk;
-                }
-            }
-        }
-        if expected_row != y_row.as_slice() {
-            return Ok((false, RlcPublicVerifyPerf::default()));
-        }
-        let want_ct = crate::common::ct_from_y_digits_for_ccs_m(&y_row, params, s.m);
-        if expected.ct[j] != want_ct {
-            return Ok((false, RlcPublicVerifyPerf::default()));
-        }
-    }
-    let y_ms = y_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let y_zcol_started = Instant::now();
-    if wants_nc_channel {
-        let mut y_zcol = vec![K::ZERO; d_pad];
-        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for k in 0..D {
-                let yk = inst.y_zcol[k];
-                if yk == K::ZERO {
-                    continue;
-                }
-                let col = &rho_k[k * D..k * D + D];
-                for r in 0..D {
-                    y_zcol[r] += col[r] * yk;
-                }
-            }
-        }
-        if expected.y_zcol != y_zcol {
-            return Ok((false, RlcPublicVerifyPerf::default()));
-        }
-    }
-    let y_zcol_ms = y_zcol_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let aux_started = Instant::now();
-    let mut aux_openings = vec![K::ZERO; aux_len];
-    for (rho_mat, inst) in rho_mats.iter().zip(inputs.iter()) {
-        let w = K::from(rho_mat[(0, 0)]);
-        for (dst, src) in aux_openings.iter_mut().zip(inst.aux_openings.iter()) {
-            *dst += w * *src;
-        }
-    }
-    if expected.aux_openings != aux_openings {
-        return Ok((false, RlcPublicVerifyPerf::default()));
-    }
-    let aux_ms = aux_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let commitment_started = Instant::now();
-    let commitment_collect_started = Instant::now();
-    let commitments: Vec<_> = inputs.iter().map(|m| m.c.clone()).collect();
-    let commitment_collect_ms = commitment_collect_started.elapsed().as_secs_f64() * 1_000.0;
-    let commitment_mix_started = Instant::now();
-    let commitment_ok = mix_rhos_commits(&rho_mats, &commitments) == expected.c;
-    let commitment_mix_ms = commitment_mix_started.elapsed().as_secs_f64() * 1_000.0;
-    let commitment_ms = commitment_started.elapsed().as_secs_f64() * 1_000.0;
-
+    let recomputed = match rlc_public(s, params, rhos, inputs, mix_rhos_commits, ell_d) {
+        Ok(value) => value,
+        Err(_) => return Ok((false, RlcPublicVerifyPerf::default())),
+    };
+    let matches = recomputed.c == expected.c
+        && recomputed.X == expected.X
+        && recomputed.r == expected.r
+        && recomputed.eval_k == expected.eval_k
+        && recomputed.eval_a == expected.eval_a
+        && recomputed.m_in == expected.m_in
+        && recomputed.fold_digest == expected.fold_digest;
     Ok((
-        commitment_ok,
+        matches,
         RlcPublicVerifyPerf {
-            rho_mats_ms,
-            rho_k_lift_ms,
-            x_ms,
-            y_ms,
-            y_zcol_ms,
-            aux_ms,
-            commitment_collect_ms,
-            commitment_mix_ms,
-            commitment_ms,
             total_ms: total_started.elapsed().as_secs_f64() * 1_000.0,
+            ..RlcPublicVerifyPerf::default()
         },
     ))
-}
-
-/// DEC public verification: Check that parent ?= Σ b^i · child_i (X, y, c).
-///
-/// Returns true if the decomposition is valid.
-pub fn verify_dec_public<MB>(
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    children: &[CeClaim<Cmt, F, K>],
-    combine_b_pows: MB,
-    ell_d: usize,
-) -> bool
-where
-    MB: Fn(&[Cmt], u32) -> Cmt,
-{
-    fn fail(msg: impl core::fmt::Display) -> bool {
-        eprintln!("verify_dec_public failed: {msg}");
-        false
-    }
-
-    if s.m == 0 {
-        return fail(format!("SuperNeo-only mode requires m > 0 (got m={})", s.m));
-    }
-    let k = children.len();
-    if k == 0 {
-        return fail("no children");
-    }
-
-    let shared_children_r = match crate::engines::utils::shared_me_input_r(children, parent.r.len()) {
-        Ok(Some(r)) => r,
-        Ok(None) => return fail("no children"),
-        Err(e) => return fail(e),
-    };
-    if parent.r.as_slice() != shared_children_r {
-        return fail("r mismatch between parent and children");
-    }
-
-    if parent.m_in > s.m {
-        return fail(format!("parent m_in={} exceeds CCS width m={}", parent.m_in, s.m));
-    }
-    if parent.X.rows() != D || parent.X.cols() != parent.m_in {
-        eprintln!(
-            "verify_dec_public failed: parent X has shape {}x{}, expected {}x{}",
-            parent.X.rows(),
-            parent.X.cols(),
-            D,
-            parent.m_in
-        );
-        return false;
-    }
-    for (idx, ch) in children.iter().enumerate() {
-        if ch.m_in > s.m {
-            return fail(format!(
-                "child {} has m_in={} exceeding CCS width m={}",
-                idx, ch.m_in, s.m
-            ));
-        }
-        if ch.m_in != parent.m_in {
-            eprintln!(
-                "verify_dec_public failed: child m_in mismatch (child {} has {}, expected {})",
-                idx, ch.m_in, parent.m_in
-            );
-            return false;
-        }
-        if ch.X.rows() != D || ch.X.cols() != parent.m_in {
-            eprintln!(
-                "verify_dec_public failed: child X shape mismatch (child {} has {}x{}, expected {}x{})",
-                idx,
-                ch.X.rows(),
-                ch.X.cols(),
-                D,
-                parent.m_in
-            );
-            return false;
-        }
-    }
-    let wants_nc_point = !parent.s_col.is_empty() || children.iter().any(|ch| !ch.s_col.is_empty());
-    if wants_nc_point {
-        let expected_s_col = ell_m_for_ccs(s);
-        if parent.s_col.len() != expected_s_col {
-            return fail(format!(
-                "parent s_col length mismatch (expected {}, got {})",
-                expected_s_col,
-                parent.s_col.len()
-            ));
-        }
-        for (idx, ch) in children.iter().enumerate() {
-            if ch.s_col.len() != expected_s_col {
-                return fail(format!(
-                    "child {} s_col length mismatch (expected {}, got {})",
-                    idx,
-                    expected_s_col,
-                    ch.s_col.len()
-                ));
-            }
-            if ch.s_col != parent.s_col {
-                return fail(format!("child {} s_col does not match parent", idx));
-            }
-        }
-    }
-    // Optional NC point: s_col is shared by DEC parent and children. y_zcol is
-    // intentionally not b-ary recomposed here; SplitNc's NC sidecar does not
-    // telescope through DEC and is re-bound at the terminal CE boundary.
-    let t = parent.y_ring.len();
-    if t < s.t() {
-        eprintln!("verify_dec_public failed: parent y.len()={} < s.t()={}", t, s.t());
-        return false;
-    }
-    for (idx, ch) in children.iter().enumerate() {
-        if ch.y_ring.len() != t {
-            eprintln!(
-                "verify_dec_public failed: child y.len mismatch (child {} has {}, expected {})",
-                idx,
-                ch.y_ring.len(),
-                t
-            );
-            return false;
-        }
-        if ch.ct.len() != t {
-            eprintln!(
-                "verify_dec_public failed: child ct.len mismatch (child {} has {}, expected {})",
-                idx,
-                ch.ct.len(),
-                t
-            );
-            return false;
-        }
-        if ch.aux_openings.len() != parent.aux_openings.len() {
-            eprintln!(
-                "verify_dec_public failed: child aux_openings.len mismatch (child {} has {}, expected {})",
-                idx,
-                ch.aux_openings.len(),
-                parent.aux_openings.len()
-            );
-            return false;
-        }
-    }
-    if parent.ct.len() != t {
-        eprintln!(
-            "verify_dec_public failed: parent ct.len()={} expected {}",
-            parent.ct.len(),
-            t
-        );
-        return false;
-    }
-
-    // y_j / X / y_zcol decomposition is checked over the same radix-b ladder.
-    let Some(d_pad) = 1usize.checked_shl(ell_d as u32) else {
-        eprintln!("verify_dec_public failed: 2^ell_d overflow");
-        return false;
-    };
-    let bF = F::from_u64(params.b as u64);
-    let bK = K::from(F::from_u64(params.b as u64));
-    let mut b_pows_f = Vec::with_capacity(k);
-    let mut b_pows_k = Vec::with_capacity(k);
-    let mut p_f = F::ONE;
-    let mut p_k = K::ONE;
-    for _ in 0..k {
-        b_pows_f.push(p_f);
-        b_pows_k.push(p_k);
-        p_f *= bF;
-        p_k *= bK;
-    }
-
-    // X
-    for rho in 0..D {
-        for c in 0..parent.m_in {
-            let mut lhs = F::ZERO;
-            for (pow, child) in b_pows_f.iter().zip(children.iter()) {
-                lhs += *pow * child.X[(rho, c)];
-            }
-            if lhs != parent.X[(rho, c)] {
-                eprintln!("verify_dec_public failed: X check mismatch at ({rho}, {c})");
-                return false;
-            }
-        }
-    }
-
-    let mut y_lhs = vec![K::ZERO; d_pad];
-    for j in 0..t {
-        y_lhs.fill(K::ZERO);
-        for (idx, (pow, child)) in b_pows_k.iter().zip(children.iter()).enumerate() {
-            if child.y_ring[j].len() != d_pad {
-                eprintln!("verify_dec_public failed: child y[{}] len mismatch at j={}", idx, j);
-                return false;
-            }
-            for t in 0..d_pad {
-                y_lhs[t] += *pow * child.y_ring[j][t];
-            }
-        }
-        if parent.y_ring[j].len() != d_pad {
-            eprintln!("verify_dec_public failed: parent y[j] len mismatch at j={j}");
-            return false;
-        }
-        if parent.ct[j] != crate::common::ct_from_y_digits(&parent.y_ring[j]) {
-            eprintln!("verify_dec_public failed: parent ct mismatch at j={j}");
-            return false;
-        }
-        for (idx, child) in children.iter().enumerate() {
-            if child.ct[j] != crate::common::ct_from_y_digits(&child.y_ring[j]) {
-                eprintln!("verify_dec_public failed: child {idx} ct mismatch at j={j}");
-                return false;
-            }
-        }
-        if y_lhs != parent.y_ring[j] {
-            eprintln!("verify_dec_public failed: y check mismatch at j={}", j);
-            return false;
-        }
-    }
-
-    let _ = (bK, d_pad);
-
-    // aux_openings: field-linear decomposition must hold as well.
-    for j in 0..parent.aux_openings.len() {
-        let mut lhs = K::ZERO;
-        for (pow, child) in b_pows_k.iter().zip(children.iter()) {
-            lhs += *pow * child.aux_openings[j];
-        }
-        if lhs != parent.aux_openings[j] {
-            eprintln!("verify_dec_public failed: aux_openings check mismatch at j={j}");
-            return false;
-        }
-    }
-
-    // c
-    let want_c = combine_b_pows(&children.iter().map(|c| c.c.clone()).collect::<Vec<_>>(), params.b);
-    if want_c != parent.c {
-        eprintln!("verify_dec_public failed: commitment check mismatch");
-        return false;
-    }
-
-    true
 }

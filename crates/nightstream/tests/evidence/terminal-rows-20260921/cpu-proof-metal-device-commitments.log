@@ -1,0 +1,14 @@
+
+running 1 test
+complete child commitments elapsed=9.75µs
+complete physical witness elapsed=1.105341375s
+complete logical packing elapsed=2.651028333s
+test lifecycle::tests::terminal_engine::metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection has been running for over 60 seconds
+complete fresh commitment elapsed=97.371297125s
+CPU base proof built elapsed=135.978350042s
+CPU proof accepted by Metal elapsed=145.619789209s activity=MetalActivity { command_buffers: 24, dispatches: 412, host_waits: 24, allocated_bytes: 4919034869, uploaded_bytes: 2130851221, downloaded_bytes: 9508, current_allocated_bytes: 2008940544 }
+Recommitted false witness rejected at row=0 elapsed=150.357601542s
+test lifecycle::tests::terminal_engine::metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 150.42s
+

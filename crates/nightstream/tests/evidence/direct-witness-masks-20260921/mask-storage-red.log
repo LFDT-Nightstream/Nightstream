@@ -1,0 +1,22 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+   Compiling neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Finished `release` profile [optimized] target(s) in 22.65s
+     Running unittests src/lib.rs (target/release/deps/neo_prover_metal-649e334361ae5d8a)
+
+running 1 test
+
+thread 'session::masks::tests::zero_suffix_does_not_allocate_host_mask_words' (567822) panicked at crates/neo-prover-metal/src/session/../../tests/unit/witness_mask_storage.rs:66:5:
+assertion `left == right` failed: zero suffix allocated host mask words
+  left: 1104
+ right: 80
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test session::masks::tests::zero_suffix_does_not_allocate_host_mask_words ... FAILED
+
+failures:
+
+failures:
+    session::masks::tests::zero_suffix_does_not_allocate_host_mask_words
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.29s
+
+error: test failed, to rerun pass `-p neo-prover-metal --lib`

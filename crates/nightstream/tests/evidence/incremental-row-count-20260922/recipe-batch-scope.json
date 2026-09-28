@@ -1,0 +1,130 @@
+{
+  "status": "tests, workspace, raw Metal and matched compile-inclusive profiles passed; prepared-package feature is new work",
+  "change": "One disk-backed continuation stack per native witness recipe batch; reset before each recipe.",
+  "application_record_and_native_loader_tests_passed": 19,
+  "stored_lean_poseidon_tests_passed": 4,
+  "new_production_features_or_environment_variables": false,
+  "ordinary_test_cap_seconds": 300,
+  "profile_cap_including_finalization_seconds": 1800,
+  "image_uuid": "9F975E6F-3954-3D37-8C7D-97A6BBD37CDA",
+  "workspace_release_all_targets_metal_cuda": "passed",
+  "raw_metal_lifecycle": {
+    "seconds": 244.83093,
+    "final_native_peak_resident_bytes": 12717260800,
+    "verified": true,
+    "events": [
+      {
+        "active_extends": 2,
+        "benchmark": "poseidon2_hash_chain_v1",
+        "engine": "metal",
+        "event": "benchmark_started",
+        "initial_state": [
+          202,
+          203,
+          204,
+          205
+        ],
+        "message": [
+          7,
+          11,
+          13,
+          17
+        ],
+        "profile": {
+          "B": 65536,
+          "b": 2,
+          "k_rho": 16
+        },
+        "schema": 1,
+        "steps": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "prepare",
+        "step": null
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prepare",
+        "seconds": 34.391749625,
+        "step": null
+      },
+      {
+        "event": "phase_started",
+        "phase": "prove",
+        "step": 1
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prove",
+        "seconds": 6.697943375,
+        "step": 1
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 2
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 69.995417458,
+        "step": 2
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 94.945387917,
+        "step": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "verify",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "verify",
+        "seconds": 38.800077458,
+        "step": 3
+      },
+      {
+        "circuit_identity": [
+          9705822157724451396,
+          520958727644325895,
+          9285622073986934000,
+          874020794279380938
+        ],
+        "event": "benchmark_finished",
+        "final_state": [
+          6571778207680039711,
+          123649970047308705,
+          16791205033536618392,
+          12263481847644113771
+        ],
+        "seconds": 244.83093,
+        "steps": 3,
+        "verified": true
+      }
+    ],
+    "previous_start_finish_match": true
+  },
+  "matched_compile_inclusive_profiles": {
+    "cpu_seconds": 1300.842536625,
+    "metal_seconds": 246.453710167,
+    "cpu_over_metal": 5.278242862497519,
+    "same_saved_executable": true,
+    "both_verified": true,
+    "both_nominal_thermal": true,
+    "observed_kernel_peak_resident_bytes": {
+      "cpu": 15783100416,
+      "metal": 12711673856
+    },
+    "final_post_exit_profile_rss_available": false
+  }
+}

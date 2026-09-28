@@ -1,0 +1,22 @@
+device=Apple M1 Max allocated=65536
+committed status=2 allocated=393216
+scheduled status=3
+completed status=4 error=none
+        0.33 real         0.01 user         0.01 sys
+            13303808  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1044  page reclaims
+                   3  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  31  voluntary context switches
+                 124  involuntary context switches
+            73297117  instructions retired
+            55509235  cycles elapsed
+             4833736  peak memory footprint

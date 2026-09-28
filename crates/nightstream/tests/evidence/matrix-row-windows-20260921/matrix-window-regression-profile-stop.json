@@ -1,0 +1,7 @@
+{
+  "target_pid": 88142,
+  "signal": "SIGTERM",
+  "reason": "Diagnostic sample identifies repeated row-window rebuilding in output_openings. Stop this known regressed build; full proof and performance validation remain failed/open.",
+  "time": 1790045864.1822028,
+  "final_signal": "SIGKILL"
+}

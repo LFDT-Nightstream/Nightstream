@@ -1,0 +1,867 @@
+{
+  "schema": 1,
+  "milestone": "All28 independent PiCCS round messages and complete retained prefixes",
+  "status": "Local round-message replay, every-prefix-byte checks and retained-array kernel pass; complete PiCCS proof replay remains open",
+  "base_commit": "d91fa1bc68ed42d0edc2136d53f5ee0316fe506d",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "source_revision": "The exact source files below are committed with this report. Runtime source and executable hashes were checked unchanged after validation.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "cube_variables": 28,
+    "sources": 17,
+    "fresh_sources": 1,
+    "running_sources": 16,
+    "matrix_ports": 14,
+    "ring_degree": 54,
+    "matrix_rows": 6377559,
+    "carrier_blocks": 4685394,
+    "scalars_per_source": 253011276
+  },
+  "authority": "Original public input and independently retained Lean prefixes feed the producer. Each saved round is replayed causally from the public statement before its challenge is used. Rust proof and phase values enter only comparison scripts. Digests identify retained files; they do not prove source correctness.",
+  "preserved": "Protocol, package, production key, all coefficients, source order, gamma exponents, selectors, transcript schedule and zero-tail rules are unchanged. All17 norm sources are retained and validated; no source is removed or renumbered.",
+  "implementation": "The binary stream reader decodes every canonical field word, including values outside arithmetic slices. Global even indices own pairs across chunk boundaries. Only the missing true tail endpoint is zero. Each fold uses the existing PrefixFold.interpolate or PiCCSFreshPrefix.pairRow. The initial17 code streams are decoded and folded once with PrefixFold.foldOne. Later norms use the original normPair separately per source. Singleton prefixes continue consuming challenges.",
+  "runtime": "Stock Lean4.30.0 on Linux Ryzen7 7700X,8 cores/16 threads; validate.sh selects LEAN_NUM_THREADS=16. No compiler fork, GPU path, extern or unsafe replacement.",
+  "sources": [
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSPrefixMain.lean",
+      "bytes": 49088,
+      "sha256": "46d96137b28f1cd264d14a1e290f6b9506ac650925ba3544283908ce2c40aa9b"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSPrefixFiles.lean",
+      "bytes": 17714,
+      "sha256": "f684ea0ac5b31412c7cfba8bb3f31d0a6015183f54cac1006db76fd58754c896"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_binary_fold.py",
+      "bytes": 10336,
+      "sha256": "cafd9acdbdc477c02306e94fd62c8ca0a9a22ea7ea75d161eeb38b83fd62be61"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_norm_field_fold.py",
+      "bytes": 8418,
+      "sha256": "2a89a9e877f74c258ab2f939d82450fe393e510dda61942e88369c7dfa3fc62b"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_norm_field_inputs.py",
+      "bytes": 7566,
+      "sha256": "9ed8333d1c0bb6f415eb6200290f8a0078f060e377dcbcb1a5f6992fdbbf8332"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_terminal_prefix.py",
+      "bytes": 4399,
+      "sha256": "c9e1215ab359f7c2fec2755a606cea28682a4ac0cfd2dc8b1675e3cb22771da9"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/check_piccs_all_rounds.py",
+      "bytes": 2677,
+      "sha256": "75e1656cbb1ee6f053f1e50a5874d6908f761c7d844fb987c0e770e81eab9384"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/EvidenceTargets.lean",
+      "bytes": 50055,
+      "sha256": "8e01335893533ca0b4905e4eef3838caaf04a50299bd1901331acd3b29010fa1"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/tests/EvidenceAcceptance.lean",
+      "bytes": 1918,
+      "sha256": "2015dc8c7d84f01a161762e810e618191da9893987a695e7725fd0d1d3ddd238"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/scripts/lean_graph/PiCCSReplayMetadata.lean",
+      "bytes": 1210,
+      "sha256": "c078362b15a773ee19791cb49268aa6f377701413b0fbe96d482375e8e8ef4cb"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/scripts/lean_graph/obligations.json",
+      "bytes": 211007,
+      "sha256": "5642092c54f95e8fbcb16a8a46a44339d0d19f4af9d2cf9d4ad07d4137a2d0b4"
+    },
+    {
+      "path": "/home/nicoarq/develop/Nightstream/scripts/lean_graph/STAGE1_BASELINE.md",
+      "bytes": 23534,
+      "sha256": "e01e2efa690aca148fd79e4f413285097e49ebc50faf622d792b7e23be86ffd2"
+    }
+  ],
+  "executable": {
+    "path": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSPrefix",
+    "bytes": 136940344,
+    "sha256": "36b1417a2e3fdad8ba647debfb2dbe98a433a27b8ea4d42667e5234043d63968"
+  },
+  "runtime_stability": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/source-stability.log",
+    "bytes": 217,
+    "sha256": "3f3205a65131796ec1a0fc364cf4553620394e11f692a1985256ed1c7d3fd7b3"
+  },
+  "original_public": {
+    "path": "/tmp/nightstream-piccs-original-public-1.json",
+    "bytes": 410910,
+    "sha256": "54dc9d56e0b0b2cb6c14d9e3cc5d2d56114132721ff9cb35577946f1f64b5a37"
+  },
+  "upstream_records": [
+    "PICCS_FIRST_ROUND_REPLAY.json",
+    "PICCS_CARRIED_PREFIX_REPLAY.json",
+    "PICCS_NORM_PREFIX_REPLAY.json",
+    "PICCS_THIRD_ROUND_REPLAY.json"
+  ],
+  "retained_inputs": {
+    "norm_after_two": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-prefix-89de592c.bUiQ4a/prefix-complete",
+    "fresh_after_two": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/fresh-after-two",
+    "matrix_after_two": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/matrix-after-two",
+    "pad_after_two": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/pad-after-two",
+    "norm_input_file_manifest": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/INPUT_FILES.json",
+      "bytes": 1569038,
+      "sha256": "1a95be0140f4e2370dacc4b28b883ded13ce49ba1d97513876c765a1efaa6c67"
+    },
+    "field_input_file_manifest": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/OUTPUT_FILES.json",
+      "bytes": 1502598,
+      "sha256": "3f4d49cdba7bd9c746ded6cf7b53452f83e3ea51bf3ea39811d7fa877d988653"
+    },
+    "q0": {
+      "path": "/tmp/nightstream-piccs-first-round-independent-1.json",
+      "bytes": 2181,
+      "sha256": "15c5e977ada8fd3510aa5a968fff2af285dffda499138b2a3b210bed52e7af4d"
+    },
+    "q1": {
+      "path": "/tmp/nightstream-piccs-second-round-independent-1.json",
+      "bytes": 2183,
+      "sha256": "a734dd6131e087af90ac47420ae4b6258921d9d0e4e957260881361f7be70b05"
+    },
+    "q2": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-round2-74fa4aaf.O4dLXE/round-2.json",
+      "bytes": 2183,
+      "sha256": "7ab3206a4db4726ba5c7acdb0dcfd790cfe9f4f3dbc4d3453c571d6ca01e4d41"
+    }
+  },
+  "comparison_targets_only": [
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+      "bytes": 657063,
+      "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+    },
+    {
+      "path": "/tmp/nightstream-native-nonzero-ccs-2.phase.json",
+      "bytes": 450952,
+      "sha256": "1433dd4c7b8e25b7ea69c2bab1c82e92f9397f3854743396d466899bfc67d8eb"
+    }
+  ],
+  "round_coverage": {
+    "rounds": [
+      0,
+      28
+    ],
+    "K_coefficients": 280,
+    "field_words": 560,
+    "canonical_coefficient_bytes": 4480,
+    "challenged_transcript_transitions": 28,
+    "newly_generated_rounds": [
+      3,
+      28
+    ],
+    "fields": [
+      "alpha",
+      "gamma",
+      "all ten coefficients per round",
+      "pre-round state",
+      "challenge",
+      "post-challenge state",
+      "initial claim",
+      "endpoint sum",
+      "next claim"
+    ],
+    "changed_coefficient_targets_rejected": 28,
+    "round_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces",
+    "round_files": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-0.json",
+        "bytes": 2181,
+        "sha256": "15c5e977ada8fd3510aa5a968fff2af285dffda499138b2a3b210bed52e7af4d"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-1.json",
+        "bytes": 2183,
+        "sha256": "a734dd6131e087af90ac47420ae4b6258921d9d0e4e957260881361f7be70b05"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-2.json",
+        "bytes": 2183,
+        "sha256": "7ab3206a4db4726ba5c7acdb0dcfd790cfe9f4f3dbc4d3453c571d6ca01e4d41"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-3.json",
+        "bytes": 2184,
+        "sha256": "d14f8397ed8a12f9534f606e2f7e47ad14d7d6ea37afe8f58dfd99b1099a00c2"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-4.json",
+        "bytes": 2177,
+        "sha256": "9387be56ebc864db2c8eaeaec5dcfabef52933d1dc127875922e74746f0d37ce"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-5.json",
+        "bytes": 2180,
+        "sha256": "f3911914208dca6ec027be31bafc53476583f280345ee50e132a1a645fa42c44"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-6.json",
+        "bytes": 2180,
+        "sha256": "c138cfaccf19015bcf81ea93b4170be6b75a804118eff65ece1e0573c84649d0"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-7.json",
+        "bytes": 2178,
+        "sha256": "a4de1832105532bad2a9727ad2372b9c4518d71a12678860565348e6b3cf35f6"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-8.json",
+        "bytes": 2179,
+        "sha256": "c6a2f1c85794e550ad19379d09ae53f052c7ec203bc679c6a1fb7eaad2d31390"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-9.json",
+        "bytes": 2185,
+        "sha256": "41d3fea2c793dbf58accc984793f26a44889087b48b8ce4e2373b51264826ee8"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-10.json",
+        "bytes": 2186,
+        "sha256": "ea32050026fe30ebb33f8b7a31d008afe86a2b6c90549135f3e1ffb0d2a07c20"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-11.json",
+        "bytes": 2184,
+        "sha256": "dabd40d553a14586b2f2d0c49febe7745cc99639af8de297c4e4f156c6385886"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-12.json",
+        "bytes": 2175,
+        "sha256": "bf436d40856348424c0a8dcbedccdf3abc1db631eb62fcd3773814d9a81ce2d2"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-13.json",
+        "bytes": 2173,
+        "sha256": "02d00822315ec58f5789b2001ec1b0a93f9a237bde90483d64b236b048f4f76f"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-14.json",
+        "bytes": 2182,
+        "sha256": "e20dadfc08a3c77c0efa3468fe01febcbbcda17262b02f372b51878ef1974534"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-15.json",
+        "bytes": 2182,
+        "sha256": "9fc9022c16b5f3bc54b5392df9d55c47db48a6df58533f24b7ce831cbcd84782"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-16.json",
+        "bytes": 2175,
+        "sha256": "44db0679a3facbe433115ce16cc22c56ea01aee71035b2ad811783c3e1295c40"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-17.json",
+        "bytes": 2180,
+        "sha256": "975522956370cf5337527ed1b66d0a4da4930a8d37f715dcc2374385795c55fc"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-18.json",
+        "bytes": 2174,
+        "sha256": "c5981890a4c6a42f6edf4a5d7d6830b88b9fc01cc1998cb38711f932ab888ff6"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-19.json",
+        "bytes": 2174,
+        "sha256": "e97f78e73261934b81c0360b0396c0086f74d79f49fec9d01069fb5088302098"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-20.json",
+        "bytes": 2180,
+        "sha256": "93936079641cb22e445506b8b88783a8afef00aff4a5501a884e2675c618165f"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-21.json",
+        "bytes": 2180,
+        "sha256": "01f692cfa9ad85cbbb199cd07db2942a960ec2ae8b826ec37dbda02bf8f2a378"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-22.json",
+        "bytes": 2172,
+        "sha256": "c172c425084a6304f5cba2ff9e49aea77bf9eab9f09a2e04ccba98f3a029fab0"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-23.json",
+        "bytes": 2180,
+        "sha256": "abb1b40f4b44bc09e189b66d16c0316d2256cfdd3e7745f145a469529cadc357"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-24.json",
+        "bytes": 2188,
+        "sha256": "3dfbfa62394d9e26ecffa4a1727da3b5aee277a6d43484c2b18de514987b0081"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-25.json",
+        "bytes": 2184,
+        "sha256": "58fae9fc627b0164b6109257815cfdff81afa93bb4dd4ac2b48117c5cca21455"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-26.json",
+        "bytes": 2186,
+        "sha256": "fdd0b7a2eb5e0a15aa88db497f6fa750bd40de10e8ed0a6afabcfc5cedd3fff8"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/round-traces/round-27.json",
+        "bytes": 2183,
+        "sha256": "8b1536c875b3eb97bcc2361d7ca6fd80705e62a6446ba378f5c14cb6a3dfab2a"
+      }
+    ],
+    "source_scope": "Q0/Q1 and Q2 retain their earlier generation records. This milestone independently computes Q3 through Q27 and rechecks the complete set."
+  },
+  "prefix_coverage": {
+    "depths": [
+      3,
+      29
+    ],
+    "sources": 17,
+    "byte_check_invocations": 504,
+    "compared_output_bytes": 18599473296,
+    "initial_norm_conversion": {
+      "input_codes": 1075297923,
+      "output_K_values": 537648970,
+      "output_bytes": 8602383520,
+      "reference": "Independent Python interpolation derives all81 endpoint values from signed digits and r0/r1, then all6561 pairs under r2. Every code and every output byte is checked; the missing final high code is40 only at the true end."
+    },
+    "later_folds": "Independent Python integer arithmetic compares each output byte against indexed interpolation of every input row, including cross-file pairs, odd tails and singleton folds. Canonical words, complete extents, challenge lists and exact file sets are checked.",
+    "mutations": "Each byte checker rejects a changed final word in a derived buffer. Original payloads are unchanged.",
+    "output_file_manifest": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/OUTPUT_FILES.json",
+      "bytes": 32392078,
+      "sha256": "d22631d74b6f3482ce970fb771a4cc9d78f4b08c000272287549302ea636db2c"
+    },
+    "manifest_file_count": 136166,
+    "manifest_total_bytes": 18601866881
+  },
+  "terminal_prefix_fields": {
+    "norm_sources": 17,
+    "fresh_matrices": 14,
+    "K_values": 31,
+    "field_words": 62,
+    "canonical_bytes": 496,
+    "coordinates": "Norm source s equals Eval_K[s][0]. Fresh matrix m equals Eval_A[0][m][0]. Phi81CoefficientKernel.constant is0 and freshSourceIndex injects source0.",
+    "changed_targets": "Norm source16 component0 and fresh matrix13 component1 reject even when the Rust proof and phase copies are changed consistently.",
+    "limit": "These are coefficient-zero fields only. They do not recover every individual Pad or matrix coefficient. Full evaluation authority must cover all17 PaperAlgebra.evaluationFamily results."
+  },
+  "kernel": {
+    "target": "LeanGraph.Targets.PiCCSRetainedPrefixKernel",
+    "witness": "LeanGraph.Targets.piCCSRetainedPrefixKernel",
+    "statements": [
+      "Scalar foldPrefix preserves MLE evaluation at challenges++suffix when the array fits the full cube.",
+      "Every fresh row port of foldRows equals the original scalar foldOne."
+    ],
+    "premises": "Arbitrary K arrays, challenges, remaining dimension and suffix; values.size≤2^(remaining+challenges.length). The witness supplies the existing concrete interpolation laws. Fresh per-port equality has no additional premise.",
+    "allowed_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "scope_limit": "Array interpolation only; no saved-file origin, full selected-source-to-polynomial coefficient theorem or universal Rust correctness is asserted."
+  },
+  "rejection_cases": [
+    "missing_source_directory",
+    "extra_source_directory",
+    "swapped_source_identities",
+    "wrong_depth",
+    "changed_manifest_challenge",
+    "noncanonical_final_source_tail",
+    "changed_final_round_claim",
+    "existing_output"
+  ],
+  "measurements": {
+    "conditions": "Producer, fold and byte-check runs were sequential with all agents idle. File caches were not cleared. Per-command wall time includes startup. elapsed_ns covers the named routine including its initialization; it is not a per-block cost.",
+    "new_round_calculation_command_seconds": 1007.08,
+    "prefix_fold_command_seconds": 618.38,
+    "byte_check_command_seconds": 129.37,
+    "sum_of_these_command_seconds": 1754.83,
+    "peak_replay_RSS_KiB": 665228,
+    "initial_norm_fold_seconds": 135.53,
+    "initial_norm_byte_check_seconds": 18.21,
+    "per_round": [
+      {
+        "round": 3,
+        "commands_seconds": {
+          "norm": 226.13,
+          "fresh": 29.9,
+          "matrix-moments": 6.16,
+          "pad-moments": 7.27,
+          "compose": 5.51
+        },
+        "peak_rss_KiB": 389792,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 4,
+        "commands_seconds": {
+          "norm": 115.81,
+          "fresh": 26.89,
+          "matrix-moments": 5.92,
+          "pad-moments": 4.16,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 389816,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 5,
+        "commands_seconds": {
+          "norm": 60.91,
+          "fresh": 17.13,
+          "matrix-moments": 5.81,
+          "pad-moments": 2.66,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 389320,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 6,
+        "commands_seconds": {
+          "norm": 30.26,
+          "fresh": 11.43,
+          "matrix-moments": 5.61,
+          "pad-moments": 1.86,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 388584,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 7,
+        "commands_seconds": {
+          "norm": 15.99,
+          "fresh": 8.42,
+          "matrix-moments": 5.66,
+          "pad-moments": 1.46,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 389740,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 8,
+        "commands_seconds": {
+          "norm": 8.69,
+          "fresh": 7.02,
+          "matrix-moments": 5.66,
+          "pad-moments": 1.26,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 389840,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 9,
+        "commands_seconds": {
+          "norm": 5.09,
+          "fresh": 6.16,
+          "matrix-moments": 5.66,
+          "pad-moments": 1.11,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 389264,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 10,
+        "commands_seconds": {
+          "norm": 3.22,
+          "fresh": 5.81,
+          "matrix-moments": 5.71,
+          "pad-moments": 1.06,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 389284,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 11,
+        "commands_seconds": {
+          "norm": 2.17,
+          "fresh": 5.61,
+          "matrix-moments": 5.56,
+          "pad-moments": 1.06,
+          "compose": 5.36
+        },
+        "peak_rss_KiB": 389372,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 12,
+        "commands_seconds": {
+          "norm": 1.66,
+          "fresh": 5.61,
+          "matrix-moments": 5.46,
+          "pad-moments": 1.06,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 389992,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 13,
+        "commands_seconds": {
+          "norm": 1.36,
+          "fresh": 5.51,
+          "matrix-moments": 5.46,
+          "pad-moments": 1.0,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 390036,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 14,
+        "commands_seconds": {
+          "norm": 1.26,
+          "fresh": 5.56,
+          "matrix-moments": 5.36,
+          "pad-moments": 1.06,
+          "compose": 5.56
+        },
+        "peak_rss_KiB": 389548,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 15,
+        "commands_seconds": {
+          "norm": 1.21,
+          "fresh": 5.52,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.0,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 390028,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 16,
+        "commands_seconds": {
+          "norm": 1.21,
+          "fresh": 5.41,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.01,
+          "compose": 5.51
+        },
+        "peak_rss_KiB": 389968,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 17,
+        "commands_seconds": {
+          "norm": 1.26,
+          "fresh": 5.41,
+          "matrix-moments": 5.46,
+          "pad-moments": 1.01,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 388528,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 18,
+        "commands_seconds": {
+          "norm": 1.2,
+          "fresh": 5.46,
+          "matrix-moments": 5.56,
+          "pad-moments": 1.0,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 388636,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 19,
+        "commands_seconds": {
+          "norm": 1.16,
+          "fresh": 5.51,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.05,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 383308,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 20,
+        "commands_seconds": {
+          "norm": 1.21,
+          "fresh": 5.46,
+          "matrix-moments": 5.46,
+          "pad-moments": 1.06,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 370936,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 21,
+        "commands_seconds": {
+          "norm": 1.11,
+          "fresh": 5.46,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.0,
+          "compose": 5.41
+        },
+        "peak_rss_KiB": 363540,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 22,
+        "commands_seconds": {
+          "norm": 1.05,
+          "fresh": 5.46,
+          "matrix-moments": 5.46,
+          "pad-moments": 1.05,
+          "compose": 5.36
+        },
+        "peak_rss_KiB": 360772,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 23,
+        "commands_seconds": {
+          "norm": 1.1,
+          "fresh": 5.41,
+          "matrix-moments": 5.56,
+          "pad-moments": 1.0,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 358024,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 24,
+        "commands_seconds": {
+          "norm": 1.1,
+          "fresh": 5.51,
+          "matrix-moments": 5.51,
+          "pad-moments": 1.06,
+          "compose": 5.46
+        },
+        "peak_rss_KiB": 358296,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 25,
+        "commands_seconds": {
+          "norm": 1.1,
+          "fresh": 5.56,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.0,
+          "compose": 5.51
+        },
+        "peak_rss_KiB": 358596,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 26,
+        "commands_seconds": {
+          "norm": 1.1,
+          "fresh": 5.46,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.0,
+          "compose": 5.51
+        },
+        "peak_rss_KiB": 358176,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      },
+      {
+        "round": 27,
+        "commands_seconds": {
+          "norm": 1.05,
+          "fresh": 5.46,
+          "matrix-moments": 5.41,
+          "pad-moments": 1.11,
+          "compose": 5.51
+        },
+        "peak_rss_KiB": 357812,
+        "round_K_coefficients": 10,
+        "comparison": "passed",
+        "target_mutation": "rejected"
+      }
+    ],
+    "limit": "This sum excludes builds, target-comparison tests and time between commands. It is not a speedup over a previous complete all-round implementation; none was measured. The norm input and arithmetic range shrink between rounds.",
+    "complete_command_and_event_records": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/RUNS.json",
+      "bytes": 1580636,
+      "sha256": "bdbb550076c74e8754a75fe77e47854e8c6bfbfe432d07ca2205a457721a2edf"
+    }
+  },
+  "checks": [
+    {
+      "name": "all-rounds-comparison",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/all-rounds-comparison.log",
+        "bytes": 1903,
+        "sha256": "defa8343200745bd229ae81ca9f7851bb1bbac66a72894fd2eec0b42ede42edf"
+      }
+    },
+    {
+      "name": "terminal-prefix-comparison",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/terminal-prefix-comparison.log",
+        "bytes": 2342,
+        "sha256": "d281e0947987483c34611c4ab313235d85ed77e316fecd463cd072d2222590cd"
+      }
+    },
+    {
+      "name": "norm-field-input-mutations",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/norm-field-input-mutations.log",
+        "bytes": 5327,
+        "sha256": "e1f941ae02481213df99abcd398de75a58548c26fe5db285234697452fe97f50"
+      }
+    },
+    {
+      "name": "retained-target-attempt-1",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/retained-target-attempt-1.log",
+        "bytes": 157175,
+        "sha256": "497dd135fd3e97888ed691a7d9470ee19136627f5350625bfd1859069632b5c3"
+      }
+    },
+    {
+      "name": "checkpoint-all",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/checkpoint-all.log",
+        "bytes": 1298445,
+        "sha256": "70b395c6823877d7a9da74511c0951fd0d9732d8e9d16522ba51ace0db4c35dc"
+      }
+    },
+    {
+      "name": "target-acceptance",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/target-acceptance.log",
+        "bytes": 3451,
+        "sha256": "33193cc73e435dd223592106ed00bdd587a78bb394c518a3a775fff1d8473000"
+      }
+    },
+    {
+      "name": "target-metadata",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/target-metadata.log",
+        "bytes": 162340104,
+        "sha256": "eea3f9e27aff8d93f47749662443f2b2d191e99523284b988114daf80c73b734"
+      }
+    },
+    {
+      "name": "graph-tests",
+      "outcome": "passed",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/graph-tests.log",
+        "bytes": 1307,
+        "sha256": "0f8af3c7e94252f316a73494bf3c9c8874af66017dcb1b6f725b42f659656f79"
+      }
+    }
+  ],
+  "additional_checks": {
+    "graph_tests": 85,
+    "runtime_source_stability": "passed",
+    "complete_evidence_collection": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/evidence-collection.log",
+      "bytes": 599,
+      "sha256": "404b510f72981ef5c8afbf61e040ca9da62ed861dafe5959246302939b1ee259"
+    }
+  },
+  "review": "GPT-6 xhigh agents drafted and reviewed binary folds, independent byte comparators, norm input rejection cases and the exact retained-array target. The coordinator alone ran all builds and tests.",
+  "attempts": {
+    "generic_binary_runner_build": {
+      "checks": 2,
+      "first_failure": "getLast! required Inhabited K; replaced with optional access after the existing length check",
+      "result": "passed"
+    },
+    "retained_array_target": {
+      "checks": 1,
+      "result": "passed"
+    }
+  },
+  "execution_note": "An oversized SSH command request failed before any round7 process or log existed. The identical per-command capped queue was written to the evidence directory and then run successfully.",
+  "queue_script": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39/run-remaining-rounds.sh",
+    "bytes": 693991,
+    "sha256": "093290c7f72ca538fb155fe1474cf99b103780ea015f5137e8d97e4ed691ea02"
+  },
+  "external_review": {
+    "read_at": "2026-09-16 08:20 UTC",
+    "current": "Unchanged September4 external review",
+    "fable_file": "absent",
+    "active_scope": "The old Nebula frontend finding does not apply to this selected replay, which keeps Nebula inactive. No review file changed."
+  },
+  "open_requirements": [
+    "All17 complete individual evaluation families, including fresh nonconstant Pad and matrix coefficients:13770 K values in total.",
+    "Complete proof encoding, post-message transcript, HyperNova next state and full fresh assignment/commitment.",
+    "Selected-source-to-whole-polynomial and IO implementation links. PiCCSCarriedSource remains at ten failed checks; its retained repair is unapplied and check11 still needs owner approval.",
+    "Approved release publication, fresh-download validation and protected fresh-checkout generation acceptance."
+  ],
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-rounds-d91fa1bc.YY8c39",
+  "caps": {
+    "lean_seconds": 1500,
+    "native_seconds": 300,
+    "authority": "Applicable AGENTS.md, validate.sh and guard.py"
+  }
+}

@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightstream:protocol-contract:assurance-status:v2",
+  "title": "Nightstream derived assurance status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "generated_from",
+    "contract_hash",
+    "profile_hash",
+    "decisions",
+    "issues",
+    "reviews",
+    "artifacts",
+    "claims",
+    "rollups",
+    "gates",
+    "release"
+  ],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "contract_id": { "$ref": "#/$defs/nonempty" },
+    "generated_from": { "$ref": "#/$defs/string_set" },
+    "contract_hash": { "$ref": "#/$defs/digest" },
+    "profile_hash": { "$ref": "#/$defs/digest" },
+    "decisions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/decision" }
+    },
+    "issues": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "reviews": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/review" }
+    },
+    "artifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "rollups": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/rollup" }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/gate" }
+    },
+    "release": { "$ref": "#/$defs/release" }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "identifier": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]+$" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "class",
+        "statement",
+        "reason",
+        "authorizes",
+        "directly_blocks",
+        "downstream_impact",
+        "owner",
+        "selection_state",
+        "integration_state"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "class": { "$ref": "#/$defs/nonempty" },
+        "statement": { "$ref": "#/$defs/nonempty" },
+        "reason": { "$ref": "#/$defs/nonempty" },
+        "authorizes": { "$ref": "#/$defs/string_set" },
+        "directly_blocks": { "$ref": "#/$defs/string_set" },
+        "downstream_impact": { "$ref": "#/$defs/string_set" },
+        "owner": { "$ref": "#/$defs/nonempty" },
+        "selection_state": {
+          "enum": ["open", "candidate-selected", "approved", "rejected", "not-applicable"]
+        },
+        "integration_state": {
+          "enum": ["unreviewed", "not-started", "partial", "complete", "not-applicable"]
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "state", "owner", "legacy_label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "description": { "$ref": "#/$defs/nonempty" },
+        "state": { "enum": ["open", "resolved"] },
+        "owner": { "$ref": "#/$defs/nonempty" },
+        "legacy_label": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "claim_id", "reviewer_role", "reviewer", "reviewed_at", "method",
+        "conclusion", "contract_sha256", "profile_sha256", "evidence_sha256"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "claim_id": { "$ref": "#/$defs/identifier" },
+        "reviewer_role": { "$ref": "#/$defs/nonempty" },
+        "reviewer": { "$ref": "#/$defs/nonempty" },
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        },
+        "method": { "$ref": "#/$defs/nonempty" },
+        "conclusion": { "enum": ["accepted", "rejected"] },
+        "contract_sha256": { "$ref": "#/$defs/digest" },
+        "profile_sha256": { "$ref": "#/$defs/digest" },
+        "evidence_sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "availability"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": { "$ref": "#/$defs/nonempty" },
+        "path": { "$ref": "#/$defs/nonempty" },
+        "availability": {
+          "enum": ["packaged", "repository-required", "unresolved"]
+        },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "note": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "applicability",
+        "evidence_state",
+        "depends_on",
+        "evidence",
+        "blocker_ids",
+        "dependency_state",
+        "blocker_state",
+        "unresolved_blocker_ids",
+        "closure_state",
+        "display_status",
+        "freshness"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": { "$ref": "#/$defs/nonempty" },
+        "applicability": { "enum": ["required", "not-applicable"] },
+        "evidence_state": { "enum": ["none", "partial", "complete"] },
+        "depends_on": { "$ref": "#/$defs/string_set" },
+        "evidence": { "$ref": "#/$defs/string_set" },
+        "blocker_ids": { "$ref": "#/$defs/string_set" },
+        "dependency_state": { "enum": ["satisfied", "waiting"] },
+        "blocker_state": { "enum": ["clear", "blocked"] },
+        "unresolved_blocker_ids": { "$ref": "#/$defs/string_set" },
+        "closure_state": { "enum": ["open", "closed", "not-applicable"] },
+        "display_status": {
+          "enum": ["open", "blocked", "partial", "closed", "not-applicable"]
+        },
+        "freshness": { "enum": ["current", "stale", "missing", "unbound", "not-applicable"] }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ids", "decision_ids", "rule_ids"],
+      "properties": {
+        "source_ids": { "$ref": "#/$defs/string_set" },
+        "decision_ids": { "$ref": "#/$defs/string_set" },
+        "rule_ids": { "$ref": "#/$defs/string_set" }
+      }
+    },
+    "scope_selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "all-sources",
+            "paper-rules-and-sources",
+            "decision-authority",
+            "evidence-target",
+            "explicit",
+            "all"
+          ]
+        },
+        "target": { "enum": ["lean", "rust", "rust-origin", "circuit", "security"] },
+        "source_ids": { "$ref": "#/$defs/string_set" },
+        "decision_ids": { "$ref": "#/$defs/string_set" },
+        "rule_ids": { "$ref": "#/$defs/string_set" }
+      }
+    },
+    "rollup_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "artifact_id", "procedure"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/nonempty" },
+        "artifact_id": { "$ref": "#/$defs/identifier" },
+        "procedure": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "rollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "edge",
+        "scope_selector",
+        "upstream",
+        "downstream",
+        "evidence",
+        "depends_on",
+        "leaf_claim_ids",
+        "limitations",
+        "scope",
+        "dependency_state",
+        "closure_state",
+        "display_status",
+        "unresolved_leaf_claim_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "edge": { "$ref": "#/$defs/nonempty" },
+        "scope_selector": { "$ref": "#/$defs/scope_selector" },
+        "upstream": { "$ref": "#/$defs/string_set" },
+        "downstream": { "$ref": "#/$defs/string_set" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rollup_evidence" }
+        },
+        "depends_on": { "$ref": "#/$defs/string_set" },
+        "leaf_claim_ids": { "$ref": "#/$defs/string_set" },
+        "limitations": { "$ref": "#/$defs/string_set" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "dependency_state": { "enum": ["satisfied", "waiting"] },
+        "closure_state": { "enum": ["open", "closed"] },
+        "display_status": { "enum": ["blocked", "partial", "closed"] },
+        "unresolved_leaf_claim_ids": { "$ref": "#/$defs/string_set" }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "requires", "closure_state"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "requires": { "$ref": "#/$defs/string_set" },
+        "closure_state": { "enum": ["closed", "blocked"] }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "root_claim",
+        "implementation_ready",
+        "implementation_ready_gate",
+        "highest_closed_gate",
+        "next_gate",
+        "production_claim_permitted"
+      ],
+      "properties": {
+        "eligible": { "type": "boolean" },
+        "root_claim": { "$ref": "#/$defs/identifier" },
+        "implementation_ready": { "type": "boolean" },
+        "implementation_ready_gate": { "$ref": "#/$defs/identifier" },
+        "highest_closed_gate": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "next_gate": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "production_claim_permitted": { "type": "boolean" }
+      }
+    }
+  }
+}

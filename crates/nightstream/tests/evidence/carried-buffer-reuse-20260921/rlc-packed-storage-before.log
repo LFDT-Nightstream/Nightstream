@@ -1,0 +1,21 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 5.82s
+     Running tests/rlc_packed_storage.rs (target/release/deps/rlc_packed_storage-34626e0dbf117ba2)
+
+running 1 test
+
+thread '<unnamed>' (468524) panicked at crates/neo-reductions/tests/rlc_packed_storage.rs:66:9:
+assertion `left == right` failed: packed RLC allocates data beyond its output
+  left: 132192
+ right: 23760
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test packed_rlc_needs_no_nonzero_entry_lists ... FAILED
+
+failures:
+
+failures:
+    packed_rlc_needs_no_nonzero_entry_lists
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p neo-reductions --test rlc_packed_storage`

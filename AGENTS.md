@@ -1,6 +1,7 @@
 # AGENTS.md
 
 ## General
+- **Required communication standard.** Use ASD-STE100 Simplified Technical English for all user-facing answers and progress updates.
 - We don't care about backwards compatibility because we are still in development. Keep the code simple and lean.
 - Avoid adding new Rust features or ENVs unless it is explicitly approved.
 - Never modify this file without explicit approval.
@@ -9,10 +10,25 @@
 - Heavily avoid bloat. We want to maintain a compact and lean codebase.
 - Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
-- For difficult questions, hard design/review tradeoffs, or high-confidence soundness checks, you may use the project-local multi-AI council skill at `./.codex/skills/multi-ai-council/SKILL.md` (it may take between 5 - 25 min to answer).
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
-- **5-minute test cap (hard).** Every `cargo test` (and any other test-binary invocation) MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. The 5-minute cap is unconditional; the only way to exceed it is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
-- **No subagents (hard).** Never invoke the Agent / Task tool, never spawn a subagent of any type (`general-purpose`, `Explore`, `Plan`, `claude`, etc.), and never call `mcp__ccd_session__spawn_task`. Do all work inline in the current session. This is unconditional — the only way to dispatch a subagent is the user explicitly approving a specific dispatch in the same turn, naming the subagent_type and the task; there is no standing exception. The multi-AI council skill referenced above is a separate mechanism (a slash-command tool, not the Agent tool) and is still allowed where rule 12 applies.
+- **Fixed SuperNeo Goldilocks decomposition policy (hard rule).** Keep `b = 2`. Use `k_rho = 16` and `B = 2^16` by default for a Nightstream production profile. Use `k_rho = 18` and `B = 2^18` only when an explicit requirement or a measured result shows that `k_rho = 16` is insufficient. In both cases, `B = b^k_rho`.
+- The SuperNeo Appendix B.2 values `k_rho = 14` and `B = 2^14` are reference values only. Do not use them for a Nightstream production proof artifact.
+- Each frozen or generated profile must select and protocol-bind one exact allowed pair. Do not mix `k_rho = 16` and `k_rho = 18` within one profile or its artifacts.
+- Do not use `b = 4`, `k_rho = 7`, radix-four decomposition, or a `k_rho` value other than 16 or 18 unless the user explicitly approves those exact values in the current task.
+- A domain-size target, including `2^24`, a performance result, a cvc5 result, generated-artifact size, or implementation convenience does not authorize a change outside this policy.
+- Do not describe a `k_rho = 16` or `k_rho = 18` profile as SuperNeo Appendix B.2 or paper exact. Describe it as a Nightstream Goldilocks profile and state the selected `k_rho` value.
+- **5-minute non-Lean test cap (hard).** Every `cargo test` and every other non-Lean test-binary invocation MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**, except for Instruments/xctrace profiling runs covered below. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. Outside Instruments/xctrace profiling, exceeding this cap requires explicit user approval for a specific invocation in the same turn.
+- **30-minute Instruments cap (hard).** Every Instruments/xctrace profiling run MUST be launched with a timeout of **at most 1 800 000 ms (30 minutes)**. This includes the profiled non-Lean program and trace finalization, and replaces the five-minute test cap for that profiling run. Use `timeout: 1800000` when the tool supports it, or an outer `timeout --signal=KILL 1800` command. If profiling is still running at the cap, stop it and treat the capture as incomplete. A longer profiling run requires explicit user approval for that specific invocation.
+- **25-minute Lean cap (hard).** Every Lean-related command, including `lake build`, `lake test`, `lake exe`, `lake env lean`, and direct Lean test or executable invocations, MUST be launched with a timeout of **at most 1 500 000 ms (25 minutes)**. Pass `timeout: 1500000` to the Bash tool — do not omit it, do not raise it. If a Lean command is still running at the cap, kill it and treat it as failing this slice. The only way to exceed the cap is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
+
+## Writing
+
+Follow Zinsser's four principles of quality writing:
+
+1. Simplicity
+2. Brevity
+3. Clarity
+4. Humanity
 
 ## Operating Discipline
 - Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
@@ -21,6 +37,53 @@
 - If your change creates unused imports, variables, functions, or orphaned code, remove that newly-created dead surface. Do not delete pre-existing unrelated dead code unless explicitly asked.
 - Define success criteria for non-trivial work before coding. For bug fixes, add or update a test that would fail on the bug; for refactors, identify the compile/test checks that prove behavior was preserved.
 - Surface uncertainty and tradeoffs directly. If a simpler approach exists or the requested direction risks extra complexity, say so before implementing.
+
+## MSW — the kernel
+
+Remember to follow the MSW deletion rule for all claims—no exceptions.
+
+### program — complete
+
+```r
+contract ← the requested outcome + the smallest criteria that prove it
+
+while ∃ claim c : deleting c leaves contract unmet ∨ unproven
+      do c ; prove c
+
+halt ; report
+```
+
+### definitions — no behavior lives here, only meaning
+
+**contract** — the requested outcome and the smallest set of acceptance criteria that would prove it, stated before any work. The sole source of necessity; a ceiling as much as a floor. If the request is ambiguous: attended → ask; unattended → bind the smallest reading consistent with stated intent and record the assumption.
+
+**claim** — anything petitioning to become work: a plan step, a change, a test, a reviewer's P1, a discovered edge case, your own instinct that one more pass would help. Everything enters as this type. Nothing enters as a verdict.
+
+**deleting c leaves contract unmet ∨ unproven** — the only test. A claim passes solely by breaking the contract — reproducibly, within the task's actual inputs and environment. Severity is derived from the contract, never inherited from whoever raised the claim. *Useful*, *thorough*, and *possible* are not aliases for *necessary*. A claim that fails receives one line in the report — never a fix, an investigation, or a deferred follow-up.
+
+**do ; prove** — the smallest reliable act that closes the gap, and evidence sized to the claim it settles. An unproven act keeps its claim alive; a proven one closes it — and re-proving a closed claim is itself an inadmissible claim.
+
+**halt** — the fixed point: contract proven, no remaining claim passes. Not reviewer silence; not exhausted imagination. Halting before the fixed point and looping past it are the same bug, mirrored.
+
+**report** — the outcome against the contract; the proof; rejected claims worth the user's attention, one line each. Nothing else.
+
+### fuses — outside the program, for when its evaluator fails
+
+```python
+rounds = 3            → halt anyway ; report open items, do not chase them
+claim born in round n+1, visible in round n   → rejected
+```
+
+### No unauthoritative limits
+
+Never invent a limit. A cap, threshold, quota, budget, timeout, retry or round count, file or line count, acceptance-criterion count, agent count, or similar constraint is admissible only when its exact value is:
+
+- explicitly required by the requester;
+- imposed by an applicable technical or platform contract;
+- defined by authoritative project policy; or
+- derived from measured evidence necessary to meet or prove the task contract.
+
+State the authority or derivation whenever proposing or applying a limit. If no authority exists, omit the limit and use the MSW necessity test. Metrics may be reported as evidence, but they must not become gates, defaults, targets, or recommendations through agent intuition. Examples and representative proportions never become defaults. If a necessary limit is an unresolved owner choice, ask; do not manufacture a value.
 
 ## Security
 - Digests are fine as compression, but never as authority.
@@ -70,18 +133,32 @@
 
 ## Formal Lean Subprojects
 - Lean-specific instructions live in subdirectory `AGENTS.md` files so they apply only to the matching formal project.
+- **Frozen and deprecated Nightstream Lean project (hard rule).** `formal/nightstream-lean` is a read-only reference corpus. Do not edit, add, delete, generate, format, repair, or otherwise maintain files in this project. Do not add new production dependencies on it or use it as the production proof authority. Read its files only for reference. Resume work in it only when the user explicitly unfreezes it in the current task.
+- Before a permitted inspection of the frozen Nightstream Lean project, read `formal/nightstream-lean/AGENTS.md`.
 - For the SuperNeo Lean project, read `formal/superneo-lean/AGENTS.md`.
 
 
 ## Perf & Constraint Debugging
 
-Use these commands based on what you are measuring. All perf snapshots are `--ignored` by default.
+Use the `nightstream` Poseidon2 benchmark for current performance work. Build it
+before timing with `cargo build -p nightstream --release --features metal --bin nightstream-poseidon2-bench`
+on a supported Mac; omit `--features metal` for a CPU-only build.
+Replace `PACKAGE_PATH`, `STEP_COUNT`, and `MINIMUM_SECURITY_BITS` with the caller's
+choices. Use the same saved package and step count for both engines. A step count
+includes the base step; two or more steps execute active folds. The caller must
+set the security minimum; this table supplies no default.
 
 | Question | Command |
 |---|---|
-| How expensive is lifecycle fold/IVC append work for an F′ chain? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_bits_perf_snapshot` |
-| What R1CS shape does the full-history audit circuit hand to the decider? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot` (chain length via `NEO_FOLD_FIB_DECIDER_VALUES`) |
-| How do low-norm ring-action encodings compare in committed width/rows? | `cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture` |
+| How long does one-time circuit compilation and saving take? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output PACKAGE_PATH` |
+| How long do package loading, proving, and terminal verification take on CPU? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine optimized --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+| How long does the same lifecycle take on Metal? | `timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package PACKAGE_PATH --engine metal --steps STEP_COUNT --minimum-security-bits MINIMUM_SECURITY_BITS` |
+
+The five-minute cap applies to each command. A timed-out run is incomplete.
+Use the Instruments procedure above for a longer profile, within its 30-minute cap.
+See [the benchmark instructions](crates/nightstream/README.md#poseidon2-benchmark)
+for phase logs and peak RSS measurement. Legacy performance tests are reference
+checks, not the default benchmark for current prover work.
 
 ## Profiling
 

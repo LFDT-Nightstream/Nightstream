@@ -1,0 +1,254 @@
+import NightstreamFPrime.Export.Codec
+import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
+
+/-!
+Owns the compact transport plan for the canonical per-application assignment.
+Each opcode selects one existing retained block and its Lean-owned source
+view. `RawValues.schedule` remains the semantic assignment authority.
+
+The plan stores no expanded slots, coordinates, rows, or assignment values.
+-/
+
+namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
+
+open NightstreamFPrime.Export.Codec
+open NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle
+
+abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
+
+/-- Fixed retained-assignment block vocabulary. Enum order has no semantic
+effect; `canonicalKinds` owns the transport order. -/
+inductive BlockKind where
+  | priorPoseidon
+  | outputPoseidon
+  | laterPoseidon
+  | productGroup
+  | challengeWords
+  | productOutput
+  | priorPoseidonInput
+  | outputPoseidonInput
+  | runningPiDec
+  | runningFresh
+  | piCcsFreshPublicInput
+  | piCcsPriorLast
+  | piCcsOutputLast
+  | piCcsExpectedContext
+  | piCcsProofLogical
+  | piCcsOutputEndpoint
+  | piCcsFresh
+  | pilotCanonicalLocal
+  | pilotCanonicalFresh
+  | pilotOutputDigest
+  | piDecLogical
+  | piDecFresh
+  | samplerLogical
+  | samplerFresh
+  | applicationWitness
+  | applicationLocal
+deriving Repr, DecidableEq
+
+def BlockKind.format : Format BlockKind where
+  encode
+    | .priorPoseidon => .atom 0
+    | .outputPoseidon => .atom 1
+    | .laterPoseidon => .atom 2
+    | .productGroup => .atom 3
+    | .challengeWords => .atom 4
+    | .productOutput => .atom 5
+    | .priorPoseidonInput => .atom 6
+    | .outputPoseidonInput => .atom 7
+    | .runningPiDec => .atom 8
+    | .runningFresh => .atom 9
+    | .piCcsFreshPublicInput => .atom 10
+    | .piCcsPriorLast => .atom 11
+    | .piCcsOutputLast => .atom 12
+    | .piCcsExpectedContext => .atom 13
+    | .piCcsProofLogical => .atom 14
+    | .piCcsOutputEndpoint => .atom 15
+    | .piCcsFresh => .atom 16
+    | .pilotCanonicalLocal => .atom 17
+    | .pilotCanonicalFresh => .atom 18
+    | .pilotOutputDigest => .atom 19
+    | .piDecLogical => .atom 20
+    | .piDecFresh => .atom 21
+    | .samplerLogical => .atom 22
+    | .samplerFresh => .atom 23
+    | .applicationWitness => .atom 24
+    | .applicationLocal => .atom 25
+  decode
+    | .atom 0 => .ok .priorPoseidon
+    | .atom 1 => .ok .outputPoseidon
+    | .atom 2 => .ok .laterPoseidon
+    | .atom 3 => .ok .productGroup
+    | .atom 4 => .ok .challengeWords
+    | .atom 5 => .ok .productOutput
+    | .atom 6 => .ok .priorPoseidonInput
+    | .atom 7 => .ok .outputPoseidonInput
+    | .atom 8 => .ok .runningPiDec
+    | .atom 9 => .ok .runningFresh
+    | .atom 10 => .ok .piCcsFreshPublicInput
+    | .atom 11 => .ok .piCcsPriorLast
+    | .atom 12 => .ok .piCcsOutputLast
+    | .atom 13 => .ok .piCcsExpectedContext
+    | .atom 14 => .ok .piCcsProofLogical
+    | .atom 15 => .ok .piCcsOutputEndpoint
+    | .atom 16 => .ok .piCcsFresh
+    | .atom 17 => .ok .pilotCanonicalLocal
+    | .atom 18 => .ok .pilotCanonicalFresh
+    | .atom 19 => .ok .pilotOutputDigest
+    | .atom 20 => .ok .piDecLogical
+    | .atom 21 => .ok .piDecFresh
+    | .atom 22 => .ok .samplerLogical
+    | .atom 23 => .ok .samplerFresh
+    | .atom 24 => .ok .applicationWitness
+    | .atom 25 => .ok .applicationLocal
+    | _ => .error "invalid per-application assignment block kind"
+  decode_encode := by
+    intro kind
+    cases kind <;> rfl
+
+def canonicalKinds : List BlockKind :=
+  [.priorPoseidon, .outputPoseidon, .laterPoseidon, .productGroup,
+    .challengeWords, .productOutput, .priorPoseidonInput,
+    .outputPoseidonInput, .runningPiDec, .runningFresh,
+    .piCcsFreshPublicInput,
+    .piCcsPriorLast, .piCcsOutputLast, .piCcsExpectedContext,
+    .piCcsProofLogical, .piCcsOutputEndpoint, .piCcsFresh,
+    .pilotCanonicalLocal, .pilotCanonicalFresh, .pilotOutputDigest,
+    .piDecLogical, .piDecFresh,
+    .samplerLogical, .samplerFresh, .applicationWitness, .applicationLocal]
+
+@[simp] theorem canonicalKinds_length : canonicalKinds.length = 26 := by
+  rfl
+
+structure BlockTemplate (application : ProgramApplication) where
+  sourceWidth : Nat
+  block : LowNormBlock.Block sourceWidth
+  source : RawValues application → Fin sourceWidth →
+    NightstreamFPrime.Spec.F
+
+/-- One opcode selects one Lean-owned block and its value-source domain.
+Raw values are applied only after this template fixes the block geometry. -/
+def BlockKind.template (application : ProgramApplication) :
+    BlockKind → BlockTemplate application
+  | .priorPoseidon =>
+      ⟨_, PiRLCRetainedGeometry.priorPoseidonBlock application,
+        fun raw => raw.retainedSource⟩
+  | .outputPoseidon =>
+      ⟨_, PiRLCRetainedGeometry.outputPoseidonBlock application,
+        fun raw => raw.retainedSource⟩
+  | .laterPoseidon =>
+      ⟨_, PiRLCRetainedGeometry.laterPoseidonBlock application,
+        fun raw => raw.retainedSource⟩
+  | .productGroup =>
+      ⟨_, PiRLCRetainedGeometry.productGroupBlock application,
+        fun raw => raw.retainedSource⟩
+  | .challengeWords =>
+      ⟨_, PiRLCRetainedGeometry.challengeBlock application,
+        fun raw => raw.retainedSource⟩
+  | .productOutput =>
+      ⟨_, PiRLCRetainedGeometry.productOutputBlock application,
+        fun raw => raw.retainedSource⟩
+  | .priorPoseidonInput =>
+      ⟨_, PiRLCPoseidonGeometry.priorInputBlock application,
+        fun raw => raw.retainedSource⟩
+  | .outputPoseidonInput =>
+      ⟨_, PiRLCPoseidonGeometry.outputInputBlock application,
+        fun raw => raw.retainedSource⟩
+  | .runningPiDec =>
+      ⟨_, RunningTransitionRetainedBlocks.piDecBlock application,
+        fun raw => raw.retainedSource⟩
+  | .runningFresh =>
+      ⟨_, RunningTransitionRetainedBlocks.freshBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsFreshPublicInput =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsPriorLast =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.priorLastBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsOutputLast =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.outputLastBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsExpectedContext =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.expectedContextBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsProofLogical =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.proofLogicalBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsOutputEndpoint =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.outputEndpointBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piCcsFresh =>
+      ⟨_, PiCCSOrdinaryRetainedBlocks.freshBlock application,
+        fun raw => raw.retainedSource⟩
+  | .pilotCanonicalLocal =>
+      ⟨_, PilotOrdinaryRetainedBlocks.canonicalLocalBlock application,
+        fun raw => raw.retainedSource⟩
+  | .pilotCanonicalFresh =>
+      ⟨_, PilotOrdinaryRetainedBlocks.canonicalFreshBlock application,
+        fun raw => raw.retainedSource⟩
+  | .pilotOutputDigest =>
+      ⟨_, PilotOrdinaryRetainedBlocks.outputDigestBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piDecLogical =>
+      ⟨_, PiDECRetainedBlocks.logicalBlock application,
+        fun raw => raw.retainedSource⟩
+  | .piDecFresh =>
+      ⟨_, PiDECRetainedBlocks.freshBlock application,
+        fun raw => raw.retainedSource⟩
+  | .samplerLogical =>
+      ⟨_, PiRLCSamplerOrdinaryRetainedBlocks.logicalBlock application,
+        fun raw => raw.retainedSource⟩
+  | .samplerFresh =>
+      ⟨_, PiRLCSamplerOrdinaryRetainedBlocks.freshBlock application,
+        fun raw => raw.retainedSource⟩
+  | .applicationWitness =>
+      ⟨_, ApplicationRetainedBlocks.witnessBlock application,
+        fun raw => raw.applicationSource⟩
+  | .applicationLocal =>
+      ⟨_, ApplicationRetainedBlocks.localBlock application,
+        fun raw => raw.applicationSource⟩
+
+/-- Interpret one compact opcode through its Lean-owned block template. -/
+def BlockKind.expand {application : ProgramApplication}
+    (raw : RawValues application) (kind : BlockKind) :
+      CanonicalBlockAssignment.BlockValue :=
+  let template := BlockKind.template application kind
+  Canonical.ofBlock template.block (template.source raw)
+
+/-- Expand the fixed compact plan. The result remains a 26-entry schedule;
+no retained slot or assignment coordinate is materialized. -/
+def expand {application : ProgramApplication} (raw : RawValues application) :
+    Canonical.Schedule :=
+  canonicalKinds.map (BlockKind.expand raw)
+
+/-- The compact plan is exactly the existing canonical assignment schedule. -/
+theorem expand_eq_schedule {application : ProgramApplication}
+    (raw : RawValues application) : expand raw = raw.schedule := by
+  rfl
+
+/-- Execute the Lean-authored transport program as the final retained
+assignment. -/
+def execute {application : ProgramApplication} (raw : RawValues application) :
+    Fin (PerApplicationFixedPoint.logicalWidth application) →
+      NightstreamFPrime.Spec.F :=
+  Canonical.assignment (encodedHashCells raw.outputDigest) (expand raw)
+
+/-- The executable transport program is exactly the canonical assignment
+used by the final structural relation. -/
+theorem execute_eq_assignment {application : ProgramApplication}
+    (raw : RawValues application) : execute raw = raw.assignment := by
+  unfold execute RawValues.assignment
+  rw [expand_eq_schedule]
+
+def format : Format (List BlockKind) := Codec.list BlockKind.format
+
+theorem canonical_decode_encode :
+    format.decode (format.encode canonicalKinds) = .ok canonicalKinds := by
+  exact format.decode_encode canonicalKinds
+
+end NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan

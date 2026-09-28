@@ -1,7 +1,7 @@
-use neo_ajtai::prg::expand_row_v2 as expand_row;
+use neo_ajtai::prg::expand_row;
 
 #[test]
-fn ajtai_prg_determinism_v2() {
+fn ajtai_prg_determinism() {
     let seed = [42u8; 32];
     let r0 = expand_row(&seed, 0, 10);
     let r0_b = expand_row(&seed, 0, 10);
@@ -17,10 +17,26 @@ fn ajtai_prg_determinism_v2() {
 }
 
 #[test]
-fn ajtai_prg_length_v2() {
+fn ajtai_prg_length() {
     let seed = [7u8; 32];
     for len in [1usize, 2, 3, 4, 5, 8, 9, 16, 17] {
         let row = expand_row(&seed, 123, len);
         assert_eq!(row.len(), len);
     }
+}
+
+#[test]
+fn ajtai_prg_rejects_distinct_seeds_with_the_same_field_encoding() {
+    let seed_zero = [0u8; 32];
+    let mut seed_modulus = seed_zero;
+    seed_modulus[..8].copy_from_slice(&0xffff_ffff_0000_0001u64.to_le_bytes());
+
+    assert_ne!(seed_zero, seed_modulus, "the setup seeds are byte-distinct");
+
+    let row_zero = expand_row(&seed_zero, 7, 8);
+    let row_modulus = expand_row(&seed_modulus, 7, 8);
+    assert_ne!(
+        row_zero, row_modulus,
+        "distinct Ajtai setup seeds must not collide before Poseidon2 hashing"
+    );
 }

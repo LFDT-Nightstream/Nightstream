@@ -47,7 +47,7 @@ fn build_mcs_step(
         Z[(c % D, c / D)] = val;
     }
     let c = l.commit(&Z);
-    (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
 }
 
 fn build_mcs_step_packed_digits(
@@ -71,7 +71,7 @@ fn build_mcs_step_packed_digits(
     let x: Vec<F> = z_cols[..m_in].to_vec();
     let w = z_cols[m_in..].to_vec();
     let c = l.commit(&Z);
-    (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
+    (CcsClaim { adv: None, c, x, m_in }, CcsWitness { w, Z })
 }
 
 fn run_case_with_n(n: usize, k_mcs: usize) {
@@ -82,7 +82,7 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
     let mut mcs_list = Vec::with_capacity(k_mcs);
     let mut mcs_wits = Vec::with_capacity(k_mcs);
     for i in 0..k_mcs {
-        let (inst, wit) = build_mcs_step(&params, &l, ccs.m, 2, 50 + (i as i64) * 7);
+        let (inst, wit) = build_mcs_step(&params, &l, ccs.m, D, 50 + (i as i64) * 7);
         mcs_list.push(inst);
         mcs_wits.push(wit);
     }
@@ -122,17 +122,12 @@ fn run_case(k_mcs: usize) {
 
 fn make_dummy_me_input(m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
     CeClaim {
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
+        adv: None,
         c: neo_ajtai::Commitment::zeros(D, 1),
-        X: Mat::zero(D, m_in, F::ZERO),
+        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), F::ZERO),
         r,
-        s_col: vec![],
-        y_ring: vec![vec![K::ZERO; D]],
-        ct: vec![K::ZERO],
-        aux_openings: vec![],
-        y_zcol: vec![],
+        eval_k: vec![K::ZERO; D.next_power_of_two()],
+        eval_a: vec![vec![K::ZERO; D.next_power_of_two()]],
         m_in,
         fold_digest: [0u8; 32],
     }
@@ -165,7 +160,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     let mut mcs_list = Vec::with_capacity(2);
     let mut mcs_wits = Vec::with_capacity(2);
     for i in 0..2 {
-        let (inst, wit) = build_mcs_step_packed_digits(&l, ccs.m, 2, 500 + (i as u64) * 17);
+        let (inst, wit) = build_mcs_step_packed_digits(&l, ccs.m, D, 500 + (i as u64) * 17);
         mcs_list.push(inst);
         mcs_wits.push(wit);
     }
@@ -205,12 +200,12 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
     let ccs = identity_ccs(n);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
     let l = setup_ajtai_committer(&params, ccs.m);
-    let (mcs_inst, mcs_wit) = build_mcs_step(&params, &l, ccs.m, 2, 71);
+    let (mcs_inst, mcs_wit) = build_mcs_step(&params, &l, ccs.m, D, 71);
 
     let r_len = ccs.n.next_power_of_two().trailing_zeros() as usize;
     let me_inputs = vec![
-        make_dummy_me_input(1, vec![K::ZERO; r_len]),
-        make_dummy_me_input(1, vec![K::ONE; r_len]),
+        make_dummy_me_input(D, vec![K::ZERO; r_len]),
+        make_dummy_me_input(D, vec![K::ONE; r_len]),
     ];
     let me_witnesses = vec![Mat::zero(D, ccs.m / D, F::ZERO), Mat::zero(D, ccs.m / D, F::ZERO)];
 
@@ -245,7 +240,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
     let mut mcs_list = Vec::with_capacity(2);
     let mut mcs_wits = Vec::with_capacity(2);
     for i in 0..2 {
-        let (inst, wit) = build_mcs_step(&params, &l, ccs.m, 2, 90 + (i as i64) * 5);
+        let (inst, wit) = build_mcs_step(&params, &l, ccs.m, D, 90 + (i as i64) * 5);
         mcs_list.push(inst);
         mcs_wits.push(wit);
     }
@@ -286,7 +281,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 }
 
 #[test]
-fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
+fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     let n = D;
     let ccs = identity_ccs(n);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
@@ -294,7 +289,7 @@ fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
 
     let mut mcs_list = Vec::with_capacity(1);
     let mut mcs_wits = Vec::with_capacity(1);
-    let (inst, wit) = build_mcs_step(&params, &l, ccs.m, 2, 90);
+    let (inst, wit) = build_mcs_step(&params, &l, ccs.m, D, 90);
     mcs_list.push(inst);
     mcs_wits.push(wit);
 
@@ -312,12 +307,11 @@ fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
     )
     .expect("pi_ccs prove");
 
-    // Swap the first two public-input columns in the MCS-derived output X.
+    // Add a noncanonical column and move the active input into it.
+    let old_x = out[0].X.clone();
+    out[0].X = Mat::zero(D, old_x.cols() + 1, F::ZERO);
     for rho in 0..out[0].X.rows() {
-        let a = out[0].X[(rho, 0)];
-        let b = out[0].X[(rho, 1)];
-        out[0].X[(rho, 0)] = b;
-        out[0].X[(rho, 1)] = a;
+        out[0].X[(rho, 1)] = old_x[(rho, 0)];
     }
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x_permute");
@@ -333,8 +327,5 @@ fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
     )
     .expect_err("verify must reject permuted MCS output X columns");
 
-    assert!(
-        err.to_string().contains("does not match mcs_list"),
-        "unexpected error: {err}"
-    );
+    assert!(err.to_string().contains("X has shape"), "unexpected error: {err}");
 }

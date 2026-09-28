@@ -1,0 +1,1016 @@
+{
+  "schema": 1,
+  "scope": "Matched complete three-step Time Profiler captures; not an uninstrumented speed ratio.",
+  "cpu_seconds": 1300.842536625,
+  "metal_seconds": 246.453710167,
+  "cpu_over_metal": 5.278242862497519,
+  "both_verified": true,
+  "same_start_fields_except_engine": true,
+  "same_finish_fields_except_seconds": true,
+  "same_saved_executable": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary",
+  "saved_native_uuid": "9F975E6F-3954-3D37-8C7D-97A6BBD37CDA",
+  "image_verification": {
+    "command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary"
+    ],
+    "output": "UUID: 9F975E6F-3954-3D37-8C7D-97A6BBD37CDA (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary\n",
+    "bytes": 19042576,
+    "mtime_ns": 1790057649654863476,
+    "scope": "Frozen image receipt, current saved-image UUID, and both recorded launch paths; TOC does not itself expose an image UUID."
+  },
+  "source_patch": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-source.patch",
+  "new_source_archive": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-new-source.tar.gz",
+  "start_records": {
+    "metal": {
+      "active_extends": 2,
+      "benchmark": "poseidon2_hash_chain_v1",
+      "engine": "metal",
+      "event": "benchmark_started",
+      "initial_state": [
+        202,
+        203,
+        204,
+        205
+      ],
+      "message": [
+        7,
+        11,
+        13,
+        17
+      ],
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 1,
+      "steps": 3
+    },
+    "cpu": {
+      "active_extends": 2,
+      "benchmark": "poseidon2_hash_chain_v1",
+      "engine": "optimized",
+      "event": "benchmark_started",
+      "initial_state": [
+        202,
+        203,
+        204,
+        205
+      ],
+      "message": [
+        7,
+        11,
+        13,
+        17
+      ],
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 1,
+      "steps": 3
+    }
+  },
+  "finish_records": {
+    "metal": {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "benchmark_finished",
+      "final_state": [
+        6571778207680039711,
+        123649970047308705,
+        16791205033536618392,
+        12263481847644113771
+      ],
+      "seconds": 246.453710167,
+      "steps": 3,
+      "verified": true
+    },
+    "cpu": {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "benchmark_finished",
+      "final_state": [
+        6571778207680039711,
+        123649970047308705,
+        16791205033536618392,
+        12263481847644113771
+      ],
+      "seconds": 1300.842536625,
+      "steps": 3,
+      "verified": true
+    }
+  },
+  "phases": [
+    {
+      "phase": "prepare",
+      "step": null,
+      "cpu_seconds": 34.397194459,
+      "metal_seconds": 34.420406417,
+      "cpu_over_metal": 0.9993256338196942
+    },
+    {
+      "phase": "prove",
+      "step": 1,
+      "cpu_seconds": 59.853122958,
+      "metal_seconds": 6.717489625,
+      "cpu_over_metal": 8.910043230323561
+    },
+    {
+      "phase": "extend",
+      "step": 2,
+      "cpu_seconds": 413.846058708,
+      "metal_seconds": 70.510031375,
+      "cpu_over_metal": 5.869321721146377
+    },
+    {
+      "phase": "extend",
+      "step": 3,
+      "cpu_seconds": 514.569792333,
+      "metal_seconds": 95.944853,
+      "cpu_over_metal": 5.363182872696673
+    },
+    {
+      "phase": "verify",
+      "step": 3,
+      "cpu_seconds": 278.176206959,
+      "metal_seconds": 38.860822833,
+      "cpu_over_metal": 7.158268576927227
+    }
+  ],
+  "captures": {
+    "metal": {
+      "tables": [
+        {
+          "sample-rate-micro-seconds": "1000",
+          "target": "SINGLE",
+          "schema": "time-sample",
+          "callstack": "user",
+          "all-thread-states": "NO",
+          "documentation": "Holds a raw CPU profiling sample."
+        },
+        {
+          "codes": [
+            "0x2d,*"
+          ],
+          "schema": "kdebug",
+          "callstack": "user",
+          "target": "SINGLE",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "enable-priority-inversion-detection": "0",
+          "target-pid": "SINGLE",
+          "message-type": "Fault",
+          "schema": "os-log",
+          "category": [
+            "CFNetwork",
+            "Contacts",
+            "CoreML",
+            "Hang Risk",
+            "Severe Hang Risk"
+          ],
+          "subsystem": [
+            "com.apple.runtime-issues"
+          ],
+          "documentation": "Holds a message from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost",
+          "category": [
+            "InduceCondition"
+          ],
+          "subsystem": [
+            "com.apple.ConditionInducer.LowSeverity"
+          ],
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-log",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a message from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "target-pid": "SINGLE",
+          "dynamic-tracing-enabled-subsystems": [
+            "com.apple.neappprivacy"
+          ],
+          "category": [
+            "PointsOfInterest"
+          ],
+          "schema": "os-signpost",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost-arg",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a signpost metadata argument from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "codes": [
+            "0x07,0x00",
+            "0x1f,0x05"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x07,0x00"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x1,0x25"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x1f,0x05"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug-strings",
+          "documentation": "Associates numeric arguments with strings in kdebug trace points."
+        },
+        {
+          "codes": [
+            "0x1f,0x7"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0x65"
+          ],
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0x87"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0xd8"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0xdc"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x31,0xca"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "33,0x11"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug-strings",
+          "documentation": "Associates numeric arguments with strings in kdebug trace points."
+        },
+        {
+          "codes": [
+            "33,0x11"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "target-pid": "SINGLE",
+          "context-switch-sampling": "0",
+          "high-frequency-sampling": "0",
+          "schema": "time-profile",
+          "record-waiting-threads": "0",
+          "needs-kernel-callstack": "0",
+          "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+        },
+        {
+          "schema": "hang-risks",
+          "detect-priority-inversions": "0",
+          "target-pid": "SINGLE"
+        },
+        {
+          "schema": "process-info",
+          "documentation": "Associates processes with their process names."
+        },
+        {
+          "schema": "thread-info",
+          "documentation": "Associates threads with their owning process."
+        },
+        {
+          "schema": "device-thermal-state-intervals",
+          "documentation": "Denotes the current thermal state of the device."
+        },
+        {
+          "schema": "os-signpost",
+          "subsystem": [
+            "com.apple.StateReporting.Heartbeat",
+            "com.apple.StateReporting.Transition",
+            "com.apple.StateReporting.Volatile"
+          ],
+          "target-pid": "ALL",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "life-cycle-period",
+          "target-pid": "SINGLE",
+          "documentation": "Identifies where an application is in its lifecycle."
+        },
+        {
+          "schema": "tick",
+          "frequency": "1",
+          "documentation": "Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."
+        },
+        {
+          "schema": "tick",
+          "frequency": "10",
+          "documentation": "Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."
+        },
+        {
+          "swift-table": "\"StateReportingIntervals()\"",
+          "schema": "StateReportingIntervals",
+          "documentation": "Tracks named application states, volatile updates, and rate-limit windows reported via the State Reporting API, per process and domain"
+        },
+        {
+          "hangs-threshold": "250",
+          "schema": "potential-hangs",
+          "target-pid": "SINGLE"
+        },
+        {
+          "swift-table": "\"OSSignpostIntervals(layoutScope: InstrumentsPlugIn.OSSignpostLayoutScope.name, categories: Set([\\\"PointsOfInterest\\\"]), mustTargetAllProcesses: false)\"",
+          "schema": "OSSignpostIntervals"
+        },
+        {
+          "swift-table": "\"PointsOfInterestEvents(excludeOSLogs: false, mustTargetAllProcesses: false)\"",
+          "schema": "PointsOfInterestEvents"
+        },
+        {
+          "schema": "dyld-library-load",
+          "target-pid": "SINGLE"
+        },
+        {
+          "schema": "runloop-events",
+          "target-pid": "SINGLE"
+        }
+      ],
+      "instrument_settings": [
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            },
+            {
+              "tag": "options",
+              "attributes": {}
+            },
+            {
+              "tag": "option",
+              "attributes": {
+                "key": "Reporting Threshold",
+                "value": "Include Microhangs (>250ms)"
+              }
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            },
+            {
+              "tag": "options",
+              "attributes": {}
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            }
+          ],
+          "text": ""
+        }
+      ],
+      "processes": [
+        {
+          "name": "kernel",
+          "pid": "0",
+          "path": "/System/Library/Kernels/kernel.release.t6000"
+        },
+        {
+          "name": "recipe-batch-benchmark-binary",
+          "pid": "5570",
+          "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary"
+        }
+      ],
+      "device": {
+        "platform": "macOS",
+        "model": "MacBook Pro",
+        "memory-size": "68719476736",
+        "name": "kao0112",
+        "os-version": "26.6.2 (25G83)",
+        "uuid": "FBE5B295-0D39-5595-8255-2ED6C1DBEAA7"
+      },
+      "target_process": {
+        "arguments": "--engine metal --steps 3",
+        "type": "launched",
+        "return-exit-status": "0",
+        "name": "recipe-batch-benchmark-binary",
+        "pid": "5570",
+        "termination-reason": "exit(0)"
+      },
+      "start-date": "2026-09-22T01:19:16.972-05:00",
+      "end-date": "2026-09-22T01:23:24.220-05:00",
+      "duration": "247.247467",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes",
+      "run_number": 1
+    },
+    "cpu": {
+      "tables": [
+        {
+          "sample-rate-micro-seconds": "1000",
+          "target": "SINGLE",
+          "schema": "time-sample",
+          "callstack": "user",
+          "all-thread-states": "NO",
+          "documentation": "Holds a raw CPU profiling sample."
+        },
+        {
+          "codes": [
+            "0x2d,*"
+          ],
+          "schema": "kdebug",
+          "callstack": "user",
+          "target": "SINGLE",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "enable-priority-inversion-detection": "0",
+          "target-pid": "SINGLE",
+          "message-type": "Fault",
+          "schema": "os-log",
+          "category": [
+            "CFNetwork",
+            "Contacts",
+            "CoreML",
+            "Hang Risk",
+            "Severe Hang Risk"
+          ],
+          "subsystem": [
+            "com.apple.runtime-issues"
+          ],
+          "documentation": "Holds a message from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost",
+          "category": [
+            "InduceCondition"
+          ],
+          "subsystem": [
+            "com.apple.ConditionInducer.LowSeverity"
+          ],
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-log",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a message from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "target-pid": "SINGLE",
+          "dynamic-tracing-enabled-subsystems": [
+            "com.apple.neappprivacy"
+          ],
+          "category": [
+            "PointsOfInterest"
+          ],
+          "schema": "os-signpost",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "os-signpost-arg",
+          "category": [
+            "PointsOfInterest"
+          ],
+          "target-pid": "SINGLE",
+          "documentation": "Holds a signpost metadata argument from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "codes": [
+            "0x07,0x00",
+            "0x1f,0x05"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x07,0x00"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x1,0x25"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x1f,0x05"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug-strings",
+          "documentation": "Associates numeric arguments with strings in kdebug trace points."
+        },
+        {
+          "codes": [
+            "0x1f,0x7"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0x65"
+          ],
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0x87"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0xd8"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x2b,0xdc"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "0x31,0xca"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "codes": [
+            "33,0x11"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug-strings",
+          "documentation": "Associates numeric arguments with strings in kdebug trace points."
+        },
+        {
+          "codes": [
+            "33,0x11"
+          ],
+          "target": "SINGLE",
+          "schema": "kdebug",
+          "documentation": "Tracing the kernel and some system frameworks."
+        },
+        {
+          "target-pid": "SINGLE",
+          "context-switch-sampling": "0",
+          "high-frequency-sampling": "0",
+          "schema": "time-profile",
+          "record-waiting-threads": "0",
+          "needs-kernel-callstack": "0",
+          "documentation": "When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."
+        },
+        {
+          "schema": "hang-risks",
+          "detect-priority-inversions": "0",
+          "target-pid": "SINGLE"
+        },
+        {
+          "schema": "process-info",
+          "documentation": "Associates processes with their process names."
+        },
+        {
+          "schema": "thread-info",
+          "documentation": "Associates threads with their owning process."
+        },
+        {
+          "schema": "device-thermal-state-intervals",
+          "documentation": "Denotes the current thermal state of the device."
+        },
+        {
+          "schema": "os-signpost",
+          "subsystem": [
+            "com.apple.StateReporting.Heartbeat",
+            "com.apple.StateReporting.Transition",
+            "com.apple.StateReporting.Volatile"
+          ],
+          "target-pid": "ALL",
+          "documentation": "Holds a signpost event from the OS's Unified Logging and Tracing component."
+        },
+        {
+          "schema": "life-cycle-period",
+          "target-pid": "SINGLE",
+          "documentation": "Identifies where an application is in its lifecycle."
+        },
+        {
+          "schema": "tick",
+          "frequency": "1",
+          "documentation": "Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."
+        },
+        {
+          "schema": "tick",
+          "frequency": "10",
+          "documentation": "Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."
+        },
+        {
+          "swift-table": "\"StateReportingIntervals()\"",
+          "schema": "StateReportingIntervals",
+          "documentation": "Tracks named application states, volatile updates, and rate-limit windows reported via the State Reporting API, per process and domain"
+        },
+        {
+          "hangs-threshold": "250",
+          "schema": "potential-hangs",
+          "target-pid": "SINGLE"
+        },
+        {
+          "swift-table": "\"OSSignpostIntervals(layoutScope: InstrumentsPlugIn.OSSignpostLayoutScope.name, categories: Set([\\\"PointsOfInterest\\\"]), mustTargetAllProcesses: false)\"",
+          "schema": "OSSignpostIntervals"
+        },
+        {
+          "swift-table": "\"PointsOfInterestEvents(excludeOSLogs: false, mustTargetAllProcesses: false)\"",
+          "schema": "PointsOfInterestEvents"
+        },
+        {
+          "schema": "dyld-library-load",
+          "target-pid": "SINGLE"
+        },
+        {
+          "schema": "runloop-events",
+          "target-pid": "SINGLE"
+        }
+      ],
+      "instrument_settings": [
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            },
+            {
+              "tag": "options",
+              "attributes": {}
+            },
+            {
+              "tag": "option",
+              "attributes": {
+                "key": "Reporting Threshold",
+                "value": "Include Microhangs (>250ms)"
+              }
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            },
+            {
+              "tag": "options",
+              "attributes": {}
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            },
+            {
+              "tag": "instrument",
+              "attributes": {
+                "name": "Hangs"
+              }
+            }
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            {
+              "tag": "intruments-recording-settings",
+              "attributes": {}
+            }
+          ],
+          "text": ""
+        }
+      ],
+      "processes": [
+        {
+          "name": "recipe-batch-benchmark-binary",
+          "pid": "6380",
+          "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary"
+        },
+        {
+          "name": "kernel",
+          "pid": "0",
+          "path": "/System/Library/Kernels/kernel.release.t6000"
+        }
+      ],
+      "device": {
+        "platform": "macOS",
+        "model": "MacBook Pro",
+        "memory-size": "68719476736",
+        "name": "kao0112",
+        "os-version": "26.6.2 (25G83)",
+        "uuid": "FBE5B295-0D39-5595-8255-2ED6C1DBEAA7"
+      },
+      "target_process": {
+        "arguments": "--engine optimized --steps 3",
+        "type": "launched",
+        "return-exit-status": "0",
+        "name": "recipe-batch-benchmark-binary",
+        "pid": "6380",
+        "termination-reason": "exit(0)"
+      },
+      "start-date": "2026-09-22T01:23:43.888-05:00",
+      "end-date": "2026-09-22T01:45:25.536-05:00",
+      "duration": "1301.648736",
+      "end-reason": "Target app exited",
+      "instruments-version": "27.0 (27A266a)",
+      "template-name": "Time Profiler",
+      "recording-mode": "Deferred",
+      "time-limit": "30 minutes",
+      "run_number": 1
+    }
+  },
+  "serial_captures": true,
+  "metal_finalized_before_cpu_recording": true,
+  "same_recording_schemas_settings_and_device": true,
+  "normalized_recording_command": [
+    "xcrun",
+    "xctrace",
+    "record",
+    "--template",
+    "Time Profiler",
+    "--time-limit",
+    "1800s",
+    "--output",
+    "<--output>",
+    "--target-stdout",
+    "<--target-stdout>",
+    "--launch",
+    "--",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-benchmark-binary",
+    "--engine",
+    "<--engine>",
+    "--steps",
+    "3"
+  ],
+  "thermal_intervals": {
+    "metal": [
+      {
+        "start_ns": 0,
+        "end_ns": 247247467041,
+        "duration_ns": 247247467041,
+        "state": "Nominal",
+        "induced": false
+      }
+    ],
+    "cpu": [
+      {
+        "start_ns": 0,
+        "end_ns": 1301648736000,
+        "duration_ns": 1301648736000,
+        "state": "Nominal",
+        "induced": false
+      }
+    ]
+  },
+  "both_nominal_noninduced": true,
+  "controller_elapsed_monotonic_seconds": {
+    "metal": 254.87545474999934,
+    "cpu": 1431.913184666002
+  },
+  "controller_elapsed_wall_seconds": {
+    "metal": 254.87644004821777,
+    "cpu": 1431.95201420784
+  },
+  "capture_cap_seconds": 1800,
+  "capture_cap_authority": "Root AGENTS.md 30-minute Instruments cap, including target execution and trace finalization.",
+  "deadline_checks": {
+    "metal": {
+      "watchdog": {
+        "outcome": "processes-ended",
+        "stopped_pids": [],
+        "controller_pid": 5555,
+        "target_pid": 5570,
+        "recorder_pid": 5561,
+        "deadline_unix_seconds": 1790059755.0,
+        "cap_seconds": 1800,
+        "authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap."
+      },
+      "completion_receipt_unix_seconds": "1790058210.420792022",
+      "within_cap": true
+    },
+    "cpu": {
+      "watchdog": {
+        "outcome": "processes-ended",
+        "stopped_pids": [],
+        "controller_pid": 6365,
+        "target_pid": 6380,
+        "recorder_pid": 6371,
+        "deadline_unix_seconds": 1790060022.0,
+        "cap_seconds": 1800,
+        "authority": "AGENTS.md30-minute Instruments cap; ps start is rounded down, never extending the cap."
+      },
+      "completion_receipt_unix_seconds": "1790059654.368179783",
+      "within_cap": true
+    }
+  },
+  "memory": {
+    "metal": {
+      "observed_kernel_lifetime_peak_resident_bytes": 12711673856,
+      "observed_lifetime_peak_physical_footprint_bytes": 12188638144,
+      "final_kernel_peak_after_exit": null,
+      "guard_bytes": 17179869184,
+      "scope": "Kernel lifetime peak observed while live; if final peak is null, the final unsampled interval is not proved.",
+      "sample_fields": [
+        "elapsed_seconds",
+        "resident_bytes",
+        "kernel_peak_resident_bytes",
+        "physical_footprint_bytes",
+        "lifetime_peak_footprint_bytes"
+      ],
+      "sample_count": 245,
+      "first_sample_elapsed_seconds": 2.083579666999867,
+      "last_sample_elapsed_seconds": 248.50402533399756,
+      "full_run_receipt": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-metal-lifecycle-profile.json"
+    },
+    "cpu": {
+      "observed_kernel_lifetime_peak_resident_bytes": 15783100416,
+      "observed_lifetime_peak_physical_footprint_bytes": 11591577336,
+      "final_kernel_peak_after_exit": null,
+      "guard_bytes": 17179869184,
+      "scope": "Kernel lifetime peak observed while live; if final peak is null, the final unsampled interval is not proved.",
+      "sample_fields": [
+        "elapsed_seconds",
+        "resident_bytes",
+        "kernel_peak_resident_bytes",
+        "physical_footprint_bytes",
+        "lifetime_peak_footprint_bytes"
+      ],
+      "sample_count": 1289,
+      "first_sample_elapsed_seconds": 2.099273208004888,
+      "last_sample_elapsed_seconds": 1302.442625333002,
+      "full_run_receipt": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/recipe-batch-cpu-lifecycle-profile.json"
+    }
+  },
+  "power_control": {
+    "metal": "Launched with command-scoped caffeinate -is on AC; no permanent setting change.",
+    "cpu": "Launched with command-scoped caffeinate -is on AC; no permanent setting change."
+  },
+  "limits": [
+    "One matched instrumented pair. No ratio across images or against raw Metal timing is calculated.",
+    "Complete benchmark start/finish equality does not compare intermediate serialized proofs.",
+    "Live-observed RSS and footprint peaks have separate scopes; a null final post-exit peak leaves the last unsampled interval unproved.",
+    "Thermal records do not establish equal CPU/GPU clock frequencies or GPU limiter state.",
+    "This comparison reads TOC and thermal exports only and makes no new CPU or GPU sample-attribution claim."
+  ]
+}

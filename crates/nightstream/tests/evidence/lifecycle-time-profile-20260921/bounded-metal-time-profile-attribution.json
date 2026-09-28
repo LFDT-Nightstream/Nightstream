@@ -1,0 +1,91 @@
+{
+  "source": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-samples.xml",
+  "source_bytes": 34650517,
+  "target_pid": 83259,
+  "total_sample_count": 126891,
+  "total_weight_ns": 126891000000,
+  "backtrace_sample_count": 125243,
+  "backtrace_weight_ns": 125243000000,
+  "sentinel_sample_count": 1648,
+  "sentinel_weight_ns": 1648000000,
+  "symbolication": {
+    "native_binary_ids": [
+      "88"
+    ],
+    "expected_uuid": "D66506D5-8D84-3D01-8EEB-E21332765BD7",
+    "exact_original_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary",
+    "binary_bytes": 19103712,
+    "binary_mtime_ns": 1790035937488717138,
+    "uuid_command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary"
+    ],
+    "uuid_output": "UUID: D66506D5-8D84-3D01-8EEB-E21332765BD7 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary\n",
+    "atos_runs": [
+      {
+        "binary_id": "88",
+        "command": [
+          "atos",
+          "-o",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary",
+          "-arch",
+          "arm64",
+          "-l",
+          "0x100180000",
+          "-f",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-atos-88-addresses.txt"
+        ],
+        "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-atos-88-addresses.txt",
+        "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-atos-88-output.txt",
+        "address_count": 4652,
+        "seconds": 0.1477442500035977
+      }
+    ],
+    "native_address_count": 4652,
+    "native_frames_with_exported_symbols": 4652,
+    "native_frames_resolved_by_atos": 4652,
+    "unknown_top_sample_count": 277,
+    "unknown_top_weight_ns": 277000000,
+    "unannotated_top_sample_count": 0,
+    "unannotated_top_weight_ns": 0,
+    "scope": "Only the exact original binary with matching recorded UUID is used. There is no rebuilt-image or function-byte-matching fallback."
+  },
+  "recorded_native_images": {
+    "88": {
+      "id": "88",
+      "name": "application-replay-benchmark-binary",
+      "UUID": "D66506D5-8D84-3D01-8EEB-E21332765BD7",
+      "arch": "arm64",
+      "load-addr": "0x100180000",
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/application-replay-benchmark-binary"
+    }
+  },
+  "aggregation": {
+    "self": "The first frame in each exported backtrace receives the complete sample count and weight.",
+    "inclusive_frame": "Each distinct loaded-image/name/PC location receives a stack's weight once.",
+    "inclusive_function": "Each distinct resolved loaded-image/function receives a stack's weight once; recursion is deduplicated after exact-image symbolication.",
+    "unknowns": "Unknown symbols remain identified by recorded image and PC. Unannotated frames are never assigned to the native image.",
+    "time": "Weights sum sampled CPU work across threads, not wall time. Inclusive totals overlap and must not be added as elapsed time."
+  },
+  "complete_data_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-data.json",
+  "complete_summary_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-metal-time-profile-summary.json",
+  "analysis_scripts_used": {
+    "parser": {
+      "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_bounded_cpu_profile.py",
+      "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-parser-used.py",
+      "bytes": 7779,
+      "sha256": "3d65cb4b04f0629f3251703746c70874f4d4e9a8e55d5da9c267bb4e48fe2dcb",
+      "mtime_ns": 1790039222703462804
+    },
+    "aggregator": {
+      "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_bounded_cpu_profile.py",
+      "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-aggregator-used.py",
+      "bytes": 11479,
+      "sha256": "9545b99f174912de1fcf2dcffd6bce9ad71ccbebd2909f5f3fdec52ff3ffdde9",
+      "mtime_ns": 1790039222704926308
+    }
+  },
+  "percentage_denominators": "Function percentages, if reported, must name their denominator. Sentinel rows are outside backtrace weight; unresolved top frames are outside named-top-frame weight."
+}

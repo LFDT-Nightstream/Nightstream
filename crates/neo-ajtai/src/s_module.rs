@@ -14,17 +14,6 @@ use rayon::prelude::*;
 
 type Key = (usize, usize); // (d, m)
 type PPRef = Arc<PP<RqEl>>;
-const SIGNED_UNIT_INNER_PAR_COL_CHUNK: usize = 512;
-const SIGNED_UNIT_INNER_PAR_BASE_COL_LIMIT: usize = 1 << 17;
-const SIGNED_UNIT_MASK_CACHE_COL_LIMIT: usize = 1 << 15;
-const SIGNED_UNIT_GRID_PAR_MAX_TASKS: usize = 1024;
-
-struct SignedUnitColumnPlan {
-    active_union: u64,
-    pos_commit_masks: [u64; D],
-    neg_commit_masks: [u64; D],
-}
-
 #[derive(Clone)]
 struct RegistryEntry {
     kappa: usize,
@@ -40,6 +29,16 @@ fn registry() -> &'static RwLock<HashMap<Key, RegistryEntry>> {
     AJTAI_PP_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+/// Materialize the exact public matrix used by the seeded commitment path.
+///
+/// Accelerator backends use this to upload the canonical map once instead
+/// of duplicating the seeded-parameter derivation outside `neo-ajtai`.
+#[doc(hidden)]
+pub fn materialize_seeded_pp(seed: [u8; 32], d: usize, kappa: usize, m: usize) -> Result<PP<RqEl>, AjtaiError> {
+    let mut rng = ChaCha8Rng::from_seed(seed);
+    setup_par(&mut rng, d, kappa, m)
+}
+
 /// Initialize the global Ajtai PP once (call this right after setup()).
 pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     let key = (pp.d, pp.m);
@@ -53,8 +52,17 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
                 pp.d, pp.m
             )));
         }
-        // Idempotent: keep the existing PP to avoid accidentally changing commitments mid-process.
-        return Ok(());
+        let is_same = existing.kappa == pp.kappa
+            && existing.pp.as_ref().is_some_and(|current| {
+                current.d == pp.d && current.m == pp.m && current.kappa == pp.kappa && current.m_rows == pp.m_rows
+            });
+        if is_same {
+            return Ok(());
+        }
+        return Err(AjtaiError::InvalidInput(format!(
+            "a different Ajtai PP is already registered for (d,m)=({},{})",
+            pp.d, pp.m
+        )));
     }
     w.insert(
         key,
@@ -243,7 +251,8 @@ fn pack_binary_column_bits(z: &Mat<Fq>, d: usize, m: usize) -> Option<Vec<u64>> 
     let mut column_bits = vec![0u64; m];
     for row in 0..d {
         let bit = 1u64 << row;
-        for (col, &value) in z.row(row).iter().enumerate() {
+        for col in 0..m {
+            let value = z[(row, col)];
             if value == Fq::ZERO {
                 continue;
             }
@@ -266,7 +275,8 @@ fn pack_signed_unit_column_bits(z: &Mat<Fq>, d: usize, m: usize) -> Option<(Vec<
     let mut neg_bits = vec![0u64; m];
     for row in 0..d {
         let bit = 1u64 << row;
-        for (col, &value) in z.row(row).iter().enumerate() {
+        for col in 0..m {
+            let value = z[(row, col)];
             if value == Fq::ZERO {
                 continue;
             }
@@ -396,79 +406,6 @@ fn mul_coeffs_by_monomial(input: &[Fq; D], j: usize) -> [Fq; D] {
     out
 }
 
-fn build_signed_unit_column_plans(m: usize, packed: &[(Vec<u64>, Vec<u64>)]) -> Option<Vec<SignedUnitColumnPlan>> {
-    if packed.len() > u64::BITS as usize {
-        return None;
-    }
-
-    let valid_mask = (1u64 << D) - 1;
-    let mut plans = Vec::with_capacity(m);
-    for col_idx in 0..m {
-        let mut active_union = 0u64;
-        let mut pos_commit_masks = [0u64; D];
-        let mut neg_commit_masks = [0u64; D];
-
-        for (commit_idx, (pos_bits, neg_bits)) in packed.iter().enumerate() {
-            let commit_bit = 1u64 << commit_idx;
-            let pos = pos_bits[col_idx] & valid_mask;
-            let neg = neg_bits[col_idx] & valid_mask;
-            active_union |= pos | neg;
-
-            let mut mask = pos;
-            while mask != 0 {
-                let bit = mask.trailing_zeros() as usize;
-                pos_commit_masks[bit] |= commit_bit;
-                mask &= mask - 1;
-            }
-
-            let mut mask = neg;
-            while mask != 0 {
-                let bit = mask.trailing_zeros() as usize;
-                neg_commit_masks[bit] |= commit_bit;
-                mask &= mask - 1;
-            }
-        }
-
-        plans.push(SignedUnitColumnPlan {
-            active_union,
-            pos_commit_masks,
-            neg_commit_masks,
-        });
-    }
-    Some(plans)
-}
-
-#[inline(always)]
-fn accumulate_signed_unit_column_plan(accs: &mut [[Fq; D]], base_col: &[Fq; D], plan: &SignedUnitColumnPlan) {
-    if plan.active_union == 0 {
-        return;
-    }
-
-    let mut active_union = plan.active_union;
-    let mut rot_col = *base_col;
-    let mut rot_pos = 0usize;
-    while active_union != 0 {
-        let next_pos = active_union.trailing_zeros() as usize;
-        advance_rot_col(&mut rot_col, next_pos - rot_pos);
-
-        let mut pos_mask = plan.pos_commit_masks[next_pos];
-        while pos_mask != 0 {
-            let commit_idx = pos_mask.trailing_zeros() as usize;
-            acc_add_signed_unit(&mut accs[commit_idx], &rot_col, false);
-            pos_mask &= pos_mask - 1;
-        }
-
-        let mut neg_mask = plan.neg_commit_masks[next_pos];
-        while neg_mask != 0 {
-            let commit_idx = neg_mask.trailing_zeros() as usize;
-            acc_add_signed_unit(&mut accs[commit_idx], &rot_col, true);
-            neg_mask &= neg_mask - 1;
-        }
-        rot_pos = next_pos;
-        active_union &= active_union - 1;
-    }
-}
-
 #[inline(always)]
 fn accumulate_signed_unit_masks_many_for_col(
     accs: &mut [[Fq; D]],
@@ -477,86 +414,15 @@ fn accumulate_signed_unit_masks_many_for_col(
     packed: &[(Vec<u64>, Vec<u64>)],
 ) {
     let valid_mask = (1u64 << D) - 1;
-    if packed.len() > u64::BITS as usize {
-        accumulate_signed_unit_masks_many_for_col_slow(accs, base_col, col_idx, packed, valid_mask);
-        return;
-    }
-
-    let mut active_union = 0u64;
-    let mut pos_commit_masks = [0u64; D];
-    let mut neg_commit_masks = [0u64; D];
-
-    for (commit_idx, (pos_bits, neg_bits)) in packed.iter().enumerate() {
-        let commit_bit = 1u64 << commit_idx;
-        let pos = pos_bits[col_idx] & valid_mask;
-        let neg = neg_bits[col_idx] & valid_mask;
-        active_union |= pos | neg;
-
-        let mut mask = pos;
-        while mask != 0 {
-            let bit = mask.trailing_zeros() as usize;
-            pos_commit_masks[bit] |= commit_bit;
-            mask &= mask - 1;
-        }
-
-        let mut mask = neg;
-        while mask != 0 {
-            let bit = mask.trailing_zeros() as usize;
-            neg_commit_masks[bit] |= commit_bit;
-            mask &= mask - 1;
-        }
-    }
-    if active_union == 0 {
-        return;
-    }
-
+    let mut active_union = signed_unit_column_active_union(col_idx, packed, valid_mask);
     let mut rot_col = *base_col;
     let mut rot_pos = 0usize;
-    while active_union != 0 {
-        let next_pos = active_union.trailing_zeros() as usize;
-        advance_rot_col(&mut rot_col, next_pos - rot_pos);
 
-        let mut pos_mask = pos_commit_masks[next_pos];
-        while pos_mask != 0 {
-            let commit_idx = pos_mask.trailing_zeros() as usize;
-            acc_add_signed_unit(&mut accs[commit_idx], &rot_col, false);
-            pos_mask &= pos_mask - 1;
-        }
-
-        let mut neg_mask = neg_commit_masks[next_pos];
-        while neg_mask != 0 {
-            let commit_idx = neg_mask.trailing_zeros() as usize;
-            acc_add_signed_unit(&mut accs[commit_idx], &rot_col, true);
-            neg_mask &= neg_mask - 1;
-        }
-        rot_pos = next_pos;
-        active_union &= active_union - 1;
-    }
-}
-
-#[inline(always)]
-fn accumulate_signed_unit_masks_many_for_col_slow(
-    accs: &mut [[Fq; D]],
-    base_col: &[Fq; D],
-    col_idx: usize,
-    packed: &[(Vec<u64>, Vec<u64>)],
-    valid_mask: u64,
-) {
-    let mut active_union = 0u64;
-    for (pos_bits, neg_bits) in packed {
-        active_union |= (pos_bits[col_idx] | neg_bits[col_idx]) & valid_mask;
-    }
-    if active_union == 0 {
-        return;
-    }
-
-    let mut rot_col = *base_col;
-    let mut rot_pos = 0usize;
     while active_union != 0 {
         let next_pos = active_union.trailing_zeros() as usize;
         advance_rot_col(&mut rot_col, next_pos - rot_pos);
         let bit = 1u64 << next_pos;
-        for (acc, (pos_bits, neg_bits)) in accs.iter_mut().zip(packed.iter()) {
+        for (acc, (pos_bits, neg_bits)) in accs.iter_mut().zip(packed) {
             if (pos_bits[col_idx] & bit) != 0 {
                 acc_add_signed_unit(acc, &rot_col, false);
             } else if (neg_bits[col_idx] & bit) != 0 {
@@ -577,22 +443,11 @@ fn signed_unit_column_active_union(col_idx: usize, packed: &[(Vec<u64>, Vec<u64>
     active_union
 }
 
-#[inline]
-fn add_signed_unit_accs(dst: &mut [[Fq; D]], src: &[[Fq; D]]) {
-    debug_assert_eq!(dst.len(), src.len());
-    for (dst_acc, src_acc) in dst.iter_mut().zip(src.iter()) {
-        for lane in 0..D {
-            dst_acc[lane] += src_acc[lane];
-        }
-    }
-}
-
 fn commit_signed_unit_row_many_chunk(
     rng: &mut ChaCha8Rng,
     start: usize,
     end: usize,
     packed: &[(Vec<u64>, Vec<u64>)],
-    column_plans: Option<&[SignedUnitColumnPlan]>,
     out: &mut [[Fq; D]],
 ) {
     let mut batch_words = [0u64; ajtai_commit::SEEDED_RQ_BATCH * D];
@@ -605,10 +460,7 @@ fn commit_signed_unit_row_many_chunk(
         let mut active_offsets = 0u64;
         for offset in 0..batch {
             let col = col_idx + offset;
-            let is_zero = match column_plans {
-                Some(plans) => plans[col].active_union == 0,
-                None => signed_unit_column_active_union(col, packed, valid_mask) == 0,
-            };
+            let is_zero = signed_unit_column_active_union(col, packed, valid_mask) == 0;
             if !is_zero {
                 active_offsets |= 1u64 << offset;
             }
@@ -635,11 +487,7 @@ fn commit_signed_unit_row_many_chunk(
                 let word_start = offset * D;
                 let word_end = word_start + D;
                 ajtai_commit::copy_uniform_rq_coeffs_from_words(&batch_words[word_start..word_end], &mut base_col);
-                if let Some(plans) = column_plans {
-                    accumulate_signed_unit_column_plan(out, &base_col, &plans[col]);
-                } else {
-                    accumulate_signed_unit_masks_many_for_col(out, &base_col, col, packed);
-                }
+                accumulate_signed_unit_masks_many_for_col(out, &base_col, col, packed);
             }
         } else {
             for offset in 0..batch {
@@ -649,11 +497,7 @@ fn commit_signed_unit_row_many_chunk(
                     continue;
                 }
                 let base_col = ajtai_commit::sample_uniform_rq_coeffs(rng);
-                if let Some(plans) = column_plans {
-                    accumulate_signed_unit_column_plan(out, &base_col, &plans[col]);
-                } else {
-                    accumulate_signed_unit_masks_many_for_col(out, &base_col, col, packed);
-                }
+                accumulate_signed_unit_masks_many_for_col(out, &base_col, col, packed);
             }
         }
         col_idx += batch;
@@ -665,75 +509,16 @@ fn commit_signed_unit_row_many(
     chunk_seeds: &[[u8; 32]],
     m: usize,
     packed: &[(Vec<u64>, Vec<u64>)],
-    column_plans: Option<&[SignedUnitColumnPlan]>,
-    allow_inner_parallel: bool,
 ) -> Vec<[Fq; D]> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    if allow_inner_parallel && rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && m >= 4096
-    {
-        if chunk_seeds.len() == 1 && m <= SIGNED_UNIT_INNER_PAR_BASE_COL_LIMIT {
-            let mut rng = ChaCha8Rng::from_seed(chunk_seeds[0]);
-            let base_cols: Vec<[Fq; D]> = (0..m)
-                .map(|_| ajtai_commit::sample_uniform_rq_coeffs(&mut rng))
-                .collect();
-            return base_cols
-                .par_chunks(SIGNED_UNIT_INNER_PAR_COL_CHUNK)
-                .enumerate()
-                .map(|(chunk_idx, cols)| {
-                    let mut local = vec![[Fq::ZERO; D]; packed.len()];
-                    let start = chunk_idx * SIGNED_UNIT_INNER_PAR_COL_CHUNK;
-                    for (offset, base_col) in cols.iter().enumerate() {
-                        let col_idx = start + offset;
-                        if let Some(plans) = column_plans {
-                            accumulate_signed_unit_column_plan(&mut local, base_col, &plans[col_idx]);
-                        } else {
-                            accumulate_signed_unit_masks_many_for_col(&mut local, base_col, col_idx, packed);
-                        }
-                    }
-                    local
-                })
-                .reduce(
-                    || vec![[Fq::ZERO; D]; packed.len()],
-                    |mut a, b| {
-                        add_signed_unit_accs(&mut a, &b);
-                        a
-                    },
-                );
-        }
-
-        if chunk_seeds.len() > 1 {
-            return chunk_seeds
-                .par_iter()
-                .copied()
-                .enumerate()
-                .map(|(chunk_idx, seed)| {
-                    let start = chunk_idx * chunk_size;
-                    let end = core::cmp::min(m, start + chunk_size);
-                    let mut local = vec![[Fq::ZERO; D]; packed.len()];
-                    let mut rng = ChaCha8Rng::from_seed(seed);
-                    commit_signed_unit_row_many_chunk(&mut rng, start, end, packed, column_plans, &mut local);
-                    local
-                })
-                .reduce(
-                    || vec![[Fq::ZERO; D]; packed.len()],
-                    |mut a, b| {
-                        add_signed_unit_accs(&mut a, &b);
-                        a
-                    },
-                );
-        }
-    }
-
     let mut out = vec![[Fq::ZERO; D]; packed.len()];
     for (chunk_idx, seed) in chunk_seeds.iter().copied().enumerate() {
         let start = chunk_idx * chunk_size;
         let end = core::cmp::min(m, start + chunk_size);
         let mut rng = ChaCha8Rng::from_seed(seed);
-        commit_signed_unit_row_many_chunk(&mut rng, start, end, packed, column_plans, &mut out);
+        commit_signed_unit_row_many_chunk(&mut rng, start, end, packed, &mut out);
     }
     out
 }
-
 fn commit_packed_signed_unit_column_bits_many(
     d: usize,
     kappa: usize,
@@ -753,55 +538,15 @@ fn commit_packed_signed_unit_column_bits_many(
     if m == 0 {
         return out;
     }
-    let column_plans = if m <= SIGNED_UNIT_MASK_CACHE_COL_LIMIT {
-        build_signed_unit_column_plans(m, packed)
-    } else {
-        None
-    };
-    let column_plans = column_plans.as_deref();
-
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let row_accs: Vec<(usize, Vec<[Fq; D]>)> = {
-        let can_parallel = rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none();
-        let num_chunks = chunk_seeds_by_row.first().map_or(0, Vec::len);
-        if can_parallel
-            && kappa > 1
-            && num_chunks > 1
-            && kappa.saturating_mul(num_chunks) <= SIGNED_UNIT_GRID_PAR_MAX_TASKS
-        {
-            let partials: Vec<(usize, Vec<[Fq; D]>)> = (0..(kappa * num_chunks))
-                .into_par_iter()
-                .map(|task_idx| {
-                    let row = task_idx / num_chunks;
-                    let chunk_idx = task_idx % num_chunks;
-                    let start = chunk_idx * chunk_size;
-                    let end = core::cmp::min(m, start + chunk_size);
-                    let mut local = vec![[Fq::ZERO; D]; packed.len()];
-                    let mut rng = ChaCha8Rng::from_seed(chunk_seeds_by_row[row][chunk_idx]);
-                    commit_signed_unit_row_many_chunk(&mut rng, start, end, packed, column_plans, &mut local);
-                    (row, local)
-                })
-                .collect();
-
-            let mut rows = vec![vec![[Fq::ZERO; D]; packed.len()]; kappa];
-            for (row, local) in partials {
-                add_signed_unit_accs(&mut rows[row], &local);
-            }
-            rows.into_iter().enumerate().collect()
-        } else if can_parallel && kappa > 4 {
+    let row_accs: Vec<(usize, Vec<[Fq; D]>)> =
+        if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
             (0..kappa)
                 .into_par_iter()
                 .map(|row| {
                     (
                         row,
-                        commit_signed_unit_row_many(
-                            chunk_size,
-                            &chunk_seeds_by_row[row],
-                            m,
-                            packed,
-                            column_plans,
-                            false,
-                        ),
+                        commit_signed_unit_row_many(chunk_size, &chunk_seeds_by_row[row], m, packed),
                     )
                 })
                 .collect()
@@ -810,26 +555,18 @@ fn commit_packed_signed_unit_column_bits_many(
                 .map(|row| {
                     (
                         row,
-                        commit_signed_unit_row_many(
-                            chunk_size,
-                            &chunk_seeds_by_row[row],
-                            m,
-                            packed,
-                            column_plans,
-                            can_parallel,
-                        ),
+                        commit_signed_unit_row_many(chunk_size, &chunk_seeds_by_row[row], m, packed),
                     )
                 })
                 .collect()
-        }
-    };
+        };
 
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let row_accs: Vec<(usize, Vec<[Fq; D]>)> = (0..kappa)
         .map(|row| {
             (
                 row,
-                commit_signed_unit_row_many(chunk_size, &chunk_seeds_by_row[row], m, packed, column_plans, false),
+                commit_signed_unit_row_many(chunk_size, &chunk_seeds_by_row[row], m, packed),
             )
         })
         .collect();
@@ -907,7 +644,16 @@ pub struct AjtaiSModule {
 #[derive(Clone)]
 enum PpSource {
     Owned(PPRef),
-    Global { d: usize, m: usize },
+    Seeded {
+        seed: [u8; 32],
+        d: usize,
+        kappa: usize,
+        m: usize,
+    },
+    Global {
+        d: usize,
+        m: usize,
+    },
 }
 
 impl AjtaiSModule {
@@ -916,6 +662,29 @@ impl AjtaiSModule {
             pp: PpSource::Owned(pp),
         }
     }
+
+    /// Build a module that owns a deterministic setup descriptor.
+    ///
+    /// This source does not use the process-global registry. It is intended
+    /// for tests and demos that must remain deterministic when equal-shaped
+    /// setups with different seeds run in parallel.
+    #[doc(hidden)]
+    pub fn from_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize) -> Result<Self, AjtaiError> {
+        if d != D {
+            return Err(AjtaiError::InvalidDimensions(
+                "d parameter must match ring dimension D".to_string(),
+            ));
+        }
+        if kappa == 0 || m == 0 {
+            return Err(AjtaiError::InvalidDimensions(
+                "kappa and m must both be nonzero".to_string(),
+            ));
+        }
+        Ok(Self {
+            pp: PpSource::Seeded { seed, d, kappa, m },
+        })
+    }
+
     /// Legacy: pick the sole PP if only one exists.
     pub fn from_global() -> Result<Self, AjtaiError> {
         let pp = get_global_pp()?;
@@ -955,6 +724,7 @@ impl AjtaiSModule {
     pub fn kappa(&self) -> usize {
         match &self.pp {
             PpSource::Owned(pp) => pp.kappa,
+            PpSource::Seeded { kappa, .. } => *kappa,
             PpSource::Global { d, m } => registry()
                 .read()
                 .ok()
@@ -973,7 +743,40 @@ impl AjtaiSModule {
     pub fn dims(&self) -> (usize, usize) {
         match &self.pp {
             PpSource::Owned(pp) => (pp.d, pp.m),
+            PpSource::Seeded { d, m, .. } => (*d, *m),
             PpSource::Global { d, m } => (*d, *m),
+        }
+    }
+
+    /// Return the registered deterministic setup parameters without
+    /// materializing the public matrix.
+    #[doc(hidden)]
+    pub fn seeded_params(&self) -> Option<(usize, [u8; 32])> {
+        match &self.pp {
+            PpSource::Owned(_) => None,
+            PpSource::Seeded { seed, kappa, .. } => Some((*kappa, *seed)),
+            PpSource::Global { d, m } => registry().read().ok().and_then(|entries| {
+                entries
+                    .get(&(*d, *m))
+                    .and_then(|entry| entry.seed.map(|seed| (entry.kappa, seed)))
+            }),
+        }
+    }
+
+    /// Materialize the public matrix for verifier-side constraint emission.
+    /// Commitment code should continue to use [`SModuleHomomorphism::commit`];
+    /// this accessor exists for proof systems that must encode the same
+    /// linear map as arithmetic constraints.
+    pub fn verification_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
+        self.materialize_pp()
+    }
+
+    /// Return the underlying Ajtai PP, loading a seeded global entry if needed.
+    pub fn materialize_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
+        match &self.pp {
+            PpSource::Owned(pp) => Ok(pp.clone()),
+            PpSource::Seeded { seed, d, kappa, m } => Ok(Arc::new(materialize_seeded_pp(*seed, *d, *kappa, *m)?)),
+            PpSource::Global { d, m } => get_or_load_global_pp_for_dims(*d, *m),
         }
     }
 }
@@ -982,6 +785,17 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
     fn commit(&self, z: &Mat<Fq>) -> Commitment {
         match &self.pp {
             PpSource::Owned(pp) => ajtai_commit::commit_row_major(pp, z),
+            PpSource::Seeded { seed, d, kappa, m } => {
+                assert_eq!(z.rows(), *d, "AjtaiSModule: Z.rows != d");
+                assert_eq!(z.cols(), *m, "AjtaiSModule: Z.cols != m");
+                if let Some(column_bits) = pack_binary_column_bits(z, *d, *m) {
+                    return ajtai_commit::commit_row_major_seeded_binary_cols(*seed, *d, *kappa, *m, &column_bits);
+                }
+                if let Some(c) = commit_signed_unit_column_bits(*seed, *d, *kappa, *m, z) {
+                    return c;
+                }
+                ajtai_commit::commit_row_major_seeded(*seed, *d, *kappa, *m, z)
+            }
             PpSource::Global { d, m } => {
                 // Prefer not to materialize PP for seeded entries.
                 let (zd, zm) = (z.rows(), z.cols());
@@ -1035,6 +849,28 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
                 .iter()
                 .map(|z| ajtai_commit::commit_row_major(pp, z))
                 .collect(),
+            PpSource::Seeded { seed, d, kappa, m } => {
+                for (idx, z) in zs.iter().enumerate() {
+                    assert_eq!(z.rows(), *d, "AjtaiSModule: Zs[{idx}].rows != d");
+                    assert_eq!(z.cols(), *m, "AjtaiSModule: Zs[{idx}].cols != m");
+                }
+                if let Some(packed) = zs
+                    .iter()
+                    .map(|z| pack_signed_unit_column_bits(z, *d, *m))
+                    .collect::<Option<Vec<_>>>()
+                {
+                    let (chunk_size, chunk_seeds_by_row) = ajtai_commit::seeded_pp_chunk_seeds(*seed, *kappa, *m);
+                    return commit_packed_signed_unit_column_bits_many(
+                        *d,
+                        *kappa,
+                        *m,
+                        &packed,
+                        chunk_size,
+                        &chunk_seeds_by_row,
+                    );
+                }
+                ajtai_commit::commit_row_major_seeded_many(*seed, *d, *kappa, *m, zs)
+            }
             PpSource::Global { d, m } => {
                 let want_d = *d;
                 let want_m = *m;

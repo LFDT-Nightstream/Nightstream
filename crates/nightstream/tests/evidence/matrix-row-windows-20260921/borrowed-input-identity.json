@@ -1,0 +1,84 @@
+{
+  "outcome": "passed",
+  "method": "complete byte comparison with saved CPU source files after proof execution",
+  "cpu_directory": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/step-2",
+  "metal_directory": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-second-metal/step-2",
+  "files": [
+    {
+      "name": "digit-0.json",
+      "bytes": 90671538
+    },
+    {
+      "name": "digit-1.json",
+      "bytes": 90422650
+    },
+    {
+      "name": "digit-10.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-11.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-12.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-13.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-14.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-15.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-2.json",
+      "bytes": 88108411
+    },
+    {
+      "name": "digit-3.json",
+      "bytes": 84230535
+    },
+    {
+      "name": "digit-4.json",
+      "bytes": 70277656
+    },
+    {
+      "name": "digit-5.json",
+      "bytes": 20662166
+    },
+    {
+      "name": "digit-6.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-7.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-8.json",
+      "bytes": 91
+    },
+    {
+      "name": "digit-9.json",
+      "bytes": 91
+    },
+    {
+      "name": "envelope.json",
+      "bytes": 1506366
+    },
+    {
+      "name": "fresh-claim.json",
+      "bytes": 39389
+    },
+    {
+      "name": "fresh-witness.json",
+      "bytes": 96258854
+    }
+  ]
+}

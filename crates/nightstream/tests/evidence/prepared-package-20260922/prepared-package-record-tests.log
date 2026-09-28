@@ -1,0 +1,18 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 37.59s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 10 tests
+test application_records::tests::sealing_rejects_a_truncated_record_file ... ok
+test application_records::tests::partial_append_poison_prevents_a_usable_snapshot ... ok
+test application_records::tests::ordered_terms_recipes_and_framing_counts_survive_sealing ... ok
+test application_records::tests::streamed_records_rebuild_indices_after_interleaved_appends ... ok
+test application_records::tests::private_snapshot_streams_bytes_and_propagates_write_failures ... ok
+test application_records::tests::writer_buffers_do_not_grow_with_distinct_rows_or_terms ... ok
+test application_records::tests::streamed_records_preserve_exact_words_and_rebuild_sealed_indices ... ok
+test application_records::tests::ingestion_rejects_bad_counts_field_words_and_recipe_arity ... ok
+test application_records::tests::reused_recipe_evaluator_clears_pending_frames_after_lookup_error ... ok
+test application_records::tests::streamed_records_reject_bad_fields_counts_grammar_and_every_truncation ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 0.20s
+

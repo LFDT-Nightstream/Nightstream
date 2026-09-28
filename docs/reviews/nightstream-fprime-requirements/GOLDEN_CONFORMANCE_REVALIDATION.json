@@ -1,0 +1,578 @@
+{
+  "schema": 1,
+  "outcome": "passed",
+  "selected_iterations": [
+    1,
+    2,
+    3
+  ],
+  "validated_code_commit": "41a2bf8c11ed1786b470f2142e8dcb80318e0744",
+  "cpu_generation_commit": "21f03217056256db1af7ea7ba13128b331eebac3",
+  "run_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc",
+  "native_completion": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current-completed/cpu/conformance.json",
+  "native_stages": {
+    "passed": 18,
+    "total_seconds": 1581.651835930068,
+    "maximum_seconds": 189.4781019249931,
+    "cap_seconds": 300,
+    "peak_RSS_bytes": 12444114944,
+    "RSS_cap_bytes": 17179869184
+  },
+  "terminal_assertion_repair": {
+    "initial_failure": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current/cpu/logs/reject-step-3.json",
+    "cause": "The rebased combined row evaluator checks the fresh CCS relation before the running opening. The old test expected the previous error order.",
+    "rerun": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current-completed/cpu/logs/reject-step-3.json",
+    "actual_rejection": "FreshRelation(UnsatisfiedRow { row: 6377555 })",
+    "reuse": "The 17 passed phases and complete CPU bytes were retained. Production Rust, Lean and build inputs did not change; only the expected rejection class in two tests changed."
+  },
+  "proofs": [
+    {
+      "fold": 1,
+      "bytes": 945983,
+      "sha256": "9bad16146f8e1b35fdf463166b153975a94edb494aa595bd01c79c7453c027b6",
+      "scope": "file custody only; complete bytes are compared by both checkers"
+    },
+    {
+      "fold": 2,
+      "bytes": 945983,
+      "sha256": "c6997ff92df97645e0bdb293638859c781d3e77046a5b579d68b94fc26d73bb9",
+      "scope": "file custody only; complete bytes are compared by both checkers"
+    }
+  ],
+  "fresh_Lean": [
+    {
+      "fold": 1,
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current-completed/lean-step-1/result.json",
+      "outcome": "passed",
+      "caller": {
+        "private_words": 177326,
+        "public_words": 278,
+        "complete_caller_word_equality_checked": true,
+        "all_seven_result_fields_checked": true
+      },
+      "physical_bytes": 234755400,
+      "Lean_rejections": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D_rejections": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ],
+      "independent_generation": false
+    },
+    {
+      "fold": 2,
+      "record": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/current-completed/lean-step-2/result.json",
+      "outcome": "passed",
+      "caller": {
+        "private_words": 177326,
+        "public_words": 278,
+        "complete_caller_word_equality_checked": true,
+        "all_seven_result_fields_checked": true
+      },
+      "physical_bytes": 234755400,
+      "Lean_rejections": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D_rejections": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ],
+      "independent_generation": false
+    }
+  ],
+  "input_connection": {
+    "outcome": "passed",
+    "iterations": [
+      1,
+      2,
+      3
+    ],
+    "sources": 17,
+    "blocks_per_source": 4685394,
+    "projected_bytes": [
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/first-original/public.json",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/sources/public.json",
+        "exact_bytes": 149943
+      },
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/first-original/sources.jsonl",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-first/step-1-to-2/sources/sources.jsonl",
+        "exact_bytes": 118155891
+      },
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/feedback/public.json",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/public.json",
+        "exact_bytes": 410910
+      },
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/feedback/sources.jsonl",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/sources.jsonl",
+        "exact_bytes": 562056218
+      },
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/original/public.json",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/public.json",
+        "exact_bytes": 410910
+      },
+      {
+        "actual": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection/original/sources.jsonl",
+        "retained": "/home/nicoarq/develop/nightstream-stage1-evidence/golden-conformance-0c92b267.sq11cto5/independent-continuation/step-2-to-3/sources/sources.jsonl",
+        "exact_bytes": 562056218
+      }
+    ],
+    "state_and_parent": {
+      "state_words": 4,
+      "message_words": 4,
+      "parent_fields": "commitment, public matrix, point, K/A evaluations, output flag",
+      "carried_frames": 17,
+      "frame_bytes_each": 32,
+      "frame_source": "first caller successor state digest",
+      "context": "first and completed second caller equal the selected verifier context",
+      "retained_C_public_fields": [
+        1,
+        2,
+        6
+      ],
+      "reference_metadata_excluded": [
+        "child_witness_directory",
+        "fresh_claim_file",
+        "fresh_witness_file",
+        "scope"
+      ]
+    },
+    "scope": "Complete first Lean successor witnesses and public values equal the original inputs and source projection consumed by the second fold. Parent, state digest frames, context, package, message and retained C public input are checked separately."
+  },
+  "independent_generation": "Retained first-fold and second-fold results under the source/input audit, followed by complete current CPU comparisons. No new independent Lean generation in this revalidation.",
+  "python_tests": {
+    "record": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/focused-tests.json",
+    "passed": 72,
+    "symlink_temporary_paths": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/symlink-temp-tests.json"
+  },
+  "excluded": [
+    "CI enforcement",
+    "Metal validation",
+    "independent fold 3\u21924",
+    "protected external acceptance"
+  ],
+  "claim_scope": "Selected-case conformance. No numerical soundness probability or discharge of the Fiat\u2013Shamir assumption.",
+  "completed_utc": "2026-09-22T23:15:06.490078+00:00",
+  "independent_comparison_record": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/result.json",
+  "independent_comparison_stages": [
+    {
+      "name": "input-audit",
+      "outcome": "passed",
+      "elapsed_seconds": 2.416989668039605,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-audit.log"
+    },
+    {
+      "name": "parent-1",
+      "outcome": "passed",
+      "elapsed_seconds": 18.944265370024368,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/parent-1.log"
+    },
+    {
+      "name": "digits-1",
+      "outcome": "passed",
+      "elapsed_seconds": 2.2120355570223182,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/digits-1.log"
+    },
+    {
+      "name": "proof-1",
+      "outcome": "passed",
+      "elapsed_seconds": 19.693299741018564,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/proof-1.log"
+    },
+    {
+      "name": "parent-2",
+      "outcome": "passed",
+      "elapsed_seconds": 20.89216140890494,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/parent-2.log"
+    },
+    {
+      "name": "digits-2",
+      "outcome": "passed",
+      "elapsed_seconds": 2.8123903470113873,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/digits-2.log"
+    },
+    {
+      "name": "proof-2",
+      "outcome": "passed",
+      "elapsed_seconds": 19.741936161881313,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/proof-2.log"
+    },
+    {
+      "name": "complete-outputs",
+      "outcome": "passed",
+      "elapsed_seconds": 3.2690535781439394,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/complete-outputs.log"
+    },
+    {
+      "name": "first-original",
+      "outcome": "passed",
+      "elapsed_seconds": 7.070182060124353,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/first-original.log"
+    },
+    {
+      "name": "original",
+      "outcome": "passed",
+      "elapsed_seconds": 20.542106206994504,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/original.log"
+    },
+    {
+      "name": "feedback",
+      "outcome": "passed",
+      "elapsed_seconds": 25.352573900017887,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/feedback.log"
+    },
+    {
+      "name": "input-connection",
+      "outcome": "passed",
+      "elapsed_seconds": 0.9116648100316525,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/input-connection.log"
+    },
+    {
+      "name": "terminal-accepted",
+      "outcome": "passed",
+      "elapsed_seconds": 225.2447961429134,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-accepted.log"
+    },
+    {
+      "name": "terminal-prepare-ce-evaluation",
+      "outcome": "passed",
+      "elapsed_seconds": 36.37193046393804,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-prepare-ce-evaluation.log"
+    },
+    {
+      "name": "terminal-check-ce-evaluation",
+      "outcome": "passed",
+      "elapsed_seconds": 247.1305980128236,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-check-ce-evaluation.log"
+    },
+    {
+      "name": "terminal-prepare-ce-matrix-evaluation",
+      "outcome": "passed",
+      "elapsed_seconds": 46.79376607411541,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-prepare-ce-matrix-evaluation.log"
+    },
+    {
+      "name": "terminal-check-ce-matrix-evaluation",
+      "outcome": "passed",
+      "elapsed_seconds": 230.59452250087634,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-check-ce-matrix-evaluation.log"
+    },
+    {
+      "name": "terminal-prepare-fresh-private",
+      "outcome": "passed",
+      "elapsed_seconds": 36.63165812892839,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-prepare-fresh-private.log"
+    },
+    {
+      "name": "terminal-check-fresh-private",
+      "outcome": "passed",
+      "elapsed_seconds": 225.99102585203946,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/terminal-check-fresh-private.log"
+    },
+    {
+      "name": "final-input-audit",
+      "outcome": "passed",
+      "elapsed_seconds": 2.4159168750047684,
+      "log": "/home/nicoarq/develop/nightstream-stage1-evidence/pr120-revalidation-6x6mjzxc/selected-comparison/final-input-audit.log"
+    }
+  ],
+  "terminal_checks": [
+    {
+      "case": "accepted",
+      "iteration": 3,
+      "passed": true,
+      "result": "Ok(())",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 224.823358931
+    },
+    {
+      "case": "ce-evaluation",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(Running { index: 0, reason: \"Eval_K differs from the complete witness opening\" })",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 245.861484689
+    },
+    {
+      "case": "ce-matrix-evaluation",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(Running { index: 0, reason: \"Eval_A differs from the complete witness openings\" })",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 230.11116783
+    },
+    {
+      "case": "fresh-private",
+      "iteration": 3,
+      "passed": true,
+      "result": "Err(FreshRelation(UnsatisfiedRow { row: 0 }))",
+      "schema": 1,
+      "scope": "selected terminal predicate on actual retained witnesses; no new proof backend",
+      "seconds": 225.529502607
+    }
+  ],
+  "base_update": {
+    "base_commit": "c92d6e1484431cc28be28636520d39ff13e46396",
+    "merge_commit": "a59dbe1efdff8c276bae32177e635a0622a2e663",
+    "validated_source_diff_paths": [
+      "*.rs",
+      "*.lean",
+      "Cargo.toml",
+      "Cargo.lock",
+      "**/Cargo.toml",
+      "rust-toolchain.toml",
+      ".cargo",
+      "formal/nightstream-fprime",
+      "crates/nightstream/artifacts",
+      "crates/nightstream-fprime/artifacts",
+      "crates/nightstream/tests/fixtures",
+      "scripts/golden_conformance_ci.py",
+      "scripts/bridge_first_second.py",
+      "scripts/check_selected_replay.py"
+    ],
+    "validated_source_diff": "empty",
+    "scope": "The new base changes contract records, documentation and existing CI coverage. It does not change the validated proof implementation, Lean project, selected artifacts or coordinator code."
+  },
+  "retained_source_audit": [
+    {
+      "iteration": 1,
+      "retained_source_commit": "48da089692ba2905feab6fc53c5742056932cdf1",
+      "unchanged_Lean_source_files": 1249,
+      "native_comparison_crate_rename_only": [
+        "formal/nightstream-fprime/scripts/check-boundaries.sh",
+        "formal/nightstream-fprime/scripts/replay_recursive_loop.py"
+      ]
+    },
+    {
+      "iteration": 2,
+      "retained_source_commit": "68525a3c56e23b0350831bececc265eaceb36b87",
+      "unchanged_Lean_source_files": 1249,
+      "native_comparison_crate_rename_only": [
+        "formal/nightstream-fprime/scripts/check-boundaries.sh",
+        "formal/nightstream-fprime/scripts/replay_recursive_loop.py"
+      ]
+    }
+  ]
+}

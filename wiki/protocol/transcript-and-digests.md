@@ -24,12 +24,13 @@ A Merlin-inspired, byte-first API:
   feature `debug-log` — transcript event logging.
 - `TranscriptRng` — transcript-derived randomness for prover-side sampling.
 
-Spec: `crates/neo-transcript/specs/Transcript.spec.md`.
+The selected protocol contract and active Lean transcript model are the
+authority. Rust framing tests live in `crates/neo-transcript/tests`.
 
 ## What must be bound, where
 
-`specs/direct-ccs-superneo-transcript-binding.md` is the normative answer for the
-direct-CCS path. The invariant:
+[NS-TRANSCRIPT-ORDER](../../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule)
+defines the selected fold schedule. Its binding invariant is:
 
 > A verifier challenge must be unpredictable until all public inputs and prover
 > messages that precede that challenge have been fixed.
@@ -40,11 +41,9 @@ Three layers use Fiat-Shamir differently:
 |---|---|
 | SuperNeo chunk (Π_CCS → Π_RLC → Π_DEC) | Derives the folding challenges (α, γ, r′, ρ_i) from a Poseidon2 transcript that has absorbed the structure, instances, and prior prover messages. |
 | F′ (Construction 2) | *Recomputes* the SuperNeo transcript to re-run NIFS.V in-circuit; separately hashes the compact Construction-2 public image (`x_out`). The image hash is linkage, not a substitute for the folding transcript. |
-| Spartan compression | Invents no new SuperNeo challenges; proves the F′ transcript and terminal relation checks were satisfied. |
 
-Red-team coverage: `crates/neo-fold-clean/tests/f_prime/transcript_redteam.rs` and
-`tests/reductions/nifs_v_transcript.rs` mutate absorbed material and assert challenge
-divergence.
+Current sampler parity checks compare Rust with Lean. The staged fold checks
+verify the complete continued C/R/D transcript and its returned values.
 
 ## Digest authority rules
 
@@ -59,12 +58,10 @@ invariants the code is audited against:
 3. Self-consistent digest chains are not evidence of soundness: if an attacker can
    mutate data and re-digest upward, the verifier must still fail.
 
-`crates/neo-fold-clean/src/paper/digest.rs` owns the digest taxonomy: structure and
-params digests (recomputed from preprocessing, never trusted from the wire),
-`state_x_out_digest` (the Construction-2 hash chain), accumulator digests, and the
-chunk public digest. In-circuit mirrors live in `paper/f_prime/digest_circuit.rs` and
-are byte-for-byte parity-tested against the native functions
-(`tests/f_prime/digest_circuit.rs`).
+`nightstream-fprime/src/identity.rs` owns package and verifier-context binding.
+`nightstream/src/folding/transcript.rs` and `lifecycle/inputs.rs` own the fold
+transcript and state inputs. The active Lean package supplies the corresponding
+protocol and circuit definitions.
 
 A concrete consequence of rule 1: the F′ chain's `acc_digest` commits to the public CE
 claims, but the terminal verifier still independently checks the opened witnesses

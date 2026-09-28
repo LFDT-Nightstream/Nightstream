@@ -1,0 +1,213 @@
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Finset.Powerset
+import Mathlib.Data.List.Basic
+import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.FieldPairLaw
+
+/-!
+Owns the exact 54-of-64 shortfall event and its finite counting bound under
+independent uniform 16-bit candidates. The comparison law gives every
+64-candidate function equal mass. No law is assigned to Poseidon2 or to a
+sequence of Goldilocks field lanes.
+-/
+
+namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ShortfallBound
+
+open scoped BigOperators
+open ProductionAlphabet Sampling
+
+attribute [local instance] Classical.propDecidable
+
+abbrev Window := Fin candidateBound → Chunk
+
+def rejection : Chunk := ⟨rejectionBucket, by decide⟩
+
+noncomputable def rejectedPositions (window : Window) : Finset (Fin candidateBound) :=
+  Finset.univ.filter fun index => window index = rejection
+
+def RejectsOn (positions : Finset (Fin candidateBound)) (window : Window) : Prop :=
+  ∀ index, index ∈ positions → window index = rejection
+
+private theorem rejects_iff (candidate : Chunk) :
+    verifier.accepts candidate = false ↔ candidate = rejection := by
+  constructor
+  · intro rejected
+    apply Fin.ext
+    change candidate.val = rejectionBucket
+    by_contra different
+    have accepted := (accepts_eq_true_iff_ne_rejectionBucket candidate).mpr different
+    rw [rejected] at accepted
+    contradiction
+  · intro same
+    subst candidate
+    decide
+
+private theorem filter_ofFn_length {Element : Type*} {count : Nat}
+    (values : Fin count → Element) (predicate : Element → Bool) :
+    ((List.ofFn values).filter predicate).length =
+      (Finset.univ.filter fun index => predicate (values index) = true).card := by
+  have mapped := congrArg Multiset.card
+    (Multiset.filter_map (p := fun value => predicate value = true)
+      values (Finset.univ : Finset (Fin count)).val)
+  simpa [Finset.card, Finset.filter_val, Function.comp_def] using mapped
+
+private theorem accepted_add_rejected (window : Window) :
+    FirstAccepted.acceptedCount verifier (List.ofFn window) +
+      (rejectedPositions window).card = candidateBound := by
+  have rejected : ((List.ofFn window).filter (fun value => !verifier.accepts value)).length =
+      (rejectedPositions window).card := by
+    rw [filter_ofFn_length]
+    unfold rejectedPositions
+    apply congrArg Finset.card
+    apply Finset.filter_congr
+    intro index _member
+    change (!verifier.accepts (window index)) = true ↔ window index = rejection
+    cases sampled : verifier.accepts (window index) <;>
+      simpa [sampled] using rejects_iff (window index)
+  have partition := List.length_eq_length_filter_add
+    (l := List.ofFn window) verifier.accepts
+  rw [List.length_ofFn, rejected] at partition
+  exact partition.symm
+
+/-- Shortfall occurs exactly when at least eleven candidates are rejected. -/
+theorem shortfall_iff_eleven_rejections (window : Window) :
+    FirstAccepted.Shortfall verifier coefficientCount (List.ofFn window) ↔
+      11 ≤ (rejectedPositions window).card := by
+  have partition := accepted_add_rejected window
+  unfold FirstAccepted.Shortfall
+  change FirstAccepted.acceptedCount verifier (List.ofFn window) < 54 ↔ _
+  change FirstAccepted.acceptedCount verifier (List.ofFn window) +
+    (rejectedPositions window).card = 64 at partition
+  omega
+
+theorem bounded_sample_none_iff_eleven_rejections (window : Window) :
+    FirstAccepted.boundedSample verifier coefficientCount (List.ofFn window) = none ↔
+      11 ≤ (rejectedPositions window).card := by
+  rw [FirstAccepted.boundedSample_eq_none_iff_shortfall, shortfall_iff_eleven_rejections]
+
+private theorem rejection_count_iff_covered (window : Window) :
+    11 ≤ (rejectedPositions window).card ↔
+      ∃ positions : Finset (Fin candidateBound),
+        positions.card = 11 ∧ RejectsOn positions window := by
+  constructor
+  · intro enough
+    obtain ⟨positions, subset, size⟩ := Finset.exists_subset_card_eq enough
+    refine ⟨positions, size, ?_⟩
+    intro index member
+    exact (Finset.mem_filter.mp (subset member)).2
+  · rintro ⟨positions, size, rejected⟩
+    have subset : positions ⊆ rejectedPositions window := by
+      intro index member
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, rejected index member⟩
+    simpa only [size] using Finset.card_le_card subset
+
+private theorem pattern_card (positions : Finset (Fin candidateBound)) :
+    Fintype.card {window : Window // RejectsOn positions window} =
+      chunkModulus ^ (candidateBound - positions.card) := by
+  classical
+  unfold RejectsOn
+  rw [Fintype.card_congr (Equiv.subtypePiEquivPi
+    (p := fun index value => index ∈ positions → value = rejection)), Fintype.card_pi]
+  have coordinate (index : Fin candidateBound) :
+      Fintype.card {value : Chunk // index ∈ positions → value = rejection} =
+        if index ∈ positions then 1 else chunkModulus := by
+    by_cases member : index ∈ positions
+    · simp [member, Fintype.card_subtype_eq]
+    · simp [member, Chunk, Fintype.card_subtype_true]
+  simp_rw [coordinate]
+  calc
+    (∏ index : Fin candidateBound, if index ∈ positions then 1 else chunkModulus) =
+        ∏ index : Fin candidateBound, if index ∈ positionsᶜ then chunkModulus else 1 := by
+      apply Finset.prod_congr rfl
+      intro index _member
+      by_cases member : index ∈ positions <;> simp [member]
+    _ = chunkModulus ^ (candidateBound - positions.card) := by
+      rw [Finset.prod_ite_mem_eq]
+      simp
+
+/-- The uniform finite-function space is the product of the 64 chunk alphabets. -/
+theorem window_cardinality : Fintype.card Window = chunkModulus ^ candidateBound := by
+  simp [Window, Chunk]
+
+private theorem finite_cover_card_le {Source Support : Type*}
+    [Fintype Source] [DecidableEq Source]
+    (supports : Finset Support) (event : Source → Prop)
+    (pattern : Support → Source → Prop) (bound : Nat)
+    (covered : ∀ source, event source → ∃ support ∈ supports, pattern support source)
+    (patternBound : ∀ support ∈ supports,
+      Fintype.card {source : Source // pattern support source} ≤ bound) :
+    Fintype.card {source : Source // event source} ≤ supports.card * bound := by
+  classical
+  let patterns := fun support => (Finset.univ : Finset Source).filter (pattern support)
+  have subset : (Finset.univ.filter event) ⊆ supports.biUnion patterns := by
+    intro source member
+    obtain ⟨support, within, valid⟩ := covered source (Finset.mem_filter.mp member).2
+    exact Finset.mem_biUnion.mpr
+      ⟨support, within, Finset.mem_filter.mpr ⟨Finset.mem_univ _, valid⟩⟩
+  rw [Fintype.card_subtype]
+  calc
+    _ ≤ (supports.biUnion patterns).card := Finset.card_le_card subset
+    _ ≤ ∑ support ∈ supports, (patterns support).card := Finset.card_biUnion_le
+    _ ≤ ∑ _support ∈ supports, bound := by
+      apply Finset.sum_le_sum
+      intro support member
+      change ((Finset.univ : Finset Source).filter (pattern support)).card ≤ bound
+      rw [← Fintype.card_subtype]
+      exact patternBound support member
+    _ = supports.card * bound := by simp
+
+private theorem rejection_count_card_le :
+    Fintype.card {window : Window // 11 ≤ (rejectedPositions window).card} ≤
+        Nat.choose candidateBound 11 * chunkModulus ^ 53 := by
+  classical
+  let supports := (Finset.univ : Finset (Fin candidateBound)).powersetCard 11
+  have covered : ∀ window : Window, 11 ≤ (rejectedPositions window).card →
+      ∃ positions ∈ supports, RejectsOn positions window := by
+    intro window failing
+    obtain ⟨positions, size, rejects⟩ := (rejection_count_iff_covered window).mp
+      failing
+    exact ⟨positions, Finset.mem_powersetCard.mpr ⟨Finset.subset_univ _, size⟩, rejects⟩
+  have patternBound : ∀ positions ∈ supports,
+      Fintype.card {window : Window // RejectsOn positions window} ≤ chunkModulus ^ 53 := by
+    intro positions member
+    have size := (Finset.mem_powersetCard.mp member).2
+    rw [pattern_card, size]
+    exact Nat.le_refl _
+  have bound := finite_cover_card_le supports
+    (fun window : Window => 11 ≤ (rejectedPositions window).card)
+    RejectsOn (chunkModulus ^ 53) covered patternBound
+  simpa only [supports, Finset.card_powersetCard, Finset.card_univ, Fintype.card_fin] using bound
+
+/-- Cover each failing window by a set of eleven rejected positions. Count
+the free coordinates for each set, then apply the finite union bound. -/
+theorem shortfall_card_le :
+    Fintype.card {window : Window //
+      FirstAccepted.Shortfall verifier coefficientCount (List.ofFn window)} ≤
+        Nat.choose candidateBound 11 * chunkModulus ^ 53 := by
+  rw [Fintype.card_congr (Equiv.subtypeEquivRight shortfall_iff_eleven_rejections)]
+  exact rejection_count_card_le
+
+/-- Shortfall probability in the explicit IID uniform 16-bit comparison.
+This is a rational finite count, including every rejected sampler window. -/
+noncomputable def iidBitShortfallProbability : ℚ :=
+  (Fintype.card {window : Window //
+    FirstAccepted.Shortfall verifier coefficientCount (List.ofFn window)} : ℚ) /
+      (chunkModulus : ℚ) ^ candidateBound
+
+theorem iid_bit_shortfall_probability_le :
+    iidBitShortfallProbability ≤
+      (Nat.choose candidateBound 11 : ℚ) / (chunkModulus : ℚ) ^ 11 := by
+  have counted : (Fintype.card {window : Window //
+      FirstAccepted.Shortfall verifier coefficientCount (List.ofFn window)} : ℚ) ≤
+        (Nat.choose candidateBound 11 : ℚ) * (chunkModulus : ℚ) ^ 53 := by
+    exact_mod_cast shortfall_card_le
+  unfold iidBitShortfallProbability
+  calc
+    _ ≤ (Nat.choose candidateBound 11 : ℚ) * (chunkModulus : ℚ) ^ 53 /
+        (chunkModulus : ℚ) ^ candidateBound :=
+      div_le_div_of_nonneg_right counted (by positivity)
+    _ = (Nat.choose candidateBound 11 : ℚ) / (chunkModulus : ℚ) ^ 11 := by
+      have nonzero : (chunkModulus : ℚ) ≠ 0 := by norm_num [chunkModulus]
+      rw [show candidateBound = 53 + 11 by decide, pow_add]
+      field_simp
+
+end NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ShortfallBound

@@ -1,0 +1,968 @@
+{
+  "schema": 1,
+  "source_commit": "5d980276b082ccf7355de98c5b2e297c0259b7e5",
+  "blocks": 4685394,
+  "range_extent": 74272,
+  "ranges": [
+    {
+      "start": 0,
+      "end": 74272,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-0-74272.json",
+        "sha256": "dded980d0642461e65cf2b82412df8b61d3a44fc2362d53c1fb72f075791c826"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-0-74272-1.log",
+        "sha256": "8799888d5e29ca544e41c22f83dfb774742c6540c618f3fca48b99fdeb9f0847"
+      },
+      "elapsed_seconds": 45.03225861606188,
+      "peak_rss_kib": 3864584
+    },
+    {
+      "start": 74272,
+      "end": 148544,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-74272-148544.json",
+        "sha256": "8ff4f8bb8f536613c7570ab15422135390c74f0d1b705c4a741f97195a99b00d"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-74272-148544-1.log",
+        "sha256": "49bdf1ba9e913f2bc2a77560e2cc51dcbd2658551841e46723ad701e3ec420b2"
+      },
+      "elapsed_seconds": 42.04270661494229,
+      "peak_rss_kib": 1517180
+    },
+    {
+      "start": 148544,
+      "end": 222816,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-148544-222816.json",
+        "sha256": "73cfaebdfa5ac8d5bcad02e473c78c436ac9cd508c24d8e1ba4bec2bdcc7da88"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-148544-222816-1.log",
+        "sha256": "41ba3835e25d3fbe7bf1b44ec0039b14c171d5821f2345708e18e81a38db8d42"
+      },
+      "elapsed_seconds": 42.45891550404485,
+      "peak_rss_kib": 1512308
+    },
+    {
+      "start": 222816,
+      "end": 297088,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-222816-297088.json",
+        "sha256": "caa2244927aa4d48e251d826418f9348f6de864521853386875bf84b187a5151"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-222816-297088-1.log",
+        "sha256": "95651252694d0af1fc2245c3b00d1308233da6700770066d801fc1e71f02b726"
+      },
+      "elapsed_seconds": 40.24600177805405,
+      "peak_rss_kib": 1517164
+    },
+    {
+      "start": 297088,
+      "end": 371360,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-297088-371360.json",
+        "sha256": "a9163d666a2624ab60113b1239aa9823d4018f10fec8255cdd290e317ab0f9cb"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-297088-371360-1.log",
+        "sha256": "1033842408d4e8bf76dfcae9f9476af4f0bcda05d163a602c4589793d0b0db6d"
+      },
+      "elapsed_seconds": 42.98109020409174,
+      "peak_rss_kib": 1512028
+    },
+    {
+      "start": 371360,
+      "end": 445632,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-371360-445632.json",
+        "sha256": "a60f9fbd36c09758594999b96871d14d1fb631275a63019c49782ba3fb1f23f1"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-371360-445632-1.log",
+        "sha256": "794cb3806fbe819799b4f878d8310ff5347daa7068392d1f5b03ca4e466bedb2"
+      },
+      "elapsed_seconds": 42.19215485092718,
+      "peak_rss_kib": 1519208
+    },
+    {
+      "start": 445632,
+      "end": 519904,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-445632-519904.json",
+        "sha256": "0f3881664bfce67931ca1684b238c1a228ad008ecda15b3265f3e16865781963"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-445632-519904-1.log",
+        "sha256": "cef4c405087080603a75b1b3d2fc2bffa94638ee55bf1891a93adfdb53d0f3ab"
+      },
+      "elapsed_seconds": 42.713763816980645,
+      "peak_rss_kib": 1512144
+    },
+    {
+      "start": 519904,
+      "end": 594176,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-519904-594176.json",
+        "sha256": "845af121bcb51b5a1d8407d02d2e92c9618b4f71378035c58c3fccdcdcf79dbe"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-519904-594176-1.log",
+        "sha256": "8ac540acf42c99bbb91ee13671d33f62a4dda521db9264632f2d5f7595f82f9b"
+      },
+      "elapsed_seconds": 40.01587588095572,
+      "peak_rss_kib": 1519412
+    },
+    {
+      "start": 594176,
+      "end": 668448,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-594176-668448.json",
+        "sha256": "51ae7f10edda2f3f19df85799ee2e0a1f961da1677b03e84b37d9ebc63ed4dad"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-594176-668448-1.log",
+        "sha256": "c3d158ffad54795a1fbe45f218ddf5cabf77dc33ed01dc6bf615c71c34ee2baa"
+      },
+      "elapsed_seconds": 42.83412987599149,
+      "peak_rss_kib": 1512172
+    },
+    {
+      "start": 668448,
+      "end": 742720,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-668448-742720.json",
+        "sha256": "60b5c341c228a68ad5945a60ddee356372eceb6751b894765f568be9f82ac952"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-668448-742720-1.log",
+        "sha256": "7835d65aec52087aadbfc26acb692c1314a3ff6808933b5959a6db5fa262f3fc"
+      },
+      "elapsed_seconds": 40.89132102695294,
+      "peak_rss_kib": 1518604
+    },
+    {
+      "start": 742720,
+      "end": 816992,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-742720-816992.json",
+        "sha256": "cf4af4bc57aab7f5e54c05f8b85bbae8bcb7f2235fcbbd56d70002a1c09c6bdd"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-742720-816992-1.log",
+        "sha256": "7315cc14cdfbaefb7e3f34a069acda85c4108b0a38dfd0e3f2e5ac4de7fad5a4"
+      },
+      "elapsed_seconds": 40.10667363903485,
+      "peak_rss_kib": 1518952
+    },
+    {
+      "start": 816992,
+      "end": 891264,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-816992-891264.json",
+        "sha256": "5dddadedd670d854ed0dd6fe24febf1f89f3b4fc930afce82fa318f9200f4764"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-816992-891264-1.log",
+        "sha256": "e18b94ca80a2863a46997294c3469b5e75bd2a9d16b2b163fdd951ee5e6f7cac"
+      },
+      "elapsed_seconds": 42.71804441802669,
+      "peak_rss_kib": 1519424
+    },
+    {
+      "start": 891264,
+      "end": 965536,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-891264-965536.json",
+        "sha256": "81fefb3c8e7a602473b90804ec9c35e79487489c09b3764bc04006fda95b5649"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-891264-965536-1.log",
+        "sha256": "266e487d29ec929828bd8f32336a3082a14f42a41a8629769761da478d9dd5bc"
+      },
+      "elapsed_seconds": 42.049500872031786,
+      "peak_rss_kib": 1519192
+    },
+    {
+      "start": 965536,
+      "end": 1039808,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-965536-1039808.json",
+        "sha256": "ba958e62a2f977f575a45015afb9076c5281b3b57b88cbfc7c1990f278b85511"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-965536-1039808-1.log",
+        "sha256": "041c83919da51d614279552366b263eef0748ba3d5812f2cbb700fc2eb9e8881"
+      },
+      "elapsed_seconds": 42.36232306296006,
+      "peak_rss_kib": 1518908
+    },
+    {
+      "start": 1039808,
+      "end": 1114080,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1039808-1114080.json",
+        "sha256": "148872a5d4bb4e2a5aeccf6cc2f7df18de46db42589cfc25377c468cf0bb26eb"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1039808-1114080-1.log",
+        "sha256": "fec3653079353ce583c6522553e36e036b1d3589dec7ea026c568dbd997064ec"
+      },
+      "elapsed_seconds": 42.83091508306097,
+      "peak_rss_kib": 1511884
+    },
+    {
+      "start": 1114080,
+      "end": 1188352,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1114080-1188352.json",
+        "sha256": "4f5f6a3afc7934ec9550ab53673a622da1bf29fdd0f41f0194bdc988182f499d"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1114080-1188352-1.log",
+        "sha256": "c0cd9f6585633853f673e7165379b5fb1a7dc9271c162823517356d5f007699d"
+      },
+      "elapsed_seconds": 39.96500588301569,
+      "peak_rss_kib": 1518992
+    },
+    {
+      "start": 1188352,
+      "end": 1262624,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1188352-1262624.json",
+        "sha256": "45b340ecd0afa6d0e6af504411cc8732d68ac1f88534ec0d7f424e981ffe84ed"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1188352-1262624-1.log",
+        "sha256": "c6c75da8224f36dc720e1830e0759aa994d8cd71ad67d892450829c69e2e2c8c"
+      },
+      "elapsed_seconds": 39.95347180007957,
+      "peak_rss_kib": 1512512
+    },
+    {
+      "start": 1262624,
+      "end": 1336896,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1262624-1336896.json",
+        "sha256": "20f952d6a36e8f916301073b750eec987a70b7778180ed276a064f65809abc47"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1262624-1336896-1.log",
+        "sha256": "3f5639c180b62ca034548a8fe2f8af54c1b9e00944ae89994d53fcfbd3ea1936"
+      },
+      "elapsed_seconds": 43.03833222389221,
+      "peak_rss_kib": 1512264
+    },
+    {
+      "start": 1336896,
+      "end": 1411168,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1336896-1411168.json",
+        "sha256": "bc09eb06431aa47d3a56e5453ebab8e6c02a7cfd04efb4447291271b435bea42"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1336896-1411168-1.log",
+        "sha256": "85af10170c75f771c2ee72913768c0e19e47755a665c9dac71d2f91f58275aa9"
+      },
+      "elapsed_seconds": 42.05722259590402,
+      "peak_rss_kib": 1518728
+    },
+    {
+      "start": 1411168,
+      "end": 1485440,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1411168-1485440.json",
+        "sha256": "f8b539d02237cc73063f91371331558c265045c326d8b20cd26d2d32c3422beb"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1411168-1485440-1.log",
+        "sha256": "1c44e3e6e2deea13ee641581f88ba3e46549d028f7cd67fb2b6bf0eb3874dcc7"
+      },
+      "elapsed_seconds": 42.36033697903622,
+      "peak_rss_kib": 1519276
+    },
+    {
+      "start": 1485440,
+      "end": 1559712,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1485440-1559712.json",
+        "sha256": "5b54bda9a060abeeaf2c6a0dec435dcef3f28ba35e73f07156500afd4a235fa6"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1485440-1559712-1.log",
+        "sha256": "5097ee69b765765d4a517ce7f069acde41f18c36c078398742130789a9cb5836"
+      },
+      "elapsed_seconds": 39.89506202796474,
+      "peak_rss_kib": 1512804
+    },
+    {
+      "start": 1559712,
+      "end": 1633984,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1559712-1633984.json",
+        "sha256": "d46d9d937e655b600d69daa8e3dc23aa863a5c99204d02f4555b6d8e81252a37"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1559712-1633984-1.log",
+        "sha256": "3c7f27d70503410c678ebb107cc0224ac04e719bf24bea33128038bc180eb5d2"
+      },
+      "elapsed_seconds": 40.13350539805833,
+      "peak_rss_kib": 1516632
+    },
+    {
+      "start": 1633984,
+      "end": 1708256,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1633984-1708256.json",
+        "sha256": "5da2fb790da3dfab4144dba8b78244b2d59534d3a4a07180b10d4719f9c88fba"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1633984-1708256-1.log",
+        "sha256": "74b1fbcf5c79bf780a7d344be1e4e7e92adb3373b032e6e0dd6fa2d0cf30cd94"
+      },
+      "elapsed_seconds": 43.189000874059275,
+      "peak_rss_kib": 1512736
+    },
+    {
+      "start": 1708256,
+      "end": 1782528,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1708256-1782528.json",
+        "sha256": "549b9afc79b8e1d71bc07ef745bb17cfe6ff076dd841911d3b3a765370a4f3ab"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1708256-1782528-1.log",
+        "sha256": "c17d1cf09bee605e8479f2cc24bd925142e007830a904cc4fc2b8c9e538f5523"
+      },
+      "elapsed_seconds": 42.422210549004376,
+      "peak_rss_kib": 1515716
+    },
+    {
+      "start": 1782528,
+      "end": 1856800,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1782528-1856800.json",
+        "sha256": "79f6917b0e13ac93cda136ba7445a92ebb443a2e7b12e0e9ed195cc3d3d58204"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1782528-1856800-1.log",
+        "sha256": "8d67fcda3a06610f5fe9993c0055f423bbee70bdaa5f192b64bdb7f591fb263c"
+      },
+      "elapsed_seconds": 42.83746023604181,
+      "peak_rss_kib": 1512672
+    },
+    {
+      "start": 1856800,
+      "end": 1931072,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1856800-1931072.json",
+        "sha256": "810deab072533719ddec7edab616c17ce83d2efd62f1733912dc712c670ce423"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1856800-1931072-1.log",
+        "sha256": "f07947230b918854c10d3f62be53002e855beaccf9bc0e8d0d933bd82135893c"
+      },
+      "elapsed_seconds": 40.00574308098294,
+      "peak_rss_kib": 1509160
+    },
+    {
+      "start": 1931072,
+      "end": 2005344,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-1931072-2005344.json",
+        "sha256": "b2bbeaa230d87e0e2bb649834158ac2e69b4587b7c730f536cb68c45dd0dac33"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-1931072-2005344-1.log",
+        "sha256": "a8e716ffb4257da74101aec88600abea5132b203341dcc7c3193ac25d2297b8a"
+      },
+      "elapsed_seconds": 39.966747725964524,
+      "peak_rss_kib": 1519272
+    },
+    {
+      "start": 2005344,
+      "end": 2079616,
+      "computed_blocks": 74272,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2005344-2079616.json",
+        "sha256": "764d71b4a729f3154c667f7182f88b322054bc01f5e59c140b47a8241bf13688"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2005344-2079616-1.log",
+        "sha256": "7656d141c8efadbcfe89be28871f41621f3cb000830c09a6d47d341cfffdd90b"
+      },
+      "elapsed_seconds": 41.49618704803288,
+      "peak_rss_kib": 1511884
+    },
+    {
+      "start": 2079616,
+      "end": 2153888,
+      "computed_blocks": 56750,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2079616-2153888.json",
+        "sha256": "4b11e35bc4ab0d53f56c6a9a3081ecad8488ff757c00dda96aca718cea56f9ea"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2079616-2153888-1.log",
+        "sha256": "c4ed7cdbe75dfb2e3eb410d01f27308bfd239faf28132fcfeecc7908282a4293"
+      },
+      "elapsed_seconds": 31.842745696078055,
+      "peak_rss_kib": 1519024
+    },
+    {
+      "start": 2153888,
+      "end": 2228160,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2153888-2228160.json",
+        "sha256": "860ffda77217d0aaaa63172aead04856cb7d1438ee1cf563113f188488308219"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2153888-2228160-1.log",
+        "sha256": "930183cb7dbdc8cae3317e504933061b3b557731b525d2fd0ee99069fe55b3bb"
+      },
+      "elapsed_seconds": 6.9255582900950685,
+      "peak_rss_kib": 1488128
+    },
+    {
+      "start": 2228160,
+      "end": 2302432,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2228160-2302432.json",
+        "sha256": "c255c745b46d6b2d6f84b807a0b845c15a0434c783f7758945d10731bd06412c"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2228160-2302432-1.log",
+        "sha256": "98f6d916f5ffbcd52caa5a01210daa2fa030e1536a5002723f9387935cd7511f"
+      },
+      "elapsed_seconds": 7.128076041932218,
+      "peak_rss_kib": 1488344
+    },
+    {
+      "start": 2302432,
+      "end": 2376704,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2302432-2376704.json",
+        "sha256": "b0881289647a6caee20b3d56a0d31a879c2aac5b29c3b99ab4a3d79e735ba3d5"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2302432-2376704-1.log",
+        "sha256": "d93131d134841facbd5a7ea2b4696c1ffb45fc51191684b51dbcb04954ee88c3"
+      },
+      "elapsed_seconds": 7.077281568897888,
+      "peak_rss_kib": 1488492
+    },
+    {
+      "start": 2376704,
+      "end": 2450976,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2376704-2450976.json",
+        "sha256": "e38ffbf58c1e4ee081e997e956efdd126c4b2b96a4b44adb8aa16c00daba62d6"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2376704-2450976-1.log",
+        "sha256": "06caf748aa9f8686b0fb999da88fec931dab7cfc46decc5b170d5b793dc5c717"
+      },
+      "elapsed_seconds": 7.126412343000993,
+      "peak_rss_kib": 1488492
+    },
+    {
+      "start": 2450976,
+      "end": 2525248,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2450976-2525248.json",
+        "sha256": "f332a37aaa5fc0b0b311ae977cf96748ffcbbae1aa42e5a67c680126b8fa3c84"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2450976-2525248-1.log",
+        "sha256": "95895d0a181ea4232668ce2cd96856d60732b08b7e0db6521bbe1b1f2d4b460b"
+      },
+      "elapsed_seconds": 6.926935248891823,
+      "peak_rss_kib": 1488012
+    },
+    {
+      "start": 2525248,
+      "end": 2599520,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2525248-2599520.json",
+        "sha256": "830ededa91c462d01b9519eee15c112118192b2776e161a93fb0be24e218ef6a"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2525248-2599520-1.log",
+        "sha256": "dc3dd0d97da5c2483059d5f74175649f1b3c3f00b4282620be58b805ee33efc8"
+      },
+      "elapsed_seconds": 6.976359448977746,
+      "peak_rss_kib": 1488600
+    },
+    {
+      "start": 2599520,
+      "end": 2673792,
+      "computed_blocks": 3239,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2599520-2673792.json",
+        "sha256": "f154d074d61a93d05261f553e0e76fdb20eccccb1b7a40938b36b53d751124ca"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2599520-2673792-1.log",
+        "sha256": "aa6e70b5a99db44bf543da29f3cffe44a6e5ff7ef3b12273e2764e92b23c329c"
+      },
+      "elapsed_seconds": 8.235321847023442,
+      "peak_rss_kib": 1519252
+    },
+    {
+      "start": 2673792,
+      "end": 2748064,
+      "computed_blocks": 1558,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2673792-2748064.json",
+        "sha256": "a143e189a0bb8e9e4a95e919b5510f801dc19ba31d51d8a2b8f7b473421e3342"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2673792-2748064-1.log",
+        "sha256": "41253975bd2648a8bd404b538266f55ff21c858884f2f4d390383b8c500d201e"
+      },
+      "elapsed_seconds": 7.632110496982932,
+      "peak_rss_kib": 1519068
+    },
+    {
+      "start": 2748064,
+      "end": 2822336,
+      "computed_blocks": 20092,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2748064-2822336.json",
+        "sha256": "505fbeb570ef72e502403041b6d2adfa5c3d8b4f231685534ca9e6cd2b8313a3"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2748064-2822336-1.log",
+        "sha256": "13582da252998be122a5e8d6f53dd3386f89f34aeed6205ea686a617e35d9e31"
+      },
+      "elapsed_seconds": 16.180633688927628,
+      "peak_rss_kib": 1518896
+    },
+    {
+      "start": 2822336,
+      "end": 2896608,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2822336-2896608.json",
+        "sha256": "62efa0ac045bad5a699faceecea0ce3aac107060d7da506646726cbfc4eea8a8"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2822336-2896608-1.log",
+        "sha256": "7e9cd89694f211e403b0ab724c362bd98d5c3b288eeb407e9f1c58012a69da2a"
+      },
+      "elapsed_seconds": 6.976975386962295,
+      "peak_rss_kib": 1488064
+    },
+    {
+      "start": 2896608,
+      "end": 2970880,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2896608-2970880.json",
+        "sha256": "52eef95e3a2a27902cf813a0c5fbe83e7af3be4d9f490482cff68e218d29252a"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2896608-2970880-1.log",
+        "sha256": "eb741169dab97dd9f75cf71863a5910e75cf5d55600376da5f2f499396113245"
+      },
+      "elapsed_seconds": 6.827617264003493,
+      "peak_rss_kib": 1488200
+    },
+    {
+      "start": 2970880,
+      "end": 3045152,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-2970880-3045152.json",
+        "sha256": "0e26bb07c209eae8bc915b0e7e427ee0a2373aa4f0c1e9426e7b872517d8c3aa"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-2970880-3045152-1.log",
+        "sha256": "09f0d7447539c1284ce6b094121ae7f24bdbc9a817bd539a66af44308ece6a29"
+      },
+      "elapsed_seconds": 6.9254132360219955,
+      "peak_rss_kib": 1488316
+    },
+    {
+      "start": 3045152,
+      "end": 3119424,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3045152-3119424.json",
+        "sha256": "40f5e0abb56e8a8538ab7c3efcb37df0560d53b1d98df7960e54c6b66a29af28"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3045152-3119424-1.log",
+        "sha256": "6325a415a004f6daf11e8460ce3d4a63b5cd14f901eed73f7223e7064e20f1ed"
+      },
+      "elapsed_seconds": 6.9770345949800685,
+      "peak_rss_kib": 1488308
+    },
+    {
+      "start": 3119424,
+      "end": 3193696,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3119424-3193696.json",
+        "sha256": "b4f1450cf20b4f14d9dcf03a5d0462b483e462b392ad1700449f7433a38675e8"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3119424-3193696-1.log",
+        "sha256": "64e5940405c0194e65ded5e1ca59052e03d5aac0fdb09fa3c31b39af80216435"
+      },
+      "elapsed_seconds": 6.77606421103701,
+      "peak_rss_kib": 1488648
+    },
+    {
+      "start": 3193696,
+      "end": 3267968,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3193696-3267968.json",
+        "sha256": "26b1c920b9d954a171ba01014156d11d630f3296e3e41921110b469bf441d0b3"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3193696-3267968-1.log",
+        "sha256": "7cccac6580b44c0ba718d6b359c46b56c03cb6c0277e49dcd05851b286e0b0e2"
+      },
+      "elapsed_seconds": 6.827305744052865,
+      "peak_rss_kib": 1488884
+    },
+    {
+      "start": 3267968,
+      "end": 3342240,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3267968-3342240.json",
+        "sha256": "2fce3d480d47ca41c88f0386c43e111c899b705a9f0b5090da10ef4291593dac"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3267968-3342240-1.log",
+        "sha256": "a49f0664033f587fe26f05ce25e9bf92a8593a7059a528f8b319a2a1aab05075"
+      },
+      "elapsed_seconds": 6.8259363760007545,
+      "peak_rss_kib": 1488088
+    },
+    {
+      "start": 3342240,
+      "end": 3416512,
+      "computed_blocks": 0,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3342240-3416512.json",
+        "sha256": "0fbfd5f6c6103d83aeb9561e843387a8b174e0c843eecf96d409f88538a2ade8"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3342240-3416512-1.log",
+        "sha256": "d0050b83348d9f93ec2d13308db355a2c1ace6ab1182cffca5e82ff147351cc5"
+      },
+      "elapsed_seconds": 7.026628831983544,
+      "peak_rss_kib": 1488256
+    },
+    {
+      "start": 3416512,
+      "end": 3490784,
+      "computed_blocks": 41274,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3416512-3490784.json",
+        "sha256": "12367d4c104e409f6aa7e09564160e7ee4f2efef4ff4da947986f806faa7595c"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3416512-3490784-1.log",
+        "sha256": "0f43aba344934f384c14b4557ca39a6e9f6ab2290c8c1bfdab17a92e863bb6f3"
+      },
+      "elapsed_seconds": 24.348976459004916,
+      "peak_rss_kib": 1519176
+    },
+    {
+      "start": 3490784,
+      "end": 3565056,
+      "computed_blocks": 34270,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3490784-3565056.json",
+        "sha256": "15a5b9f8da36295365e22ddd4a5b3d44a5a0a76cf236af323e2918f922ebe069"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3490784-3565056-1.log",
+        "sha256": "393dc08b8f82d68fc54bbc3a3db54edd200c61e9be14e30ef843ab146a396daa"
+      },
+      "elapsed_seconds": 22.977406096993946,
+      "peak_rss_kib": 1512852
+    },
+    {
+      "start": 3565056,
+      "end": 3639328,
+      "computed_blocks": 21490,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3565056-3639328.json",
+        "sha256": "0148e42fd86a03a990811bda9b028862836719eb07a5fdeb292e89bf16f22fe6"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3565056-3639328-1.log",
+        "sha256": "d85ad23a26e58f4428c6ad6360bc01350b609a98fb2339d493b2a5ce5f83a0f9"
+      },
+      "elapsed_seconds": 16.598441411042586,
+      "peak_rss_kib": 1519420
+    },
+    {
+      "start": 3639328,
+      "end": 3713600,
+      "computed_blocks": 60196,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3639328-3713600.json",
+        "sha256": "95b223bfcadd5229c2d7e759800b484e424801ef207b62862ecae1f678b6394b"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3639328-3713600-1.log",
+        "sha256": "b11b0e4738cca6634a6d87bb6bc258576df4574a9ef9e7cd4e5b9daf6be52688"
+      },
+      "elapsed_seconds": 33.45977577299345,
+      "peak_rss_kib": 1518816
+    },
+    {
+      "start": 3713600,
+      "end": 3787872,
+      "computed_blocks": 43512,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3713600-3787872.json",
+        "sha256": "e6f194d83b5d4a78c050c81f5641b3707f142464cd599f2ab3473cf280e1e440"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3713600-3787872-1.log",
+        "sha256": "e265a8a4a18d4768ea47f52612efaaea34231be11415981ee40853199bb76377"
+      },
+      "elapsed_seconds": 25.0598746399628,
+      "peak_rss_kib": 1514680
+    },
+    {
+      "start": 3787872,
+      "end": 3862144,
+      "computed_blocks": 42650,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3787872-3862144.json",
+        "sha256": "f8681295e1d3d73e603ec3ea5fbbfeb32a9b38f860457cf37cadc2d44bbe3ed6"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3787872-3862144-1.log",
+        "sha256": "bb0166ecd55b8d4bfa5a15b67ad4c2cd4f0c59fe49ddaecf7e97ca618a14b24e"
+      },
+      "elapsed_seconds": 24.801737054018304,
+      "peak_rss_kib": 1518908
+    },
+    {
+      "start": 3862144,
+      "end": 3936416,
+      "computed_blocks": 18955,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3862144-3936416.json",
+        "sha256": "e04b710e70ac54fdc0eb5d523fe334b5799f3bf37c9b748c9f15dcf5f86887ab"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3862144-3936416-1.log",
+        "sha256": "fe5ddafda2648c50cea49af5a5b4a6edaace20634cebe730cdea50ef5cf58a43"
+      },
+      "elapsed_seconds": 15.469708836986683,
+      "peak_rss_kib": 1509200
+    },
+    {
+      "start": 3936416,
+      "end": 4010688,
+      "computed_blocks": 28571,
+      "output": {
+        "file": "nightstream-pidec-pad-range-3936416-4010688.json",
+        "sha256": "603f8d82a4c7bab2b57936efa5202e04b89f27df8ab731795daffba7ad9f3f66"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-3936416-4010688-1.log",
+        "sha256": "d4b0ed593e6205ca8fbdb441b043b2749c774be46684393066081e68b823f9fd"
+      },
+      "elapsed_seconds": 19.7637868009042,
+      "peak_rss_kib": 1513588
+    },
+    {
+      "start": 4010688,
+      "end": 4084960,
+      "computed_blocks": 32616,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4010688-4084960.json",
+        "sha256": "4a22713e6870b6bc8939309fe5d0dda0acbfede49cc927ad8c3328a93c7c996e"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4010688-4084960-1.log",
+        "sha256": "8bbc63aaff5e51635c884255ab3d9e030c0b5ee70047e58f3d82359a694e31f1"
+      },
+      "elapsed_seconds": 22.36272060999181,
+      "peak_rss_kib": 1516976
+    },
+    {
+      "start": 4084960,
+      "end": 4159232,
+      "computed_blocks": 33591,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4084960-4159232.json",
+        "sha256": "e39f5d2b9f65f1ade60596aeb0a62d7cf580358353b6f5712bbd69d0721b1c49"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4084960-4159232-1.log",
+        "sha256": "17dda07427f81a74315843c6904c07306dadc1b8092655b6a698864004124478"
+      },
+      "elapsed_seconds": 22.731832218007185,
+      "peak_rss_kib": 1519008
+    },
+    {
+      "start": 4159232,
+      "end": 4233504,
+      "computed_blocks": 34122,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4159232-4233504.json",
+        "sha256": "cda88bf794454ee201670cbbded0c2d5f70252bf70cb87087c41fb3e95e712b8"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4159232-4233504-1.log",
+        "sha256": "95b84894a7e494a6c3d6f6f733331b2caf0089fe9efad14e25152b875120455d"
+      },
+      "elapsed_seconds": 21.940465550054796,
+      "peak_rss_kib": 1518996
+    },
+    {
+      "start": 4233504,
+      "end": 4307776,
+      "computed_blocks": 34732,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4233504-4307776.json",
+        "sha256": "b187c909e85c0983c46537ecc2d72b7d69fcfefb3a0833d8aa042a580877c692"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4233504-4307776-1.log",
+        "sha256": "656b793be8b2469b34078f86963df3ffb5205162f15814ba694828ba9ef4460b"
+      },
+      "elapsed_seconds": 22.039335409062915,
+      "peak_rss_kib": 1518556
+    },
+    {
+      "start": 4307776,
+      "end": 4382048,
+      "computed_blocks": 27491,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4307776-4382048.json",
+        "sha256": "aeb8ece0385f5e62e4c72f5836d2d206c3888abd92b0f63c751931f112bb4112"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4307776-4382048-1.log",
+        "sha256": "86087f1c32e1291384b7204cc34973e505fadd146c0881f39266b836696c0faf"
+      },
+      "elapsed_seconds": 19.019613359007053,
+      "peak_rss_kib": 1518424
+    },
+    {
+      "start": 4382048,
+      "end": 4456320,
+      "computed_blocks": 56688,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4382048-4456320.json",
+        "sha256": "283482ecd04f21f9303bc4d029f222cabd636a442a8e92b7ad72e085861274ca"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4382048-4456320-1.log",
+        "sha256": "6e4743a7af0cec5ff09222af40e7840b2f31da10d35b67c1a280d8b1e0840fa0"
+      },
+      "elapsed_seconds": 31.87326595489867,
+      "peak_rss_kib": 1512632
+    },
+    {
+      "start": 4456320,
+      "end": 4530592,
+      "computed_blocks": 66560,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4456320-4530592.json",
+        "sha256": "bd387c69939760d071cb05a5ea12943f10330723ebf43952d78bb3062c36654e"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4456320-4530592-1.log",
+        "sha256": "015fbaae490eadbb744ad72035d96b804d44f9390e7a791cedddd23e2391a538"
+      },
+      "elapsed_seconds": 36.587656401097775,
+      "peak_rss_kib": 1509104
+    },
+    {
+      "start": 4530592,
+      "end": 4604864,
+      "computed_blocks": 51832,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4530592-4604864.json",
+        "sha256": "ddf12c9097473b8ae733edef0026caac3b6b555a37000164366b675bf7e9d942"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4530592-4604864-1.log",
+        "sha256": "bcd7da4448a581028292ddd0c0a9ec908f75ff8b3936fe07debba46598e23c69"
+      },
+      "elapsed_seconds": 31.05645412101876,
+      "peak_rss_kib": 1518684
+    },
+    {
+      "start": 4604864,
+      "end": 4679136,
+      "computed_blocks": 48182,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4604864-4679136.json",
+        "sha256": "3f242d653b5c0069810af8c54ad91ae46348e2c683fe3196e1169206941b7b70"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4604864-4679136-1.log",
+        "sha256": "cac0a54df09f995e6321620ccef2a7969d1f23d8959fee4d079622c6d04c0a64"
+      },
+      "elapsed_seconds": 29.552575977984816,
+      "peak_rss_kib": 1519164
+    },
+    {
+      "start": 4679136,
+      "end": 4685394,
+      "computed_blocks": 6110,
+      "output": {
+        "file": "nightstream-pidec-pad-range-4679136-4685394.json",
+        "sha256": "6df4d24309754e585e35c53a7cdcdb7f258f0fd3a9854c54fd067d4600e3ba6c"
+      },
+      "log": {
+        "file": "nightstream-pidec-pad-range-4679136-4685394-1.log",
+        "sha256": "1bf3b36a13785a6a4eb5a2f70cf48129ccd6a5b5b50b996a7c8a6235bf4ace2e"
+      },
+      "elapsed_seconds": 10.099624617956579,
+      "peak_rss_kib": 1519428
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 13.23s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 1 test
+
+thread '<unnamed>' (645525) panicked at crates/neo-reductions/src/engines/optimized_engine/../../../tests/unit/carried_table_storage.rs:255:9:
+assertion `left == right` failed: openings allocated another carrier-sized coefficient buffer
+  left: (0, 2)
+ right: (0, 0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::openings_reuse_the_consumed_carrier_buffer ... FAILED
+
+failures:
+
+failures:
+    engines::optimized_engine::cpu_oracle::carried_storage_tests::openings_reuse_the_consumed_carrier_buffer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p neo-reductions --lib`

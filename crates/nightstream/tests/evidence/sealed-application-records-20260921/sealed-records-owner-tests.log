@@ -1,0 +1,13 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 39.03s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 5 tests
+test application_records::tests::sealing_rejects_a_truncated_record_file ... ok
+test application_records::tests::writer_buffers_do_not_grow_with_distinct_rows_or_terms ... ok
+test application_records::tests::ordered_terms_recipes_and_framing_counts_survive_sealing ... ok
+test application_records::tests::partial_append_poison_prevents_a_usable_snapshot ... ok
+test application_records::tests::ingestion_rejects_bad_counts_field_words_and_recipe_arity ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 46 filtered out; finished in 0.01s
+

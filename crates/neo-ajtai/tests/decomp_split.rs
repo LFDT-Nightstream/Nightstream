@@ -43,3 +43,48 @@ fn decomp_and_split_inverse() {
     }
     assert_eq!(Z, Z_back, "split_b recomposition failed");
 }
+
+#[test]
+fn nonnegative_decomposition_round_trips_small_values() {
+    let values = [0, 1, 2, 3, 17, 255, 65_535, 99_999]
+        .into_iter()
+        .map(Fq::from_u64)
+        .collect::<Vec<_>>();
+    let digit_count = 64;
+    let digits = decomp_b(&values, 2, digit_count, DecompStyle::NonNegative);
+
+    let mut recomposed = vec![Fq::ZERO; values.len()];
+    for column in 0..values.len() {
+        let mut power = Fq::ONE;
+        for row in 0..digit_count {
+            recomposed[column] += digits[column * digit_count + row] * power;
+            power += power;
+        }
+    }
+    assert_eq!(recomposed, values);
+}
+
+#[test]
+fn split_b_recomposes_nontrivial_digits_and_rejects_range_violations() {
+    let rows = 4;
+    let columns = 3;
+    let digit_count = 8;
+    let input = (0..rows * columns)
+        .map(|index| Fq::from_u64((index * 7 + 1) as u64))
+        .collect::<Vec<_>>();
+    let digits = split_b(&input, 2, rows, columns, digit_count, DecompStyle::Balanced);
+
+    let mut recomposed = vec![Fq::ZERO; input.len()];
+    let mut power = Fq::ONE;
+    for digit in &digits {
+        assert_range_b(digit, 2).expect("split digit must satisfy the strict range");
+        for (result, &value) in recomposed.iter_mut().zip(digit) {
+            *result += value * power;
+        }
+        power += power;
+    }
+    assert_eq!(recomposed, input);
+
+    assert!(assert_range_b(&[Fq::from_u64(2)], 2).is_err());
+    assert!(assert_range_b(&[Fq::ZERO, Fq::ONE, -Fq::ONE], 2).is_ok());
+}

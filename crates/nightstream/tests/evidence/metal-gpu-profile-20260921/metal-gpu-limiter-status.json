@@ -1,0 +1,23 @@
+{
+  "status": "no_usable_limiter_values",
+  "high_level_counter_interval_rows": 0,
+  "registered_counter_definitions": 31,
+  "shader_timeline_rows_for_native_target": 2814,
+  "full_record_export": "Cancelled and replaced by a measured-range query.",
+  "range_export": "Cancelled after it still produced only an XML header. GPU interval and shader-timeline analysis completed independently. The saved trace is unchanged.",
+  "range": {
+    "start_ns": 147914206916,
+    "end_ns": 148623079500,
+    "duration_ns": 708872584,
+    "label": "nightstream.production_commitment:production_ajtai_partials & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns",
+    "authority": "Exact longest recorded native commitment interval; no invented capture duration.",
+    "replaces": "Full-recording gpu-counter-value export (PID62849), cancelled while still live after the time-range export capability was verified in Xcode27 release notes."
+  },
+  "claims_not_made": [
+    "occupancy",
+    "ALU utilization",
+    "memory bandwidth",
+    "register-spill rate"
+  ],
+  "future_work": "If a specific kernel change needs limiter evidence, inspect or export that data from the saved native trace. No additional capture was run in this slice."
+}

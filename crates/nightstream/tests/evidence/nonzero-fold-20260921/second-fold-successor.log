@@ -1,0 +1,13 @@
+
+running 1 test
+staged request=Successor { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-metal", step: 2, engine: Metal }
+staged circuit preparation elapsed=34.970597292s
+complete child commitments elapsed=9.45135775s
+complete physical witness elapsed=1.0738835s
+complete logical packing elapsed=2.792336958s
+complete fresh commitment elapsed=3.882639833s
+staged phase passed elapsed=54.225782208s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 54.23s
+

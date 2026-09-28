@@ -1,0 +1,68 @@
+{
+  "baseline_commit": "5f944b50db9cde05ecfb53502801730d44be4a9b",
+  "source": "The containing source commit; no self-referential commit hash.",
+  "claim": "The generic matrix interpreter, its physical operands, projections and work functions have one owner in Layout. Export owns their canonical Format codecs. Existing CompactRows column maps are typed aliases of the Layout implementation.",
+  "rename_map": "matrix-owner-renames.json",
+  "actual_consumer": {
+    "declaration": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value",
+    "result": "passed",
+    "target_seconds": 75,
+    "entry_module_seconds": 17,
+    "attempts": "Second target build; first exposed an invalid namespace-only open command in two dependencies. The same inserted command was fixed in all four affected files."
+  },
+  "gates": {
+    "static": {
+      "result": "passed",
+      "seconds": 6.29,
+      "log_sha256": "70932996802666ffa6552b35d36d53335c9099afc3ab524ea1d54e92abcd543d",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "seconds": 38.68,
+      "log_sha256": "9a74a1ff0f910f37a875ee48dcc72d80947a906d51bb7683c7cbfd14bdd61fdd",
+      "last_lines": [
+        "\u2714 [3809/3811] Built NightstreamFPrime.Export (1.4s)",
+        "\u2714 [3810/3811] Built NightstreamFPrime (1.6s)",
+        "Build completed successfully (3811 jobs).",
+        "[bounded] exit=0 elapsed=39s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "seconds": 23.2,
+      "log_sha256": "5dbea5888fa4e762f732ee4f432c107dedb6395acd93d085add75cbd0f991555",
+      "last_lines": [
+        " Classical.choice,",
+        " Quot.sound]",
+        "Build completed successfully (3918 jobs).",
+        "[bounded] exit=0 elapsed=23s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "seconds": 135,
+      "includes_build_work": true,
+      "log_sha256": "458efc67010c6afe20e1d30bffdc38dfa43ee84a500189615ff97bb2f00d102d",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.t4TRDN.json",
+        "[bounded] exit=0 elapsed=135s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "script_tests": "All 18 script tests pass, including injected physical definitions/structures and misleading comments/strings. This observed count is not a quota.",
+  "independent_review": "Every inventoried executable definition, codec body and theorem premise matches the original after the declared namespace substitution. CompactRows aliases use the exact moved bodies. No material defect found; source review only, independent from root gate execution.",
+  "axiom_surface": "Existing audit occurrences are retained under new names; missing registrations on the moved public surface are added. Only permitted axioms appear.",
+  "performance": "Identity: 135s with build work; prior PiDEC checkpoint 130s with build work. Entry module: 17s in the target build. No general speed or rebuild-radius claim.",
+  "limits": [
+    "Stage1 retained geometry and package adapters still include physical work in Export.",
+    "Full allocation isolation remains open at the recorded global endpoint/default-value frontier.",
+    "The separate Stage1 source-projection preparation draft stopped under the three-round rule; no draft source was applied.",
+    "No protocol, production profile, runtime Rust source, or requirement status changed."
+  ]
+}

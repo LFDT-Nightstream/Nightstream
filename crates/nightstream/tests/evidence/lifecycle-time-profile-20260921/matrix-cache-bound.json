@@ -1,0 +1,41 @@
+{
+  "status": "source-derived lower bound; no large circuit created",
+  "family": "Repeat state[0] = state[1] + state[2] + state[3], then return the four state variables. Assertions add rows without variables; finish adds four output rows.",
+  "maximum_application_rows": 239217427,
+  "repeated_assertions": 239217423,
+  "runs_per_assertion_in_matrix_a": 3,
+  "retained_field_width": 41,
+  "retained_field_run_ratio": 3,
+  "geometric_run_count": 717652269,
+  "bytes_per_run": 24,
+  "host_payload_bytes_at_least": 17223654456,
+  "host_plus_requested_device_payload_bytes_at_least": 34447308912,
+  "working_rss_guard_bytes": 17179869184,
+  "excludes": [
+    "verifier-prefix runs",
+    "other matrices",
+    "row offsets",
+    "spare Vec capacity",
+    "input application rows",
+    "other witnesses and caches"
+  ],
+  "ownership": [
+    "PreparedLifecycle::build_superneo_cache visits every row and stores an Arc in OnceLock",
+    "SuperneoMatrixCache.geometric_runs appends one [u64;3] per run, without cross-row sharing",
+    "MetalJointMatrixPlan copies the full run slice and retains the host Arc as cache_owner"
+  ],
+  "next_required_change": "Generate host/device matrix windows directly from package.visit_matrix_runs(range), and use those windows for application/terminal rows, carried projection and openings. Do not build a full cache before uploading windows.",
+  "remaining_preparation_gap": "ApplicationCircuit and assembled application rows are also eager; matrix windows alone do not establish total preparation RSS.",
+  "source_files": [
+    "crates/nightstream/src/application/builder.rs",
+    "crates/nightstream/src/assembly/manifest.rs",
+    "crates/nightstream/src/lifecycle/evaluation.rs",
+    "crates/nightstream/src/lifecycle/mod.rs",
+    "crates/neo-reductions/src/superneo_eval.rs",
+    "crates/neo-reductions/src/superneo_eval/row_source.rs",
+    "crates/neo-prover-metal/src/session/joint.rs",
+    "crates/nightstream-fprime/src/package/matrix_program/form.rs",
+    "crates/nightstream-fprime/src/package/matrix_program/mod.rs",
+    "crates/nightstream-fprime/src/package/sealed.rs"
+  ]
+}

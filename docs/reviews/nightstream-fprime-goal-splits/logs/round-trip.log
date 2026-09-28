@@ -1,0 +1,19 @@
+    Finished `release` profile [optimized] target(s) in 0.11s
+     Running tests/nifs/round_trip.rs (target/release/deps/nifs_round_trip-a39a8722bb04aa88)
+
+running 9 tests
+test pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value ... ok
+test nifs_verify_rejects_pi_dec_child_count_drift ... ok
+test nifs_prove_verify_round_trip_matches_children ... ok
+test nifs_cpu_adapter_matches_prover_contract ... ok
+test nifs_verify_rejects_tampered_pi_ccs_output ... ok
+test pi_rlc_rho_derivation_replays_after_pi_ccs ... ok
+verify_dec_public failed: commitment check mismatch
+test nifs_verify_rejects_tampered_pi_dec_child ... ok
+verify_dec_public failed: commitment check mismatch
+test nifs_verify_rejects_running_child_changed_under_same_parent_authority ... ok
+verify_dec_public failed: commitment check mismatch
+test nifs_verify_rejects_tampered_running_parent_authority ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

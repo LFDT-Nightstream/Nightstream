@@ -1,0 +1,70 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "device": "Apple M1 Max, 64 GiB",
+  "scope": "public base lifecycle; no active recursive fold",
+  "engines": {
+    "cpu": {
+      "elapsed_seconds": 251.21510649999982,
+      "maximum_resident_bytes": 9796550656,
+      "outcome": "passed",
+      "preparation_seconds": 34.930364209,
+      "proving_seconds": 100.7048045,
+      "verification_seconds": 114.72317225
+    },
+    "metal": {
+      "elapsed_seconds": 245.96105216599972,
+      "maximum_resident_bytes": 11410685952,
+      "outcome": "passed",
+      "preparation_seconds": 34.944150875,
+      "proving_seconds": 100.643854042,
+      "verification_seconds": 110.202235
+    }
+  },
+  "lean_rerun": false,
+  "full_lifecycle_5x_and_general_16gb": "not established",
+  "zero_allocation_regression": "failed before correction, passed after correction",
+  "metal_joint_unit_tests_passed": 8,
+  "cpu_proof_metal_verification": {
+    "elapsed_seconds": 259.7254215830035,
+    "maximum_resident_bytes": 11870699520,
+    "outcome": "passed"
+  },
+  "recommitted_false_witness": "CPU and Metal reject at row 0",
+  "metal_base_with_device_commitments": {
+    "elapsed_seconds": 52.11196891700092,
+    "maximum_resident_bytes": 11458199552,
+    "outcome": "passed",
+    "preparation_seconds": 35.131600917,
+    "proving_seconds": 6.825881,
+    "verification_seconds": 9.56571525,
+    "cpu_to_metal_process_ratio": 4.820679619687979
+  },
+  "cpu_proof_metal_device_commitments": {
+    "outcome": "passed",
+    "elapsed_seconds": 150.50556250000227,
+    "maximum_resident_bytes": 11921293312
+  },
+  "engine_tests_passed": 9,
+  "cuda_tests_ignored": 2,
+  "production_commitment_unit_tests_passed": 3,
+  "current_production_piccs": {
+    "elapsed_seconds": 55.28929012500157,
+    "maximum_resident_bytes": 15179464704,
+    "outcome": "passed",
+    "cpu_proof_byte_equality": true,
+    "source_file_byte_equality": true,
+    "preparation_seconds": 34.7963155,
+    "cache_seconds": 4.99086425,
+    "proving_seconds": 15.040751875
+  },
+  "checks": {
+    "default_all_targets": "passed",
+    "metal_cuda_and_legacy_metal_all_targets_typecheck": "passed",
+    "strict_clippy": "failed on inherited errors in unchanged dependency files",
+    "changed_line_clippy": "one new test clone warning corrected; no remaining new diagnostics in final audit",
+    "cargo_fmt_all": "passed",
+    "git_diff_check": "passed",
+    "production_dependency_on_neo_fold_clean": false,
+    "no_lean_commands": true
+  }
+}

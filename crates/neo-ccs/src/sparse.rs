@@ -8,26 +8,76 @@
 //! operations without scanning dense zeros.
 #![allow(non_snake_case)]
 
+use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;
+use crate::seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
+use std::collections::BTreeMap;
 
 /// Compressed Sparse Column (CSC) format for sparse matrices.
 ///
 /// This layout is efficient for column-wise operations and for computing `y += Aᵀ·x`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CscMat<Ff> {
     /// Number of rows.
     pub nrows: usize,
     /// Number of columns.
     pub ncols: usize,
     /// Column pointers (length `ncols + 1`).
-    pub col_ptr: Vec<usize>,
+    pub col_ptr: Vec<u32>,
     /// Row indices for non-zero entries (length = nnz).
-    pub row_idx: Vec<usize>,
+    pub row_idx: Vec<u32>,
     /// Non-zero values (length = nnz).
     pub vals: Vec<Ff>,
+}
+
+impl<Ff> CscMat<Ff> {
+    /// Return the compact-entry range for one column.
+    #[inline]
+    pub fn column_range(&self, column: usize) -> core::ops::Range<usize> {
+        self.col_ptr[column] as usize..self.col_ptr[column + 1] as usize
+    }
+
+    /// Return one compact row index as a native slice index.
+    #[inline]
+    pub fn row_index(&self, entry: usize) -> usize {
+        self.row_idx[entry] as usize
+    }
+}
+
+impl<Ff: Field> CscMat<Ff> {
+    /// Check the unique CSC representation used at the public relation boundary.
+    ///
+    /// Each column must contain strictly increasing row indices, no duplicate
+    /// coordinates, and no stored zero. Column pointers must cover every entry
+    /// exactly once.
+    pub fn is_canonical(&self) -> bool {
+        if self.col_ptr.len() != self.ncols + 1
+            || self.row_idx.len() != self.vals.len()
+            || self.col_ptr.first().copied() != Some(0)
+            || self.col_ptr.last().copied().map(|value| value as usize) != Some(self.vals.len())
+        {
+            return false;
+        }
+
+        for column in 0..self.ncols {
+            let start = self.col_ptr[column] as usize;
+            let end = self.col_ptr[column + 1] as usize;
+            if start > end || end > self.vals.len() {
+                return false;
+            }
+            let rows = &self.row_idx[start..end];
+            if rows.iter().any(|&row| row as usize >= self.nrows)
+                || rows.windows(2).any(|pair| pair[0] >= pair[1])
+                || self.vals[start..end].iter().any(|value| *value == Ff::ZERO)
+            {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
@@ -85,8 +135,162 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
+            vals,
+        }
+    }
+
+    /// Build canonical CSC by counting entries into columns, then sorting only
+    /// the rows inside each column. This avoids one global `(column, row)` sort
+    /// while producing the same canonical arrays as [`Self::from_triplets`].
+    pub fn from_counted_triplets(triplets: Vec<(usize, usize, Ff)>, nrows: usize, ncols: usize) -> Self {
+        let mut column_counts = vec![0usize; ncols];
+        let mut nonzero_count = 0usize;
+        for &(row, column, value) in &triplets {
+            assert!(row < nrows, "triplet row out of bounds");
+            assert!(column < ncols, "triplet col out of bounds");
+            if value != Ff::ZERO {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            }
+        }
+
+        let mut col_ptr = Vec::with_capacity(ncols + 1);
+        col_ptr.push(0);
+        for count in column_counts {
+            col_ptr.push(col_ptr.last().copied().expect("CSC pointer") + count);
+        }
+        let mut next = col_ptr[..ncols].to_vec();
+        let mut entries = vec![(0usize, Ff::ZERO); nonzero_count];
+        for (row, column, value) in triplets {
+            if value == Ff::ZERO {
+                continue;
+            }
+            let index = next[column];
+            entries[index] = (row, value);
+            next[column] += 1;
+        }
+        for column in 0..ncols {
+            entries[col_ptr[column]..col_ptr[column + 1]].sort_unstable_by_key(|&(row, _)| row);
+        }
+
+        let mut write = 0usize;
+        for column in 0..ncols {
+            let read_start = col_ptr[column];
+            let read_end = col_ptr[column + 1];
+            col_ptr[column] = write;
+            let mut read = read_start;
+            while read < read_end {
+                let row = entries[read].0;
+                let mut value = entries[read].1;
+                read += 1;
+                while read < read_end && entries[read].0 == row {
+                    value += entries[read].1;
+                    read += 1;
+                }
+                if value != Ff::ZERO {
+                    entries[write] = (row, value);
+                    write += 1;
+                }
+            }
+        }
+        col_ptr[ncols] = write;
+        entries.truncate(write);
+        let (row_idx, vals) = entries.into_iter().unzip();
+
+        Self {
+            nrows,
+            ncols,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
+            vals,
+        }
+    }
+
+    /// Build canonical CSC directly from explicit terms plus compact
+    /// geometric row runs.
+    ///
+    /// The final arrays are identical to expanding every run and calling
+    /// [`Self::from_triplets`], but no expanded triplet vector is allocated.
+    pub fn from_triplets_and_geometric_runs(
+        triplets: Vec<(usize, usize, Ff)>,
+        runs: &[GeometricRowRun<Ff>],
+        nrows: usize,
+        ncols: usize,
+    ) -> Self {
+        let mut column_counts = vec![0usize; ncols];
+        let mut nonzero_count = 0usize;
+        for &(row, column, value) in &triplets {
+            assert!(row < nrows, "triplet row out of bounds");
+            assert!(column < ncols, "triplet col out of bounds");
+            if value != Ff::ZERO {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            }
+        }
+        for run in runs {
+            assert!(run.validate_shape(nrows, ncols), "geometric run out of bounds");
+            run.for_each_term(|_, column, _| {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            });
+        }
+
+        let mut col_ptr = Vec::with_capacity(ncols + 1);
+        col_ptr.push(0);
+        for count in column_counts {
+            col_ptr.push(col_ptr.last().copied().expect("CSC pointer") + count);
+        }
+        let mut next = col_ptr[..ncols].to_vec();
+        let mut entries = vec![(0usize, Ff::ZERO); nonzero_count];
+        for (row, column, value) in triplets {
+            if value == Ff::ZERO {
+                continue;
+            }
+            let index = next[column];
+            entries[index] = (row, value);
+            next[column] += 1;
+        }
+        for run in runs {
+            run.for_each_term(|row, column, value| {
+                let index = next[column];
+                entries[index] = (row, value);
+                next[column] += 1;
+            });
+        }
+        for column in 0..ncols {
+            entries[col_ptr[column]..col_ptr[column + 1]].sort_unstable_by_key(|&(row, _)| row);
+        }
+
+        let mut write = 0usize;
+        for column in 0..ncols {
+            let read_start = col_ptr[column];
+            let read_end = col_ptr[column + 1];
+            col_ptr[column] = write;
+            let mut read = read_start;
+            while read < read_end {
+                let row = entries[read].0;
+                let mut value = entries[read].1;
+                read += 1;
+                while read < read_end && entries[read].0 == row {
+                    value += entries[read].1;
+                    read += 1;
+                }
+                if value != Ff::ZERO {
+                    entries[write] = (row, value);
+                    write += 1;
+                }
+            }
+        }
+        col_ptr[ncols] = write;
+        entries.truncate(write);
+        let (row_idx, vals) = entries.into_iter().unzip();
+        Self {
+            nrows,
+            ncols,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -165,8 +369,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -181,10 +385,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         debug_assert_eq!(y.len(), self.ncols);
 
         for c in 0..self.ncols {
-            let s = self.col_ptr[c];
-            let e = self.col_ptr[c + 1];
-            for k in s..e {
-                let r = self.row_idx[k];
+            for k in self.column_range(c) {
+                let r = self.row_index(k);
                 if r < n_eff {
                     y[c] += Kf::from(self.vals[k]) * x[r];
                 }
@@ -203,16 +405,21 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
 
         for c in 0..self.ncols {
             let xc = x[c];
-            let s = self.col_ptr[c];
-            let e = self.col_ptr[c + 1];
-            for k in s..e {
-                let r = self.row_idx[k];
+            for k in self.column_range(c) {
+                let r = self.row_index(k);
                 if r < n_eff {
                     y[r] += Kf::from(self.vals[k]) * xc;
                 }
             }
         }
     }
+}
+
+fn compact_csc_indices(indices: Vec<usize>, kind: &str) -> Vec<u32> {
+    indices
+        .into_iter()
+        .map(|index| u32::try_from(index).unwrap_or_else(|_| panic!("CSC {kind} exceeds u32: {index}")))
+        .collect()
 }
 
 /// A simple per-matrix CSC cache.
@@ -262,7 +469,7 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
 /// CCS matrices are typically extremely sparse. For large circuits we avoid materializing dense
 /// matrices and instead keep a CSC form, with an explicit identity variant to represent `I_n`
 /// without storing `n` diagonal entries.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum CcsMatrix<Ff> {
     /// Identity matrix `I_n` (only valid for square CCS).
     Identity {
@@ -271,14 +478,88 @@ pub enum CcsMatrix<Ff> {
     },
     /// A sparse matrix stored in CSC form.
     Csc(CscMat<Ff>),
+    /// A sparse CSC base plus compact seeded Phi81 linear blocks.
+    ///
+    /// The blocks are part of the matrix, not auxiliary advice. Their public
+    /// chunk seeds deterministically define every omitted coefficient.
+    CscWithSeededPhi81 {
+        /// Ordinary sparse terms not owned by a compact block.
+        csc: CscMat<Ff>,
+        /// Compact seeded blocks, each occupying disjoint constraint rows.
+        blocks: Vec<SeededPhi81LinearBlock>,
+        /// Compact contiguous radix expansions in individual rows.
+        geometric_runs: Vec<GeometricRowRun<Ff>>,
+    },
+    /// Matrix content supplied by a separately verified evaluator artifact.
+    ///
+    /// This variant carries shape only. It is valid only inside a complete
+    /// artifact-backed [`crate::CcsStructure`]. Raw matrix operations reject
+    /// it because treating the missing content as zero would change the CCS
+    /// relation.
+    VerifierArtifact {
+        /// Number of matrix rows.
+        rows: usize,
+        /// Number of matrix columns.
+        cols: usize,
+    },
 }
 
 impl<Ff> CcsMatrix<Ff> {
+    /// Build a matrix from an ordinary CSC base and compact seeded blocks.
+    pub fn csc_with_seeded_phi81(
+        csc: CscMat<Ff>,
+        blocks: Vec<SeededPhi81LinearBlock>,
+    ) -> Result<Self, SeededPhi81Error> {
+        if blocks.is_empty() {
+            return Ok(Self::Csc(csc));
+        }
+        for block in &blocks {
+            block.validate_matrix_shape(csc.nrows, csc.ncols)?;
+        }
+        Ok(Self::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs: Vec::new(),
+        })
+    }
+
+    /// Build a matrix from ordinary CSC terms and compact structured terms.
+    pub fn csc_with_compact_rows(
+        csc: CscMat<Ff>,
+        blocks: Vec<SeededPhi81LinearBlock>,
+        mut geometric_runs: Vec<GeometricRowRun<Ff>>,
+    ) -> Result<Self, String> {
+        if blocks.is_empty() && geometric_runs.is_empty() {
+            return Ok(Self::Csc(csc));
+        }
+        for block in &blocks {
+            block
+                .validate_matrix_shape(csc.nrows, csc.ncols)
+                .map_err(|error| error.to_string())?;
+        }
+        for (index, run) in geometric_runs.iter().enumerate() {
+            if !run.validate_shape(csc.nrows, csc.ncols) {
+                return Err(format!(
+                    "geometric row run {index} lies outside {}x{} matrix",
+                    csc.nrows, csc.ncols
+                ));
+            }
+        }
+        geometric_runs.sort_unstable_by_key(|run| (run.row(), run.column_start(), run.len()));
+        Ok(Self::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        })
+    }
+
     /// Number of rows.
     pub fn rows(&self) -> usize {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.nrows,
+            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.nrows,
+            CcsMatrix::VerifierArtifact { rows, .. } => *rows,
         }
     }
 
@@ -287,6 +568,8 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.ncols,
+            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.ncols,
+            CcsMatrix::VerifierArtifact { cols, .. } => *cols,
         }
     }
 
@@ -295,6 +578,43 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => None,
             CcsMatrix::Csc(m) => Some(m),
+            CcsMatrix::CscWithSeededPhi81 { .. } | CcsMatrix::VerifierArtifact { .. } => None,
+        }
+    }
+
+    /// Borrow the ordinary sparse component, excluding compact blocks.
+    pub fn sparse_component(&self) -> Option<&CscMat<Ff>> {
+        match self {
+            CcsMatrix::Identity { .. } => None,
+            CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => Some(csc),
+            CcsMatrix::VerifierArtifact { .. } => None,
+        }
+    }
+
+    /// Borrow the compact seeded blocks in this matrix.
+    pub fn seeded_phi81_blocks(&self) -> &[SeededPhi81LinearBlock] {
+        match self {
+            CcsMatrix::CscWithSeededPhi81 { blocks, .. } => blocks,
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
+        }
+    }
+
+    /// Borrow compact geometric row runs in this matrix.
+    pub fn geometric_runs(&self) -> &[GeometricRowRun<Ff>] {
+        match self {
+            CcsMatrix::CscWithSeededPhi81 { geometric_runs, .. } => geometric_runs,
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
+        }
+    }
+}
+
+impl<Ff: Field> CcsMatrix<Ff> {
+    /// Check the canonical ordinary CSC component of this matrix.
+    pub fn has_canonical_csc(&self) -> bool {
+        match self {
+            Self::Identity { n } => *n > 0,
+            Self::Csc(csc) | Self::CscWithSeededPhi81 { csc, .. } => csc.is_canonical(),
+            Self::VerifierArtifact { .. } => false,
         }
     }
 }
@@ -312,13 +632,12 @@ where
                     return false;
                 }
                 for col in 0..m.ncols {
-                    let s = m.col_ptr[col];
-                    let e = m.col_ptr[col + 1];
-                    if e != s + 1 {
+                    let range = m.column_range(col);
+                    if range.end != range.start + 1 {
                         return false;
                     }
-                    let k = s;
-                    if m.row_idx[k] != col {
+                    let k = range.start;
+                    if m.row_index(k) != col {
                         return false;
                     }
                     if m.vals[k] != Ff::ONE {
@@ -327,11 +646,56 @@ where
                 }
                 true
             }
+            CcsMatrix::CscWithSeededPhi81 { .. } => false,
+            CcsMatrix::VerifierArtifact { .. } => false,
         }
     }
 }
 
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
+    /// Materialize one exact sparse row from every additive matrix component.
+    ///
+    /// The result is sorted by column, contains no duplicate columns or zero
+    /// coefficients, and includes ordinary CSC, seeded Phi81, and geometric
+    /// contributions after field addition. `None` means only that `row` is
+    /// outside the matrix.
+    pub fn materialize_row(&self, row: usize) -> Option<Vec<(usize, Ff)>> {
+        if row >= self.rows() {
+            return None;
+        }
+        let mut terms = BTreeMap::<usize, Ff>::new();
+        match self {
+            CcsMatrix::Identity { .. } => accumulate_row_term(&mut terms, row, Ff::ONE),
+            CcsMatrix::Csc(csc) => accumulate_csc_row(&mut terms, csc, row),
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
+                accumulate_csc_row(&mut terms, csc, row);
+                for block in blocks {
+                    block.for_each_row_term::<Ff, _>(row, |column, coefficient| {
+                        accumulate_row_term(&mut terms, column, coefficient);
+                    });
+                }
+                for run in geometric_runs.iter().filter(|run| run.row() == row) {
+                    run.for_each_term(|_, column, coefficient| {
+                        accumulate_row_term(&mut terms, column, coefficient);
+                    });
+                }
+            }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw row materialization is unavailable for a verifier-artifact matrix")
+            }
+        }
+        Some(
+            terms
+                .into_iter()
+                .filter(|(_, coefficient)| *coefficient != Ff::ZERO)
+                .collect(),
+        )
+    }
+
     /// Accumulate `y += Aᵀ·x`, reading only `x[..n_eff]` and only contributing rows `< n_eff`.
     pub fn add_mul_transpose_into<Kf>(&self, x: &[Kf], y: &mut [Kf], n_eff: usize)
     where
@@ -347,6 +711,22 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_transpose_into(x, y, n_eff),
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
+                csc.add_mul_transpose_into(x, y, n_eff);
+                for block in blocks {
+                    block.add_mul_transpose_into::<Ff, Kf>(x, y, n_eff);
+                }
+                for run in geometric_runs {
+                    run.add_mul_transpose_into(x, y, n_eff);
+                }
+            }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw transpose multiplication is unavailable for a verifier-artifact matrix")
+            }
         }
     }
 
@@ -365,6 +745,50 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_into(x, y, n_eff),
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
+                csc.add_mul_into(x, y, n_eff);
+                for block in blocks {
+                    block.add_mul_into::<Ff, Kf>(x, y, n_eff);
+                }
+                for run in geometric_runs {
+                    run.add_mul_into(x, y, n_eff);
+                }
+            }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw multiplication is unavailable for a verifier-artifact matrix")
+            }
         }
+    }
+}
+
+fn accumulate_row_term<Ff>(terms: &mut BTreeMap<usize, Ff>, column: usize, coefficient: Ff)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    if coefficient != Ff::ZERO {
+        *terms.entry(column).or_insert(Ff::ZERO) += coefficient;
+    }
+}
+
+fn accumulate_csc_row<Ff>(terms: &mut BTreeMap<usize, Ff>, csc: &CscMat<Ff>, row: usize)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    for (entry, &candidate_row) in csc.row_idx.iter().enumerate() {
+        if candidate_row as usize != row {
+            continue;
+        }
+        let pointer = csc
+            .col_ptr
+            .partition_point(|&start| start as usize <= entry);
+        let column = pointer
+            .checked_sub(1)
+            .filter(|&column| column < csc.ncols)
+            .expect("well-formed CSC entry must have one owning column");
+        accumulate_row_term(terms, column, csc.vals[entry]);
     }
 }

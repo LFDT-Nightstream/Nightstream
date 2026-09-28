@@ -1,0 +1,65 @@
+import NightstreamFPrime.Export.Stage1.StridedArrayAll
+import NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext
+import NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds
+import NightstreamFPrime.Export.Stage1.PreparedPhysicalPackageRows
+import NightstreamFPrime.Export.Stage1.PreparedPhysicalArray
+import NightstreamFPrime.Export.Stage1.PreparedPhysicalSourceTasks
+import NightstreamFPrime.Export.Stage1.PreparedPhysicalOrdinary
+import NightstreamFPrime.Export.Stage1.PreparedPhysicalSources
+import NightstreamFPrime.Export.Stage1.StoredPhysicalPlan
+import NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck
+import tests.AxiomAudit
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck.hashInvocation_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck.permutationInvocation_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck.compactInvocation_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck.instruction_iff
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck.sparseRow_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalPlan.Event.check_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.prepareRows
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.prepareRowBlock
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.prepareRowBlocks
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.preparePiRlcSource
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.prepareWitnessGroup
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.preparePermutationBlocks
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalOrdinary.holds
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalSources.PreparedRowBlocks.append
+
+
+
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalArray.appendMap_toList
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalArray.mem_appendMap
+
+#audit_axioms NightstreamFPrime.Export.Stage1.PreparedPhysicalPackageRows.rowsHold
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext.hashInvocation_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext.permutationInvocation_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext.compactInvocation_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds.block_templateIndex_lt
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds.canonical_templateIndex_lt
+
+#audit_axioms NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds.canonical_template_getElem?
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StoredPhysicalPlan.ofSources_rowsHold
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StridedArrayAll.run_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StridedArrayAll.worker_iff
+
+#audit_axioms NightstreamFPrime.Export.Stage1.StridedArrayAll.all_eq

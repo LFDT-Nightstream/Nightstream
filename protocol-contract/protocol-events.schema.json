@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightstream:protocol-contract:protocol-events:v4",
+  "title": "Nightstream abstract verifier event taxonomy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "contract_hash",
+    "profile_id",
+    "profile_hash",
+    "status",
+    "states",
+    "challenges",
+    "events",
+    "repetitions",
+    "rejections",
+    "transcript_schedule",
+    "open_profile_dependencies"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 4
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "enum": [
+        "specified",
+        "blocked"
+      ]
+    },
+    "states": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/state"
+      }
+    },
+    "challenges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/challenge"
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "repetitions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repetition"
+      }
+    },
+    "rejections": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/rejection"
+      }
+    },
+    "transcript_schedule": {
+      "$ref": "#/$defs/transcript_schedule"
+    },
+    "open_profile_dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^NSD-[A-Z0-9-]+$"
+      }
+    }
+  },
+  "$defs": {
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "terminal"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "sample_space",
+        "sampled_in_event",
+        "transcript_tag",
+        "decoder",
+        "after_events",
+        "status",
+        "blocked_by",
+        "unresolved_blocker_ids",
+        "rule_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sample_space": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sampled_in_event": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "transcript_tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decoder": {
+          "type": "string",
+          "minLength": 1
+        },
+        "after_events": {
+          "$ref": "#/$defs/string_set"
+        },
+        "status": {
+          "enum": [
+            "specified",
+            "profile-blocked"
+          ]
+        },
+        "blocked_by": {
+          "$ref": "#/$defs/string_set"
+        },
+        "unresolved_blocker_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/string_set"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "phase",
+        "from_state",
+        "to_state",
+        "authority",
+        "rule_ids",
+        "inputs",
+        "outputs",
+        "challenge_ids",
+        "reject_conditions",
+        "status",
+        "blocked_by",
+        "unresolved_blocker_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_state": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "to_state": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "authority": {
+          "enum": [
+            "verifier",
+            "prover-message",
+            "derived-verifier-value",
+            "circuit",
+            "deployed-verifier"
+          ]
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "inputs": {
+          "$ref": "#/$defs/string_set"
+        },
+        "outputs": {
+          "$ref": "#/$defs/string_set"
+        },
+        "challenge_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "reject_conditions": {
+          "$ref": "#/$defs/string_set"
+        },
+        "status": {
+          "enum": [
+            "specified",
+            "profile-blocked"
+          ]
+        },
+        "blocked_by": {
+          "$ref": "#/$defs/string_set"
+        },
+        "unresolved_blocker_ids": {
+          "$ref": "#/$defs/string_set"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "repetition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "event_id",
+        "kind",
+        "parent_id",
+        "unit",
+        "index_variable",
+        "minimum",
+        "maximum",
+        "index_order",
+        "on_exhaustion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "kind": {
+          "enum": [
+            "exact",
+            "bounded-retry",
+            "bounded-lifecycle"
+          ]
+        },
+        "parent_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9-]+$"
+            }
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "index_variable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minimum": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "index_order": {
+          "type": "string",
+          "minLength": 1
+        },
+        "on_exhaustion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "rejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "rule_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^REJECT-[A-Z0-9-]+$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/string_set"
+        }
+      }
+    },
+    "transcript_schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "scope",
+        "lifecycle_repetition_id",
+        "lifecycle_profile_id",
+        "steps"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "scope": {
+          "const": "one-fold"
+        },
+        "lifecycle_repetition_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "lifecycle_profile_id": {
+          "const": "nightstream-bounded-fold-sequence-v1"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/schedule_step"
+          }
+        }
+      }
+    },
+    "schedule_step": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/frame_step"
+        },
+        {
+          "$ref": "#/$defs/squeeze_step"
+        },
+        {
+          "$ref": "#/$defs/repeat_step"
+        }
+      ]
+    },
+    "frame_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "event_id",
+        "tag",
+        "payload_layout",
+        "base_field_count"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "kind": {
+          "const": "frame"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload_layout": {
+          "$ref": "#/$defs/string_set"
+        },
+        "base_field_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "squeeze_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "event_id",
+        "tag",
+        "requested_base_fields",
+        "challenge_id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "kind": {
+          "const": "squeeze"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_base_fields": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "challenge_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9-]+$"
+            }
+          ]
+        }
+      }
+    },
+    "repeat_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "repetition_id",
+        "body"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "kind": {
+          "const": "repeat"
+        },
+        "repetition_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "body": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/schedule_step"
+          }
+        }
+      }
+    }
+  }
+}

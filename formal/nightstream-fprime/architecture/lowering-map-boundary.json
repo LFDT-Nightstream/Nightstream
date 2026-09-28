@@ -1,0 +1,185 @@
+{
+  "baseline_commit": "5a78e03822a51aa7802ae80acaf2e798b3088d31",
+  "claim": "Separate the final column map and suffix data from the complete physical row instance. CompactPullback consumes only the data interface.",
+  "namespace": "NightstreamFPrime.Layout.Stage1.Lowering",
+  "moved_unchanged": [
+    "physicalRows",
+    "physicalRowCount",
+    "jointDomain",
+    "physicalRowCount_eq",
+    "logicalCircuit",
+    "logicalCircuit_coverage"
+  ],
+  "owners": {
+    "data": "NightstreamFPrime/Layout/Stage1/Lowering.lean",
+    "complete_rows": "NightstreamFPrime/Layout/Stage1/LoweringRows.lean"
+  },
+  "source_review": "Independent review found no changed declaration text or missing import owner in the available compiler-reference inventory. No public premises changed. Existing audit targets are retained.",
+  "gates": {
+    "static": {
+      "result": "passed",
+      "log_sha256": "70932996802666ffa6552b35d36d53335c9099afc3ab524ea1d54e92abcd543d",
+      "last_lines": [
+        "[parallel] LEAN_NUM_THREADS=16",
+        "[matrix-codecs] 11 files; 34 Format definitions; no physical declarations",
+        "[boundary] all checks passed"
+      ]
+    },
+    "build": {
+      "result": "passed",
+      "log_sha256": "7b98a5fcf998f9f5ee2d78dfc51427a9f2ceb22c0c2e9375310ca3d765681f5c",
+      "last_lines": [
+        "\u2714 [3812/3813] Built NightstreamFPrime (1.4s)",
+        "Build completed successfully (3813 jobs).",
+        "[bounded] exit=0 elapsed=12s"
+      ]
+    },
+    "axioms": {
+      "result": "passed",
+      "log_sha256": "0461ebccfefe93d23014418c5dabb8d40158fb7312bc0667f1311bc65d732da4",
+      "last_lines": [
+        " Quot.sound]",
+        "Build completed successfully (3920 jobs).",
+        "[bounded] exit=0 elapsed=6s"
+      ]
+    },
+    "identity": {
+      "result": "passed",
+      "log_sha256": "33f70084425bfce67229e083e48d505def33c9b533d0b1ebc1356bff1afb5110",
+      "last_lines": [
+        "emitted_poseidon2_hash_chain_v1_canonical_binding=/tmp/nightstream-fprime-identity.A1yuJA.json",
+        "[bounded] exit=0 elapsed=130s",
+        "[identity] canonical binding, structural identity, package identity and verifier-key pins match"
+      ]
+    }
+  },
+  "source_import_reachability": {
+    "before": {
+      "NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness": 13,
+      "NightstreamFPrime.Layout.Stage1.Lowering": 12,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 283,
+      "NightstreamFPrime.Layout.Stage1.SpartanRows": 14
+    },
+    "after": {
+      "NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness": 11,
+      "NightstreamFPrime.Layout.Stage1.Lowering": 13,
+      "NightstreamFPrime.Layout.Stage1.RunningTransitionLowering": 282,
+      "NightstreamFPrime.Layout.Stage1.SpartanRows": 12
+    },
+    "scope": "Transitive source import counts, excluding the module itself; not measured rebuilds."
+  },
+  "allocation_check": {
+    "source_commit": "e01dcf3b671163f657f6577dab169f110ef8cccb",
+    "target": "NightstreamFPrime.Layout.Stage1.CompactPullback",
+    "exit_code": 0,
+    "seconds": 71.42,
+    "patch_sha256": "37cfc2dc0016482770d8bf7d73f81d3db901f9916812a75aaf003e10ea0fff1d",
+    "log_sha256": "c8a2724d33927d49889eb98859178f2955bc833504db97d58236b485f7d7b1cb",
+    "scope": "The extra-cell CompactPullback target passes with unchanged constraints/specification. Scratch sources were restored. Full NIFS consumer isolation is not established by this target."
+  },
+  "boundary_guard": {
+    "owner": "scripts/check-boundaries.sh",
+    "scope": "Transitive imports from Spartan, PiDECSourceSupportData, Lowering and CompactPullback must not reach the complete row owners. This guard covers the measured pilot boundary.",
+    "positive": "Current source passes the guard.",
+    "negative_tests": [
+      {
+        "case": "direct",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+        "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+      },
+      {
+        "case": "transitive",
+        "exit_code": 1,
+        "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.SpartanRows",
+        "log_sha256": "842dc5102e88874bf04ebd6dee009dd4938c1b27c593473b4e5849260af972ec"
+      }
+    ],
+    "restoration": "Both injected imports and the scratch guard copy were restored.",
+    "checkpoint_gates": {
+      "static": {
+        "result": "passed",
+        "log_sha256": "a455f2e96811e39d3e4c3fb44f1267ff1719dbc7d4e1e9a3e85238cc06f96893",
+        "last_lines": [
+          "[layout-interfaces] PiDEC data interfaces exclude complete row plans",
+          "[boundary] all checks passed"
+        ]
+      },
+      "build": {
+        "result": "passed",
+        "log_sha256": "81e1b51f9d98f012b20d0db15eedd43cd734662a1e1ee6b6a9336bd5dd818e01",
+        "last_lines": [
+          "Build completed successfully (3813 jobs).",
+          "[bounded] exit=0 elapsed=1s"
+        ]
+      },
+      "axioms": {
+        "result": "passed",
+        "log_sha256": "81c55365825841176dca46fcdd473170bf0fb9b53ce9166f1c85052762e7b71d",
+        "last_lines": [
+          "Build completed successfully (3920 jobs).",
+          "[bounded] exit=0 elapsed=1s"
+        ]
+      }
+    },
+    "parser_regression": {
+      "authority": "Lean 4.30 Lean/Parser/Module/Syntax.lean, Module.import/header",
+      "failure": "The old line parser missed whitespace-separated module names. The added regression test failed before the correction.",
+      "correction": "Read the cleaned module header across whitespace. Stop at the first non-import command.",
+      "script_tests": "19 passed",
+      "current_graph": "Unchanged: 932 modules and 3154 import edges.",
+      "negative_tests": [
+        {
+          "case": "direct",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        },
+        {
+          "case": "transitive",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.SpartanRows",
+          "log_sha256": "842dc5102e88874bf04ebd6dee009dd4938c1b27c593473b4e5849260af972ec"
+        },
+        {
+          "case": "multiline",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        },
+        {
+          "case": "comment",
+          "exit_code": 1,
+          "expected_rejection": "NightstreamFPrime.Layout.Stage1.CompactPullback imports complete row owner NightstreamFPrime.Layout.Stage1.LoweringRows",
+          "log_sha256": "dfa37f4e382290137d96bb8b278810deab512b4ca0d4f9402523a8c70aae0f5f"
+        }
+      ],
+      "checkpoint_gates": {
+        "static": {
+          "result": "passed",
+          "log_sha256": "a455f2e96811e39d3e4c3fb44f1267ff1719dbc7d4e1e9a3e85238cc06f96893",
+          "last_lines": [
+            "[layout-interfaces] PiDEC data interfaces exclude complete row plans",
+            "[boundary] all checks passed"
+          ]
+        },
+        "build": {
+          "result": "passed",
+          "log_sha256": "7b3da6e056def882775c96904d0ecd3ac70258180c8908d82045d5e40449c1a1",
+          "last_lines": [
+            "Build completed successfully (3813 jobs).",
+            "[bounded] exit=0 elapsed=1s"
+          ]
+        },
+        "axioms": {
+          "result": "passed",
+          "log_sha256": "6e1c403c1a7d337996c41c75192f06f42c672398691612c091776bd74b5301f7",
+          "last_lines": [
+            "Build completed successfully (3920 jobs).",
+            "[bounded] exit=0 elapsed=1s"
+          ]
+        }
+      }
+    }
+  }
+}

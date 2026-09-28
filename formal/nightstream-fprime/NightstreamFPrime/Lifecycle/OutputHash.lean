@@ -1,0 +1,242 @@
+import NightstreamFPrime.Circuit.VariableSupport
+import NightstreamFPrime.Gadgets.Poseidon2.Formal
+import NightstreamFPrime.Lifecycle.Relation
+
+/-!
+Owns the logical builder for HyperNova Construction-2's public output digest.
+It specializes the proved Poseidon2 child to `nextHashPreimage` and exports the
+exact `OutputHolds` relation-slot theorem.
+-/
+
+namespace NightstreamFPrime.Lifecycle.OutputHash
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Circuit
+open NightstreamFPrime.Gadgets.Poseidon2
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
+open NightstreamFPrime.Lifecycle.PaperAlgebra
+
+/-- External expressions owned by the lifecycle parent. -/
+structure Interface where
+  preimage : Nat → List Expr
+  digest : Nat → Fin 4 → Expr
+
+def hashInterface (interface : Interface) : Formal.Interface where
+  input := interface.preimage
+  expected := interface.digest
+
+@[simp] theorem hashInterface_input (interface : Interface) (offset : Nat) :
+    (hashInterface interface).input offset = interface.preimage offset := by
+  rfl
+
+@[simp] theorem hashInterface_expected (interface : Interface) (offset : Nat)
+    (lane : Fin 4) :
+    (hashInterface interface).expected offset lane =
+      interface.digest offset lane := by
+  rfl
+
+def Assumptions (interface : Interface) : Nat → Env → Prop :=
+  Formal.Assumptions (hashInterface interface)
+
+def SpecHolds (interface : Interface) : Nat → Env → Prop :=
+  Formal.SpecHolds (hashInterface interface)
+
+def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
+  (Hash.compile offset (interface.preimage offset)).recipes.length
+
+def hashLength (interface : Interface) (offset : Nat) : Nat :=
+  (Hash.inputChunks (interface.preimage offset)).length * 592 + 592
+
+theorem compiledHashLength_eq_hashLength (interface : Interface)
+    (offset : Nat) :
+    compiledHashLength interface offset = hashLength interface offset := by
+  exact Hash.compile_recipes_length offset (interface.preimage offset)
+
+/-- The production logical builder for the `outputHash` phase. -/
+def rawCircuit (interface : Interface) : FormalCircuit :=
+  Formal.circuit (hashInterface interface)
+
+theorem rawCircuit_localLength (interface : Interface) (offset : Nat) :
+    localLength (Circuit.ops (rawCircuit interface).main offset) =
+      hashLength interface offset := by
+  calc
+    localLength (Circuit.ops (rawCircuit interface).main offset) =
+        compiledHashLength interface offset :=
+      Formal.opsAt_localLength (hashInterface interface) offset
+    _ = hashLength interface offset :=
+      compiledHashLength_eq_hashLength interface offset
+
+theorem rawCircuit_rowCount (interface : Interface) (offset : Nat) :
+    (flatConstraints (Circuit.ops (rawCircuit interface).main offset)).length =
+      hashLength interface offset + 4 := by
+  calc
+    (flatConstraints (Circuit.ops
+        (rawCircuit interface).main offset)).length =
+        compiledHashLength interface offset + 4 :=
+      Formal.flatConstraints_length_eq (hashInterface interface) offset
+    _ = hashLength interface offset + 4 := by
+      rw [compiledHashLength_eq_hashLength]
+
+/-- The production output hash with closed-form footprint metadata. -/
+def circuit (interface : Interface) : FormalCircuit :=
+  { rawCircuit interface with
+    privateCount := hashLength interface
+    rowCount := fun offset => hashLength interface offset + 4
+    privateCount_eq := rawCircuit_localLength interface
+    rowCount_eq := rawCircuit_rowCount interface }
+
+theorem circuit_localLength (interface : Interface) (offset : Nat) :
+    localLength (Circuit.ops (circuit interface).main offset) =
+      hashLength interface offset := by
+  rw [circuit]
+  exact rawCircuit_localLength interface offset
+
+theorem flatConstraints_varsBelow
+    (interface : Interface) (offset : Nat) {env : Env}
+    (assumptions : Assumptions interface offset env) :
+    ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      expression.VarsBelow
+        (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
+  Formal.flatConstraints_varsBelow (hashInterface interface) offset assumptions
+
+theorem soundness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (hholds : holds env (Circuit.ops (circuit interface).main offset)) :
+    SpecHolds interface offset env :=
+  (circuit interface).soundness env offset assumptions hholds
+
+theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (circuit interface).main offset)) ∧
+      holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
+  (circuit interface).completeness env offset assumptions specification
+
+/-- Output-hash semantics depend only on the caller-owned expressions below
+the child start. This transports the specification across an earlier sibling
+completion without exposing hash-circuit rows. -/
+theorem specHolds_of_agree_below
+    (interface : Interface) (offset : Nat) (before after : Env)
+    (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have inputEq : Hash.evalList after (interface.preimage offset) =
+      Hash.evalList before (interface.preimage offset) := by
+    unfold Hash.evalList
+    apply List.map_congr_left
+    intro expression member
+    exact expression.eval_eq_of_agree_below offset after before
+      (assumptions.1 expression member) agrees
+  have digestEq :
+      List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+        List.ofFn (fun lane => (interface.digest offset lane).eval before) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.digest offset lane).eval_eq_of_agree_below offset
+      after before (assumptions.2 lane) agrees
+  change List.ofFn (fun lane => (interface.digest offset lane).eval before) =
+    Poseidon2.hash (Hash.evalList before (interface.preimage offset))
+      at specification
+  change List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+    Poseidon2.hash (Hash.evalList after (interface.preimage offset))
+  rw [digestEq, inputEq]
+  exact specification
+
+/-- Output-hash semantics are unchanged when two environments agree on the
+exact caller-selected support of the preimage and digest expressions. -/
+theorem specHolds_of_agree_satisfy
+    (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
+    (before after : Env)
+    (preimageSupport : ∀ expression ∈ interface.preimage offset,
+      expression.VarsSatisfy allowed)
+    (digestSupport : ∀ lane,
+      (interface.digest offset lane).VarsSatisfy allowed)
+    (agrees : ∀ index, allowed index → after index = before index)
+    (specification : SpecHolds interface offset before) :
+    SpecHolds interface offset after := by
+  have inputEq : Hash.evalList after (interface.preimage offset) =
+      Hash.evalList before (interface.preimage offset) := by
+    unfold Hash.evalList
+    apply List.map_congr_left
+    intro expression member
+    exact expression.eval_eq_of_agree_satisfy allowed after before
+      (preimageSupport expression member) agrees
+  have digestEq :
+      List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+        List.ofFn (fun lane => (interface.digest offset lane).eval before) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.digest offset lane).eval_eq_of_agree_satisfy allowed
+      after before (digestSupport lane) agrees
+  change List.ofFn (fun lane => (interface.digest offset lane).eval before) =
+    Poseidon2.hash (Hash.evalList before (interface.preimage offset))
+      at specification
+  change List.ofFn (fun lane => (interface.digest offset lane).eval after) =
+    Poseidon2.hash (Hash.evalList after (interface.preimage offset))
+  rw [digestEq, inputEq]
+  exact specification
+
+section Relation
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns <=
+    Phi81CarrierLayout.carrierWidth logicalWidth}
+
+def RepresentsPreimage (interface : Interface) (offset : Nat) (env : Env)
+    (preimage : HashPreimage (logicalWidth := logicalWidth)
+      (publicFits := publicFits)) : Prop :=
+  Hash.evalList env (interface.preimage offset) =
+    serializePreimage (publicFits := publicFits) preimage
+
+def RepresentsDigest (interface : Interface) (offset : Nat) (env : Env)
+    (digest : Digest) : Prop :=
+  digest = List.ofFn (fun lane => (interface.digest offset lane).eval env)
+
+theorem builder_implies_digest
+    (interface : Interface) (offset : Nat) (env : Env)
+    (preimage : HashPreimage (logicalWidth := logicalWidth)
+      (publicFits := publicFits))
+    (digest : Digest)
+    (specification : SpecHolds interface offset env)
+    (preimageRepresents : RepresentsPreimage interface offset env preimage)
+    (digestRepresents : RepresentsDigest interface offset env digest) :
+    digest = stateHash (publicFits := publicFits) preimage := by
+  calc
+    digest = List.ofFn (fun lane =>
+        (interface.digest offset lane).eval env) := digestRepresents
+    _ = Poseidon2.hash (Hash.evalList env (interface.preimage offset)) :=
+      specification
+    _ = Poseidon2.hash
+        (serializePreimage (publicFits := publicFits) preimage) := by
+      rw [preimageRepresents]
+    _ = stateHash (publicFits := publicFits) preimage := rfl
+
+/-- Production specialization: the builder proves the exact
+`OutputHolds` equation inside `StepHolds`. -/
+theorem builder_implies_output_slot
+    (interface : Interface) (offset : Nat) (env : Env)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (vk : KeyDigest) (F : AppState → AppWitness → AppState)
+    (input : Input KeyDigest AppState AppWitness
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (Proof (ProductionKey.degreeBound relation)) slotCount)
+    (output : Output Digest AppState
+      (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
+    (specification : SpecHolds interface offset env)
+    (preimageRepresents : RepresentsPreimage interface offset env
+      (nextHashPreimage (setup relation ajtai vk) input output))
+    (digestRepresents : RepresentsDigest interface offset env output.x) :
+    OutputHolds (setup relation ajtai vk) (machine publicFits F) input output := by
+  exact builder_implies_digest interface offset env
+    (nextHashPreimage (setup relation ajtai vk) input output) output.x
+    specification preimageRepresents digestRepresents
+
+end Relation
+
+end NightstreamFPrime.Lifecycle.OutputHash

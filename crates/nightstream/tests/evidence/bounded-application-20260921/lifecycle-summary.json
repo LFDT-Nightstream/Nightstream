@@ -1,0 +1,69 @@
+{
+  "full_metal_lifecycle_verified": true,
+  "seconds": 164.661508625,
+  "maximum_resident_bytes": 16813703168,
+  "maximum_physical_footprint_bytes": 16808145184,
+  "phases": [
+    {
+      "event": "phase_finished",
+      "phase": "prepare",
+      "seconds": 34.49970375,
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "prove",
+      "seconds": 6.796190541,
+      "step": 1
+    },
+    {
+      "event": "phase_finished",
+      "phase": "extend",
+      "seconds": 45.613330833,
+      "step": 2
+    },
+    {
+      "event": "phase_finished",
+      "phase": "extend",
+      "seconds": 57.81215575,
+      "step": 3
+    },
+    {
+      "event": "phase_finished",
+      "phase": "verify",
+      "seconds": 19.939683542,
+      "step": 3
+    }
+  ],
+  "same_start_fields_as_prior_metal": [
+    "active_extends",
+    "benchmark",
+    "engine",
+    "event",
+    "initial_state",
+    "message",
+    "profile",
+    "schema",
+    "steps"
+  ],
+  "same_finish_fields_as_prior_metal": [
+    "circuit_identity",
+    "final_state",
+    "steps",
+    "verified"
+  ],
+  "final_state": [
+    6571778207680039711,
+    123649970047308705,
+    16791205033536618392,
+    12263481847644113771
+  ],
+  "circuit_identity": [
+    9705822157724451396,
+    520958727644325895,
+    9285622073986934000,
+    874020794279380938
+  ],
+  "comparison_note": "Individual passing run. No speed gain is inferred from prior timings; this build preserves symbols and command-scoped sleep prevention is active. Full CPU lifecycle has not yet been measured on this exact executable.",
+  "rss_scope": "Selected three-step benchmark below current 16 GiB guard. Not a universal supported-circuit RSS bound."
+}

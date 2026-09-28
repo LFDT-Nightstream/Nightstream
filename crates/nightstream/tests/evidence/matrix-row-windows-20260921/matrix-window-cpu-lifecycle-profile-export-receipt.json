@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "target_pid": 92096,
+  "expected_native_uuid": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+  "exports": [
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile.trace",
+        "--toc",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-toc.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-toc.xml",
+      "bytes": 8066,
+      "mtime_ns": 1790050888276659098,
+      "log": "matrix-window-cpu-lifecycle-profile-toc-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile.trace",
+        "--xpath",
+        "/trace-toc/run[@number=\"1\"]/data/table[@schema=\"time-profile\"]",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-samples.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-samples.xml",
+      "bytes": 1704334689,
+      "mtime_ns": 1790051148872168043,
+      "log": "matrix-window-cpu-lifecycle-profile-samples-export.log"
+    },
+    {
+      "command": [
+        "timeout",
+        "--signal=KILL",
+        "1800",
+        "xcrun",
+        "xctrace",
+        "export",
+        "--input",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile.trace",
+        "--xpath",
+        "/trace-toc/run[@number=\"1\"]/data/table[@schema=\"device-thermal-state-intervals\"]",
+        "--output",
+        "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-thermal.xml"
+      ],
+      "exit_code": 0,
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-thermal.xml",
+      "bytes": 1478,
+      "mtime_ns": 1790051105019517432,
+      "log": "matrix-window-cpu-lifecycle-profile-thermal-export.log"
+    }
+  ],
+  "export_cap_authority": "Root AGENTS.md Instruments cap of1800seconds. Exports are post-capture analysis and are separate from the recorded capture duration.",
+  "parser_command": [
+    "python3",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_matrix_lifecycle_profile.py",
+    "matrix-window-cpu-lifecycle-profile",
+    "92096"
+  ],
+  "parser_exit_code": 0,
+  "parse_seconds": 91.02825312501227,
+  "parser_retained_sample_times": 0,
+  "parser_method": "xml.etree.ElementTree.iterparse; each XML row is removed after processing; only process/weight/image/frame/backtrace descriptors and aggregate counts are retained.",
+  "summary_command": [
+    "python3",
+    "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_matrix_lifecycle_profile.py",
+    "matrix-window-cpu-lifecycle-profile",
+    "92096"
+  ],
+  "summary_exit_code": 0,
+  "summary_seconds": 6.876074832995073,
+  "scripts": [
+    {
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_matrix_lifecycle_profile.py",
+      "sha256": "cc5d8cdfa00d00f6f7122541233e672b04b5edf1313b4f0785773f0edf77db0c",
+      "bytes": 7779
+    },
+    {
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_matrix_lifecycle_profile.py",
+      "sha256": "ef4809b7b5f2bf9e447688f85846a5672b80365035cc772465dfe6f0418c1c29",
+      "bytes": 11457
+    }
+  ],
+  "exact_image_symbolication": {
+    "native_binary_ids": [
+      "81"
+    ],
+    "expected_uuid": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+    "exact_original_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary",
+    "binary_bytes": 18980608,
+    "binary_mtime_ns": 1790047606472265738,
+    "uuid_command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary"
+    ],
+    "uuid_output": "UUID: 5841982D-F5C1-35FA-903D-66E7053B74CB (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary\n",
+    "atos_runs": [
+      {
+        "binary_id": "81",
+        "command": [
+          "atos",
+          "-o",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary",
+          "-arch",
+          "arm64",
+          "-l",
+          "0x100958000",
+          "-f",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-addresses.txt"
+        ],
+        "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-addresses.txt",
+        "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-output.txt",
+        "address_count": 10176,
+        "seconds": 0.1557869169919286
+      }
+    ],
+    "native_address_count": 10176,
+    "native_frames_with_exported_symbols": 10176,
+    "native_frames_resolved_by_atos": 10176,
+    "unknown_top_sample_count": 1734,
+    "unknown_top_weight_ns": 1734000000,
+    "unannotated_top_sample_count": 0,
+    "unannotated_top_weight_ns": 0,
+    "scope": "Only the exact original binary with matching recorded UUID is used. There is no rebuilt-image or function-byte-matching fallback."
+  },
+  "raw_data_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-data.json",
+  "complete_summary_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-summary.json",
+  "source_xml": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-samples.xml",
+  "raw_files_remain_private": true,
+  "archived_function_count": 3620,
+  "sample_accounting": {
+    "target_sample_count": 6925984,
+    "target_weight_ns": 6925984000000,
+    "backtrace_sample_count": 6925530,
+    "backtrace_weight_ns": 6925530000000,
+    "sentinel_sample_count": 454,
+    "sentinel_weight_ns": 454000000,
+    "other_missing_stack_sample_count": 0,
+    "other_missing_stack_weight_ns": 0,
+    "empty_backtrace_sample_count": 0,
+    "empty_backtrace_weight_ns": 0
+  },
+  "limits": [
+    "CPU sample weights sum work across target threads, not elapsed time. Inclusive function weights overlap.",
+    "The profiler excluded waiting threads and did not capture GPU shader time or clock/limiter counters.",
+    "Sentinel rows have no backtrace. Unresolved top frames stay unresolved.",
+    "Sample timestamps referenced by ID are counted but not retained or resolved, so the function table is whole-capture attribution, not a phase-by-phase allocation.",
+    "Final post-exit RSS peak is unavailable."
+  ]
+}

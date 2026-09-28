@@ -1,0 +1,8 @@
+{
+  "start_ns": 147914206916,
+  "end_ns": 148623079500,
+  "duration_ns": 708872584,
+  "label": "nightstream.production_commitment:production_ajtai_partials & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns",
+  "authority": "Exact longest recorded native commitment interval; no invented capture duration.",
+  "replaces": "Unbounded all-time gpu-counter-value export (PID62849), cancelled while still live after the time-range export capability was verified in Xcode27 release notes."
+}

@@ -1,0 +1,66 @@
+{
+  "capture": "Attached Metal System Trace with Metal GPU Counters requested",
+  "native_pid": 53372,
+  "native_workload_verified": true,
+  "benchmark_seconds_under_profiling": 189.045814958,
+  "recorded_duration_seconds": 186.198041,
+  "target_gpu_active_seconds": 119.43680755,
+  "target_gpu_interval_rows": 820,
+  "gpu_groups": {
+    "nightstream.production_commitment": {
+      "gpu_seconds": 61.134886037999976,
+      "intervals": 241
+    },
+    "nightstream.pi_ccs.joint.openings": {
+      "gpu_seconds": 38.89596626499996,
+      "intervals": 365
+    },
+    "nightstream.pi_ccs.joint.round": {
+      "gpu_seconds": 13.080397042000001,
+      "intervals": 57
+    },
+    "nightstream.pi_ccs.joint.carried": {
+      "gpu_seconds": 4.257057458000001,
+      "intervals": 36
+    },
+    "nightstream.pi_ccs.joint.application": {
+      "gpu_seconds": 0.971938083,
+      "intervals": 3
+    },
+    "nightstream.pi_ccs.joint.assignment.fold": {
+      "gpu_seconds": 0.9024427070000002,
+      "intervals": 56
+    },
+    "nightstream.terminal.relation": {
+      "gpu_seconds": 0.103939083,
+      "intervals": 1
+    },
+    "nightstream.pi_ccs.joint.fold": {
+      "gpu_seconds": 0.08092720799999999,
+      "intervals": 56
+    },
+    "nightstream.pi_ccs.opening.weights": {
+      "gpu_seconds": 0.009253665999999999,
+      "intervals": 5
+    }
+  },
+  "cpu_command_buffer_encoding_seconds": 0.031148247,
+  "cpu_encoding_note": "Depth 14 only; nested encoder intervals are not added again. Queue latency is not counted as CPU inactivity.",
+  "shader_list_rows": 0,
+  "gpu_counter_rows": 0,
+  "capture_status": "Recorder hit the old 300-second cap during finalization. Its saved raw ATRC stream imported successfully and supplied the GPU execution data.",
+  "limitations": [
+    "No measured occupancy or ALU/memory limiter values in this capture.",
+    "Timing is by labeled command/encoder, not shader instruction.",
+    "Profiled times are not the uninstrumented speedup baseline.",
+    "Periods without target GPU work may include CPU work or other GPU users."
+  ],
+  "raw_capture": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/metal-gpu-profile.trace",
+  "official_guidance": [
+    "https://developer.apple.com/documentation/xcode/optimizing-gpu-performance",
+    "https://developer.apple.com/videos/play/wwdc2020/10632/",
+    "https://developer.apple.com/documentation/metal/calculating-threadgroup-and-grid-sizes",
+    "https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html"
+  ],
+  "interval_note": "A GPU interval can merge several encoders or represent part of an encoder. Interval counts are not dispatch counts."
+}

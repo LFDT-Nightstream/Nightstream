@@ -1,0 +1,40 @@
+{
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_state": "uncommitted; complete source snapshots preserved in the private run directory",
+  "source_changes_this_slice": [
+    "neo-prover-metal/src/session/masks.rs",
+    "neo-prover-metal/src/session/joint.rs",
+    "neo-reductions/src/superneo_eval.rs (block-count accessor only)",
+    "neo-prover-metal/tests/unit/witness_mask_storage.rs"
+  ],
+  "allocation_regression": {
+    "before": "failed: 1104 bytes for the full family versus 80 for one source",
+    "after": "passed: equal host allocation, identical nonzero mask words and logical count"
+  },
+  "joint_tests": 13,
+  "engine_tests": 9,
+  "cuda_ignored": 2,
+  "release_test_build": "passed",
+  "production_benchmark_build": "passed",
+  "default_all_targets_check": "passed",
+  "clippy": "passed with --cap-lints warn; only the inherited nonminimal_bool warning in joint.rs",
+  "formatting": "cargo fmt --all passed",
+  "maximum_changed_source_lines": 1470,
+  "metal_public_lifecycle": {
+    "seconds": 183.615515708,
+    "peak_rss_bytes": 16167714816,
+    "passed": true
+  },
+  "metal_benchmark": {
+    "steps": 3,
+    "seconds": 187.156455042,
+    "peak_rss_bytes": 16594255872,
+    "passed": true
+  },
+  "full_cpu_benchmark": "not run; one 45-minute timeout and above-target RSS exception requested, approval pending",
+  "limits": [
+    "5x speed has not been demonstrated",
+    "The previous CPU PiCCS reference used 21.27 GB RSS",
+    "No memory bound for every supported circuit is established"
+  ]
+}

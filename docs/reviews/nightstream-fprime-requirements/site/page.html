@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SuperNeo implementation proofs, explicit assumptions, Rust validation, constraint-reduction readiness and quantitative error scenarios.">
+  <meta name="referrer" content="no-referrer">
+  <title>Nightstream — Protocol flow</title>
+  <link rel="alternate" type="text/markdown" href="requirements.md" title="Complete requirements in Markdown">
+  <link rel="alternate" type="application/json" href="requirements.json" title="Requirement source data">
+  <style>/* SITE_STYLES */</style>
+  <link rel="stylesheet" href="proof-map.css">
+  <link rel="stylesheet" href="protocol-flow.css">
+</head>
+<body class="flow-mode">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="brand">NIGHTSTREAM <span>Formal verification</span></div>
+    <nav class="export-links" aria-label="Read or download requirements">
+      <a href="requirements.md">Markdown for AI</a>
+      <a href="requirements-markdown.zip" download>Download all Markdown</a>
+    </nav>
+    <div class="source-meta" id="source-meta"></div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="Views">
+      <nav class="view-nav" aria-label="Map view">
+        <a id="protocol-view-link" href="#protocol-flow">Protocol flow</a>
+        <a id="tech-view-link" href="#tech-tree">Tech tree</a>
+        <a id="proof-map-view-link" href="#proof-map">Proof map</a>
+      </nav>
+    </aside>
+    <main id="main">
+      <div class="breadcrumb" id="breadcrumb">Selected Stage 1 / Protocol flow</div>
+      <h1 id="view-title">Protocol flow</h1>
+      <div id="view-progress" aria-label="Group completion counts"></div>
+      <p class="view-summary" id="view-summary"></p>
+      <section id="prover-replay" aria-label="Independent prover replay progress" hidden></section>
+      <div id="view-announcement" class="sr-only" aria-live="polite"></div>
+      <section id="tech-tree" aria-label="Requirement dependencies" hidden></section>
+      <section id="proof-structure" aria-label="Connected proof structure" hidden></section>
+      <section id="protocol-flow" aria-label="Protocol operations and evidence" hidden></section>
+      <div id="assurance-views"></div>
+      <footer>
+        <details>
+          <summary>Counts, scope and evidence</summary>
+          <div class="legend">
+            <strong>Finished / applicable</strong>
+            <dl>
+              <dt class="axis-proof">Proof</dt><dd>A local proof exists.</dd>
+              <dt class="axis-connection">Link</dt><dd>Connected to its local consumer.</dd>
+              <dt class="axis-rust">Rust</dt><dd>Code exists or scoped tests passed.</dd>
+            </dl>
+            <p>Assumptions and N/A are excluded from the fractions. Hover over a counter for the full breakdown. Read each requirement for its exact status and assumptions.</p>
+            <p>Counts cover individual requirements. They do not estimate time remaining or certify production conformance.</p>
+          </div>
+          <nav class="review-nav" aria-label="Assurance views">
+            <a href="#view-readiness">Readiness</a>
+            <a href="#view-assumptions">Assumption ledger</a>
+            <a href="#view-risk">Error budget</a>
+            <a href="#view-evidence">Source and evidence</a>
+          </nav>
+          <div id="scope-controls" class="scope-controls" hidden>
+            <label for="claim-scope">Show scope</label>
+            <select id="claim-scope">
+              <option value="all">All scopes</option>
+              <option value="model">Mathematical model</option>
+              <option value="interactive">Interactive protocol</option>
+              <option value="implementation">Implementation evidence</option>
+              <option value="production">Production requirement</option>
+              <option value="outside_stage_1">Outside Stage 1</option>
+            </select>
+            <span>Counts describe the full group; this filter changes the visible records.</span>
+          </div>
+        </details>
+        <p>Review snapshot. Explicit assumptions and unreviewed coverage are separate from missing proofs. This map does not change the approved goal.</p>
+      </footer>
+    </main>
+  </div>
+  <noscript><p><a href="requirements.md">Read the complete requirements in Markdown</a>. No JavaScript is needed.</p></noscript>
+  <script type="application/json" id="requirements-data">/* SITE_DATA */</script>
+  <script type="application/json" id="publication-data">/* PUBLICATION_DATA */</script>
+  <script type="application/json" id="reference-data">/* REFERENCE_DATA */</script>
+  <script type="application/json" id="proof-map-data">/* PROOF_MAP_DATA */</script>
+  <script src="proof-map.js"></script>
+  <script type="application/json" id="protocol-flow-data">/* PROTOCOL_FLOW_DATA */</script>
+  <script src="protocol-flow.js"></script>
+  <script>/* ASSURANCE_SCRIPT */</script>
+  <script>/* SITE_SCRIPT */</script>
+</body>
+</html>

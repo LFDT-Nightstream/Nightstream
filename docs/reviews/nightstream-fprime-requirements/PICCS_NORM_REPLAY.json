@@ -1,0 +1,882 @@
+{
+  "schema": 1,
+  "date": "2026-09-15",
+  "base_commit": "7b6ca1ad1061d600a68b4d6792e756481f1cc27b",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "status": "Complete first-round inner norm replay and its coefficient-level specification bridge pass; full first-round Q remains open.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "sources": 17,
+    "ring_degree": 54,
+    "blocks": 4685394,
+    "carrier_columns": 253011276,
+    "logical_columns": 253011231,
+    "tail_columns": 45,
+    "pair_domain": 134217728,
+    "package": "unchanged",
+    "toolchain": "leanprover/lean4:v4.30.0; installed default unchanged"
+  },
+  "contract": "Compute the complete PiCCS first-round norm contribution from original signed witnesses and public-input-derived coins; prove the prepared scan and ordered worker merge equal the existing specification; compare every inner-cubic coefficient with the actual Rust CPU norm function and reject a changed coefficient.",
+  "scope": {
+    "executed": "All 4685394 carrier blocks across 17 original source witnesses. Empty masks and equal signed endpoints use proved zero identities. All four inner K coefficients (eight canonical field words) are compared.",
+    "output": "The file contains the inner cubic only. It does not contain full Q. normTerm applies the head equality factor, both gamma shifts and degree widening in the proof.",
+    "still_open": [
+      "fresh CCS and carried Pad/matrix contributions to complete round one",
+      "all ten Q coefficients and next challenge/state comparison",
+      "later rounds, final evaluations, HyperNova assignment/commitment and full proof encoding",
+      "release upload and fresh-download source reproduction"
+    ],
+    "assurance": "Kernel-checked equality of the replay computation to its Lean norm specification, plus tested agreement with Rust on the recorded sources. Not a universal proof of Rust semantics."
+  },
+  "independence": {
+    "lean_inputs": [
+      "original signed-unit source masks",
+      "fresh commitment/public input and old running claims"
+    ],
+    "lean_coins": "PiCCSPublicReplay.pre derives alpha and gamma from the public-only input; pre_eq_oracle links it to the existing oracle.",
+    "rust_inputs": "The same original masks and Lean-derived alpha/gamma. The Rust test calls the production private norm_coefficients helper. It does not independently compare the transcript at this milestone.",
+    "comparison_targets_only": "The four Lean coefficients are used only by the Rust comparator; no computed Rust coefficient is used to construct Lean output.",
+    "public_projection": "[ccs_input[1], ccs_input[2], ccs_input[6]]; contains neither Rust round polynomials nor newly claimed evaluations.",
+    "source_authority": "Original source-opening lineage is recorded in PIRLC_WITNESS_REPLAY.json and NONZERO_NIFS_GATES.json. Parsing this capture alone does not verify its commitments."
+  },
+  "inputs": [
+    {
+      "path": "/tmp/nightstream-piccs-original-public-1.json",
+      "bytes": 410910,
+      "sha256": "54dc9d56e0b0b2cb6c14d9e3cc5d2d56114132721ff9cb35577946f1f64b5a37"
+    },
+    {
+      "path": "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+      "bytes": 562056218,
+      "sha256": "b4b093059cfb8da5266e9a7188348958a6a93b512e7c854b6157b7ad57fb8619"
+    }
+  ],
+  "source_projection": {
+    "path": "/tmp/nightstream-pirlc-replay-capture-1/ccs-input.json",
+    "bytes": 657063,
+    "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+  },
+  "output": {
+    "path": "/home/nicoarq/develop/Nightstream/crates/neo-reductions/tests/fixtures/piccs_first_round_norm/lean-norm.json",
+    "bytes": 1396,
+    "sha256": "deb164f80be768e3418ddf6ccedc9af055dd69423ef652e1b6058c876b439e15"
+  },
+  "comparison": {
+    "all_coefficients_equal": true,
+    "changed_coefficient_rejected": true,
+    "changed_index": 3,
+    "full_range_asserted": [
+      0,
+      4685394
+    ]
+  },
+  "proof": {
+    "complete_composition": "NightstreamFPrime.Export.Stage1.PiCCSNormComplete.prepared_workers_eq_fullPairSum",
+    "premises": "Arbitrary original mask arrays, alpha/gamma, verifier input, unused fresh image vectors and a positive worker count. No cache-equality, matrix-result, expected-output or cryptographic assumption.",
+    "dependencies": [
+      "PiCCSNormSource.sourceCode_low_sourceAssignment",
+      "PiCCSNormSource.sourceCode_high_sourceAssignment",
+      "PiCCSNormSource.sourceAssignment_padding",
+      "PiCCSNormBuckets.finish_add",
+      "PiCCSNormScanCorrectness.range_finish",
+      "PiCCSNormScanCorrectness.pairNorm_eq_normPolynomialWithPowers",
+      "PiCCSNormContribution.pairPolynomialWithNorm_split",
+      "PiCCSNormContribution.normTerm_innerPair",
+      "PiCCSNormContribution.normTerm_gamma",
+      "PiCCSNormRangeMerge.array_proportional_eq_range",
+      "PiCCSGammaPowers.lookup_prepare",
+      "PiCCSTensorWeights.lookup_prepare"
+    ],
+    "target": "LeanGraph.Targets.PiCCSFirstRoundReplayKernel",
+    "new_component": "LeanGraph.Targets.PiCCSCompleteNormKernel",
+    "gate": "piccs-first-round-kernel",
+    "axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ]
+  },
+  "measurements": {
+    "one_block": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-block-measure-1.log",
+        "bytes": 2305,
+        "sha256": "98accd73627a14ca4acd8de9b44c716b3df15154e410ae37635fa0190def285a"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 17.391037823050283,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-norm-block-0-1.json",
+          "0",
+          "1"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1359516,
+      "events": [
+        {
+          "elapsed_ns": 15155308051,
+          "event": "norm_sources_ready",
+          "records": 2844097
+        },
+        {
+          "elapsed_ns": 626779100,
+          "end_block": 1,
+          "event": "norm_range_accumulated",
+          "first_block": 0,
+          "part": 0
+        },
+        {
+          "complete_carrier": false,
+          "compute_ns": 627500633,
+          "elapsed_ns": 16274204182,
+          "end_block": 1,
+          "event": "norm_complete",
+          "first_block": 0,
+          "workers": 1
+        }
+      ]
+    },
+    "preflight": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-preflight-1.log",
+        "bytes": 2360,
+        "sha256": "d2689d53cef20f7c7c73d8b7cfbce42d9b3492b5cf493162f2c506109ed84c7a"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 31.109204794978723,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-norm-preflight-0-292837.json",
+          "0",
+          "292837"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1360152,
+      "events": [
+        {
+          "elapsed_ns": 15143535816,
+          "event": "norm_sources_ready",
+          "records": 2844097
+        },
+        {
+          "elapsed_ns": 14388868307,
+          "end_block": 292837,
+          "event": "norm_range_accumulated",
+          "first_block": 0,
+          "part": 0
+        },
+        {
+          "complete_carrier": false,
+          "compute_ns": 14389363549,
+          "elapsed_ns": 30007047795,
+          "end_block": 292837,
+          "event": "norm_complete",
+          "first_block": 0,
+          "workers": 1
+        }
+      ]
+    },
+    "serial_full": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-full-1.log",
+        "bytes": 4011,
+        "sha256": "3d4acde2d643c35c37094a0809bed0af9af7099121b3dbf1b1aeb905dae69771"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 139.92630195396487,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-norm-full-1.json",
+          "0",
+          "4685394"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1359672,
+      "events": [
+        {
+          "elapsed_ns": 11736493397,
+          "event": "norm_sources_ready",
+          "records": 2844097
+        },
+        {
+          "elapsed_ns": 14113171448,
+          "end_block": 292837,
+          "event": "norm_range_accumulated",
+          "first_block": 0,
+          "part": 0
+        },
+        {
+          "elapsed_ns": 28011788689,
+          "end_block": 585674,
+          "event": "norm_range_accumulated",
+          "first_block": 292837,
+          "part": 1
+        },
+        {
+          "elapsed_ns": 41834096961,
+          "end_block": 878511,
+          "event": "norm_range_accumulated",
+          "first_block": 585674,
+          "part": 2
+        },
+        {
+          "elapsed_ns": 55771057300,
+          "end_block": 1171348,
+          "event": "norm_range_accumulated",
+          "first_block": 878511,
+          "part": 3
+        },
+        {
+          "elapsed_ns": 69957410687,
+          "end_block": 1464185,
+          "event": "norm_range_accumulated",
+          "first_block": 1171348,
+          "part": 4
+        },
+        {
+          "elapsed_ns": 84100906263,
+          "end_block": 1757022,
+          "event": "norm_range_accumulated",
+          "first_block": 1464185,
+          "part": 5
+        },
+        {
+          "elapsed_ns": 98097099985,
+          "end_block": 2049859,
+          "event": "norm_range_accumulated",
+          "first_block": 1757022,
+          "part": 6
+        },
+        {
+          "elapsed_ns": 101951805426,
+          "end_block": 2342697,
+          "event": "norm_range_accumulated",
+          "first_block": 2049859,
+          "part": 7
+        },
+        {
+          "elapsed_ns": 102065380618,
+          "end_block": 2635534,
+          "event": "norm_range_accumulated",
+          "first_block": 2342697,
+          "part": 8
+        },
+        {
+          "elapsed_ns": 102722459851,
+          "end_block": 2928371,
+          "event": "norm_range_accumulated",
+          "first_block": 2635534,
+          "part": 9
+        },
+        {
+          "elapsed_ns": 102723648433,
+          "end_block": 3221208,
+          "event": "norm_range_accumulated",
+          "first_block": 2928371,
+          "part": 10
+        },
+        {
+          "elapsed_ns": 104793425284,
+          "end_block": 3514045,
+          "event": "norm_range_accumulated",
+          "first_block": 3221208,
+          "part": 11
+        },
+        {
+          "elapsed_ns": 108913805763,
+          "end_block": 3806882,
+          "event": "norm_range_accumulated",
+          "first_block": 3514045,
+          "part": 12
+        },
+        {
+          "elapsed_ns": 113251625288,
+          "end_block": 4099719,
+          "event": "norm_range_accumulated",
+          "first_block": 3806882,
+          "part": 13
+        },
+        {
+          "elapsed_ns": 117679359281,
+          "end_block": 4392556,
+          "event": "norm_range_accumulated",
+          "first_block": 4099719,
+          "part": 14
+        },
+        {
+          "elapsed_ns": 126781586622,
+          "end_block": 4685394,
+          "event": "norm_range_accumulated",
+          "first_block": 4392556,
+          "part": 15
+        },
+        {
+          "complete_carrier": true,
+          "compute_ns": 126781948856,
+          "elapsed_ns": 138831718161,
+          "end_block": 4685394,
+          "event": "norm_complete",
+          "first_block": 0,
+          "workers": 16
+        }
+      ]
+    },
+    "parallel_full": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-full-parallel-2.log",
+        "bytes": 4447,
+        "sha256": "0ca5088555dac2c946fd1b0bc9b3ff0bb000f44146152166fd027c2310dc1786"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 35.16892089799512,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "lean-executable",
+          "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound",
+          "norm",
+          "/tmp/nightstream-piccs-original-public-1.json",
+          "/tmp/nightstream-pirlc-replay-capture-1/sources.jsonl",
+          "/tmp/nightstream-piccs-norm-full-parallel-2.json",
+          "0",
+          "4685394"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1360840,
+      "events": [
+        {
+          "elapsed_ns": 15048630291,
+          "event": "norm_sources_ready",
+          "records": 2844097
+        },
+        {
+          "elapsed_ns": 299157143,
+          "event": "norm_ranges_queued",
+          "ranges": 16
+        },
+        {
+          "elapsed_ns": 17557559937,
+          "end_block": 292837,
+          "event": "norm_range_accumulated",
+          "first_block": 0,
+          "part": 0,
+          "range_ns": 17258362700
+        },
+        {
+          "elapsed_ns": 17968074129,
+          "end_block": 585674,
+          "event": "norm_range_accumulated",
+          "first_block": 292837,
+          "part": 1,
+          "range_ns": 17668853709
+        },
+        {
+          "elapsed_ns": 17968107181,
+          "end_block": 878511,
+          "event": "norm_range_accumulated",
+          "first_block": 585674,
+          "part": 2,
+          "range_ns": 17362588063
+        },
+        {
+          "elapsed_ns": 18518261243,
+          "end_block": 1171348,
+          "event": "norm_range_accumulated",
+          "first_block": 878511,
+          "part": 3,
+          "range_ns": 17893615720
+        },
+        {
+          "elapsed_ns": 18518302740,
+          "end_block": 1464185,
+          "event": "norm_range_accumulated",
+          "first_block": 1171348,
+          "part": 4,
+          "range_ns": 17586730490
+        },
+        {
+          "elapsed_ns": 18518325833,
+          "end_block": 1757022,
+          "event": "norm_range_accumulated",
+          "first_block": 1464185,
+          "part": 5,
+          "range_ns": 15959164357
+        },
+        {
+          "elapsed_ns": 18518336423,
+          "end_block": 2049859,
+          "event": "norm_range_accumulated",
+          "first_block": 1757022,
+          "part": 6,
+          "range_ns": 17369452402
+        },
+        {
+          "elapsed_ns": 18518346000,
+          "end_block": 2342697,
+          "event": "norm_range_accumulated",
+          "first_block": 2049859,
+          "part": 7,
+          "range_ns": 6627673006
+        },
+        {
+          "elapsed_ns": 18518355198,
+          "end_block": 2635534,
+          "event": "norm_range_accumulated",
+          "first_block": 2342697,
+          "part": 8,
+          "range_ns": 171529485
+        },
+        {
+          "elapsed_ns": 18518364946,
+          "end_block": 2928371,
+          "event": "norm_range_accumulated",
+          "first_block": 2635534,
+          "part": 9,
+          "range_ns": 1200477507
+        },
+        {
+          "elapsed_ns": 18518375034,
+          "end_block": 3221208,
+          "event": "norm_range_accumulated",
+          "first_block": 2928371,
+          "part": 10,
+          "range_ns": 6614764
+        },
+        {
+          "elapsed_ns": 18518383300,
+          "end_block": 3514045,
+          "event": "norm_range_accumulated",
+          "first_block": 3221208,
+          "part": 11,
+          "range_ns": 3819027769
+        },
+        {
+          "elapsed_ns": 18518391365,
+          "end_block": 3806882,
+          "event": "norm_range_accumulated",
+          "first_block": 3514045,
+          "part": 12,
+          "range_ns": 5135611135
+        },
+        {
+          "elapsed_ns": 18518400562,
+          "end_block": 4099719,
+          "event": "norm_range_accumulated",
+          "first_block": 3806882,
+          "part": 13,
+          "range_ns": 5724126158
+        },
+        {
+          "elapsed_ns": 18518411292,
+          "end_block": 4392556,
+          "event": "norm_range_accumulated",
+          "first_block": 4099719,
+          "part": 14,
+          "range_ns": 6263120435
+        },
+        {
+          "elapsed_ns": 18518419808,
+          "end_block": 4685394,
+          "event": "norm_range_accumulated",
+          "first_block": 4392556,
+          "part": 15,
+          "range_ns": 10952017499
+        },
+        {
+          "complete_carrier": true,
+          "compute_ns": 18519099814,
+          "elapsed_ns": 34042567830,
+          "end_block": 4685394,
+          "event": "norm_complete",
+          "first_block": 0,
+          "workers": 16
+        }
+      ]
+    },
+    "rust_full": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-native-full-2.log",
+        "bytes": 2269,
+        "sha256": "cd65f1761456fd75e02a6cbb097a381a6fb611fdc48ca5abc70f1eae609cc53c"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 12.383935677004047,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-reductions",
+          "--release",
+          "--lib",
+          "engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_first_round_inner_norm_matches_lean",
+          "--",
+          "--exact",
+          "--ignored",
+          "--nocapture"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1248780,
+      "events": [
+        {
+          "changed_coefficient_rejected": true,
+          "coefficients": [
+            [
+              0,
+              0
+            ],
+            [
+              5037802642728986242,
+              6641691997731743656
+            ],
+            [
+              17515904752944839941,
+              1329358915218960406
+            ],
+            [
+              14339780743155342459,
+              10475693156463880259
+            ]
+          ],
+          "compute_seconds": 4.506423338,
+          "end_block": 4685394,
+          "event": "pi_ccs_first_round_inner_norm_passed",
+          "first_block": 0,
+          "load_seconds": 1.6392768260000001,
+          "sources": 17,
+          "total_seconds": 6.176292964
+        }
+      ]
+    }
+  },
+  "performance_scope": "Same original input on the same Linux host. One retained serial full run and one final parallel run; no general runtime bound. The earlier pure Task.spawn loop was serial in execution. IO tasks now schedule disjoint ranges and merge in canonical order. Sixteen workers come from the existing Lean runtime setting and host CPU count.",
+  "gates": {
+    "static": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-static-1.log",
+        "bytes": 1343,
+        "sha256": "18f7fcae194e1f4b3f9200f895242fa48d2484ccaac4c7d2f55201be8992d14d"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 9.678583469009027,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "static"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 19432,
+      "events": []
+    },
+    "build": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-build-1.log",
+        "bytes": 172172,
+        "sha256": "2c00b725995acd43af7dd9ee4f4433f83d21774b43a3a673611f93d65111421d"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 4.321815594914369,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3774236,
+      "events": []
+    },
+    "axioms": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-axioms-1.log",
+        "bytes": 1113188,
+        "sha256": "c570db0e7ce75607f1bc04eb0cbf155a259d77d5e8e620a781ad41610a1962dd"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 6.425530732958578,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "axioms"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3811580,
+      "events": []
+    },
+    "exact_target": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-target-4.log",
+        "bytes": 156701,
+        "sha256": "63004679eacba880180829a9bf07c340c62592ed3816c782392dfbafe3e8793c"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 2.818889399059117,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "build",
+          "tests.EvidenceTargets"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3789988,
+      "events": []
+    },
+    "acceptance": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-acceptance-1.log",
+        "bytes": 3089,
+        "sha256": "03bfce9be681da1a28749154a749b9ab958bfe64700efb2368a97f2b146aa104"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 2.3175255049718544,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "tests/EvidenceAcceptance.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 3747132,
+      "events": []
+    },
+    "metadata": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-metadata-1.log",
+        "bytes": 147489035,
+        "sha256": "1242fc35c518c6d767e4963126b6eb8afecaf855464dba80280cef1d3357adab"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 27.960815272992477,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "../../scripts/lean_graph/PiCCSReplayMetadata.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 5226120,
+      "events": []
+    },
+    "rust_small_cases": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-native-tests-1.log",
+        "bytes": 2158,
+        "sha256": "6e23bd4a86300bfee6324bbbe17fb7de44d028e8886a761ae5e39e5a91a26ec3"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 8.17954056605231,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-reductions",
+          "--release",
+          "--lib",
+          "first_round_norm_tests",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 478028,
+      "events": []
+    },
+    "rust_optimized_producer": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-native-regression-1.log",
+        "bytes": 1905,
+        "sha256": "2c488b776b618d36471adb3f7e362921efbc2d4ff3c4fa18bc3ecbeca05f4e4f"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 13.03651472600177,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-reductions",
+          "--release",
+          "--features",
+          "paper-exact",
+          "--test",
+          "pi_ccs_complete_oracle",
+          "--",
+          "--nocapture"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 429720,
+      "events": []
+    },
+    "rust_test_build": {
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-native-build-1.log",
+        "bytes": 14479,
+        "sha256": "81f93ac532de8bd367f5685677698b41d72e52f96fda1e06be36ddf8b4c5e57b"
+      },
+      "guard": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 300,
+        "elapsed_seconds": 158.78196342394222,
+        "command": [
+          "cargo",
+          "test",
+          "-p",
+          "neo-fold-clean",
+          "--release",
+          "--no-run"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream",
+        "evidence": "development diagnostic only"
+      },
+      "peak_rss_kib": 1408632,
+      "events": []
+    }
+  },
+  "rust_regression_scope": "pi_ccs_complete_oracle runs the optimized engine. Its existing paper-exact feature exposes the audited oracle type; no PaperExact engine is executed.",
+  "reproduction": {
+    "sources": "Retrieve the original capture named above via the existing PiRLC source manifest; source SHA-256 must match. The release copy remains pending.",
+    "lean_build": "timeout 1500 python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh build replayPiCCSFirstRound",
+    "lean_run": "timeout 1500 python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh lean-executable /absolute/checkout/formal/nightstream-fprime/.lake/build/bin/replayPiCCSFirstRound norm /absolute/public.json /absolute/sources.jsonl /new/output.json 0 4685394",
+    "rust_input": "Place the original sources.jsonl at crates/neo-reductions/tests/fixtures/piccs_first_round_norm/sources.jsonl. lean-norm.json is committed. Regenerated Lean output must match it byte for byte.",
+    "rust_run": "timeout 300 python3 -B scripts/lean_graph/guard.py --kind rust --cwd . -- cargo test -p neo-reductions --release --lib engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_first_round_inner_norm_matches_lean -- --exact --ignored --nocapture",
+    "limits": "Existing project limits: each Lean invocation <=1500s, each native test <=300s; one build queue; measured RSS reported."
+  },
+  "review": "Separate read-only reviews checked production helper preservation, target-only comparison, complete source/tail coverage, gamma/head factors and worker merging. No contract-required correction was found.",
+  "evidence_policy": "Reports, hashes and the 1396-byte coefficient fixture are in Git. Large original witnesses, raw logs and generated dependency metadata remain outside Git. This local checkpoint does not claim fresh-checkout release availability.",
+  "raw_outputs": [
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-full-1.json",
+      "bytes": 1396,
+      "sha256": "deb164f80be768e3418ddf6ccedc9af055dd69423ef652e1b6058c876b439e15"
+    },
+    {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-full-parallel-2.json",
+      "bytes": 1396,
+      "sha256": "deb164f80be768e3418ddf6ccedc9af055dd69423ef652e1b6058c876b439e15"
+    }
+  ],
+  "registrations": {
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-norm-7b6ca1ad/nightstream-piccs-norm-registrations-1.log",
+    "bytes": 116,
+    "sha256": "59f977807b06c4e42e94cf76f2bef9706d3723f5b8c8c66abbdac5b97bba7a09"
+  },
+  "source_snapshots": {
+    "crates/neo-reductions/src/engines/optimized_engine/cpu_oracle.rs": "36ce50983fd5a564277d8ec331904a61dbc6184d7ce7bdedbaa271cc71521fde",
+    "crates/neo-reductions/tests/unit/piccs_first_round_norm.rs": "7ae077d5160d51a423982f8239cbbb4d4d56f6d104ddeabd2cf372579a52de3a",
+    "formal/nightstream-fprime/NightstreamFPrime/Export.lean": "3e7c885aa7af8c0f52563c7377de7fcebb9c4fbcc86122c21b68e4bc2238aa5b",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiCCSFirstRoundMain.lean": "b22ca9c8babb3a5b4d68a93f8cc5a51ba9064b93ad9cb7964763c1f76fb0e3cf",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormBuckets.lean": "95c155be8f6a2d1094054dca274b2dddffe93068120166a33063ef7a3fb6f847",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormCache.lean": "8e288fc22447deef8732397b3ab0d415edd168bc06ecbac29a574f25c18ae246",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormComplete.lean": "98d20b5b8c60bca49af1f789d7b5bf9fdabfc3fb3af311240ce41cacdf7314ee",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormContribution.lean": "ce73c87494add74238d9a81e76bdbcc28674fa31010af365e5e287c02f199b0a",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormRangeMerge.lean": "3ab8b65943e478c82c2d9dcdfbf06240e41d3d622aabc4eac36f3b801722d35c",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormScan.lean": "85c2160ac04d74f372eadafa42fa871b843f8dbbf02f2e603ad3d6aadb00e4fe",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormScanCorrectness.lean": "72beca5ecc6ccdc6e52f08fd0eef39aeaa6d69f417de10d1a835d4ba56fe7ebb",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSNormSource.lean": "f2d373bff56b182c60f9430022c11dd44c703732573e40123236da19e17aed5b",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiCCSPolynomialRange.lean": "63cacb85a882efc9269d93aca3de567884aba43d4d5e71e134746ca5f6d8831b",
+    "formal/nightstream-fprime/tests/AxiomsPiCCSClosure.lean": "23798ce0ea0344d955ec20da65c41ea28f87707ad4e60c5569b1e3e2d8b4232f",
+    "formal/nightstream-fprime/tests/EvidenceTargets.lean": "2484420f85ce3c7183f3fe25928c18a6077ecf09ab28b3747c2368fb809fe5d3",
+    "scripts/lean_graph/STAGE1_BASELINE.md": "81d4a53406a0677cce35b110aa12dd4d6281a4af145edeb4a38ebb97b9b6f97c",
+    "scripts/lean_graph/obligations.json": "c7e3ba9316fb3076899495cd9b5e762771103691e7effd5bc8b09b3b2239954f"
+  },
+  "performance": {
+    "serial_wall_seconds": 139.92630195396487,
+    "parallel_wall_seconds": 35.16892089799512,
+    "wall_reduction_percent": 74.8661113694225,
+    "parallel_peak_rss_kib": 1360840
+  },
+  "package": {
+    "path": "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json",
+    "bytes": 128098921,
+    "sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+    "status": "same bytes as the previous checkpoint"
+  },
+  "metadata": {
+    "complete": true,
+    "nodes": 15065,
+    "required_declaration": "NightstreamFPrime.Export.Stage1.PiCCSNormComplete.prepared_workers_eq_fullPairSum",
+    "present": true
+  }
+}

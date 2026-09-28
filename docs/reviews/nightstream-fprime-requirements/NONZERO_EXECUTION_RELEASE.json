@@ -1,0 +1,685 @@
+{
+  "schema": 1,
+  "repository": "LFDT-Nightstream/Nightstream",
+  "status": "prepared; upload and fresh-download verification pending authentication",
+  "asset": "STAGE1_NONZERO_EXECUTION_EVIDENCE-b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1.zip",
+  "bytes": 262454838,
+  "sha256": "b8cb6550f209a0b43d7bd5c6913d045b81e757e1e724a63afa88e1c6c29a93c1",
+  "source_base_commit": "854327d91ca36412f957ac5becbde30bb117b715",
+  "source_cut": "Checked fixture source at target_commit. Terminal acceptance ran at854327d9 before the test-only mutation split; source snapshots and hashes distinguish those cuts. The two public active calls have not run.",
+  "scope": "Staged nonzero C/R/D, complete2-to-3 successor and terminal acceptance/rejection evidence. Includes later envelope and all16 digits for direct terminal replay. The5.2GB R intermediate is regenerated,not archived.",
+  "members": [
+    {
+      "name": "nonzero-c/nightstream-baseline-nonzero-ccs-2.log",
+      "bytes": 2588,
+      "sha256": "69f1854177397668b3cdd9547f5af09bf00e7edc72382feb91257a4c5929458e"
+    },
+    {
+      "name": "nonzero-c/nightstream-baseline-nonzero-ccs-comparison-1.log",
+      "bytes": 812,
+      "sha256": "df679069a4fc1e48845cabaaccb75049758f379de4960936b12fb591934be17f"
+    },
+    {
+      "name": "nonzero-c/nightstream-baseline-nonzero-ccs-lean-1.log",
+      "bytes": 126780,
+      "sha256": "35a28cff881cdb82a1448e7da62bea5fc42e50c02b675c3022c87b5b5328d245"
+    },
+    {
+      "name": "nonzero-c/nightstream-baseline-nonzero-source-bytes-1.log",
+      "bytes": 1785,
+      "sha256": "c29b7b0d46be0fdb50af3caabde4958307c8809dee59b00f9f7f8ac5ce711dc1"
+    },
+    {
+      "name": "nonzero-c/nightstream-baseline-nonzero-source-check-2.log",
+      "bytes": 3005,
+      "sha256": "6d8807f096551806d86c181e76e39c574638048ef981ffe7042474e15e9529bf"
+    },
+    {
+      "name": "nonzero-c/nightstream-native-nonzero-ccs-2.input.json",
+      "bytes": 657064,
+      "sha256": "e6ef86bb64d6a9ec9819bb3786d9444f470eaa626e56fe8584612bd989865d08"
+    },
+    {
+      "name": "nonzero-c/nightstream-native-nonzero-ccs-2.json",
+      "bytes": 1528011,
+      "sha256": "2aa529506960877997c9b735ca31f8377535bee8ea7d7d9caa177adcd112bbab"
+    },
+    {
+      "name": "nonzero-c/nightstream-native-nonzero-ccs-2.lean.json",
+      "bytes": 1696689,
+      "sha256": "37353dccaed67cc52de8a1972ebc03801f33b8bf434e14fce82c84c8d6246972"
+    },
+    {
+      "name": "nonzero-c/nightstream-native-nonzero-ccs-2.phase.json",
+      "bytes": 450952,
+      "sha256": "1433dd4c7b8e25b7ea69c2bab1c82e92f9397f3854743396d466899bfc67d8eb"
+    },
+    {
+      "name": "nonzero-c/nightstream-nonzero-ccs-comparison.json",
+      "bytes": 848,
+      "sha256": "96e893fdea4960a8a293ac34fbbd04e2c2016600aa1386cc62b89ea6251e24f3"
+    },
+    {
+      "name": "nonzero-c/nightstream-nonzero-ccs-feasibility-2.json",
+      "bytes": 2426,
+      "sha256": "06a07778621026ad8394b4f414b25b6968a44e111d5d389fdc19ffc3b752c611"
+    },
+    {
+      "name": "nonzero-c/nightstream-nonzero-source-bytes.json",
+      "bytes": 1459,
+      "sha256": "0b8fc9ce21560557c34e9267c76b408226ca97dd083f6a7726e401df36d291c0"
+    },
+    {
+      "name": "nonzero-c/nightstream-nonzero-source-split-review.json",
+      "bytes": 5052,
+      "sha256": "0ab32168f806dc5ceaa0c6e50f6af2bdf01739cd8198500a93fff7be02e7b2cc"
+    },
+    {
+      "name": "nonzero-d/child-0.json",
+      "bytes": 229368,
+      "sha256": "3c916be96f2f0bbd900d309dfa9bb53cd8224ea74a23b0118a945f8bb589fd35"
+    },
+    {
+      "name": "nonzero-d/child-1.json",
+      "bytes": 229452,
+      "sha256": "ced0ba7665db9116d9827d2bce5ca434d4dc753ca7e67e478da4b2ebb3e5b225"
+    },
+    {
+      "name": "nonzero-d/child-2.json",
+      "bytes": 229193,
+      "sha256": "560170b155b1d19660a13ee3a3097322db25b08b68600612f8af7349838f6ba0"
+    },
+    {
+      "name": "nonzero-d/child-3.json",
+      "bytes": 229292,
+      "sha256": "dfb190fccf96cd0ff998520274272d69e10540767a80f5b6a49d45415099d016"
+    },
+    {
+      "name": "nonzero-d/child-4.json",
+      "bytes": 228556,
+      "sha256": "95b83747158a82f909f6a8b760c9a67f43a3fd1b5698608a1c7f0f1f5c0fe038"
+    },
+    {
+      "name": "nonzero-d/child-5.json",
+      "bytes": 227325,
+      "sha256": "88e1ba0c66fc7da92aef4d2ea047b5318e7b74434219b310193c9b59407452bf"
+    },
+    {
+      "name": "nonzero-d/child-6.json",
+      "bytes": 213349,
+      "sha256": "60690b347b29f14a17ad3ee5478ebfc3ea947606a55e7511b5ce4984fad453ed"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-0-1.log",
+      "bytes": 3122,
+      "sha256": "c5c42bcc50ec6a4bd4027e90d1362ebeedbdc11fca1959f2beae826475552793"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-1-1.log",
+      "bytes": 3132,
+      "sha256": "7fab92b2fa16c68b6e28989b3e3ec884892327a72c64d2050b91557ae8b73fc8"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-2-1.log",
+      "bytes": 3121,
+      "sha256": "a11290addf5ba3f99fb2d95fb8c48c13653752ddbb44e9ae39dc8f69e0a6eba3"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-3-1.log",
+      "bytes": 3122,
+      "sha256": "127b2ca436127d3c7f314eb314c0bd3a74f69cf3bc16c974aa3ecdc7c6d3a546"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-4-1.log",
+      "bytes": 3120,
+      "sha256": "b93f0215c8fee51163243fc72b87f44d0b73332231d4b58181d8a1828e6844cc"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-5-1.log",
+      "bytes": 3122,
+      "sha256": "b00dee62b3a093cc0a1ca36adfcf11fb460f09264cb7645cf6db3919fbb77a26"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-child-6-1.log",
+      "bytes": 3124,
+      "sha256": "335b305bc1f1c7c42ce7530217552a1a6815f123024351acaa31014bdc380bdf"
+    },
+    {
+      "name": "nonzero-d/nightstream-baseline-nonzero-parent-material-1.log",
+      "bytes": 2549,
+      "sha256": "05f1182bf14424a43b9ad55001fa9f514f46b94a46ddfa9f75f5150f36d0fcc1"
+    },
+    {
+      "name": "nonzero-d/nightstream-nonzero-assembly-feasibility-1.json",
+      "bytes": 1413,
+      "sha256": "b4c8eb1514fb7d2a48bdf77111c3b8b5e92bd33e7e04cdc57da4e07752511e78"
+    },
+    {
+      "name": "nonzero-d/nightstream-nonzero-opening-queue-disposition.json",
+      "bytes": 505,
+      "sha256": "ab27dac78e844dfea5835e7adb480ae48ed842a9ddafb43b5abe4d163fd65ae7"
+    },
+    {
+      "name": "nonzero-d/nightstream-nonzero-openings-feasibility-1.json",
+      "bytes": 1008,
+      "sha256": "12f3469176ac4af1032dc490780818371be9be99691bb578b1e983e01ab16484"
+    },
+    {
+      "name": "nonzero-d/nonzero-openings.json",
+      "bytes": 1382,
+      "sha256": "1e54510753f853c4546b87368009082cb68d2a57f083d833bab0454e79a0c92e"
+    },
+    {
+      "name": "nonzero-nifs/NONZERO_NIFS_GATES.json",
+      "bytes": 10098,
+      "sha256": "72209b85459f0a9f2a00bc9d0e3be63da0dd0a42476c2bf613d5a5c916cfed80"
+    },
+    {
+      "name": "nonzero-nifs/NONZERO_NIFS_REVIEW.json",
+      "bytes": 16668,
+      "sha256": "d6b7b540622da34677cd6c594019f8c2ba5a38e85a4ce545ef5b7178f3d9d378"
+    },
+    {
+      "name": "nonzero-nifs/actual_result.json",
+      "bytes": 1615535,
+      "sha256": "9afed0ec6589ccecd8df88824acd43002db78c0190fa9f169cab5c44d489f80c"
+    },
+    {
+      "name": "nonzero-nifs/children.json",
+      "bytes": 446185,
+      "sha256": "de6d8a3da7880a7abe2a4f71f289f393c761a313a6dcf39d88bf9297cab0ccb5"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-assembly-1.log",
+      "bytes": 9194,
+      "sha256": "ad8dd25eaa6d2d4153842a000737f77d5d9f6dbe8a0bfcd47e21d2d071bbf834"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-axioms-1.log",
+      "bytes": 1068066,
+      "sha256": "c2bf268e8fc65b714eef76b0fdad3973e811c1d295f682978c2157970836d8df"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-build-1.log",
+      "bytes": 171800,
+      "sha256": "92885d60928998dbc02e650350ac3b78acb3d8e918d81b2de3c6f9843126b265"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-ccs-2.log",
+      "bytes": 2588,
+      "sha256": "69f1854177397668b3cdd9547f5af09bf00e7edc72382feb91257a4c5929458e"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-ccs-lean-1.log",
+      "bytes": 126780,
+      "sha256": "35a28cff881cdb82a1448e7da62bea5fc42e50c02b675c3022c87b5b5328d245"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-0-1.log",
+      "bytes": 3122,
+      "sha256": "c5c42bcc50ec6a4bd4027e90d1362ebeedbdc11fca1959f2beae826475552793"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-1-1.log",
+      "bytes": 3132,
+      "sha256": "7fab92b2fa16c68b6e28989b3e3ec884892327a72c64d2050b91557ae8b73fc8"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-2-1.log",
+      "bytes": 3121,
+      "sha256": "a11290addf5ba3f99fb2d95fb8c48c13653752ddbb44e9ae39dc8f69e0a6eba3"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-3-1.log",
+      "bytes": 3122,
+      "sha256": "127b2ca436127d3c7f314eb314c0bd3a74f69cf3bc16c974aa3ecdc7c6d3a546"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-4-1.log",
+      "bytes": 3120,
+      "sha256": "b93f0215c8fee51163243fc72b87f44d0b73332231d4b58181d8a1828e6844cc"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-5-1.log",
+      "bytes": 3122,
+      "sha256": "b00dee62b3a093cc0a1ca36adfcf11fb460f09264cb7645cf6db3919fbb77a26"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-child-6-1.log",
+      "bytes": 3124,
+      "sha256": "335b305bc1f1c7c42ce7530217552a1a6815f123024351acaa31014bdc380bdf"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-nifs-comparison-1.log",
+      "bytes": 7896,
+      "sha256": "96c30acaf9a5a2fdd0b9e87cd4de924ad8512afddeda7fd7ae6de594ff756749"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-nifs-lean-1.log",
+      "bytes": 127869,
+      "sha256": "cc8d47add705212ba511ee23173f004633556f89970a69fc3dfbe5d80704a5f9"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-parent-material-1.log",
+      "bytes": 2549,
+      "sha256": "05f1182bf14424a43b9ad55001fa9f514f46b94a46ddfa9f75f5150f36d0fcc1"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-rlc-1.log",
+      "bytes": 3141,
+      "sha256": "74448d235466f72b4479bcc5319c6f3cd8f2bfac20bd1e87f41718ee341b0f0a"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-rlc-lean-1.log",
+      "bytes": 127645,
+      "sha256": "c095a0da3e3b60ba2e7422db32d7b9e1822a700ed890ec06ce2d678ed628e36b"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-rlc-values-1.log",
+      "bytes": 10153,
+      "sha256": "8fc802bb84d58a2ae97d31871a044b9eb194f379ec093ea9c40ac8c1997c0170"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-source-check-2.log",
+      "bytes": 3005,
+      "sha256": "6d8807f096551806d86c181e76e39c574638048ef981ffe7042474e15e9529bf"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-static-1.log",
+      "bytes": 1361,
+      "sha256": "230018771de11528354a25158aff6c15b9faab2ad1e07e4ccc9fd8e0e0680145"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-baseline-nonzero-test-build-1.log",
+      "bytes": 14407,
+      "sha256": "c621c1690fe80cbeef832614bf3c6530b2c2134baf19432df47b055364696e63"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-native-nonzero-nifs-1.lean.json",
+      "bytes": 4722709,
+      "sha256": "56d67e9de738feef757ecec382067f2a724baebe41db865e8dd152c21707891d"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-assembly-feasibility-1.json",
+      "bytes": 1413,
+      "sha256": "b4c8eb1514fb7d2a48bdf77111c3b8b5e92bd33e7e04cdc57da4e07752511e78"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-ccs-comparison.json",
+      "bytes": 848,
+      "sha256": "96e893fdea4960a8a293ac34fbbd04e2c2016600aa1386cc62b89ea6251e24f3"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-opening-queue-disposition.json",
+      "bytes": 505,
+      "sha256": "ab27dac78e844dfea5835e7adb480ae48ed842a9ddafb43b5abe4d163fd65ae7"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-rlc-parent-comparison.json",
+      "bytes": 558,
+      "sha256": "dba1b8a2ab7d0a203024a1e66c68df069fda1481e3c7ec9b3e7e7170fb994ed7"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-source-bytes.json",
+      "bytes": 1459,
+      "sha256": "0b8fc9ce21560557c34e9267c76b408226ca97dd083f6a7726e401df36d291c0"
+    },
+    {
+      "name": "nonzero-nifs/nightstream-nonzero-source-split-review.json",
+      "bytes": 5052,
+      "sha256": "0ab32168f806dc5ceaa0c6e50f6af2bdf01739cd8198500a93fff7be02e7b2cc"
+    },
+    {
+      "name": "nonzero-nifs/pi_ccs_input.json",
+      "bytes": 657064,
+      "sha256": "e6ef86bb64d6a9ec9819bb3786d9444f470eaa626e56fe8584612bd989865d08"
+    },
+    {
+      "name": "nonzero-nifs/proof.bin",
+      "bytes": 945983,
+      "sha256": "c6997ff92df97645e0bdb293638859c781d3e77046a5b579d68b94fc26d73bb9"
+    },
+    {
+      "name": "nonzero-r/nightstream-baseline-nonzero-rlc-1.log",
+      "bytes": 3141,
+      "sha256": "74448d235466f72b4479bcc5319c6f3cd8f2bfac20bd1e87f41718ee341b0f0a"
+    },
+    {
+      "name": "nonzero-r/nightstream-baseline-nonzero-rlc-lean-1.log",
+      "bytes": 127645,
+      "sha256": "c095a0da3e3b60ba2e7422db32d7b9e1822a700ed890ec06ce2d678ed628e36b"
+    },
+    {
+      "name": "nonzero-r/nightstream-baseline-nonzero-rlc-parent-comparison-1.log",
+      "bytes": 124,
+      "sha256": "55c75ac3762ec57dd1ecc43c0de43acb518df4bd0e297a03e80a82cc22c2ba56"
+    },
+    {
+      "name": "nonzero-r/nightstream-baseline-nonzero-rlc-parent-comparison-2.log",
+      "bytes": 536,
+      "sha256": "60724b45a743e8a71884d3dd9459a6e9eaa4b742a10ff77492d5e02abf05fa54"
+    },
+    {
+      "name": "nonzero-r/nightstream-baseline-nonzero-rlc-values-1.log",
+      "bytes": 10153,
+      "sha256": "8fc802bb84d58a2ae97d31871a044b9eb194f379ec093ea9c40ac8c1997c0170"
+    },
+    {
+      "name": "nonzero-r/nightstream-native-nonzero-parent-2.lean.json",
+      "bytes": 3222951,
+      "sha256": "0d6a980a6968b89f83d6bc968857c56f49a43c9bac5311ef113693013a7ece21"
+    },
+    {
+      "name": "nonzero-r/nightstream-nonzero-rlc-feasibility-1.json",
+      "bytes": 874,
+      "sha256": "fc6fbf93592b322a2efd2f769ccf3ce8619dc3acbc5cb42dc18f77ef32b760bb"
+    },
+    {
+      "name": "nonzero-r/nightstream-nonzero-rlc-parent-comparison.json",
+      "bytes": 558,
+      "sha256": "dba1b8a2ab7d0a203024a1e66c68df069fda1481e3c7ec9b3e7e7170fb994ed7"
+    },
+    {
+      "name": "nonzero-r/parent.json",
+      "bytes": 1653079,
+      "sha256": "09a5a7319b615a74093ee14cc1c31fb9df5a4ef7f20cde86271ceca07844f3aa"
+    },
+    {
+      "name": "nonzero-successor/NONZERO_SUCCESSOR_GATES.json",
+      "bytes": 13938,
+      "sha256": "6ebdcd02e4badf26a5d83c96deae0a14f35a7d59d3e3b96ec2b5beb80c165e8d"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-envelope-1.log",
+      "bytes": 4943,
+      "sha256": "8fd58daa8ea3f61ed0f092c12a3b602ed4f8e4fcbda4d74e2827d82af8b33a30"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-rows-1.log",
+      "bytes": 4939,
+      "sha256": "de2602001f23e470ebbf25fe9837bf817b12986c835e8adc1cd38991fe8f89e7"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-step-lean-1.log",
+      "bytes": 127305,
+      "sha256": "268ac3cecb0ef40b2adf6467fbfb25192a3a47257da85410a3b97e6f2fa81668"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-accepted-1.log",
+      "bytes": 2320,
+      "sha256": "038e39eb7237e178171b2d085d39d817558a3fc9328a12dac32dd6fefc5e02f4"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-ce-evaluation-1.log",
+      "bytes": 2463,
+      "sha256": "68b8286ad8025312a3126bfa506cfa96bab5a65c11d4a43e70ce5607807d72c8"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-ce-matrix-evaluation-1.log",
+      "bytes": 2546,
+      "sha256": "ec1eb57da16e7889e44efd8453ad927e10b6b2c1926b1ce22449109c7900e027"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-fresh-private-1.log",
+      "bytes": 2463,
+      "sha256": "849d56d21e39f3073745e856d4b8ca305c1d238366655873facb1c24ddd5d885"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-prepare-ce-evaluation-1.log",
+      "bytes": 2312,
+      "sha256": "6873c46df91d52020545eda9b2699c2864b355ddea243a8d0628f9f463a88090"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-prepare-ce-matrix-evaluation-1.log",
+      "bytes": 2375,
+      "sha256": "d3d384d5ad9eeb2e13e9902b7d2356c9ebe205df820db5ba4cf64866909133c7"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-nonzero-terminal-prepare-fresh-private-1.log",
+      "bytes": 2305,
+      "sha256": "881354c61d41db2f6d78c7f52ab5ff5eb25bb30d495182ce51b0ebef9f655f29"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-public-active-build-2.log",
+      "bytes": 1414,
+      "sha256": "43bcc6f3e27d0248b379c9170c1c419b4ec78979a953b71eb59fbe4bbd39a0e8"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-public-active-rejection-1.log",
+      "bytes": 1986,
+      "sha256": "789a5fef8ce74e49feafe28ade88543a0e4d3fbad9ca7ae5fd9253d02e680f32"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-successor-axioms-1.log",
+      "bytes": 1068066,
+      "sha256": "8b37294e3261dd35366c2177f9fdaa0c9b5c9fa327c0eaac9e0bdcd6d11fe187"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-successor-build-1.log",
+      "bytes": 171801,
+      "sha256": "a52afa1f3a697d362a873e6b3f958ce3cb0a8452ada11ef5dc58ad0fd1c95266"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-successor-static-1.log",
+      "bytes": 1362,
+      "sha256": "2dbe1c81818f641872879b531f7486539078814def70807a10189aa9e4b8f26b"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-successor-test-build-1.log",
+      "bytes": 14406,
+      "sha256": "fa1760ecebf426bd291aaf7869e398cb2c2305afeaaeaea87090f00cc9e88878"
+    },
+    {
+      "name": "nonzero-successor/nightstream-baseline-terminal-staging-build-1.log",
+      "bytes": 1414,
+      "sha256": "244ac2f39af2acb5a97e71c0f66f48bac524588a9e33fffe1a673ad941dd88b4"
+    },
+    {
+      "name": "nonzero-successor/nightstream-native-nonzero-step-1.json",
+      "bytes": 1446131,
+      "sha256": "d7bb65dd4179a009a412498e231471781dc96db739b296d3344fba1cc8890945"
+    },
+    {
+      "name": "nonzero-successor/nightstream-native-nonzero-terminal-accepted-1.json",
+      "bytes": 189,
+      "sha256": "28605ca3649f93434cb16b04adc34c66c9e94097a070ddbff2a9a8ebd4069a7c"
+    },
+    {
+      "name": "nonzero-successor/nightstream-native-nonzero-terminal-ce-evaluation-1.json",
+      "bytes": 275,
+      "sha256": "2a421aa7fca8e35846cb1100dc08e31d269968353b4bea1bf3a8bee8318fd69a"
+    },
+    {
+      "name": "nonzero-successor/nightstream-native-nonzero-terminal-ce-matrix-evaluation-1.json",
+      "bytes": 282,
+      "sha256": "1c136c6e48e8ec52d84a52ce72d4ab0a1f41cbc5e93b3d48dbcff9472b6264f3"
+    },
+    {
+      "name": "nonzero-successor/nightstream-native-nonzero-terminal-fresh-private-1.json",
+      "bytes": 233,
+      "sha256": "2c04a94fe5c5b4181a491ef36bc4ec4f42d141aba27c26a067397bef5a6847ba"
+    },
+    {
+      "name": "nonzero-successor/nightstream-nonzero-envelope-feasibility-1.json",
+      "bytes": 1386,
+      "sha256": "908bf0b8498d7f581414d1b9015c3571bcfdf944e3caf029fdecf178e9fe403d"
+    },
+    {
+      "name": "nonzero-successor/nightstream-nonzero-terminal-feasibility-1.json",
+      "bytes": 1236,
+      "sha256": "179c499ed3f955982adc2832f065a57743ed553a1bf28052ff446827cda3c1f4"
+    },
+    {
+      "name": "nonzero-successor/nightstream-nonzero-terminal-mutation-feasibility-1.json",
+      "bytes": 1216,
+      "sha256": "e64c010e95d30639e88f64039d00c0359d990ab6eab092529a061a7c4c10011f"
+    },
+    {
+      "name": "nonzero-successor/nightstream-public-active-measured-cost.json",
+      "bytes": 1052,
+      "sha256": "4d0eb3ea99a2818b7bf4f9f02970d4354d4ac43dd6b4360cae0fe49c825d13d4"
+    },
+    {
+      "name": "nonzero-successor/nightstream-terminal-staging-review.json",
+      "bytes": 4855,
+      "sha256": "66522102a362d4318197e432a508146b558cfc62308a8b23b5bd688b96781763"
+    },
+    {
+      "name": "output/envelope/envelope.json",
+      "bytes": 1566104,
+      "sha256": "54e1e835df10cfc4c5cb06ce9041050bdb52e05752919490047dff11d8fb50ab"
+    },
+    {
+      "name": "output/envelope/fresh-claim.json",
+      "bytes": 39448,
+      "sha256": "839f0ea46f8c474ca1d35b460ecb737e4800493dbde3c3e3f75ab5943f2c3bdc"
+    },
+    {
+      "name": "output/envelope/fresh-witness.json",
+      "bytes": 107246512,
+      "sha256": "3a44cd134dc235908dc75f1f1e592cdf12c5849e565c1bf111a21dda4c5a9a28"
+    },
+    {
+      "name": "output/material/digit-0.json",
+      "bytes": 102021062,
+      "sha256": "62aeb61b2e902baa1105e4ccc7aea9e7b8ef14585a6395eacfae79bb2933234a"
+    },
+    {
+      "name": "output/material/digit-1.json",
+      "bytes": 101644886,
+      "sha256": "e1f80efb90a916a484336ca8ec1c1855d295d1cfe925741e33e81bf0c7eafdb2"
+    },
+    {
+      "name": "output/material/digit-10.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-11.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-12.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-13.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-14.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-15.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-2.json",
+      "bytes": 99898099,
+      "sha256": "f449c7774893bce7e3baade64cf1042a91c86b3ac94b8296fba4aba991273818"
+    },
+    {
+      "name": "output/material/digit-3.json",
+      "bytes": 96154908,
+      "sha256": "1ccd2deda31c167d9013a8aab418d7f7ab4e2425341ea29b400c4d6f372f6a98"
+    },
+    {
+      "name": "output/material/digit-4.json",
+      "bytes": 91874096,
+      "sha256": "f098e0998a1bf90b4659449d15413d4af02c3f587519452961c90bc2b0b17792"
+    },
+    {
+      "name": "output/material/digit-5.json",
+      "bytes": 68396626,
+      "sha256": "c874ec597da5fb920de2743282e9b642f9c82e5a9f912d51781850ca2d3974a9"
+    },
+    {
+      "name": "output/material/digit-6.json",
+      "bytes": 19882979,
+      "sha256": "fe9bbb6c159d9c2cef2aded2bdae523c1859e453e8fa05ef6ededda3ceee60eb"
+    },
+    {
+      "name": "output/material/digit-7.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-8.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/digit-9.json",
+      "bytes": 91,
+      "sha256": "b7c60df53c833fe220b7cbcabc5c3b964c804f34fe75f6bc899cd189c1d69009"
+    },
+    {
+      "name": "output/material/split.json",
+      "bytes": 506360,
+      "sha256": "356f9d77260205fc92bd1e49ffed535d6d8944fe733858698399b03bc9c46d6c"
+    },
+    {
+      "name": "reviews/nightstream-nonzero-successor-review.json",
+      "bytes": 13727,
+      "sha256": "7db84d5336ad84b8fedf8262e00dea1e89dadd14fff41dbab565e108064d228c"
+    },
+    {
+      "name": "reviews/nightstream-public-active-review.json",
+      "bytes": 8651,
+      "sha256": "35939db4bf2087d967e8bf40659b7662bcbf2caa216b5f09dd00125d2218dcc3"
+    },
+    {
+      "name": "reviews/nightstream-terminal-staging-review.json",
+      "bytes": 4855,
+      "sha256": "66522102a362d4318197e432a508146b558cfc62308a8b23b5bd688b96781763"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs",
+      "bytes": 27400,
+      "sha256": "539f57e74d3d0327014b1c1570a6e5bebec1534bd3f51d375b6e07f236a5bff2"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/src/stage1/complete.rs",
+      "bytes": 7584,
+      "sha256": "110fe11cf166600197d869e321977e59d2f8c212a2b65db6d8c82d00d221c85b"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/src/stage1/extend.rs",
+      "bytes": 6070,
+      "sha256": "f78e92945518d4140a53921770cf03b835ec7267146699840067fe61e7ee1e11"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/src/stage1/verify.rs",
+      "bytes": 10671,
+      "sha256": "ec5e2a2cb777f09351fcef01ccbc5e4e5a5b6520e29f71766c80dfc8655faf66"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/tests/nifs/fixtures/stage1_recursive_states/nonzero-running.json",
+      "bytes": 119,
+      "sha256": "f83ebbc1dc85cac908e07f8a2a6b5ea305118379d7c0b4f39c3738dc9fc30cbc"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/tests/nifs/stage1_active.rs",
+      "bytes": 9518,
+      "sha256": "6554927ac7cc31847bcc8aea781690e0b79c5c1965adee20c8110ab580d35de0"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/tests/nifs/stage1_nifs.rs",
+      "bytes": 6254,
+      "sha256": "76f90c774492ddc7e218cbf1cfeb34812ab62a0f88ea391e55652a32d7957587"
+    },
+    {
+      "name": "source/crates/neo-fold-clean/tests/nifs/stage1_terminal.rs",
+      "bytes": 12418,
+      "sha256": "eaa9ba257479c8e47b86119e6d7516809691da9f0c25f52254fb9f481203ae60"
+    }
+  ],
+  "release_tag": "stage1-evidence-7310cf24",
+  "target_commit": "7310cf246221384614a7e776730c1a0ec65d8a56"
+}

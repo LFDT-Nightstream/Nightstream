@@ -1,0 +1,748 @@
+//! Direct PiCCS evaluator from SuperNeo v1.1 Section 7.3.
+//!
+//! `Eval_K` is the paper's separate Pad family. `Eval_A` contains only the
+//! genuine CCS matrices. This file uses explicit loops and owns its formula
+//! copy. It does not import optimized evaluators, caches, or protocol flow.
+
+#![allow(non_snake_case)]
+
+use neo_ajtai::Commitment as Cmt;
+use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_math::{Fq, D, K};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+
+use crate::engines::pi_ccs_joint::{JointDims, TerminalComponents};
+use crate::engines::pi_ccs_protocol::Challenges;
+use crate::error::PiCcsError;
+use crate::sumcheck::RoundOracle;
+
+use super::paper_matrix::matrix_entry;
+use super::paper_ring::PaperRing;
+use super::paper_rows::{Matrices, PaperMatrixRows};
+
+pub(super) fn dimensions<Ff>(
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<Ff>,
+    fresh_count: usize,
+    running_count: usize,
+) -> Result<JointDims, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    if structure.n == 0 || structure.m == 0 || fresh_count == 0 {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact requires nonzero dimensions and at least one fresh source".into(),
+        ));
+    }
+    if fresh_count > neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact fresh source count exceeds the paper profile".into(),
+        ));
+    }
+    if running_count > params.k_rho as usize {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact running source count exceeds k_rho".into(),
+        ));
+    }
+    if structure
+        .matrices
+        .iter()
+        .flat_map(|matrix| matrix.seeded_phi81_blocks())
+        .any(|block| block.has_superneo_transformed_columns())
+    {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact requires original, untransformed CCS matrices".into(),
+        ));
+    }
+    if structure.f.eval(&vec![Ff::ZERO; structure.t()]) != Ff::ZERO {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact zero-row padding requires f(0,...,0)=0".into(),
+        ));
+    }
+
+    let assignment_width = structure.m.div_ceil(D) * D;
+    let row_count = structure.n.max(assignment_width).next_power_of_two().max(2);
+    let variables = row_count.trailing_zeros() as usize;
+    let matrix_count = structure.t();
+    let degree = (structure.max_degree() as usize + 1)
+        .max(2 * params.b as usize)
+        .max(2);
+    params
+        .padded_row_security_check_for_shape(
+            structure.n,
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
+        .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
+
+    Ok(JointDims {
+        assignment_width,
+        row_count,
+        variables,
+        matrix_count,
+        degree,
+    })
+}
+
+pub(super) fn validate_public_instances<Ff>(
+    structure: &CcsStructure<Ff>,
+    fresh: &[CcsClaim<Cmt, Ff>],
+    running: &[CeClaim<Cmt, Ff, K>],
+) -> Result<(), PiCcsError>
+where
+    Ff: Field + Copy,
+{
+    for (index, claim) in fresh.iter().enumerate() {
+        if claim.m_in > structure.m || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact fresh claim {index} is not a complete whole-ring public input"
+            )));
+        }
+    }
+    let matrix_count = structure.t();
+    let evaluation_width = D.next_power_of_two();
+    for (index, claim) in running.iter().enumerate() {
+        if claim.m_in > structure.m
+            || claim.m_in % D != 0
+            || claim.X.rows() != D
+            || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
+            || claim.eval_k.len() != evaluation_width
+            || claim.eval_a.len() != matrix_count
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact running claim {index} does not have the v1_1 CE shape"
+            )));
+        }
+        if claim.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact running claim {index} Eval_K is not canonical"
+            )));
+        }
+        for (matrix, coefficients) in claim.eval_a.iter().enumerate() {
+            if coefficients.len() != evaluation_width || coefficients.iter().skip(D).any(|&value| value != K::ZERO) {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "PaperExact running claim {index} Eval_A matrix {matrix} is not canonical"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn paper_prior_point<'a, Ff>(
+    running: &'a [CeClaim<Cmt, Ff, K>],
+    variables: usize,
+) -> Result<Option<&'a [K]>, PiCcsError> {
+    let Some(first) = running.first() else {
+        return Ok(None);
+    };
+    if first.r.len() != variables || running.iter().any(|claim| claim.r != first.r) {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact running claims must share the complete prior point".into(),
+        ));
+    }
+    Ok(Some(&first.r))
+}
+
+pub(super) fn boolean_weight(point: &[K], index: usize) -> K {
+    let mut weight = K::ONE;
+    for (bit, &challenge) in point.iter().enumerate() {
+        weight *= if (index >> bit) & 1 == 1 {
+            challenge
+        } else {
+            K::ONE - challenge
+        };
+    }
+    weight
+}
+
+fn equality(point: &[K], target: &[K]) -> K {
+    assert_eq!(point.len(), target.len(), "paper equality point length mismatch");
+    let mut product = K::ONE;
+    for (&left, &right) in point.iter().zip(target) {
+        product *= (K::ONE - left) * (K::ONE - right) + left * right;
+    }
+    product
+}
+
+fn gamma_power(gamma: K, exponent: usize) -> K {
+    gamma.exp_u64(exponent as u64)
+}
+
+fn eval_k_exponent(running_count: usize, running: usize, coefficient: usize) -> usize {
+    running + running_count * coefficient
+}
+
+fn eval_a_exponent(
+    running_count: usize,
+    matrix_count: usize,
+    running: usize,
+    matrix: usize,
+    coefficient: usize,
+) -> usize {
+    running + running_count * matrix + running_count * matrix_count * coefficient
+}
+
+fn range_product<Ff>(value: K, base: u32) -> K
+where
+    Ff: Field + PrimeCharacteristicRing,
+    K: From<Ff>,
+{
+    let mut product = K::ONE;
+    for integer in -((base as i64) - 1)..=((base as i64) - 1) {
+        product *= value - K::from(Ff::from_i64(integer));
+    }
+    product
+}
+
+fn packed_assignment<Ff>(witness: &Mat<Ff>, dims: JointDims) -> Result<Vec<K>, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    if witness.rows() != D || witness.cols() * D != dims.assignment_width {
+        return Err(PiCcsError::InvalidInput(format!(
+            "PaperExact witness shape is {}x{}, expected {D}x{}",
+            witness.rows(),
+            witness.cols(),
+            dims.assignment_width / D
+        )));
+    }
+    Ok((0..dims.assignment_width)
+        .map(|column| K::from(witness[(column % D, column / D)]))
+        .collect())
+}
+
+pub(super) fn validate_fresh_assignment<Ff>(
+    witness: &Mat<Ff>,
+    logical_width: usize,
+    dims: JointDims,
+) -> Result<(), PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    let assignment = packed_assignment(witness, dims)?;
+    if assignment
+        .iter()
+        .skip(logical_width)
+        .any(|&value| value != K::ZERO)
+    {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact fresh assignment has a nonzero completed-carrier tail".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn direct_public_input<Ff>(
+    witness: &Mat<Ff>,
+    logical_width: usize,
+    public_width: usize,
+) -> Result<Mat<Ff>, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    if public_width % D != 0 {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact requires the public input to contain whole ring elements".into(),
+        ));
+    }
+    if witness.rows() != D || witness.cols() != logical_width.div_ceil(D) || public_width > logical_width {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact public-input projection shape mismatch".into(),
+        ));
+    }
+    let active_columns = public_width.div_ceil(D);
+    let mut output = Mat::zero(D, active_columns, Ff::ZERO);
+    for column in 0..active_columns {
+        for row in 0..D {
+            output[(row, column)] = witness[(row, column)];
+        }
+    }
+    Ok(output)
+}
+
+pub(super) fn ring_product(ring: &PaperRing, matrix_block: [Fq; D], assignment: &[K], block: usize) -> [K; D] {
+    let mut assignment_block = [K::ZERO; D];
+    for lane in 0..D {
+        if let Some(value) = assignment.get(block * D + lane) {
+            assignment_block[lane] = *value;
+        }
+    }
+    ring.transformed_product(matrix_block, assignment_block)
+}
+
+fn direct_ring_row<Ff>(ring: &PaperRing, matrix: &CcsMatrix<Ff>, row: usize, assignment: &[K]) -> [K; D]
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+    K: From<Ff>,
+{
+    let mut output = [K::ZERO; D];
+    for block in 0..assignment.len().div_ceil(D) {
+        let mut matrix_block = [Fq::ZERO; D];
+        for (lane, slot) in matrix_block.iter_mut().enumerate() {
+            *slot = Fq::from_u64(matrix_entry(matrix, row, block * D + lane, ring).as_canonical_u64());
+        }
+        let product = ring_product(ring, matrix_block, assignment, block);
+        for coefficient in 0..D {
+            output[coefficient] += product[coefficient];
+        }
+    }
+    output
+}
+
+fn identity_ring_row(ring: &PaperRing, row: usize, assignment: &[K]) -> [K; D] {
+    if row >= assignment.len() {
+        return [K::ZERO; D];
+    }
+    let block = row / D;
+    let mut basis = [Fq::ZERO; D];
+    basis[row % D] = Fq::ONE;
+    ring_product(ring, basis, assignment, block)
+}
+
+pub(super) fn direct_ring_mle<Ff>(ring: &PaperRing, matrix: &CcsMatrix<Ff>, assignment: &[K], point: &[K]) -> [K; D]
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+    K: From<Ff>,
+{
+    let mut output = [K::ZERO; D];
+    for row in 0..matrix.rows() {
+        let weight = boolean_weight(point, row);
+        let value = direct_ring_row(ring, matrix, row, assignment);
+        for coefficient in 0..D {
+            output[coefficient] += weight * value[coefficient];
+        }
+    }
+    output
+}
+
+pub(super) fn direct_identity_ring_mle(ring: &PaperRing, assignment: &[K], point: &[K]) -> [K; D] {
+    let mut output = [K::ZERO; D];
+    for row in 0..assignment.len() {
+        let weight = boolean_weight(point, row);
+        let value = identity_ring_row(ring, row, assignment);
+        for coefficient in 0..D {
+            output[coefficient] += weight * value[coefficient];
+        }
+    }
+    output
+}
+
+pub(super) fn initial_claim<Ff>(
+    structure: &CcsStructure<Ff>,
+    challenges: &Challenges,
+    fresh_count: usize,
+    running: &[CeClaim<Cmt, Ff, K>],
+) -> Result<K, PiCcsError>
+where
+    Ff: Field,
+{
+    let matrix_count = structure.t();
+    let running_count = running.len();
+    let mut eval_k = K::ZERO;
+    let mut eval_a = K::ZERO;
+    for (running_index, claim) in running.iter().enumerate() {
+        if claim.eval_k.len() < D || claim.eval_a.len() != matrix_count {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact running claim {running_index} does not have separate Eval_K and Eval_A"
+            )));
+        }
+        for (coefficient, &value) in claim.eval_k.iter().take(D).enumerate() {
+            eval_k += gamma_power(
+                challenges.gamma,
+                eval_k_exponent(running_count, running_index, coefficient),
+            ) * value;
+        }
+        for (matrix, coefficients) in claim.eval_a.iter().enumerate() {
+            if coefficients.len() < D {
+                return Err(PiCcsError::InvalidInput(
+                    "PaperExact running Eval_A image is too short".into(),
+                ));
+            }
+            for (coefficient, &value) in coefficients.iter().take(D).enumerate() {
+                eval_a += gamma_power(
+                    challenges.gamma,
+                    eval_a_exponent(running_count, matrix_count, running_index, matrix, coefficient),
+                ) * value;
+            }
+        }
+    }
+    let _ = fresh_count;
+    Ok(eval_k + gamma_power(challenges.gamma, running_count * D) * eval_a)
+}
+
+pub(super) fn terminal_components<Ff>(
+    structure: &CcsStructure<Ff>,
+    params: &neo_params::NeoParams,
+    challenges: &Challenges,
+    fresh_count: usize,
+    prior_point: Option<&[K]>,
+    point: &[K],
+    outputs: &[CeClaim<Cmt, Ff, K>],
+) -> Result<TerminalComponents, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    if outputs.len() < fresh_count {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact output source count is too small".into(),
+        ));
+    }
+    let matrix_count = structure.t();
+    let mut fresh_residual = K::ZERO;
+    for (source, output) in outputs.iter().take(fresh_count).enumerate() {
+        if output.eval_a.len() != matrix_count {
+            return Err(PiCcsError::InvalidInput(
+                "PaperExact fresh output matrix count mismatch".into(),
+            ));
+        }
+        let matrix_evaluations = output
+            .eval_a
+            .iter()
+            .map(|evaluation| evaluation.first().copied())
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| PiCcsError::InvalidInput("PaperExact Eval_A output is empty".into()))?;
+        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&matrix_evaluations);
+    }
+    let mut norm = K::ZERO;
+    for (source, output) in outputs.iter().enumerate() {
+        let assignment_value = *output
+            .eval_k
+            .first()
+            .ok_or_else(|| PiCcsError::InvalidInput("PaperExact Eval_K output is missing".into()))?;
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment_value, params.b);
+    }
+    let running_count = outputs.len() - fresh_count;
+    let mut eval_k = K::ZERO;
+    let mut eval_a = K::ZERO;
+    for (running, output) in outputs.iter().skip(fresh_count).enumerate() {
+        if output.eval_k.len() < D || output.eval_a.len() != matrix_count {
+            return Err(PiCcsError::InvalidInput(
+                "PaperExact carried output Eval_K/Eval_A shape mismatch".into(),
+            ));
+        }
+        for (coefficient, &value) in output.eval_k.iter().take(D).enumerate() {
+            eval_k += gamma_power(challenges.gamma, eval_k_exponent(running_count, running, coefficient)) * value;
+        }
+        for (matrix, coefficients) in output.eval_a.iter().enumerate() {
+            for (coefficient, &value) in coefficients.iter().take(D).enumerate() {
+                eval_a += gamma_power(
+                    challenges.gamma,
+                    eval_a_exponent(running_count, matrix_count, running, matrix, coefficient),
+                ) * value;
+            }
+        }
+    }
+    let prior_equality = prior_point.map_or(K::ZERO, |prior| equality(point, prior));
+    let eval_k = prior_equality * eval_k;
+    let eval_a = prior_equality * eval_a;
+    let eval_a_shift = gamma_power(challenges.gamma, running_count * D);
+    let constraint_shift = gamma_power(challenges.gamma, running_count * D * (matrix_count + 1));
+    let terminal = eval_k
+        + eval_a_shift * eval_a
+        + constraint_shift
+            * equality(point, &challenges.alpha)
+            * (fresh_residual + gamma_power(challenges.gamma, fresh_count) * norm);
+    Ok(TerminalComponents {
+        eval_k,
+        eval_a,
+        ccs: fresh_residual,
+        norm,
+        terminal,
+    })
+}
+
+pub(super) fn terminal<Ff>(
+    structure: &CcsStructure<Ff>,
+    params: &neo_params::NeoParams,
+    challenges: &Challenges,
+    fresh_count: usize,
+    prior_point: Option<&[K]>,
+    point: &[K],
+    outputs: &[CeClaim<Cmt, Ff, K>],
+) -> Result<K, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
+}
+
+pub struct PaperJointOracle<'a, Ff> {
+    structure: &'a CcsStructure<Ff>,
+    matrices: Matrices<'a, Ff>,
+    params: &'a neo_params::NeoParams,
+    fresh: &'a [CcsWitness<Ff>],
+    running: &'a [Mat<Ff>],
+    challenges: Challenges,
+    prior_point: Option<Vec<K>>,
+    dims: JointDims,
+    round: usize,
+    fixed: Vec<K>,
+    ring: PaperRing,
+}
+
+impl<'a, Ff> PaperJointOracle<'a, Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        structure: &'a CcsStructure<Ff>,
+        params: &'a neo_params::NeoParams,
+        fresh: &'a [CcsWitness<Ff>],
+        running: &'a [Mat<Ff>],
+        challenges: Challenges,
+        prior_point: Option<&[K]>,
+        dims: JointDims,
+    ) -> Result<Self, PiCcsError> {
+        Self::with_matrix_rows(structure, params, fresh, running, challenges, prior_point, dims, None)
+    }
+
+    /// Evaluate exported original rows with the same direct paper formulas.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_rows(
+        structure: &'a CcsStructure<Ff>,
+        params: &'a neo_params::NeoParams,
+        fresh: &'a [CcsWitness<Ff>],
+        running: &'a [Mat<Ff>],
+        challenges: Challenges,
+        prior_point: Option<&[K]>,
+        dims: JointDims,
+        rows: &'a dyn PaperMatrixRows<Ff>,
+    ) -> Result<Self, PiCcsError> {
+        Self::with_matrix_rows(
+            structure,
+            params,
+            fresh,
+            running,
+            challenges,
+            prior_point,
+            dims,
+            Some(rows),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_matrix_rows(
+        structure: &'a CcsStructure<Ff>,
+        params: &'a neo_params::NeoParams,
+        fresh: &'a [CcsWitness<Ff>],
+        running: &'a [Mat<Ff>],
+        challenges: Challenges,
+        prior_point: Option<&[K]>,
+        dims: JointDims,
+        rows: Option<&'a dyn PaperMatrixRows<Ff>>,
+    ) -> Result<Self, PiCcsError> {
+        let matrices = Matrices::new(structure, rows)?;
+        if !challenges.has_expected_dimension(dims.variables) {
+            return Err(PiCcsError::InvalidInput(
+                "PaperExact joint challenge shape mismatch".into(),
+            ));
+        }
+        if running.is_empty() != prior_point.is_none() {
+            return Err(PiCcsError::InvalidInput(
+                "PaperExact prior-point presence mismatch".into(),
+            ));
+        }
+        for witness in fresh.iter().map(|value| &value.Z).chain(running) {
+            let _ = packed_assignment(witness, dims)?;
+        }
+        Ok(Self {
+            structure,
+            matrices,
+            params,
+            fresh,
+            running,
+            challenges,
+            prior_point: prior_point.map(<[K]>::to_vec),
+            dims,
+            round: 0,
+            fixed: Vec::with_capacity(dims.variables),
+            ring: PaperRing::new(),
+        })
+    }
+
+    pub fn evaluate(&self, point: &[K]) -> K {
+        let mut fresh_residual = K::ZERO;
+        for (source, witness) in self.fresh.iter().enumerate() {
+            let assignment = packed_assignment(&witness.Z, self.dims).expect("validated PaperExact witness");
+            let application_values: Vec<K> = (0..self.structure.t())
+                .map(|matrix| {
+                    self.matrices
+                        .evaluate(&self.ring, matrix, &assignment, point)[0]
+                })
+                .collect();
+            fresh_residual +=
+                gamma_power(self.challenges.gamma, source) * self.structure.f.eval_in_ext::<K>(&application_values);
+        }
+
+        let mut norm = K::ZERO;
+        for (source, witness) in self
+            .fresh
+            .iter()
+            .map(|value| &value.Z)
+            .chain(self.running)
+            .enumerate()
+        {
+            let assignment = packed_assignment(witness, self.dims).expect("validated PaperExact witness");
+            let value = assignment
+                .iter()
+                .enumerate()
+                .fold(K::ZERO, |sum, (row, &entry)| sum + boolean_weight(point, row) * entry);
+            norm += gamma_power(self.challenges.gamma, source) * range_product::<Ff>(value, self.params.b);
+        }
+
+        let matrix_count = self.structure.t();
+        let running_count = self.running.len();
+        let mut eval_k = K::ZERO;
+        let mut eval_a = K::ZERO;
+        for (running, witness) in self.running.iter().enumerate() {
+            let assignment = packed_assignment(witness, self.dims).expect("validated PaperExact witness");
+            let pad = direct_identity_ring_mle(&self.ring, &assignment, point);
+            for (coefficient, value) in pad.into_iter().enumerate() {
+                eval_k += gamma_power(
+                    self.challenges.gamma,
+                    eval_k_exponent(running_count, running, coefficient),
+                ) * value;
+            }
+            for matrix_index in 0..self.structure.t() {
+                for (coefficient, value) in self
+                    .matrices
+                    .evaluate(&self.ring, matrix_index, &assignment, point)
+                    .into_iter()
+                    .enumerate()
+                {
+                    eval_a += gamma_power(
+                        self.challenges.gamma,
+                        eval_a_exponent(running_count, matrix_count, running, matrix_index, coefficient),
+                    ) * value;
+                }
+            }
+        }
+
+        let prior_equality = self
+            .prior_point
+            .as_deref()
+            .map_or(K::ZERO, |prior| equality(point, prior));
+        let eval_a_shift = gamma_power(self.challenges.gamma, running_count * D);
+        let constraint_shift = gamma_power(self.challenges.gamma, running_count * D * (matrix_count + 1));
+        prior_equality * eval_k
+            + eval_a_shift * prior_equality * eval_a
+            + constraint_shift
+                * equality(point, &self.challenges.alpha)
+                * (fresh_residual + gamma_power(self.challenges.gamma, self.fresh.len()) * norm)
+    }
+
+    fn round_evaluations(&self, values: &[K]) -> Vec<K> {
+        let remaining = self.dims.variables - self.round - 1;
+        let tail_count = 1usize << remaining;
+        values
+            .iter()
+            .map(|&value| {
+                let mut sum = K::ZERO;
+                for tail in 0..tail_count {
+                    let mut point = self.fixed.clone();
+                    point.push(value);
+                    for bit in 0..remaining {
+                        point.push(if (tail >> bit) & 1 == 1 { K::ONE } else { K::ZERO });
+                    }
+                    sum += self.evaluate(&point);
+                }
+                sum
+            })
+            .collect()
+    }
+}
+
+impl<Ff> RoundOracle for PaperJointOracle<'_, Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
+        self.round_evaluations(points)
+    }
+
+    fn num_rounds(&self) -> usize {
+        self.dims.variables
+    }
+
+    fn degree_bound(&self) -> usize {
+        self.dims.degree
+    }
+
+    fn fold(&mut self, challenge: K) {
+        self.fixed.push(challenge);
+        self.round += 1;
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_outputs<Ff>(
+    structure: &CcsStructure<Ff>,
+    fresh_claims: &[CcsClaim<Cmt, Ff>],
+    fresh_witnesses: &[CcsWitness<Ff>],
+    running_claims: &[CeClaim<Cmt, Ff, K>],
+    running_witnesses: &[Mat<Ff>],
+    point: &[K],
+    dims: JointDims,
+    rows: Option<&dyn PaperMatrixRows<Ff>>,
+) -> Result<Vec<CeClaim<Cmt, Ff, K>>, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    let matrices = Matrices::new(structure, rows)?;
+    let ring = PaperRing::new();
+    let d_pad = D.next_power_of_two();
+    let openings = |witness: &Mat<Ff>| -> Result<(Vec<K>, Vec<Vec<K>>), PiCcsError> {
+        let assignment = packed_assignment(witness, dims)?;
+        let mut eval_k = direct_identity_ring_mle(&ring, &assignment, point).to_vec();
+        eval_k.resize(d_pad, K::ZERO);
+        let mut eval_a = Vec::with_capacity(dims.matrix_count);
+        for matrix in 0..structure.t() {
+            let mut coefficients = matrices
+                .evaluate(&ring, matrix, &assignment, point)
+                .to_vec();
+            coefficients.resize(d_pad, K::ZERO);
+            eval_a.push(coefficients);
+        }
+        Ok((eval_k, eval_a))
+    };
+
+    let mut outputs = Vec::with_capacity(fresh_claims.len() + running_claims.len());
+    for (claim, witness) in fresh_claims.iter().zip(fresh_witnesses) {
+        let (eval_k, eval_a) = openings(&witness.Z)?;
+        outputs.push(CeClaim {
+            c: claim.c.clone(),
+            X: direct_public_input(&witness.Z, structure.m, claim.m_in)?,
+            r: point.to_vec(),
+            eval_k,
+            eval_a,
+            m_in: claim.m_in,
+            fold_digest: [0u8; 32],
+            adv: claim.adv.clone(),
+        });
+    }
+    for (claim, witness) in running_claims.iter().zip(running_witnesses) {
+        let (eval_k, eval_a) = openings(witness)?;
+        outputs.push(CeClaim {
+            c: claim.c.clone(),
+            X: claim.X.clone(),
+            r: point.to_vec(),
+            eval_k,
+            eval_a,
+            m_in: claim.m_in,
+            fold_digest: [0u8; 32],
+            adv: claim.adv.clone(),
+        });
+    }
+    Ok(outputs)
+}

@@ -1,0 +1,22 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 32.14s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 14 tests
+test package::matrix_program::matrix_program_tests::affine_poseidon_inputs_reject_malformed_words_and_sources ... ok
+test package::matrix_program::matrix_program_tests::affine_poseidon_inputs_preserve_values_indices_and_tag_selection ... ok
+test package::matrix_program::matrix_program_tests::malformed_matrix_programs_fail_closed ... ok
+test package::matrix_program::matrix_program_tests::mapped_source_projection_recovers_the_lean_source_column ... ok
+test package::matrix_program::matrix_program_tests::missing_source_projection_range_fails_closed ... ok
+test package::matrix_program::matrix_program_tests::overlapping_source_projection_ranges_fail_closed ... ok
+test package::matrix_program::shared_formula_rows_tests::retained_runs_add_overlapping_scalars_and_reject_partial_columns ... ok
+test package::matrix_program::shared_formula_rows_tests::shared_poseidon_templates_reject_malformed_input_programs ... ok
+test package::matrix_program::shared_formula_rows_tests::shared_templates_preserve_empty_invocation_ranges ... ok
+test package::matrix_program::matrix_program_tests::every_lean_matrix_opcode_decodes_exact_rows ... ok
+test package::matrix_program::shared_formula_rows_tests::shared_external_template_matches_reference_and_preserves_zero_forms ... ok
+test package::matrix_program::matrix_program_tests::linear_poseidon_visitor_matches_every_random_access_row ... ok
+test package::matrix_program::shared_formula_rows_tests::shared_phi81_templates_match_all_lanes_and_prior_source_cases ... ok
+test package::matrix_program::shared_formula_rows_tests::shared_poseidon_templates_match_every_reference_row ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.59s
+

@@ -1,0 +1,103 @@
+{
+  "failed_production_test": {
+    "outcome": "300-second cap",
+    "complete_proof_compared": false,
+    "memory_peak_available": false
+  },
+  "profile": {
+    "status": "Stopped diagnostic capture",
+    "native_uuid": "AA845931-2D45-342D-B92A-5A8F2AF6D885",
+    "trace_seconds": 239.297435,
+    "window_construction_inclusive_cpu_seconds": 145.932,
+    "all_backtrace_cpu_seconds": 252.186,
+    "note": "CPU sample weight summed across threads; not elapsed or GPU time."
+  },
+  "changes": [
+    "Original rows visited by bounded CPU and Metal windows; no full matrix cache prerequisite.",
+    "Compact scalar tags and original dense scalar coefficients preserve existing parallel/tiled device openings.",
+    "Rejected window ranges shrink geometrically instead of potentially one row per retry.",
+    "CPU fresh values are built and folded in disjoint slices; opening row weights are shared within each bounded window."
+  ],
+  "validation": {
+    "cpu_unit_tests": 15,
+    "cpu_unit_ignored": 2,
+    "row_source_tests": 11,
+    "metal_unit_tests": 23,
+    "production_proof_comparison": "passed: all945983proofbytes plus16completechildmatrices, claims, openings, parent, transcript and identities",
+    "full_lifecycle_timing": "passed: raw Metal290.798678833s with final native RSS13,848,379,392bytes; matched Time Profiler Metal291.840242833s vs CPU1330.702711417s, ratio4.5596957379811025x (below5x)",
+    "engine_comparisons_passed": 9,
+    "cuda_ignored": 2,
+    "fixed_prefix_row_workspace": {
+      "rows": 6369859,
+      "max_encoded_row": 3864783,
+      "max_runs": 370,
+      "encoded_workspace_bytes": 13942,
+      "minimum_workspace_bytes": 4750236214
+    },
+    "stored_formula_tests": 14,
+    "workspace_release_all_targets_metal_cuda": "passed"
+  },
+  "limits": [
+    "No general process RSS proof. Eager application/assembly rows remain an independent gap.",
+    "Old 7.62x matched Time Profiler result belongs to saved application-replay-benchmark-binary, not this implementation.",
+    "CUDA kernels remain absent; their parity checks are ignored."
+  ],
+  "raw_evidence_root": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h",
+  "production_second_fold": {
+    "actual_fold_seconds": 102.544524166,
+    "test_seconds": 139.837589042,
+    "maximum_resident_bytes": 13756530688,
+    "peak_physical_footprint_bytes": 12486646960
+  },
+  "full_lifecycle_before_borrow": {
+    "preparation_seconds": 34.530815666,
+    "base_seconds": 6.7907245,
+    "extend2_seconds": 90.045591209,
+    "extend3_seconds": 119.095453875,
+    "verified": false
+  },
+  "borrowed_production_second_fold": {
+    "proof_and_all_outputs_match": true,
+    "actual_fold_seconds": 98.162725292,
+    "test_seconds": 135.484281125,
+    "maximum_resident_bytes": 13794082816,
+    "peak_physical_footprint_bytes": 12494445648
+  },
+  "lifecycle_profile": {
+    "seconds": 291.840242833,
+    "prepare": 34.555801584,
+    "base": 6.794190417,
+    "extend2": 86.644211709,
+    "extend3": 115.295510916,
+    "terminal": 48.550385125,
+    "observed_kernel_peak_resident_bytes": 13880573952,
+    "final_peak_after_exit": null,
+    "verified": true,
+    "matched_current_cpu_profile": "completed; same saved binary UUID5841982D-F5C1-35FA-903D-66E7053B74CB"
+  },
+  "raw_lifecycle": {
+    "seconds": 290.798678833,
+    "prepare": 34.464145,
+    "base": 6.794351667,
+    "extend2": 86.069422125,
+    "extend3": 114.953553917,
+    "terminal": 48.51685025,
+    "maximum_resident_bytes": 13848379392,
+    "maximum_physical_footprint_bytes": 11836743168,
+    "verified": true
+  },
+  "cpu_lifecycle_profile": {
+    "seconds": 1330.702711417,
+    "prepare": 34.540521416,
+    "base": 60.087123834,
+    "extend2": 420.104987,
+    "extend3": 530.468488,
+    "terminal": 285.501396209,
+    "observed_kernel_peak_resident_bytes": 16790093824,
+    "final_peak_after_exit": null,
+    "verified": true,
+    "ratio": 4.5596957379811025,
+    "target_met": false,
+    "controller_seconds": 1461.617523541
+  }
+}

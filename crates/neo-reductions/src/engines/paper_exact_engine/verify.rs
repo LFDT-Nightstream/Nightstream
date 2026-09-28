@@ -1,225 +1,172 @@
-//! Paper-exact verify implementation for PiCcsEngine.
-//!
-//! This module contains the verify logic for the paper-exact engine,
-//! which validates the sumcheck proof using paper-exact RHS assembly.
+//! Independent verifier for the one-joint padded-row paper protocol.
 
-#![allow(non_snake_case)]
-
-use crate::error::PiCcsError;
-use crate::optimized_engine::{PiCcsProof, PiCcsProofVariant};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
-use neo_math::KExtensions;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
-/// Paper-exact verify implementation.
-///
-/// This function verifies the sumcheck proof using the paper-exact
-/// RHS terminal identity evaluation.
-pub fn paper_exact_verify(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError> {
-    if mcs_list.is_empty() {
-        return Err(PiCcsError::InvalidInput("paper_exact_verify: empty mcs_list".into()));
+use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace};
+use crate::engines::pi_ccs_protocol::PiCcsProof;
+use crate::error::PiCcsError;
+
+use super::paper_joint::{
+    dimensions, initial_claim, paper_prior_point, terminal_components, validate_public_instances,
+};
+use super::transcript::{absorb_outputs, bind_and_sample, verify_sumcheck, PaperTranscriptBinding};
+
+fn validate_outputs(
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    point: &[K],
+    dims: JointDims,
+) -> Result<(), PiCcsError> {
+    if outputs.len() != fresh.len() + running.len() {
+        return Err(PiCcsError::InvalidInput(
+            "PaperExact output source count mismatch".into(),
+        ));
     }
-
-    let dims = crate::engines::utils::build_dims_and_policy(params, s)?;
-    crate::engines::utils::bind_header_and_instances(tr, params, s, mcs_list, dims)?;
-    crate::engines::utils::bind_me_inputs(tr, me_inputs)?;
-    let mut ch = crate::engines::utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
-    ch.beta_m = crate::engines::utils::sample_beta_m(tr, dims.ell_m)?;
-
-    // Compute the public claimed sum T from ME inputs and α
-    // (this is the only legitimate initial sum for sumcheck).
-    let claimed_initial =
-        crate::paper_exact_engine::claimed_initial_sum_from_inputs_with_k_mcs(s, &ch, mcs_list.len(), me_inputs);
-
-    // Optional tightness check: if prover sent a sum, verify it matches T.
-    // This helps debug forged proofs.
-    if let Some(x) = proof.sc_initial_sum {
-        if x != claimed_initial {
-            return Err(PiCcsError::SumcheckError(
-                "initial sum mismatch: proof claims different value than public T".into(),
+    for (index, output) in outputs.iter().enumerate() {
+        if output.r != point
+            || output.X.rows() != D
+            || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
+            || output.eval_k.len() != D.next_power_of_two()
+            || output.eval_a.len() != dims.matrix_count
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact output {index} does not have the canonical v1_1 shape"
+            )));
+        }
+        if output.eval_k.iter().skip(D).any(|&value| value != K::ZERO) {
+            return Err(PiCcsError::InvalidInput(format!(
+                "PaperExact output {index} Eval_K is not canonical"
+            )));
+        }
+        for (matrix, coefficients) in output.eval_a.iter().enumerate() {
+            if coefficients.len() != D.next_power_of_two() || coefficients.iter().skip(D).any(|&value| value != K::ZERO)
+            {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "PaperExact output {index} Eval_A matrix {matrix} is not canonical"
+                )));
+            }
+        }
+    }
+    for (claim, output) in fresh.iter().zip(outputs) {
+        if claim.c != output.c || claim.m_in != output.m_in || claim.adv != output.adv {
+            return Err(PiCcsError::ProtocolError(
+                "PaperExact fresh output changed its public instance".into(),
+            ));
+        }
+        if claim.m_in % D != 0 || claim.x.len() != claim.m_in {
+            return Err(PiCcsError::InvalidInput(
+                "PaperExact fresh public input is not whole-ring aligned".into(),
+            ));
+        }
+        for (coordinate, &value) in claim.x.iter().enumerate() {
+            if output.X[(coordinate % D, coordinate / D)] != value {
+                return Err(PiCcsError::ProtocolError(
+                    "PaperExact fresh output changed a public input coordinate".into(),
+                ));
+            }
+        }
+    }
+    for (claim, output) in running.iter().zip(outputs.iter().skip(fresh.len())) {
+        if claim.c != output.c || claim.X != output.X || claim.m_in != output.m_in || claim.adv != output.adv {
+            return Err(PiCcsError::ProtocolError(
+                "PaperExact carried output changed its public instance".into(),
             ));
         }
     }
+    Ok(())
+}
 
-    if proof.variant != PiCcsProofVariant::SplitNcV1 {
-        return Err(PiCcsError::ProtocolError("unsupported Π_CCS proof variant".into()));
-    }
-
-    let want_rounds_fe = dims
-        .ell_n
-        .checked_add(dims.ell_d)
-        .ok_or_else(|| PiCcsError::ProtocolError("ell_n + ell_d overflow".into()))?;
-    let want_rounds_nc = dims.ell_nc;
-
-    if proof.sumcheck_rounds.len() != want_rounds_fe {
-        return Err(PiCcsError::InvalidInput(format!(
-            "split Π_CCS: sumcheck_rounds.len()={}, expected {}",
-            proof.sumcheck_rounds.len(),
-            want_rounds_fe
-        )));
-    }
-    if proof.sumcheck_rounds_nc.len() != want_rounds_nc {
-        return Err(PiCcsError::InvalidInput(format!(
-            "split Π_CCS: sumcheck_rounds_nc.len()={}, expected {}",
-            proof.sumcheck_rounds_nc.len(),
-            want_rounds_nc
-        )));
-    }
-
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    tr.append_fields_raw(&claimed_initial.as_coeffs());
-    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-    let (r_all, running_sum, ok) =
-        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
-    if !ok {
-        return Err(PiCcsError::SumcheckError("rounds invalid".into()));
-    }
-    if r_all.len() != want_rounds_fe {
-        return Err(PiCcsError::ProtocolError(format!(
-            "split Π_CCS: expected {} FE challenges, got {}",
-            want_rounds_fe,
-            r_all.len()
-        )));
-    }
-    let (r_prime, alpha_prime) = r_all.split_at(dims.ell_n);
-
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
-    let claimed_nc = K::ZERO;
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    tr.append_fields_raw(&claimed_nc.as_coeffs());
-    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-    let (r_all_nc, running_sum_nc, ok_nc) =
-        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
-    if !ok_nc {
-        return Err(PiCcsError::SumcheckError("NC rounds invalid".into()));
-    }
-    if r_all_nc.len() != want_rounds_nc {
-        return Err(PiCcsError::ProtocolError(format!(
-            "split Π_CCS: expected {} NC challenges, got {}",
-            want_rounds_nc,
-            r_all_nc.len()
-        )));
-    }
-    let (s_col_prime, alpha_prime_nc) = r_all_nc.split_at(dims.ell_m);
-
-    let r_inputs = crate::engines::utils::shared_me_input_r(me_inputs, dims.ell_n)?;
-
-    let d_pad = 1usize
-        .checked_shl(dims.ell_d as u32)
-        .ok_or_else(|| PiCcsError::ProtocolError("d_pad shift overflow".into()))?;
-    let want_outputs = mcs_list
-        .len()
-        .checked_add(me_inputs.len())
-        .ok_or_else(|| PiCcsError::ProtocolError("mcs_list.len() + me_inputs.len() overflow".into()))?;
-    if me_outputs.len() != want_outputs {
-        return Err(PiCcsError::InvalidInput(format!(
-            "split Π_CCS: me_outputs.len()={}, expected {} (= |mcs_list| + |me_inputs|)",
-            me_outputs.len(),
-            want_outputs
-        )));
-    }
-    for (idx, out) in me_outputs.iter().enumerate() {
-        if out.r.as_slice() != r_prime {
-            return Err(PiCcsError::ProtocolError(format!(
-                "split Π_CCS: me_outputs[{idx}].r does not match FE r'"
-            )));
-        }
-        if out.s_col.as_slice() != s_col_prime {
-            return Err(PiCcsError::ProtocolError(format!(
-                "split Π_CCS: me_outputs[{idx}].s_col does not match NC s'"
-            )));
-        }
-        if out.y_zcol.len() != d_pad {
-            return Err(PiCcsError::ProtocolError(format!(
-                "split Π_CCS: me_outputs[{idx}].y_zcol.len()={}, expected {}",
-                out.y_zcol.len(),
-                d_pad
-            )));
-        }
-
-        if idx < mcs_list.len() {
-            let inst = &mcs_list[idx];
-            if out.c != inst.c {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].c does not match mcs_list[{idx}].c"
-                )));
-            }
-            if out.m_in != inst.m_in {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].m_in={}, expected {}",
-                    out.m_in, inst.m_in
-                )));
-            }
-            if inst.x.len() != inst.m_in {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "split Π_CCS: mcs_list[{idx}].x.len()={}, expected m_in={}",
-                    inst.x.len(),
-                    inst.m_in
-                )));
-            }
-            if out.X.rows() != D || out.X.cols() != inst.m_in {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].X shape mismatch (got {}×{}, expected {}×{})",
-                    out.X.rows(),
-                    out.X.cols(),
-                    D,
-                    inst.m_in
-                )));
-            }
-        } else {
-            let me_idx = idx - mcs_list.len();
-            let inp = &me_inputs[me_idx];
-            if out.c != inp.c {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].c does not match me_inputs[{me_idx}].c"
-                )));
-            }
-            if out.m_in != inp.m_in {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].m_in={}, expected {}",
-                    out.m_in, inp.m_in
-                )));
-            }
-            if out.X != inp.X {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "split Π_CCS: me_outputs[{idx}].X does not match me_inputs[{me_idx}].X"
-                )));
-            }
-        }
-    }
-
-    // MCS-derived outputs must expose X consistent with public x.
-    crate::engines::utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
-
-    let rhs = crate::paper_exact_engine::rhs_terminal_identity_fe_paper_exact_with_k_mcs(
-        s,
+pub fn paper_exact_verify_with_trace(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+) -> Result<(bool, ProtocolTrace), PiCcsError> {
+    paper_exact_verify_with_trace_and_binding(
+        transcript,
         params,
-        &ch,
-        r_prime,
-        alpha_prime,
-        me_outputs,
-        mcs_list.len(),
-        r_inputs,
-    );
-    let rhs_nc = crate::paper_exact_engine::rhs_terminal_identity_nc_paper_exact(
+        structure,
+        fresh_claims,
+        running_claims,
+        outputs,
+        proof,
+        PaperTranscriptBinding::digest_only(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn paper_exact_verify_with_trace_and_binding(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    binding: PaperTranscriptBinding,
+) -> Result<(bool, ProtocolTrace), PiCcsError> {
+    validate_public_instances(structure, fresh_claims, running_claims)?;
+    let dims = dimensions(params, structure, fresh_claims.len(), running_claims.len())?;
+    let prior_point = paper_prior_point(running_claims, dims.variables)?;
+    let mut trace = ProtocolTrace::default();
+    let challenges = bind_and_sample(
+        transcript,
+        &mut trace,
+        structure,
+        fresh_claims,
+        running_claims,
+        dims,
+        binding,
+    )?;
+    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let (point, final_claim) = verify_sumcheck(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
+    validate_outputs(fresh_claims, running_claims, outputs, &point, dims)?;
+    let terminal = terminal_components::<F>(
+        structure,
         params,
-        &ch,
-        s_col_prime,
-        alpha_prime_nc,
-        me_outputs,
-    );
-    Ok(running_sum == rhs && running_sum_nc == rhs_nc)
+        &challenges,
+        fresh_claims.len(),
+        prior_point,
+        &point,
+        outputs,
+    )?;
+    let expected = terminal.terminal;
+    trace.terminal_components = terminal;
+    let digest = absorb_outputs(transcript, &mut trace, outputs, fresh_claims.len(), dims)?;
+    if outputs.iter().any(|output| output.fold_digest != digest) {
+        return Err(PiCcsError::ProtocolError(
+            "PaperExact output digest does not match transcript replay".into(),
+        ));
+    }
+    Ok((final_claim == expected, trace))
+}
+
+pub fn paper_exact_verify(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+) -> Result<bool, PiCcsError> {
+    Ok(paper_exact_verify_with_trace(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        running_claims,
+        outputs,
+        proof,
+    )?
+    .0)
 }

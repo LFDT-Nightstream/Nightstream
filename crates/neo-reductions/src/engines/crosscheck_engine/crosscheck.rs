@@ -1,502 +1,286 @@
-//! Cross-check engine wrapper for validation during development.
+//! Complete optimized-versus-PaperExact PiCCS comparison.
 //!
-//! This module provides the CrossCheckEngine, which runs the optimized engine
-//! and validates key identities against paper-exact helpers. This is useful
-//! for debugging and ensuring correctness.
+//! Every check is mandatory. The wrapper compares the independent event
+//! traces, challenges, rounds, terminal value, outputs, transcript state, and
+//! versioned proof bytes before it returns the optimized result.
 
-#![allow(non_snake_case)]
-
-use crate::engines::optimized_engine::PiCcsProof;
-use crate::engines::PiCcsEngine;
+use crate::engines::optimized_engine::{OptimizedStructureCache, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::optimized_engine::PiCcsProofVariant;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 
-use super::logging::*;
+use crate::engines::paper_exact_engine::PaperTranscriptBinding;
+use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
 
-/// Runtime cross-check configuration.
-#[derive(Clone, Debug, Default)]
-pub struct CrosscheckCfg {
-    pub fail_fast: bool,
-    pub initial_sum: bool,
-    pub per_round: bool,
-    pub terminal: bool,
-    pub outputs: bool,
-}
-
-/// Cross-check engine wrapper that runs the optimized engine
-/// and validates key identities against paper-exact helpers.
-#[derive(Clone, Debug)]
-pub struct CrossCheckEngine<I, R> {
-    pub inner: I,      // Optimized engine
-    pub ref_oracle: R, // PaperExact engine (reference)
-    pub cfg: CrosscheckCfg,
-}
-
-/// Implementation of prove logic for cross-checking.
-///
-/// # How Crosscheck Works
-///
-/// 1. **Runs the optimized engine** to produce a proof
-///    - Any transcript dumps you see are from the optimized prover
-///    - The proof contains sumcheck rounds and a final sumcheck value
-///
-/// 2. **Extracts challenges** by replaying the optimized engine's transcript
-///    - This gives us the random points (r', α') used in the proof
-///
-/// 3. **Validates specific computations** by comparing:
-///    - Optimized engine's formulas (efficient, from public outputs)
-///    - Paper-exact engine's formulas (direct, from witnesses)
-///
-/// The paper-exact engine never produces a full proof - it only computes
-/// specific values for comparison against the optimized engine's proof.
-pub fn crosscheck_prove<I, L>(
-    inner: &I,
-    cfg: &CrosscheckCfg,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    log: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
+#[cfg(not(target_arch = "wasm32"))]
+fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
+    run_optimized: RunOptimized,
+    run_reference: RunReference,
+) -> Result<(Optimized, Reference), PiCcsError>
 where
-    I: PiCcsEngine,
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+    Reference: Send,
+    RunOptimized: FnOnce() -> Optimized,
+    RunReference: FnOnce() -> Reference + Send,
 {
-    // 1) Run optimized path
-    let (out_me_opt, proof) = inner.prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)?;
-
-    // 2) Use the prover-recorded challenges as the single source of truth.
-    //    This avoids tiny transcript replays from drifting and ensures that
-    //    the r we embed into outputs matches the one used to build them.
-    let dims = crate::engines::utils::build_dims_and_policy(params, s)?;
-    if proof.variant != PiCcsProofVariant::SplitNcV1 {
-        return Err(PiCcsError::ProtocolError(
-            "crosscheck engine expects SplitNcV1 proofs".into(),
-        ));
-    }
-    assert_eq!(
-        proof.sumcheck_challenges.len(),
-        dims.ell,
-        "sumcheck_challenges length mismatch"
-    );
-    assert_eq!(
-        proof.sumcheck_challenges_nc.len(),
-        dims.ell_nc,
-        "sumcheck_challenges_nc length mismatch"
-    );
-    let (r_prime, alpha_prime) = proof.sumcheck_challenges.split_at(dims.ell_n);
-    let r_inputs = crate::engines::utils::shared_me_input_r(me_inputs, dims.ell_n)?;
-
-    // SuperNeo transform sanity: when CCS shape is compatible, transformed-matrix
-    // MLE evaluation must match direct MLE evaluation on the same witness and point.
-    if let (Ok(s_bar), Some(first_mcs)) = (s.transform_matrices_superneo(), mcs_witnesses.first()) {
-        let z = recomposed_z_from_witness(params, s, first_mcs);
-        let chi_r = chi_table(r_prime);
-        let direct = crate::superneo_eval::eval_all_mats_direct(s, &z, &chi_r, s.n);
-        let via_bar = crate::superneo_eval::eval_all_mats_transformed(&s_bar, &z, &chi_r, s.n);
-        if direct != via_bar {
-            return Err(PiCcsError::ProtocolError(
-                "crosscheck: transformed-matrix eval mismatch (SuperNeo parity)".into(),
-            ));
-        }
-    }
-
-    // 3) Optional cross-checks
-    if cfg.initial_sum {
-        let lhs_exact = if proof.variant == PiCcsProofVariant::SplitNcV1 {
-            let mut total = K::ZERO;
-            let d_sz = 1usize << dims.ell_d;
-            let n_sz = 1usize << dims.ell_n;
-            for xa in 0..d_sz {
-                let alpha_bits: Vec<K> = (0..dims.ell_d)
-                    .map(|bit| if ((xa >> bit) & 1) == 1 { K::ONE } else { K::ZERO })
-                    .collect();
-                for xr in 0..n_sz {
-                    let r_bits: Vec<K> = (0..dims.ell_n)
-                        .map(|bit| if ((xr >> bit) & 1) == 1 { K::ONE } else { K::ZERO })
-                        .collect();
-                    let (q_fe_at_point, _rhs_unused) =
-                        crate::engines::paper_exact_engine::q_eval_at_ext_point_fe_paper_exact_with_inputs(
-                            s,
-                            params,
-                            mcs_witnesses,
-                            me_witnesses,
-                            &alpha_bits,
-                            &r_bits,
-                            &proof.challenges_public,
-                            r_inputs,
-                        );
-                    total += q_fe_at_point;
-                }
-            }
-            total
-        } else {
-            crate::engines::paper_exact_engine::sum_q_over_hypercube_paper_exact(
-                s,
-                params,
-                mcs_witnesses,
-                me_witnesses,
-                &proof.challenges_public,
-                dims.ell_d,
-                dims.ell_n,
-                r_inputs,
-            )
-        };
-        let initial_sum_prover = match proof.sc_initial_sum {
-            Some(x) => x,
-            None => proof
-                .sumcheck_rounds
-                .first()
-                .map(|p0| crate::sumcheck::poly_eval_k(p0, K::ZERO) + crate::sumcheck::poly_eval_k(p0, K::ONE))
-                .ok_or_else(|| PiCcsError::ProtocolError("crosscheck: missing sumcheck round 0".into()))?,
-        };
-        if lhs_exact != initial_sum_prover {
-            return Err(PiCcsError::ProtocolError(
-                "crosscheck: initial sum mismatch (optimized vs paper-exact)".into(),
-            ));
-        }
-    }
-
-    if cfg.per_round {
-        #[cfg(feature = "paper-exact")]
-        {
-            use crate::sumcheck::RoundOracle;
-
-            let detailed_log = std::env::var("NEO_CROSSCHECK_DETAIL").is_ok();
-
-            if detailed_log {
-                log_per_round_header(proof.sumcheck_rounds.len());
-            }
-
-            let mut paper_oracle = crate::engines::paper_exact_engine::oracle::PaperExactOracle::new(
-                s,
-                params,
-                mcs_witnesses,
-                me_witnesses,
-                proof.challenges_public.clone(),
-                dims.ell_d,
-                dims.ell_n,
-                dims.d_sc,
-                r_inputs,
-            );
-
-            for (round_idx, (opt_coeffs, &challenge)) in proof
-                .sumcheck_rounds
-                .iter()
-                .zip(proof.sumcheck_challenges.iter())
-                .enumerate()
-            {
-                let deg = paper_oracle.degree_bound();
-                let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
-                let paper_evals = paper_oracle.evals_at(&xs);
-
-                if detailed_log {
-                    log_per_round_progress(round_idx, proof.sumcheck_rounds.len(), paper_evals.len());
-                }
-
-                for (i, (&x, &expected)) in xs.iter().zip(paper_evals.iter()).enumerate() {
-                    let actual = crate::sumcheck::poly_eval_k(opt_coeffs, x);
-                    if actual != expected {
-                        log_per_round_mismatch(round_idx, proof.sumcheck_rounds.len(), i, actual, expected);
-                        if cfg.fail_fast {
-                            return Err(PiCcsError::ProtocolError(format!(
-                                "crosscheck: round {} polynomial mismatch at x={}",
-                                round_idx, i
-                            )));
-                        }
-                    }
-                }
-
-                paper_oracle.fold(challenge);
-            }
-
-            if detailed_log {
-                log_per_round_success(proof.sumcheck_rounds.len());
-            }
-        }
-
-        #[cfg(not(feature = "paper-exact"))]
-        {
-            log_paper_exact_feature_warning();
-        }
-    }
-
-    if cfg.terminal {
-        let detailed_log = std::env::var("NEO_CROSSCHECK_DETAIL").is_ok();
-
-        if detailed_log {
-            log_terminal_header();
-        }
-
-        let running_sum_prover = if let Some(initial) = proof.sc_initial_sum {
-            let mut running = initial;
-            for (coeffs, &ri) in proof
-                .sumcheck_rounds
-                .iter()
-                .zip(proof.sumcheck_challenges.iter())
-            {
-                running = crate::sumcheck::poly_eval_k(coeffs, ri);
-            }
-            running
-        } else {
-            use crate::sumcheck::poly_eval_k;
-            proof
-                .sumcheck_rounds
-                .get(0)
-                .map(|p0| poly_eval_k(p0, K::ZERO) + poly_eval_k(p0, K::ONE))
-                .unwrap_or(K::ZERO)
-        };
-
-        if detailed_log {
-            log_terminal_optimized_header();
-        }
-        let rhs_opt = crate::paper_exact_engine::rhs_terminal_identity_fe_paper_exact_with_k_mcs(
-            s,
-            params,
-            &proof.challenges_public,
-            r_prime,
-            alpha_prime,
-            &out_me_opt,
-            mcs_list.len(),
-            r_inputs,
-        );
-        if detailed_log {
-            log_terminal_optimized_result(rhs_opt);
-        }
-
-        if detailed_log {
-            log_terminal_paper_exact_header();
-        }
-
-        let (lhs_exact, _rhs_unused) =
-            crate::engines::paper_exact_engine::q_eval_at_ext_point_fe_paper_exact_with_inputs(
-                s,
-                params,
-                mcs_witnesses,
-                me_witnesses,
-                alpha_prime,
-                r_prime,
-                &proof.challenges_public,
-                r_inputs,
-            );
-        if detailed_log {
-            log_terminal_paper_exact_result(lhs_exact);
-            log_terminal_comparison(running_sum_prover, rhs_opt, lhs_exact);
-        }
-
-        if rhs_opt != lhs_exact || rhs_opt != running_sum_prover {
-            log_terminal_mismatch(rhs_opt, lhs_exact, running_sum_prover);
-            return Err(PiCcsError::ProtocolError(
-                "crosscheck: terminal evaluation claim mismatch".into(),
-            ));
-        }
-    }
-
-    if cfg.outputs {
-        let fold_digest: [u8; 32] = proof
-            .header_digest
-            .as_slice()
-            .try_into()
-            .unwrap_or([0u8; 32]);
-
-        let (s_col, _alpha_nc) = proof.sumcheck_challenges_nc.split_at(dims.ell_m);
-        let out_me_ref = crate::engines::paper_exact_engine::build_me_outputs_paper_exact(
-            s,
-            params,
-            mcs_list,
-            mcs_witnesses,
-            me_inputs,
-            me_witnesses,
-            r_prime,
-            s_col,
-            dims.ell_d,
-            fold_digest,
-            log,
-        );
-
-        if out_me_ref.len() != out_me_opt.len() {
-            log_outputs_length_mismatch(out_me_ref.len(), out_me_opt.len());
-            return Err(PiCcsError::ProtocolError("crosscheck: outputs length mismatch".into()));
-        }
-
-        for (idx, (a, b)) in out_me_ref.iter().zip(out_me_opt.iter()).enumerate() {
-            let mut mismatches = Vec::new();
-
-            if a.m_in != b.m_in {
-                mismatches.push(format!("m_in: paper={}, optimized={}", a.m_in, b.m_in));
-            }
-
-            if a.r != b.r {
-                let r_match_count = a.r.iter().zip(b.r.iter()).filter(|(x, y)| x == y).count();
-                mismatches.push(format!(
-                    "r: length paper={}, optimized={}, matching elements={}/{}",
-                    a.r.len(),
-                    b.r.len(),
-                    r_match_count,
-                    a.r.len().min(b.r.len())
-                ));
-                if a.r.len() == b.r.len() && !a.r.is_empty() {
-                    mismatches.push(format!("  first paper r[0]={:?}", a.r.get(0)));
-                    mismatches.push(format!("  first opt   r[0]={:?}", b.r.get(0)));
-                }
-            }
-
-            if a.c.data != b.c.data {
-                mismatches.push(format!(
-                    "c.data: paper len={}, opt len={}, data_match={}",
-                    a.c.data.len(),
-                    b.c.data.len(),
-                    a.c.data == b.c.data
-                ));
-                // Show first few elements for debugging
-                let show_len = 4.min(a.c.data.len()).min(b.c.data.len());
-                if show_len > 0 {
-                    mismatches.push(format!("  paper c.data[0..{}]={:?}", show_len, &a.c.data[..show_len]));
-                    mismatches.push(format!("  opt   c.data[0..{}]={:?}", show_len, &b.c.data[..show_len]));
-                }
-            }
-
-            if !mismatches.is_empty() {
-                log_outputs_metadata_mismatch(
-                    idx,
-                    out_me_ref.len(),
-                    &mismatches,
-                    a.m_in == b.m_in,
-                    a.r == b.r,
-                    a.c.data == b.c.data,
-                    a.m_in,
-                    a.r.len(),
-                    a.c.data.len(),
-                    &fold_digest,
-                    mcs_list.len(),
-                );
-
-                return Err(PiCcsError::ProtocolError(format!(
-                    "crosscheck: output metadata mismatch at index {}",
-                    idx
-                )));
-            }
-
-            for (j, (ya, yb)) in a.y_ring.iter().zip(b.y_ring.iter()).enumerate() {
-                if ya.len() != yb.len() {
-                    log_outputs_y_row_length_mismatch(idx, j, ya.len(), yb.len());
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "crosscheck: y row {} length mismatch at instance {}",
-                        j, idx
-                    )));
-                }
-                if ya != yb {
-                    let match_count = ya.iter().zip(yb.iter()).filter(|(x, y)| x == y).count();
-                    let mut first_mismatch_info = None;
-                    for (k, (a_val, b_val)) in ya.iter().zip(yb.iter()).enumerate() {
-                        if a_val != b_val {
-                            first_mismatch_info = Some((k, a_val, b_val));
-                            break;
-                        }
-                    }
-                    if let Some((k, a_val, b_val)) = first_mismatch_info {
-                        log_outputs_y_row_content_mismatch(idx, j, match_count, ya.len(), k, a_val, b_val);
-                    }
-                    return Err(PiCcsError::ProtocolError(format!(
-                        "crosscheck: y row {} content mismatch at instance {}",
-                        j, idx
-                    )));
-                }
-            }
-
-            if a.ct != b.ct {
-                let match_count = a.ct.iter().zip(b.ct.iter()).filter(|(x, y)| x == y).count();
-                let mismatches: Vec<(usize, K, K)> =
-                    a.ct.iter()
-                        .zip(b.ct.iter())
-                        .enumerate()
-                        .filter_map(|(k, (a_val, b_val))| {
-                            if a_val != b_val {
-                                Some((k, *a_val, *b_val))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                log_outputs_ct_mismatch(idx, match_count, a.ct.len(), &mismatches);
-                return Err(PiCcsError::ProtocolError(format!(
-                    "crosscheck: ct mismatch at instance {}",
-                    idx
-                )));
-            }
-
-            // X matrix equality (dense, small D)
-            if a.X.rows() != b.X.rows() || a.X.cols() != b.X.cols() {
-                log_outputs_x_dimension_mismatch(idx, a.X.rows(), a.X.cols(), b.X.rows(), b.X.cols());
-                return Err(PiCcsError::ProtocolError(format!(
-                    "crosscheck: X dims mismatch at instance {}",
-                    idx
-                )));
-            }
-            for r in 0..a.X.rows() {
-                for c in 0..a.X.cols() {
-                    if a.X[(r, c)] != b.X[(r, c)] {
-                        log_outputs_x_element_mismatch(idx, r, c, &a.X[(r, c)], &b.X[(r, c)]);
-                        return Err(PiCcsError::ProtocolError(format!(
-                            "crosscheck: X mismatch at ({},{}) in instance {}",
-                            r, c, idx
-                        )));
-                    }
-                }
-            }
-        }
-    }
-
-    Ok((out_me_opt, proof))
-}
-
-fn chi_table(point: &[K]) -> Vec<K> {
-    let n = 1usize << point.len();
-    let mut out = vec![K::ZERO; n];
-    for (idx, out_cell) in out.iter_mut().enumerate().take(n) {
-        let mut w = K::ONE;
-        for (bit, p) in point.iter().copied().enumerate() {
-            let is_one = ((idx >> bit) & 1) == 1;
-            w *= if is_one { p } else { K::ONE - p };
-        }
-        *out_cell = w;
-    }
-    out
-}
-
-fn recomposed_z_from_witness(params: &NeoParams, s: &CcsStructure<F>, w: &CcsWitness<F>) -> Vec<K> {
-    let _ = params;
-    crate::common::decode_superneo_coeffs_from_witness_mat(&w.Z, s.m).unwrap_or_else(|e| {
-        panic!(
-            "crosscheck recomposed_z_from_witness: invalid packed witness shape for m={}: {e}",
-            s.m
-        )
+    std::thread::scope(|scope| {
+        let reference = scope.spawn(run_reference);
+        let optimized = run_optimized();
+        let reference = reference
+            .join()
+            .map_err(|_| PiCcsError::ProtocolError("PaperExact crosscheck worker panicked".into()))?;
+        Ok((optimized, reference))
     })
 }
 
-/// Implementation of verify logic for cross-checking.
-/// Verification remains the optimized path; cross-checking is a prover-side aid.
-pub fn crosscheck_verify<I>(
-    inner: &I,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError>
+#[cfg(target_arch = "wasm32")]
+fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
+    run_optimized: RunOptimized,
+    run_reference: RunReference,
+) -> Result<(Optimized, Reference), PiCcsError>
 where
-    I: PiCcsEngine,
+    RunOptimized: FnOnce() -> Optimized,
+    RunReference: FnOnce() -> Reference,
 {
-    inner.verify(tr, params, s, mcs_list, me_inputs, me_outputs, proof)
+    Ok((run_optimized(), run_reference()))
+}
+
+fn checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
+    transcript.clone().digest32()
+}
+
+#[derive(Clone, Debug)]
+pub struct CrossCheckEngine<I, R> {
+    pub inner: I,
+    pub ref_oracle: R,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_prove<I, R, L>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
+{
+    crosscheck_prove_with_binding(
+        _inner,
+        _reference,
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        TranscriptBinding::digest_only(),
+    )
+}
+
+fn reference_binding(binding: TranscriptBinding) -> PaperTranscriptBinding {
+    let _ = binding;
+    PaperTranscriptBinding::digest_only()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_prove_with_binding<I, R, L>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+    binding: TranscriptBinding,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
+{
+    let cache = OptimizedStructureCache::build(structure)?;
+    let mut reference_transcript = transcript.clone();
+    let paper_binding = reference_binding(binding);
+    let (optimized, reference) = run_pair(
+        || {
+            crate::engines::optimized_engine::paper_joint::prove_with_trace(
+                transcript,
+                params,
+                structure,
+                fresh_claims,
+                fresh_witnesses,
+                running_claims,
+                running_witnesses,
+                commitment,
+                &cache,
+                binding,
+            )
+        },
+        || {
+            crate::engines::paper_exact_engine::prove::paper_exact_prove_with_trace_and_binding(
+                &mut reference_transcript,
+                params,
+                structure,
+                fresh_claims,
+                fresh_witnesses,
+                running_claims,
+                running_witnesses,
+                commitment,
+                paper_binding,
+            )
+        },
+    )?;
+    let (
+        (optimized_outputs, optimized_proof, _, optimized_trace),
+        (reference_outputs, reference_proof, reference_trace),
+    ) = match (optimized, reference) {
+        (Ok(optimized), Ok(reference)) => (optimized, reference),
+        (Err(optimized), Ok(_)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "optimized prover failed while PaperExact succeeded: {optimized}"
+            )))
+        }
+        (Ok(_), Err(reference)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "PaperExact prover failed while optimized succeeded: {reference}"
+            )))
+        }
+        (Err(optimized), Err(reference)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
+            )))
+        }
+    };
+
+    if optimized_trace != reference_trace {
+        return Err(PiCcsError::ProtocolError(
+            "crosscheck protocol event traces differ".into(),
+        ));
+    }
+    if checkpoint(transcript) != checkpoint(&reference_transcript) {
+        return Err(PiCcsError::ProtocolError("crosscheck transcript states differ".into()));
+    }
+    if optimized_outputs != reference_outputs || optimized_proof != reference_proof {
+        return Err(PiCcsError::ProtocolError(
+            "crosscheck proof or output values differ".into(),
+        ));
+    }
+    if optimized_proof.canonical_bytes()
+        != crate::engines::paper_exact_engine::encode_proof(&reference_proof)
+            .map_err(|error| PiCcsError::ProtocolError(format!("PaperExact codec failed: {error}")))?
+    {
+        return Err(PiCcsError::ProtocolError(
+            "crosscheck canonical proof bytes differ".into(),
+        ));
+    }
+    Ok((optimized_outputs, optimized_proof))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_verify<I, R>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+) -> Result<bool, PiCcsError> {
+    crosscheck_verify_with_binding(
+        _inner,
+        _reference,
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        running_claims,
+        outputs,
+        proof,
+        TranscriptBinding::digest_only(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_verify_with_binding<I, R>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    binding: TranscriptBinding,
+) -> Result<bool, PiCcsError> {
+    let mut reference_transcript = transcript.clone();
+    let paper_binding = reference_binding(binding);
+    let (optimized, reference) = run_pair(
+        || {
+            crate::engines::pi_ccs_joint_protocol::verify_with_trace(
+                transcript,
+                params,
+                structure,
+                fresh_claims,
+                running_claims,
+                outputs,
+                proof,
+                binding,
+                None,
+            )
+        },
+        || {
+            crate::engines::paper_exact_engine::verify::paper_exact_verify_with_trace_and_binding(
+                &mut reference_transcript,
+                params,
+                structure,
+                fresh_claims,
+                running_claims,
+                outputs,
+                proof,
+                paper_binding,
+            )
+        },
+    )?;
+    let ((optimized_valid, optimized_trace), (reference_valid, reference_trace)) = match (optimized, reference) {
+        (Ok(optimized), Ok(reference)) => (optimized, reference),
+        (Err(optimized), Err(reference)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "both crosscheck verifiers failed (optimized: {optimized}; PaperExact: {reference})"
+            )))
+        }
+        (Err(optimized), Ok(_)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "optimized verifier failed while PaperExact completed: {optimized}"
+            )))
+        }
+        (Ok(_), Err(reference)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "PaperExact verifier failed while optimized completed: {reference}"
+            )))
+        }
+    };
+    if optimized_trace != reference_trace
+        || checkpoint(transcript) != checkpoint(&reference_transcript)
+        || optimized_valid != reference_valid
+    {
+        return Err(PiCcsError::ProtocolError(
+            "crosscheck verifier traces or decisions differ".into(),
+        ));
+    }
+    Ok(optimized_valid)
 }

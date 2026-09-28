@@ -51,11 +51,18 @@ fn cached_commit_many_matches_streaming_and_dense_oracles() {
         signed_unit_mat(3),
     ];
     let refs: Vec<&Mat<Fq>> = mats.iter().collect();
+    let packed_mats = mats
+        .iter()
+        .map(|matrix| Mat::compact_signed_unit(D, M_COLS, matrix.to_dense_vec()))
+        .collect::<Vec<_>>();
+    let packed_refs = packed_mats.iter().collect::<Vec<_>>();
 
     // Cold (builds the cache) and warm (reuses it) must agree.
     let cold = module.commit_many(&refs);
     let warm = module.commit_many(&refs);
+    let packed = module.commit_many(&packed_refs);
     assert_eq!(cold, warm, "cache warm-up must not change commitments");
+    assert_eq!(cold, packed, "bit-packed storage must not change commitments");
 
     // Oracle 1: the single-witness streaming signed-unit path.
     for (z, expected) in mats.iter().zip(&cold) {

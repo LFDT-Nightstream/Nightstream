@@ -1,0 +1,39 @@
+{
+  "baseline_commit": "9379f01b",
+  "claim": "PiDEC substitution consumes a Layout range-order interface without expanding Layout/Lifecycle allocation; public Export statements and runtime representations are unchanged.",
+  "new_layout_theorem": "NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.source_ranges_ordered",
+  "actual_consumer": "NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry.entry_value",
+  "public_export_headers_unchanged": true,
+  "runtime_definitions_unchanged": true,
+  "before": {
+    "substitution_file_seconds": 2.76,
+    "substitution_peak_kib": 3759892,
+    "consumer_file_seconds": 17.5,
+    "consumer_peak_kib": 5776516,
+    "substitution_lines": 485
+  },
+  "after": {
+    "substitution_file_seconds": 2.39,
+    "substitution_peak_kib": 3706180,
+    "consumer_file_seconds": 17.76,
+    "consumer_peak_kib": 5918704,
+    "substitution_lines": 474,
+    "identity_gate_seconds": 129.65,
+    "identity_peak_kib": 3726512,
+    "identity_includes_build_work": true
+  },
+  "measurement_scope": "One before/after run of each validate.sh file check; not a general speed estimate. Import reachability unchanged.",
+  "gates": {
+    "static": "passed",
+    "target": "passed on third attempt; 75.62s with dependency rebuilds",
+    "build": "passed, 37s",
+    "axioms": "passed, 24s; only permitted axioms",
+    "identity": "passed; canonical binding and all Rust pins match"
+  },
+  "remaining_architecture": [
+    "Derive the existing size pins and ranges from phase/gadget owners.",
+    "Hide the separate native retained-block allocation openings in the NIFS work consumer.",
+    "Consolidate physical compilation under Layout and remove superseded descriptions."
+  ],
+  "external_review_2120": "Unchanged September 4 report; no new architecture finding. No new production or conformance approval."
+}

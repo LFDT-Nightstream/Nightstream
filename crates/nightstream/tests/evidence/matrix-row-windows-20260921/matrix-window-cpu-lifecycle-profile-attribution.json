@@ -1,0 +1,74 @@
+{
+  "source": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-samples.xml",
+  "source_bytes": 1704334689,
+  "target_pid": 92096,
+  "total_sample_count": 6925984,
+  "total_weight_ns": 6925984000000,
+  "backtrace_sample_count": 6925530,
+  "backtrace_weight_ns": 6925530000000,
+  "sentinel_sample_count": 454,
+  "sentinel_weight_ns": 454000000,
+  "symbolication": {
+    "native_binary_ids": [
+      "81"
+    ],
+    "expected_uuid": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+    "exact_original_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary",
+    "binary_bytes": 18980608,
+    "binary_mtime_ns": 1790047606472265738,
+    "uuid_command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary"
+    ],
+    "uuid_output": "UUID: 5841982D-F5C1-35FA-903D-66E7053B74CB (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary\n",
+    "atos_runs": [
+      {
+        "binary_id": "81",
+        "command": [
+          "atos",
+          "-o",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary",
+          "-arch",
+          "arm64",
+          "-l",
+          "0x100958000",
+          "-f",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-addresses.txt"
+        ],
+        "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-addresses.txt",
+        "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-atos-81-output.txt",
+        "address_count": 10176,
+        "seconds": 0.1557869169919286
+      }
+    ],
+    "native_address_count": 10176,
+    "native_frames_with_exported_symbols": 10176,
+    "native_frames_resolved_by_atos": 10176,
+    "unknown_top_sample_count": 1734,
+    "unknown_top_weight_ns": 1734000000,
+    "unannotated_top_sample_count": 0,
+    "unannotated_top_weight_ns": 0,
+    "scope": "Only the exact original binary with matching recorded UUID is used. There is no rebuilt-image or function-byte-matching fallback."
+  },
+  "recorded_native_images": {
+    "81": {
+      "id": "81",
+      "name": "matrix-window-borrowed-benchmark-binary",
+      "UUID": "5841982D-F5C1-35FA-903D-66E7053B74CB",
+      "arch": "arm64",
+      "load-addr": "0x100958000",
+      "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-borrowed-benchmark-binary"
+    }
+  },
+  "aggregation": {
+    "self": "The first frame in each exported backtrace receives the complete sample count and weight.",
+    "inclusive_frame": "Each distinct loaded-image/name/PC location receives a stack's weight once.",
+    "inclusive_function": "Each distinct resolved loaded-image/function receives a stack's weight once; recursion is deduplicated after exact-image symbolication.",
+    "unknowns": "Unknown symbols remain identified by recorded image and PC. Unannotated frames are never assigned to the native image.",
+    "time": "Weights sum sampled CPU work across threads, not wall time. Inclusive totals overlap and must not be added as elapsed time."
+  },
+  "complete_data_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-data.json",
+  "complete_summary_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-cpu-lifecycle-profile-summary.json"
+}

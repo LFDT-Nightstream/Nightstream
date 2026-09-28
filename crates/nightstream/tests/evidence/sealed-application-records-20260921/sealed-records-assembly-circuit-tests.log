@@ -1,0 +1,12 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 36.54s
+     Running tests/assembly_circuits.rs (target/release/deps/assembly_circuits-c45f9fbad9c49c72)
+
+running 2 tests
+test another_rust_application_assembles_with_its_own_binding ... ok
+test independent_poseidon_assembly_preserves_selected_package_key_and_matrix_rows has been running for over 60 seconds
+test independent_poseidon_assembly_preserves_selected_package_key_and_matrix_rows ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 68.99s
+

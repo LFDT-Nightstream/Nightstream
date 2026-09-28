@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "source_bytes": 639035217,
+  "target_pid": 74135,
+  "scope": "Summed Time Profiler sample weights across target threads; not wall time.",
+  "total_xml_rows": 2723146,
+  "target_sample_count": 2723146,
+  "target_weight_ns": 2723146000000,
+  "backtrace_sample_count": 2722878,
+  "backtrace_weight_ns": 2722878000000,
+  "sentinel_sample_count": 268,
+  "sentinel_weight_ns": 268000000,
+  "retained_descriptor_counts": {
+    "processes": 1,
+    "weights": 1,
+    "binaries": 11,
+    "frames": 8188,
+    "backtraces": 118752,
+    "sample_times": 0
+  },
+  "aggregation": {
+    "self": "The first frame in each exported backtrace receives that stack's complete sample count and weight.",
+    "inclusive_frame": "Each distinct binary/name/PC location receives the stack weight once.",
+    "inclusive_function": "Each distinct resolved binary/function receives the stack weight once; recursive frames are deduplicated after symbolication.",
+    "unknowns": "A frame without a known symbol remains identified by its recorded binary and address. Unannotated frames are not assigned to the native image.",
+    "time": "CPU sample weights are summed across threads; inclusive totals overlap and must not be summed as elapsed time."
+  },
+  "symbolication": {
+    "native_binary": {
+      "id": "94",
+      "name": "nightstream-11c0cb8bc995e822",
+      "UUID": "ECABDF96-2098-359F-AFF1-73DE52EF49E5",
+      "arch": "arm64",
+      "load-addr": "0x102790000",
+      "path": "/Users/nijaar/starstream/Nightstream/target/release/deps/nightstream-11c0cb8bc995e822"
+    },
+    "uuid_confirmation": "Parent checked dwarfdump UUID against recorded binary 94 before this run.",
+    "command": [
+      "atos",
+      "-o",
+      "/Users/nijaar/starstream/Nightstream/target/release/deps/nightstream-11c0cb8bc995e822",
+      "-arch",
+      "arm64",
+      "-l",
+      "0x102790000",
+      "-f",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile-atos-addresses.txt"
+    ],
+    "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile-atos-addresses.txt",
+    "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile-atos-output.txt",
+    "unique_native_addresses": 6880,
+    "native_frames_with_exported_symbols": 12,
+    "native_frames_resolved_by_atos": 12,
+    "atos_seconds": null,
+    "used_saved_atos_output": true,
+    "unknown_top_sample_count": 2700553,
+    "unknown_top_weight_ns": 2700553000000,
+    "unannotated_top_sample_count": 2,
+    "unannotated_top_weight_ns": 2000000
+  },
+  "symbol_artifact_limits": {
+    "evidence_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile-symbol-evidence.json",
+    "search_scope": "Existing target and private run files, plus the Spotlight UUID query. No build, capture, dSYM generation, or object-to-PC inference.",
+    "matching_dsym_images": 0,
+    "release_nightstream_loose_objects": [],
+    "native_resolved_functions": [
+      "DYLD-STUB$$bzero",
+      "DYLD-STUB$$free",
+      "DYLD-STUB$$malloc",
+      "DYLD-STUB$$memcmp",
+      "DYLD-STUB$$memcpy",
+      "DYLD-STUB$$realloc"
+    ],
+    "source_attribution": "The captured release image has no resolved Rust function names. Its native names are DYLD-STUB labels. Unknown PCs are not assigned to source functions.",
+    "recovery_condition": "An exact unstripped image, matching-UUID dSYM, or post-LTO objects with the final link map could supply names. The inspected artifacts provide none of these mappings; other profiling-profile objects and input rlibs do not establish this PC mapping."
+  },
+  "full_summary_private_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/optimized-terminal-file-profile-summary.json",
+  "captured_native_image": {
+    "id": "94",
+    "name": "nightstream-11c0cb8bc995e822",
+    "UUID": "ECABDF96-2098-359F-AFF1-73DE52EF49E5",
+    "arch": "arm64",
+    "load-addr": "0x102790000",
+    "path": "/Users/nijaar/starstream/Nightstream/target/release/deps/nightstream-11c0cb8bc995e822"
+  }
+}

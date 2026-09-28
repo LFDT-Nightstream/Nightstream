@@ -23,7 +23,7 @@ fn seeded_registry_rejects_mismatched_seed_on_loaded_pp() {
 fn unseeded_registry_refuses_to_unload() {
     let d = neo_math::D;
     let kappa = 2;
-    let m = 8;
+    let m = 9;
 
     let mut rng = rand::rngs::StdRng::from_seed([1u8; 32]);
     let pp = setup(&mut rng, d, kappa, m).expect("setup");

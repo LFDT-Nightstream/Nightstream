@@ -1,7 +1,7 @@
 use neo_math::{Fq, K};
 use neo_reductions::sumcheck::{
-    poly_eval_k, run_batched_sumcheck_prover, run_sumcheck_prover, verify_batched_sumcheck_rounds,
-    verify_sumcheck_rounds, BatchedClaim, RoundOracle,
+    interpolate_from_evals, poly_eval_k, poly_eval_k_base, run_batched_sumcheck_prover, run_sumcheck_prover,
+    verify_batched_sumcheck_rounds, verify_sumcheck_rounds, BatchedClaim, RoundOracle, SumcheckError,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -148,6 +148,71 @@ fn run_sumcheck_prover_round_trip() {
 
     let expected_final = poly_eval_k(&coeffs, challenges[0]);
     assert_eq!(final_sum, expected_final);
+}
+
+#[test]
+fn polynomial_helpers_match_base_field_and_interpolation() {
+    let coeffs = [
+        K::from(Fq::from_u64(3)),
+        K::from(Fq::from_u64(2)),
+        K::from(Fq::from_u64(5)),
+    ];
+    let x = Fq::from_u64(7);
+    assert_eq!(poly_eval_k(&coeffs, K::from(x)), K::from(Fq::from_u64(262)));
+    assert_eq!(poly_eval_k_base(&coeffs, x), poly_eval_k(&coeffs, K::from(x)));
+    assert_eq!(poly_eval_k(&[], K::from(x)), K::ZERO);
+
+    let xs = [K::ZERO, K::ONE, K::from(Fq::from_u64(2))];
+    let ys = [
+        K::from(Fq::from_u64(1)),
+        K::from(Fq::from_u64(6)),
+        K::from(Fq::from_u64(17)),
+    ];
+    let interpolated = interpolate_from_evals(&xs, &ys);
+    for (&point, &expected) in xs.iter().zip(&ys) {
+        assert_eq!(poly_eval_k(&interpolated, point), expected);
+    }
+}
+
+#[test]
+fn verifier_rejects_tampered_round_polynomial() {
+    let coeffs = vec![K::from(Fq::from_u64(5))];
+    let initial_sum = K::from(Fq::from_u64(10));
+    let mut oracle = DummyOracle {
+        coeffs,
+        rounds: 1,
+        degree: 1,
+    };
+    let mut prover_transcript = Poseidon2Transcript::new(b"sumcheck/prover/tamper");
+    let (mut round_polys, _) =
+        run_sumcheck_prover(&mut prover_transcript, &mut oracle, initial_sum).expect("honest round must be valid");
+    round_polys[0][0] += K::ONE;
+
+    let mut verifier_transcript = Poseidon2Transcript::new(b"sumcheck/prover/tamper");
+    let (_, _, valid) = verify_sumcheck_rounds(&mut verifier_transcript, 1, initial_sum, &round_polys);
+    assert!(!valid, "the verifier must reject a changed round polynomial");
+}
+
+#[test]
+fn verifier_rejects_round_above_degree_bound() {
+    let round_poly = vec![K::ONE, K::from(Fq::from_u64(2)), K::from(Fq::from_u64(3))];
+    let initial_sum = poly_eval_k(&round_poly, K::ZERO) + poly_eval_k(&round_poly, K::ONE);
+    let mut transcript = Poseidon2Transcript::new(b"sumcheck/prover/degree");
+    let (_, _, valid) = verify_sumcheck_rounds(&mut transcript, 1, initial_sum, &[round_poly]);
+    assert!(!valid, "the verifier must reject a polynomial above the degree bound");
+}
+
+#[test]
+fn prover_rejects_wrong_initial_sum() {
+    let mut oracle = DummyOracle {
+        coeffs: vec![K::from(Fq::from_u64(5))],
+        rounds: 1,
+        degree: 1,
+    };
+    let mut transcript = Poseidon2Transcript::new(b"sumcheck/prover/wrong-initial-sum");
+    let error = run_sumcheck_prover(&mut transcript, &mut oracle, K::from(Fq::from_u64(999)))
+        .expect_err("the prover must reject an inconsistent initial sum");
+    assert!(matches!(error, SumcheckError::Invariant { round: 0, .. }));
 }
 
 #[test]

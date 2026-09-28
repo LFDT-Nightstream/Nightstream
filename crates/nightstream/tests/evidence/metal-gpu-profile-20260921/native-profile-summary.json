@@ -1,0 +1,181 @@
+{
+  "native_pid": 55664,
+  "recorder_exit": 0,
+  "recording_and_save_seconds": 749.9160652499995,
+  "time_cap_seconds": 1800,
+  "profiled_workload_seconds": 190.291429417,
+  "verified": true,
+  "same_inputs_identity_and_final_state_as_uninstrumented_run": true,
+  "sampled_peak_resident_bytes": 16854876160,
+  "memory_cap_bytes": 17179869184,
+  "rss_scope": "RSS sampled from the native target; this external observer does not report wait4 ru_maxrss. Profiling is diagnostic, not the uninstrumented acceptance benchmark.",
+  "target_gpu_active_seconds": 119.982026133,
+  "target_gpu_interval_rows": 779,
+  "groups": {
+    "nightstream.production_commitment": {
+      "intervals": 198,
+      "gpu_seconds": 60.776298836999985
+    },
+    "nightstream.pi_ccs.joint.openings": {
+      "intervals": 396,
+      "gpu_seconds": 39.77605871199997
+    },
+    "nightstream.pi_ccs.joint.round": {
+      "intervals": 57,
+      "gpu_seconds": 13.079419624999998
+    },
+    "nightstream.pi_ccs.joint.carried": {
+      "intervals": 7,
+      "gpu_seconds": 4.259482916
+    },
+    "nightstream.pi_ccs.joint.application": {
+      "intervals": 3,
+      "gpu_seconds": 0.986444167
+    },
+    "nightstream.pi_ccs.joint.assignment.fold": {
+      "intervals": 56,
+      "gpu_seconds": 0.9024352499999997
+    },
+    "nightstream.terminal.relation": {
+      "intervals": 1,
+      "gpu_seconds": 0.108688833
+    },
+    "nightstream.pi_ccs.joint.fold": {
+      "intervals": 56,
+      "gpu_seconds": 0.08430000099999997
+    },
+    "nightstream.pi_ccs.opening.weights": {
+      "intervals": 5,
+      "gpu_seconds": 0.008897792
+    }
+  },
+  "interval_note": "Intervals may combine several encoders; counts are not dispatch counts. Combined labels cannot split their time between kernels.",
+  "shader_timeline": {
+    "scope": "Native target 55664 only; Sample Duration is Instruments shader-timeline attribution, not an independent per-dispatch stopwatch.",
+    "shaders": {
+      "production_ajtai_partials": {
+        "intervals": 341,
+        "sample_seconds": 48.967269336
+      },
+      "dec_sparse_ring_partials": {
+        "intervals": 182,
+        "sample_seconds": 14.95476109
+      },
+      "joint_round_partials": {
+        "intervals": 90,
+        "sample_seconds": 8.826546254
+      },
+      "dec_add_geometric_ring_forms": {
+        "intervals": 100,
+        "sample_seconds": 7.639914796
+      },
+      "joint_carried_projection": {
+        "intervals": 5,
+        "sample_seconds": 3.713691917
+      },
+      "sumcheck_reduce_partials": {
+        "intervals": 531,
+        "sample_seconds": 1.50916461
+      },
+      "joint_fold_assignments": {
+        "intervals": 33,
+        "sample_seconds": 0.790698752
+      },
+      "joint_build_application_tables": {
+        "intervals": 2,
+        "sample_seconds": 0.642746751
+      },
+      "joint_fold_k_tables": {
+        "intervals": 458,
+        "sample_seconds": 0.585741583
+      },
+      "dec_build_ring_forms": {
+        "intervals": 45,
+        "sample_seconds": 0.549732711
+      },
+      "fe_weighted_row_table": {
+        "intervals": 2,
+        "sample_seconds": 0.434804167
+      },
+      "ajtai_reduce_columns": {
+        "intervals": 158,
+        "sample_seconds": 0.316643661
+      },
+      "dec_bar_ring_forms_in_place": {
+        "intervals": 49,
+        "sample_seconds": 0.202628498
+      },
+      "joint_fold_base_tables": {
+        "intervals": 350,
+        "sample_seconds": 0.136449257
+      },
+      "dec_sparse_ring_sum_chunks": {
+        "intervals": 42,
+        "sample_seconds": 0.035517591
+      },
+      "dec_build_row_weights": {
+        "intervals": 5,
+        "sample_seconds": 0.008310501
+      },
+      "dec_build_parallel_original_form_tiles": {
+        "intervals": 64,
+        "sample_seconds": 0.00653546
+      },
+      "dec_ring_reduce_phi81": {
+        "intervals": 39,
+        "sample_seconds": 0.003165753
+      },
+      "tensor_point_expand_k": {
+        "intervals": 198,
+        "sample_seconds": 0.001466268
+      },
+      "dec_build_parallel_original_forms": {
+        "intervals": 34,
+        "sample_seconds": 0.001180581
+      },
+      "dec_reduce_parallel_original_form_tiles": {
+        "intervals": 74,
+        "sample_seconds": 0.000970259
+      },
+      "joint_zero_words": {
+        "intervals": 1,
+        "sample_seconds": 0.000386125
+      },
+      "joint_selective_round_partials": {
+        "intervals": 10,
+        "sample_seconds": 4.467e-06
+      },
+      "fold_k_table": {
+        "intervals": 1,
+        "sample_seconds": 1e-09
+      }
+    }
+  },
+  "limiter_status": {
+    "status": "no_usable_limiter_values",
+    "high_level_counter_interval_rows": 0,
+    "registered_counter_definitions": 31,
+    "shader_timeline_rows_for_native_target": 2814,
+    "full_record_export": "Cancelled and replaced by a measured-range query.",
+    "range_export": "Cancelled after it still produced only an XML header. GPU interval and shader-timeline analysis completed independently. The saved trace is unchanged.",
+    "range": {
+      "start_ns": 147914206916,
+      "end_ns": 148623079500,
+      "duration_ns": 708872584,
+      "label": "nightstream.production_commitment:production_ajtai_partials & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns & ajtai_reduce_columns",
+      "authority": "Exact longest recorded native commitment interval; no invented capture duration.",
+      "replaces": "Full-recording gpu-counter-value export (PID62849), cancelled while still live after the time-range export capability was verified in Xcode27 release notes."
+    },
+    "claims_not_made": [
+      "occupancy",
+      "ALU utilization",
+      "memory bandwidth",
+      "register-spill rate"
+    ],
+    "future_work": "If a specific kernel change needs limiter evidence, inspect or export that data from the saved native trace. No additional capture was run in this slice."
+  },
+  "trace": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/metal-gpu-direct.trace",
+  "source_change": "Only encoder labels were added for the native capture. Arithmetic, protocol, profile, inputs and build features are unchanged.",
+  "source_base_at_archive": "469d12e2dc01a7cd236aaef86950f0708260041f",
+  "base_note": "The repository advanced to 469d12e2d during profiling. Earlier engine/storage work and the approved AGENTS.md cap are committed there. This slice leaves only encoder labels and profiling documentation/evidence as local changes."
+}

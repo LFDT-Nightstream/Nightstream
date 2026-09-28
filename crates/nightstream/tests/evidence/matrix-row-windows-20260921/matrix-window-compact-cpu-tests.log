@@ -1,0 +1,42 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 19.92s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 17 tests
+test engines::optimized_engine::cpu_oracle::application::tests::application_values_reject_a_budget_that_cannot_hold_a_pair ... ok
+test engines::optimized_engine::cpu_oracle::application::tests::zero_polynomial_needs_no_matrix_windows_and_source_errors_are_preserved ... ok
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_first_round_inner_norm_matches_lean ... ignored, Requires original sources.jsonl and lean-norm.json in the local fixture directory; run under the 300-second cap.
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::original_second_round_inner_norm_matches_lean ... ignored, Requires original sources.jsonl, lean-first-round.json and lean-second-norm.json; run under the 300-second cap.
+test engines::optimized_engine::cpu_oracle::application::tests::fresh_table_build_uses_existing_output_slices ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::encoded_prefix_folding_reuses_its_codes ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::openings_reuse_the_consumed_carrier_buffer ... ok
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::source_capture_rejects_malformed_records_even_outside_the_range ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::dense_prefix_folding_reuses_its_storage ... ok
+test superneo_eval::row_source::pattern_tests::repeated_patterns_share_storage_but_hash_collisions_do_not ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_table_has_no_flat_combined_witness ... ok
+test engines::optimized_engine::cpu_oracle::first_round_norm_tests::range_uses_absolute_weights_and_keeps_the_last_running_lane ... ok
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_rows_beyond_the_witness_carrier_are_retained ... ok
+test engines::optimized_engine::cpu_oracle::application::tests::pair_workers_match_serial_with_exact_payload_budgets ... ok
+test engines::optimized_engine::prefix::tests::encoded_prefix_matches_dense_folding_through_the_representation_change ... ok
+test engines::optimized_engine::cpu_oracle::application::tests::table_folds_match_serial_without_another_value_allocation ... ok
+test engines::optimized_engine::cpu_oracle::application::tests::fresh_application_replay_matches_retained_and_independent_rows ... ok
+
+test result: ok. 15 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/matrix_rows.rs (target/release/deps/matrix_rows-7705c6ced2d9b3c1)
+
+running 11 tests
+test changed_run_counts_cannot_grow_the_fill_allocation ... ok
+test changed_scalar_encoding_cannot_add_an_uncounted_dense_pattern ... ok
+test malformed_order_range_and_ignored_stop_are_not_workspace_failures ... ok
+test required_workspace_counts_once_and_matches_the_full_requested_window ... ok
+test supplied_workspace_includes_construction_counts_and_reserved_row_values ... ok
+test zero_openings_skip_rows_only_after_point_and_witness_shape_checks ... ok
+test streamed_terminal_check_reports_failure_in_the_last_global_window ... ok
+test original_runs_preserve_global_columns_overlap_and_empty_slots_across_windows ... ok
+test borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients ... ok
+test scalar_runs_use_compact_entries_and_keep_geometric_runs_unexpanded ... ok
+test streamed_complete_openings_match_resident_with_global_imaginary_weights ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

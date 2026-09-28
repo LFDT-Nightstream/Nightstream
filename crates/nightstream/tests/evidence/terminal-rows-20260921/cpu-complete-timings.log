@@ -1,0 +1,14 @@
+
+running 1 test
+staged request=Base { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/complete-timings-cpu" }
+staged circuit preparation elapsed=34.835058417s
+complete child commitments elapsed=12.292µs
+complete physical witness elapsed=1.109694959s
+complete logical packing elapsed=2.654261958s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+complete fresh commitment elapsed=97.416019959s
+staged phase passed elapsed=136.227411208s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 136.23s
+

@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "reviewer": "/root/review_linear_security_contract",
+  "reviewed_at_utc": "2026-09-13T10:27:19.903283+00:00",
+  "review_kind": "Independent local source review; not controlled-checker approval",
+  "base_commit": "854327d91ca36412f957ac5becbde30bb117b715",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "source_sha256": {
+    "crates/neo-fold-clean/tests/nifs/stage1_terminal.rs": "eaa9ba257479c8e47b86119e6d7516809691da9f0c25f52254fb9f481203ae60",
+    "crates/neo-fold-clean/src/bin/generate_pi_ccs_fixture.rs": "9caf34d18d929008eaaa4184e55136e0c4cfd13a902dabf3f4d1dabcaeae2d65"
+  },
+  "unchanged_production_verifier": {
+    "path": "crates/neo-fold-clean/src/stage1/verify.rs",
+    "sha256": "ec5e2a2cb777f09351fcef01ccbc5e4e5a5b6520e29f71766c80dfc8655faf66"
+  },
+  "contract": "Separate mutation preparation from terminal rejection verification under the existing native cap, preserving the exact original mutation semantics, external endpoint, original child witnesses and full package verifier.",
+  "verdict": "pass",
+  "required_source_fixes": [],
+  "assessments": [
+    {
+      "name": "accepted path",
+      "outcome": "pass",
+      "reason": "check_against calls run with Action::Verify. The accepted branch, bottom/counter/external-state checks and intentional non-authoritative cache changes are unchanged. The new preparation and saved-verification wrappers both reject the accepted case."
+    },
+    {
+      "name": "mutation preparation",
+      "outcome": "pass",
+      "reason": "Action::SaveMutation follows the same existing mutation code as inline verification. The CE cases change child zero Eval_K[0] or Eval_A[0][0], recompute the terminal state hash/public prefix, update fresh Z public coordinates and recommit the complete fresh Z. The fresh-private case changes the first private signed-unit coordinate and recommits it. The sixteen original child matrices are not changed."
+    },
+    {
+      "name": "saved boundary",
+      "outcome": "pass",
+      "reason": "Preparation requires a fresh output directory and writes only envelope.json, fresh-claim.json and fresh-witness.json. It returns after an explicit verification=pending marker. The saved envelope contains data, not a trusted pass flag; parent and redundant w caches are omitted. Saved verification reloads complete typed Z and claims with the supplied original child matrices and checks the same independent Lean endpoint."
+    },
+    {
+      "name": "full verification and error assertions",
+      "outcome": "pass",
+      "reason": "Action::VerifySaved skips only a second mutation and its commitment preparation. It constructs Stage1Envelope::from_parts and unconditionally calls package.verify against the external expected state. The exact child-zero Eval_K and Eval_A VerifyError reasons remain required; fresh-private must return FreshRelation. Verification success, an earlier shape/commitment/public failure, or a mismatched CE case cannot satisfy those assertions."
+    },
+    {
+      "name": "CLI and ownership",
+      "outcome": "pass",
+      "reason": "The two new CLI routes pass the case, input envelope directory, original child directory, independent Lean fixture and fresh output path to the appropriate test helper. Action remains private. No production protocol API, package verifier, profile, transcript, hash rule, feature or environment variable changes."
+    }
+  ],
+  "prior_execution_context": {
+    "attribution": "Root-reported executions; the accepted log was inspected, not rerun.",
+    "iteration3_accepted": {
+      "log": "/tmp/nightstream-baseline-nonzero-terminal-accepted-1.log",
+      "sha256": "038e39eb7237e178171b2d085d39d817558a3fc9328a12dac32dd6fefc5e02f4",
+      "outcome": "passed",
+      "elapsed_seconds": 298.2089933640091,
+      "cap_seconds": 300
+    },
+    "complete_later_envelope_seconds_reported_by_root": 187.049,
+    "full_rows_seconds_reported_by_root": 36.08,
+    "reason_for_staging": "The prior accepted invocation used 298.209 seconds of the 300-second cap. The old mutation cases also require commitment preparation; the split removes that work from the rejection-verification invocation without removing a verifier check."
+  },
+  "pending_execution": "Each exact prepared mutation still needs its separate successful preparation and saved-input rejection logs. This source review does not assert that those new runs pass or fit the cap.",
+  "scope_limits": [
+    "Prepared input identity and original child-directory selection must remain recorded in the execution evidence.",
+    "Later public active execution and the positive public draft are outside this source review.",
+    "No full baseline, external upload/authentication, production backend or universal Rust claim.",
+    "No builds, tests, repository edits or new verification runs were performed by this reviewer."
+  ]
+}

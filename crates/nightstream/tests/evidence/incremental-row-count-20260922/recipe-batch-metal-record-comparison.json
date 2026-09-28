@@ -1,0 +1,7 @@
+{
+  "outcome": "passed",
+  "complete_start_records_equal": true,
+  "complete_finish_records_equal_except_seconds": true,
+  "reference": "incremental-count-metal-benchmark.log",
+  "actual": "recipe-batch-metal-benchmark.log"
+}

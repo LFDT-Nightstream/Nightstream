@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "source_commit": "b141ce1e677bd7ada72388330e7cc38d2de8534b",
+  "source_changes": [
+    " M crates/neo-prover-metal/build.rs",
+    " M crates/neo-prover-metal/shaders/goldilocks.metal",
+    " M crates/neo-prover-metal/shaders/joint.metal",
+    " M crates/neo-prover-metal/src/lib.rs",
+    " M crates/neo-prover-metal/src/session.rs",
+    " M crates/neo-prover-metal/src/session/joint.rs",
+    " M crates/neo-prover-metal/src/session/masks.rs",
+    " M crates/neo-prover-metal/tests/unit/joint_buffers.rs",
+    " M crates/nightstream/VALIDATION.md",
+    "?? crates/neo-prover-metal/shaders/assignments.metal",
+    "?? crates/neo-prover-metal/shaders/carried.metal",
+    "?? crates/neo-prover-metal/src/session/joint/assignments.rs",
+    "?? crates/neo-prover-metal/tests/unit/buffer_limit.rs",
+    "?? crates/neo-prover-metal/tests/unit/carried_projection.rs",
+    "?? crates/neo-prover-metal/tests/unit/joint_assignments.rs",
+    "?? crates/nightstream/tests/evidence/metal-recovery-20260921/"
+  ],
+  "command": [
+    "/Users/nijaar/starstream/Nightstream/target/release/deps/nightstream-11c0cb8bc995e822",
+    "lifecycle::tests::staged::run_phase",
+    "--ignored",
+    "--exact",
+    "--nocapture"
+  ],
+  "request": {
+    "phase": "ccs",
+    "directory": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/cpu-current",
+    "cpu_reference": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/cpu-reference",
+    "engine": "optimized",
+    "step": 1
+  },
+  "cap_seconds": 300,
+  "elapsed_seconds": 217.0306164579997,
+  "exit": 0,
+  "outcome": "passed",
+  "user_seconds": 302.500295,
+  "system_seconds": 3.9956719999999994,
+  "maximum_resident_bytes": 11892965376
+}

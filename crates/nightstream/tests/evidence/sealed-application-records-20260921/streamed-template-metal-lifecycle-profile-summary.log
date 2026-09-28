@@ -1,0 +1,292 @@
+Saved attribution receipt /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-attribution.json
+{
+  "schema": 1,
+  "source": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-samples.xml",
+  "source_bytes": 65318415,
+  "source_mtime_ns": 1790054501373630005,
+  "target_pid": 1066,
+  "expected_native_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+  "native_binary_ids": [
+    "80"
+  ],
+  "scope": "Summed Time Profiler sample weights across target threads; not wall time.",
+  "total_xml_rows": 238558,
+  "target_sample_count": 238558,
+  "target_weight_ns": 238558000000,
+  "backtrace_sample_count": 236328,
+  "backtrace_weight_ns": 236328000000,
+  "sentinel_sample_count": 2230,
+  "sentinel_weight_ns": 2230000000,
+  "other_missing_stack_sample_count": 0,
+  "other_missing_stack_weight_ns": 0,
+  "empty_backtrace_sample_count": 0,
+  "empty_backtrace_weight_ns": 0,
+  "first_inline_sample_time_ns": 686064875,
+  "last_inline_sample_time_ns": 277786066375,
+  "sample_time_reference_rows": 3145,
+  "weight_ns_distribution": {
+    "1000000": 238558
+  },
+  "all_processes": [
+    {
+      "pid": 1066,
+      "sample_count": 238558,
+      "weight_ns": 238558000000
+    }
+  ],
+  "processes": {
+    "4": {
+      "pid": 1066,
+      "label": "streamed-template-benchmark-binary (1066)"
+    }
+  },
+  "retained_descriptor_counts": {
+    "processes": 1,
+    "weights": 1,
+    "binaries": 23,
+    "frames": 6148,
+    "backtraces": 49041,
+    "sample_times": 0
+  },
+  "parse_seconds": 2.864889459000551,
+  "raw_data_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-data.json",
+  "aggregation": {
+    "self": "The first frame in each exported backtrace receives the complete sample count and weight.",
+    "inclusive_frame": "Each distinct loaded-image/name/PC location receives a stack's weight once.",
+    "inclusive_function": "Each distinct resolved loaded-image/function receives a stack's weight once; recursion is deduplicated after exact-image symbolication.",
+    "unknowns": "Unknown symbols remain identified by recorded image and PC. Unannotated frames are never assigned to the native image.",
+    "time": "Weights sum sampled CPU work across threads, not wall time. Inclusive totals overlap and must not be added as elapsed time."
+  },
+  "symbolication": {
+    "native_binary_ids": [
+      "80"
+    ],
+    "expected_uuid": "8B18A367-06BA-3915-8254-40C42C9C0620",
+    "exact_original_binary": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+    "binary_bytes": 19042304,
+    "binary_mtime_ns": 1790051950819568770,
+    "uuid_command": [
+      "xcrun",
+      "dwarfdump",
+      "--uuid",
+      "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary"
+    ],
+    "uuid_output": "UUID: 8B18A367-06BA-3915-8254-40C42C9C0620 (arm64) /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary\n",
+    "atos_runs": [
+      {
+        "binary_id": "80",
+        "command": [
+          "atos",
+          "-o",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-benchmark-binary",
+          "-arch",
+          "arm64",
+          "-l",
+          "0x100abc000",
+          "-f",
+          "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-addresses.txt"
+        ],
+        "address_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-addresses.txt",
+        "output_file": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-atos-80-output.txt",
+        "address_count": 5317,
+        "seconds": 0.09852420800598338
+      }
+    ],
+    "native_address_count": 5317,
+    "native_frames_with_exported_symbols": 5317,
+    "native_frames_resolved_by_atos": 5317,
+    "unknown_top_sample_count": 995,
+    "unknown_top_weight_ns": 995000000,
+    "unannotated_top_sample_count": 0,
+    "unannotated_top_weight_ns": 0,
+    "scope": "Only the exact original binary with matching recorded UUID is used. There is no rebuilt-image or function-byte-matching fallback."
+  },
+  "binary_totals": [
+    {
+      "image_key": "[\"8B18A367-06BA-3915-8254-40C42C9C0620\", \"arm64\", \"0x100abc000\"]",
+      "binary": "streamed-template-benchmark-binary",
+      "self_sample_count": 213833,
+      "self_weight_ns": 213833000000,
+      "inclusive_sample_count": 236136,
+      "inclusive_weight_ns": 236136000000
+    },
+    {
+      "image_key": "[\"D969A907-3E43-3951-9365-8C2DB3812E9D\", \"arm64e\", \"0x181879000\"]",
+      "binary": "libsystem_malloc.dylib",
+      "self_sample_count": 8746,
+      "self_weight_ns": 8746000000,
+      "inclusive_sample_count": 9845,
+      "inclusive_weight_ns": 9845000000
+    },
+    {
+      "image_key": "[\"C6A4A4CB-92E6-3BAF-AAE0-E8306259209A\", \"arm64e\", \"0x181a43000\"]",
+      "binary": "libsystem_kernel.dylib",
+      "self_sample_count": 6923,
+      "self_weight_ns": 6923000000,
+      "inclusive_sample_count": 6923,
+      "inclusive_weight_ns": 6923000000
+    },
+    {
+      "image_key": "[\"EDB83A19-EC17-32DE-9350-6145970A85D6\", \"arm64e\", \"0x181a8e000\"]",
+      "binary": "libsystem_platform.dylib",
+      "self_sample_count": 6532,
+      "self_weight_ns": 6532000000,
+      "inclusive_sample_count": 6532,
+      "inclusive_weight_ns": 6532000000
+    },
+    {
+      "image_key": "[\"12372585-DF92-33EF-B632-714FAA13260A\", \"arm64e\", \"0x185de6000\"]",
+      "binary": "IOKit",
+      "self_sample_count": 237,
+      "self_weight_ns": 237000000,
+      "inclusive_sample_count": 262,
+      "inclusive_weight_ns": 262000000
+    },
+    {
+      "image_key": "[\"A373F0B0-9880-326A-88B4-DD8BE4E33072\", \"arm64e\", \"0x181a81000\"]",
+      "binary": "libsystem_pthread.dylib",
+      "self_sample_count": 24,
+      "self_weight_ns": 24000000,
+      "inclusive_sample_count": 62801,
+      "inclusive_weight_ns": 62801000000
+    },
+    {
+      "image_key": "[\"03BD9E32-CF0A-37B0-898A-3CE8DE06D842\", \"arm64e\", \"0x181614000\"]",
+      "binary": "libobjc.A.dylib",
+      "self_sample_count": 9,
+      "self_weight_ns": 9000000,
+      "inclusive_sample_count": 13,
+      "inclusive_weight_ns": 13000000
+    },
+    {
+      "image_key": "[\"9B672762-7B1F-30BC-96DE-F176B372D66D\", \"arm64e\", \"0x181ac7000\"]",
+      "binary": "CoreFoundation",
+      "self_sample_count": 6,
+      "self_weight_ns": 6000000,
+      "inclusive_sample_count": 99,
+      "inclusive_weight_ns": 99000000
+    },
+    {
+      "image_key": "[\"74E52480-C2BD-3C8D-812D-95FE2B74A096\", \"arm64e\", \"0x18169c000\"]",
+      "binary": "dyld",
+      "self_sample_count": 4,
+      "self_weight_ns": 4000000,
+      "inclusive_sample_count": 173531,
+      "inclusive_weight_ns": 173531000000
+    },
+    {
+      "image_key": "[\"E368C402-9A93-35F5-AE47-B1E561825A06\", \"arm64e\", \"0x107bc0000\"]",
+      "binary": "AGXMetalG13X",
+      "self_sample_count": 4,
+      "self_weight_ns": 4000000,
+      "inclusive_sample_count": 131,
+      "inclusive_weight_ns": 131000000
+    },
+    {
+      "image_key": "[\"B2000CD5-F580-314A-A141-E036719D854E\", \"arm64e\", \"0x1818ca000\"]",
+      "binary": "libdispatch.dylib",
+      "self_sample_count": 3,
+      "self_weight_ns": 3000000,
+      "inclusive_sample_count": 179,
+      "inclusive_weight_ns": 179000000
+    },
+    {
+      "image_key": "[\"D77CEB62-AFF6-3CEC-BA9B-4F057FBE2EB5\", \"arm64e\", \"0x181915000\"]",
+      "binary": "libsystem_c.dylib",
+      "self_sample_count": 3,
+      "self_weight_ns": 3000000,
+      "inclusive_sample_count": 4,
+      "inclusive_weight_ns": 4000000
+    },
+    {
+      "image_key": "[\"957F93B3-8805-39C7-9C51-EDD1715F550E\", \"arm64e\", \"0x181667000\"]",
+      "binary": "libdyld.dylib",
+      "self_sample_count": 2,
+      "self_weight_ns": 2000000,
+      "inclusive_sample_count": 4,
+      "inclusive_weight_ns": 4000000
+    },
+    {
+      "image_key": "[\"493E76D9-74D4-333B-A3B2-E5F9BC86429D\", \"arm64e\", \"0x18e0fc000\"]",
+      "binary": "Metal",
+      "self_sample_count": 1,
+      "self_weight_ns": 1000000,
+      "inclusive_sample_count": 176,
+      "inclusive_weight_ns": 176000000
+    },
+    {
+      "image_key": "[\"9235E8EC-599D-386F-8A8A-6B6A92D33369\", \"arm64e\", \"0x1a7126000\"]",
+      "binary": "IOGPU",
+      "self_sample_count": 1,
+      "self_weight_ns": 1000000,
+      "inclusive_sample_count": 279,
+      "inclusive_weight_ns": 279000000
+    },
+    {
+      "image_key": "[\"4FED5EE2-5D3E-35B1-A170-9859C4B683BB\", \"arm64e\", \"0x1918e2000\"]",
+      "binary": "libSystem.B.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 1,
+      "inclusive_weight_ns": 1000000
+    },
+    {
+      "image_key": "[\"5556FD64-9D47-3547-961E-3A27681F3C51\", \"arm64e\", \"0x18e0d4000\"]",
+      "binary": "IOSurface",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 5,
+      "inclusive_weight_ns": 5000000
+    },
+    {
+      "image_key": "[\"91DACE39-FA28-3191-818D-1FCC6A0E615A\", \"arm64e\", \"0x183336000\"]",
+      "binary": "Foundation",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 7,
+      "inclusive_weight_ns": 7000000
+    },
+    {
+      "image_key": "[\"93F1DD8C-6CD9-32B9-B222-D23DA5D161B4\", \"arm64e\", \"0x1817a9000\"]",
+      "binary": "libsystem_trace.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 1,
+      "inclusive_weight_ns": 1000000
+    },
+    {
+      "image_key": "[\"33E44C2D-D65E-37A6-B85F-1A4CF524A050\", \"arm64e\", \"0x181754000\"]",
+      "binary": "libxpc.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 2,
+      "inclusive_weight_ns": 2000000
+    },
+    {
+      "image_key": "[\"D614ADAF-EEDD-3492-AEEB-7D03558D419C\", \"arm64e\", \"0x1881bd000\"]",
+      "binary": "libMobileGestalt.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 1,
+      "inclusive_weight_ns": 1000000
+    },
+    {
+      "image_key": "[\"2C410B78-B9A5-30DC-8D83-FFEC1277F34C\", \"arm64e\", \"0x2277c7000\"]",
+      "binary": "libCoreFSCache.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 1,
+      "inclusive_weight_ns": 1000000
+    },
+    {
+      "image_key": "[\"F0FD393C-15BC-3C75-A19D-897F7B225C78\", \"arm64e\", \"0x181997000\"]",
+      "binary": "libc++.1.dylib",
+      "self_sample_count": 0,
+      "self_weight_ns": 0,
+      "inclusive_sample_count": 1,
+      "inclusive_weight_ns": 1000000
+    }
+  ],
+  "summary_seconds": 0.7544716249976773
+}
+Saved /Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/streamed-template-metal-lifecycle-profile-summary.json

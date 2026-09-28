@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "source_base_commit": "7e860d2392667ef43fb9b5ffd410dbb46590d7a5",
+  "runtime_commit": "a6f47234088e5b35c7a5b1b336db6372f797d998",
+  "goal": "fresh-recursive-loop",
+  "status": "proved equality; all output bytes equal; static, build, axioms and identity passed in order",
+  "theorem": "NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec",
+  "consumer": "NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange.sum_value",
+  "changes": [
+    "Native word accumulation uses existing proved Goldilocks operations.",
+    "Construct the same parent reader before specializing each selected evaluator; pass the child index across runtime dispatch."
+  ],
+  "scope": "One matched original-parent sample per row kind. Every output byte compared; not a full-loop speedup. Existing original parent is benchmark input only, not a fresh-loop intermediate.",
+  "ranges": [
+    {
+      "block": 4,
+      "rows": [
+        0,
+        1330
+      ],
+      "before_seconds": 8.004967287,
+      "after_seconds": 4.409114283,
+      "reduction_percent": 44.92027106518768
+    },
+    {
+      "block": 10,
+      "rows": [
+        842724,
+        850068
+      ],
+      "before_seconds": 21.871128344,
+      "after_seconds": 4.775550831,
+      "reduction_percent": 78.16504591858381
+    },
+    {
+      "block": 1,
+      "rows": [
+        0,
+        94
+      ],
+      "before_seconds": 0.209314823,
+      "after_seconds": 0.115798854,
+      "reduction_percent": 44.67718418585195
+    }
+  ],
+  "combined_sparse_rows": {
+    "before_seconds": 29.876095631,
+    "after_seconds": 9.184665114000001,
+    "reduction_percent": 69.25747852918967
+  },
+  "outputs": [
+    {
+      "block": 4,
+      "bytes": 120539,
+      "sha256": "88c13a61f26930993e3a66156e9f5df64c82cd7e43130fcb53806d5b7aad65b1"
+    },
+    {
+      "block": 10,
+      "bytes": 215167,
+      "sha256": "03d949cc1b18955ddc8770601266949ee5e753317fd7d2e2233c442f53adc62d"
+    },
+    {
+      "block": 1,
+      "bytes": 106898,
+      "sha256": "1452163cd7233aaf4af56904f40d52fb5e5a14b5699eaed88a15c984cd6630ec"
+    }
+  ],
+  "matrix_field_words": 72576,
+  "peak_rss_kib": {
+    "baseline_two_ranges": 3463188,
+    "baseline_poseidon": 2265284,
+    "optimized_three_ranges": 3470116
+  },
+  "parent_load_seconds": {
+    "baseline_two_ranges": 73.010164426,
+    "optimized_three_ranges": 92.008730329
+  },
+  "profile": {
+    "apply_1_slow_percent": 36.68,
+    "dec_ref_cold_percent": 33.68,
+    "scope": "Sampled user CPU after shared input load with native accumulator before static reader construction."
+  },
+  "source_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECNativeSparseEvaluation.lean": "d20ab70ce64b45b619a25370be011a8748cc45a1f0007b18aa95b84c2e153ee8",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECMatrixSparseRange.lean": "2a0f5363997a454b0b969d6ceeaef965116590e97bb6ff2a7b7ac1dad9178ee6",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECMatrixReplayMain.lean": "c064808678e874d805cba356509e2eb3c9c89ea963a1a0e7ac1f7c1c4ab3f16d",
+    "formal/nightstream-fprime/tests/AxiomsStage1PiDEC.lean": "ab48179c2bfe8ee4d971bf6ccfe748a452ab6fcf03a694628015a035e97dd028"
+  },
+  "evidence": {
+    "proof-4.log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/proof-4.log",
+      "bytes": 534,
+      "sha256": "0e78dff7ed913ab53dd012e06da5cabe2ae8c999571f727f4edbbd549a9b1746"
+    },
+    "build-1.log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/build-1.log",
+      "bytes": 126600,
+      "sha256": "b7122f01de8ca866494db0f8897b68d92709bcc086ee399f7a815da4ac46ac81"
+    },
+    "comparison.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/comparison.json",
+      "bytes": 48878,
+      "sha256": "d3addf0bb338fb4ed7711970317491c0799791ede481b1810461fd5ec0826da9"
+    },
+    "static-reader-comparison.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/static-reader-comparison.json",
+      "bytes": 43776,
+      "sha256": "b50bede0ab48596f5844e1552a52d027917f830854c1b5f9b0529c845de81e89"
+    },
+    "generated-loop-check.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/generated-loop-check.json",
+      "bytes": 934,
+      "sha256": "4e9b51dbf580319f5ac7712d00d159ce22bf318cd9e7083e151da1ddba3b93c8"
+    },
+    "compute-profile.txt": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/compute-profile.txt",
+      "bytes": 67939,
+      "sha256": "1a156e6f1403f0662eda4c0d3949eb8abdffadd764bc5ba5aa6036a7a2096205"
+    },
+    "before-command.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/before-command.json",
+      "bytes": 5391,
+      "sha256": "7eebf027da606d43c4dc936cbef3d1c65ce2ede2fbb266db924802d514a87ce9"
+    },
+    "poseidon-before-command.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/poseidon-before-command.json",
+      "bytes": 5238,
+      "sha256": "e73d39e98aad61b1b9bb732d14863fefe5d2b54b296ce351db3ee66c3fb7d8a2"
+    },
+    "static-reader-command.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/static-reader-command.json",
+      "bytes": 5520,
+      "sha256": "5e6a7fe7843737a9fa2a383b7891e6ebc1ae87a530d2c9fd6b76bcdcb97e6bcd"
+    }
+  },
+  "input_authority": "Existing PIDEC_MATRIX_RANGES.json commands and outputs; original full Lean PiRLC parent and Lean-verified C execution. All parent paths are named in the commands.",
+  "review": "Independent source review passed; no stronger premise or changed row/input/slice behavior.",
+  "gates": {
+    "static": {
+      "elapsed_seconds": 10.579046186059713,
+      "exit": 0,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/static.log",
+        "sha256": "895980503bfe242b903de9073afb408600f5c7e8762fb989a7459ed0d87ced34"
+      }
+    },
+    "build": {
+      "elapsed_seconds": 7.479962901910767,
+      "exit": 0,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/build.log",
+        "sha256": "8ce15d56869c520aa80829df3eeeafe7b7424e25670009bb8815bac1260df065"
+      }
+    },
+    "axioms": {
+      "elapsed_seconds": 13.387989679118618,
+      "exit": 0,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/axioms.log",
+        "sha256": "f3e3cd8001c66b2457912cdb9a06cb9ae9285e449aa908a525aa168eba5ee3b3"
+      }
+    },
+    "identity": {
+      "elapsed_seconds": 90.51117743900977,
+      "exit": 0,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/recursive-loop-6c3c8c0f.d84yc9ll/native-sparse-evaluation/identity.log",
+        "sha256": "7151bdf4f8d24ec12d855b4e171410f7887bb6ab7941c893a1b1c85ac8f10c2b"
+      }
+    }
+  }
+}

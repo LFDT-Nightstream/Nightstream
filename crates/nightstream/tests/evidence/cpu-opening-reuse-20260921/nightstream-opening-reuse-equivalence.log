@@ -1,0 +1,31 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 13.68s
+     Running tests/superneo_eval_equivalence.rs (target/release/deps/superneo_eval_equivalence-6ad36238fac15af8)
+
+running 23 tests
+test column_mask_witness_blocks_match_row_major_signed_unit_blocks ... ok
+test compact_relation_authority_checks_padded_width_and_real_assignment ... ok
+test cached_superneo_eval_supports_nondivisible_width ... ok
+test compact_row_offsets_use_exact_u16_chunk_bases ... ok
+test cached_superneo_eval_keeps_imaginary_only_blocks ... ok
+test repeated_dense_ring_patterns_share_one_compact_dictionary_entry ... ok
+test ring_linear_forms_pair_digit_fast_path_matches_ring_eval ... ok
+test cached_superneo_ring_real_z_blocks_match_scalar_eval ... ok
+test cached_superneo_ring_linear_forms_match_ring_eval_for_real_witnesses ... ok
+test transformed_eval_matches_direct_eval_for_identity_sentinel ... ok
+test transformed_eval_matches_direct_eval_for_sparse_mats ... ok
+test compact_relation_authority_matches_exact_rowwise_ccs_satisfaction ... ok
+test weighted_cache_coefficients_match_monomial_shift_dot ... ok
+test geometric_rows_match_expanded_csc_in_direct_cached_and_transformed_evaluation ... ok
+test weighted_identity_projection_matches_ring_formula ... ok
+test cached_superneo_eval_matches_direct_eval_for_sparse_mats ... ok
+test weighted_matrix_cache_matches_direct_weighted_ring_rows_for_complex_witness ... ok
+test cached_superneo_ring_constant_term_matches_scalar_eval ... ok
+test weighted_row_table_supports_more_rows_than_columns_without_identity ... ok
+test weighted_row_table_matches_direct_weighted_rows_for_complex_witness ... ok
+test seeded_phi81_cache_matches_expanded_matrix_on_every_evaluation_surface ... ok
+test cached_superneo_linear_forms_match_base_row_evals ... ok
+test ring_linear_forms_chunked_parallel_matches_serial_above_threshold ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.14s
+

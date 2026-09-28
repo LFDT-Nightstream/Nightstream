@@ -1,0 +1,55 @@
+{
+  "compile_events": [
+    {
+      "benchmark": "poseidon2_hash_chain_v1",
+      "event": "package_compile_started",
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-poseidon2.nsc",
+      "profile": {
+        "B": 65536,
+        "b": 2,
+        "k_rho": 16
+      },
+      "schema": 2
+    },
+    {
+      "event": "phase_started",
+      "phase": "compile",
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "compile",
+      "seconds": 34.857374625,
+      "step": null
+    },
+    {
+      "event": "phase_started",
+      "phase": "save",
+      "step": null
+    },
+    {
+      "event": "phase_finished",
+      "phase": "save",
+      "seconds": 0.133257583,
+      "step": null
+    },
+    {
+      "circuit_identity": [
+        9705822157724451396,
+        520958727644325895,
+        9285622073986934000,
+        874020794279380938
+      ],
+      "event": "package_compile_finished",
+      "output": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-poseidon2.nsc",
+      "saved": true,
+      "schema": 2,
+      "seconds": 34.990792209
+    }
+  ],
+  "package_bytes": 127306104,
+  "same_entire_package_bytes_as_pre_guard": true,
+  "comparison": "cmp prepared-poseidon2.nsc bounded-poseidon2.nsc; exit 0 before final raw Metal run",
+  "compile_rss_measurement": "See time file: command-tree ru_maxrss; other time fields describe timeout wrapper, not native workload",
+  "image_uuid": "7DCAD994-817D-33E5-95BB-666FA9543762"
+}

@@ -1,0 +1,239 @@
+{
+  "schema": 1,
+  "milestone": "Selected independent HyperNova replay closure",
+  "source_commit": "f7f3ef8236fe4e4b80719d41639ed88d9a69ce12",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "status": "Complete local selected replay: next state, full fresh assignment and commitment, composed proof bytes, and audited source/kernel links. External acceptance remains pending by owner choice.",
+  "scope": "The recorded nonzero recursive step from iteration 2 to 3, composed from independent C/R/D computations. This is selected-run execution and kernel refinement, not universal Rust correctness or production-backend approval.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "sources": 17,
+    "children": 16,
+    "PiCCS_rounds": 28,
+    "matrix_ports": 14,
+    "Nebula": "inactive",
+    "auxiliary_commitments": "None"
+  },
+  "owner_decision": {
+    "instruction": "Leave external approval pending (Recommended)",
+    "effect": "Do not add acceptance infrastructure or block the local HyperNova replay on its absence."
+  },
+  "input_connection": {
+    "event": "hypernova_original_input_continuity_passed",
+    "PiCCS_to_PiRLC_complete_bytes": 657063,
+    "PiCCS_to_HyperNova_complete_bytes": 657063,
+    "producer_inputs": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-matrix-support-64be502c.3ztile7e/independent-ccs-input.json",
+        "bytes": 657063,
+        "sha256": "705fcc6c85eaf6aea70b34147e32a6f9d359703e91c1496a411afa654bf140fc"
+      },
+      {
+        "path": "/tmp/nightstream-pidec-complete-commitments-1.json",
+        "bytes": 191688,
+        "sha256": "03302cc4ded51de09c0df2bf5fd70dd9981d82c94ccf6b0ab7c4f687cbeff94b"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-complete/nightstream-pidec-complete-evaluations-1.json",
+        "bytes": 242182,
+        "sha256": "c6e626bfe2ae741f097f78094bcd23267736c0b67e6c5937decf63f92733e50f"
+      },
+      {
+        "path": "/tmp/nightstream-native-nonzero-sources-1/next-message-input.json",
+        "bytes": 119,
+        "sha256": "f83ebbc1dc85cac908e07f8a2a6b5ea305118379d7c0b4f39c3738dc9fc30cbc"
+      }
+    ],
+    "fresh_witness_caller": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json",
+    "scope": "Full C bytes equal the actual earlier R/HN producer inputs. Manifest hashes check custody of unchanged D outputs and the original application state/message; they do not supply semantic authority."
+  },
+  "proof_links": {
+    "PiCCS_source": "LeanGraph.Targets.PiCCSAllRoundSourceCoefficients",
+    "next_state": "HyperNovaStepData.stepHolds_and_wellFormed",
+    "accepted_successor": "HyperNovaAcceptedNext.recursive_extend_of_sampler_success",
+    "selected_assignment": "SelectedAssignmentCompleteness.complete",
+    "physical_rows": "StoredPhysicalPlan.ofSources_rowsHold",
+    "row_workers": "StridedArrayAll.all_eq",
+    "logical_values": "CachedAssignmentProducts.rawValues_eq",
+    "logical_schedule": "CachedAssignmentPlan.expand_eq",
+    "canonical_assignment": [
+      "PerApplicationAssignmentPlan.execute_eq_assignment",
+      "PerApplicationAssignmentTransportExecution.canonical_execute_eq_assignment"
+    ],
+    "commitment": [
+      "FreshCommitmentBlock.accumulatePrepared_value",
+      "PiDECCommitmentFold.sum_value",
+      "PiDECCommitmentFold.sum_contributions_eq_ajtaiRow"
+    ],
+    "fresh_kernel_target": "LeanGraph.Targets.FreshWitnessKernels",
+    "fresh_kernel_witness": "LeanGraph.Targets.freshWitnessKernels"
+  },
+  "premises": {
+    "semantic_successor": "Accepted prior payload, actual sampler success, four-word application advice and canonical successor counter.",
+    "physical_checker": "Positive worker count and successful checks for all actual prepared row events and assertions.",
+    "kernel_geometry": "Existing stored-write, local-row and index bounds; prepared records carry their exact source identities.",
+    "scope": "These hypotheses are explicit in the existing theorems. They are not claims of unconditional validity for arbitrary caller files."
+  },
+  "registered_gates": [
+    "fresh-witness-kernel",
+    "independent-nifs-assembly",
+    "independent-fresh-witness"
+  ],
+  "PiCCS_dependency": "independent-fresh-witness -> independent-nifs-assembly -> piccs-original-complete-bytes -> piccs-all-rounds-comparison -> piccs-retained-prefix-kernel -> PiCCSAllRoundSourceCoefficients",
+  "coverage": {
+    "PiCCS_input": 657063,
+    "PiCCS_phase": 450952,
+    "PiCCS_proof_input_words": 29288,
+    "children": 446185,
+    "complete_C_R_D": 4722709,
+    "native_proof": 945983,
+    "recursive_caller": 1446131,
+    "private_caller_words": 177326,
+    "public_caller_words": 278,
+    "iteration": [
+      2,
+      3
+    ],
+    "all_point_and_transcript_links": "match",
+    "physical_rows": 29225729,
+    "physical_fields": 29344425,
+    "physical_bytes": 234755400,
+    "fresh_carrier_coefficients": 253011276,
+    "fresh_logical_coefficients": 253011231,
+    "zero_tail_coefficients": 45,
+    "fresh_commitment_coefficients": 1188,
+    "fresh_public_coefficients": 270,
+    "fresh_witness_bytes": 107246512,
+    "fresh_claim_bytes": 39448
+  },
+  "rejections": {
+    "native_D_mutations": 55,
+    "PiCCS_finish_cases": 21,
+    "PiDEC_finish_cases": 30,
+    "fresh_witness_cases": 26,
+    "changed_fresh_coefficient": "rejected",
+    "changed_fresh_commitment_target": "rejected",
+    "changed_PiCCS_round_targets": 28
+  },
+  "generation_reuse": {
+    "reason": "The independent C bytes equal the actual recorded R/HN inputs. All recorded producer and kernel sources are unchanged after applying the later physical-proof records. No repeated large scan is needed for this same selected execution.",
+    "source_files_checked": 56,
+    "unchanged_source_files": 54,
+    "changed_registration_files": [
+      "formal/nightstream-fprime/tests/EvidenceAcceptance.lean",
+      "scripts/lean_graph/obligations.json"
+    ],
+    "source_record": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/hypernova-closure-f7f3ef82.4nesvz_1/source-identity.json",
+      "bytes": 20192,
+      "sha256": "99237adeede3b8d845052d28d0f2ad8cc6ecbd410e63da2cfecc41dfe53eeeff"
+    },
+    "interpretation": "Changed registration files add the accepted all-round C target and current milestone descriptions. They do not change producer arithmetic or output bytes."
+  },
+  "current_checks": {
+    "input_continuity": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/hypernova-closure-f7f3ef82.4nesvz_1/input-continuity.log",
+      "bytes": 1606,
+      "sha256": "6048a4a86549fa729bad5e81c81a2d05bd0f908b8de1362ad08360caf9c973ac"
+    },
+    "fresh_metadata": {
+      "root": "LeanGraph.Targets.freshWitnessKernels",
+      "complete": true,
+      "nodes": 11022,
+      "result": {
+        "outcome": "passed",
+        "exit": 0,
+        "cap_seconds": 1500,
+        "elapsed_seconds": 16.38919273391366,
+        "command": [
+          "bash",
+          "scripts/validate.sh",
+          "file",
+          "../../scripts/lean_graph/FreshWitnessMetadata.lean"
+        ],
+        "cwd": "/home/nicoarq/develop/Nightstream/formal/nightstream-fprime",
+        "evidence": "development diagnostic only"
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/hypernova-closure-f7f3ef82.4nesvz_1/fresh-kernel-metadata.log",
+        "bytes": 81602303,
+        "sha256": "db4784b9bb5dfa61b02054775b9fa58d6d918ec450b744a80d4bcb30986b1c81"
+      }
+    },
+    "build_axioms_static_exact_target_and_graph": "All pass on source f7f3ef82; full details and log hashes are in PICCS_PREFIX_SOURCE_REPLAY.json. This checkpoint changes reports and gate descriptions only.",
+    "final_byte_comparisons": [
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/prefix-all28-comparison.log",
+        "bytes": 1108,
+        "sha256": "f7382b2c124195a610a41230b41dbcb7e33eb10966d16c097a38cde12711352d"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/prefix-final-complete-c-bytes.log",
+        "bytes": 1379,
+        "sha256": "cd679f16596e72a9cb9ee58f02f165f1f69e968637d677381af3b490b6ef9b5c"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/prefix-final-complete-nifs-caller-bytes.log",
+        "bytes": 1481,
+        "sha256": "911735f7e9076b7f888d57361c32e4b010919e7f414be85753e7399092ee40c8"
+      },
+      {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/prefix-final-witness-bytes.log",
+        "bytes": 1558,
+        "sha256": "82564d9d994b63e4b7e706e284e949e21e1bd3bf9efa62963b4562c620a4af65"
+      }
+    ],
+    "graph_tests": {
+      "tests": 85,
+      "outcome": "passed",
+      "exit": 0,
+      "cap_seconds": 300,
+      "elapsed_seconds": 5.972229337086901,
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/lean_graph/tests"
+      ],
+      "cwd": "/home/nicoarq/develop/Nightstream",
+      "evidence": "development diagnostic only",
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/hypernova-closure-f7f3ef82.4nesvz_1/graph-tests.log",
+        "bytes": 456,
+        "sha256": "169793d821bd9c0210b4aff6963f78ff10accad51404bae7dd6b1c77889e183e"
+      }
+    }
+  },
+  "review": {
+    "model": "GPT-6 xhigh",
+    "result": "No required local proof or selected-consumer gap found.",
+    "record": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/piccs-source-bridge-f9389081.vu6zrkpy/hypernova-closure-review.md",
+      "bytes": 5522,
+      "sha256": "eb393bf357fbbaa06437bf5ea10a2b2734e50b82908568ad8cd84a226133c875"
+    }
+  },
+  "upstream_records": [
+    "PIRLC_WITNESS_REPLAY.json",
+    "PIDEC_COMPLETE_REPLAY.json",
+    "PICCS_PREFIX_SOURCE_REPLAY.json",
+    "PICCS_COMPLETE_OUTPUT_REPLAY.json",
+    "INDEPENDENT_NIFS_CALLER_REPLAY.json",
+    "FRESH_WITNESS_REPLAY.json",
+    "COMPACT_WITNESS_EXECUTION.json",
+    "PHYSICAL_ROWS_REPLAY.json"
+  ],
+  "historical_notes": "Earlier reports retain their original open-Q and whole-physical-plan statements. The current source proofs and this closure record supersede those local gaps; the historical producer evidence is preserved.",
+  "release_url": "https://github.com/LFDT-Nightstream/Nightstream/releases/tag/stage1-replay-0a15c3b0",
+  "external_conditions": [
+    "Protected fresh-checkout acceptance is pending by owner choice.",
+    "The recorded execution is staged; it is not a new uninterrupted public extend run.",
+    "No universal IO/Rust proof or production-backend approval is claimed."
+  ],
+  "measurement_scope": "No new runtime benchmark. Reused runs retain their original source cuts, invocation times, peak memory and serial benchmark conditions.",
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/hypernova-closure-f7f3ef82.4nesvz_1"
+}

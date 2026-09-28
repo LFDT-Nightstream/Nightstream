@@ -1,0 +1,28 @@
+{
+  "source_commit": "1c09562d306af2fdb5a7de75dce78a7825c5aa7b",
+  "source_state": "uncommitted memory and engine review changes",
+  "nightstream_cpu_crosschecks": {
+    "passed": 6,
+    "seconds": 132.79
+  },
+  "saved_lean_poseidon2": {
+    "passed": 4,
+    "lean_rerun": false
+  },
+  "engine_selection": {
+    "passed": 2
+  },
+  "reductions_unit_and_row_source": {
+    "passed": 6,
+    "ignored": 2
+  },
+  "metal_tests_build": "passed, no default legacy-adapter feature",
+  "nightstream_all_targets_metal_cuda": "check passed",
+  "legacy_v1_1_parity": {
+    "passed": 7,
+    "failed": 8,
+    "reason": "unchanged digest-only transcript requires a running claim; failing fixtures provide none"
+  },
+  "gpu_runtime": "blocked; see result.json",
+  "full_lifecycle_speed_and_memory": "not established"
+}

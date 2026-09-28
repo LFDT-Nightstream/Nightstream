@@ -1,0 +1,30 @@
+{
+  "bounded-cpu-time-profile": {
+    "sample_export_bytes": 1664583709,
+    "sample_export_finished": true,
+    "sample_export_xml_closed": true,
+    "thermal_intervals": [
+      {
+        "start_nanoseconds": 0,
+        "duration_nanoseconds": 1256784620046,
+        "end_nanoseconds": 1256784620046,
+        "state": "Nominal",
+        "induced": false
+      }
+    ]
+  },
+  "bounded-metal-time-profile": {
+    "sample_export_bytes": 34650517,
+    "sample_export_finished": true,
+    "sample_export_xml_closed": true,
+    "thermal_intervals": [
+      {
+        "start_nanoseconds": 0,
+        "duration_nanoseconds": 165551724195,
+        "end_nanoseconds": 165551724195,
+        "state": "Nominal",
+        "induced": false
+      }
+    ]
+  }
+}

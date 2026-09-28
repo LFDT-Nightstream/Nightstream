@@ -1,0 +1,67 @@
+{
+  "loader_header": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/usr/include/mach-o/loader.h",
+  "loader_constants": {
+    "MH_MAGIC_64": 4277009103,
+    "LC_SEGMENT_64": 25,
+    "LC_UUID": 27
+  },
+  "layout_sizes": {
+    "mach_header_64": 32,
+    "segment_command_64": 72,
+    "section_64": 80
+  },
+  "captured_image": {
+    "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/cpu-terminal-profile-test-binary",
+    "file_bytes": 21811616,
+    "mtime_ns": 1790032181428203059,
+    "cpu_type": 16777228,
+    "cpu_subtype": 0,
+    "file_type": 2,
+    "load_command_count": 21,
+    "load_command_bytes": 2320,
+    "text_segment": {
+      "vmaddr": 4294967296,
+      "vmsize": 21512192,
+      "file_offset": 0,
+      "file_size": 21512192
+    },
+    "text_section": {
+      "vmaddr": 4294969704,
+      "file_offset": 2408,
+      "size": 2507316
+    },
+    "uuid": "ECABDF96-2098-359F-AFF1-73DE52EF49E5"
+  },
+  "comparison_image": {
+    "path": "/Users/nijaar/starstream/Nightstream/target/release/deps/nightstream-fa6de60183f6354c",
+    "file_bytes": 22530944,
+    "mtime_ns": 1790032698084235476,
+    "cpu_type": 16777228,
+    "cpu_subtype": 0,
+    "file_type": 2,
+    "load_command_count": 21,
+    "load_command_bytes": 2320,
+    "text_segment": {
+      "vmaddr": 4294967296,
+      "vmsize": 21512192,
+      "file_offset": 0,
+      "file_size": 21512192
+    },
+    "text_section": {
+      "vmaddr": 4294969704,
+      "file_offset": 2408,
+      "size": 2506492
+    },
+    "uuid": "75294940-79CC-376C-9C82-7A8AECD1621B"
+  },
+  "recorded_image_load_address": "0x102790000",
+  "same_cpu": true,
+  "equal_text_size": false,
+  "complete_text_bytes_identical": false,
+  "first_mismatch_section_offset": null,
+  "comparison": "Every byte of __TEXT,__text was compared directly when CPU and section size matched; no digest or approximate match authorizes PC mapping.",
+  "mapped_addresses": [],
+  "excluded_native_addresses": [],
+  "mapping_rule": "No PC mapping is authorized because the complete code-section identity was not established.",
+  "seconds": 0.24067212500085589
+}

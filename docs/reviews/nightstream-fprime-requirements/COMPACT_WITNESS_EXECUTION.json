@@ -1,0 +1,288 @@
+{
+  "schema": 1,
+  "base_sha": "20bd388897dad5989008923bcd9b5f71f3c5cd0e",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "scope": "Stored instruction and ordered compact-row execution refine the existing Lean executors. Complete physical before/after bytes agree. Whole selected package completion is not claimed.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "lean": "4.30.0",
+    "protocol_key_package": "unchanged"
+  },
+  "proofs": {
+    "target": "LeanGraph.Targets.FreshWitnessKernels",
+    "witness": "LeanGraph.Targets.freshWitnessKernels",
+    "instruction": "StoredInstructionExecution.execute_eq",
+    "stored_core": [
+      "StoredCompactRowExecution.step_eq",
+      "StoredCompactRowExecution.run_eq",
+      "StoredCompactRowExecution.execute_eq"
+    ],
+    "completion": [
+      "StoredCompactCompletion.execute_compactTemplate",
+      "StoredCompactCompletion.execute_compactConstraintTemplate"
+    ],
+    "recipe_scope": [
+      "PiRLCCompactRecipeScope.combination_outputRecipe",
+      "PiRLCCompactRecipeScope.firstPosition_recipe",
+      "PiRLCCompactRecipeScope.laterPosition_recipe",
+      "PiRLCCompactRecipeScope.firstValue_recipe",
+      "PiRLCCompactRecipeScope.laterValue_recipe"
+    ],
+    "reference": "Exact Option.map pullback equality with the existing R1CS.executeExpression or R1CS.executeConstraint after the physical output write.",
+    "premises": [
+      "Output cell fits the stored array.",
+      "Complete local write interval fits the stored array.",
+      "Normalized input count does not exceed physical local start.",
+      "Every mapped input lies outside the local write interval.",
+      "Output input is within the normalized input count.",
+      "Output recipe reads only normalized inputs before the output.",
+      "Earlier recipe inputs do not alias the physical output cell."
+    ],
+    "derived_conditions": "Canonical per-row local-output bounds follow from the existing lowerer C-column scopes. Inputs may alias one another. No global injectivity premise is added.",
+    "rejection": "Stored and pure row checks agree exactly under local bounds, including failure. The runtime keeps output/local-region guards and local-index rejection.",
+    "allowed_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ]
+  },
+  "attempts": {
+    "StoredInstructionExecution": 1,
+    "CompactRowExecution": 1,
+    "CompactConstraintExecution": 1,
+    "CompactOutputExecution": 1,
+    "StoredCompactRowExecution": 2,
+    "CompactRowRelocation": 2,
+    "StoredCompactCompletion": 1,
+    "PiRLCCompactRecipeScope": 1,
+    "FreshWitnessKernels_compact_target": 1
+  },
+  "execution": {
+    "host": "original Linux Ryzen 7 7700X",
+    "agents": "all idle during timed run",
+    "producer_inputs": [
+      "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json"
+    ],
+    "rust_outputs_used_by_producer": false,
+    "baseline": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin",
+    "output": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin",
+    "comparison": "cmp passed over the complete files",
+    "physical_fields": 29344425,
+    "bytes": 234755400,
+    "events": 1419747,
+    "explicit_assertions": 201386,
+    "prepare_ns": 2486160812,
+    "compute_ns": 23040063022,
+    "assert_ns": 99315390,
+    "write_ns": 3661561269,
+    "command_seconds": 29.76,
+    "peak_rss_kib": 2513200,
+    "baseline_command_seconds": 29.91,
+    "baseline_compute_ns": 23266679084,
+    "measurement_scope": "Same full physical case; this is regression evidence, not an established speedup.",
+    "downstream_reuse": "The complete physical input bytes to the unchanged logical assignment match. The prior complete logical witness, production commitment and claim byte comparisons remain in FRESH_WITNESS_REPLAY.json; they were not rerun for this proof/refactor change."
+  },
+  "validation": {
+    "proofs_and_target": "passed",
+    "complete_physical_bytes": "passed",
+    "rejections": 26,
+    "static": "passed",
+    "full_build": "passed",
+    "axioms": "passed",
+    "literal_acceptance": "passed",
+    "metadata": {
+      "status": "passed",
+      "complete": true,
+      "dependency_nodes": 6654
+    },
+    "graph_tests": 85,
+    "native_test_build": "passed: cargo test -p neo-fold-clean --release --no-run"
+  },
+  "commands": {
+    "physical": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\n/usr/bin/time -v timeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh lean-executable .lake/build/bin/replayPhysicalWitness '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-physical-run.log' 2>&1\ncmp '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin'\npython3 -B - <<'PY'\nfrom pathlib import Path\nimport json\np=Path('/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin')\nprint(json.dumps({'status':'passed','byte_comparison':'cmp','physical_fields':29344425,'bytes':p.stat().st_size,'baseline':'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin','output':str(p)}))\nPY\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-physical-run.log'",
+    "required_checks": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind python --cwd . -- python3 -B formal/nightstream-fprime/tests/check_stored_witness_rejection.py '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin' '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-proof-rejections' >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-proof-rejections.log' 2>&1\ncat '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-proof-rejections.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh static >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-static.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-static.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh build >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-build.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-build.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh axioms >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-axioms.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-axioms.log'",
+    "final_checks": "export PATH=/home/nicoarq/.local/bin:/home/nicoarq/.elan/bin:/home/nicoarq/.cargo/bin:$PATH; set -e\ncd /home/nicoarq/develop/Nightstream\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh file tests/EvidenceAcceptance.lean >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-acceptance.log' 2>&1\ntail -n 5 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-acceptance.log'\ntimeout --signal=KILL 1500s python3 -B scripts/lean_graph/guard.py --kind lean --cwd formal/nightstream-fprime -- bash scripts/validate.sh file ../../scripts/lean_graph/FreshWitnessMetadata.lean >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-metadata.log' 2>&1\npython3 -B - <<'PY'\nimport json\nfrom pathlib import Path\nfor line in Path('/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-metadata.log').read_text().splitlines():\n if line.startswith('LEAN_GRAPH_METADATA '):\n  d=json.loads(line[len('LEAN_GRAPH_METADATA '):]);print({'root':d['root'],'complete':d['complete'],'nodes':len(d['nodes'])})\n elif line.startswith('{\"outcome\"'): print(line)\nPY\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind python --cwd . -- python3 -B -m unittest discover -s scripts/lean_graph/tests >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-graph-tests.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-graph-tests.log'\nexport RUSTC_WRAPPER=''\ntimeout --signal=KILL 300s python3 -B scripts/lean_graph/guard.py --kind rust --cwd . -- cargo test -p neo-fold-clean --release --no-run >'/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-native-test-build.log' 2>&1\ntail -n 7 '/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-native-test-build.log'"
+  },
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf",
+  "open_items": [
+    "Identify the complete selected event/assertion plan with the canonical package.",
+    "Discharge actual compact invocation geometry and prove whole selected row satisfaction; event start order alone does not prove preservation for multi-cell writes.",
+    "PiCCSCarriedSource check11 still requires owner approval. Its ten previous attempts remain counted.",
+    "Release delivery and protected source-bound reproduction remain external."
+  ],
+  "pending_source_patch_sha256": "d5a3294d855424974aaf1721794f86cacb1fbdecfd53aae2b463cb1852f50133",
+  "source_files": {
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CompactConstraintExecution.lean": {
+      "bytes": 3899,
+      "sha256": "6e3c9dc70829513bb7e6353b3592832bdb0782a9f60b65cc8831bba0e9b0f591"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CompactOutputExecution.lean": {
+      "bytes": 2512,
+      "sha256": "a5a391dbe71e0ee617b4fcd4a34b3b7bd2d89b4e91c65aaf9cd39bc2620d01b0"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CompactRowExecution.lean": {
+      "bytes": 7934,
+      "sha256": "aed779196793b24df71e4a4dec5715931c890e89cae4a3cc3c48849ef02b9a68"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/CompactRowRelocation.lean": {
+      "bytes": 9037,
+      "sha256": "e070dd69a7774ea56eac16dacd3d40fb914e498cb2f66143457771ac31c8605a"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCCompactRecipeScope.lean": {
+      "bytes": 4405,
+      "sha256": "4f0964f669cccad38ead97222a4e70457cf8c6351b76344c37d3d5f0ffa41278"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiRLCFirst54Templates.lean": {
+      "bytes": 18673,
+      "sha256": "1a0623e9b840fd92768b481234e4d3722e943ff5312d638a874ca6353e7b4537"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredCompactCompletion.lean": {
+      "bytes": 11993,
+      "sha256": "b916e172af447cec172e2cfac7b6eeb870bb71addac040737d6f48d9b136a752"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredCompactRowExecution.lean": {
+      "bytes": 8298,
+      "sha256": "43bb2f7e125fa305155077202c30dd46df55431dab7b85ee87489539e6813a57"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/StoredInstructionExecution.lean": {
+      "bytes": 1678,
+      "sha256": "f7611fb9ddac4735c8c96ef2d3ba66581bb839bd804237a73d0829caa1385c14"
+    },
+    "formal/nightstream-fprime/NightstreamFPrime/Export/StoredPhysicalReplayMain.lean": {
+      "bytes": 7446,
+      "sha256": "44b2d35847ad6a52a361cf584de28f41c5c577570f9a3cf885f5dc2f03689371"
+    },
+    "formal/nightstream-fprime/lakefile.toml": {
+      "bytes": 7158,
+      "sha256": "8488c51533c7c0ab18e0b5b48cfec74d113708c87a33a04ff54563e3f98ec06f"
+    },
+    "formal/nightstream-fprime/tests/AxiomsCompactRowExecution.lean": {
+      "bytes": 2617,
+      "sha256": "07cc810f61bb60369cee701b54323d95935e7f980b5cfb7abf7b62cf47b68542"
+    },
+    "formal/nightstream-fprime/tests/AxiomsStoredWitnessExecution.lean": {
+      "bytes": 1070,
+      "sha256": "381c53e5c7987d1e1abee13271442321553735a0e088a12e511b27b05072f76d"
+    },
+    "formal/nightstream-fprime/tests/FreshWitnessEvidence.lean": {
+      "bytes": 6178,
+      "sha256": "73a130cf59aab55ac775473384b38fb24187c801d22d2baf5d22144efc39fa25"
+    },
+    "scripts/lean_graph/STAGE1_BASELINE.md": {
+      "bytes": 35290,
+      "sha256": "d14d55adba1e94b73912461742614f34ea59bd5b48b868e78fbd2fffd8d3b0ce"
+    },
+    "scripts/lean_graph/obligations.json": {
+      "bytes": 238237,
+      "sha256": "9213d737e0ec23510d4b469177795bbb1bbed578fa46cae229725aedf6b0f2c3"
+    }
+  },
+  "artifacts": {
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values.bin": {
+      "bytes": 234755400,
+      "sha256": "7e18d6e6e508827368edd262002d0dd6a65bbbd2f5a4adc86be6fc1ca147f80e"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/physical-values-compact-proof.bin": {
+      "bytes": 234755400,
+      "sha256": "7e18d6e6e508827368edd262002d0dd6a65bbbd2f5a4adc86be6fc1ca147f80e"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/final-recursive-step.json": {
+      "bytes": 1446131,
+      "sha256": "d7bb65dd4179a009a412498e231471781dc96db739b296d3344fba1cc8890945"
+    }
+  },
+  "logs": {
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-instruction-proof-1.log": {
+      "bytes": 30221,
+      "sha256": "6ad12339e9e7bc48d11f164a8e0c7edf7ae5ecb6bc18a98c7cf208aaca4e14df"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-instruction-main-build.log": {
+      "bytes": 125316,
+      "sha256": "6f06ee4df149809e7831e0a50afa3849123445ee23a475889d04b102bcf9fea5"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-instruction-target-build.log": {
+      "bytes": 115687,
+      "sha256": "1b6467bc1b2170941c3d2b90491c3bb3fafafee22b96e66e288eef61c09f9a45"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-row-proof-1.log": {
+      "bytes": 16570,
+      "sha256": "6bbb20cf86ee123eb7ed22e6c3da3444edc28553fb9b3980656c28fc6f82060c"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-constraint-proof-1.log": {
+      "bytes": 17116,
+      "sha256": "ab8862e8e734e916835974aa0d5f63ce5e4a6c698d1eab064a957254ae6d5802"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-output-proof-1.log": {
+      "bytes": 17570,
+      "sha256": "0d0eae6febe8b9935a2c597904cd428cf39b60a1c47520df97c57217c5944216"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-proof-1.log": {
+      "bytes": 18514,
+      "sha256": "b28f73e94d15a58cd5a399b18c815a125c26666162140cb56c601403be5f90f4"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-proof-2-relocation-1.log": {
+      "bytes": 18683,
+      "sha256": "575e969d1e57182dce2e20d78cf3c563be5f4ec8efd8a8ac61c465963be205da"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-relocation-proof-2.log": {
+      "bytes": 18521,
+      "sha256": "29a4de8a4ee635109779e9388fec03c9fec1e0ddd66adf21f575f88d8897bf27"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-completion-proof-1.log": {
+      "bytes": 19101,
+      "sha256": "9c5f4c199cb32b7997e144af39daad5781c1500eb42f127539121d2215030f88"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-main-build.log": {
+      "bytes": 134833,
+      "sha256": "f8b8adf3ea6ad398d3cda4949b12f150b66c40a435b9eaff3a47e5d20015b619"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-recipe-scope-target-1.log": {
+      "bytes": 121286,
+      "sha256": "7fd587e056f4c2d7cd07aa9b9b61b966fd7831058bb6c7c9f6b3f08c12578971"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/stored-compact-physical-run.log": {
+      "bytes": 2402,
+      "sha256": "a7a55756e89bf0783e1d827a25277f38c59ac45c0f4c806e5d4e5925f24ca6b1"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-proof-rejections.log": {
+      "bytes": 1206,
+      "sha256": "7c527af927f2ac837fcdf775ade1f43c4244423198e70b53a3f85540aeeb2b73"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-static.log": {
+      "bytes": 472,
+      "sha256": "fce7b988a62c3449c6a7109ac570c0dbf43771f20ae250f6933cbdf3559906e2"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-build.log": {
+      "bytes": 186105,
+      "sha256": "b899c9c20cede2446e00baaa6e4e295b26c21acf5e4ead76ac5761946213b917"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-required-axioms.log": {
+      "bytes": 1139864,
+      "sha256": "cfe9df94828704a945429a3334d85b816962b53dd0cb9cef5025079dc82759f0"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-acceptance.log": {
+      "bytes": 2839,
+      "sha256": "b94f42bcb51f7026c7eb3ac3479025cf8ca9fa5e941d7404b866ab40af2125bf"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-target-metadata.log": {
+      "bytes": 41805391,
+      "sha256": "dd96de7ff3dfba8aae4c922255a1ca5c81816337ca5fea4a98d567bc655a8f39"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-graph-tests.log": {
+      "bytes": 457,
+      "sha256": "f41e4bdfe9439d3c1f10fbd6392a506f443e56b5afd9fee4404795ed6787b7b2"
+    },
+    "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-native-test-build.log": {
+      "bytes": 13407,
+      "sha256": "0904fc0aced83f43f60da403aa338d69fde1cfaacb08973e0583c0fde662344e"
+    }
+  },
+  "review": {
+    "result": "No actionable findings in the bounded checkpoint.",
+    "path": "/home/nicoarq/develop/nightstream-stage1-evidence/nifs-independent-47069c2d.5kwfpzdf/compact-checkpoint-review.txt",
+    "bytes": 4677,
+    "sha256": "6209ea6094c17ef8b46edd8d6978b8d1c7c237b89f4cdcb18a1b1031ce8f97fb",
+    "scope": "Proof statements, executable calls, audits, stated limitations and all16source entries."
+  }
+}

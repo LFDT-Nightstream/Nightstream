@@ -1,0 +1,35 @@
+{
+  "obligation": "hypernova-terminal-false-acceptance",
+  "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance",
+  "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
+  "snapshot": "1d295235d73109bb82b356c3f2c9012d8939494b325e7f973415c78262693230",
+  "policy": "98f1a5ca9acc6c6b4ee01058f39ebcfeef6d40fb74eb3d4f3b190cb4a9c6c6d0",
+  "checker": "0751ba09ef3e2107204522a3db4a63514e4bb22f2c40fd6c0117bd0cbaa4b76d",
+  "review": "decomposition",
+  "request": "7100075359d57b4d1a3f1a2d097673da2160b7544fee736a884d42b0814bc5d4",
+  "reviewer": "/root/review_linear_security_contract",
+  "reviewed_at": "2026-09-13T07:57:32.441675+00:00",
+  "outcome": "pass",
+  "assessments": {
+    "substantiveness": {
+      "outcome": "pass",
+      "reason": "The captured module and literal target are byte-identical to the completed passing source review. FalseAcceptance is selected full-opening terminal membership together with absence of any advice list of the advertised length and forward application result. The conclusion bounds this event directly on the original terminal PMF; it contains no positive AdviceReturned mass and is stronger than the prior extraction-success statement for this intended parent use."
+    },
+    "premises": {
+      "outcome": "pass",
+      "reason": "The literal target retains the support depth bound, fixed raw-call/tape family, check/storage/parent clocks, storage bound and base-work summability, low-norm invertibility, primitive work bounds and each exact guarded FiatShamirModel. Shared g and deltaFS, per-visit query counts and depth remain symbolic. No invalid-source support, conditioning, free output-soundness premise or honest sampler-success premise is added. Fixed-seed hardness, useful transfer bounds, total forward/inverse/shared/preprocessing/replay permutation-query applicability and any required global resource applicability remain external."
+    },
+    "argument": {
+      "outcome": "pass",
+      "reason": "The event definitions prove falseAcceptance_not_adviceReturned. HyperNovaHistoryLaw.initial_marginal keeps the original mixed terminal law, and accepted_failure_exists_first places every supported false-accepting sample in a marked hash/source failure below the symbolic depth. The visitedDraw marginal and finite union bound give probability_le_first_failures; PMF finite-mass facts justify the real-valued conversion. probability_linear_bound adds the unchanged marked hash mass to source_failure_probability_linear_le at each actual visit and sums with add_le_add. The existing run_correct theorem supplies the deterministic history link, rather than a caller-supplied soundness assertion."
+    },
+    "correspondence": {
+      "outcome": "pass",
+      "reason": "The captured proposal names the same dependencies and experiment as the checked source. visitedLaw, realLaw, contextLaw, guardedPrefix, supportedProvider and the abort extension preserve the same original law and fixed continuation. The MSIS term is AdaptiveBindingProbability.successProbability for that full stored source program and visited context law, including both acceptance gates and the uniform source-coordinate loss of 17. It is not the old independent-pair BindingProbability law, and invocation count is not treated as permutation-query count. The exact acceptance and metadata entries retain the new literal target and direct closure."
+    },
+    "parent_use": {
+      "outcome": "pass",
+      "reason": "LeanGraph.Targets.hyperNovaTerminalFalseAcceptance applies @HyperNovaFalseAcceptance.probability_linear_bound directly to the fully written target, with no omitted premise. This closes the symbolic selected-terminal error-budget link under its stated conditions. It does not establish bare NIFS Boolean security, a numerical deployment bound, useful concrete FS/MSIS applicability, a later native fold or production backend approval. There is no remaining target-meaning concern within this full-opening terminal scope. This is an independent local diagnostic review, not controlled-checker approval."
+    }
+  }
+}

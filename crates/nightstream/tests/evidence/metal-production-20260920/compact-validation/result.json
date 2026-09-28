@@ -1,0 +1,18 @@
+{
+  "outcome": "blocked",
+  "combined_parity": "300 second cap after five crosscheck tests passed and two CUDA tests were ignored; first Metal test did not complete",
+  "isolated_parity": "stopped while the first application command was waiting; no proof result",
+  "device_memory_in_use_bytes": 52719140864,
+  "retained_exiting_process": 79862,
+  "metal_changes_validated": false,
+  "recovery": {
+    "user_constraint": "Do not restart the Mac",
+    "actions": [
+      "Sent TERM and KILL to test-owned Metal compiler services",
+      "Retested with a separate four-byte Metal blit and no Nightstream shaders"
+    ],
+    "probe": "300 second cap; committed status 2; no scheduled or completed callback",
+    "privileged_diagnostics": "sudo -n launchctl procinfo refused because a password is required",
+    "system_changes": "No reboot, logout, WindowServer termination, kernel setting change, or GPU-driver unload"
+  }
+}

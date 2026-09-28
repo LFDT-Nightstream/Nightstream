@@ -1,0 +1,101 @@
+{
+  "scope": "Native target 55664 only; Sample Duration is Instruments shader-timeline attribution, not an independent per-dispatch stopwatch.",
+  "shaders": {
+    "production_ajtai_partials": {
+      "intervals": 341,
+      "sample_seconds": 48.967269336
+    },
+    "dec_sparse_ring_partials": {
+      "intervals": 182,
+      "sample_seconds": 14.95476109
+    },
+    "joint_round_partials": {
+      "intervals": 90,
+      "sample_seconds": 8.826546254
+    },
+    "dec_add_geometric_ring_forms": {
+      "intervals": 100,
+      "sample_seconds": 7.639914796
+    },
+    "joint_carried_projection": {
+      "intervals": 5,
+      "sample_seconds": 3.713691917
+    },
+    "sumcheck_reduce_partials": {
+      "intervals": 531,
+      "sample_seconds": 1.50916461
+    },
+    "joint_fold_assignments": {
+      "intervals": 33,
+      "sample_seconds": 0.790698752
+    },
+    "joint_build_application_tables": {
+      "intervals": 2,
+      "sample_seconds": 0.642746751
+    },
+    "joint_fold_k_tables": {
+      "intervals": 458,
+      "sample_seconds": 0.585741583
+    },
+    "dec_build_ring_forms": {
+      "intervals": 45,
+      "sample_seconds": 0.549732711
+    },
+    "fe_weighted_row_table": {
+      "intervals": 2,
+      "sample_seconds": 0.434804167
+    },
+    "ajtai_reduce_columns": {
+      "intervals": 158,
+      "sample_seconds": 0.316643661
+    },
+    "dec_bar_ring_forms_in_place": {
+      "intervals": 49,
+      "sample_seconds": 0.202628498
+    },
+    "joint_fold_base_tables": {
+      "intervals": 350,
+      "sample_seconds": 0.136449257
+    },
+    "dec_sparse_ring_sum_chunks": {
+      "intervals": 42,
+      "sample_seconds": 0.035517591
+    },
+    "dec_build_row_weights": {
+      "intervals": 5,
+      "sample_seconds": 0.008310501
+    },
+    "dec_build_parallel_original_form_tiles": {
+      "intervals": 64,
+      "sample_seconds": 0.00653546
+    },
+    "dec_ring_reduce_phi81": {
+      "intervals": 39,
+      "sample_seconds": 0.003165753
+    },
+    "tensor_point_expand_k": {
+      "intervals": 198,
+      "sample_seconds": 0.001466268
+    },
+    "dec_build_parallel_original_forms": {
+      "intervals": 34,
+      "sample_seconds": 0.001180581
+    },
+    "dec_reduce_parallel_original_form_tiles": {
+      "intervals": 74,
+      "sample_seconds": 0.000970259
+    },
+    "joint_zero_words": {
+      "intervals": 1,
+      "sample_seconds": 0.000386125
+    },
+    "joint_selective_round_partials": {
+      "intervals": 10,
+      "sample_seconds": 4.467e-06
+    },
+    "fold_k_table": {
+      "intervals": 1,
+      "sample_seconds": 1e-09
+    }
+  }
+}

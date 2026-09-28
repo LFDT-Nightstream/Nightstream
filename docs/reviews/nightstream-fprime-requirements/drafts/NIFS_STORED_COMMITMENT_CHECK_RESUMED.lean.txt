@@ -1,0 +1,292 @@
+import NightstreamFPrime.Export.Stage1.PiDECInputCheck
+import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.StoredCommitment
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckPrimitives
+
+/-!
+Selected dense commitment check for one stored witness source. The witness
+and fresh/running commitment arrays are read once before the row loop.
+Each row expands the actual selected key one block at a time. Every compared
+coefficient is read from stored arrays; no semantic function receives a
+lookup clock. Counts use the existing named-operation model, not wall time.
+-/
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Export.Stage1.PiCCSStoredCommitmentCheck
+
+open _root_.NightstreamFPrime.Spec
+open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open _root_.NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
+open _root_.NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
+open _root_.NightstreamFPrime.Lifecycle
+open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
+
+-- The child row program and its semantic sum are used through their laws.
+-- These local proof attributes leave the child owner and execution unchanged.
+attribute [local irreducible] StoredCommitment.row StoredCommitment.rowWork Commitment.ajtaiRow
+
+abbrev carrier : Phi81Relation.Shape :=
+  PaperAlgebra.FullShape PiDECInputCheck.logicalWidth PiDECInputCheck.publicFits
+
+abbrev StoredWitness := StoredWitnessProjection.StoredWitness productionShape carrier
+
+private def advance {count : Nat} (test : Fin count → Result Bool)
+    (accumulated : Result Bool) (index : Fin count) : Result Bool :=
+  if accumulated.value then
+    let checked := test index
+    ⟨checked.value, accumulated.work + checked.work + 4⟩
+  else ⟨false, accumulated.work + 4⟩
+
+private theorem advance_value {count : Nat} (test : Fin count → Result Bool)
+    (accumulated : Result Bool) (index : Fin count) :
+    (advance test accumulated index).value = (accumulated.value && (test index).value) := by
+  cases accepted : accumulated.value <;> simp [advance, accepted]
+
+private def allFin {count : Nat} (test : Fin count → Result Bool) : Result Bool :=
+  let result := Fin.foldl count (advance test) ⟨true, 1⟩
+  ⟨result.value, result.work + 3⟩
+
+private theorem fold_eq_true : ∀ {count : Nat} (test : Fin count → Result Bool) (initial : Result Bool),
+    (Fin.foldl count (advance test) initial).value = true ↔
+      initial.value = true ∧ ∀ index, (test index).value = true
+  | 0, _, _ => by simp
+  | _ + 1, test, initial => by
+      rw [Fin.foldl_succ]
+      have tail := fold_eq_true (fun index => test index.succ) (advance test initial 0)
+      simpa only [advance_value, Bool.and_eq_true, Fin.forall_fin_succ, and_assoc] using tail
+
+private theorem allFin_eq_true {count : Nat} (test : Fin count → Result Bool) :
+    (allFin test).value = true ↔ ∀ index, (test index).value = true := by
+  simp only [allFin, fold_eq_true, true_and]
+
+private theorem fold_work_le (bound : Nat) : ∀ {count : Nat}
+    (test : Fin count → Result Bool) (initial : Result Bool),
+    (∀ index, (test index).work ≤ bound) →
+    (Fin.foldl count (advance test) initial).work ≤ initial.work + count * (bound + 4)
+  | 0, _, _, _ => by simp
+  | count + 1, test, initial, bounded => by
+      rw [Fin.foldl_succ]
+      have tail := fold_work_le bound (fun index => test index.succ) (advance test initial 0)
+        (fun index => bounded index.succ)
+      have head : (advance test initial 0).work ≤ initial.work + bound + 4 := by
+        have called := bounded 0
+        cases accepted : initial.value <;>
+          simp only [advance, accepted, Bool.false_eq_true, ↓reduceIte] <;> omega
+      exact Nat.le_trans tail (by rw [Nat.add_mul]; omega)
+
+private theorem allFin_work_le {count : Nat} (test : Fin count → Result Bool) (bound : Nat)
+    (bounded : ∀ index, (test index).work ≤ bound) :
+    (allFin test).work ≤ count * (bound + 4) + 4 := by
+  have folded := fold_work_le bound test (⟨true, 1⟩ : Result Bool) bounded
+  dsimp only at folded
+  dsimp only [allFin]
+  omega
+
+attribute [irreducible] allFin
+
+/-- Read the selected commitment array once. The running branch also reads
+the two record fields and source array, and constructs its rebased index. -/
+private def publicCommitment (input : PiCCSInputCheck.Input)
+    (source : Fin productionShape.sourceCount) : Result (Vector F 1188) :=
+  let index := source.val
+  if fresh : index < 1 then ⟨input.commitment, 5⟩
+  else
+    let running : Fin 16 := ⟨index - 1, by have bound : index < 17 := source.isLt; omega⟩
+    let prior := input.running
+    let commitments := prior.commitments
+    ⟨commitments.get running, 10⟩
+
+private def claimView (claimed : Vector F 1188) : PaperAlgebra.Commitment :=
+  fun row lane => claimed.get ⟨row.val * 54 + lane.val, by
+    have rowBound : row.val < 22 := row.isLt
+    have laneBound : lane.val < 54 := lane.isLt
+    omega⟩
+
+private theorem publicCommitment_value (input : PiCCSInputCheck.Input)
+    (source : Fin productionShape.sourceCount) :
+    claimView (publicCommitment input source).value = PiCCSInputCheck.outputCommitments input source := by
+  change claimView (publicCommitment input source).value =
+    Fin.addCases (motive := fun _ => PaperAlgebra.Commitment)
+      (PiCCSInputCheck.fresh input).commitments (PiCCSInputCheck.running input).commitments source
+  refine Fin.addCases (fun fresh => ?_) (fun running => ?_) source
+  · have isFresh : (Fin.castAdd productionShape.runningCount fresh).val < 1 := fresh.isLt
+    rw [publicCommitment, dif_pos isFresh, Fin.addCases_left]
+    rfl
+  · have isRunning : ¬ (Fin.natAdd productionShape.freshCount running).val < 1 := by
+      change ¬ 1 + running.val < 1
+      omega
+    rw [publicCommitment, dif_neg isRunning, Fin.addCases_right]
+    have freshCount : productionShape.freshCount = 1 := rfl
+    simp only [PiCCSInputCheck.running, PiCCSInputCheck.runningFromInput,
+      Fin.natAdd, freshCount, Nat.add_sub_cancel_left]
+    rfl
+
+private theorem publicCommitment_work_le (input : PiCCSInputCheck.Input)
+    (source : Fin productionShape.sourceCount) : (publicCommitment input source).work ≤ 10 := by
+  dsimp only [publicCommitment]
+  split <;> dsimp only <;> omega
+
+/-- Two stored reads, both index projections, flattening arithmetic and its
+Fin constructor, the scalar equality call, and the returned result. -/
+private def compareCoefficient (computed : Vector F ringDegree) (claimed : Vector F 1188)
+    (row : Fin 22) (lane : Fin ringDegree) : Result Bool :=
+  let column : Fin 1188 := ⟨row.val * 54 + lane.val, by
+    have rowBound := row.isLt
+    have laneBound : lane.val < 54 := lane.isLt
+    omega⟩
+  let actual := computed.get lane
+  let expected := claimed.get column
+  let checked := StoredWitnessCheckPrimitives.equalF actual expected
+  ⟨checked.value, checked.work + 10⟩
+
+private theorem compareCoefficient_value (computed : Vector F ringDegree) (claimed : Vector F 1188)
+    (row : Fin 22) (lane : Fin ringDegree) :
+    (compareCoefficient computed claimed row lane).value =
+      decide (computed.get lane = claimView claimed row lane) := by
+  simp only [compareCoefficient, StoredWitnessCheckPrimitives.equalF_value]
+  rfl
+
+private theorem compareCoefficient_work (computed : Vector F ringDegree) (claimed : Vector F 1188)
+    (row : Fin 22) (lane : Fin ringDegree) : (compareCoefficient computed claimed row lane).work = 12 := rfl
+
+private theorem rowOpening_value {logicalWidth : Nat}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (setup : AjtaiSetupV1.Setup 22
+      (Phi81ColumnLayout.blockCount (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth))
+    (stored : Vector F (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth) (row : Fin 22) :
+    (StoredCommitment.row (shape := PaperAlgebra.FullShape logicalWidth publicFits)
+      (verifierRows := 22) setup stored row).value.get =
+      (PaperAlgebra.openingMaps (logicalWidth := logicalWidth) (publicFits := publicFits)
+        setup.verifierKey).commit stored.get row :=
+  StoredCommitment.row_value (shape := PaperAlgebra.FullShape logicalWidth publicFits)
+    (verifierRows := 22) setup stored row
+
+private def selectedRow (stored : Vector F carrier.carrierWidth) (row : Fin 22) :
+    Result (Vector F ringDegree) :=
+  StoredCommitment.row (shape := carrier) (verifierRows := 22)
+    Poseidon2HashChainV1Setup.productionSetup stored row
+
+private theorem selectedRow_value (stored : Vector F carrier.carrierWidth) (row : Fin 22) :
+    (selectedRow stored row).value.get =
+      (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit stored.get row :=
+  rowOpening_value (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
+    Poseidon2HashChainV1Setup.productionSetup stored row
+
+private theorem selectedRow_work_le (stored : Vector F carrier.carrierWidth) (row : Fin 22) :
+    (selectedRow stored row).work ≤ StoredCommitment.rowWork carrier := by
+  have rowRange : row.val < 2 ^ 32 :=
+    Nat.lt_of_lt_of_le row.isLt (by decide : 22 ≤ 2 ^ 32)
+  have blockRange : Phi81ColumnLayout.blockCount carrier.carrierWidth ≤ 2 ^ 64 := by
+    change Poseidon2HashChainV1Setup.messageColumns ≤ 2 ^ 64
+    rw [Poseidon2HashChainV1Setup.messageColumns_eq]
+    decide
+  exact StoredCommitment.row_work_le (shape := carrier) (verifierRows := 22)
+    Poseidon2HashChainV1Setup.productionSetup stored row rowRange blockRange
+
+-- Value and clock proofs use the checked row laws. Automatic reduction must
+-- not enter the selected carrier's millions of dense block iterations.
+attribute [irreducible] selectedRow
+
+private def compareRow (computed : Result (Vector F ringDegree)) (claimed : Vector F 1188)
+    (row : Fin 22) : Result Bool :=
+  let compared := allFin (compareCoefficient computed.value claimed row)
+  ⟨compared.value, computed.work + compared.work + 2⟩
+
+private theorem compareRow_eq_true (computed : Result (Vector F ringDegree)) (claimed : Vector F 1188)
+    (row : Fin 22) : (compareRow computed claimed row).value = true ↔
+      computed.value.get = claimView claimed row := by
+  simp only [compareRow, allFin_eq_true, compareCoefficient_value, decide_eq_true_eq]
+  constructor
+  · intro coordinates
+    funext lane
+    exact coordinates lane
+  · intro same lane
+    exact congrFun same lane
+
+private theorem compareRow_work_le (computed : Result (Vector F ringDegree)) (claimed : Vector F 1188)
+    (row : Fin 22) (bound : Nat) (bounded : computed.work ≤ bound) :
+    (compareRow computed claimed row).work ≤ bound + 870 := by
+  have compared : (allFin (compareCoefficient computed.value claimed row)).work ≤ 868 :=
+    allFin_work_le (count := ringDegree) (compareCoefficient computed.value claimed row) 12
+      (fun lane => Nat.le_of_eq (compareCoefficient_work computed.value claimed row lane))
+  change computed.work + (allFin (compareCoefficient computed.value claimed row)).work + 2 ≤ bound + 870
+  omega
+
+private def checkRow (stored : Vector F carrier.carrierWidth) (claimed : Vector F 1188)
+    (row : Fin 22) : Result Bool :=
+  compareRow (selectedRow stored row) claimed row
+
+private theorem checkRow_eq_true (stored : Vector F carrier.carrierWidth) (claimed : Vector F 1188)
+    (row : Fin 22) : (checkRow stored claimed row).value = true ↔
+      (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit stored.get row =
+        claimView claimed row := by
+  change (compareRow (selectedRow stored row) claimed row).value = true ↔ _
+  rw [compareRow_eq_true, selectedRow_value]
+
+private theorem checkRow_work_le (stored : Vector F carrier.carrierWidth) (claimed : Vector F 1188)
+    (row : Fin 22) : (checkRow stored claimed row).work ≤ StoredCommitment.rowWork carrier + 870 :=
+  compareRow_work_le (selectedRow stored row) claimed row (StoredCommitment.rowWork carrier)
+    (selectedRow_work_le stored row)
+
+attribute [irreducible] checkRow
+
+/-- Check one arbitrary stored source. Failed rows skip further row
+computations; successful checks still traverse every dense carrier block. -/
+def check (input : PiCCSInputCheck.Input) (stored : StoredWitness)
+    (source : Fin productionShape.sourceCount) : Result Bool :=
+  let witness := stored.get source
+  let claimed := publicCommitment input source
+  let checked := allFin (checkRow witness claimed.value)
+  ⟨checked.value, claimed.work + checked.work + 4⟩
+
+private theorem check_rows (input : PiCCSInputCheck.Input) (stored : StoredWitness)
+    (source : Fin productionShape.sourceCount) :
+    (check input stored source).value = true ↔ ∀ row,
+      (PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit (stored.get source).get row =
+        claimView (publicCommitment input source).value row := by
+  simp only [check, allFin_eq_true, checkRow_eq_true]
+
+-- Convert the row predicate to a Boolean equality before substituting the
+-- selected commitment functions. No rewrite enters their concrete decision.
+private theorem bool_value_of_rows (value : Bool)
+    (computed claimed expected : PaperAlgebra.Commitment)
+    (rows : value = true ↔ ∀ row, computed row = claimed row)
+    (sameClaim : claimed = expected) : value = decide (computed = expected) := by
+  have checked : value = decide (computed = claimed) := by
+    apply Bool.eq_iff_iff.mpr
+    change value = true ↔ decide (computed = claimed) = true
+    rw [decide_eq_true_eq]
+    constructor
+    · intro accepted
+      funext row
+      exact rows.mp accepted row
+    · intro same
+      exact rows.mpr (fun row => congrFun same row)
+  exact checked.trans (congrArg (fun output : PaperAlgebra.Commitment => decide (computed = output)) sameClaim)
+
+theorem check_value (input : PiCCSInputCheck.Input) (stored : StoredWitness)
+    (source : Fin productionShape.sourceCount) :
+    (check input stored source).value = decide
+      ((PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit (stored.get source).get =
+        PiCCSInputCheck.outputCommitments input source) :=
+  bool_value_of_rows (check input stored source).value
+    ((PaperAlgebra.openingMaps Poseidon2HashChainV1Setup.productionAjtaiKey).commit (stored.get source).get)
+    (claimView (publicCommitment input source).value) (PiCCSInputCheck.outputCommitments input source)
+    (check_rows input stored source) (publicCommitment_value input source)
+
+/-- The selected row count, dense row clock, coefficient comparisons,
+fresh/running selection, source-array read and loop/return operations. -/
+def workBound : Nat := 22 * (StoredCommitment.rowWork carrier + 874) + 18
+
+theorem check_work_le (input : PiCCSInputCheck.Input) (stored : StoredWitness)
+    (source : Fin productionShape.sourceCount) : (check input stored source).work ≤ workBound := by
+  have claimed := publicCommitment_work_le input source
+  have rows := allFin_work_le (checkRow (stored.get source) (publicCommitment input source).value)
+    (StoredCommitment.rowWork carrier + 870) (checkRow_work_le _ _)
+  dsimp only [check]
+  unfold workBound
+  generalize rowClock : StoredCommitment.rowWork carrier = rowBudget at rows ⊢
+  omega
+
+end NightstreamFPrime.Export.Stage1.PiCCSStoredCommitmentCheck

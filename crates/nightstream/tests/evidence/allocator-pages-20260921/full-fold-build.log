@@ -1,0 +1,3 @@
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 37.31s
+  Executable unittests src/lib.rs (target/release/deps/nightstream-b497b3d777136c6f)

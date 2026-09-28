@@ -1,5 +1,5 @@
-use neo_ajtai::util::to_balanced_i128;
-use p3_field::PrimeCharacteristicRing;
+use neo_ajtai::util::{to_balanced_i128, to_balanced_i64};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 #[test]
@@ -53,4 +53,27 @@ fn large_negative_digits() {
     let back = to_balanced_i128(f);
     let expected = large_neg as i128 % ((1i128 << 64) - (1i128 << 32) + 1);
     assert_eq!(back, expected);
+}
+
+#[test]
+fn balanced_i128_and_i64_conversions_agree_at_field_boundaries() {
+    let modulus = <F as PrimeField64>::ORDER_U64;
+    let values = [
+        0,
+        1,
+        2,
+        1u64 << 32,
+        (modulus - 1) / 2,
+        (modulus + 1) / 2,
+        1u64 << 63,
+        modulus - 1,
+    ];
+    for value in values {
+        let field_value = F::from_u64(value);
+        assert_eq!(
+            to_balanced_i128(field_value),
+            i128::from(to_balanced_i64(field_value)),
+            "balanced conversions differ for {value}"
+        );
+    }
 }

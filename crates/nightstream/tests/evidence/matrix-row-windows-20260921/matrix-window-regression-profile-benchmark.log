@@ -1,0 +1,8 @@
+
+running 1 test
+staged request=Prove { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/matrix-window-profile-metal", step: 2, engine: Metal, reference_proof: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu/fold-2/proof.native" }
+2026-09-21 21:54:48.870439-0500 matrix-window-symbol-test-binary[88142:1087058] [default] failed to look up session port with error 3ef
+2026-09-21 21:54:48.870806-0500 matrix-window-symbol-test-binary[88142:1087058] [default] This user is not allowed access to the window system right now.
+2026-09-21 21:54:48.870866-0500 matrix-window-symbol-test-binary[88142:1087058] [default] Invalid display 0x00000000
+staged circuit preparation elapsed=34.733481959s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds

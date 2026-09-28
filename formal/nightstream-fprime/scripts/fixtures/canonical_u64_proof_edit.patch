@@ -1,0 +1,11 @@
+diff --git a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
+--- a/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
++++ b/formal/nightstream-fprime/NightstreamFPrime/Gadgets/Range/CanonicalU64.lean
+@@ -176,6 +176,7 @@
+ 
+ theorem localLength_eq (interface : Interface) (offset : Nat) :
+     localLength (operations interface offset) = auxiliaryCount := by
++  refine Eq.trans ?_ (Eq.refl auxiliaryCount)
+   unfold operations
+   rw [localLength_append', localLength_append', localLength_booleanOps]
+   simp [localLength, Op.localLength, WitnessBatch.outputLength,

@@ -1,0 +1,15 @@
+   Compiling neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+   Compiling neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+    Finished `release` profile [optimized] target(s) in 9.49s
+     Running tests/poseidon2_hash.rs (target/release/deps/poseidon2_hash-141c928c1d53a2a0)
+
+running 6 tests
+test poseidon2_determinism ... ok
+test poseidon2_domain_separation ... ok
+test poseidon2_hash_single_matches ... ok
+test poseidon2_packed_bytes_is_injective_before_hashing ... ok
+test poseidon2_packed_bytes_length_encoding ... ok
+test incremental_hash_matches_every_split_across_full_and_partial_blocks ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

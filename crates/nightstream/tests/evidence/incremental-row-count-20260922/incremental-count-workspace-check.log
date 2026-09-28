@@ -1,0 +1,8 @@
+    Checking neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Checking nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Checking neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+    Checking neo-prover-metal v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-metal)
+    Checking neo-prover-cuda v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-prover-cuda)
+    Checking neo-wasm v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-wasm)
+    Checking nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 15.11s

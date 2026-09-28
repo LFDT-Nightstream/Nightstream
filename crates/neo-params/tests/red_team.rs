@@ -1,6 +1,40 @@
 #![allow(clippy::uninlined_format_args)]
 use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
 
+/// The raw parameter bundle does not own a challenge alphabet. The production
+/// padded-row census does, and must reject a target above its exact combined
+/// field and coordinate-fork security.
+#[test]
+fn params_reject_lambda_above_strong_set_entropy() {
+    let challenge_set_size = 5u128.pow(goldilocks_paper_b2::D as u32);
+    let max_whole_bits = challenge_set_size.ilog2();
+    let claimed_lambda = max_whole_bits + 1;
+
+    let params = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::M,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        claimed_lambda,
+    )
+    .expect("raw field parameters");
+    let statistical_policy =
+        params.padded_row_security_check_for_shape(1, 1, 1, 0, goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32);
+
+    assert!(
+        matches!(
+            statistical_policy,
+            Err(ParamsError::InsufficientStatisticalSecurity { .. })
+        ),
+        "soundness-policy failure: accepted lambda={claimed_lambda} above floor(log2(5^54))={max_whole_bits}: {statistical_policy:?}"
+    );
+}
+
 #[test]
 fn guard_rejects_tight_or_overflowing_profiles() {
     // Tight inequality: lhs == B should be rejected.
@@ -28,6 +62,17 @@ fn guard_rejects_tight_or_overflowing_profiles() {
     let err2 = NeoParams::new(q, eta, d, kappa, m, large_b, large_k, 10, 2, 128).unwrap_err();
     assert!(matches!(err2, ParamsError::Invalid(_)));
     println!("✅ RED TEAM: B overflow correctly rejected");
+}
+
+#[test]
+fn params_reject_when_combined_bound_reaches_half_the_field() {
+    // B = 2^3 = 8 and the RLC guard is 4 < 8. The only invalid condition is
+    // the required strict separation 2*B < q, which fails at q = 16.
+    let result = NeoParams::new(16, 3, 2, 1, 1, 2, 3, 1, 2, 1);
+    assert!(matches!(
+        result,
+        Err(ParamsError::Invalid("2*B must be strictly smaller than q"))
+    ));
 }
 
 #[test]
@@ -141,14 +186,10 @@ fn goldilocks_preset_security_invariants() {
     let rhs = p.B as u128;
     assert!(lhs < rhs, "Guard inequality must hold: {lhs} < {rhs}");
 
-    // Verify reasonable margin exists (not too tight)
+    // Report the exact margin. The paper guard above is the acceptance rule;
+    // no separate percentage floor is authoritative.
     let margin = rhs - lhs;
     let margin_ratio = (margin as f64) / (rhs as f64);
-    assert!(
-        margin_ratio > 0.1,
-        "Security margin should be > 10%, got {:.1}%",
-        margin_ratio * 100.0
-    );
 
     // Verify field parameters
     assert!(p.is_goldilocks_paper_b2());

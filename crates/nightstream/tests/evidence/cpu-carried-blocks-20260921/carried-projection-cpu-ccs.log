@@ -1,0 +1,8 @@
+
+running 1 test
+staged request=Ccs { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/carried-projection-cpu", step: 2, engine: Optimized, cpu_reference: Some("/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu") }
+staged circuit preparation elapsed=34.864921417s
+C cache elapsed=4.913481s
+SuperneoEvalCache::eval_weighted_rows_from_projection: explicit 1.50s seeded 184.29µs total 1.50s
+[pi-ccs/phase] oracle-build=15.634s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds

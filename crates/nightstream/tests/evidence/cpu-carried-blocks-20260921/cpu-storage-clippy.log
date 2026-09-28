@@ -1,0 +1,238 @@
+    Checking num-bigint v0.4.8
+    Checking p3-field v0.5.3
+    Checking neo-params v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-params)
+    Checking p3-matrix v0.5.3
+    Checking p3-symmetric v0.5.3
+    Checking p3-poseidon1 v0.5.3
+    Checking p3-dft v0.5.3
+    Checking p3-mds v0.5.3
+    Checking p3-poseidon2 v0.5.3
+    Checking p3-monty-31 v0.5.3
+    Checking p3-challenger v0.5.3
+    Checking p3-goldilocks v0.5.3
+    Checking neo-math v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-math)
+    Checking neo-ccs v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ccs)
+    Checking neo-transcript v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-transcript)
+    Checking neo-ajtai v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-ajtai)
+    Checking neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+warning: operator precedence might not be obvious
+  --> crates/neo-reductions/src/superneo_eval/row_block.rs:29:13
+   |
+29 | /             block as u32
+30 | |                 | (local as u32) << COMPACT_SINGLE_LOCAL_SHIFT
+31 | |                 | u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG,
+   | |___________________________________________________________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#precedence
+   = note: `-D clippy::precedence` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::precedence)]`
+help: consider parenthesizing your expression
+   |
+29 ~             block as u32
+30 ~                 | (local as u32) << COMPACT_SINGLE_LOCAL_SHIFT | (u32::from(coefficient == F::ZERO - F::ONE) * COMPACT_NEGATIVE_TAG),
+   |
+
+warning: manual implementation of `.is_multiple_of()`
+  --> crates/neo-reductions/src/api/validation.rs:90:8
+   |
+90 |     if ce.m_in % D != 0 {
+   |        ^^^^^^^^^^^^^^^^ help: replace with: `!ce.m_in.is_multiple_of(D)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+   = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+warning: doc list item without indentation
+   --> crates/neo-reductions/src/common.rs:530:5
+    |
+530 | /// where `phi_coeffs = [c_0, ..., c_{d-1}]`.
+    |     ^
+    |
+    = help: if this is supposed to be its own paragraph, add a blank line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#doc_lazy_continuation
+    = note: `-D clippy::doc-lazy-continuation` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::doc_lazy_continuation)]`
+help: indent this line
+    |
+530 | ///   where `phi_coeffs = [c_0, ..., c_{d-1}]`.
+    |     ++
+
+warning: manual implementation of `.is_multiple_of()`
+    --> crates/neo-reductions/src/common.rs:1002:8
+     |
+1002 |     if m_in % D != 0 {
+     |        ^^^^^^^^^^^^^ help: replace with: `!m_in.is_multiple_of(D)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+
+warning: the following explicit lifetimes could be elided: 'a
+  --> crates/neo-reductions/src/engines/utils.rs:21:26
+   |
+21 | pub fn shared_me_input_r<'a, C, Ff>(
+   |                          ^^
+22 |     me_inputs: &'a [CeClaim<C, Ff, K>],
+   |                 ^^
+23 |     ell_n: usize,
+24 | ) -> Result<Option<&'a [K]>, PiCcsError>
+   |                     ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_lifetimes
+   = note: `-D clippy::needless-lifetimes` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::needless_lifetimes)]`
+help: elide the lifetimes
+   |
+21 ~ pub fn shared_me_input_r<C, Ff>(
+22 ~     me_inputs: &[CeClaim<C, Ff, K>],
+23 |     ell_n: usize,
+24 ~ ) -> Result<Option<&[K]>, PiCcsError>
+   |
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs:311:57
+    |
+311 |         let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
+    |                                                         ^^^^^^^^ help: change this to: `weights`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
+    = note: `-D clippy::needless-borrow` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrow)]`
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates/neo-reductions/src/engines/optimized_engine/paper_joint.rs:315:92
+    |
+315 |             crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
+    |                                                                                            ^^^^^^^^ help: change this to: `weights`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
+
+warning: struct `SparseCache` has a public `len` method, but no `is_empty` method
+   --> crates/neo-reductions/src/engines/optimized_engine/sparse.rs:319:5
+    |
+319 |     pub fn len(&self) -> usize {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#len_without_is_empty
+    = note: `-D clippy::len-without-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::len_without_is_empty)]`
+
+warning: this assertion has a constant value
+   --> crates/neo-reductions/src/engines/optimized_engine/../../../tests/unit/piccs_first_round_norm.rs:140:5
+    |
+140 |     assert!(BLOCKS * D <= 1usize << ROUNDS, "selected carrier fits the Boolean cube");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider moving this into a const block: `const { assert!(..) }`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#assertions_on_constants
+    = note: `-D clippy::assertions-on-constants` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assertions_on_constants)]`
+
+warning: manual implementation of `.is_multiple_of()`
+  --> crates/neo-reductions/src/engines/pi_ccs_protocol.rs:38:8
+   |
+38 |     if claim.m_in % D != 0 || claim.X.rows() != D || claim.X.cols() != active_columns {
+   |        ^^^^^^^^^^^^^^^^^^^ help: replace with: `!claim.m_in.is_multiple_of(D)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+
+warning: the following explicit lifetimes could be elided: 'a
+   --> crates/neo-reductions/src/engines/paper_exact_engine/paper_joint.rs:134:33
+    |
+134 | pub(super) fn paper_prior_point<'a, Ff>(
+    |                                 ^^
+135 |     running: &'a [CeClaim<Cmt, Ff, K>],
+    |               ^^
+136 |     variables: usize,
+137 | ) -> Result<Option<&'a [K]>, PiCcsError> {
+    |                     ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+134 ~ pub(super) fn paper_prior_point<Ff>(
+135 ~     running: &[CeClaim<Cmt, Ff, K>],
+136 |     variables: usize,
+137 ~ ) -> Result<Option<&[K]>, PiCcsError> {
+    |
+
+warning: manual implementation of `.is_multiple_of()`
+   --> crates/neo-reductions/src/engines/paper_exact_engine/paper_joint.rs:248:8
+    |
+248 |     if public_width % D != 0 {
+    |        ^^^^^^^^^^^^^^^^^^^^^ help: replace with: `!public_width.is_multiple_of(D)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+
+warning: manual implementation of `.is_multiple_of()`
+   --> crates/neo-reductions/src/superneo_eval/artifact.rs:323:28
+    |
+323 |     if matrix.cols == 0 || matrix.cols % D != 0 {
+    |                            ^^^^^^^^^^^^^^^^^^^^ help: replace with: `!matrix.cols.is_multiple_of(D)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+
+warning: using `contains()` instead of `iter().any()` is more efficient
+   --> crates/neo-reductions/src/superneo_eval/artifact.rs:418:16
+    |
+418 |               || coefficients[start..end]
+    |  ________________^
+419 | |                 .iter()
+420 | |                 .any(|&value| value == F::ZERO)
+    | |_______________________________________________^ help: try: `coefficients[start..end].contains(&F::ZERO)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_contains
+    = note: `-D clippy::manual-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_contains)]`
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates/neo-reductions/src/superneo_eval/matrix_cache_impl.rs:140:80
+    |
+140 |                     let re_form = weighted_projection_form_from_orig(&rb.orig, &basis_re_forms);
+    |                                                                                ^^^^^^^^^^^^^^^ help: change this to: `basis_re_forms`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
+
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates/neo-reductions/src/superneo_eval/matrix_cache_impl.rs:141:80
+    |
+141 |                     let im_form = weighted_projection_form_from_orig(&rb.orig, &basis_im_forms);
+    |                                                                                ^^^^^^^^^^^^^^^ help: change this to: `basis_im_forms`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
+
+warning: `neo-reductions` (lib) generated 15 warnings (15 duplicates)
+warning: `neo-reductions` (lib) generated 15 warnings (run `cargo clippy --fix --lib -p neo-reductions` to apply 13 suggestions)
+warning: `neo-reductions` (lib test) generated 16 warnings (15 duplicates)
+warning: manual implementation of `.is_multiple_of()`
+   --> crates/neo-reductions/tests/rlc_dec_k_gt1.rs:117:30
+    |
+117 |         out[(row, col)] = if (seed + col) % 2 == 0 { F::ONE } else { neg_one };
+    |                              ^^^^^^^^^^^^^^^^^^^^^ help: replace with: `(seed + col).is_multiple_of(2)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+    = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+warning: `neo-reductions` (test "rlc_dec_k_gt1") generated 1 warning (run `cargo clippy --fix --test "rlc_dec_k_gt1" -p neo-reductions` to apply 1 suggestion)
+warning: manual implementation of `.is_multiple_of()`
+  --> crates/neo-reductions/tests/superneo_eval_perf.rs:30:16
+   |
+30 |             if ((r as u64 * 17) + (c as u64 * 13) + seed) % 37 == 0 {
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `((r as u64 * 17) + (c as u64 * 13) + seed).is_multiple_of(37)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+   = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+warning: `neo-reductions` (test "superneo_eval_perf") generated 1 warning (run `cargo clippy --fix --test "superneo_eval_perf" -p neo-reductions` to apply 1 suggestion)
+warning: manual implementation of `.is_multiple_of()`
+  --> crates/neo-reductions/tests/signed_binary_lean_parity.rs:35:12
+   |
+35 |         if vectors.len() % 2 != 0 {
+   |            ^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `!vectors.len().is_multiple_of(2)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+   = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+warning: `neo-reductions` (test "signed_binary_lean_parity") generated 1 warning (run `cargo clippy --fix --test "signed_binary_lean_parity" -p neo-reductions` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 7.00s

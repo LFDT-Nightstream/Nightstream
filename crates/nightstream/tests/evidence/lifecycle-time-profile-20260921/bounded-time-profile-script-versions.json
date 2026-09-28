@@ -1,0 +1,30 @@
+{
+  "used_versions": {
+    "parser": {
+      "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/parse_bounded_cpu_profile.py",
+      "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-parser-used.py",
+      "bytes": 7779,
+      "sha256": "3d65cb4b04f0629f3251703746c70874f4d4e9a8e55d5da9c267bb4e48fe2dcb",
+      "mtime_ns": 1790039222703462804
+    },
+    "aggregator": {
+      "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_bounded_cpu_profile.py",
+      "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-aggregator-used.py",
+      "bytes": 11479,
+      "sha256": "9545b99f174912de1fcf2dcffd6bce9ad71ccbebd2909f5f3fdec52ff3ffdde9",
+      "mtime_ns": 1790039222704926308
+    },
+    "compactor": {
+      "executed_path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/compact_bounded_profile_totals.py",
+      "preserved_version": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/bounded-time-profile-compactor-used.py",
+      "bytes": 6261,
+      "sha256": "bb5514c294aeaa8ec1622182f8de8ab589b03bce30503b15a8f0c6f33b4ae986",
+      "mtime_ns": 1790039959933425229
+    }
+  },
+  "post_run_change": {
+    "path": "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/summarize_bounded_cpu_profile.py",
+    "change": "Removed standalone dwarfdump and atos subprocess timeout arguments after all analysis jobs completed. Results retain the original executed script version.",
+    "sha256": "f0ed3ccd0135f3c383f55e81c4131d5db81ac5b77ba573c47d89c471cc6e02c4"
+  }
+}

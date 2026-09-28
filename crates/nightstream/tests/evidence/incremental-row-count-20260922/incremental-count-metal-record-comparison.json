@@ -1,0 +1,7 @@
+{
+  "full_start_records_equal": true,
+  "full_finish_records_equal_except_time": true,
+  "previous_seconds": 264.522361916,
+  "new_seconds": 250.277271958,
+  "scope": "Separate complete uninstrumented Metal observations; not a new CPU/Metal ratio."
+}

@@ -1,0 +1,6 @@
+
+running 1 test
+staged request=Ccs { directory: "/private/tmp/nightstream-metal-production-20260920/metal", step: 1, engine: Metal, cpu_reference: Some("/private/tmp/nightstream-metal-production-20260920/cpu") }
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+staged circuit preparation elapsed=67.767374042s
+C cache elapsed=39.407623334s

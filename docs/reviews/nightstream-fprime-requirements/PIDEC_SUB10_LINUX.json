@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "status": "Source optimizations validated on actual witness data; separate private-runtime comparison passed",
+  "base_commit": "ceb3cda8733115b9e3a0e2cf2bf51c8e2e62a8f9",
+  "incoming_commits": [
+    "f13e74d6900ec7cf36bc513fd17bba1639871426",
+    "34797904ec8d0693a962c0573d7010d4461e5951"
+  ],
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "upstream_report": "PIDEC_SUB10_PERFORMANCE.md",
+  "scope": "Actual original Lean parent range [0,74272). This is not a rerun of the complete 64-range production scan. PiDEC remains independent given Lean-verified Rust PiCCS output.",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "workers": 16,
+    "worker_authority": "Existing host-derived validate.sh setting"
+  },
+  "source_comparison": {
+    "all_bytes_equal": true,
+    "bytes": 191856,
+    "coefficients": 19008,
+    "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+    "measurements": {
+      "stock-before": {
+        "wall_seconds": 111.32020164001733,
+        "compute_read_write_ms": 106342,
+        "peak_rss_kib": 1506028
+      },
+      "source-after": {
+        "wall_seconds": 23.46935435105115,
+        "compute_read_write_ms": 21763,
+        "peak_rss_kib": 937632
+      }
+    },
+    "wall_reduction_percent": 78.91725490495843
+  },
+  "input": {
+    "path": "/tmp/nightstream-pirlc-replay-parallel-range-0-74272.jsonl",
+    "sha256": "306d0a4b392da3478652ba85f9f3e4d57c834b2e7f8a4c779c6e0e08090469b4",
+    "bytes": 47310348,
+    "authority": "Original independent PiRLC replay; original source-opening evidence is unchanged."
+  },
+  "proof_links": [
+    "NativeAjtaiChaCha.coefficient_eq",
+    "NativeAjtaiChaCha.keyBlock_value",
+    "PiDECNativeProduct.Accumulator.addProduct_value",
+    "PiDECNativeProduct.Accumulator.addPreparedProduct_eq",
+    "PiDECCommitmentBlock.accumulatePreparedContributions_eq",
+    "PiDECCommitmentBlock.accumulateContributions_value",
+    "PiDECCommitmentFold.workerSlot_add_value",
+    "PiDECCommitmentHonestMessages.sum_contributions_honestMessages"
+  ],
+  "review": "The proof statements retain the original setup, ring operations, honestMessages endpoint and caller premises. All previous audit entries and the nine incoming entries remain.",
+  "gates": {
+    "static": {
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 9.428405413986184,
+      "cap_seconds": 1500,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/static-2.log",
+        "sha256": "b6128277260642eecb55dd20825ee8fc9b0d12999cb9742f492fb8aad4b06827",
+        "bytes": 1343
+      }
+    },
+    "build": {
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.9654699399834499,
+      "cap_seconds": 1500,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/build-2.log",
+        "sha256": "15742bc094e268e9e5e657d1b5e23cb612d1eb7692a18827f5138932014c9f40",
+        "bytes": 171780
+      }
+    },
+    "axioms": {
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 45.26388803799637,
+      "cap_seconds": 1500,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/axioms-1.log",
+        "sha256": "fd5a139751fd96b6ecd27736f5dd1cd3edae9c0ba339b35d70b10acbb332bb83",
+        "bytes": 1095181
+      }
+    },
+    "identity": {
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 95.6393726930255,
+      "cap_seconds": 1500,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/identity-1.log",
+        "sha256": "3be1fd1d42245859958adf6804a2ea8d306242cc9c9ccdf675eadb73fe39af79",
+        "bytes": 126916
+      }
+    },
+    "registrations": {
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.2641925159841776,
+      "cap_seconds": 300,
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/registrations-1.log",
+        "sha256": "4a0c27af16115fff400565834dfba47f94685832f63dc33eed79ff899453aed8",
+        "bytes": 1287
+      }
+    }
+  },
+  "edges": {
+    "scope": "Generated carrier-tail, partial-worker-batch, zero, strict-B, noncanonical, duplicate and trailing-data cases; not C openings.",
+    "baseline": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/nightstream-sub10-baseline-1/results.json",
+      "sha256": "1c348ed766563afddf8b3c1524e0557829bc936e26daac41dda3632da0cb9576",
+      "bytes": 3806
+    },
+    "source_candidate": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/nightstream-sub10-candidate-1/results.json",
+      "sha256": "8380804334d3ca0b838bcc124555d9e7e02b7e2391dfcb1d308bd892b6d93383",
+      "bytes": 3817
+    }
+  },
+  "runtime": {
+    "commit": "14f2fed9c9782048e896c924f424624585acd772",
+    "constructor_commit": "884cd4a5dc0dbc8d99189c333466d36d916c7af1",
+    "release_base": "d024af099ca4bf2c86f649261ebf59565dc8c622",
+    "method": "Private stock and patched mpz.cpp objects built with identical flags and matched LLVM/libc++19.1.2 headers. All other archive members and application objects are identical. The default toolchain is unchanged.",
+    "boundary": "C++ runtime and compilation remain trusted implementation links; this is an executable comparison, not a kernel proof of C++.",
+    "tests": "Actual C++ conversion checks passed for both variants: 14 constructor/toNat, 33 signed mod64/Int64, and 17 Nat boundary cases. Link maps identify both changed symbols in the private archive.",
+    "build_log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-build-2.log",
+      "sha256": "031963564bf4f0b08179a2015be947a61115ccfcc2734f9213b66dda5c2b69b8",
+      "bytes": 1155
+    },
+    "resolved_setup_failure": "GMP configure required m4. The package was extracted under the temporary test directory; no system package or default toolchain was changed.",
+    "comparison": {
+      "all_bytes_equal": true,
+      "bytes": 191856,
+      "coefficients": 19008,
+      "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+      "measurements": {
+        "runtime-stock": {
+          "wall_seconds": 22.159329454996623,
+          "compute_read_write_ms": 21701,
+          "peak_rss_kib": 356108
+        },
+        "runtime-patched": {
+          "wall_seconds": 21.2165687950328,
+          "compute_read_write_ms": 20738,
+          "peak_rss_kib": 355960
+        }
+      },
+      "wall_reduction_percent": 4.254463845029588
+    },
+    "timing_scope": "Both private binaries use lean-executable, the same application objects, compiler flags and host worker setting. Do not compare this wall time directly with Lake-invoked wall times.",
+    "edge_results": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/nightstream-sub10-runtime-candidate-1/results.json",
+      "sha256": "b9abb8792fda333d0631c7104da0fb998157cbcc25ef4382c9a3198f3ef781d9"
+    },
+    "link_inputs": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime/link-inputs.json",
+      "sha256": "ef90b406f3b0731815ab4081d0aa27bc2b9cc1127b3b122a900cf63570a7c4a0"
+    },
+    "review": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime/runtime-review.json",
+      "sha256": "9272f5f70e4f7e5e277d9545a3a25f26cf733b3011fd83aba82f8c0abb01ac3e"
+    },
+    "adoption": "Source optimizations are integrated. The private runtime is available for capped replay; the installed default toolchain and compiler are unchanged.",
+    "source_url": "https://github.com/nicarq/lean4-optimized/commit/14f2fed9c9782048e896c924f424624585acd772",
+    "tested_script": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime/build-private-runtime.sh",
+      "sha256": "7368708f579566bf78544648b071f69039afaca1cc262b890bf568513a830183",
+      "bytes": 6952
+    }
+  },
+  "evidence_directory": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux",
+  "delivery": "Reports and hashes in Git; generated inputs/outputs and private binaries remain outside Git. Release upload remains separate.",
+  "metal": "Not integrated. The external prototype has no checked Lean connection.",
+  "pirlc_comparison": {
+    "all_bytes_equal": true,
+    "bytes": 47310348,
+    "sha256": "306d0a4b392da3478652ba85f9f3e4d57c834b2e7f8a4c779c6e0e08090469b4",
+    "range": [
+      0,
+      74272
+    ],
+    "coefficients": 4010688,
+    "elapsed_seconds": 32.79341934400145,
+    "peak_rss_kib": 940272,
+    "command": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/pirlc-source-after-command.json",
+      "sha256": "8f7b63275634ae65d3f910954fbed4029cb35500afe381bbff1ac2b7b922505f",
+      "bytes": 495
+    },
+    "log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/pirlc-source-after.log",
+      "sha256": "59d2fd7ada4bb7f0e73e6e2d820c39f3aab48daccb8b6465cad2de3404ab1202",
+      "bytes": 127663
+    }
+  },
+  "package_comparison": {
+    "all_bytes_equal": true,
+    "bytes": 128098921,
+    "sha256": "043bce25083eb15c733a903f4df2958acbc31a59dbe17420cd084c8242bd4d1f",
+    "elapsed_seconds": 41.79269028501585,
+    "peak_rss_kib": 3883036,
+    "log": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/package-emit-1.log",
+      "sha256": "c077b4948a642098f93d42c02695dd25b8687b23757fcba901192a5244f1846f",
+      "bytes": 126568
+    }
+  },
+  "scope_note": "The existing full production replay evidence is retained. The new measurements cover the exact prefix and generated edge cases listed here; they do not establish a new full-scan duration.",
+  "runs": {
+    "stock-before": {
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/stock-before-command.json",
+        "sha256": "80b5d1864e3575889ae3603078182015f949dff92ce48814e6a954d3ff030f52",
+        "bytes": 436
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/stock-before.log",
+        "sha256": "230bf1169ef578411705752446aa9871ad1f4a9cd25a8d5076de7ecce25d2db3",
+        "bytes": 127071
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/stock-before.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      }
+    },
+    "source-after": {
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/source-after-command.json",
+        "sha256": "7bb382d385f0f9a66cbfcacf449aa1b67c8a237719005e9d84cfd98528a19af3",
+        "bytes": 436
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/source-after.log",
+        "sha256": "d2b42b21a94f37a6679c8c5260b2704959b06970ba8e5d3e9659b8f70d123775",
+        "bytes": 127066
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/source-after.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      }
+    },
+    "runtime-stock": {
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-stock-command.json",
+        "sha256": "7002bdf2d636a10116dc4a4b2097e4e0035a5eb61792a743976752a45a56fc14",
+        "bytes": 493
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-stock.log",
+        "sha256": "b0b06adf20aa697b5b5c37f1661bdb93e2db721c14221c1f02780af10d2f1d79",
+        "bytes": 2022
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-stock.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      }
+    },
+    "runtime-patched": {
+      "command": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-patched-command.json",
+        "sha256": "511d83833291a220c7e50b2800621051d5d0a4d35b53697b04a1307493f25f71",
+        "bytes": 497
+      },
+      "log": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-patched.log",
+        "sha256": "710c8698381207e9ab0a5b4833095e580162932c14dabb00a6beb8554437a76d",
+        "bytes": 2032
+      },
+      "output": {
+        "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/runtime-patched.json",
+        "sha256": "bce4e5fcb2a179a5c3c421042fd414e992cf054e6483b0c10ae8bc1fc8f2ece4",
+        "bytes": 191856
+      }
+    }
+  },
+  "source_snapshots": {
+    "stock-before-source.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/stock-before-source.json",
+      "sha256": "7db6972f718b305e1877032f31da24b886a457d564427c265259be6179d424c9",
+      "bytes": 252
+    },
+    "merge-source.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/merge-source.json",
+      "sha256": "e90c4c82ea4ef551ff0764437b9af46b939b9d7c236c967cc8fff4bd6b0b891a",
+      "bytes": 614
+    },
+    "source-after-binary.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/source-after-binary.json",
+      "sha256": "4b56565c028247ff66c3223a2026d44fb29e8f355776b2d80dc878b615d897e6",
+      "bytes": 126
+    },
+    "pirlc-source-after-binary.json": {
+      "path": "/home/nicoarq/develop/nightstream-stage1-evidence/pidec-sub10-linux/pirlc-source-after-binary.json",
+      "sha256": "3dbe127e7d93cb6d2ae24df92f6e2dd65c295ef09a6a062425066abb84956ad7",
+      "bytes": 125
+    }
+  }
+}

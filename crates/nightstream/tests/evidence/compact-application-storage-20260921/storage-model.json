@@ -1,0 +1,13 @@
+{
+  "rows": 6377559,
+  "columns": 253011231,
+  "carrier_width": 253011276,
+  "matrices": 14,
+  "cube_variables": 28,
+  "removed_dense_assignment_bytes": 2024090208,
+  "application_base_bytes": 714286608,
+  "removed_initial_future_application_buffers": 1071430080,
+  "worst_all_nonzero_source_count": 17,
+  "full_carried_table_bytes": 4048180416,
+  "full_carried_projection_temporary_bytes": 4048180416
+}

@@ -1,0 +1,29 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+   Compiling neo-fold-clean v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-fold-clean)
+   Compiling nightstream v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 1m 43s
+     Running unittests src/lib.rs (target/release/deps/nightstream-11c0cb8bc995e822)
+
+running 5 tests
+test circuit::compiled_circuit::metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_same_public_state ... ignored, Production Metal proof with changed private constraint and copied identity claims; run separately under the 300-second cap.
+test circuit::compiled_circuit::atomic_write_refuses_to_replace_an_existing_destination ... ok
+
+thread 'circuit::compiled_circuit::compiled_roundtrip_preserves_identity_witness_and_selected_matrix_rows' (1472835) panicked at crates/nightstream/src/../tests/circuit/compiled_circuit.rs:126:14:
+called `Result::unwrap()` on an `Err` value: Invalid("logical matrix row range")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'circuit::compiled_circuit::loaded_execution_and_resaving_use_private_snapshots_after_external_mutation' (1472836) panicked at crates/nightstream/src/../tests/circuit/compiled_circuit.rs:126:14:
+called `Result::unwrap()` on an `Err` value: Invalid("logical matrix row range")
+test circuit::compiled_circuit::loaded_execution_and_resaving_use_private_snapshots_after_external_mutation ... FAILED
+test circuit::compiled_circuit::compiled_roundtrip_preserves_identity_witness_and_selected_matrix_rows ... FAILED
+test circuit::compiled_circuit::compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data ... ok
+
+failures:
+
+failures:
+    circuit::compiled_circuit::compiled_roundtrip_preserves_identity_witness_and_selected_matrix_rows
+    circuit::compiled_circuit::loaded_execution_and_resaving_use_private_snapshots_after_external_mutation
+
+test result: FAILED. 2 passed; 2 failed; 1 ignored; 0 measured; 27 filtered out; finished in 39.91s
+
+error: test failed, to rerun pass `-p nightstream --lib`

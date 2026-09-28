@@ -1,0 +1,11 @@
+
+running 1 test
+staged request=Rlc { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-cpu", step: 2 }
+staged circuit preparation elapsed=34.794686875s
+[pi-rlc] evaluations    0.00s X_mix    0.00s
+[pi-rlc] core    2.66s commit_mix    0.00s inputs=17
+staged phase passed elapsed=45.775893042s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 45.78s
+

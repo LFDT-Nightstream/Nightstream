@@ -1,0 +1,21 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 11.32s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-3e99b9ed6911e390)
+
+running 1 test
+
+thread '<unnamed>' (604663) panicked at crates/neo-reductions/src/engines/optimized_engine/../../../tests/unit/carried_table_storage.rs:117:9:
+assertion `left == right` failed: only one reused projection may span the carrier; combined witness planes must remain local
+  left: (2, 2)
+ right: (1, 0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_table_has_no_flat_combined_witness ... FAILED
+
+failures:
+
+failures:
+    engines::optimized_engine::cpu_oracle::carried_storage_tests::carried_table_has_no_flat_combined_witness
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p neo-reductions --lib`

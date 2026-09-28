@@ -1,0 +1,9 @@
+   Compiling neo-reductions v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 16.01s
+     Running tests/rlc_packed_storage.rs (target/release/deps/rlc_packed_storage-34626e0dbf117ba2)
+
+running 1 test
+test packed_rlc_needs_no_nonzero_entry_lists ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

@@ -1,0 +1,183 @@
+{
+  "outcome": "passed",
+  "recorded_at": "2026-09-28T05:07:54.229438+00:00",
+  "commands": [
+    {
+      "name": "formal-python",
+      "kind": "python",
+      "command": [
+        "python3.12",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-v",
+        "-s",
+        "formal/nightstream-fprime/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 3.660658121109009,
+      "log": "final-validation/formal-python.log",
+      "log_sha256": "d6b6bd0283da8fa40e718f07e9fc6a817023cba16d791b9a1391677bc9f828ce",
+      "completion": [
+        "Ran 32 tests in 3.533s",
+        "OK"
+      ]
+    },
+    {
+      "name": "lean-build",
+      "kind": "lean",
+      "command": [
+        "elan",
+        "run",
+        "nightstream-lean-4.32.2-3019a32c",
+        "bash",
+        "scripts/validate.sh",
+        "build"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 16.258485078811646,
+      "log": "final-validation/lean-build.log",
+      "log_sha256": "5588b04e52e9ef31cf1ca5ddc512adfd8c304b717dc4268a5922c047fb299797",
+      "completion": [
+        "Build completed successfully (4198 jobs).",
+        "[bounded] exit=0 elapsed=16s"
+      ]
+    },
+    {
+      "name": "lean-static",
+      "kind": "lean",
+      "command": [
+        "elan",
+        "run",
+        "nightstream-lean-4.32.2-3019a32c",
+        "bash",
+        "scripts/validate.sh",
+        "static"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 14.646445989608765,
+      "log": "final-validation/lean-static.log",
+      "log_sha256": "70129d08bc9de966d78c88688183e5ace6240a741805b902f8397c29aeab43f7",
+      "completion": []
+    },
+    {
+      "name": "native-python",
+      "kind": "python",
+      "command": [
+        "python3.12",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-v",
+        "-s",
+        "crates/nightstream/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 1.3903539180755615,
+      "log": "final-validation/native-python.log",
+      "log_sha256": "861763bf9f66067d1e76808c7aad0777746d9674f6c1908ffdb50bdf77c5809b",
+      "completion": [
+        "Ran 42 tests in 1.242s",
+        "OK"
+      ]
+    },
+    {
+      "name": "registry-and-golden-python",
+      "kind": "python",
+      "command": [
+        "python3.12",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "scripts.lean_graph.tests.test_replay_coverage",
+        "scripts.tests.test_golden_conformance_ci",
+        "scripts.tests.test_golden_conformance_changes"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.18517184257507324,
+      "log": "final-validation/registry-and-golden-python.log",
+      "log_sha256": "fe80f44f6976c0d948a9eaa903af20438cfb1272652a2270587214977d2f8318",
+      "completion": [
+        "Ran 24 tests in 0.047s",
+        "OK"
+      ]
+    },
+    {
+      "name": "rust-format",
+      "kind": "static",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up",
+      "cap_seconds": 300,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 0.9316658973693848,
+      "log": "final-validation/rust-format.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "completion": []
+    },
+    {
+      "name": "selected-identity",
+      "kind": "lean",
+      "command": [
+        "elan",
+        "run",
+        "nightstream-lean-4.32.2-3019a32c",
+        "bash",
+        "scripts/validate.sh",
+        "identity"
+      ],
+      "cwd": "/Users/nicarq/.codex/worktrees/pr123-review/nightstream-clean-up/formal/nightstream-fprime",
+      "cap_seconds": 1500,
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 59.57953500747681,
+      "log": "final-validation/selected-identity.log",
+      "log_sha256": "cd1978fd547096627faf977633535ec923acb128ede847d065fb27b9e0e43564",
+      "completion": [
+        "[bounded] exit=0 elapsed=59s"
+      ]
+    }
+  ],
+  "stock_lean": {
+    "toolchain": "leanprover/lean4:v4.32.2",
+    "current_lean_source_files_equal_to_stock_validation": 1180,
+    "clean_rebuild": false,
+    "scope": "Separate stock-only incremental proof/library and producer builds. See archived stock-current-build.log, stock-native-weight-build.log and batching-stock-matrix-build.log. Earlier clean stock validation remains in STOCK_LEAN_VALIDATION.json."
+  },
+  "rust_unit_tests": {
+    "passed": 28,
+    "failed": 0,
+    "ignored": 10,
+    "seconds": 51.12,
+    "log": "native-tests.log",
+    "log_sha256": "30ba9c619c0e9a3b2f37096fc747f840fc14380a5cb9f3880c1cd32255b55290",
+    "scope": "Ran after the last Rust source edit; subsequent production comparisons and terminal cases execute the retained ignored tests explicitly."
+  },
+  "proof_integrity": "No added sorry, admit, axiom, native_decide, unsafe or limit override was found in the Lean diff. Boundaries/static validation also passed."
+}

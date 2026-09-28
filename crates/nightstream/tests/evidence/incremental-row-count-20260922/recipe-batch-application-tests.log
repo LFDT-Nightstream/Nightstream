@@ -1,0 +1,27 @@
+   Compiling nightstream-fprime v0.1.0 (/Users/nijaar/starstream/Nightstream/crates/nightstream-fprime)
+    Finished `release` profile [optimized] target(s) in 35.75s
+     Running unittests src/lib.rs (target/release/deps/nightstream_fprime-c16a87041911162e)
+
+running 19 tests
+test application_records::tests::partial_append_poison_prevents_a_usable_snapshot ... ok
+test application_records::tests::ordered_terms_recipes_and_framing_counts_survive_sealing ... ok
+test application_records::tests::sealing_rejects_a_truncated_record_file ... ok
+test package::sealed::sealed_tests::application_message_is_input_and_application_local_is_generated ... ok
+test package::sealed::sealed_tests::application_plan_decodes_exact_lean_owned_ranges ... ok
+test package::sealed::sealed_tests::application_plan_rejects_a_row_not_present_in_the_package_suffix ... ok
+test package::sealed::sealed_tests::application_plan_rejects_a_wrong_row_count ... ok
+test package::sealed::sealed_tests::application_plan_rejects_an_unowned_row_family ... ok
+test package::sealed::sealed_tests::application_plan_rejects_assertion_not_immediately_before_next_preimage ... ok
+test package::sealed::sealed_tests::application_plan_rejects_changed_witness_ownership ... ok
+test application_records::tests::writer_buffers_do_not_grow_with_distinct_rows_or_terms ... ok
+test application_records::tests::reused_recipe_evaluator_clears_pending_frames_after_lookup_error ... ok
+test package::native_application::tests::native_row_coverage_rejects_fixed_rows_inside_the_overlay ... ok
+test package::native_application::tests::sealed_native_rows_preserve_raw_terms_and_map_bounded_runtime_coefficients ... ok
+test package::native_application::tests::native_loader_rejects_dynamic_source_payload_before_fixed_decoding ... ok
+test package::native_application::tests::native_recipe_batch_matches_independent_evaluation_with_causal_dependencies ... ok
+test package::native_application::tests::native_recipes_execute_stored_syntax_and_report_global_assertion_failure ... ok
+test application_records::tests::ingestion_rejects_bad_counts_field_words_and_recipe_arity ... ok
+test package::native_application::tests::native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholders ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.04s
+

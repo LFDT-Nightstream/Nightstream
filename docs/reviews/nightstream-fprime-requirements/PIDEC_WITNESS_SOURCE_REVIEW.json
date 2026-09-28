@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "reviewer": "/root/review_linear_security_contract",
+  "review_kind": "Independent local source review; diagnostic, not protected-checker approval",
+  "timestamp_utc": "2026-09-13T19:53:04.534120+00:00",
+  "worktree": "/home/nicoarq/develop/Nightstream",
+  "branch": "nico/f-prime-constraints-cuda-formal",
+  "base_commit": "9d01f7a4c5b386a80dc98f621e2e5f58067a0585",
+  "source_state": "Uncommitted draft; hashes identify reviewed files, not the base commit alone.",
+  "source_sha256": {
+    "formal/nightstream-fprime/NightstreamFPrime/Spec/Phi81Relation/PiDECAlgebra/StoredSplit.lean": "217de2a9ff27c48b8f3799aa0a2e9d533cbb999a06da4630b78944b7eb8ad14d",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/PiDECWitnessReplayMain.lean": "17f5c3f209b084ca5d259a93da3fc505500d6e3ca3e41093c1349251e4f74263",
+    "formal/nightstream-fprime/NightstreamFPrime/Export/Stage1/PiDECStoredSplitHonestWitness.lean": "c5c0dc16f1687260730f065a4a66e2cf8faa82585417f76dc805d9f09fef0c4e",
+    "crates/neo-fold-clean/tests/nifs/stage1_pidec_replay.rs": "b95116e67bd0789dba270cb3f21646e37184c17cbf385009acded31f41f8c16d",
+    "crates/neo-fold-clean/tests/nifs/stage1_pirlc_replay.rs": "b60d0946d4a6896eb31a1bb20d6d456e5f54814d7ad1cf14cafa1fa88e69b8e5"
+  },
+  "contract": "Each of 16 children and each of 54 lanes at every full-carrier block equals the existing Radix split and selected PaperVerifier honest-witness specification, computed from independently Lean-replayed R parent ranges. Native children are comparison targets only.",
+  "verdict": "pass_source_review_execution_pending",
+  "concrete_defects": [],
+  "assessments": {
+    "independence": "Lean receives only parent ranges and output/range paths. No native child value or expected mask selects its digits. The exact Lean R producer and parent bytes must be bound by existing execution provenance.",
+    "kernel": "computeBlock calls StoredSplit.splitChecked. It checks every supplied coefficient against centeredMagnitude < Radix.combinedBound before computing all 16 Radix.boundedDigit values. splitChecked_value and splitChecked_block_honestWitness state the scalar and actual-block correspondence. Compilation remains owned by the coordinator.",
+    "strict_bound_and_fields": "The selected bound is 65536. Canonical parent words are checked below goldilocksModulus before fieldOfNat, so modular reduction cannot accept an out-of-range word. Both centered signs use the existing scalar split.",
+    "masks": "childMasks visits all 54 returned values and accepts only 0, 1, -1. Rust decode_masks rejects repeated or unordered child IDs, overlap, bits above lane 53, and empty or explicit zero entries. Actual compact Mat masks come from the existing validated Mat deserializer/accessor. Both masks are compared, including sign.",
+    "coverage": "Parent block IDs and output block IDs must be increasing and within range. Missing parent blocks are zero; missing emitted children or blocks are compared as zero. Complete target comparison requires contiguous ranges from block zero through the fixed production carrier end, covering every child tail.",
+    "mutation": "The current comparator changes exactly child 15, lane 53 of the final target block after validated mask extraction and requires the exact localized compare_block error. This checks the value comparator; it does not claim to mutate and reparse a saved Mat file."
+  },
+  "required_execution_checks_pending": [
+    "Build and audit the final stored split and selected honest-witness bridge; run the actual Lean executable.",
+    "Compare all actual child coefficients over complete ranges from the recorded Lean R parent bytes, including the existing localized final-tail mutation.",
+    "Use a small positive parent case with 0, +1, -1, +(B-1), and -(B-1) to check signs, zero omission, and child 15; reject separate +B, -B, and canonical word p cases."
+  ],
+  "retained_boundaries": [
+    "Parent provenance is an execution/evidence link; the input file header alone does not authenticate a Lean producer.",
+    "Complete execution, time, and peak memory remain pending until the coordinator records the runs.",
+    "No new commitment computation, CE evaluation, complete D message comparison, transcript acceptance, or terminal closure is claimed by this private-witness slice."
+  ],
+  "review_actions": "Read sources and wrote this /tmp report only. No builds, tests, repository edits, or branches."
+}

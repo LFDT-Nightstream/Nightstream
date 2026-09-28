@@ -1,0 +1,132 @@
+{
+  "scope": "Production Sources step 1: complete fresh witness commitment and sixteen zero running commitments. Not a full C/R/D proof, active carried benchmark, terminal verification, or full lifecycle.",
+  "input_comparison": [
+    {
+      "file": "digit-0.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-1.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-10.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-11.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-12.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-13.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-14.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-15.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-2.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-3.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-4.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-5.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-6.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-7.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-8.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "digit-9.json",
+      "bytes": 91,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "envelope.json",
+      "bytes": 1121675,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "fresh-claim.json",
+      "bytes": 39408,
+      "exact_bytes_equal": true
+    },
+    {
+      "file": "fresh-witness.json",
+      "bytes": 88817469,
+      "exact_bytes_equal": true
+    }
+  ],
+  "source_check_records_equal": true,
+  "checked_record": {
+    "package_identity": [
+      9705822157724451396,
+      520958727644325895,
+      9285622073986934000,
+      874020794279380938
+    ],
+    "schema": 1,
+    "step": 1
+  },
+  "commitment_check": "Both native runs recompute and compare the complete fresh commitment and every running commitment to the same saved source claims before writing sources-checked.json. No digest-only comparison.",
+  "old_fresh_commitment_seconds": 95.144954,
+  "new_fresh_commitment_seconds": 58.379275583,
+  "less_time_percent": 38.64175331568293,
+  "speed_ratio": 1.629772775524233,
+  "old_staged_seconds": 130.097224667,
+  "new_staged_seconds": 93.323147958,
+  "old_peak_rss_bytes": 6073974784,
+  "new_peak_rss_bytes": 6115606528,
+  "conditions": "Serial release runs; same input, test entrypoint and build features; scoped caffeinate assertions on AC. Individual runs, not a statistical estimate.",
+  "tests": {
+    "ajtai_passed": 12,
+    "ajtai_ignored": 1,
+    "metal_commitment_passed": 3,
+    "engine_parity_passed": 9,
+    "cuda_parity_ignored": 2
+  },
+  "time_cap_seconds": 300,
+  "time_authority": "AGENTS.md ordinary non-Lean test cap",
+  "no_lean_execution": true,
+  "no_features_or_envs_added": true
+}

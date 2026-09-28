@@ -1,0 +1,10 @@
+
+running 1 test
+poseidon preparation engine=Metal elapsed=35.141412125s
+poseidon base proving elapsed=6.8243925s
+poseidon terminal verification elapsed=9.663785917s
+poseidon public lifecycle elapsed=51.629899375s
+test poseidon_metal_base_step_matches_lean_and_verifies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 51.69s
+

@@ -1,0 +1,11 @@
+
+running 1 test
+staged request=Terminal { directory: "/Users/nijaar/Library/Application Support/Nightstream/runs/metal-norm-20260921-bgylh03h/second-fold-metal", engine: Metal }
+staged circuit preparation elapsed=34.694822584s
+test lifecycle::tests::staged::run_phase has been running for over 60 seconds
+terminal Metal activity=MetalActivity { command_buffers: 61, dispatches: 959, host_waits: 61, allocated_bytes: 9681431854, uploaded_bytes: 4238781822, downloaded_bytes: 160708, current_allocated_bytes: 3247538176 }
+staged phase passed elapsed=73.7005895s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 73.70s
+

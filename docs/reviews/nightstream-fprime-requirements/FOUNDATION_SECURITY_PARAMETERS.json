@@ -1,0 +1,159 @@
+{
+  "source": "current Lean setup vectors and working-tree profile",
+  "setup_descriptor": [
+    37,
+    110,
+    105,
+    103,
+    104,
+    116,
+    115,
+    116,
+    114,
+    101,
+    97,
+    109,
+    45,
+    97,
+    106,
+    116,
+    97,
+    105,
+    45,
+    99,
+    104,
+    97,
+    99,
+    104,
+    97,
+    50,
+    48,
+    45,
+    119,
+    105,
+    100,
+    101,
+    50,
+    53,
+    54,
+    45,
+    118,
+    49,
+    22,
+    4708530,
+    32,
+    252,
+    64,
+    73,
+    132,
+    212,
+    76,
+    27,
+    135,
+    141,
+    104,
+    166,
+    168,
+    0,
+    146,
+    215,
+    215,
+    171,
+    68,
+    216,
+    26,
+    193,
+    123,
+    69,
+    168,
+    231,
+    189,
+    76,
+    31,
+    30,
+    55,
+    23,
+    2
+  ],
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536,
+    "T": 216,
+    "d": 54,
+    "kappa": 22,
+    "ring_columns": 4708530
+  },
+  "distribution": {
+    "premise": "Independent uniform 256-bit inputs; this is not a ChaCha20 security assertion",
+    "samples": 115792089237316195423570985008687907853269984665640564039457584007913129639936,
+    "remainder": 4294967295,
+    "coefficient_count": 5593733640,
+    "single_exact_tv": "39614081229462052694797582335/1067993517711793423050513576625743030939727333632442263501481937523698156463469318509170920521728",
+    "single_proved_bound": "4294967295/115792089237316195423570985008687907853269984665640564039457584007913129639936",
+    "whole_key_exact_hybrid_bound": "27698827348866805407792736162244906175/133499189713974177881314197078217878867465916704055282937685242190462269557933664813646365065216",
+    "whole_key_proved_hybrid_bound": "3003112880092662975/14474011154664524427946373126085988481658748083205070504932198000989141204992",
+    "proved_bound_negative_log2": 191.61883558853125
+  },
+  "estimator_source_revision": "53da5982597709ba0fdf94ea37a84d822310fd84",
+  "execution": "CPython Euclidean formula evaluation; not the full Sage estimator",
+  "upstream_delta_examples": [
+    [
+      1.0121,
+      50
+    ],
+    [
+      1.0093,
+      100
+    ],
+    [
+      1.0024,
+      808
+    ]
+  ],
+  "selected": {
+    "n": 1188,
+    "m": 254260620,
+    "q": 18446744069414584321,
+    "infinity_bound": 113246208,
+    "euclidean_bound": 1805773267982.2903,
+    "lattice_dimension": 3734,
+    "beta": 431,
+    "log_delta": 0.003779290898598814,
+    "chen_bracket": [
+      0.0037793381478673765,
+      0.0037732110537642065
+    ],
+    "log2_cost": {
+      "MATZOV_classical_gates": 153.19753180528141,
+      "MATZOV_quantum_depth_times_width": 146.6996454627375,
+      "ADPS16_classical_Core_SVP": 125.85199999999999,
+      "ADPS16_quantum_Core_SVP": 114.215
+    }
+  },
+  "paper_B6_reference_only": {
+    "n": 972,
+    "m": 1073741778,
+    "q": 18446744069414584321,
+    "infinity_bound": 28311552,
+    "euclidean_bound": 927712916063.9998,
+    "lattice_dimension": 3129,
+    "beta": 345,
+    "log_delta": 0.004403916660094894,
+    "chen_bracket": [
+      0.0044068088973610794,
+      0.0043981442124514485
+    ],
+    "log2_cost": {
+      "MATZOV_classical_gates": 129.07866466888302,
+      "MATZOV_quantum_depth_times_width": 124.98040546233904,
+      "ADPS16_classical_Core_SVP": 100.74,
+      "ADPS16_quantum_Core_SVP": 91.42500000000001
+    }
+  },
+  "limits": [
+    "Heuristic generic lattice attack model",
+    "No proof for structured Module-SIS or this fixed public seed",
+    "Cost units differ between models; these are not interchangeable security-bit guarantees"
+  ]
+}

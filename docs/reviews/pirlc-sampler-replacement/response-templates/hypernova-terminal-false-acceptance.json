@@ -24,12 +24,12 @@
   "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
   "obligation": "hypernova-terminal-false-acceptance",
   "outcome": "pending",
-  "policy": "d821d752f32aff722e1944f48724bfc306defc5f153a735e6fce2b7718eab869",
-  "request": "dbe084b7925c6641ef200d2c226b48e1d7d57c472538d313163e6b9271033fbe",
+  "policy": "4d4a4cbd52a955bbd73772c741ee2e08f421e34c0c967ebccb8a212c512e1ce9",
+  "request": "44672f0a0e2d454e337921092ebc90dd9a7cc5e4c9aa3ba712825bd984dfc91b",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1",
+  "snapshot": "9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d",
   "target": "LeanGraph.Targets.HyperNovaTerminalFalseAcceptance"
 }

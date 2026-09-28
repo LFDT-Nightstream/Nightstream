@@ -24,12 +24,12 @@
   "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
   "obligation": "hypernova-linear-security",
   "outcome": "pending",
-  "policy": "d821d752f32aff722e1944f48724bfc306defc5f153a735e6fce2b7718eab869",
-  "request": "5bb9c1b093c1e68b1e836724a16bc1c7aae869bdaf9eedda65122879c66bb58b",
+  "policy": "4d4a4cbd52a955bbd73772c741ee2e08f421e34c0c967ebccb8a212c512e1ce9",
+  "request": "3cd9afe26b17761723e01a022c68979f40aa1d411eb98f10340332933af9d259",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "a008434d22ac93390cc24c383e06d7509c648572d291f6fb49dda9198cc852c1",
+  "snapshot": "9e0e16083b6855c6c7d652af1187e8b27900107160f70f6f351751f6e179098d",
   "target": "LeanGraph.Targets.HyperNovaLinearSecurity"
 }

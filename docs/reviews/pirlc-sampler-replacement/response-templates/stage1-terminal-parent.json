@@ -24,12 +24,12 @@
   "checker": "13dd62c5e48ea81dd56b1e8873034421ea08afe0058f1c94495489e9e18617d9",
   "obligation": "stage1-terminal-parent",
   "outcome": "pending",
-  "policy": "d821d752f32aff722e1944f48724bfc306defc5f153a735e6fce2b7718eab869",
-  "request": "2842b789e6402a17aa193a74c29e655855e6b3d96419b9846434763c3d066ca1",
+  "policy": "4d4a4cbd52a955bbd73772c741ee2e08f421e34c0c967ebccb8a212c512e1ce9",
+  "request": "838607bedb6aaaf8f6112cd9589854e80234d85c938182fc8d08a7be7e246b04",
   "review": "decomposition",
   "reviewed_at": "",
   "reviewer": "",
   "scope": "Exact proof-step statement, permitted premises, substantive argument, Lean correspondence, and use in the registered parent obligation.",
-  "snapshot": "c66dabd2330a6ca47d12962f517d4c758c14a4fb7a492547068815ecd3640061",
+  "snapshot": "d365c11813c2517f5bd2b575972f48496f21cf1c26ab2f549d1da4faf02be7e5",
   "target": "LeanGraph.Targets.Stage1TerminalParent"
 }

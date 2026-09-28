@@ -1,0 +1,123 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-09-28T05:26:05.509622+00:00",
+  "author_run_outcome": "passed",
+  "independent_review": "pending",
+  "release": "https://github.com/LFDT-Nightstream/Nightstream/releases/tag/pr124-independent-generation-20260927",
+  "source_binding": {
+    "implementation_commit": "8ad1acfb04c988f1cbe2eb138f36c4dca35c3392",
+    "execution_base_commit": "daa1432161a3fc4e64a9e4ae894bd7a81da174b7",
+    "source_snapshot": "91cabfd084f7dfd13d4cb2572fc856fcd9699e721135a1dbfc8ca8850a742f51.json",
+    "source_snapshot_sha256": "91cabfd084f7dfd13d4cb2572fc856fcd9699e721135a1dbfc8ca8850a742f51",
+    "matched_source_files": 1736,
+    "all_final_source_files_equal_committed_git_blobs": true,
+    "package": {
+      "bytes": 128162339,
+      "sha256": "22e0f02134cb215eb4f9c445db6fd568d7723a80f7a26ee67a69a01850b4f1c8"
+    },
+    "package_lfs_pointer_matches_execution": true,
+    "recorded_at": "2026-09-28T05:11:20.260977+00:00",
+    "scope": "Binds final executed/validated source bytes to the committed implementation. Earlier successful checkpoints retain their own source snapshots and source objects; this does not claim all earlier commands ran at this Git HEAD."
+  },
+  "archives": [
+    {
+      "kind": "first-fold",
+      "manifest": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/first-fold-evidence.tar.manifest.json",
+      "checksums": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/FIRST_FOLD_SHA256SUMS",
+      "archive_bytes": 5998524478,
+      "archive_sha256": "9988fb5d15ab6b23b6386449b85109f44b8b7bd2cbd08a47986ce83dd2d92529",
+      "uncompressed_bytes": 31271587840,
+      "parts": [
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/FIRST_FOLD_EVIDENCE-9988fb5d15ab6b23b6386449b85109f44b8b7bd2cbd08a47986ce83dd2d92529.tar.zst.part-000",
+          "bytes": 1610612736,
+          "sha256": "bf3f9e96ebdf5b63da4b9d87057d4f7851f91eecacbcc1b96c45cdfedf175481"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/FIRST_FOLD_EVIDENCE-9988fb5d15ab6b23b6386449b85109f44b8b7bd2cbd08a47986ce83dd2d92529.tar.zst.part-001",
+          "bytes": 1610612736,
+          "sha256": "62078ffce43814e74501fdf5120b3ef8263e1f41da0aa096f5c15891cb2609c8"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/FIRST_FOLD_EVIDENCE-9988fb5d15ab6b23b6386449b85109f44b8b7bd2cbd08a47986ce83dd2d92529.tar.zst.part-002",
+          "bytes": 1610612736,
+          "sha256": "6a3fbb64fb6406c024729641c2010ab6ce65ee70c96697d195bf84d57a07da20"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/FIRST_FOLD_EVIDENCE-9988fb5d15ab6b23b6386449b85109f44b8b7bd2cbd08a47986ce83dd2d92529.tar.zst.part-003",
+          "bytes": 1166686270,
+          "sha256": "042cee162411bbdd2852cd78b4084e927565862a6f2ed9d6632d104b0cd29fc2"
+        }
+      ],
+      "fresh_download_verified_at": "2026-09-27T22:52:19.354618+00:00",
+      "verification_record_sha256": "2d6e3597cebfc9d6bdc6d4f0291de4ee7442c14957f618b4f6739ba287fe0142"
+    },
+    {
+      "kind": "second-fold",
+      "manifest": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/second-fold-evidence.tar.manifest.json",
+      "checksums": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/SECOND_FOLD_SHA256SUMS",
+      "archive_bytes": 6385433135,
+      "archive_sha256": "46aaca2c22d696492e2b160b6f9b079a24e99be1061097c5586388e12f1c5e74",
+      "uncompressed_bytes": 31332587520,
+      "parts": [
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/SECOND_FOLD_EVIDENCE-46aaca2c22d696492e2b160b6f9b079a24e99be1061097c5586388e12f1c5e74.tar.zst.part-000",
+          "bytes": 1610612736,
+          "sha256": "0fc20bbd213f4f28d9c5a0ac721d6f3c7910c7b232d80cd9eab80b4d3a992b22"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/SECOND_FOLD_EVIDENCE-46aaca2c22d696492e2b160b6f9b079a24e99be1061097c5586388e12f1c5e74.tar.zst.part-001",
+          "bytes": 1610612736,
+          "sha256": "7cb7d444d67d21d1416100d3e54b613b3aa7c78fea96475e4f862476597cb372"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/SECOND_FOLD_EVIDENCE-46aaca2c22d696492e2b160b6f9b079a24e99be1061097c5586388e12f1c5e74.tar.zst.part-002",
+          "bytes": 1610612736,
+          "sha256": "5e56bfe9016e633959a464bd16191d1577f4d7bd487669ab238fb46bc4dba319"
+        },
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/SECOND_FOLD_EVIDENCE-46aaca2c22d696492e2b160b6f9b079a24e99be1061097c5586388e12f1c5e74.tar.zst.part-003",
+          "bytes": 1553594927,
+          "sha256": "9880d555d1b3922482fb8d1b5b9736407c73f02eba0492161ceecadc1eb68b60"
+        }
+      ],
+      "fresh_download_verified_at": "2026-09-28T05:05:49.515351+00:00",
+      "verification_record_sha256": "1ad47b26446ffdb33ff4a98fac513642415bf155ff32b9301cb79c0860e9d918"
+    },
+    {
+      "kind": "native-comparison",
+      "manifest": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/native-comparison-inputs.tar.manifest.json",
+      "checksums": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/NATIVE_COMPARISON_SHA256SUMS",
+      "archive_bytes": 1991962690,
+      "archive_sha256": "e1a9d1e58564d2541bafc9078aed81e076d842699ff59708792d82b0838433c6",
+      "uncompressed_bytes": 12153466880,
+      "parts": [
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/NATIVE_COMPARISON_INPUTS-e1a9d1e58564d2541bafc9078aed81e076d842699ff59708792d82b0838433c6.tar.zst",
+          "bytes": 1991962690,
+          "sha256": "e1a9d1e58564d2541bafc9078aed81e076d842699ff59708792d82b0838433c6"
+        }
+      ],
+      "fresh_download_verified_at": "2026-09-27T22:53:04.762560+00:00",
+      "verification_record_sha256": "0535ee786635afc7c3121ff924817dcaf8a691cfd69079726c2eccbcd201c68f"
+    },
+    {
+      "kind": "provenance",
+      "manifest": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/provenance-and-terminal.tar.manifest.json",
+      "checksums": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/PROVENANCE_SHA256SUMS",
+      "archive_bytes": 947740019,
+      "archive_sha256": "df4d9a1385af139bea7ce20512d01ce75eff7438c61129696389d222ff22e7d8",
+      "uncompressed_bytes": 2521200640,
+      "parts": [
+        {
+          "url": "https://github.com/LFDT-Nightstream/Nightstream/releases/download/pr124-independent-generation-20260927/PROVENANCE_AND_TERMINAL-df4d9a1385af139bea7ce20512d01ce75eff7438c61129696389d222ff22e7d8.tar.zst",
+          "bytes": 947740019,
+          "sha256": "df4d9a1385af139bea7ce20512d01ce75eff7438c61129696389d222ff22e7d8"
+        }
+      ],
+      "fresh_download_verified_at": "2026-09-28T05:22:10.371405+00:00",
+      "verification_record_sha256": "173c0dc31cc162a792039efd649107545fedd797f96792a569e67e46b8b3d3c9"
+    }
+  ],
+  "scope": "Complete author-run execution evidence and file custody. No independent approval or universal Rust-semantics proof is claimed."
+}

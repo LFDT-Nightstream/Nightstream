@@ -10,10 +10,20 @@ mod ccs;
 mod children;
 #[path = "golden_dec.rs"]
 mod dec;
+#[path = "golden_witness.rs"]
+mod witness;
 
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 enum Request {
+    ParentWitness {
+        native: PathBuf,
+        ranges: Vec<PathBuf>,
+    },
+    ChildWitnesses {
+        native: PathBuf,
+        ranges: Vec<PathBuf>,
+    },
     ChildHandoff {
         package: PathBuf,
         identity: [u64; 4],
@@ -47,6 +57,8 @@ fn native_checker() {
     std::io::stdin().read_to_string(&mut input).unwrap();
     let request: Request = serde_json::from_str(&input).unwrap();
     match request {
+        Request::ParentWitness { native, ranges } => witness::parent(&native, &ranges),
+        Request::ChildWitnesses { native, ranges } => witness::children(&native, &ranges),
         Request::ChildHandoff {
             package,
             identity,

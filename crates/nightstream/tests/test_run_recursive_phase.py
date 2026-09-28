@@ -146,6 +146,20 @@ class RecursivePhaseMemoryTests(unittest.TestCase):
                 patch.object(RUNNER.Path, "read_text", return_value="Name:\ttest\nVmRSS:\t7 kB\n"):
             self.assertEqual(RUNNER.resident_bytes(123, 300), 7 * 1024)
 
+    def test_suspension_cannot_turn_a_late_success_into_a_pass(self):
+        process = Mock()
+        process.returncode = 0
+        process.poll.return_value = 0
+        with TemporaryFile() as output, patch.object(RUNNER.sys, "platform", "linux"), \
+                patch.object(RUNNER.subprocess, "Popen", return_value=process), \
+                patch.object(RUNNER.resource, "getrusage", side_effect=[usage(), usage()]), \
+                patch.object(RUNNER.time, "monotonic", return_value=0), \
+                patch.object(RUNNER.time, "time", side_effect=[0, 0, 301]):
+            result = RUNNER.run_test(["test"], {}, output)
+        self.assertEqual((result["outcome"], result["exit"]), ("timed-out", 124))
+        self.assertEqual(result["process_exit"], 0)
+        self.assertEqual(result["elapsed_seconds"], 301)
+
     def test_macos_ps_uses_kib_units(self):
         observed = subprocess.CompletedProcess([], 0, stdout=" 7\n", stderr="")
         with patch.object(RUNNER.sys, "platform", "darwin"), \

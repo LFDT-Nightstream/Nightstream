@@ -196,7 +196,7 @@ fn load<T: DeserializeOwned>(path: &Path) -> T {
     serde_json::from_reader(BufReader::new(File::open(path).expect("checkpoint input"))).expect("typed checkpoint data")
 }
 fn fold_dir(root: &Path, step: u64) -> PathBuf {
-    assert!(matches!(step, 1 | 2), "selected folds are 1-to-2 and 2-to-3");
+    assert!((1..=3).contains(&step), "selected folds end at iterations 2, 3 or 4");
     root.join(format!("fold-{step}"))
 }
 fn step_dir(root: &Path, step: u64) -> PathBuf {
@@ -248,7 +248,8 @@ fn expected_state(step: u64) -> Stage1State {
         }
         2 => second,
         3 => output(second, message()),
-        _ => panic!("expected a state in the selected 1-to-2-to-3 chain"),
+        4 => output(output(second, message()), message()),
+        _ => panic!("expected a state in the selected 1-to-2-to-3-to-4 chain"),
     };
     Stage1State::new(step, initial, current)
 }
@@ -405,8 +406,13 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
             device.lock().unwrap().activity()
         );
     }
-    save(
-        &destination.join("sources-checked.json"),
-        &json!({"schema":1,"package_identity":package.package_identity(),"step":step}),
-    );
+    let receipt = destination.join("sources-checked.json");
+    let checked = json!({"schema":1,"package_identity":package.package_identity(),"step":step});
+    // Reusing a directory still recomputes every opening above. Its receipt
+    // never substitutes for checking the current source values.
+    if receipt.exists() {
+        assert_eq!(load::<Value>(&receipt), checked);
+    } else {
+        save(&receipt, &checked);
+    }
 }

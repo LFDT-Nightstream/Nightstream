@@ -3,7 +3,7 @@
 The six full-replay registrations retired by PR #124 combined mathematical
 kernel claims with execution by the old coordinator. Their kernel theorems
 remain. The map now registers those claims separately from the maintained
-native/Lean workflow and the missing complete independent-generation run.
+native/Lean workflow and the completed author-run independent generation.
 
 Registry schema 2 records a `tier`: `Compiler`, `Conformance`, or `Production`.
 It cannot declare a status. Reports derive `status: Open` whenever a required
@@ -13,18 +13,18 @@ status. Schema 1 and authored status claims are rejected.
 
 | Retired obligation | Retained kernel registration and target | Current execution coverage |
 |---|---|---|
-| `pirlc-witness-replay` | `pirlc-witness-kernel`: `PiRLCWitnessReplay` | Golden checks native PiRLC through Lean verification and subsequent assignment comparisons; it does not regenerate the complete parent witness independently in Lean. |
-| `pidec-witness-replay` | `pidec-witness-kernel`: `PiDECWitnessReplay` | Native split, verifier checks, terminal opening checks and fresh physical-witness comparison; no complete independent Lean child-witness generation run. |
-| `pidec-commitment-replay` | `pidec-commitment-kernel`: `PiDECCommitmentReplay` | Native commitments and maintained opening/child-handoff checks; no complete independent Lean generation of all child commitment coefficients. |
-| `pidec-evaluation-replay` | `pidec-evaluation-kernel`: `PiDECChildEvaluationReplay` | Separate `Eval_K` and `Eval_A` terminal checks and current matrix comparisons; no complete independent Lean generation of every child evaluation family. |
-| `fresh-witness-replay` | `fresh-witness-kernel`: `FreshWitnessKernels` | Golden independently reconstructs and compares every physical witness value from the checked caller. That caller uses native PiCCS proof messages. |
-| `fresh-recursive-loop` | `recursive-loop-kernel`: `CheckedRecursiveReplay` | Two fresh native folds and successors, Lean verification and exact handoffs, and terminal acceptance/rejections. It does not generate the complete proof independently in Lean. |
+| `pirlc-witness-replay` | `pirlc-witness-kernel`: `PiRLCWitnessReplay` | Both independent folds match every native parent coefficient, including full carrier tails and changed-tail rejection. |
+| `pidec-witness-replay` | `pidec-witness-kernel`: `PiDECWitnessReplay` | All 16 child witnesses match in both folds through complete validated signed masks, including implicit zeros and tail rejection. |
+| `pidec-commitment-replay` | `pidec-commitment-kernel`: `PiDECCommitmentReplay` | Every child commitment coefficient matches in both folds; complete NIFS values and bytes also match. |
+| `pidec-evaluation-replay` | `pidec-evaluation-kernel`: `PiDECChildEvaluationReplay` | Both folds match separate Pad values and all 14 matrix families. Iteration-four balanced opening tests reach the exact late Eval_K/Eval_A errors. |
+| `fresh-witness-replay` | `fresh-witness-kernel`: `FreshWitnessKernels` | Both independent proofs produce matching callers, full physical/logical witnesses, every active canonical row, fresh commitments and public claims. Required rejection checks pass. |
+| `fresh-recursive-loop` | `recursive-loop-kernel`: `CheckedRecursiveReplay` | The exact first Lean successor supplies the second fold; both complete proofs/successors and iteration-four terminal validation pass. |
 
 Each kernel registration retains its existing statement, axiom audit, checked
 closure and declaration-export command. `FreshWitnessKernels` and
 `CheckedRecursiveReplay` are defined in their own evidence files. Their explicit
 geometry/custody premises remain visible; registration does not discharge them
-through an execution claim. No theorem or production code changes in this repair.
+through an execution claim.
 
 ## Maintained golden workflow
 
@@ -51,16 +51,32 @@ The completed author-run execution at `0846e4df2` is recorded in
 [VALIDATION.json](../../docs/reviews/pirlc-sampler-replacement/VALIDATION.json).
 It is local evidence, not protected-checker acceptance.
 
-## Coverage still missing
+## Independent-generation status
 
-`independent-generation` remains open with no implemented closing gate. Its
-scope is a complete current-package run that generates the PiCCS proof from the
+`independent-generation` remains open. The maintained
+[independent coordinator](../INDEPENDENT_GENERATION.md) generates the PiCCS proof from the
 original source witnesses, the PiRLC parent witness, and all PiDEC child
 witnesses, commitments and evaluation families in Lean. That run must compose
 complete proof encoding, the fresh caller/witness/commitment and both recursive
 successors, with exact native comparisons and rejection checks.
 
+The complete author-run sequence now passes: both independently generated
+PiCCS/PiRLC/PiDEC proofs, every parent/child coefficient, all commitments, separate
+Pad and all 14 matrix families, exact NIFS bytes, both fresh successors and
+iteration-four terminal acceptance/rejections. The exact first Lean successor
+supplies the second fold. The [execution index](../../docs/reviews/pirlc-sampler-replacement/INDEPENDENT_EXECUTION.json)
+binds the command evidence and handoffs; the [report](../../docs/reviews/pirlc-sampler-replacement/REPORT.md)
+states scope and limitations. Independent review of this evidence remains open.
+
+The `independent-coordinator-contract` gate checks checkpoint integrity and
+requires the second source projection to use the exact first Lean successor.
+It binds the Lean producers, native comparison code and coordinator sources.
+These tests cannot close the required complete two-fold execution or its
+independent review. The retained norm-prefix gate now uses the current carrier:
+60,647,711 values per source after two folds, for 1,031,011,087 encoded values
+across all 17 sources. Decoding yields 16,496,177,392 bytes.
+
 The remaining phase-specific producer gates and all six kernel proofs are
 useful components. Historical old-package receipts and the current golden
-workflow do not establish this complete execution. Restoring the registrations
-records this difference; it does not restore the missing generation coverage.
+workflow do not establish this complete execution. Kernel compilation, executed
+conformance and independent review remain separate requirements.

@@ -37,11 +37,11 @@ def Block.format : Format Block where
     .atom block.challengeSourceStride,
     SourceSubstitution.format.encode block.input,
     RetainedBlock.format.encode block.output,
-    RetainedBlock.format.encode block.group]
+    RetainedBlock.format.encode block.quotient]
   decode
     | .array [families, .atom oneColumn, challenge,
         .atom challengeSlotStart, .atom challengeSourceStride,
-        input, output, group] => do
+        input, output, quotient] => do
       pure {
         families := ← (list Family.format).decode families
         oneColumn
@@ -50,11 +50,11 @@ def Block.format : Format Block where
         challengeSourceStride
         input := ← SourceSubstitution.format.decode input
         output := ← RetainedBlock.format.decode output
-        group := ← RetainedBlock.format.decode group }
+        quotient := ← RetainedBlock.format.decode quotient }
     | _ => .error "invalid Phi81 product block"
   decode_encode := by
     rintro ⟨families, oneColumn, challenge, challengeSlotStart,
-      challengeSourceStride, input, output, group⟩
+      challengeSourceStride, input, output, quotient⟩
     simp only
     rw [(list Family.format).decode_encode,
       RetainedBlock.format.decode_encode,

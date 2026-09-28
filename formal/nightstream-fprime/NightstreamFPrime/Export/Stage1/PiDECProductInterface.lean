@@ -58,7 +58,7 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
   let input ← loadFin? ringDegree fun lane =>
     block.input.form? logicalWidth (descriptor.invocationAtLane lane)
   let quotient ← loadFin? ringDegree fun lane =>
-    block.group.form? logicalWidth (descriptor.invocationAtLane lane)
+    block.quotient.form? logicalWidth (descriptor.invocationAtLane lane)
   let prior ← if descriptor.source.val = 0 then
       some (fun _ => SparseForm.empty)
     else

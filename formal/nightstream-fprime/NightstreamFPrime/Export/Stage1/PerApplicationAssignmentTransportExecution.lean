@@ -60,7 +60,7 @@ theorem canonicalRawValues_groupValue_eq_honestGroupValue
         (canonicalRawValues program base).assignment invocation group := by
   change
     PerApplicationAssignmentTransportProducts.phi81GroupValue
-        (phi81GroupRecipe program) program base invocation group.val = _
+        (phi81QuotientRecipe program) program base invocation group.val = _
   exact
     PerApplicationAssignmentTransportProducts.canonical_phi81GroupValue_eq_honestGroupValue
       (canonicalRawValues program base) invocation group

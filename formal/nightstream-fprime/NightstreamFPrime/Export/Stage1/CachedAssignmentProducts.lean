@@ -25,8 +25,8 @@ link them to the same canonical transport used by canonicalRawValues. -/
 structure Prepared (program : Program) where
   baseWidth : Nat
   baseWidth_eq : baseWidth = PiRLCProductPlan.baseSourceWidth program
-  phi81 : Phi81GroupRecipe
-  phi81_eq : phi81 = phi81GroupRecipe program
+  phi81 : Phi81QuotientRecipe
+  phi81_eq : phi81 = phi81QuotientRecipe program
   challenge : CanonicalBlockAssignment.BlockValue
   challenge_eq : challenge =
     PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
@@ -34,7 +34,7 @@ structure Prepared (program : Program) where
 /-- Return a record, not a curried slot reader. Each selected block and the
 numeric source width are constructed before any product callback is used. -/
 @[noinline] def prepare (program : Program) : Prepared program :=
-  let phi81 := phi81GroupRecipe program
+  let phi81 := phi81QuotientRecipe program
   { baseWidth := PiRLCProductPlan.baseSourceWidth program
     baseWidth_eq := rfl
     phi81 := phi81

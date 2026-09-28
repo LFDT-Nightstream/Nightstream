@@ -416,14 +416,13 @@ impl LoadedPackage {
         private_inputs: &[u64],
         public_values: &[u64],
     ) -> Result<WitnessAssignment, PackageError> {
-        self.execute_assignment_source(private_inputs, public_values, false, None)
+        self.execute_witness_with_application(private_inputs, public_values, None)
     }
 
-    fn execute_assignment_source(
+    fn execute_witness_with_application(
         &self,
         private_inputs: &[u64],
         public_values: &[u64],
-        direct_product_outputs: bool,
         application_values: Option<&[Goldilocks]>,
     ) -> Result<WitnessAssignment, PackageError> {
         if application_values.is_some() && self.native_application.is_none() {
@@ -481,11 +480,7 @@ impl LoadedPackage {
                     self.execute_invocation(invocation, &mut assignment)?;
                 }
                 ScheduledAssignment::Compact(invocation) => {
-                    if direct_product_outputs {
-                        compact::execute_output(invocation, &self.compact_templates, &mut assignment);
-                    } else {
-                        compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
-                    }
+                    compact::execute_invocation(invocation, &self.compact_templates, &mut assignment)?;
                 }
                 ScheduledAssignment::Batch(batch) => {
                     execute_witness_batch(batch, &mut assignment);

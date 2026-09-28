@@ -88,7 +88,7 @@ def block {program : Lifecycle.Stage1.Application.Program}
   output := MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCRetainedGeometry.productOutputBlock program)
     (PiRLCRetainedGeometry.productOutputStart program)
-  group := MatrixProgram.RetainedBlock.ofSemantic
+  quotient := MatrixProgram.RetainedBlock.ofSemantic
     (PiRLCRetainedGeometry.productGroupBlock program)
     (PiRLCRetainedGeometry.productGroupStart program)
 

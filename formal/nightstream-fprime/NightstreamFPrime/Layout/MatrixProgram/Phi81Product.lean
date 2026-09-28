@@ -4,8 +4,8 @@ import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationStep
 
 /-!
-Owns the generic compact opcode for an invocation-major family of direct
-Phi81 product rows. The wire data fixes the family order and all retained
+Owns the compact opcode for complete Phi81 ring products. Each product uses
+108 quotient-identity evaluations in source, block and cell order. The wire data fixes the family order and all retained
 operands. A consumer decodes that data; it does not select a Stage 1 schedule.
 
 This module does not select concrete PiRLC families or package rows.
@@ -70,88 +70,10 @@ def Descriptor.invocationAtLane (descriptor : Descriptor)
     (Fin.encodeProd (descriptor.source,
       CombinationStep.indexOf descriptor.block lane descriptor.cell)).val
 
-def Family.descriptor? (family : Family) (familyOffset index : Nat) :
-    Option Descriptor :=
-  if bound : index < family.invocationCount then
-    let decoded : Fin family.sourceCount × Fin family.privateCount :=
-      Fin.decodeProd ⟨index, bound⟩
-    some {
-      family
-      familyOffset
-      source := decoded.1
-      coordinate := decoded.2 }
-  else
-    none
-
-@[simp] theorem Family.descriptor?_encode (family : Family)
-    (familyOffset : Nat) (source : Fin family.sourceCount)
-    (coordinate : Fin family.privateCount) :
-    family.descriptor? familyOffset
-        (Fin.encodeProd (source, coordinate)).val =
-      some {
-        family
-        familyOffset
-        source
-        coordinate } := by
-  unfold descriptor? invocationCount
-  rw [dif_pos (Fin.encodeProd (source, coordinate)).isLt]
-  simp
-
-/-- Select one family without materializing the descriptor list. -/
-def descriptorFrom? : List Family → Nat → Nat → Option Descriptor
-  | [], _, _ => none
-  | family :: rest, familyOffset, index =>
-      if index < family.invocationCount then
-        family.descriptor? familyOffset index
-      else
-        descriptorFrom? rest (familyOffset + family.invocationCount)
-          (index - family.invocationCount)
-
-@[simp] theorem descriptorFrom?_head (family : Family)
-    (rest : List Family) (familyOffset : Nat)
-    (source : Fin family.sourceCount)
-    (coordinate : Fin family.privateCount) :
-    descriptorFrom? (family :: rest) familyOffset
-        (Fin.encodeProd (source, coordinate)).val =
-      some {
-        family
-        familyOffset
-        source
-        coordinate } := by
-  have bound : (Fin.encodeProd (source, coordinate)).val <
-      family.invocationCount :=
-    (Fin.encodeProd (source, coordinate)).isLt
-  change (if (Fin.encodeProd (source, coordinate)).val <
-      family.invocationCount then
-        family.descriptor? familyOffset
-          (Fin.encodeProd (source, coordinate)).val
-      else
-        descriptorFrom? rest (familyOffset + family.invocationCount)
-          ((Fin.encodeProd (source, coordinate)).val -
-            family.invocationCount)) = _
-  rw [if_pos bound]
-  exact Family.descriptor?_encode family familyOffset source coordinate
-
-theorem descriptorFrom?_tail (family : Family) (rest : List Family)
-    (familyOffset index : Nat) :
-    descriptorFrom? (family :: rest) familyOffset
-        (family.invocationCount + index) =
-      descriptorFrom? rest (familyOffset + family.invocationCount) index := by
-  change (if family.invocationCount + index < family.invocationCount then
-      family.descriptor? familyOffset (family.invocationCount + index)
-    else
-      descriptorFrom? rest (familyOffset + family.invocationCount)
-        (family.invocationCount + index - family.invocationCount)) = _
-  rw [if_neg (by omega)]
-  rw [Nat.add_sub_cancel_left]
-
-def descriptor? (families : List Family) (index : Nat) : Option Descriptor :=
-  descriptorFrom? families 0 index
-
 def invocationCount (families : List Family) : Nat :=
   (families.map Family.invocationCount).sum
 
-/-- Complete wire operands for one direct Phi81 product family block. -/
+/-- Wire operands for one Phi81 quotient-product family block. -/
 structure Block where
   families : List Family
   oneColumn : Nat
@@ -160,7 +82,7 @@ structure Block where
   challengeSourceStride : Nat
   input : SourceSubstitution
   output : RetainedBlock
-  group : RetainedBlock
+  quotient : RetainedBlock
 deriving Repr, DecidableEq
 
 def Block.invocationCount (block : Block) : Nat :=
@@ -295,7 +217,7 @@ def Block.quotientState? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
     Option (Phi81ProductPlan.State logicalWidth) :=
   loadFin? ringDegree fun lane =>
-    block.group.form? logicalWidth (descriptor.invocationAtLane lane)
+    block.quotient.form? logicalWidth (descriptor.invocationAtLane lane)
 
 def Block.outputState? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :

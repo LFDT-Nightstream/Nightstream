@@ -31,7 +31,7 @@ theorem semanticEnv_eq_packageEnv_belowSampler
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat) (below : column < PiRLCStarts.samplerLogicalStart) :
     Spartan.pullback
         (PiRLCSamplerRetainedCustody.semanticEnv geometry assignment base)
@@ -68,7 +68,7 @@ theorem piCcsOutputFinalState_eval_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (lane : Fin Spec.Poseidon2.width) :
     (NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth relationPublicFits)
@@ -119,7 +119,7 @@ theorem endpointRows_imply_piCcsFinalState
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -283,7 +283,7 @@ theorem previousValue_entry_eq_chainStateFn
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -343,7 +343,7 @@ theorem canonicalInput_entry
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -409,7 +409,7 @@ theorem canonicalSemantics_imply_entry
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry

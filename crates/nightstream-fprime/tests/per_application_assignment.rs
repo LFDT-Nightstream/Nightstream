@@ -7,7 +7,8 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_value,
+    LoadedPerApplicationPackage, PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -332,9 +333,9 @@ fn check_logical_assignment(
         .execute_witness(&private_inputs, &public_inputs)
         .expect("Rust-produced complete physical assignment");
     let production_logical_assignment = package
-        .execute_logical_assignment(&physical_assignment)
+        .execute_ccs_assignment(&private_inputs, &public_inputs)
         .expect("package-produced final logical assignment");
-    assert_eq!(production_logical_assignment.len(), 242_590_792);
+    assert_eq!(production_logical_assignment.len(), 173_939_080);
     assert_eq!(production_logical_assignment.balanced_values()[0], 1);
     for (word, expected) in public_inputs[OUTPUT_DIGEST_PUBLIC_START..OUTPUT_DIGEST_PUBLIC_START + 4]
         .iter()
@@ -361,7 +362,7 @@ fn check_logical_assignment(
         physical_assignment.public_values(),
     )
     .expect("independent final logical assignment constructor");
-    assert_eq!(logical_assignment.len(), 242_590_792);
+    assert_eq!(logical_assignment.len(), 173_939_080);
     assert!(logical_assignment
         .balanced_values()
         .iter()
@@ -397,7 +398,7 @@ fn check_logical_assignment(
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
-    assert_eq!(result.active_rows, 6_064_606);
+    assert_eq!(result.active_rows, 4_390_174);
     assert_eq!(result.relation_terms, 74);
     assert_eq!(result.carrier_padding_columns, 50);
     assert_eq!(
@@ -447,4 +448,81 @@ fn check_logical_assignment(
             started.elapsed()
         );
     }
+}
+
+#[test]
+#[ignore = "complete direct/full assignment comparison; run explicitly under the 300-second cap"]
+fn direct_ccs_assignment_matches_full_physical_assignment() {
+    let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+    let package = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+    let binding = package.production_verifier_binding().unwrap();
+    let (private_inputs, public_inputs, _, _) =
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    let physical = package
+        .execute_witness(&private_inputs, &public_inputs)
+        .unwrap();
+    let expected = package.execute_logical_assignment(&physical).unwrap();
+    drop(physical);
+    let direct = package
+        .execute_ccs_assignment(&private_inputs, &public_inputs)
+        .unwrap();
+    assert!(direct.balanced_values() == expected.balanced_values());
+    drop((direct, expected));
+
+    // Both paths retain the caller-input checks and the application assertions.
+    for changed in [
+        private_inputs[..private_inputs.len() - 1].to_vec(),
+        {
+            let mut changed = private_inputs.clone();
+            changed[0] = GOLDILOCKS_MODULUS;
+            changed
+        },
+        {
+            let mut changed = private_inputs.clone();
+            *changed.last_mut().unwrap() += 1;
+            changed
+        },
+    ] {
+        let full_error = package
+            .execute_witness(&changed, &public_inputs)
+            .unwrap_err();
+        let direct_error = package
+            .execute_ccs_assignment(&changed, &public_inputs)
+            .unwrap_err();
+        assert_eq!(direct_error.to_string(), full_error.to_string());
+    }
+}
+
+#[test]
+#[ignore = "complete package mutation and fallback execution; run explicitly under the 300-second cap"]
+fn direct_ccs_assignment_keeps_full_checks_after_a_package_mutation() {
+    let bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
+    let selected = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
+    let binding = selected.production_verifier_binding().unwrap();
+    let (private_inputs, public_inputs, _, _) =
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+    let selected_identity = selected.structural_identifier();
+    drop(selected);
+    let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+    // Change the final assertion of a product template. It remains well formed
+    // but cannot hold; a selector based only on template index would skip it.
+    let assertion = value[1][8][0][4]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap();
+    let constant = assertion[3][0].as_u64().unwrap();
+    assertion[3][0] = Value::from((constant + 1) % GOLDILOCKS_MODULUS);
+    let mut changed_bytes = serde_json::to_vec(&value).unwrap();
+    changed_bytes.push(b'\n');
+    assert!(matches!(
+        load_poseidon2_hash_chain_v1_package(&changed_bytes),
+        Err(PackageError::ExpectedIdentityMismatch { .. })
+    ));
+    let changed = load_prepared_application_value(value).unwrap();
+    assert_ne!(changed.structural_identifier(), selected_identity);
+    assert!(matches!(
+        changed.execute_ccs_assignment(&private_inputs, &public_inputs),
+        Err(PackageError::Invalid("unsatisfied compact row"))
+    ));
 }

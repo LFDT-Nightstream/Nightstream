@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.StridedArrayAll
-import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
-import NightstreamFPrime.Export.Stage1.StoredInstructionExecution
+import NightstreamFPrime.Export.Stage1.StoredPhysicalExecution
 import NightstreamFPrime.Export.Stage1.StoredPhysicalPlan
-import NightstreamFPrime.Export.Stage1.StoredPermutationExecution
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
@@ -55,47 +53,6 @@ private def seed (layout : PhysicalLayout) (caller : Lean.Json) : IO (Array F) :
     values := values.set! (layout.constantColumn + 1 + index) publicWords[index]!
   return values
 
-private def requireWrite (values : Array F) (start count : Nat) : Except String Unit :=
-  if start + count ≤ values.size then .ok () else .error "physical write exceeds its selected bound"
-
-private def compact (templates : Array CompactRowTemplate) (target : Nat)
-    (invocation : CompactRowInvocation) (values : Array F) : Except String (Array F) := do
-  let some template := templates[invocation.templateIndex]?
-    | throw "missing canonical compact template"
-  unless compactInputColumn invocation.inputRanges template.outputInput == target do
-    throw "compact output differs from its scheduled target"
-  requireWrite values target 1
-  requireWrite values invocation.localStart template.localColumnCount
-  match StoredCompactRowExecution.execute
-      (compactInputColumn invocation.inputRanges) invocation.localStart template values with
-  | some result => return result
-  | none => throw s!"compact row failed at {target}"
-
-private def executeEvent (pilot : CircuitPackage) (templates : Array CompactRowTemplate)
-    (event : StoredPhysicalPlan.Event) (values : Array F) : Except String (Array F) := do
-  match event with
-  | .hash chain ordinal =>
-      let invocation : PermutationInvocation := {
-        phase := chain.phase
-        rowStart := chain.rowStart + ordinal * pilot.poseidon.recipesPerPermutation
-        witnessStart := invocationLocalStart pilot chain ordinal
-        inputs := List.ofFn fun lane : Fin 8 =>
-          Rows.sparseCombination (invocationInput pilot chain ordinal lane.val) }
-      requireWrite values invocation.witnessStart 592
-      return StoredPermutationExecution.execute invocation values
-  | .permutation invocation =>
-      requireWrite values invocation.witnessStart 592
-      return StoredPermutationExecution.execute invocation values
-  | .compact target invocation => compact templates target invocation values
-  | .batch batch =>
-      requireWrite values batch.start (batch.recipes.length + batch.hints.length)
-      let result := StoredWitnessExecution.executeRecipes values batch.start batch.recipes
-      return StoredWitnessExecution.executeHints result
-        (batch.start + batch.recipes.length) batch.hints
-  | .instruction instruction =>
-      requireWrite values instruction.target 1
-      return StoredInstructionExecution.execute instruction values
-
 private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   if ← outputPath.pathExists then throw (IO.userError "physical output already exists")
   let started ← IO.monoNanosNow
@@ -107,13 +64,8 @@ private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   report [("event", .str "physical_plan_ready"),
     ("fields", Lean.toJson values.size), ("events", Lean.toJson plan.events.size),
     ("assertions", Lean.toJson plan.assertions.size), ("prepare_ns", Lean.toJson (prepared - started))]
-  let mut previous : Option Nat := none
-  for event in plan.events do
-    if let some target := previous then
-      unless target < event.target do
-        throw (IO.userError "physical event targets are not strictly increasing")
-    values ← checked (executeEvent pilot plan.templates event values)
-    previous := some event.target
+  values ← checked (StoredPhysicalExecution.runWith
+    (StoredPhysicalExecution.executeEvent pilot plan.templates) plan.events values)
   let computed ← IO.monoNanosNow
   report [("event", .str "physical_values_ready"), ("fields", Lean.toJson values.size),
     ("compute_ns", Lean.toJson (computed - prepared))]

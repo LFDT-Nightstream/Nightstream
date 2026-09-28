@@ -46,7 +46,7 @@ package, including its shifted public and constant columns. -/
 theorem retainedPrefix_baseEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
     PerApplicationPackage.baseEnv program
@@ -83,7 +83,7 @@ transcript outputs agree. -/
 theorem readout_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount) :
     PiCCSTranscriptReadout.env (PerApplicationPackage.baseEnv program
@@ -102,7 +102,7 @@ same shifted base assignment. -/
 theorem packageEnv_sourceAssignment
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat)
     (bound : column < NightstreamFPrime.Layout.Stage1.Spartan.SourceColumnCount) :
     PiCCSActionPayloadBlock.packageEnv program
@@ -209,7 +209,7 @@ private def applicationSboxColumn (application : Lifecycle.Stage1.Application.Pr
 theorem retainedSource_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (index : InvocationIndex) (row : Fin PoseidonRetainedSlots.rows.length) :
     PiCCSPoseidonPreservation.sourceAssignment application (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
         ((PiCCSPoseidonPlan.schedule application).block.source
@@ -249,7 +249,7 @@ theorem outputState_baseEnv
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment

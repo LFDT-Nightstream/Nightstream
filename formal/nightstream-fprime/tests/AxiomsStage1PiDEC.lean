@@ -619,7 +619,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentSparseRead.read_eq_splitScalar
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentSparseRead.read_eq_scalarRead
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECParentSparseRead.read_eq_checkedChild
-#audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.productRow_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.row?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductInterface.loadFin?_value

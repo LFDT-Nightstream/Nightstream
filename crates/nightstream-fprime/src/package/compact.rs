@@ -288,9 +288,7 @@ pub(super) fn execute_invocation(
     assignment: &mut [Goldilocks],
 ) -> Result<(), PackageError> {
     let template = &templates[invocation.template_index];
-    assignment[invocation.output_column] = template
-        .output_recipe
-        .eval_with(&|input| assignment[invocation.input_column(input)]);
+    execute_output(invocation, templates, assignment);
     for row in &template.rows {
         let left = eval_combination(&row.a, invocation, assignment);
         let right = eval_combination(&row.b, invocation, assignment);
@@ -303,6 +301,18 @@ pub(super) fn execute_invocation(
         }
     }
     Ok(())
+}
+
+/// The selected package proves that product scratch cannot affect retained values.
+/// Call only after the full package has matched the fixed selected identity.
+pub(super) fn execute_output(
+    invocation: &CompactRowInvocation,
+    templates: &[CompactRowTemplate],
+    assignment: &mut [Goldilocks],
+) {
+    assignment[invocation.output_column] = templates[invocation.template_index]
+        .output_recipe
+        .eval_with(&|input| assignment[invocation.input_column(input)]);
 }
 
 fn eval_combination(

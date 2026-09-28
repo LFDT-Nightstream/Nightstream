@@ -20,7 +20,7 @@ open PiRLCRetainedInputs
 
 def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) :
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) :
     Fin (sourceWidth program) → F :=
   PiRLCProductPlan.sourceAssignment program base groupValue
 
@@ -37,7 +37,7 @@ column exactly. -/
 theorem sourceAssignment_base
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Fin (PiRLCProductPlan.baseSourceWidth program)) :
     sourceAssignment program base groupValue
         (baseSourceColumn program column) = base column := by
@@ -47,7 +47,7 @@ theorem sourceAssignment_base
 theorem sourceAssignment_package
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat) (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn) :
     sourceAssignment program base groupValue
         (PiRLCProductPlan.baseColumn program column bound) =
@@ -60,9 +60,9 @@ theorem sourceAssignment_package
 theorem sourceAssignment_group
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Fin 33) :
+    (group : Fin 1) :
     sourceAssignment program base groupValue
         (PiRLCProductPlan.groupColumn program invocation group) =
       groupValue invocation group := by
@@ -72,7 +72,7 @@ theorem sourceAssignment_group
 theorem sourceAssignment_valueColumn
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (descriptor : PiRLCProductSchedule.Descriptor)
     (lane : Fin ringDegree) :
     sourceAssignment program base groupValue
@@ -88,7 +88,7 @@ theorem sourceAssignment_valueColumn
 theorem sourceAssignment_outputColumn
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (descriptor : PiRLCProductSchedule.Descriptor) :
     sourceAssignment program base groupValue
         (PiRLCProductPlan.outputColumn program descriptor) =
@@ -103,7 +103,7 @@ theorem sourceAssignment_outputColumn
 theorem sourceAssignment_challengeColumn
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     sourceAssignment program base groupValue
         (PiRLCProductPlan.challengeColumn program descriptor lane) =
@@ -114,7 +114,7 @@ theorem sourceAssignment_challengeColumn
 theorem productGroupBlock_source
     (program : Lifecycle.Stage1.Application.Program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
-    (group : Fin 33) :
+    (group : Fin 1) :
     (productGroupBlock program).source (Fin.encodeProd (invocation, group)) =
       PiRLCProductPlan.groupColumn program invocation group := by
   apply Fin.ext
@@ -134,7 +134,7 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   priorPoseidon : (priorPoseidonBlock program).EncodesAt
     (priorPoseidonStart program) (priorPoseidonFits geometry) assignment
       (sourceAssignment program base groupValue)
@@ -160,7 +160,7 @@ theorem productInputs_preserves
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (valuePreserves : ∀ invocation,
       (values invocation).eval assignment =
         PiRLCProductPlan.baseEnv program base

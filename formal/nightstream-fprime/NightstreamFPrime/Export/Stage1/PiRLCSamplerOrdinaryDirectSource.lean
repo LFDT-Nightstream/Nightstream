@@ -69,6 +69,22 @@ theorem Source.bounded {column : Nat} (supported : Source column) :
   all_goals norm_num [WideReduction.HintProgram.helperCount_eq, Formal.logicalPrivateCount_eq] at *
   all_goals omega
 
+/-- Sampler rows do not read the later combination scratch interval. -/
+theorem Source.beforeCombination {column : Nat} (supported : Source column) :
+    column < PiRLCStarts.commitmentFreshStart := by
+  rw [PiRLCStarts.commitmentFreshStart_eq]
+  cases supported <;>
+    simp only [poseidonSource, coreStart, WideReduction.Program.coreOffset,
+      PiRLCStarts.rangeLogicalStart, PiRLCStarts.rangeFreshStart,
+      PiRLCStarts.samplerSourceFreshStart, PiRLCStarts.samplerFreshStart,
+      PiRLCStarts.phaseFreshStart, PiRLCStarts.samplerSourceLogicalStart,
+      PiRLCStarts.challengeWordStart, PiRLCStarts.samplerLogicalStart,
+      SamplerChain.sourceOffset, Sampler.rangeOffset, Sampler.wordsOffset,
+      Sampler.advanceOffset, Sampler.counts.1, WideReduction.Program.privateCount_eq,
+      Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq] at *
+  all_goals norm_num [WideReduction.HintProgram.helperCount_eq, Formal.logicalPrivateCount_eq] at *
+  all_goals omega
+
 private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 17) :
     ∀ expression ∈ PiRLCSamplerOrdinaryRows.rangeConstraints
         (logicalWidth := logicalWidth) (publicFits := publicFits) source,

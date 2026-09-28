@@ -61,7 +61,7 @@ private def measureRow (output : IO.FS.Handle) (program : MatrixProgram.Program)
     | .phi81Product product => do
         let localRow := ordinal - blockStart
         let descriptor ← IO.wait (Task.spawn fun _ =>
-          MatrixProgram.Phi81Product.descriptor? product.families (localRow / 34))
+          MatrixProgram.Phi81Product.ringDescriptor? product.families (localRow / 108))
         let descriptorAt ← IO.monoNanosNow
         emit output (Lean.Json.mkObj [
           ("event", .str "product_descriptor"), ("block", Lean.toJson blockIndex),
@@ -77,7 +77,7 @@ private def measureRow (output : IO.FS.Handle) (program : MatrixProgram.Program)
           ("elapsed_ns", Lean.toJson (interfaceAt - descriptorAt))])
         let some interface := interface | throw (IO.userError "product interface rejected")
         IO.wait (Task.spawn fun _ =>
-          (PiDECProductRow.row? interface (localRow % 34)).map
+          (PiDECProductRow.row? interface (localRow % 108)).map
             Layout.ProductionRelation.ProductSumPlan.Row.meaningfulForm)
     | _ => IO.wait (Task.spawn fun _ => program.row? logicalWidth sourceRow ordinal)
   let afterLookup ← IO.monoNanosNow

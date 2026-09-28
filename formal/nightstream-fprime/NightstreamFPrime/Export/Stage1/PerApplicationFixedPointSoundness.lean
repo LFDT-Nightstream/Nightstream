@@ -182,7 +182,7 @@ private theorem representedSemantics_imply_stepHoldsFor
     (assignment : PaperLinearAlgebra.Assignment F
       (PerApplicationFixedPoint.logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)

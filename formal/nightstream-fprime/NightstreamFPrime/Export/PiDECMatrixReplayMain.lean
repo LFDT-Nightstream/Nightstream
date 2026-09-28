@@ -107,8 +107,8 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
           unless request.firstRow % 94 = 0 && request.lastRow % 94 = 0 do
             throw (IO.userError "Poseidon range must contain complete 94-row invocations")
       | .phi81Product _ =>
-          unless request.firstRow % 34 = 0 && request.lastRow % 34 = 0 do
-            throw (IO.userError "Phi81 range must contain complete 34-row invocations")
+          unless request.firstRow % 108 = 0 && request.lastRow % 108 = 0 do
+            throw (IO.userError "Phi81 range must contain complete 108-row invocations")
       | _ => pure ()
   let sharedLoadNs := (← IO.monoNanosNow) - started
   if batch then
@@ -160,28 +160,28 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               PiDECMatrixInvocationRange.sum (first + 94 * lo) phase.point (readChild child)
                 (interfaces.extract lo hi))
         | .phi81Product block => do
-            if aligned : firstRow % 34 = 0 ∧ lastRow % 34 = 0 then
-              let invocations := lastRow / 34 - firstRow / 34
+            if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then
+              let invocations := lastRow / 108 - firstRow / 108
               let interfaces ← Vector.ofFnM fun (index : Fin invocations) => do
-                let some descriptor := MatrixProgram.Phi81Product.descriptor?
-                    block.families (firstRow / 34 + index.val)
+                let some descriptor := MatrixProgram.Phi81Product.ringDescriptor?
+                    block.families (firstRow / 108 + index.val)
                   | throw (IO.userError "selected product descriptor rejected")
                 let some interface := PiDECProductInterface.interface? block logicalWidth descriptor
                   | throw (IO.userError "selected product interface rejected")
                 pure interface
               let forms ← Vector.ofFnM fun (index : Fin count) => do
-                have groupBound : index.val / 34 < invocations := by
+                have groupBound : index.val / 108 < invocations := by
                   dsimp only [count] at index
                   dsimp only [invocations]
                   omega
                 let some row := PiDECProductRow.row?
-                    (interfaces.get ⟨index.val / 34, groupBound⟩) (index.val % 34)
+                    (interfaces.get ⟨index.val / 108, groupBound⟩) (index.val % 108)
                   | throw (IO.userError "selected product row rejected")
                 pure row.meaningfulForm
               pure (count, fun lo hi child =>
                 PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
                   (forms.extract lo hi))
-            else throw (IO.userError "Phi81 range must contain complete 34-row invocations")
+            else throw (IO.userError "Phi81 range must contain complete 108-row invocations")
         | other => do
             let cache ← IO.wait (Task.spawn fun _ =>
               PiDECCanonicalSourceCache.stored Poseidon2HashChainV1Package.application)

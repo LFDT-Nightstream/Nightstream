@@ -46,6 +46,7 @@ use crate::ccs::build_wasm_relation;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::COL_ONE;
+use crate::lookup_circuit::{self, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 
@@ -63,13 +64,15 @@ pub enum BatchError {
     #[error("wasm batch relation has {actual} width declarations for {expected} columns")]
     WidthCount { actual: usize, expected: usize },
     #[error(transparent)]
+    Lookup(#[from] LookupCircuitError),
+    #[error(transparent)]
     Frontend(#[from] FrontendError),
 }
 
 /// Build the batched wasm R1CS for the requested batch size.
 ///
-/// Sources the single-step matrices from [`build_wasm_relation`] and the
-/// cross-step link spec from [`build_wasm_relation_layout`]. Every
+/// Extends [`build_wasm_relation`] with operation-table constraints before
+/// batching. Sources cross-step links from [`build_wasm_relation_layout`]. Every
 /// declared continuity link is emitted as a linking row.
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
     let relation = build_wasm_relation().expect("valid WASM relation");
@@ -86,7 +89,8 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
         core.public_input_count(),
     )?;
     let widths = crate::witness_layout::range_checked_variable_widths(relation.columns());
-    batch_wasm_relation(&single, &widths, batch_size)
+    let lookup = lookup_circuit::extend_relation(&single, widths)?;
+    batch_wasm_relation(&lookup.relation, &lookup.widths, batch_size)
 }
 
 /// Replicate one authoritative single-step WASM relation into an ordered
@@ -189,12 +193,12 @@ pub(crate) fn batch_wasm_relation(
 
 /// Build the witness vector for one batch.
 ///
+/// Each step includes the VM columns, range bits, and lookup advice.
 /// Each batch covers `batch_size` consecutive step witnesses, concatenated
 /// in trace order. If `traces[batch_idx * batch_size..]` is shorter than
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
 pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Vec<F> {
-    let single_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let start = batch_idx * batch_size;
     assert!(
@@ -206,9 +210,10 @@ pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx
     let real_end = ((batch_idx + 1) * batch_size).min(traces.len());
     let real_witnesses: Vec<Vec<F>> = traces[start..real_end]
         .iter()
-        .map(build_witness_vector)
+        .map(build_step_witness)
         .collect();
 
+    let single_width = real_witnesses[0].len();
     let mut witness = Vec::with_capacity(batch_size * single_width);
     for w in &real_witnesses {
         witness.extend_from_slice(w);
@@ -218,7 +223,7 @@ pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx
         let mut padding = padding_step_after(last_real);
         let pad_count = batch_size - real_witnesses.len();
         for _ in 0..pad_count {
-            witness.extend_from_slice(&build_witness_vector(&padding));
+            witness.extend_from_slice(&build_step_witness(&padding));
             // Each subsequent padding row starts from the previous one,
             // which is state-preserving — so `_after` is the same as the
             // first padding row's `_after`. Reuse `padding` directly.
@@ -227,6 +232,10 @@ pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx
     }
     debug_assert_eq!(witness.len(), batch_size * single_width);
     witness
+}
+
+fn build_step_witness(step: &WasmVmStep) -> Vec<F> {
+    lookup_circuit::extend_witness(build_witness_vector(step)).expect("valid WASM lookup witness")
 }
 
 /// How many batches a trace of length `n` produces at `batch_size`,

@@ -33,19 +33,64 @@ fn satisfies_batched_ccs(traces: &[WasmVmStep], batch_size: usize) {
 }
 
 #[test]
-fn batched_at_one_matches_single_step_shape() {
+fn batched_at_one_includes_lookup_constraints() {
     let single = build_batched_wasm_ccs(1).expect("single-step shape via batch");
     let core = build_wasm_relation()
         .expect("valid WASM relation")
         .r1cs()
         .clone();
-    assert_eq!(single.sparse_r1cs.m, core.structure().m, "m must match single-step");
-    assert_eq!(
-        single.sparse_r1cs.n,
-        core.structure().n,
-        "n must match single-step (no link rows at N=1)"
+    assert!(
+        single.sparse_r1cs.m > core.structure().m,
+        "lookup advice must be included"
     );
+    assert!(
+        single.sparse_r1cs.n > core.structure().n,
+        "lookup constraints must be included"
+    );
+    assert!(single.widths[core.structure().m..]
+        .iter()
+        .all(|&width| width == 1));
     assert_eq!(single.sparse_r1cs.m_in, core.public_input_count());
+}
+
+#[test]
+fn batched_lookup_constraints_reject_forged_xor_outputs() {
+    let checked = common::checked_main(
+        r#"(module (func (export "main") (result i32)
+            i32.const 6 i32.const 3 i32.xor drop
+            i64.const 4294967302 i64.const 8589934595 i64.xor drop
+            i32.const 0))"#,
+    );
+    let core = build_wasm_relation().expect("core relation");
+    for batch_size in [1, 3] {
+        satisfies_batched_ccs(&checked.trace, batch_size);
+        let batched = build_batched_wasm_ccs(batch_size).expect("lookup relation");
+        for (index, row) in checked
+            .trace
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| matches!(row.opcode, neo_wasm::WasmOpcode::I32Xor | neo_wasm::WasmOpcode::I64Xor))
+        {
+            let mut forged = checked.trace.clone();
+            let output = forged[index].stack_write0.as_mut().expect("XOR output");
+            if row.opcode == neo_wasm::WasmOpcode::I64Xor {
+                *output.value_hi.as_mut().expect("i64 high limb") ^= 1;
+            } else {
+                output.value_lo ^= 1;
+            }
+            // Rebuild both the VM columns and lookup advice from the forged
+            // result. Range checks and the core's output bindings still hold.
+            let base = neo_wasm::build_witness_vector(&forged[index]);
+            let m_in = core.r1cs().public_input_count();
+            neo_ccs::check_ccs_rowwise_zero(core.r1cs().structure(), &base[..m_in], &base[m_in..])
+                .expect("the core alone does not constrain XOR semantics");
+            let witness = build_batched_witness(&forged, batch_size, index / batch_size);
+            batched
+                .sparse_r1cs
+                .is_satisfied_by(&witness)
+                .expect_err("lookup rows must reject a forged XOR result");
+        }
+    }
 }
 
 #[test]
@@ -241,4 +286,23 @@ fn batched_prove_verify_simple_add() {
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
         verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
     }
+}
+
+#[test]
+fn lookup_step_prove_verify() {
+    let checked = common::checked_main(
+        r#"(module (func (export "main") (result i32)
+            i32.const 6 i32.const 3 i32.xor))"#,
+    );
+    let row = checked
+        .trace
+        .iter()
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::I32Xor)
+        .expect("XOR step");
+    // A single-step audit checks the lookup-bearing preprocessing and verifier
+    // without paying for recursive folding of the surrounding trace.
+    let digest = neo_wasm::semantic_state_digest(row.state_before);
+    let prep = preprocess_seeded_batched(1, digest).expect("lookup preprocessing");
+    let proof = prove_batched(&prep, std::slice::from_ref(row), 1).expect("prove XOR step");
+    verify(&prep, &proof, row.state_after).expect("verify XOR step");
 }

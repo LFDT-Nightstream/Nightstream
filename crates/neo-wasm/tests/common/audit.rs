@@ -1,15 +1,14 @@
-//! Test-only replay harness for exercising the bare WASM relation.
+//! Test-only replay harness for the WASM relation with operation-table constraints.
 //!
-//! Checks the bare relation and carried VM state through full-history replay.
-//! Memory consistency and operation-table lookups are checked separately by
-//! the test fixtures; this harness is not a complete WASM execution proof.
+//! Checks instruction semantics and carried VM state through full-history replay.
+//! Memory consistency is checked separately by the test fixtures; this harness
+//! is not a complete WASM execution proof.
 
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csFPrimePreprocessing};
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
-use neo_wasm::RANGE_CHECKED_WITNESS_WIDTH;
 use neo_wasm::{batch, WasmStepState, WasmVmStep};
 
 pub struct AuditProof {
@@ -103,7 +102,10 @@ pub fn verify_with_transcript(
 
 fn validate_preprocessing(prep: &R1csFPrimePreprocessing) -> Result<(), AuditProveError> {
     let prep_widths = &prep.plan().app_private_var_widths;
-    let single_width = RANGE_CHECKED_WITNESS_WIDTH;
+    let single_width = batch::build_batched_wasm_ccs(1)
+        .map_err(|err| AuditProveError::Bridge(format!("single-step WASM shape: {err}")))?
+        .sparse_r1cs
+        .m;
     if prep_widths.len() % single_width != 0 || prep_widths.is_empty() {
         return Err(AuditProveError::Bridge(format!(
             "preprocessing width-vector length {} is not a positive multiple of the single-step WASM witness width {single_width}",

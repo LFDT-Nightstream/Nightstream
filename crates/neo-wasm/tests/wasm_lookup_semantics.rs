@@ -143,9 +143,15 @@ fn compact_lookup_relation_covers_and_rejects_all_families() {
                 i64.const 81985529216486895 i64.popcnt drop
                 i32.const 0))"#,
     );
+    let full_relation = neo_wasm::batch::build_batched_wasm_ccs(1).expect("lookup relation");
     let mut seen = HashSet::new();
     for row in checked.trace.iter().filter(|row| row.info.uses_op_table) {
         seen.insert(row.opcode);
+        let assignment = neo_wasm::batch::build_batched_witness(std::slice::from_ref(row), 1, 0);
+        full_relation
+            .sparse_r1cs
+            .is_satisfied_by(&assignment)
+            .unwrap_or_else(|error| panic!("full relation rejected honest {:?}: {error}", row.opcode));
         let witness = neo_wasm::build_witness_vector(row);
         neo_wasm::audit_compact_lookup_witness(&witness)
             .unwrap_or_else(|error| panic!("compact lookup relation rejected honest {:?}: {error}", row.opcode));

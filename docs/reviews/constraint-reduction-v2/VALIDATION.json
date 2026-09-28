@@ -1,0 +1,1226 @@
+{
+  "scope": "Constraint reduction on the PR124 sampler; concrete CPU/Lean checks, not universal Rust correctness or independent proof generation.",
+  "base_commit": "fe9d3b4f0809cfc88a114ad263f0b328bee84385",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536
+  },
+  "layout": {
+    "logical_coordinates": 173939080,
+    "padded_coordinates": 173939130,
+    "active_rows": 4131470,
+    "commitment_columns": 3221095
+  },
+  "identity": {
+    "structural": [
+      2253267552441453727,
+      11370881524423941812,
+      14491634234905938076,
+      6458789060549508091
+    ],
+    "package": [
+      834611548268204826,
+      16768735974255129723,
+      5956912216876698944,
+      7819309785886854188
+    ],
+    "verification_key": [
+      11460023234349802452,
+      13434071231741618125,
+      16944777616280627971,
+      10352016432192349959
+    ]
+  },
+  "caps": {
+    "native_seconds": 300,
+    "lean_seconds": 1500,
+    "native_rss_bytes": 17179869184,
+    "authority": "AGENTS.md; formal/nightstream-fprime/AGENTS.md; NIGHTSTREAM_CRATE_GOAL.md"
+  },
+  "independent_candidate_checks": {
+    "primitive.log": [
+      "primitive_support_coordinates=3",
+      "primitive_commitment_coefficients=1188",
+      "candidate_primitive_conformance=passed elapsed=28.786621ms"
+    ],
+    "physical.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 24.507947447s",
+      "candidate_physical_matrix_nonzeros=[92399722, 37983630, 28077586]",
+      "candidate_physical_conformance=passed elapsed=30.105052106s"
+    ],
+    "logical.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 21.247606698s",
+      "independent_final_logical_matrix_nonzeros=[229698543, 4026818, 331153940, 74687607, 833793968, 1496768506, 0, 104652, 0, 0, 0, 0, 0, 0]",
+      "candidate_logical_conformance=passed elapsed=39.078643057s"
+    ],
+    "matrix-mutations.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 20.772499324s",
+      "matrix block-order mutation: changed expanded row 0, selected identity rejected",
+      "in-range matrix-column mutation: changed expanded row 2778904, selected identity rejected",
+      "canonical nonzero matrix-coefficient mutation: changed expanded row 2778904, selected identity rejected",
+      "matrix block-order, in-range column, and canonical coefficient mutations rejected",
+      "candidate_mutations_conformance=passed elapsed=75.239900825s"
+    ],
+    "assignment.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 20.628771439s",
+      "complete_logical_assignment_checks=Evaluation { active_rows: 4131470, relation_terms: 74, carrier_padding_columns: 50, assignment_block_mutations: 26, matrix_slot_mutations: 13, zero_slot_mutation_rejected: true, public_digest_bit_mutations: 256, public_digest_word_mutations: 4 } elapsed=61.37393511s",
+      "derived_recipe_mutation=Phi81 rejected_row=3648126 elapsed=87.561618067s",
+      "derived_recipe_mutation=ChallengeWords rejected_row=3611544 elapsed=114.343640129s",
+      "derived_recipe_mutation=OutputDigest rejected_row=3606347 elapsed=198.444688179s",
+      "candidate_assignment_conformance=passed elapsed=219.675431321s"
+    ],
+    "base-assignment.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 21.850767191s",
+      "caller fixture and package checks: 1.812726617s",
+      "caller physical witness and caller layout: 2.822456831s",
+      "caller independent physical rows: 28275820, elapsed 3.548046824s",
+      "caller production logical transport and bounds: 4.34225647s",
+      "caller all logical coordinates compared; 50 alignment zeros: 5.00796163s",
+      "caller complete logical row program decoded: 5.460753747s",
+      "caller all 4131470 logical rows and zero padding checked: 61.47890516s",
+      "candidate_base_conformance=passed elapsed=83.591004155s"
+    ],
+    "detached-recheck.log": [
+      "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+      "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+      "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+      "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+      "candidate metadata and binding: 20.738012044s",
+      "detached application assignment prepared: 3.347473092s",
+      "detached application rejected at canonical row 4131457: 54.898317399s",
+      "candidate_detached_conformance=passed elapsed=75.690910961s"
+    ]
+  },
+  "native_phases": [
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "base",
+        "directory": "<run>/native",
+        "engine": "optimized"
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 38.825690507888794,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6233317376,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "sources",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 35.32319760322571,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6103629824,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "ccs",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 93.38841864396818,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 8967524352,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "rlc",
+        "directory": "<run>/native",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 27.72213577805087,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6170660864,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "split",
+        "directory": "<run>/native",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 56.4282026370056,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6223122432,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "openings",
+        "directory": "<run>/native",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 138.42562151898164,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9035235328,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "nifs",
+        "directory": "<run>/native",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 77.89924907684326,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6223261696,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "successor",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 1
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 63.28450231999159,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6103306240,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "sources",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 58.129387597960886,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6103908352,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "ccs",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 136.69991529698018,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9887068160,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "rlc",
+        "directory": "<run>/native",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 29.572798252105713,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6170701824,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "split",
+        "directory": "<run>/native",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 60.980658769607544,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6309306368,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "openings",
+        "directory": "<run>/native",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 123.0936064440175,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9036480512,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "nifs",
+        "directory": "<run>/native",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 70.93196225166321,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6309126144,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "successor",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 2
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 66.01850891113281,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6104145920,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "terminal",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 3
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 146.0655374880298,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9485217792,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "mutation",
+        "directory": "<run>/native",
+        "step": 3
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 37.2754111289978,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6171172864,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "reject",
+        "directory": "<run>/native",
+        "engine": "optimized",
+        "step": 3
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 147.91105437802617,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9484840960,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_k_witness",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-k-prepare",
+        "directory": "<run>/native"
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 64.67995034198975,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6102138880,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-k",
+        "directory": "<run>/native"
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 145.497199784033,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9507061760,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_a_witness",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-a-prepare",
+        "directory": "<run>/native"
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 75.93752551078796,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 6102417408,
+      "memory_cap_bytes": 17179869184
+    },
+    {
+      "command": [
+        "target/release/deps/nightstream-b6f58dae8345601b",
+        "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-a",
+        "directory": "<run>/native"
+      },
+      "outcome": "passed",
+      "exit": 0,
+      "elapsed_seconds": 147.07016794005176,
+      "cap_seconds": 300,
+      "maximum_resident_bytes": 9507844096,
+      "memory_cap_bytes": 17179869184
+    }
+  ],
+  "lean_folds": [
+    {
+      "step": 1,
+      "outcome": "passed",
+      "caller": {
+        "private_words": 177326,
+        "public_words": 278,
+        "complete_caller_word_equality_checked": true,
+        "all_seven_result_fields_checked": true
+      },
+      "physical_bytes": 227351560,
+      "Lean_rejections": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D_rejections": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ],
+      "independent_proof_generation": false,
+      "commands": [
+        {
+          "name": "step-1-verifier",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "pi-dec-input-check",
+            "834611548268204826",
+            "16768735974255129723",
+            "5956912216876698944",
+            "7819309785886854188",
+            "<run>/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+            "<run>/lean-step-1/inputs/fold-1/children.json",
+            "<run>/lean-step-1/step-1-nifs.json"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 19.68596273701405
+        },
+        {
+          "name": "step-1-native-comparison",
+          "kind": "native",
+          "command": [
+            "target/release/deps/nightstream-b6f58dae8345601b",
+            "--exact",
+            "lifecycle::tests::staged::fold::lean::golden::native_checker",
+            "--ignored",
+            "--nocapture"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "input": {
+            "operation": "compare",
+            "package": "<run>/lean-step-1/inputs/package.json",
+            "directory": "<run>/lean-step-1/inputs/fold-1",
+            "lean": "<run>/lean-step-1/step-1-nifs.json"
+          },
+          "exit": 0,
+          "elapsed_seconds": 20.735355854034424
+        },
+        {
+          "name": "step-1-wire",
+          "kind": "native",
+          "command": [
+            "target/release/deps/nightstream-b6f58dae8345601b",
+            "--exact",
+            "lifecycle::tests::staged::fold::lean::golden::native_checker",
+            "--ignored",
+            "--nocapture"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "input": {
+            "operation": "encode",
+            "lean": "<run>/lean-step-1/step-1-nifs.json",
+            "output": "<run>/lean-step-1/step-1-lean-proof.native"
+          },
+          "exit": 0,
+          "elapsed_seconds": 0.08142232894897461
+        },
+        {
+          "name": "step-1-caller",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "recursive-step-fixture",
+            "1146852294351392598",
+            "13171563534090336097",
+            "4646611922572112977",
+            "4793675006485982595",
+            "<run>/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+            "<run>/lean-step-1/inputs/fold-1/children.json",
+            "<run>/lean-step-1/step-1-request.json",
+            "<run>/lean-step-1/step-1-caller.json"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 26.53509831428528
+        },
+        {
+          "name": "mutation-inputs",
+          "kind": "python",
+          "command": [
+            "/usr/bin/python3",
+            "-B",
+            "crates/nightstream/tests/generate_lean_mutations.py",
+            "<run>/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+            "<run>/lean-step-1/inputs/fold-1/children.json",
+            "<run>/lean-step-1/mutation-inputs"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 0.6837577819824219
+        },
+        {
+          "name": "mutations",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "pi-dec-mutations",
+            "834611548268204826",
+            "16768735974255129723",
+            "5956912216876698944",
+            "7819309785886854188",
+            "<run>/lean-step-1/inputs/fold-1/pi_ccs_input.json",
+            "<run>/lean-step-1/inputs/fold-1/children.json",
+            "<run>/lean-step-1/mutation-inputs/invalid_first_round_constant.json",
+            "<run>/lean-step-1/mutation-inputs/mutations"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 21.051191329956055
+        },
+        {
+          "name": "physical-build",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "replayPhysicalWitness"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 3.837484374002088
+        },
+        {
+          "name": "physical",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "formal/nightstream-fprime/.lake/build/bin/replayPhysicalWitness",
+            "<run>/lean-step-1/step-1-caller.json",
+            "<run>/lean-step-1/lean-physical.bin"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 41.987637519836426
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "outcome": "passed",
+      "caller": {
+        "private_words": 177326,
+        "public_words": 278,
+        "complete_caller_word_equality_checked": true,
+        "all_seven_result_fields_checked": true
+      },
+      "physical_bytes": 227351560,
+      "Lean_rejections": {
+        "decoder": [
+          "encoding_missing_child",
+          "encoding_short_commitment",
+          "encoding_short_public",
+          "encoding_short_point",
+          "encoding_short_eval_K",
+          "encoding_missing_matrix",
+          "encoding_short_eval_A",
+          "encoding_noncanonical_field",
+          "encoding_extra_field",
+          "encoding_alternate_number"
+        ],
+        "public_check": [
+          "public_child_0_commitment",
+          "public_child_1_commitment",
+          "public_child_2_commitment",
+          "public_child_3_commitment",
+          "public_child_4_commitment",
+          "public_child_5_commitment",
+          "public_child_6_commitment",
+          "public_child_7_commitment",
+          "public_child_8_commitment",
+          "public_child_9_commitment",
+          "public_child_10_commitment",
+          "public_child_11_commitment",
+          "public_child_12_commitment",
+          "public_child_13_commitment",
+          "public_child_14_commitment",
+          "public_child_15_commitment",
+          "public_child_public",
+          "public_shared_point",
+          "public_child_eval_K",
+          "public_child_eval_A0",
+          "public_child_eval_A1",
+          "public_child_eval_A2",
+          "public_child_eval_A3",
+          "public_child_eval_A4",
+          "public_child_eval_A5",
+          "public_child_eval_A6",
+          "public_child_eval_A7",
+          "public_child_eval_A8",
+          "public_child_eval_A9",
+          "public_child_eval_A10",
+          "public_child_eval_A11",
+          "public_child_eval_A12",
+          "public_child_eval_A13",
+          "public_child_digit_range"
+        ],
+        "pi_ccs": [
+          "invalid_first_round_constant"
+        ],
+        "internal": [
+          "unbounded_parent",
+          "rejected_C_stops_D"
+        ]
+      },
+      "native_D_rejections": [
+        "child_0_commitment",
+        "child_1_commitment",
+        "child_2_commitment",
+        "child_3_commitment",
+        "child_4_commitment",
+        "child_5_commitment",
+        "child_6_commitment",
+        "child_7_commitment",
+        "child_8_commitment",
+        "child_9_commitment",
+        "child_10_commitment",
+        "child_11_commitment",
+        "child_12_commitment",
+        "child_13_commitment",
+        "child_14_commitment",
+        "child_15_commitment",
+        "child_public",
+        "child_point",
+        "child_eval_K",
+        "child_eval_A0",
+        "child_eval_A1",
+        "child_eval_A2",
+        "child_eval_A3",
+        "child_eval_A4",
+        "child_eval_A5",
+        "child_eval_A6",
+        "child_eval_A7",
+        "child_eval_A8",
+        "child_eval_A9",
+        "child_eval_A10",
+        "child_eval_A11",
+        "child_eval_A12",
+        "child_eval_A13",
+        "missing_child",
+        "short_commitment",
+        "short_point",
+        "short_eval_K",
+        "missing_matrix",
+        "nonzero_eval_K_padding",
+        "nonzero_eval_A0_padding",
+        "nonzero_eval_A1_padding",
+        "nonzero_eval_A2_padding",
+        "nonzero_eval_A3_padding",
+        "nonzero_eval_A4_padding",
+        "nonzero_eval_A5_padding",
+        "nonzero_eval_A6_padding",
+        "nonzero_eval_A7_padding",
+        "nonzero_eval_A8_padding",
+        "nonzero_eval_A9_padding",
+        "nonzero_eval_A10_padding",
+        "nonzero_eval_A11_padding",
+        "nonzero_eval_A12_padding",
+        "nonzero_eval_A13_padding",
+        "child_fold_digest",
+        "child_digit_range"
+      ],
+      "independent_proof_generation": false,
+      "commands": [
+        {
+          "name": "step-2-verifier",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "pi-dec-input-check",
+            "834611548268204826",
+            "16768735974255129723",
+            "5956912216876698944",
+            "7819309785886854188",
+            "<run>/lean-step-2/inputs/fold-2/pi_ccs_input.json",
+            "<run>/lean-step-2/inputs/fold-2/children.json",
+            "<run>/lean-step-2/step-2-nifs.json"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 16.585503164038528
+        },
+        {
+          "name": "step-2-native-comparison",
+          "kind": "native",
+          "command": [
+            "target/release/deps/nightstream-b6f58dae8345601b",
+            "--exact",
+            "lifecycle::tests::staged::fold::lean::golden::native_checker",
+            "--ignored",
+            "--nocapture"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "input": {
+            "operation": "compare",
+            "package": "<run>/lean-step-2/inputs/package.json",
+            "directory": "<run>/lean-step-2/inputs/fold-2",
+            "lean": "<run>/lean-step-2/step-2-nifs.json"
+          },
+          "exit": 0,
+          "elapsed_seconds": 20.685266494750977
+        },
+        {
+          "name": "step-2-wire",
+          "kind": "native",
+          "command": [
+            "target/release/deps/nightstream-b6f58dae8345601b",
+            "--exact",
+            "lifecycle::tests::staged::fold::lean::golden::native_checker",
+            "--ignored",
+            "--nocapture"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "input": {
+            "operation": "encode",
+            "lean": "<run>/lean-step-2/step-2-nifs.json",
+            "output": "<run>/lean-step-2/step-2-lean-proof.native"
+          },
+          "exit": 0,
+          "elapsed_seconds": 0.08875489234924316
+        },
+        {
+          "name": "step-2-caller",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "recursive-step-fixture",
+            "1146852294351392598",
+            "13171563534090336097",
+            "4646611922572112977",
+            "4793675006485982595",
+            "<run>/lean-step-2/inputs/fold-2/pi_ccs_input.json",
+            "<run>/lean-step-2/inputs/fold-2/children.json",
+            "<run>/lean-step-2/step-2-request.json",
+            "<run>/lean-step-2/step-2-caller.json"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 24.53493642807007
+        },
+        {
+          "name": "mutation-inputs",
+          "kind": "python",
+          "command": [
+            "/usr/bin/python3",
+            "-B",
+            "crates/nightstream/tests/generate_lean_mutations.py",
+            "<run>/lean-step-2/inputs/fold-2/pi_ccs_input.json",
+            "<run>/lean-step-2/inputs/fold-2/children.json",
+            "<run>/lean-step-2/mutation-inputs"
+          ],
+          "cwd": "<repository>",
+          "cap_seconds": 300,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 0.683623165008612
+        },
+        {
+          "name": "mutations",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "pi-dec-mutations",
+            "834611548268204826",
+            "16768735974255129723",
+            "5956912216876698944",
+            "7819309785886854188",
+            "<run>/lean-step-2/inputs/fold-2/pi_ccs_input.json",
+            "<run>/lean-step-2/inputs/fold-2/children.json",
+            "<run>/lean-step-2/mutation-inputs/invalid_first_round_constant.json",
+            "<run>/lean-step-2/mutation-inputs/mutations"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 18.83367943763733
+        },
+        {
+          "name": "physical-build",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "build",
+            "replayPhysicalWitness"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 1.4343358229962178
+        },
+        {
+          "name": "physical",
+          "kind": "lean",
+          "command": [
+            "bash",
+            "scripts/validate.sh",
+            "lean-executable",
+            "formal/nightstream-fprime/.lake/build/bin/replayPhysicalWitness",
+            "<run>/lean-step-2/step-2-caller.json",
+            "<run>/lean-step-2/lean-physical.bin"
+          ],
+          "cwd": "formal/nightstream-fprime",
+          "cap_seconds": 1500,
+          "outcome": "passed",
+          "exit": 0,
+          "elapsed_seconds": 43.88968825340271
+        }
+      ]
+    }
+  ],
+  "golden_archive": {
+    "entries": 19,
+    "complete_source_byte_comparison": "passed",
+    "contains_private_witness_matrices": false
+  },
+  "review_checkpoint": "2026-09-28 22:20 UTC: the only available report still targets the removed neo-fold-clean frontend; no applicable finding.",
+  "lean_proofs": {
+    "production_build": {
+      "command": "timeout --signal=KILL 1500 bash formal/nightstream-fprime/scripts/validate.sh build",
+      "outcome": "passed",
+      "jobs": 4252,
+      "elapsed_seconds": 200
+    },
+    "axioms": {
+      "command": "timeout --signal=KILL 1500 bash formal/nightstream-fprime/scripts/validate.sh axioms",
+      "outcome": "passed",
+      "jobs": 4392,
+      "elapsed_seconds": 4,
+      "allowed_axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ]
+    },
+    "static": {
+      "command": "timeout --signal=KILL 1500 bash formal/nightstream-fprime/scripts/validate.sh static",
+      "outcome": "passed"
+    }
+  },
+  "rust_tests": {
+    "rust-unit.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 70 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 80.61s"
+      ],
+      "scope": "Initial 70-test unit run; cached-identity fix then checked by its regression and direct-assignment tests."
+    },
+    "rust-prepared-regression-after.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 69.92s"
+      ]
+    },
+    "rust-direct-final.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 58.56s"
+      ]
+    },
+    "rust-package-recheck.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 70.34s",
+        "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 20.88s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.62s"
+      ]
+    },
+    "rust-setup.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    "rust-assembly.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 31.78s"
+      ]
+    },
+    "rust-key-prefix.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.00s"
+      ]
+    },
+    "rust-refreshed-application.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s"
+      ]
+    },
+    "rust-retained-fold.log": {
+      "outcome": "passed",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 20.50s"
+      ]
+    }
+  },
+  "repairs": [
+    "Cached-identity regression failed before the provenance guard and passed after it.",
+    "Detached application range and sampler metadata position updated in existing rejection tests.",
+    "Compiler-bound test failed with the old assembler recipe shape, then all seven assembly tests passed after the connector update."
+  ]
+}

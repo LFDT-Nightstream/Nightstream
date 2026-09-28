@@ -145,7 +145,7 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      4390174 := by
+      4131470 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     applicationPlan_rowCount]
 

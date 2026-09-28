@@ -127,10 +127,12 @@ private theorem source_invocation_supported (phase rowStart start : Nat)
     (by rw [Spartan.privateColumnCount_eq]; decide)
     (affine ⟨lane, laneBound⟩) (bounded ⟨lane, laneBound⟩)
 
-private theorem entryState_below (source : Nat) (sourceBound : source < 17)
+private theorem entryState_below (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (source : Nat) (sourceBound : source < 17)
     (lane : Fin 8) :
     (PiRLCSamplerInvocations.entryState
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source lane).VarsBelow
+      (logicalWidth := logicalWidth) (publicFits := publicFits) source lane).VarsBelow
         PiRLCStarts.commitmentFreshStart := by
   rw [← PiRLCSamplerInvocations.fastEntryState_eq_entryState]
   unfold PiRLCSamplerInvocations.fastEntryState PiRLCSamplerProjection.fastProductionEntryState
@@ -140,9 +142,13 @@ private theorem entryState_below (source : Nat) (sourceBound : source < 17)
         PiRLCSamplerProjection.productionInitialState]
       rw [PiCCSProjection.fastOutputState_eq, PiCCSInvocations.outputTrace_eq_semantic,
         PiCCSInvocations.outputSemanticTrace_state_matches]
-      exact Expr.VarsBelow.mono _
-        (PiCCSInvocations.outputFinalState_varsBelow_samplerStart
-          Data.logicalWidth Data.publicFits shapeRelation (fun _ => 0) lane) (by decide)
+      have bounded := PiCCSInvocations.outputFinalState_varsBelow_samplerStart
+        logicalWidth publicFits relation (fun _ => 0)
+      exact @Expr.VarsBelow.mono
+        (PiCCS.v1_1.OutputBinding.finalState
+          (PiCCSInvocations.outputInterface logicalWidth publicFits)
+          PiCCSInvocations.outputWitnessStart lane)
+        PiRLCStarts.samplerLogicalStart PiRLCStarts.commitmentFreshStart (bounded lane) (by decide)
   | succ previous =>
       have laneLt : lane.val < 8 := lane.isLt
       change 20064823 + previous * 3259 + 2613 + 584 + lane.val < 20198868
@@ -176,7 +182,7 @@ private theorem sampler_supported (invocation : PermutationInvocation)
         exact R1CS.isAffine_const word
     · intro lane
       apply Hash.absorbE_varsBelow
-      · exact entryState_below source sourceBound
+      · exact entryState_below Data.logicalWidth Data.publicFits shapeRelation source sourceBound
       · intro expression member
         rcases List.mem_map.mp member with ⟨word, _, rfl⟩
         trivial

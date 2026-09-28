@@ -8,7 +8,7 @@ from threading import Thread
 
 
 # The selected setup and field; these are existing production dimensions.
-BLOCKS = 4_492_423
+BLOCKS = 3_221_095
 MODULUS = 2**64 - 2**32 + 1
 LANES = 54
 
@@ -21,7 +21,7 @@ def stream(first=0, last=BLOCKS, records=(), terminator=True, extra=""):
     return "\n".join(lines) + "\n" + extra
 
 
-def check_case(binary, ccs, directory, name, ranges, error=None, first=0, last=94):
+def check_case(binary, ccs, directory, name, ranges, error=None, first=0, last=86):
     paths = []
     for index, text in enumerate(ranges):
         path = directory / f"{name}.{index}.jsonl"
@@ -51,7 +51,7 @@ def check_zero_output(output, first, last, point=None):
     values = json.loads(output.read_text())
     assert isinstance(values, list) and len(values) == 6, "complete matrix range"
     assert all(type(word) is int for word in values[:4]), "numeric range identity"
-    assert values[:4] == [1, 6_064_606, first, last], "selected range identity"
+    assert values[:4] == [1, 4_131_470, first, last], "selected range identity"
     assert isinstance(values[4], list) and len(values[4]) == 28, "complete C-derived point"
     for pair in values[4]:
         assert isinstance(pair, list) and len(pair) == 2, "complete point coefficient"
@@ -92,12 +92,12 @@ def reject_batch(binary, ccs, directory, name, arguments, outputs, error):
 
 def accept_batch(binary, ccs, directory, parent, first_output, second_output):
     # Two complete Poseidon ranges overlap but have different identities/paths.
-    requested = {str(first_output): (0, 94), str(second_output): (0, 188)}
+    requested = {str(first_output): (0, 86), str(second_output): (0, 172)}
     reference_path = directory / "complete_zero_ranges.output.json"
-    reference = check_zero_output(reference_path, 0, 94)
+    reference = check_zero_output(reference_path, 0, 86)
     command = [str(binary), "ranges", str(ccs),
-               str(first_output), "0", "0", "94",
-               str(second_output), "0", "0", "188", "--", str(parent)]
+               str(first_output), "0", "0", "86",
+               str(second_output), "0", "0", "172", "--", str(parent)]
     events, lines, failures, completed = [], [], [], []
     with (directory / "batch_overlapping_zero.log").open("x") as log:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -202,7 +202,7 @@ def check_batches(binary, ccs, directory):
         output.write(stream())
     first = directory / "batch.first.output.json"
     second = directory / "batch.second.output.json"
-    request = [first, "0", "0", "94"]
+    request = [first, "0", "0", "86"]
     parents = ["--", parent]
     cases = [
         ("batch_missing_separator", request + [parent],
@@ -222,11 +222,11 @@ def check_batches(binary, ccs, directory):
         ("invalid_block", 19, 0, 1, "invalid selected matrix block"),
         ("empty_range", 0, 0, 0, "invalid selected matrix row range"),
         ("reversed_range", 0, 1, 0, "invalid selected matrix row range"),
-        ("past_range", 0, 0, 6_064_606, "invalid selected matrix row range"),
-        ("poseidon_start", 0, 1, 94, "Poseidon range must contain complete 94-row invocations"),
-        ("poseidon_end", 0, 0, 1, "Poseidon range must contain complete 94-row invocations"),
-        ("phi81_start", 10, 1, 34, "Phi81 range must contain complete 34-row invocations"),
-        ("phi81_end", 10, 0, 1, "Phi81 range must contain complete 34-row invocations"),
+        ("past_range", 0, 0, 4_131_470, "invalid selected matrix row range"),
+        ("poseidon_start", 0, 1, 86, "Poseidon range must contain complete 86-row invocations"),
+        ("poseidon_end", 0, 0, 1, "Poseidon range must contain complete 86-row invocations"),
+        ("phi81_start", 10, 1, 108, "Phi81 range must contain complete 108-row invocations"),
+        ("phi81_end", 10, 0, 1, "Phi81 range must contain complete 108-row invocations"),
     ]:
         cases.append((f"batch_later_{name}", request + [second, block, lo, hi] + parents, error))
     for name, arguments, error in cases:
@@ -236,7 +236,7 @@ def check_batches(binary, ccs, directory):
     with existing.open("xb") as output:
         output.write(sentinel)
     reject_batch(binary, ccs, directory, "batch_existing_later_output",
-                 request + [existing, 0, 0, 94] + parents, [first, second], "output already exists")
+                 request + [existing, 0, 0, 86] + parents, [first, second], "output already exists")
     assert existing.read_bytes() == sentinel, "batch overwrote an existing output"
     malformed_ccs = directory / "batch.malformed.ccs.json"
     with malformed_ccs.open("x") as output:
@@ -286,9 +286,9 @@ def main():
     check_case(binary, ccs, directory, "reversed_invocation_range", [stream()],
                "invalid selected matrix row range", first=1, last=0)
     check_case(binary, ccs, directory, "past_invocation_range", [stream()],
-               "invalid selected matrix row range", last=6_064_606)
+               "invalid selected matrix row range", last=4_131_470)
     check_case(binary, ccs, directory, "incomplete_poseidon_invocation", [stream()],
-               "Poseidon range must contain complete 94-row invocations", last=1)
+               "Poseidon range must contain complete 86-row invocations", last=1)
     check_batches(binary, ccs, directory)
     print("pidec_parent_boundaries=passed scope=decoder_coverage_and_zero_action", flush=True)
 

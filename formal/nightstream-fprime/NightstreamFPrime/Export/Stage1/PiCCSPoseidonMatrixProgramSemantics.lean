@@ -301,9 +301,9 @@ theorem inputProgram_state?
 theorem poseidonBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (global : Fin (PiCCSPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PiCCSPoseidonPlan.invocationCount * 86)) :
     (poseidonBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)
@@ -334,9 +334,9 @@ theorem matrixProgram_poseidon_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiCCSPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PiCCSPoseidonPlan.invocationCount * 86)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)
@@ -355,14 +355,14 @@ theorem matrixProgram_binding_row?
     (sourceRow : Nat → Option R1CS.Row)
     (row : Fin PiCCSPoseidonPlan.bindingRowCount) :
     (matrixProgram geometry).row? logicalWidth sourceRow
-        (PiCCSPoseidonPlan.invocationCount * 94 + row.val) =
+        (PiCCSPoseidonPlan.invocationCount * 86 + row.val) =
       some (PinFamilyPlan.forms
         (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) row).meaningfulForm := by
   let left : MatrixProgram.Block := .poseidon (poseidonBlock geometry)
   let right : MatrixProgram.Block := .pin (bindingBlock geometry)
   have leftCount : left.rowCount =
-      PiCCSPoseidonPlan.invocationCount * 94 := by
+      PiCCSPoseidonPlan.invocationCount * 86 := by
     change (poseidonBlock geometry).rowCount = _
     exact Poseidon.Block.ofSemantic_rowCount
       (PiCCSPoseidonPlan.schedule program)
@@ -374,17 +374,17 @@ theorem matrixProgram_binding_row?
       (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
   have leftBound : left.rowCount ≤
-      PiCCSPoseidonPlan.invocationCount * 94 + row.val := by
+      PiCCSPoseidonPlan.invocationCount * 86 + row.val := by
     rw [leftCount]
     omega
   have rightBound :
-      PiCCSPoseidonPlan.invocationCount * 94 + row.val - left.rowCount <
+      PiCCSPoseidonPlan.invocationCount * 86 + row.val - left.rowCount <
         right.rowCount := by
     rw [leftCount, rightCount, Nat.add_sub_cancel_left]
     exact row.isLt
   have selected := MatrixProgram.Program.two_second_row? left right
     logicalWidth sourceRow
-    (PiCCSPoseidonPlan.invocationCount * 94 + row.val)
+    (PiCCSPoseidonPlan.invocationCount * 86 + row.val)
     leftBound rightBound
   rw [leftCount, Nat.add_sub_cancel_left] at selected
   have wrapped : right.row? logicalWidth sourceRow row.val =

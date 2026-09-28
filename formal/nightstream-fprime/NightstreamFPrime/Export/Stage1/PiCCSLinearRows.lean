@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 
 /-! Evaluate existing matrix rows on aggregated extension-field reads. The
 numeric interpreter runs once per scalar component. A stored Poseidon
-invocation shares both evaluations across its existing 94 rows. -/
+invocation shares both evaluations across its existing 86 rows. -/
 
 set_option autoImplicit false
 
@@ -59,32 +59,32 @@ theorem row?_value (program : MatrixProgram.Program) {columns : Nat}
 invocation. The returned arrays preserve the canonical port and row order. -/
 def invocation {columns : Nat} (read : Fin columns → K)
     (interface : PoseidonSboxPlan.Interface columns) :
-    Vector (Vector K matrixCount) 94 :=
+    Vector (Vector K matrixCount) 86 :=
   let first := PiDECPoseidonNumericRows.stored (fun column => (read column).c0) interface
   let second := PiDECPoseidonNumericRows.stored (fun column => (read column).c1) interface
   Vector.ofFn fun row => Vector.ofFn fun port =>
     ⟨((first.get row).get port), ((second.get row).get port)⟩
 
 /-- Every stored invocation port is the same sparse row evaluated on the
-aggregated read. Constant columns and all eight output pins are included. -/
+aggregated read, including the constant column. -/
 theorem invocation_value {columns : Nat} (read : Fin columns → K)
-    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 94)
+    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 86)
     (port : Fin matrixCount) :
     ((invocation read interface).get row).get port =
       PiCCSSparseEvaluation.evaluateK
-        (((PoseidonSboxPlan.rows interface).get
-          ⟨row.val, by rw [PoseidonSboxPlan.rows_length]; exact row.isLt⟩).portForm port)
+        (((PoseidonRetainedRows.rows interface).get
+          ⟨row.val, by rw [PoseidonRetainedRows.rows_length]; exact row.isLt⟩).portForm port)
         read := by
   simp only [invocation, get_ofFn, PiDECPoseidonNumericRows.stored_value]
   rfl
 
 /-- Reusing the stored invocation preserves both extension components of
-all 94 rows and 14 ports, at the original Fin product encoding. -/
+all 86 rows and 14 ports, at the original Fin product encoding. -/
 theorem invocation_loaded_value (block : Poseidon.Block) {columns : Nat}
     (invocationIndex : Fin block.invocationCount)
     (interface : PoseidonSboxPlan.Interface columns)
     (loaded : PiDECPoseidonNumericBlock.loadInvocation? block columns invocationIndex = some interface)
-    (read : Fin columns → K) (row : Fin 94) (port : Fin matrixCount) :
+    (read : Fin columns → K) (row : Fin 86) (port : Fin matrixCount) :
     some (((invocation read interface).get row).get port) =
       (block.row? columns (Fin.encodeProd (invocationIndex, row)).val).map (fun forms =>
         PiCCSSparseEvaluation.evaluateK
@@ -92,8 +92,8 @@ theorem invocation_loaded_value (block : Poseidon.Block) {columns : Nat}
             | some meaningful => forms meaningful
             | none => SparseForm.empty) read) := by
   have scalar (values : Fin columns → F) :
-      some ((((PoseidonSboxPlan.rows interface).get
-        ⟨row.val, by rw [PoseidonSboxPlan.rows_length]; exact row.isLt⟩).portForm port).evalSparse values) =
+      some ((((PoseidonRetainedRows.rows interface).get
+        ⟨row.val, by rw [PoseidonRetainedRows.rows_length]; exact row.isLt⟩).portForm port).evalSparse values) =
         (block.row? columns (Fin.encodeProd (invocationIndex, row)).val).map (fun forms =>
           (match meaningfulPort? port with
             | some meaningful => forms meaningful

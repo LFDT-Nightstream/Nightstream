@@ -174,6 +174,33 @@ fn prepared_loading_keeps_cached_identity_components_non_authoritative() {
 }
 
 #[test]
+fn prepared_cached_identity_cannot_skip_a_changed_product_assertion() {
+    let (_, encoded) = fixture();
+    let changed = with_fixed_mutation(encoded, |fixed| {
+        let assertion = fixed[1][8][0][4]
+            .as_array_mut()
+            .unwrap()
+            .last_mut()
+            .unwrap();
+        assertion[3][0] = json!((assertion[3][0].as_u64().unwrap() + 1) % GOLDILOCKS_MODULUS);
+    });
+    let loaded = load_compiled_application_package(changed.as_slice()).unwrap();
+    assert_eq!(
+        loaded.structural_identifier(),
+        crate::POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER
+    );
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json");
+    let caller: Value = serde_json::from_reader(std::fs::File::open(path).unwrap()).unwrap();
+    let private: Vec<u64> = serde_json::from_value(caller[2].clone()).unwrap();
+    let public: Vec<u64> = serde_json::from_value(caller[3].clone()).unwrap();
+    assert!(matches!(
+        loaded.execute_ccs_assignment(&private, &public),
+        Err(PackageError::Invalid("unsatisfied compact row"))
+    ));
+}
+
+#[test]
 fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     let (_, encoded) = fixture();
     let mut bad = encoded.clone();

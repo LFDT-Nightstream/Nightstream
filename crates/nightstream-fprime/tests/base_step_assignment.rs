@@ -795,6 +795,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     drop(changed_physical);
     let application_slots = package.application().witness_word_count() + package.application().private_range().len();
     let application_start = package.logical_column_count() - application_slots * 41;
+    let application_row_count = package.application().row_range().len();
     drop(package);
 
     let relation = logical_reference::relation::Relation::decode(&sealed).expect("independent final relation");
@@ -806,23 +807,24 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         artifact.logical_rows,
     )
     .expect("independent canonical matrix program");
-    // DirectPiRLCSamplerCompletePrefixPlan.plan_rowCount and the concrete
-    // application row-count theorem locate these 7,700 canonical rows.
-    const APPLICATION_ROW_START: usize = 6_056_897;
-    const APPLICATION_ROW_END: usize = APPLICATION_ROW_START + 7_700;
+    // The canonical program ends with the application, next-preimage, and
+    // public-output blocks. Use its decoded boundary and the application plan.
+    let block_ends = program.block_ends().collect::<Vec<_>>();
+    let application_row_end = block_ends[block_ends.len() - 3];
+    let application_row_start = application_row_end - application_row_count;
     let checked = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,
         &artifact.sources,
         &relation,
-        APPLICATION_ROW_START,
-        APPLICATION_ROW_END,
+        application_row_start,
+        application_row_end,
         |column| {
             let value = changed.value(column).map_err(|error| error.to_string())?;
             logical_reference::Field::checked(value, "changed application assignment")
         },
     )
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
-    assert_eq!(checked, APPLICATION_ROW_END - APPLICATION_ROW_START);
+    assert_eq!(checked, application_row_end - application_row_start);
 
     // Keep every prefix/hash/public coordinate unchanged and replace only
     // the application witness/local block family. Input/output coordinates
@@ -859,7 +861,7 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         .expect("rejection must be a nonzero canonical row residual");
     let row = row.parse::<usize>().expect("rejected row index");
     assert!(
-        (APPLICATION_ROW_START..APPLICATION_ROW_END).contains(&row),
+        (application_row_start..application_row_end).contains(&row),
         "rejection must occur in the application rows: {failure}"
     );
     let residual = residual.parse::<u64>().expect("canonical residual value");

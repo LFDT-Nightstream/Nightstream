@@ -62,13 +62,13 @@ fn shared_poseidon_templates_match_every_reference_row() {
         assert_eq!(output.entries().len(), 41);
         let mut partial = Vec::new();
         let flow = actual
-            .visit_rows_until(logical_width, 86, count - 1, |row| {
+            .visit_rows_until(logical_width, 32, count - 1, |row| {
                 partial.push(owned_row(row));
                 Ok(ControlFlow::Continue(()))
             })
             .unwrap();
         assert_eq!(flow, ControlFlow::Continue(()));
-        assert_eq!(partial, visited[86..count - 1]);
+        assert_eq!(partial, visited[32..count - 1]);
         assert!(actual.row(logical_width, count).is_err());
         assert!(actual
             .visit_rows_until(logical_width, count, count - 1, |_| Ok(ControlFlow::Continue(())))
@@ -377,7 +377,7 @@ fn template_visitors_stop_before_invalid_later_invocations() {
             [0, 54, 182]
         ]
     ]);
-    for (encoded, invalid_row) in [(poseidon, 94), (phi81, 108)] {
+    for (encoded, invalid_row) in [(poseidon, 86), (phi81, 108)] {
         let program = MatrixProgram::decode(&json!([encoded])).unwrap();
         let source = |_| panic!("template rows do not read ordinary source rows");
         let expected = program.row(logical_width, 0, &source).unwrap();

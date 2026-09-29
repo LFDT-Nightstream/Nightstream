@@ -133,7 +133,7 @@ fn commitments_add_partial_sums_across_key_column_ranges() {
 
 #[test]
 fn empty_and_zero_batches_preserve_order_and_prefix_dimensions() {
-    assert!(commit_production_signed_unit_prefix_matrices(&[])
+    assert!(commit_production_signed_unit_prefix_matrices::<Mat<F>>(&[])
         .unwrap()
         .is_empty());
     let witnesses = [

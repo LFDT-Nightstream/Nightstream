@@ -1,5 +1,7 @@
 //! Proving and terminal row arithmetic. Circuit identity and transcript order stay fixed.
 
+use std::borrow::Borrow;
+
 use neo_ajtai::{nightstream_fprime_setup, Commitment};
 use neo_ccs::Mat;
 use neo_math::F;
@@ -48,7 +50,7 @@ pub(crate) enum Backend {
 }
 
 impl Backend {
-    pub(crate) fn commit(&self, witnesses: &[Mat<F>]) -> Result<Vec<Commitment>, EngineError> {
+    pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, EngineError> {
         let failure = |reason: String| EngineError::Failure {
             engine: self.engine(),
             reason,
@@ -61,7 +63,7 @@ impl Backend {
                 .commit_production_prefixes(witnesses)
                 .map_err(|error| failure(error.to_string())),
             _ => match witnesses {
-                [witness] => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix(witness)
+                [witness] => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix(witness.borrow())
                     .map(|commitment| vec![commitment])
                     .map_err(|error| failure(error.to_string())),
                 _ => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrices(witnesses)

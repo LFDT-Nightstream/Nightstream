@@ -4,7 +4,7 @@
 //! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
 //! authority framing.
 
-use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
+use std::{borrow::Borrow, cmp::Reverse, collections::BinaryHeap, ops::Range};
 
 use neo_ccs::Mat;
 use neo_math::{balanced::to_balanced_i128, ring::D};
@@ -460,14 +460,14 @@ impl SignedUnitBatchError {
 /// Different valid prefix widths use their original indexed key addresses.
 /// Each nonzero block in the union is expanded once per key row, then shared by
 /// all witnesses that use it. No dense key or extended witness is allocated.
-pub fn commit_production_signed_unit_prefix_matrices(
-    witnesses: &[Mat<Goldilocks>],
+pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>(
+    witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
     let blocks = witnesses
         .iter()
         .enumerate()
         .map(|(witness_index, witness)| {
-            signed_unit_prefix_blocks(witness).map_err(|source| SignedUnitBatchError { witness_index, source })
+            signed_unit_prefix_blocks(witness.borrow()).map_err(|source| SignedUnitBatchError { witness_index, source })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut commitments: Vec<_> = (0..witnesses.len())

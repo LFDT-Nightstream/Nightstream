@@ -1,6 +1,8 @@
 //! Fixed production-key commitments. Validate on the host, generate key tiles
 //! and sum signed ring products on the device. No complete key is stored.
 
+use std::borrow::Borrow;
+
 use neo_ajtai::{
     nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS},
     Commitment,
@@ -15,12 +17,15 @@ use super::MetalSession;
 use crate::MetalError;
 
 impl MetalSession {
-    pub(crate) fn commit_production_prefixes(&self, witnesses: &[Mat<F>]) -> Result<Vec<Commitment>, MetalError> {
+    pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
+        &self,
+        witnesses: &[W],
+    ) -> Result<Vec<Commitment>, MetalError> {
         // This is the CPU commitment's validator, including complete carrier tails.
         // Validate the entire batch before allocating or dispatching device work.
         let blocks = witnesses
             .iter()
-            .map(signed_unit_prefix_blocks)
+            .map(|witness| signed_unit_prefix_blocks(witness.borrow()))
             .collect::<Result<Vec<_>, _>>()?;
         let mut output = vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()];
         let active = blocks
@@ -31,7 +36,11 @@ impl MetalSession {
         if active.is_empty() {
             return Ok(output);
         }
-        let width = witnesses.iter().map(Mat::cols).max().unwrap();
+        let width = witnesses
+            .iter()
+            .map(|witness| witness.borrow().cols())
+            .max()
+            .unwrap();
         let mut occupied = vec![false; width];
         for blocks in &blocks {
             for block in blocks {

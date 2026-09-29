@@ -9,7 +9,7 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use super::{RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
+use super::{scratch::ScratchPart, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
 
 const SEEDED_WORK_COLUMNS: usize = 1024;
 
@@ -316,8 +316,34 @@ impl SuperneoMatrixCache {
         scratch: &mut RingEvalScratch,
         weight: impl Fn(usize) -> K,
     ) {
-        debug_assert!(row_cap <= self.rows);
         scratch.ensure_block_count(self.cols.div_ceil(D));
+        self.accumulate_original_ring_form_part(row_cap, &mut scratch.part(), weight);
+    }
+
+    /// Accumulate the weighted rows and apply `bar`, with one disjoint block
+    /// range per worker thread.
+    pub(super) fn accumulate_barred_ring_form_parallel(
+        &self,
+        row_cap: usize,
+        scratch: &mut RingEvalScratch,
+        weight: impl Fn(usize) -> K + Sync,
+    ) {
+        scratch.ensure_block_count(self.cols.div_ceil(D));
+        scratch.fill_parts(|part| {
+            self.accumulate_original_ring_form_part(row_cap, part, &weight);
+            part.bar_active();
+        });
+    }
+
+    /// Accumulate only the entries whose block lies in `part`.
+    fn accumulate_original_ring_form_part(
+        &self,
+        row_cap: usize,
+        part: &mut ScratchPart<'_>,
+        weight: impl Fn(usize) -> K,
+    ) {
+        debug_assert!(row_cap <= self.rows);
+        let blocks = part.blocks();
         for row in 0..row_cap {
             let [w_re, w_im] = weight(row).as_coeffs();
             if w_re == F::ZERO && w_im == F::ZERO {
@@ -325,20 +351,24 @@ impl SuperneoMatrixCache {
             }
             if self.identity {
                 let block = row / D;
-                let local = row % D;
-                scratch.add_coefficient(block, local, w_re, w_im);
+                if blocks.contains(&block) {
+                    part.add_coefficient(block, row % D, w_re, w_im);
+                }
                 continue;
             }
             for compact in self.row_blocks_for(row).iter().copied() {
                 let block = self.row_block_index(compact);
+                if !blocks.contains(&block) {
+                    continue;
+                }
                 if let Some((_, local, coefficient)) = compact.single_parts() {
-                    scratch.add_coefficient(block, local, w_re * coefficient, w_im * coefficient);
+                    part.add_coefficient(block, local, w_re * coefficient, w_im * coefficient);
                 } else {
                     let orig = self.dense_block(self.dense_pattern_index(compact));
-                    scratch.add_scaled(block, &orig, w_re, w_im);
+                    part.add_scaled(block, &orig, w_re, w_im);
                 }
             }
-            self.accumulate_geometric_ring_form_row(row, w_re, w_im, scratch);
+            self.accumulate_geometric_ring_form_row(row, w_re, w_im, part);
         }
     }
 

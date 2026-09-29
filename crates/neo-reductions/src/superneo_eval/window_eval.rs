@@ -135,8 +135,7 @@ fn evaluate_rows(
             };
             // Each local cache contains original coefficients. Reuse the same
             // global row weights across its matrices, then release both owners.
-            cache.accumulate_original_ring_form_with(range.len(), scratch, |row| row_weights[row]);
-            scratch.bar_active();
+            cache.accumulate_barred_ring_form_parallel(range.len(), scratch, |row| row_weights[row]);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let values: Vec<_> = active
                 .par_iter()

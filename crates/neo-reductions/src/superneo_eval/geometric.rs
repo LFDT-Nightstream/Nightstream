@@ -1,5 +1,6 @@
 //! Exact evaluation of compact geometric matrix-row runs.
 
+use super::scratch::ScratchPart;
 use super::*;
 
 #[inline]
@@ -84,15 +85,24 @@ impl SuperneoMatrixCache {
         row: usize,
         weight_re: F,
         weight_im: F,
-        scratch: &mut RingEvalScratch,
+        part: &mut ScratchPart<'_>,
     ) {
+        let blocks = part.blocks();
+        let (part_start, part_end) = (blocks.start * D, blocks.end * D);
         for &run in self.geometric_runs_for(row) {
-            let (column_start, len, mut coefficient, ratio) = decode(run);
-            for column in column_start..column_start + len {
+            let (column_start, len, coefficient, ratio) = decode(run);
+            let column_end = core::cmp::min(column_start + len, part_end);
+            let mut column = core::cmp::max(column_start, part_start);
+            if column >= column_end {
+                continue;
+            }
+            let skip = ratio.exp_u64((column - column_start) as u64);
+            let mut term = [weight_re * coefficient * skip, weight_im * coefficient * skip];
+            while column < column_end {
                 let block = column / D;
-                let local = column % D;
-                scratch.add_coefficient(block, local, weight_re * coefficient, weight_im * coefficient);
-                coefficient *= ratio;
+                let block_end = core::cmp::min(column_end, (block + 1) * D);
+                term = part.add_geometric(block, column % D..block_end - block * D, term, ratio);
+                column = block_end;
             }
         }
     }

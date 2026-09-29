@@ -657,3 +657,112 @@ fn borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients() 
     let transformed = build_superneo_eval_cache(&transformed).unwrap();
     assert!(CachedMatrixRows::new(&transformed).is_err());
 }
+
+/// Many ternary runs across block and worker-part boundaries, with runs of
+/// other ratios, lengths and edges that the run-event sweep must preserve.
+struct RunRows;
+
+impl RunRows {
+    const BLOCKS: usize = 48;
+}
+
+impl MatrixRows for RunRows {
+    fn shape(&self) -> MatrixShape {
+        MatrixShape {
+            rows: 6,
+            columns: Self::BLOCKS * D,
+            matrices: 2,
+        }
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        let columns = Self::BLOCKS * D;
+        for row in rows {
+            // Matrix zero: ratio-3 runs at scattered starts, then ratio 7.
+            for run in 0..24 {
+                let start = (row * 97 + run * 131) % (columns - 41);
+                let coefficient = F::from_usize(run + 1) - F::from_usize(3 * row);
+                sink.push_run(
+                    row,
+                    0,
+                    GeometricRowRun::new(row, start, 41, coefficient, F::from_u64(3)),
+                )?;
+            }
+            sink.push_run(
+                row,
+                0,
+                GeometricRowRun::new(row, 7 * D + 11, 41, F::from_u64(9), F::from_u64(7)),
+            )?;
+            if sink.finish_matrix_row(row, 0)?.is_break() {
+                return Ok(());
+            }
+            // Matrix one: its first run fixes ratio 5 for events; ratio 3 is
+            // added directly. One run ends on a block boundary before empty
+            // blocks, one spans more than three blocks, one has ratio zero.
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 2 * D + 4, 41, F::from_u64(2), F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 5 * D - 41, 41, F::ONE, F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 10 * D + 3, 3 * D + 7, -F::from_usize(row + 1), F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 20 * D - 3, 41, F::from_u64(4), F::from_u64(3)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 30 * D + row, 10, F::from_u64(6), F::ZERO),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 40 * D + row, 1, F::from_u64(8), F::ONE),
+            )?;
+            if sink.finish_matrix_row(row, 1)?.is_break() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn run_event_openings_match_expanded_rows_across_block_and_part_boundaries() {
+    let source = RunRows;
+    let cache = expanded_cache(&source);
+    let columns = source.shape().columns;
+    let variables = columns.next_power_of_two().ilog2() as usize;
+    let point = (0..variables)
+        .map(|index| K::from_coeffs([F::from_usize(index + 5), F::from_usize(2 * index + 1)]))
+        .collect::<Vec<_>>();
+    let witnesses = [
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column % 3) - F::ONE))
+                .collect::<Vec<_>>(),
+        ),
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column * column + 1)))
+                .collect::<Vec<_>>(),
+        ),
+    ];
+    let expected = cache.eval_real_v1_1_openings(&point, &witnesses).unwrap();
+    assert!(expected.iter().all(|opening| opening
+        .eval_a
+        .iter()
+        .all(|matrix| matrix.iter().any(|value| *value != K::ZERO))));
+    let actual = eval_real_v1_1_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
+    assert_eq!(actual, expected);
+}

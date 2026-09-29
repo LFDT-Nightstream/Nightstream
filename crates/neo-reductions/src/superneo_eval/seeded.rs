@@ -349,6 +349,18 @@ impl SuperneoMatrixCache {
         weight: impl Fn(usize) -> K,
     ) {
         debug_assert!(row_cap <= self.rows);
+        // Runs with one shared ratio become start and end events; a single
+        // sweep turns them into run sums before any other entry is added.
+        let event_ratio = self.event_ratio();
+        if let Some(ratio) = event_ratio {
+            for row in 0..row_cap {
+                let [w_re, w_im] = weight(row).as_coeffs();
+                if w_re != F::ZERO || w_im != F::ZERO {
+                    self.add_geometric_events(row, w_re, w_im, ratio, part);
+                }
+            }
+            part.resolve_geometric(ratio);
+        }
         let blocks = part.blocks();
         for row in 0..row_cap {
             let [w_re, w_im] = weight(row).as_coeffs();
@@ -374,7 +386,7 @@ impl SuperneoMatrixCache {
                     part.add_scaled(block, &orig, w_re, w_im);
                 }
             }
-            self.accumulate_geometric_ring_form_row(row, w_re, w_im, part);
+            self.accumulate_geometric_ring_form_row(row, w_re, w_im, event_ratio, part);
         }
     }
 

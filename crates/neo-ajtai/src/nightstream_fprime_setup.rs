@@ -4,7 +4,7 @@
 //! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
 //! authority framing.
 
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
 
 use neo_ccs::Mat;
 use neo_math::{balanced::to_balanced_i128, ring::D};
@@ -200,15 +200,75 @@ fn add_shifted_coefficients(sum: &mut [u128; 2 * D - 1], mut positions: u64, coe
     }
 }
 
-fn commit_row(row: u32, blocks: &[SignedBlock], output: &mut [Goldilocks]) {
-    let mut positive = [0_u128; 2 * D - 1];
-    let mut negative = [0_u128; 2 * D - 1];
+impl SignedSums {
+    fn zero() -> Self {
+        Self {
+            positive: [0; 2 * D - 1],
+            negative: [0; 2 * D - 1],
+        }
+    }
+
+    fn add(&mut self, other: &Self) {
+        for degree in 0..2 * D - 1 {
+            self.positive[degree] += other.positive[degree];
+            self.negative[degree] += other.negative[degree];
+        }
+    }
+
+    fn reduce(&self) -> [Goldilocks; D] {
+        let mut output = [Goldilocks::ZERO; D];
+        reduce_signed_sums(&self.positive, &self.negative, &mut output);
+        output
+    }
+}
+
+fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedSums {
+    let mut sums = SignedSums::zero();
     for block in blocks {
         let coefficients = coefficient_block(&PRODUCTION_SEED, row, block.index);
-        add_shifted_coefficients(&mut positive, block.positive, &coefficients);
-        add_shifted_coefficients(&mut negative, block.negative, &coefficients);
+        add_shifted_coefficients(&mut sums.positive, block.positive, &coefficients);
+        add_shifted_coefficients(&mut sums.negative, block.negative, &coefficients);
     }
-    reduce_signed_sums(&positive, &negative, output);
+    sums
+}
+
+/// Key columns per commitment task. The 22 key rows alone leave workers
+/// idle, so each row is also split into column ranges.
+const TASK_COLUMNS: u64 = 1 << 16;
+
+/// The blocks whose key column lies in `columns`.
+fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
+    let start = blocks.partition_point(|block| block.index < columns.start);
+    let end = blocks.partition_point(|block| block.index < columns.end);
+    &blocks[start..end]
+}
+
+/// Run `sums_for` for every key row and column range, then add each row's
+/// partial sums. Raw sums are exact integers, so the split does not change
+/// the reduced commitment.
+fn row_totals(column_count: u64, sums_for: impl Fn(u32, Range<u64>) -> Vec<SignedSums> + Sync) -> Vec<Vec<SignedSums>> {
+    let ranges = column_count.div_ceil(TASK_COLUMNS);
+    let tasks = 0..PRODUCTION_VERIFIER_ROWS * ranges;
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let tasks = tasks.into_par_iter();
+    let partial: Vec<_> = tasks
+        .map(|task| {
+            let start = task % ranges * TASK_COLUMNS;
+            sums_for((task / ranges) as u32, start..(start + TASK_COLUMNS).min(column_count))
+        })
+        .collect();
+    partial
+        .chunks(ranges as usize)
+        .map(|row| {
+            let mut total = row[0].clone();
+            for part in &row[1..] {
+                for (total, part) in total.iter_mut().zip(part) {
+                    total.add(part);
+                }
+            }
+            total
+        })
+        .collect()
 }
 
 fn reduce_signed_sums(positive: &[u128; 2 * D - 1], negative: &[u128; 2 * D - 1], output: &mut [Goldilocks]) {
@@ -396,29 +456,31 @@ pub fn commit_production_signed_unit_prefix_matrices(
     if blocks.iter().all(Vec::is_empty) {
         return Ok(commitments);
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_par_iter();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_iter();
-    let outputs: Vec<_> = rows
-        .map(|row| commit_batch_row(row as u32, &blocks))
-        .collect();
-    for (row, outputs) in outputs.into_iter().enumerate() {
-        for (commitment, output) in commitments.iter_mut().zip(outputs) {
-            commitment.col_mut(row).copy_from_slice(&output);
+    let column_count = blocks
+        .iter()
+        .filter_map(|blocks| blocks.last())
+        .map(|block| block.index + 1)
+        .max()
+        .expect("a nonempty witness");
+    let totals = row_totals(column_count, |row, columns| {
+        let blocks: Vec<_> = blocks
+            .iter()
+            .map(|blocks| column_slice(blocks, &columns))
+            .collect();
+        batch_sums(row, &blocks)
+    });
+    for (row, totals) in totals.into_iter().enumerate() {
+        for (commitment, total) in commitments.iter_mut().zip(totals) {
+            commitment.col_mut(row).copy_from_slice(&total.reduce());
         }
     }
     Ok(commitments)
 }
 
-fn commit_batch_row(row: u32, blocks: &[Vec<SignedBlock>]) -> Vec<[Goldilocks; D]> {
-    let mut sums = vec![
-        SignedSums {
-            positive: [0; 2 * D - 1],
-            negative: [0; 2 * D - 1]
-        };
-        blocks.len()
-    ];
+/// Each key block is expanded once per row, then shared by every witness
+/// that uses its column.
+fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedSums> {
+    let mut sums = vec![SignedSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
     let mut next = BinaryHeap::new();
     for (witness, blocks) in blocks.iter().enumerate() {
@@ -442,26 +504,20 @@ fn commit_batch_row(row: u32, blocks: &[Vec<SignedBlock>]) -> Vec<[Goldilocks; D
             }
         }
     }
-    sums.into_iter()
-        .map(|sum| {
-            let mut output = [Goldilocks::ZERO; D];
-            reduce_signed_sums(&sum.positive, &sum.negative, &mut output);
-            output
-        })
-        .collect()
+    sums
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
     let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
-    if blocks.is_empty() {
+    let Some(last) = blocks.last() else {
         return commitment;
+    };
+    let totals = row_totals(last.index + 1, |row, columns| {
+        vec![signed_sums(row, column_slice(blocks, &columns))]
+    });
+    for (output, totals) in commitment.data.chunks_mut(D).zip(totals) {
+        output.copy_from_slice(&totals[0].reduce());
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let rows = commitment.data.par_chunks_mut(D);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let rows = commitment.data.chunks_mut(D);
-    rows.enumerate()
-        .for_each(|(row, output)| commit_row(row as u32, blocks, output));
     commitment
 }
 

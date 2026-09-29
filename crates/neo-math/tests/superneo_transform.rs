@@ -88,6 +88,21 @@ fn superneo_transform_vector_lifts_blockwise() {
 }
 
 #[test]
+fn superneo_transform_block_matches_dense_matrix() {
+    let matrix = superneo_bar_matrix();
+    let dense = |block: &[Fq; D]| -> [Fq; D] { std::array::from_fn(|row| dot(&matrix[row], block)) };
+    for column in 0..D {
+        let mut basis = [Fq::ZERO; D];
+        basis[column] = Fq::ONE;
+        assert_eq!(superneo_bar_block(basis), dense(&basis), "basis {column}");
+    }
+    for round in 0..64u64 {
+        let block = deterministic_block(0x5555_5555_5555_5555 ^ round);
+        assert_eq!(superneo_bar_block(block), dense(&block), "round={round}");
+    }
+}
+
+#[test]
 #[should_panic(expected = "superneo_bar_vec expects length multiple of D")]
 fn superneo_transform_rejects_partial_blocks() {
     superneo_bar_vec(&vec![Fq::ZERO; D + 1]);

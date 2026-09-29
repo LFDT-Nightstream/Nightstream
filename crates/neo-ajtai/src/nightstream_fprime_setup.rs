@@ -7,7 +7,11 @@
 use std::{borrow::Borrow, cmp::Reverse, collections::BinaryHeap, ops::Range};
 
 use neo_ccs::Mat;
-use neo_math::{balanced::to_balanced_i128, ring::D};
+use neo_math::{
+    balanced::to_balanced_i128,
+    ring::D,
+    signed_sums::{SignedShiftSums, SplitRing},
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -185,93 +189,17 @@ impl SignedBlock {
     }
 }
 
-/// Signed raw convolution sums. Each key coefficient is added as its low and
-/// high 32-bit halves, so accumulation is plain i64 addition.
-#[derive(Clone)]
-struct SignedSums {
-    low: [i64; 2 * D - 1],
-    high: [i64; 2 * D - 1],
-}
-
-/// One key element split into 32-bit halves.
-struct SplitKey {
-    low: [i64; D],
-    high: [i64; D],
-}
-
-impl SplitKey {
-    fn new(coefficients: &[u64; D]) -> Self {
-        Self {
-            low: coefficients.map(|coefficient| (coefficient & 0xffff_ffff) as i64),
-            high: coefficients.map(|coefficient| (coefficient >> 32) as i64),
-        }
-    }
-}
-
-impl SignedSums {
-    fn zero() -> Self {
-        Self {
-            low: [0; 2 * D - 1],
-            high: [0; 2 * D - 1],
-        }
-    }
-
-    /// Add the key shifted by every positive lane and subtract it for every
-    /// negative lane.
-    fn add_block(&mut self, key: &SplitKey, mut positive: u64, mut negative: u64) {
-        while positive != 0 {
-            let shift = positive.trailing_zeros() as usize;
-            for lane in 0..D {
-                self.low[shift + lane] += key.low[lane];
-                self.high[shift + lane] += key.high[lane];
-            }
-            positive &= positive - 1;
-        }
-        while negative != 0 {
-            let shift = negative.trailing_zeros() as usize;
-            for lane in 0..D {
-                self.low[shift + lane] -= key.low[lane];
-                self.high[shift + lane] -= key.high[lane];
-            }
-            negative &= negative - 1;
-        }
-    }
-
-    fn add(&mut self, other: &Self) {
-        for degree in 0..2 * D - 1 {
-            self.low[degree] += other.low[degree];
-            self.high[degree] += other.high[degree];
-        }
-    }
-
-    fn reduce(&self) -> [Goldilocks; D] {
-        let raw: [Goldilocks; 2 * D - 1] = core::array::from_fn(|degree| {
-            let value = (i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]);
-            Goldilocks::from_u64(value.rem_euclid(GOLDILOCKS_MODULUS as i128) as u64)
-        });
-        // X^54 = -X^27 - 1 and X^81 = 1. Reduce only after summing all blocks.
-        core::array::from_fn(|lane| {
-            if lane < D / 2 {
-                let high = if lane + 81 < raw.len() {
-                    raw[lane + 81]
-                } else {
-                    Goldilocks::ZERO
-                };
-                raw[lane] - raw[lane + D] + high
-            } else {
-                raw[lane] - raw[lane + D / 2]
-            }
-        })
-    }
-}
-
-fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedSums {
-    let mut sums = SignedSums::zero();
+fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
+    let mut sums = SignedShiftSums::zero();
     for block in blocks {
-        let key = SplitKey::new(&coefficient_block(&PRODUCTION_SEED, row, block.index));
-        sums.add_block(&key, block.positive, block.negative);
+        sums.add_signed_units(&split_key(row, block.index), block.positive, block.negative);
     }
     sums
+}
+
+/// One indexed key element, split for exact signed accumulation.
+fn split_key(row: u32, block: u64) -> SplitRing {
+    SplitRing::new(&coefficient_block(&PRODUCTION_SEED, row, block).map(Goldilocks::from_u64))
 }
 
 /// Key columns per commitment task. The 22 key rows alone leave workers
@@ -288,7 +216,10 @@ fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [Sig
 /// Run `sums_for` for every key row and column range, then add each row's
 /// partial sums. Raw sums are exact integers, so the split does not change
 /// the reduced commitment.
-fn row_totals(column_count: u64, sums_for: impl Fn(u32, Range<u64>) -> Vec<SignedSums> + Sync) -> Vec<Vec<SignedSums>> {
+fn row_totals(
+    column_count: u64,
+    sums_for: impl Fn(u32, Range<u64>) -> Vec<SignedShiftSums> + Sync,
+) -> Vec<Vec<SignedShiftSums>> {
     let ranges = column_count.div_ceil(TASK_COLUMNS);
     let tasks = 0..PRODUCTION_VERIFIER_ROWS * ranges;
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -499,8 +430,8 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>
 
 /// Each key block is expanded once per row, then shared by every witness
 /// that uses its column.
-fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedSums> {
-    let mut sums = vec![SignedSums::zero(); blocks.len()];
+fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
+    let mut sums = vec![SignedShiftSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
     let mut next = BinaryHeap::new();
     for (witness, blocks) in blocks.iter().enumerate() {
@@ -509,14 +440,14 @@ fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedSums> {
         }
     }
     while let Some(&Reverse((block_index, _))) = next.peek() {
-        let key = SplitKey::new(&coefficient_block(&PRODUCTION_SEED, row, block_index));
+        let key = split_key(row, block_index);
         while let Some(&Reverse((index, witness))) = next.peek() {
             if index != block_index {
                 break;
             }
             next.pop();
             let block = &blocks[witness][positions[witness]];
-            sums[witness].add_block(&key, block.positive, block.negative);
+            sums[witness].add_signed_units(&key, block.positive, block.negative);
             positions[witness] += 1;
             if let Some(block) = blocks[witness].get(positions[witness]) {
                 next.push(Reverse((block.index, witness)));

@@ -14,6 +14,9 @@ use super::{
 };
 use crate::PiCcsError;
 
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+mod chunks;
+
 /// A complete global row range with local cache row indices and global columns.
 /// Storage accounting includes owned vector capacities and construction counts,
 /// but excludes the borrowed source, allocator overhead, and device copies.
@@ -50,6 +53,28 @@ impl MatrixWindow {
     /// Reserve caller-owned row values alongside the matrix window. Storage
     /// reports cache bytes only; peak includes the supplied per-row payload.
     pub fn load_next_with_payload(
+        source: &dyn MatrixRows,
+        requested: Range<usize>,
+        workspace_bytes: usize,
+        payload_bytes_per_row: usize,
+    ) -> Result<Self, PiCcsError> {
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        if requested.len() >= 2 * chunks::CHUNK_ROWS && rayon::current_num_threads() > 1 {
+            if let Some(window) = chunks::load_complete(
+                source,
+                requested.clone(),
+                workspace_bytes,
+                payload_bytes_per_row,
+                chunks::CHUNK_ROWS,
+            )? {
+                return Ok(window);
+            }
+        }
+        Self::load_prefix(source, requested, workspace_bytes, payload_bytes_per_row)
+    }
+
+    /// Count rows one at a time and keep the longest prefix that fits.
+    fn load_prefix(
         source: &dyn MatrixRows,
         requested: Range<usize>,
         workspace_bytes: usize,

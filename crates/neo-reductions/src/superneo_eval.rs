@@ -8,6 +8,7 @@ use rayon::prelude::*;
 mod artifact;
 mod authority;
 mod baseline;
+mod block_sums;
 mod cache;
 mod compact;
 mod digit;

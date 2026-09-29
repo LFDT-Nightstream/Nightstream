@@ -1,11 +1,12 @@
 //! Complete real-witness openings shared by the normal PiCCS and PiDEC paths.
 
 use neo_ccs::V1_1Evaluations;
-use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
+use neo_math::{superneo_bar_block, KExtensions, Rq, D, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
+use super::block_sums::{add_pair_sums, to_extension, zero_pair_sums, TaskSums, TASK_BLOCKS};
 use super::{EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
 use crate::PiCcsError;
 
@@ -58,11 +59,11 @@ impl SuperneoEvalCache {
             started.elapsed().as_secs_f64(),
             witnesses.len()
         );
-        let result = witnesses
-            .iter()
+        let result = pad_openings(witnesses, &weights)
+            .into_iter()
             .zip(matrices)
-            .map(|(witness, eval_a)| V1_1Evaluations {
-                eval_k: pad_opening(witness, &weights).to_vec(),
+            .map(|(eval_k, eval_a)| V1_1Evaluations {
+                eval_k: eval_k.to_vec(),
                 eval_a: eval_a
                     .into_iter()
                     .map(|coefficients| coefficients.to_vec())
@@ -75,40 +76,52 @@ impl SuperneoEvalCache {
     }
 }
 
-pub(super) fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) -> [K; D] {
-    if witness.real_is_zero() {
-        return [K::ZERO; D];
-    }
-    let block = |block: usize| {
-        if !witness.real_nonzero(block) {
-            return [K::ZERO; D];
-        }
+/// Pad openings of real witnesses with equal block counts. Each block's
+/// weight forms are computed once and shared by every witness.
+pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], weights: &EqualityWeights) -> Vec<[K; D]> {
+    let active: Vec<_> = witnesses
+        .iter()
+        .filter(|witness| !witness.real_is_zero())
+        .collect();
+    let Some(blocks) = active.first().map(|witness| witness.block_len()) else {
+        return vec![[K::ZERO; D]; witnesses.len()];
+    };
+    let forms = |block: usize| {
         // Pad covers every lane of the block, including scalar zero-tail
         // lanes: its higher ring coefficients need those equality weights.
         let weights: [K; D] = std::array::from_fn(|lane| weights.at(block * D + lane));
-        let real_form = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
-        let imaginary_form = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
-        // The ring products use the witness's signed-digit form, as for the matrix openings.
-        let mut real = [F::ZERO; D];
-        let mut imaginary = [F::ZERO; D];
-        witness.accumulate_real_pair(&mut real, &mut imaginary, &real_form, &imaginary_form, block);
-        std::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]]))
-    };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        (0..witness.block_len()).into_par_iter().map(block).reduce(
-            || [K::ZERO; D],
-            |left, right| std::array::from_fn(|lane| left[lane] + right[lane]),
+        (
+            Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0]))),
+            Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1]))),
         )
-    }
+    };
+    let task = |task: usize| {
+        let mut sums = TaskSums::new(active.len());
+        for block in task * TASK_BLOCKS..((task + 1) * TASK_BLOCKS).min(blocks) {
+            sums.add_block(&active, block, || forms(block));
+        }
+        sums.finish()
+    };
+    let tasks = 0..blocks.div_ceil(TASK_BLOCKS);
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let sums = tasks
+        .into_par_iter()
+        .map(task)
+        .reduce(|| zero_pair_sums(active.len()), add_pair_sums);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        (0..witness.block_len())
-            .map(block)
-            .fold([K::ZERO; D], |left, right| {
-                std::array::from_fn(|lane| left[lane] + right[lane])
-            })
-    }
+    let sums = tasks
+        .map(task)
+        .fold(zero_pair_sums(active.len()), add_pair_sums);
+    let mut sums = to_extension(sums).into_iter();
+    witnesses
+        .iter()
+        .map(|witness| {
+            if witness.real_is_zero() {
+                return [K::ZERO; D];
+            }
+            sums.next().expect("one sum per active witness")
+        })
+        .collect()
 }
 
 #[cfg(test)]

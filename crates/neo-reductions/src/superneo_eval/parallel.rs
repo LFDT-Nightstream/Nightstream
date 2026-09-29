@@ -53,3 +53,46 @@ pub(super) fn eval_active_blocks(scratch: &RingEvalScratch, z_blocks: &SuperneoZ
         None
     }
 }
+
+/// Evaluate every witness against the active scratch blocks. Each block's
+/// forms are read once for all witnesses, and blocks are split across
+/// workers; the result is `eval_ring_scratch_real_z_blocks` per witness.
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+pub(super) fn eval_active_blocks_many(scratch: &RingEvalScratch, witnesses: &[&SuperneoZBlocks]) -> Vec<[K; D]> {
+    const BLOCKS_PER_TASK: usize = 1 << 12;
+    let zero = || vec![([F::ZERO; D], [F::ZERO; D]); witnesses.len()];
+    scratch
+        .active_blocks
+        .par_chunks(BLOCKS_PER_TASK)
+        .map(|blocks| {
+            let mut sums = zero();
+            for &blk in blocks {
+                let mut forms = None;
+                for (witness, (out_re, out_im)) in witnesses.iter().zip(sums.iter_mut()) {
+                    if !witness.real_nonzero(blk) {
+                        continue;
+                    }
+                    let (real, imaginary) = forms.get_or_insert_with(|| scratch.forms(blk));
+                    match (!is_all_zero(&real.0), !is_all_zero(&imaginary.0)) {
+                        (true, true) => witness.accumulate_real_pair(out_re, out_im, real, imaginary, blk),
+                        (true, false) => witness.accumulate_real(out_re, real, blk),
+                        (false, true) => witness.accumulate_real(out_im, imaginary, blk),
+                        (false, false) => {}
+                    }
+                }
+            }
+            sums
+        })
+        .reduce(zero, |mut left, right| {
+            for ((left_re, left_im), (right_re, right_im)) in left.iter_mut().zip(right) {
+                for lane in 0..D {
+                    left_re[lane] += right_re[lane];
+                    left_im[lane] += right_im[lane];
+                }
+            }
+            left
+        })
+        .into_iter()
+        .map(|(real, imaginary)| core::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]])))
+        .collect()
+}

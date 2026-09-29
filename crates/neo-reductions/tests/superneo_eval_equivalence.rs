@@ -1126,6 +1126,13 @@ fn seeded_phi81_cache_matches_expanded_matrix_on_every_evaluation_surface() {
         .expect("expanded matrix cache")
         .fill_row_dots_real_with_blocks(&mut expanded_rows, &z_blocks);
     assert_eq!(compact_rows, expanded_rows);
+    // Disjoint row ranges give the same rows, with the seeded ring split mid-block.
+    let mut chunked_rows = vec![K::ZERO; rows];
+    let (low, high) = chunked_rows.split_at_mut(rows / 3);
+    let compact_matrix = compact_cache.matrix(0).expect("compact matrix cache");
+    compact_matrix.fill_row_dots_real_from(0, low, &z_blocks);
+    compact_matrix.fill_row_dots_real_from(rows / 3, high, &z_blocks);
+    assert_eq!(chunked_rows, compact_rows);
     assert_eq!(
         eval_ring_linear_forms_real_z_blocks(&compact_ring, &z_blocks),
         eval_ring_linear_forms_real_z_blocks(&expanded_ring, &z_blocks)

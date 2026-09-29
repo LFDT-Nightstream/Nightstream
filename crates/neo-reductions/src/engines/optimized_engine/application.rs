@@ -13,6 +13,10 @@ use crate::engines::pi_ccs_joint::gamma_power;
 use crate::superneo_eval::{EqualityWeights, MatrixRows, MatrixShape, MatrixWindow, SuperneoZBlocks};
 use crate::PiCcsError;
 
+// Rows per concurrent first-round row-dot task.
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+const ROW_DOT_CHUNK: usize = 1 << 14;
+
 struct Values {
     words: Vec<K>,
     rows: usize,
@@ -153,18 +157,35 @@ impl ApplicationTables {
             if self.challenges.is_empty() {
                 // Each table owns its output slice. Write real values directly
                 // into it; parallel construction needs no worker row buffers.
+                // Row chunks balance tables whose row lengths differ widely.
                 let matrices = window.cache().matrix_caches();
                 let range = original.start - row_start..original.end - row_start;
-                let fill = |(table, values): (usize, &mut [K])| {
-                    matrices[table % self.shape.matrices].fill_row_dots_real_with_blocks(
-                        &mut values[range.clone()],
-                        &witnesses[table / self.shape.matrices],
-                    );
-                };
                 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-                output.words.par_chunks_mut(rows).enumerate().for_each(fill);
+                output
+                    .words
+                    .par_chunks_mut(rows)
+                    .enumerate()
+                    .for_each(|(table, values)| {
+                        let matrix = &matrices[table % self.shape.matrices];
+                        let witness = &witnesses[table / self.shape.matrices];
+                        values[range.clone()]
+                            .par_chunks_mut(ROW_DOT_CHUNK)
+                            .enumerate()
+                            .for_each(|(chunk, values)| {
+                                matrix.fill_row_dots_real_from(chunk * ROW_DOT_CHUNK, values, witness)
+                            });
+                    });
                 #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-                output.words.chunks_mut(rows).enumerate().for_each(fill);
+                output
+                    .words
+                    .chunks_mut(rows)
+                    .enumerate()
+                    .for_each(|(table, values)| {
+                        matrices[table % self.shape.matrices].fill_row_dots_real_with_blocks(
+                            &mut values[range.clone()],
+                            &witnesses[table / self.shape.matrices],
+                        )
+                    });
                 start = original.end;
                 if original == (0..self.shape.rows) {
                     self.complete = Some(window);

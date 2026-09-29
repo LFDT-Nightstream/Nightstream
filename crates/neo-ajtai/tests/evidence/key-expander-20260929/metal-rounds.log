@@ -1,0 +1,12 @@
+metal ChaCha20: 0.611 s checksum 67dc15fdfa9da524
+metal ChaCha20Contiguous: 0.321 s checksum ed23231d9a3cfa4d
+metal Shake128: 1.298 s checksum 5e5cdf6800937732
+metal Shake256: 1.623 s checksum 17353c7da40a3605
+metal ChaCha20: 0.602 s checksum 67dc15fdfa9da524
+metal ChaCha20Contiguous: 0.322 s checksum ed23231d9a3cfa4d
+metal Shake128: 1.360 s checksum 5e5cdf6800937732
+metal Shake256: 1.586 s checksum 17353c7da40a3605
+metal ChaCha20: 0.604 s checksum 67dc15fdfa9da524
+metal ChaCha20Contiguous: 0.326 s checksum ed23231d9a3cfa4d
+metal Shake128: 1.361 s checksum 5e5cdf6800937732
+metal Shake256: 1.607 s checksum 17353c7da40a3605

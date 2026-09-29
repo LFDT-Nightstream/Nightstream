@@ -184,25 +184,11 @@ impl PreparedLifecycle {
             }
         }
 
-        let mut positive = vec![0u64; blocks];
-        let mut negative = vec![0u64; blocks];
-        for (column, &value) in logical.balanced_values().iter().enumerate() {
-            let mask = 1u64 << (column % D);
-            match value {
-                0 => {}
-                1 => positive[column / D] |= mask,
-                -1 => negative[column / D] |= mask,
-                _ => {
-                    return Err(CompleteStepError::Input(
-                        "fresh logical assignment exceeds the strict unit norm",
-                    ))
-                }
-            }
-        }
-        // Bits outside the logical assignment stay zero in the complete carrier.
-        let packed = Mat::<F>::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative)
-            .map_err(CompleteStepError::Input)?;
-        drop((logical, positive, negative));
+        // The length fits the carrier, so a failure is a coordinate outside
+        // -1, 0, 1. Bits outside the logical assignment stay zero.
+        let packed = Mat::<F>::compact_signed_unit_from_balanced_columns(D, blocks, logical.balanced_values())
+            .map_err(|_| CompleteStepError::Input("fresh logical assignment exceeds the strict unit norm"))?;
+        drop(logical);
         #[cfg(test)]
         eprintln!("complete logical packing elapsed={:?}", started.elapsed());
         #[cfg(test)]

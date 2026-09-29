@@ -261,7 +261,9 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             ));
         }
         // The completed SumCheck tables are not inputs to witness openings.
+        // Their complete row window, if still retained, is the same source.
         self.assignments.clear();
+        let complete = self.fresh_tables.take_complete_window();
         self.fresh_tables.clear();
         let storage = core::mem::take(&mut self.evaluation_table);
         crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
@@ -270,6 +272,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             &self.witness_blocks,
             self.workspace_bytes,
             storage,
+            complete,
         )
         .map(Some)
     }

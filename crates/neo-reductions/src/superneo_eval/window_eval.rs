@@ -33,6 +33,7 @@ pub fn evaluate_terminal_rows(
         witnesses,
         workspace_bytes,
         Vec::new(),
+        None,
         Some((polynomial, fresh)),
     )
 }
@@ -45,17 +46,20 @@ pub fn eval_real_v1_1_openings_from_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
 ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-    eval_real_v1_1_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new())
+    eval_real_v1_1_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
 }
 
+/// `complete` may carry a window over every row of `source`, already built
+/// by the caller; it is used only when it also fits this call's workspace.
 pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
     source: &dyn MatrixRows,
     point: &[K],
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
+    complete: Option<MatrixWindow>,
 ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, None)?.openings)
+    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None)?.openings)
 }
 
 fn evaluate_rows(
@@ -64,6 +68,7 @@ fn evaluate_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
+    complete: Option<MatrixWindow>,
     terminal: Option<(&SparsePoly<F>, &SuperneoZBlocks)>,
 ) -> Result<TerminalEvaluations, PiCcsError> {
     let shape = source.shape();
@@ -120,9 +125,20 @@ fn evaluate_rows(
         size_of::<K>()
     };
     let mut scratch = (!active.is_empty()).then(|| RingEvalScratch::reuse(storage, shape.columns / D));
+    let mut complete = complete.filter(|window| {
+        window.rows() == (0..shape.rows)
+            && shape
+                .rows
+                .checked_mul(row_bytes)
+                .and_then(|payload| payload.checked_add(window.storage_bytes()))
+                .is_some_and(|required| required <= workspace_bytes)
+    });
     let mut next = 0;
     while next < shape.rows {
-        let window = MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, row_bytes)?;
+        let window = match complete.take() {
+            Some(window) => window,
+            None => MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, row_bytes)?,
+        };
         let range = window.rows();
         let row_weights: Vec<_> = if scratch.is_some() {
             range.clone().map(|row| weights.at(row)).collect()

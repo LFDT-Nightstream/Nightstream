@@ -232,6 +232,58 @@ fn fresh_application_replay_matches_retained_and_independent_rows() {
     );
 }
 
+#[test]
+fn complete_first_round_window_serves_the_openings_without_another_visit() {
+    let source = OriginalRows::new(17);
+    let witnesses = witnesses();
+    let blocks = witnesses
+        .iter()
+        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, 2 * D).unwrap())
+        .collect::<Vec<_>>();
+    let variables = (2 * D).next_power_of_two().ilog2() as usize;
+    let alpha = (0..variables)
+        .map(|round| K::from_coeffs([F::from_usize(round + 9), F::from_usize(round + 10)]))
+        .collect::<Vec<_>>();
+    let points = [K::ZERO, K::ONE];
+    let gamma = K::from_coeffs([F::from_u64(11), F::from_u64(13)]);
+    let weights = EqualityWeights::new(&alpha[1..]);
+    let (replay_budget, resident_budget) = budgets(&source, blocks.len(), points.len());
+
+    let mut replay = ApplicationTables::new(&source, &blocks, replay_budget).unwrap();
+    replay
+        .evals_at(&source, &blocks, &polynomial(), gamma, &points, &weights)
+        .unwrap();
+    assert!(
+        replay.take_complete_window().is_none(),
+        "a partial window is never kept"
+    );
+
+    let mut retained = ApplicationTables::new(&source, &blocks, resident_budget).unwrap();
+    retained
+        .evals_at(&source, &blocks, &polynomial(), gamma, &points, &weights)
+        .unwrap();
+    assert!(retained.peak_bytes <= resident_budget);
+    let window = retained
+        .take_complete_window()
+        .expect("complete first-round window");
+    assert_eq!(window.rows(), 0..source.rows);
+
+    let expected =
+        crate::superneo_eval::eval_real_v1_1_openings_from_rows(&source, &alpha, &blocks, resident_budget).unwrap();
+    let visits = source.visits.load(Ordering::Relaxed);
+    let actual = crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
+        &source,
+        &alpha,
+        &blocks,
+        resident_budget,
+        Vec::new(),
+        Some(window),
+    )
+    .unwrap();
+    assert_eq!(actual, expected);
+    assert_eq!(source.visits.load(Ordering::Relaxed), visits, "no second row visit");
+}
+
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn pair_workers_match_serial_with_exact_payload_budgets() {

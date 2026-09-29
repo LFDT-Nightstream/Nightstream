@@ -24,6 +24,9 @@ pub(super) struct ApplicationTables {
     rows: usize,
     challenges: Vec<K>,
     resident: Option<Values>,
+    // The first-round window over every row, kept for the output openings
+    // while it fits beside the round's live values.
+    complete: Option<MatrixWindow>,
     workspace_bytes: usize,
     peak_bytes: usize,
 }
@@ -66,6 +69,7 @@ impl ApplicationTables {
             fresh_count: witnesses.len(),
             challenges: Vec::new(),
             resident: None,
+            complete: None,
             workspace_bytes,
             peak_bytes: 0,
         })
@@ -73,6 +77,17 @@ impl ApplicationTables {
 
     pub(super) fn fresh_count(&self) -> usize {
         self.fresh_count
+    }
+
+    fn complete_bytes(&self) -> usize {
+        self.complete
+            .as_ref()
+            .map_or(0, MatrixWindow::storage_bytes)
+    }
+
+    /// Hand the retained complete row window to the output openings.
+    pub(super) fn take_complete_window(&mut self) -> Option<MatrixWindow> {
+        self.complete.take()
     }
 
     fn row_bytes(&self) -> Result<usize, PiCcsError> {
@@ -151,6 +166,9 @@ impl ApplicationTables {
                 #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
                 output.words.chunks_mut(rows).enumerate().for_each(fill);
                 start = original.end;
+                if original == (0..self.shape.rows) {
+                    self.complete = Some(window);
+                }
                 continue;
             }
             let mut base = vec![F::ZERO; original.len()];
@@ -258,7 +276,9 @@ impl ApplicationTables {
             .capacity()
             .checked_add(scratch_words)
             .ok_or_else(|| invalid("CPU application evaluation scratch overflow"))
-            .and_then(bytes)?;
+            .and_then(bytes)?
+            .checked_add(self.complete_bytes())
+            .ok_or_else(|| invalid("CPU application evaluation scratch overflow"))?;
         let available = self
             .workspace_bytes
             .checked_sub(live_bytes)
@@ -364,10 +384,14 @@ impl ApplicationTables {
         }) {
             self.resident = None;
         }
-        let retained = self
+        let resident = self
             .resident
             .as_ref()
             .map_or(0, |values| values.words.capacity() * size_of::<K>());
+        if scratch_bytes + resident + self.complete_bytes() > self.workspace_bytes {
+            self.complete = None;
+        }
+        let retained = resident + self.complete_bytes();
         self.record(scratch_bytes + retained)?;
         let mut result = vec![K::ZERO; points.len()];
         if points.is_empty()
@@ -375,6 +399,7 @@ impl ApplicationTables {
             || witnesses.iter().all(SuperneoZBlocks::is_zero)
         {
             self.resident = None;
+            self.complete = None;
             return Ok(result);
         }
         let mut coordinates = vec![K::ZERO; self.shape.matrices];
@@ -472,6 +497,7 @@ impl ApplicationTables {
 
     pub(super) fn clear(&mut self) {
         self.resident = None;
+        self.complete = None;
     }
 }
 

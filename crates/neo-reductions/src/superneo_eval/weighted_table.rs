@@ -341,12 +341,33 @@ pub(crate) fn fill_combined_projection(
         .collect::<Vec<_>>();
     let bar_re = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
     let bar_im = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
-    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let bar_sum = Rq(std::array::from_fn(|lane| bar_re.0[lane] + bar_im.0[lane]));
+    // K = F[u]/(u^2 - W), so (bar_re + u bar_im)(real + u imag) is
+    // (bar_re real + W bar_im imag) + u (bar_re imag + bar_im real).
+    let generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let w = (generator * generator).as_coeffs()[0];
     let fill = |(block, output): (usize, &mut [K])| {
         let mut real = Rq::zero();
         let mut imaginary = Rq::zero();
         for (source, [coefficient_re, coefficient_im]) in &active {
             if !source.real_nonzero(block) {
+                continue;
+            }
+            if let Some((positive, negative)) = source.signed_unit_masks() {
+                add_signed_units(
+                    &mut real,
+                    &mut imaginary,
+                    positive[block],
+                    *coefficient_re,
+                    *coefficient_im,
+                );
+                add_signed_units(
+                    &mut real,
+                    &mut imaginary,
+                    negative[block],
+                    -*coefficient_re,
+                    -*coefficient_im,
+                );
                 continue;
             }
             for lane in 0..D {
@@ -355,25 +376,49 @@ pub(crate) fn fill_combined_projection(
                 imaginary.0[lane] += value * *coefficient_im;
             }
         }
-        let (rr, ir) = if real.0.iter().any(|value| *value != F::ZERO) {
-            (bar_re.mul(&real), bar_im.mul(&real))
-        } else {
-            (Rq::zero(), Rq::zero())
-        };
-        let (ri, ii) = if imaginary.0.iter().any(|value| *value != F::ZERO) {
-            (bar_re.mul(&imaginary), bar_im.mul(&imaginary))
-        } else {
-            (Rq::zero(), Rq::zero())
+        let has_real = real.0.iter().any(|value| *value != F::ZERO);
+        let has_imaginary = imaginary.0.iter().any(|value| *value != F::ZERO);
+        let (out_re, out_im) = match (has_real, has_imaginary) {
+            (false, false) => (Rq::zero(), Rq::zero()),
+            (true, false) => (bar_re.mul(&real), bar_im.mul(&real)),
+            (false, true) => {
+                let imaginary_part = bar_im.mul(&imaginary);
+                (Rq(imaginary_part.0.map(|value| w * value)), bar_re.mul(&imaginary))
+            }
+            (true, true) => {
+                // Three ring products instead of four.
+                let real_part = bar_re.mul(&real);
+                let imaginary_part = bar_im.mul(&imaginary);
+                let sum = bar_sum.mul(&Rq(std::array::from_fn(|lane| real.0[lane] + imaginary.0[lane])));
+                (
+                    Rq(std::array::from_fn(|lane| {
+                        real_part.0[lane] + w * imaginary_part.0[lane]
+                    })),
+                    Rq(std::array::from_fn(|lane| {
+                        sum.0[lane] - real_part.0[lane] - imaginary_part.0[lane]
+                    })),
+                )
+            }
         };
         for (lane, value) in output.iter_mut().enumerate() {
-            *value = K::from_coeffs([rr.0[lane], ir.0[lane]])
-                + extension_generator * K::from_coeffs([ri.0[lane], ii.0[lane]]);
+            *value = K::from_coeffs([out_re.0[lane], out_im.0[lane]]);
         }
     };
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     output.par_chunks_mut(D).enumerate().for_each(fill);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     output.chunks_mut(D).enumerate().for_each(fill);
+}
+
+/// Add `(coefficient_re, coefficient_im)` on every lane set in `mask`.
+#[inline]
+fn add_signed_units(real: &mut Rq, imaginary: &mut Rq, mut mask: u64, coefficient_re: F, coefficient_im: F) {
+    while mask != 0 {
+        let lane = mask.trailing_zeros() as usize;
+        real.0[lane] += coefficient_re;
+        imaginary.0[lane] += coefficient_im;
+        mask &= mask - 1;
+    }
 }
 
 fn seeded_weighted_chunk(

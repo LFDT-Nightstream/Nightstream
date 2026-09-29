@@ -35,8 +35,9 @@ pub const PRODUCTION_SEED: [u8; 32] = [
 const _: () = assert!(D == 54);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 // A raw convolution degree has at most 54 terms from each message column.
-// Each sign partition therefore fits in 92 bits, before any field reduction.
-const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (GOLDILOCKS_MODULUS - 1) < (1_u128 << 92));
+// Each term adds one 32-bit half of a key coefficient, so every signed
+// half-sum fits in i64 before any field reduction.
+const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (1_u128 << 32) < (1_u128 << 63));
 
 fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
     state[a] = state[a].wrapping_add(state[b]);
@@ -184,50 +185,91 @@ impl SignedBlock {
     }
 }
 
+/// Signed raw convolution sums. Each key coefficient is added as its low and
+/// high 32-bit halves, so accumulation is plain i64 addition.
 #[derive(Clone)]
 struct SignedSums {
-    positive: [u128; 2 * D - 1],
-    negative: [u128; 2 * D - 1],
+    low: [i64; 2 * D - 1],
+    high: [i64; 2 * D - 1],
 }
 
-fn add_shifted_coefficients(sum: &mut [u128; 2 * D - 1], mut positions: u64, coefficients: &[u64; D]) {
-    while positions != 0 {
-        let shift = positions.trailing_zeros() as usize;
-        for (lane, coefficient) in coefficients.iter().copied().enumerate() {
-            sum[shift + lane] += u128::from(coefficient);
+/// One key element split into 32-bit halves.
+struct SplitKey {
+    low: [i64; D],
+    high: [i64; D],
+}
+
+impl SplitKey {
+    fn new(coefficients: &[u64; D]) -> Self {
+        Self {
+            low: coefficients.map(|coefficient| (coefficient & 0xffff_ffff) as i64),
+            high: coefficients.map(|coefficient| (coefficient >> 32) as i64),
         }
-        positions &= positions - 1;
     }
 }
 
 impl SignedSums {
     fn zero() -> Self {
         Self {
-            positive: [0; 2 * D - 1],
-            negative: [0; 2 * D - 1],
+            low: [0; 2 * D - 1],
+            high: [0; 2 * D - 1],
+        }
+    }
+
+    /// Add the key shifted by every positive lane and subtract it for every
+    /// negative lane.
+    fn add_block(&mut self, key: &SplitKey, mut positive: u64, mut negative: u64) {
+        while positive != 0 {
+            let shift = positive.trailing_zeros() as usize;
+            for lane in 0..D {
+                self.low[shift + lane] += key.low[lane];
+                self.high[shift + lane] += key.high[lane];
+            }
+            positive &= positive - 1;
+        }
+        while negative != 0 {
+            let shift = negative.trailing_zeros() as usize;
+            for lane in 0..D {
+                self.low[shift + lane] -= key.low[lane];
+                self.high[shift + lane] -= key.high[lane];
+            }
+            negative &= negative - 1;
         }
     }
 
     fn add(&mut self, other: &Self) {
         for degree in 0..2 * D - 1 {
-            self.positive[degree] += other.positive[degree];
-            self.negative[degree] += other.negative[degree];
+            self.low[degree] += other.low[degree];
+            self.high[degree] += other.high[degree];
         }
     }
 
     fn reduce(&self) -> [Goldilocks; D] {
-        let mut output = [Goldilocks::ZERO; D];
-        reduce_signed_sums(&self.positive, &self.negative, &mut output);
-        output
+        let raw: [Goldilocks; 2 * D - 1] = core::array::from_fn(|degree| {
+            let value = (i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]);
+            Goldilocks::from_u64(value.rem_euclid(GOLDILOCKS_MODULUS as i128) as u64)
+        });
+        // X^54 = -X^27 - 1 and X^81 = 1. Reduce only after summing all blocks.
+        core::array::from_fn(|lane| {
+            if lane < D / 2 {
+                let high = if lane + 81 < raw.len() {
+                    raw[lane + 81]
+                } else {
+                    Goldilocks::ZERO
+                };
+                raw[lane] - raw[lane + D] + high
+            } else {
+                raw[lane] - raw[lane + D / 2]
+            }
+        })
     }
 }
 
 fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedSums {
     let mut sums = SignedSums::zero();
     for block in blocks {
-        let coefficients = coefficient_block(&PRODUCTION_SEED, row, block.index);
-        add_shifted_coefficients(&mut sums.positive, block.positive, &coefficients);
-        add_shifted_coefficients(&mut sums.negative, block.negative, &coefficients);
+        let key = SplitKey::new(&coefficient_block(&PRODUCTION_SEED, row, block.index));
+        sums.add_block(&key, block.positive, block.negative);
     }
     sums
 }
@@ -269,28 +311,6 @@ fn row_totals(column_count: u64, sums_for: impl Fn(u32, Range<u64>) -> Vec<Signe
             total
         })
         .collect()
-}
-
-fn reduce_signed_sums(positive: &[u128; 2 * D - 1], negative: &[u128; 2 * D - 1], output: &mut [Goldilocks]) {
-    let raw: [Goldilocks; 2 * D - 1] = core::array::from_fn(|degree| {
-        let value = (positive[degree] % GOLDILOCKS_MODULUS + GOLDILOCKS_MODULUS
-            - negative[degree] % GOLDILOCKS_MODULUS)
-            % GOLDILOCKS_MODULUS;
-        Goldilocks::from_u64(value as u64)
-    });
-    // X^54 = -X^27 - 1 and X^81 = 1. Reduce only after summing all blocks.
-    for lane in 0..D {
-        output[lane] = if lane < D / 2 {
-            let high = if lane + 81 < raw.len() {
-                raw[lane + 81]
-            } else {
-                Goldilocks::ZERO
-            };
-            raw[lane] - raw[lane + D] + high
-        } else {
-            raw[lane] - raw[lane + D / 2]
-        };
-    }
 }
 
 /// Commit the complete signed-unit carrier with the fixed production key.
@@ -489,15 +509,14 @@ fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedSums> {
         }
     }
     while let Some(&Reverse((block_index, _))) = next.peek() {
-        let coefficients = coefficient_block(&PRODUCTION_SEED, row, block_index);
+        let key = SplitKey::new(&coefficient_block(&PRODUCTION_SEED, row, block_index));
         while let Some(&Reverse((index, witness))) = next.peek() {
             if index != block_index {
                 break;
             }
             next.pop();
             let block = &blocks[witness][positions[witness]];
-            add_shifted_coefficients(&mut sums[witness].positive, block.positive, &coefficients);
-            add_shifted_coefficients(&mut sums[witness].negative, block.negative, &coefficients);
+            sums[witness].add_block(&key, block.positive, block.negative);
             positions[witness] += 1;
             if let Some(block) = blocks[witness].get(positions[witness]) {
                 next.push(Reverse((block.index, witness)));

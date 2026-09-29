@@ -1,7 +1,7 @@
 //! Complete real-witness openings shared by the normal PiCCS and PiDEC paths.
 
 use neo_ccs::V1_1Evaluations;
-use neo_math::{superneo_bar_block, KExtensions, Rq, D, K};
+use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -83,13 +83,16 @@ pub(super) fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) 
         if !witness.real_nonzero(block) {
             return [K::ZERO; D];
         }
-        let value = Rq(std::array::from_fn(|lane| witness.real_coefficient(block, lane)));
         // Pad covers every lane of the block, including scalar zero-tail
         // lanes: its higher ring coefficients need those equality weights.
         let weights: [K; D] = std::array::from_fn(|lane| weights.at(block * D + lane));
-        let real = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0]))).mul(&value);
-        let imaginary = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1]))).mul(&value);
-        std::array::from_fn(|lane| K::from_coeffs([real.0[lane], imaginary.0[lane]]))
+        let real_form = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
+        let imaginary_form = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
+        // The ring products use the witness's signed-digit form, as for the matrix openings.
+        let mut real = [F::ZERO; D];
+        let mut imaginary = [F::ZERO; D];
+        witness.accumulate_real_pair(&mut real, &mut imaginary, &real_form, &imaginary_form, block);
+        std::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]]))
     };
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
@@ -107,3 +110,7 @@ pub(super) fn pad_opening(witness: &SuperneoZBlocks, weights: &EqualityWeights) 
             })
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/pad_opening.rs"]
+mod tests;

@@ -21,6 +21,8 @@ use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+mod packed_split;
 mod pi_rlc_sampler;
 pub use pi_rlc_sampler::decode_pi_rlc_coefficients;
 
@@ -99,6 +101,14 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                 .collect(),
             vec![false; k],
         ));
+    }
+    // Production witnesses take the parallel packed split. Invalid entries
+    // fall through to the serial split, which reports the first one.
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if b == 2 && Z_rows <= u64::BITS as usize && (1..i64::BITS as usize - 1).contains(&k) {
+        if let Some(split) = packed_split::split_base2_packed(Z, k) {
+            return Ok(split);
+        }
     }
 
     let mut out_data = (0..k).map(|_| None::<Vec<F>>).collect::<Vec<_>>();

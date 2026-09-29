@@ -58,7 +58,13 @@ impl SuperneoMatrixCache {
     /// are streamed once per logical input column, updating all `D` output
     /// coordinates together.
     pub fn fill_row_dots_real_with_blocks(&self, out: &mut [K], z_blocks: &SuperneoZBlocks) {
-        debug_assert!(out.len() <= self.rows, "row-dot output exceeds matrix rows");
+        self.fill_row_dots_real_from(0, out, z_blocks);
+    }
+
+    /// Row dots for rows `first_row..first_row + out.len()`, so disjoint row
+    /// ranges of one matrix can be filled concurrently.
+    pub fn fill_row_dots_real_from(&self, first_row: usize, out: &mut [K], z_blocks: &SuperneoZBlocks) {
+        debug_assert!(first_row + out.len() <= self.rows, "row-dot output exceeds matrix rows");
         debug_assert_eq!(
             self.cols.div_ceil(D),
             z_blocks.block_len(),
@@ -68,9 +74,10 @@ impl SuperneoMatrixCache {
             z_blocks.imag_all_zero,
             "SuperneoMatrixCache::fill_row_dots_real_with_blocks expects a real witness"
         );
+        let rows = first_row..first_row + out.len();
 
         if self.identity {
-            for (row, out_row) in out.iter_mut().enumerate() {
+            for (row, out_row) in rows.clone().zip(out.iter_mut()) {
                 let block = row / D;
                 let local = row % D;
                 *out_row = if z_blocks.real_nonzero(block) {
@@ -82,7 +89,7 @@ impl SuperneoMatrixCache {
             return;
         }
 
-        for (row, out_row) in out.iter_mut().enumerate() {
+        for (row, out_row) in rows.clone().zip(out.iter_mut()) {
             let mut acc = self.geometric_dot_real(row, z_blocks);
             for block in self.row_blocks_for(row).iter().copied() {
                 let block_index = self.row_block_index(block);
@@ -99,7 +106,7 @@ impl SuperneoMatrixCache {
                 .then(seeded_transformed_column_basis);
             block.for_each_original_column_rotation::<F, _>(|output, column, rotation| {
                 let row_start = block.row_start() + output * D;
-                if row_start >= out.len() {
+                if row_start >= rows.end || row_start + D <= rows.start {
                     return;
                 }
                 let blk = column / D;
@@ -114,11 +121,10 @@ impl SuperneoMatrixCache {
                 if input == F::ZERO {
                     return;
                 }
-                let coordinate_count = min(D, out.len() - row_start);
-                for coordinate in 0..coordinate_count {
-                    let coefficient = rotation[coordinate];
-                    if coefficient != F::ZERO {
-                        out[row_start + coordinate] += K::from(coefficient * input);
+                for (coordinate, &coefficient) in rotation.iter().enumerate() {
+                    let row = row_start + coordinate;
+                    if coefficient != F::ZERO && rows.contains(&row) {
+                        out[row - rows.start] += K::from(coefficient * input);
                     }
                 }
             });

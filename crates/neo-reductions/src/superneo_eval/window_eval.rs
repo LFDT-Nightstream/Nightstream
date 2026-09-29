@@ -8,7 +8,7 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
 use super::eval_ring_scratch_real_z_blocks;
 use super::{
-    check_ccs_relation_zero_cached_with_blocks, openings::pad_opening, EqualityWeights, MatrixRows, MatrixWindow,
+    check_ccs_relation_zero_cached_with_blocks, openings::pad_openings, EqualityWeights, MatrixRows, MatrixWindow,
     RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
 };
 use crate::PiCcsError;
@@ -97,10 +97,10 @@ fn evaluate_rows(
         ));
     }
     let weights = EqualityWeights::new(point);
-    let mut result = witnesses
-        .iter()
-        .map(|witness| V1_1Evaluations {
-            eval_k: pad_opening(witness, &weights).to_vec(),
+    let mut result = pad_openings(witnesses, &weights)
+        .into_iter()
+        .map(|eval_k| V1_1Evaluations {
+            eval_k: eval_k.to_vec(),
             eval_a: vec![vec![K::ZERO; D]; shape.matrices],
         })
         .collect::<Vec<_>>();

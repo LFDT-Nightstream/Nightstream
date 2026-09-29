@@ -142,6 +142,37 @@ impl ScratchPart<'_> {
         term
     }
 
+    /// Add a geometric event at one column. `resolve_geometric` later turns
+    /// the events into run sums.
+    #[inline]
+    pub(super) fn add_event(&mut self, column: usize, term: [F; 2]) {
+        self.slot(column / D)[column % D] += K::from_coeffs(term);
+    }
+
+    /// Mark a block covered by a run without adding a value to it.
+    #[inline]
+    pub(super) fn touch(&mut self, block: usize) {
+        self.slot(block);
+    }
+
+    /// Replace every value by `ratio * previous + event`, so each start event
+    /// spreads as a geometric run until its end event cancels it. Values must
+    /// hold events only. Every block a run covers is touched, so the running
+    /// sum is exactly zero across untouched blocks.
+    pub(super) fn resolve_geometric(&mut self, ratio: F) {
+        let mut running = [F::ZERO; 2];
+        for (&touched, values) in self.touched.iter().zip(self.values.chunks_exact_mut(D)) {
+            if !touched {
+                continue;
+            }
+            for value in values {
+                let [real, imaginary] = value.as_coeffs();
+                running = [running[0] * ratio + real, running[1] * ratio + imaginary];
+                *value = K::from_coeffs(running);
+            }
+        }
+    }
+
     pub(super) fn add_scaled(&mut self, block: usize, original: &Rq, real: F, imaginary: F) {
         for (value, &coefficient) in self.slot(block).iter_mut().zip(&original.0) {
             *value += K::from_coeffs([real * coefficient, imaginary * coefficient]);

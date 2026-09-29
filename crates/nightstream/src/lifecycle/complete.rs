@@ -120,28 +120,6 @@ impl PreparedLifecycle {
                 });
             }
         }
-        // Validate every coefficient, including the running tails, before
-        // sharing exact indexed key coefficients across the child witnesses.
-        #[cfg(test)]
-        let started = std::time::Instant::now();
-        let commitments = self.backend.commit(&child_witnesses)?;
-        #[cfg(test)]
-        eprintln!("complete child commitments elapsed={:?}", started.elapsed());
-        for (index, (claim, commitment)) in inputs
-            .next_running()
-            .claims
-            .iter()
-            .zip(commitments)
-            .enumerate()
-        {
-            if commitment != claim.c {
-                return Err(CompleteStepError::ChildWitness {
-                    index,
-                    reason: "fixed-key commitment differs from the verified child",
-                });
-            }
-        }
-
         #[cfg(test)]
         let started = std::time::Instant::now();
         let physical = match application_values {
@@ -200,14 +178,32 @@ impl PreparedLifecycle {
         drop((logical, positive, negative));
         #[cfg(test)]
         eprintln!("complete logical packing elapsed={:?}", started.elapsed());
+        // One key expansion commits the children and the fresh carrier. The
+        // batch validates every coefficient, including the running tails,
+        // before it shares exact indexed key coefficients across witnesses.
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let commitment = self
-            .backend
-            .commit(std::slice::from_ref(&packed))?
-            .remove(0);
+        let mut child_witnesses = child_witnesses;
+        child_witnesses.push(packed);
+        let mut commitments = self.backend.commit(&child_witnesses)?;
+        let packed = child_witnesses.pop().expect("fresh carrier was appended");
+        let commitment = commitments.pop().expect("one commitment per witness");
         #[cfg(test)]
-        eprintln!("complete fresh commitment elapsed={:?}", started.elapsed());
+        eprintln!("complete child and fresh commitments elapsed={:?}", started.elapsed());
+        for (index, (claim, commitment)) in inputs
+            .next_running()
+            .claims
+            .iter()
+            .zip(commitments)
+            .enumerate()
+        {
+            if commitment != claim.c {
+                return Err(CompleteStepError::ChildWitness {
+                    index,
+                    reason: "fixed-key commitment differs from the verified child",
+                });
+            }
+        }
         let fresh = CcsInstance {
             claim: CcsClaim {
                 c: commitment,

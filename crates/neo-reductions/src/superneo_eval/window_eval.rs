@@ -4,12 +4,12 @@
 use neo_ccs::{SparsePoly, V1_1Evaluations};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-use rayon::prelude::*;
 
+#[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+use super::eval_ring_scratch_real_z_blocks;
 use super::{
-    check_ccs_relation_zero_cached_with_blocks, eval_ring_scratch_real_z_blocks, openings::pad_opening,
-    EqualityWeights, MatrixRows, MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
+    check_ccs_relation_zero_cached_with_blocks, openings::pad_opening, EqualityWeights, MatrixRows, MatrixWindow,
+    RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
 };
 use crate::PiCcsError;
 
@@ -153,10 +153,10 @@ fn evaluate_rows(
             // global row weights across its matrices, then release both owners.
             cache.accumulate_barred_ring_form_parallel(range.len(), scratch, |row| row_weights[row]);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let values: Vec<_> = active
-                .par_iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(scratch, &witnesses[index]))
-                .collect();
+            let values = {
+                let active: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
+                super::parallel::eval_active_blocks_many(scratch, &active)
+            };
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             let values: Vec<_> = active
                 .iter()

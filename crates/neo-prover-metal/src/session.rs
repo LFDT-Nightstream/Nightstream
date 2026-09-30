@@ -89,7 +89,8 @@ pub struct MetalSession {
     dec_build_parallel_original_forms: Pipeline,
     dec_build_parallel_original_form_tiles: Pipeline,
     dec_reduce_parallel_original_form_tiles: Pipeline,
-    dec_add_geometric_ring_forms: Pipeline,
+    dec_geometric_span_weights: Pipeline,
+    dec_add_geometric_span_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
@@ -170,7 +171,8 @@ impl MetalSession {
             pipeline(&device, &library, "dec_build_parallel_original_form_tiles")?;
         let dec_reduce_parallel_original_form_tiles =
             pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
-        let dec_add_geometric_ring_forms = pipeline(&device, &library, "dec_add_geometric_ring_forms")?;
+        let dec_geometric_span_weights = pipeline(&device, &library, "dec_geometric_span_weights")?;
+        let dec_add_geometric_span_forms = pipeline(&device, &library, "dec_add_geometric_span_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
@@ -211,7 +213,8 @@ impl MetalSession {
             dec_build_parallel_original_forms,
             dec_build_parallel_original_form_tiles,
             dec_reduce_parallel_original_form_tiles,
-            dec_add_geometric_ring_forms,
+            dec_geometric_span_weights,
+            dec_add_geometric_span_forms,
             dec_bar_ring_forms_in_place,
             dec_sparse_ring_partials,
             dec_sparse_ring_sum_chunks,

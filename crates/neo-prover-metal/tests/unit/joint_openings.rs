@@ -3,7 +3,6 @@ use neo_ccs::{GeometricRowRun, Mat};
 use neo_reductions::superneo_eval::{
     CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCacheBuilder, SuperneoZBlocks,
 };
-use objc2_metal::MTLBuffer;
 use std::{ops::Range, sync::Arc};
 
 pub(crate) fn matrix_workspace(source: &dyn MatrixRows, rows: Range<usize>) -> usize {
@@ -137,7 +136,7 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
 }
 
 #[test]
-fn geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once() {
+fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
     let rows = 3;
     let columns = 3 * D + 1;
     let mut compact = SuperneoEvalCacheBuilder::new(rows, columns, 3).unwrap();
@@ -151,6 +150,11 @@ fn geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once() {
                 ],
                 (0, 1) => vec![GeometricRowRun::new(row, 3 * D, 1, F::from_u64(11), F::ONE)],
                 (2, 0) => vec![GeometricRowRun::new(row, D + 2, D + 5, F::from_u64(13), -F::ONE)],
+                // Start 0 has two shapes, so the second shape needs a second layer.
+                (2, 1) => vec![
+                    GeometricRowRun::new(row, 0, 5, F::from_u64(29), F::from_u64(3)),
+                    GeometricRowRun::new(row, 0, 41, F::from_u64(23), F::ZERO),
+                ],
                 (2, 2) => vec![GeometricRowRun::new(row, 0, 41, F::from_u64(17), F::ZERO)],
                 _ => vec![],
             };
@@ -221,13 +225,15 @@ fn geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once() {
             &layout,
         )
         .unwrap();
-    assert_eq!(opening.geometric.len(), 2);
-    for geometric in &opening.geometric {
-        assert_eq!(
-            geometric.groups.length(),
-            (geometric.group_count + 1) * size_of::<[u32; 2]>()
-        );
-    }
+    let layers: Vec<_> = layout
+        .spans
+        .iter()
+        .map(|(application, layers)| (*application, layers.len()))
+        .collect();
+    assert_eq!(layers, [(0, 1), (2, 2)]);
+    let shared = &layout.spans[1].1[1];
+    assert_eq!((shared.span_count(), shared.offsets.as_slice()), (1, &[0, 2][..]));
+    assert_eq!(opening.geometric.len(), 3);
     let masks = session
         .prepare_joint_witness_masks(&blocks, 2, columns)
         .unwrap();
@@ -240,8 +246,8 @@ fn geometric_openings_share_block_coordinates_and_dispatch_each_matrix_once() {
         assert_eq!(actual.eval_a, expected.eval_a);
     }
     // One tensor stage per point coordinate, one row-weight dispatch, six
-    // common opening stages per live matrix, and one dispatch per run plan.
-    let expected_dispatches = point.len() + 1 + 6 * opening.matrix_count + opening.geometric.len();
+    // common opening stages per live matrix, and two dispatches per span layer.
+    let expected_dispatches = point.len() + 1 + 6 * opening.matrix_count + 2 * opening.geometric.len();
     assert_eq!(session.activity().dispatches - before, expected_dispatches as u64);
     drop(opening);
     drop(device_matrices);

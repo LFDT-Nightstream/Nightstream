@@ -251,43 +251,66 @@ kernel void dec_reduce_parallel_original_form_tiles(
     }
 }
 
-kernel void dec_add_geometric_ring_forms(
-    device const uint2 *groups [[buffer(0)]],
-    device const uint2 *segments [[buffer(1)]],
+// One thread per geometric span: the sum of its weighted references.
+kernel void dec_geometric_span_weights(
+    device const uint *offsets [[buffer(0)]],
+    device const uint2 *references [[buffer(1)]],
     device const ulong *runs [[buffer(2)]],
     device const ulong *chi [[buffer(3)]],
     device const ulong *shape [[buffer(4)]],
-    device ulong *forms [[buffer(5)]],
-    device const uint *active_blocks [[buffer(6)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong local = index % RING_DEGREE;
-    ulong group_index = index / RING_DEGREE;
-    uint2 group = groups[group_index];
-    if (group.x < shape[5] || group.x >= shape[6]) {
-        return;
-    }
-    ulong column = ((ulong)active_blocks[group.x] % shape[1]) * RING_DEGREE + local;
+    device ulong *weights [[buffer(5)]],
+    uint span [[thread_position_in_grid]]) {
     Kx value = Kx{0, 0};
-    for (ulong segment = group.y; segment < groups[group_index + 1].y; ++segment) {
-        uint2 entry = segments[segment];
-        ulong row = entry.x;
+    for (uint entry = offsets[span]; entry < offsets[span + 1]; ++entry) {
+        uint2 reference = references[entry];
+        ulong row = reference.x;
         if (row >= shape[2] || row >= shape[3]) {
             continue;
         }
-        ulong packed = runs[3 * (ulong)entry.y];
-        ulong start = packed & 0xfffffffful;
-        ulong length = packed >> 32;
-        if (column < start || column >= start + length) {
-            continue;
-        }
-        ulong coefficient = gl_mul(
-            gl_from_word(runs[3 * (ulong)entry.y + 1]),
-            dec_pow(gl_from_word(runs[3 * (ulong)entry.y + 2]), column - start));
-        // Both extension components use the same geometric coefficient.
+        ulong coefficient = gl_from_word(runs[3 * (ulong)reference.y + 1]);
         value.c0 = gl_add(value.c0, gl_mul(gl_from_word(chi[2 * row]), coefficient));
         value.c1 = gl_add(value.c1, gl_mul(gl_from_word(chi[2 * row + 1]), coefficient));
     }
-    ulong output = ((ulong)group.x - shape[5]) * 2 * RING_DEGREE + local;
+    weights[2 * (ulong)span] = value.c0;
+    weights[2 * (ulong)span + 1] = value.c1;
+}
+
+// Spans of one layer that start before `column`.
+inline ulong dec_span_rank(device const ulong *starts, device const uint *ranks, ulong column) {
+    ulong below = (1ul << (column % 64)) - 1;
+    return (ulong)ranks[column / 64] + (ulong)popcount(starts[column / 64] & below);
+}
+
+// One thread per matrix form coordinate: expand the spans that cover it.
+kernel void dec_add_geometric_span_forms(
+    device const ulong *starts [[buffer(0)]],
+    device const uint *ranks [[buffer(1)]],
+    device const uint *representatives [[buffer(2)]],
+    device const ulong *runs [[buffer(3)]],
+    device const ulong *weights [[buffer(4)]],
+    device const ulong *shape [[buffer(5)]],
+    device ulong *forms [[buffer(6)]],
+    device const uint *active_blocks [[buffer(7)]],
+    device const ulong *longest [[buffer(8)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong active = shape[5] + index / RING_DEGREE;
+    ulong local = index % RING_DEGREE;
+    ulong column = ((ulong)active_blocks[active] % shape[1]) * RING_DEGREE + local;
+    ulong first = column + 1 > longest[0] ? column + 1 - longest[0] : 0;
+    ulong end = dec_span_rank(starts, ranks, column + 1);
+    Kx value = Kx{0, 0};
+    for (ulong span = dec_span_rank(starts, ranks, first); span < end; ++span) {
+        ulong run = representatives[span];
+        ulong packed = runs[3 * run];
+        ulong start = packed & 0xfffffffful;
+        if (column >= start + (packed >> 32)) {
+            continue;
+        }
+        ulong power = dec_pow(gl_from_word(runs[3 * run + 2]), column - start);
+        value.c0 = gl_add(value.c0, gl_mul(gl_from_word(weights[2 * span]), power));
+        value.c1 = gl_add(value.c1, gl_mul(gl_from_word(weights[2 * span + 1]), power));
+    }
+    ulong output = (active - shape[5]) * 2 * RING_DEGREE + local;
     forms[output] = gl_add(gl_from_word(forms[output]), value.c0);
     forms[output + RING_DEGREE] = gl_add(gl_from_word(forms[output + RING_DEGREE]), value.c1);
 }

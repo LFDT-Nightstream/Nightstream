@@ -41,88 +41,6 @@ inline ulong element_start(ulong index) {
     return index * 0x9E3779B97F4A7C15ul;
 }
 
-// ---- ChaCha20 (RFC 8439 block function) ----
-
-inline uint rotl32(uint value, uint amount) {
-    return (value << amount) | (value >> (32 - amount));
-}
-
-inline void quarter_round(thread uint *s, uint a, uint b, uint c, uint d) {
-    s[a] += s[b]; s[d] = rotl32(s[d] ^ s[a], 16);
-    s[c] += s[d]; s[b] = rotl32(s[b] ^ s[c], 12);
-    s[a] += s[b]; s[d] = rotl32(s[d] ^ s[a], 8);
-    s[c] += s[d]; s[b] = rotl32(s[b] ^ s[c], 7);
-}
-
-// Counter = `counter`, nonce = row || column (little-endian words).
-inline void chacha_block(device const uint *seed, uint counter, uint row, ulong column, thread uint *out) {
-    uint initial[16] = {
-        0x61707865u, 0x3320646eu, 0x79622d32u, 0x6b206574u,
-        seed[0], seed[1], seed[2], seed[3], seed[4], seed[5], seed[6], seed[7],
-        counter, row, (uint)column, (uint)(column >> 32),
-    };
-    for (uint i = 0; i < 16; ++i) out[i] = initial[i];
-    for (uint round = 0; round < 10; ++round) {
-        quarter_round(out, 0, 4, 8, 12);
-        quarter_round(out, 1, 5, 9, 13);
-        quarter_round(out, 2, 6, 10, 14);
-        quarter_round(out, 3, 7, 11, 15);
-        quarter_round(out, 0, 5, 10, 15);
-        quarter_round(out, 1, 6, 11, 12);
-        quarter_round(out, 2, 7, 8, 13);
-        quarter_round(out, 3, 4, 9, 14);
-    }
-    for (uint i = 0; i < 16; ++i) out[i] += initial[i];
-}
-
-// Current setup: lane L uses the first 32 bytes of block L.
-kernel void expand_chacha20(
-    device const uint *seed [[buffer(0)]],
-    device const ulong *prefix [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *out [[buffer(3)]],
-    uint tid [[thread_position_in_grid]]) {
-    uint row = (uint)shape[0];
-    ulong columns = shape[1];
-    ulong threads = shape[2];
-    ulong acc = 0;
-    for (ulong column = tid; column < columns; column += threads) {
-        ulong sum = element_start((ulong)row * columns + column);
-        for (uint lane = 0; lane < RING_DEGREE; ++lane) {
-            uint w[16];
-            chacha_block(seed, lane, row, column, w);
-            sum = fold(sum, reduce_words(w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]), lane);
-        }
-        acc ^= sum;
-    }
-    out[tid] ^= acc;
-}
-
-// Contiguous keystream: lane L uses bytes 32L..32L+31, so block k gives
-// lanes 2k and 2k+1.
-kernel void expand_chacha20_contiguous(
-    device const uint *seed [[buffer(0)]],
-    device const ulong *prefix [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *out [[buffer(3)]],
-    uint tid [[thread_position_in_grid]]) {
-    uint row = (uint)shape[0];
-    ulong columns = shape[1];
-    ulong threads = shape[2];
-    ulong acc = 0;
-    for (ulong column = tid; column < columns; column += threads) {
-        ulong sum = element_start((ulong)row * columns + column);
-        for (uint block = 0; block < RING_DEGREE / 2; ++block) {
-            uint w[16];
-            chacha_block(seed, block, row, column, w);
-            sum = fold(sum, reduce_words(w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]), 2 * block);
-            sum = fold(sum, reduce_words(w[8], w[9], w[10], w[11], w[12], w[13], w[14], w[15]), 2 * block + 1);
-        }
-        acc ^= sum;
-    }
-    out[tid] ^= acc;
-}
-
 // ---- SHAKE (Keccak-f[1600]) ----
 
 constant ulong KECCAK_RC[24] = {
@@ -206,20 +124,18 @@ inline void expand_shake(device const ulong *prefix, device const ulong *shape, 
 
 // SHAKE128: rate 168 bytes = 21 lanes.
 kernel void expand_shake128(
-    device const uint *seed [[buffer(0)]],
-    device const ulong *prefix [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *out [[buffer(3)]],
+    device const ulong *prefix [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *out [[buffer(2)]],
     uint tid [[thread_position_in_grid]]) {
     expand_shake<21>(prefix, shape, out, tid);
 }
 
 // SHAKE256: rate 136 bytes = 17 lanes.
 kernel void expand_shake256(
-    device const uint *seed [[buffer(0)]],
-    device const ulong *prefix [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *out [[buffer(3)]],
+    device const ulong *prefix [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *out [[buffer(2)]],
     uint tid [[thread_position_in_grid]]) {
     expand_shake<17>(prefix, shape, out, tid);
 }

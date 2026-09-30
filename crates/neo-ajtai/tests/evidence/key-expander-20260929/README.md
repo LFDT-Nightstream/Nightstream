@@ -18,7 +18,7 @@ source differs:
 
 | Expander | Bytes for element (row, column) | Primitive calls |
 |---|---|---:|
-| `ChaCha20` (current) | Lane L: first 32 bytes of ChaCha20 block L, nonce `row ‖ column` | 54 blocks |
+| `ChaCha20` (replaced) | Lane L: first 32 bytes of ChaCha20 block L, nonce `row ‖ column` | 54 blocks |
 | `ChaCha20Contiguous` | Lane L: keystream bytes 32L to 32L+31, same nonce | 27 blocks |
 | `Shake128` | SHAKE128(`tag ‖ seed ‖ row ‖ column`), bytes 32L to 32L+31 | 11 permutations |
 | `Shake256` | SHAKE256(same input), bytes 32L to 32L+31 | 13 permutations |
@@ -26,14 +26,13 @@ source differs:
 The tag is `nightstream-ajtai-shake-bench-v0` (32 bytes). It is a benchmark
 value, not a proposed protocol constant.
 
-The CPU `ChaCha20` path is the production `coefficient_block` at 5bd5873f4.
-After the production setup moved to SHAKE128, `bench/src/chacha_v1.rs` holds
-an unchanged copy; its checksums equal the recorded runs. The other CPU paths
-and all Metal kernels are in `bench/`. Each pass folds every coefficient
-into an order-independent checksum. The program stops if the CPU and Metal
-checksums differ. Before timing, it compares scattered elements with the
-scalar production `coefficient`, the scalar RFC 8439 block and a
-division-based reduction.
+The production setup now uses SHAKE128, so `bench/` keeps only the two SHAKE
+expanders. The ChaCha20 rows are recorded results. The program at commit
+`9353dbb17` measured them; its CPU `ChaCha20` path was the production
+`coefficient_block` at 5bd5873f4. Each pass folds every coefficient into an
+order-independent checksum. The program stops if the CPU and Metal checksums
+differ. Before timing, it compares scattered elements with a division-based
+reduction.
 
 ## Commands
 
@@ -64,7 +63,7 @@ CPU, one key pass:
 
 | Expander | Portable Keccak | ARMv8 SHA3 instructions |
 |---|---:|---:|
-| `ChaCha20` (current) | 7.46 s | 7.11 s |
+| `ChaCha20` (replaced) | 7.46 s | 7.11 s |
 | `ChaCha20Contiguous` | 4.92 s | 4.51 s |
 | `Shake128` | 9.99 s | 7.50 s |
 | `Shake256` | 11.35 s | 8.67 s |
@@ -76,16 +75,16 @@ Metal, one key pass:
 
 | Expander | Time |
 |---|---:|
-| `ChaCha20` (current) | 0.604 s |
+| `ChaCha20` (replaced) | 0.604 s |
 | `ChaCha20Contiguous` | 0.322 s |
 | `Shake128` | 1.360 s |
 | `Shake256` | 1.607 s |
 
 ## Reading the results
 
-- On CPU with the SHA3 instructions, SHAKE128 costs about the same as the
-  current ChaCha20 (+5% in the same build). SHAKE256 costs about 22% more.
-- On Metal, SHAKE128 costs 2.3 times the current ChaCha20 and SHAKE256 2.7
+- On CPU with the SHA3 instructions, SHAKE128 costs about the same as
+  ChaCha20 (+5% in the same build). SHAKE256 costs about 22% more.
+- On Metal, SHAKE128 costs 2.3 times ChaCha20 and SHAKE256 2.7
   times. Each Metal `extend` expands the key twice, so SHAKE128 adds about
   1.5 s to an `extend` of about 18 s.
 - Contiguous ChaCha20 costs about 35% less on CPU and 47% less on Metal.

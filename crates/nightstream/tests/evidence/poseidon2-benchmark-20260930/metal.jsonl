@@ -1,0 +1,12 @@
+{"active_extends":2,"benchmark":"poseidon2_hash_chain_v1","engine":"metal","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"minimum_security_bits":114,"package":"/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up--claude-worktrees-pr-126-review-675ed0/f5094f46-437c-4796-82e8-ca1bcc3c6959/scratchpad/bench-126/app.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2,"steps":3,"timing_scope":"prepared_package_load_prove_verify"}
+{"event":"phase_started","phase":"load","step":null}
+{"event":"phase_finished","phase":"load","seconds":1.728871375,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+{"event":"phase_finished","phase":"prove","seconds":2.3593375,"step":1}
+{"event":"phase_started","phase":"extend","step":2}
+{"event":"phase_finished","phase":"extend","seconds":13.638237625,"step":2}
+{"event":"phase_started","phase":"extend","step":3}
+{"event":"phase_finished","phase":"extend","seconds":19.14025125,"step":3}
+{"event":"phase_started","phase":"verify","step":3}
+{"event":"phase_finished","phase":"verify","seconds":8.00731525,"step":3}
+{"circuit_identity":[13667969780615725833,17059058052520352179,351323200348509890,988593297424358646],"event":"benchmark_finished","final_state":[6571778207680039711,123649970047308705,16791205033536618392,12263481847644113771],"schema":2,"seconds":44.874665291,"steps":3,"timing_scope":"prepared_package_load_prove_verify","verified":true}

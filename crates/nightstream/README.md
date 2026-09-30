@@ -273,20 +273,22 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
-At `b1b29c38a`, these commands measured the complete lifecycle without
+At `ecdc04b01`, these commands measured the complete lifecycle without
 Instruments. Each engine ran once on an Apple M5 Max:
 
 | Phase | Optimized | Metal |
 | --- | ---: | ---: |
-| package load | 1.29 s | 1.28 s |
-| base step | 7.80 s | 2.19 s |
-| fold, step 2 | 26.24 s | 11.34 s |
-| fold, step 3 | 33.93 s | 14.86 s |
-| terminal verification | 22.04 s | 6.61 s |
-| **total** | **91.31 s** | **36.28 s** |
-| peak RSS | 10.98 GB | 11.86 GB |
+| package load | 1.17 s | 1.19 s |
+| base step | 7.72 s | 2.14 s |
+| fold, step 2 | 26.37 s | 9.89 s |
+| fold, step 3 | 34.63 s | 13.31 s |
+| terminal verification | 22.61 s | 5.93 s |
+| **total** | **92.50 s** | **32.45 s** |
+| peak RSS | 10.60 GB | 11.15 GB |
 
-Metal is **2.52×** faster, below the 5× target. Both engines are faster than
+Metal is **2.85×** faster, below the 5× target. The Metal openings now add
+each geometric span's references once; the previous record (`b1b29c38a`)
+was 36.28 s on Metal and 91.31 s on the CPU engine. Both engines are faster than
 the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
 CPU engine improved more. Both RSS peaks are below 16 GB. Each time is one
 sample. See [the run records](tests/evidence/poseidon2-benchmark-20260930).

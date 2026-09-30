@@ -21,3 +21,20 @@ fn verifier_artifact_header_fails_closed_on_raw_matrix_evaluation() {
     let mut output = vec![F::ZERO; 4];
     matrix.add_mul_into(&[F::ZERO; 8], &mut output, 4);
 }
+
+#[test]
+fn declared_domain_sets_the_joint_rows_and_must_hold_the_carrier() {
+    let header: CcsStructure<F> = CcsStructure::new_verifier_artifact_header(4, 8, 2, SparsePoly::new(2, Vec::new()))
+        .expect("valid verifier-artifact header");
+    assert_eq!(header.domain_rows(), 4);
+
+    let pinned = header
+        .clone()
+        .with_domain_variables(10)
+        .expect("the rows and the carrier fit 2^10");
+    pinned.validate().expect("valid pinned header");
+    assert_eq!((pinned.n, pinned.domain_rows()), (4, 1 << 10));
+
+    // Eight columns pad to one 54-coordinate ring block, which exceeds 2^5.
+    assert!(header.with_domain_variables(5).is_err());
+}

@@ -221,7 +221,7 @@ fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
 }
 fn params(package: &PreparedLifecycle) -> Params {
     Params::for_ccs_shape(
-        package.structure.n,
+        package.structure.domain_rows(),
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),

@@ -1,9 +1,11 @@
 import NightstreamFPrime.Circuit.Basic
 
 /-!
-Owns the physical R1CS lowering of logical circuit expressions. Every
-multiplication allocates one fresh physical variable and one row. Every
-logical zero assertion adds one final row. The proof is structural in the
+Owns the physical R1CS lowering of logical circuit expressions. A recipe that
+is affine, one product of affine expressions, or such a product plus an affine
+expression is one row. In the general lowering, every multiplication allocates
+one fresh physical variable and one row, and every logical zero assertion
+adds one final row. The proof is structural in the
 expression syntax and does not evaluate an emitted artifact in the kernel.
 -/
 
@@ -305,8 +307,59 @@ def quadraticRecipeRow (output : Nat) (left right : Expr)
     simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using
       equation.symm
 
-/-- Compile an affine or one-rank quadratic recipe directly against its
-already allocated logical witness variable. -/
+/-- The rank-one row `left · right = output − rest` for the recipe
+`left * right + rest` with affine parts. -/
+def productSumRecipeRow (output : Nat) (left right rest : Expr)
+    (loweredLeft : AffineResult left) (loweredRight : AffineResult right)
+    (loweredRest : AffineResult rest) :
+    RecipeRowResult output (.add (.mul left right) rest) where
+  row := ⟨loweredLeft.combination, loweredRight.combination,
+    LinearCombination.add (LinearCombination.ofVar output)
+      (LinearCombination.scale (-1) loweredRest.combination)⟩
+  sound := by
+    intro env holds
+    have equation : left.eval env * right.eval env =
+        env output + -1 * rest.eval env := by
+      simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env,
+        loweredRest.sound env] using holds
+    rw [Expr.eval_sub, Expr.eval_var, Expr.eval_add, Expr.eval_mul, equation,
+      neg_one_mul, neg_add_cancel_right, sub_self]
+  complete := by
+    intro env constraint
+    have equation : env output =
+        left.eval env * right.eval env + rest.eval env :=
+      sub_eq_zero.mp (by
+        simpa only [Expr.eval_sub, Expr.eval_var, Expr.eval_add,
+          Expr.eval_mul] using! constraint)
+    simp only [Row.Holds, LinearCombination.eval_add,
+      LinearCombination.eval_ofVar, LinearCombination.eval_scale,
+      loweredLeft.sound env, loweredRight.sound env, loweredRest.sound env]
+    rw [equation, neg_one_mul, add_neg_cancel_right]
+
+/-- Recognize `left * right + rest` with affine parts. -/
+def productSumRecipeRow? (output : Nat) :
+    (product rest : Expr) →
+      Option (RecipeRowResult output (.add product rest))
+  | .mul left right, rest =>
+      match lowerAffine left, lowerAffine right, lowerAffine rest with
+      | some loweredLeft, some loweredRight, some loweredRest =>
+          some (productSumRecipeRow output left right rest
+            loweredLeft loweredRight loweredRest)
+      | _, _, _ => none
+  | _, _ => none
+
+theorem productSumRecipeRow?_eq_none_of_rest (output : Nat)
+    (product rest : Expr) (restNone : lowerAffine rest = none) :
+    productSumRecipeRow? output product rest = none := by
+  cases product with
+  | mul left right =>
+      cases lowerAffine left <;> cases lowerAffine right <;>
+        simp [productSumRecipeRow?, restNone]
+  | _ => rfl
+
+/-- Compile an affine recipe, one rank-one product of affine expressions, or
+one such product plus an affine expression directly against its already
+allocated logical witness variable. -/
 def directRecipeRow (output : Nat) (recipe : Expr) :
     Option (RecipeRowResult output recipe) :=
   match lowerAffine recipe with
@@ -319,9 +372,11 @@ def directRecipeRow (output : Nat) (recipe : Expr) :
               some (quadraticRecipeRow output left right
                 loweredLeft loweredRight)
           | _, _ => none
+      | .add product rest => productSumRecipeRow? output product rest
       | _ => none
 
-/-- One recipe is affine or one rank-one product of affine expressions. -/
+/-- One recipe has a one-row lowering: it is affine, one rank-one product of
+affine expressions, or such a product plus an affine expression. -/
 def IsDirectRecipe (output : Nat) (recipe : Expr) : Prop :=
   ∃ lowered, directRecipeRow output recipe = some lowered
 
@@ -341,6 +396,21 @@ theorem IsDirectRecipe.mul (output : Nat) {left right : Expr}
         leftEquals, rightEquals]
   | some lowered =>
       simp [IsDirectRecipe, directRecipeRow, productEquals]
+
+theorem IsDirectRecipe.mul_add (output : Nat) {left right rest : Expr}
+    (leftAffine : IsAffine left) (rightAffine : IsAffine right)
+    (restAffine : IsAffine rest) :
+    IsDirectRecipe output (left * right + rest) := by
+  rcases leftAffine with ⟨loweredLeft, leftEquals⟩
+  rcases rightAffine with ⟨loweredRight, rightEquals⟩
+  rcases restAffine with ⟨loweredRest, restEquals⟩
+  change IsDirectRecipe output (.add (.mul left right) rest)
+  cases sumEquals : lowerAffine (.add (.mul left right) rest) with
+  | none =>
+      simp [IsDirectRecipe, directRecipeRow, sumEquals, productSumRecipeRow?,
+        leftEquals, rightEquals, restEquals]
+  | some lowered =>
+      simp [IsDirectRecipe, directRecipeRow, sumEquals]
 
 /-- Every recipe in a batch has a one-row lowering at its exact output
 offset. -/
@@ -384,8 +454,57 @@ def affineConstraint (expression : Expr) :
   | some lowered => some (affineConstraintRow expression lowered)
   | none => none
 
-/-- Recognize only `recipeConstraints` equations. Other zero constraints use
-the general expression lowering below. -/
+/-- The rank-one row `left · right = constant` for the zero assertion
+`constant − left * right` with affine parts. -/
+def rankOneConstraintRow (constant left right : Expr) (coefficient : F)
+    (coefficientEquals : coefficient = -1)
+    (loweredConstant : AffineResult constant)
+    (loweredLeft : AffineResult left) (loweredRight : AffineResult right) :
+    DirectConstraintResult
+      (.add constant (.mul (.const coefficient) (.mul left right))) where
+  row := ⟨loweredLeft.combination, loweredRight.combination,
+    loweredConstant.combination⟩
+  sound := by
+    intro env holds
+    have equation : left.eval env * right.eval env = constant.eval env := by
+      simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env,
+        loweredConstant.sound env] using holds
+    rw [Expr.eval_add, Expr.eval_mul, Expr.eval_const, Expr.eval_mul,
+      coefficientEquals, equation, neg_one_mul, add_neg_cancel]
+  complete := by
+    intro env constraint
+    rw [Expr.eval_add, Expr.eval_mul, Expr.eval_const, Expr.eval_mul,
+      coefficientEquals, neg_one_mul] at constraint
+    have equation : constant.eval env = left.eval env * right.eval env :=
+      add_neg_eq_zero.mp constraint
+    simp only [Row.Holds, loweredLeft.sound env, loweredRight.sound env,
+      loweredConstant.sound env]
+    exact equation.symm
+
+/-- Recognize the zero assertion `constant − left * right` with affine
+parts as one rank-one row. -/
+def rankOneConstraint : (expression : Expr) →
+    Option (DirectConstraintResult expression)
+  | .add constant (.mul (.const coefficient) (.mul left right)) =>
+      if coefficientEquals : coefficient = -1 then
+        match lowerAffine constant, lowerAffine left, lowerAffine right with
+        | some loweredConstant, some loweredLeft, some loweredRight =>
+            some (rankOneConstraintRow constant left right coefficient
+              coefficientEquals loweredConstant loweredLeft loweredRight)
+        | _, _, _ => none
+      else none
+  | _ => none
+
+/-- An affine zero assertion, or else a rank-one one. -/
+def affineOrRankOneConstraint (expression : Expr) :
+    Option (DirectConstraintResult expression) :=
+  match affineConstraint expression with
+  | some lowered => some lowered
+  | none => rankOneConstraint expression
+
+/-- Recognize `recipeConstraints` equations and affine or rank-one zero
+assertions. Other zero constraints use the general expression lowering
+below. -/
 def directConstraint : (expression : Expr) →
     Option (DirectConstraintResult expression)
   | .add (.var output) (.mul (.const coefficient) recipe) =>
@@ -404,7 +523,7 @@ def directConstraint : (expression : Expr) →
         | none => affineConstraint _
       else
         affineConstraint _
-  | expression => affineConstraint expression
+  | expression => affineOrRankOneConstraint expression
 
 /-- Lowering result for one logical zero constraint. -/
 structure LoweredConstraint where
@@ -471,11 +590,14 @@ theorem directConstraint_ne_none_of_affine (expression : Expr)
   rcases affine with ⟨lowered, loweredEq⟩
   cases expression with
   | var index =>
-      simp [directConstraint, affineConstraint, loweredEq]
+      simp [directConstraint, affineOrRankOneConstraint,
+        affineConstraint, loweredEq]
   | const value =>
-      simp [directConstraint, affineConstraint, loweredEq]
+      simp [directConstraint, affineOrRankOneConstraint,
+        affineConstraint, loweredEq]
   | mul left right =>
-      simp [directConstraint, affineConstraint, loweredEq]
+      simp [directConstraint, affineOrRankOneConstraint,
+        affineConstraint, loweredEq]
   | add left right =>
       cases left with
       | var output =>
@@ -490,23 +612,84 @@ theorem directConstraint_ne_none_of_affine (expression : Expr)
                   · simp [directConstraint, coefficientEq,
                       affineConstraint, loweredEq]
               | var index =>
-                  simp [directConstraint, affineConstraint, loweredEq]
+                  simp [directConstraint, affineOrRankOneConstraint,
+                    affineConstraint, loweredEq]
               | add first second =>
-                  simp [directConstraint, affineConstraint, loweredEq]
+                  simp [directConstraint, affineOrRankOneConstraint,
+                    affineConstraint, loweredEq]
               | mul first second =>
-                  simp [directConstraint, affineConstraint, loweredEq]
+                  simp [directConstraint, affineOrRankOneConstraint,
+                    affineConstraint, loweredEq]
           | var index =>
-              simp [directConstraint, affineConstraint, loweredEq]
+              simp [directConstraint, affineOrRankOneConstraint,
+                affineConstraint, loweredEq]
           | const value =>
-              simp [directConstraint, affineConstraint, loweredEq]
+              simp [directConstraint, affineOrRankOneConstraint,
+                affineConstraint, loweredEq]
           | add first second =>
-              simp [directConstraint, affineConstraint, loweredEq]
+              simp [directConstraint, affineOrRankOneConstraint,
+                affineConstraint, loweredEq]
       | const value =>
-          simp [directConstraint, affineConstraint, loweredEq]
+          simp [directConstraint, affineOrRankOneConstraint,
+            affineConstraint, loweredEq]
       | add first second =>
-          simp [directConstraint, affineConstraint, loweredEq]
+          simp [directConstraint, affineOrRankOneConstraint,
+            affineConstraint, loweredEq]
       | mul first second =>
-          simp [directConstraint, affineConstraint, loweredEq]
+          simp [directConstraint, affineOrRankOneConstraint,
+            affineConstraint, loweredEq]
+
+/-- The assertion `constant − left * right` with affine parts is one row. -/
+theorem directConstraint_rankOne_ne_none (constant left right : Expr)
+    (constantAffine : IsAffine constant) (leftAffine : IsAffine left)
+    (rightAffine : IsAffine right) :
+    directConstraint (constant - left * right) ≠ none := by
+  rcases constantAffine with ⟨loweredConstant, constantEq⟩
+  rcases leftAffine with ⟨loweredLeft, leftEq⟩
+  rcases rightAffine with ⟨loweredRight, rightEq⟩
+  change directConstraint
+    (.add constant (.mul (.const (-1)) (.mul left right))) ≠ none
+  cases constant with
+  | var output =>
+      cases productEq : lowerAffine (.mul left right) <;>
+        simp [directConstraint, directRecipeRow, productEq, leftEq, rightEq]
+  | const value =>
+      cases wholeEq : affineConstraint
+          (.add (.const value) (.mul (.const (-1)) (.mul left right))) <;>
+        simp [directConstraint, affineOrRankOneConstraint, wholeEq,
+          rankOneConstraint, constantEq, leftEq, rightEq]
+  | add first second =>
+      cases wholeEq : affineConstraint
+          (.add (.add first second) (.mul (.const (-1)) (.mul left right))) <;>
+        simp [directConstraint, affineOrRankOneConstraint, wholeEq,
+          rankOneConstraint, constantEq, leftEq, rightEq]
+  | mul first second =>
+      cases wholeEq : affineConstraint
+          (.add (.mul first second) (.mul (.const (-1)) (.mul left right))) <;>
+        simp [directConstraint, affineOrRankOneConstraint, wholeEq,
+          rankOneConstraint, constantEq, leftEq, rightEq]
+
+theorem constraintFreshCount_rankOne_eq_zero (constant left right : Expr)
+    (constantAffine : IsAffine constant) (leftAffine : IsAffine left)
+    (rightAffine : IsAffine right) :
+    constraintFreshCount (constant - left * right) = 0 := by
+  have notNone := directConstraint_rankOne_ne_none constant left right
+    constantAffine leftAffine rightAffine
+  unfold constraintFreshCount
+  cases equal : directConstraint (constant - left * right) with
+  | none => exact False.elim (notNone equal)
+  | some direct => rfl
+
+theorem constraintRowCount_rankOne_eq_one (constant left right : Expr)
+    (constantAffine : IsAffine constant) (leftAffine : IsAffine left)
+    (rightAffine : IsAffine right) :
+    constraintRowCount (constant - left * right) = 1 := by
+  have notNone := directConstraint_rankOne_ne_none constant left right
+    constantAffine leftAffine rightAffine
+  unfold constraintRowCount
+  cases equal : directConstraint (constant - left * right) with
+  | none => exact False.elim (notNone equal)
+  | some direct => rfl
 
 theorem constraintFreshCount_eq_zero_of_affine (expression : Expr)
     (affine : IsAffine expression) :

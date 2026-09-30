@@ -273,24 +273,23 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
-At `f87a21e52`, these commands measured the complete lifecycle without
+At `b1b29c38a`, these commands measured the complete lifecycle without
 Instruments. Each engine ran once on an Apple M5 Max:
 
 | Phase | Optimized | Metal |
 | --- | ---: | ---: |
-| package load | 1.68 s | 1.73 s |
-| base step | 8.21 s | 2.36 s |
-| fold, step 2 | 28.28 s | 13.64 s |
-| fold, step 3 | 38.88 s | 19.14 s |
-| terminal verification | 23.66 s | 8.01 s |
-| **total** | **100.71 s** | **44.87 s** |
-| peak RSS | 12.52 GB | 13.96 GB |
+| package load | 1.29 s | 1.28 s |
+| base step | 7.80 s | 2.19 s |
+| fold, step 2 | 26.24 s | 11.34 s |
+| fold, step 3 | 33.93 s | 14.86 s |
+| terminal verification | 22.04 s | 6.61 s |
+| **total** | **91.31 s** | **36.28 s** |
+| peak RSS | 10.98 GB | 11.86 GB |
 
-Metal is **2.24×** faster, below the 5× target. Both engines are faster than
+Metal is **2.52×** faster, below the 5× target. Both engines are faster than
 the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
-CPU engine improved more. Both RSS peaks are below 16 GB. Other work was running
-on the machine, so each time is one sample. See
-[the run records](tests/evidence/poseidon2-benchmark-20260930).
+CPU engine improved more. Both RSS peaks are below 16 GB. Each time is one
+sample. See [the run records](tests/evidence/poseidon2-benchmark-20260930).
 
 Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
@@ -298,10 +297,10 @@ verifier component and binds the resulting application and circuit identity.
 
 Each `Circuit` uses the production commitment-key prefix required by its
 application. Private input words plus generated local words must be at most
-**1,966,761**. The logical width is
-`173,623,380 + 41 × (private_words + local_words)`, and the maximum key supports
+**2,950,283**. The logical width is
+`133,298,978 + 41 × (private_words + local_words)`, and the maximum key supports
 254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
-uses 3,221,095 columns; this smaller prefix is not the application capacity limit.
+uses 2,474,346 columns; this smaller prefix is not the application capacity limit.
 The exported row and domain checks also apply. See the
 [capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 
@@ -323,7 +322,7 @@ apply only to their recorded source and package.
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.
 The original migration checks passed. The earlier prepared-package comparison
-met the 5× speed target. The current source measures 2.24×, because the CPU
+met the 5× speed target. The current source measures 2.52×, because the CPU
 engine is now much faster; see [the benchmark](#poseidon2-benchmark). Both
 current RSS peaks stay below the accepted 16 GiB guard. A universal RSS guarantee
 and a universal Rust refinement proof remain unproven.

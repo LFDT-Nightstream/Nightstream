@@ -51,7 +51,11 @@ where
     }
 
     let assignment_width = structure.m.div_ceil(D) * D;
-    let row_count = structure.n.max(assignment_width).next_power_of_two().max(2);
+    let row_count = structure
+        .domain_rows()
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2);
     let variables = row_count.trailing_zeros() as usize;
     let matrix_count = structure.t();
     let degree = (structure.max_degree() as usize + 1)
@@ -59,7 +63,7 @@ where
         .max(2);
     params
         .padded_row_security_check_for_shape(
-            structure.n,
+            structure.domain_rows(),
             structure.m,
             structure.t(),
             structure.max_degree(),

@@ -75,20 +75,26 @@ theorem KSupported.mul {left right : KExpr} {allowed : Nat → Prop}
     KSupported (KExpr.mul left right) allowed :=
   mul_supported left right allowed leftSupport rightSupport
 
-private theorem mulRecipes_supported (left right : KExpr)
+/-- The three product recipes read their operands and the first two cells of
+their own product. -/
+theorem mulRecipes_supported (start : Nat) (left right : KExpr)
     (allowed : Nat → Prop) (leftSupport : KSupported left allowed)
-    (rightSupport : KSupported right allowed) :
-    ∀ expression ∈ mulRecipes left right,
+    (rightSupport : KSupported right allowed)
+    (firstCell : allowed start) (secondCell : allowed (start + 1)) :
+    ∀ expression ∈ mulRecipes start left right,
       expression.VarsSatisfy allowed := by
   intro expression member
   simp only [mulRecipes, List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl
-  · exact (mul_supported left right allowed leftSupport rightSupport).1
-  · exact (mul_supported left right allowed leftSupport rightSupport).2
+  rcases member with rfl | rfl | rfl
+  · exact ⟨leftSupport.2, rightSupport.2⟩
+  · exact ⟨⟨leftSupport.1, rightSupport.1⟩, ⟨trivial, firstCell⟩⟩
+  · exact ⟨⟨⟨leftSupport.1, leftSupport.2⟩,
+        ⟨rightSupport.1, rightSupport.2⟩⟩,
+      ⟨⟨trivial, secondCell⟩, ⟨trivial, firstCell⟩⟩⟩
 
 private theorem productAt_supported (allowed : Nat → Prop)
     (base productStart finish : Nat) (baseLeProduct : base ≤ productStart)
-    (productEndLe : productStart + 2 ≤ finish) :
+    (productEndLe : productStart + 3 ≤ finish) :
     KSupported (productAt productStart) (Extend allowed base finish) := by
   unfold productAt KSupported
   constructor
@@ -168,7 +174,7 @@ theorem compile_varsSatisfy (start : Nat) (point : KExpr)
             simpa [tail] using
               inductionHypothesis tailCoefficientsSupport
           let productStart := start + tail.recipes.length
-          let finish := productStart + 2
+          let finish := productStart + 3
           have tailFinishLe : start + tail.recipes.length ≤ finish := by
             unfold finish productStart
             omega
@@ -189,10 +195,17 @@ theorem compile_varsSatisfy (start : Nat) (point : KExpr)
             intro index support
             exact NightstreamFPrime.Circuit.SupportRange.mono_finish support
               tailFinishLe
-          have addedSupported : ∀ expression ∈ mulRecipes point tail.output,
-              expression.VarsSatisfy (Extend allowed start finish) :=
-            mulRecipes_supported point tail.output _ pointAtFinish
-              tailOutputAtFinish
+          have addedSupported :
+              ∀ expression ∈ mulRecipes productStart point tail.output,
+                expression.VarsSatisfy (Extend allowed start finish) :=
+            mulRecipes_supported productStart point tail.output _
+              pointAtFinish tailOutputAtFinish
+              (NightstreamFPrime.Circuit.SupportRange.interval
+                (by unfold productStart; omega)
+                (by unfold finish productStart; omega))
+              (NightstreamFPrime.Circuit.SupportRange.interval
+                (by unfold productStart; omega)
+                (by unfold finish productStart; omega))
           have productSupport : KSupported (productAt productStart)
               (Extend allowed start finish) := by
             apply productAt_supported allowed start productStart finish

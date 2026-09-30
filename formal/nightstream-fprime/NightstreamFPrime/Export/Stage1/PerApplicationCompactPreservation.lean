@@ -215,7 +215,7 @@ private theorem samplerColumn_private (column : Nat)
     (upper : column < PiRLCStarts.commitmentLogicalStart) :
     Spartan.sourceToSpartan column < basePackage.layout.constantColumn := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ column := by
-    have lowerValue : 20064823 ≤ column := by
+    have lowerValue : 19377437 ≤ column := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using lower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -225,8 +225,8 @@ private theorem samplerColumn_private (column : Nat)
   · norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
       Spartan.piCcsLocalStart, Spartan.piCcsPhaseOffset,
       Spartan.constantColumn] at sourceLocal ⊢
-    have upperValue : column < 20120226 := by
-      change column < 20120226 at upper
+    have upperValue : column < 19432840 := by
+      change column < 19432840 at upper
       exact upper
     omega
 
@@ -239,7 +239,7 @@ private theorem samplerRange_compatible
     CompactRangeCompatible program
       ⟨inputStart, inputCount, Spartan.sourceToSpartan sourceStart, stride⟩ := by
   have sourceLocal : Spartan.piCcsPhaseOffset ≤ sourceStart := by
-    have lowerValue : 20064823 ≤ sourceStart := by
+    have lowerValue : 19377437 ≤ sourceStart := by
       simpa [PiRLCStarts.phaseLogicalStart,
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset] using sourceLower
     norm_num [Spartan.piCcsPhaseOffset] at lowerValue ⊢
@@ -258,7 +258,7 @@ private theorem piRlcFreshInterval_private (sourceStart count : Nat)
     (sourceUpper : sourceStart + count ≤ PiRLCStarts.outputFreshStart) :
     Spartan.sourceToSpartan sourceStart + count ≤
       basePackage.layout.constantColumn := by
-  have outputValue : PiRLCStarts.outputFreshStart = 28047768 := by rfl
+  have outputValue : PiRLCStarts.outputFreshStart = 27360382 := by rfl
   rw [outputValue] at sourceUpper
   have affine := Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart count
     sourceLocal
@@ -371,8 +371,8 @@ private theorem combination_layout
         unfold PiRLCCombinationInvocations.challengeSourceStart
         rw [PiRLCStarts.challengeWordStart_eq]
         have sourceLt := source.isLt
-        rw [show PiRLCStarts.phaseLogicalStart = 20064823 by rfl,
-          show PiRLCStarts.commitmentLogicalStart = 20120226 by rfl]
+        rw [show PiRLCStarts.phaseLogicalStart = 19377437 by rfl,
+          show PiRLCStarts.commitmentLogicalStart = 19432840 by rfl]
         norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
           at sourceLt offsetLt ⊢
         omega
@@ -572,7 +572,7 @@ private theorem commitment_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.commitmentFreshStart_local
-  · change 20198868 + 17 * (22 * 1 * 8100) ≤ 28047768
+  · change 19511482 + 17 * (22 * 1 * 8100) ≤ 27360382
     norm_num
   · exact commitmentValueRange_compatible program source block cell
 
@@ -589,7 +589,7 @@ private theorem publicInput_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.publicInputFreshStart_local
-  · change 23228268 + 17 * (5 * 1 * 8100) ≤ 28047768
+  · change 22540882 + 17 * (5 * 1 * 8100) ≤ 27360382
     norm_num
   · exact publicInputValueRange_compatible program source block cell
 
@@ -606,7 +606,7 @@ private theorem evalK_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalKFreshStart_local
-  · change 23916768 + 17 * (1 * 2 * 8100) ≤ 28047768
+  · change 23229382 + 17 * (1 * 2 * 8100) ≤ 27360382
     norm_num
   · exact evalKValueRange_compatible program source block cell
 
@@ -623,7 +623,7 @@ private theorem evalA_layout
         lane) := by
   apply combination_layout
   · exact PiRLCCombinationInvocations.evalAFreshStart_local
-  · change 24192168 + 17 * (14 * 2 * 8100) ≤ 28047768
+  · change 23504782 + 17 * (14 * 2 * 8100) ≤ 27360382
     norm_num
   · exact evalAValueRange_compatible program source block cell
 

@@ -46,9 +46,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      28410966 := Package.circuitPackage_layout_values.2.2.1
+      27427444 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      28411245 := Package.circuitPackage_layout_values.2.2.2.2
+      27427723 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 

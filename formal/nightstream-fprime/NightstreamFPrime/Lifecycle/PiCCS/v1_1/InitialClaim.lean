@@ -109,15 +109,15 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 25918
+def privateCount : Nat := 38877
 
 /-- Exact private symbolic footprint of the optimized Horner child. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 25918 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 38877 := by
   change localLength (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 25918
+    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 38877
   rw [Horner.Owned.localLength_eq]
-  change 2 * ((coefficientExprs interface offset).length - 1) = 25918
+  change 3 * ((coefficientExprs interface offset).length - 1) = 38877
   rw [coefficientExprs_length]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -126,11 +126,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      25918 := by
+      38877 := by
   change (flatConstraints (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 25918
+    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 38877
   rw [Horner.Owned.flatConstraints_length]
-  change 2 * ((coefficientExprs interface offset).length - 1) = 25918
+  change 3 * ((coefficientExprs interface offset).length - 1) = 38877
   rw [coefficientExprs_length]
 
 /-- Concrete parent coverage: shared target wires and the challenge leaf make

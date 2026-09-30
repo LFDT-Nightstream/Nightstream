@@ -81,7 +81,7 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 592 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 28410966 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 27427444 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +

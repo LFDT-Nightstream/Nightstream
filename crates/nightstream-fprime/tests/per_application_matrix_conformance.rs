@@ -36,6 +36,6 @@ fn final_matrices_equal_the_separate_lean_expansion() {
         .r1cs_matrices()
         .expect("final production A/B/C matrices");
     let nonzeros = conformance_support::compare_lean_expanded_matrices(&expanded_bytes, &matrices);
-    assert_eq!(nonzeros, [93_701_820, 39_358_148, 28_868_018]);
+    assert_eq!(nonzeros, [91_343_816, 36_894_678, 27_343_559]);
     eprintln!("lean_final_matrix_nonzeros={nonzeros:?}");
 }

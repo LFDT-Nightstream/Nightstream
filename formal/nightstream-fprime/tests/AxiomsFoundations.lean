@@ -14,6 +14,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.BindingCollision
 import NightstreamFPrime.Spec.AjtaiSetupV1
 import NightstreamFPrime.Spec.AjtaiSetupV1.Framing
 import NightstreamFPrime.Spec.AjtaiSetupV1.IndexEncoding
+import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.SetupIndexEncoding
 import NightstreamFPrime.Export.Stage1.SetupDistribution
@@ -84,6 +85,19 @@ import NightstreamFPrime.Export.Stage1.SetupSecurity
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.setupCoefficientCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.idealReductionErrorBudget_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.idealReductionErrorBudget_lt
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.product_difference_le
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.fiber_nonempty
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.reducedWeight_nonneg
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.reducedWeight_sum
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.reducedWeight_difference_le
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.mem_preimages
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.real_sub_programmed_le
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.verifierKey_eq
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Programming.binding_le_solver
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.programmingError_eq
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.programmingError_lt
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.productionKey_eq_chunks
+#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.difference_nonzero
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.difference_bounded
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.equal_commitments_difference_kernel

@@ -21,7 +21,6 @@ neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-ccs = { path = "../neo-ccs" }
 rand = "0.9"
-rand_chacha = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 # The production key expander. `asm` uses the ARMv8 SHA3 instructions on
 # aarch64 after a run-time check and has no effect on other targets.

@@ -1,5 +1,5 @@
 use core::cmp::min;
-use neo_ccs::{CcsMatrix, Mat, SeededPhi81LinearBlock};
+use neo_ccs::{CcsMatrix, Mat};
 use neo_math::{ct, KExtensions, Rq, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -20,9 +20,9 @@ mod matrix_window;
 mod openings;
 mod parallel;
 mod row_block;
+mod row_forms;
 mod row_source;
 mod scratch;
-mod seeded;
 mod weighted;
 mod weighted_table;
 mod window_eval;
@@ -88,19 +88,12 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
                 Err(_) => Ff::ZERO,
             }
         }
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
+        CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             let range = csc.column_range(col);
             let mut value = match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
                 Ok(idx) => csc.vals[range.start + idx],
                 Err(_) => Ff::ZERO,
             };
-            for block in blocks {
-                value += block.entry::<Ff>(row, col);
-            }
             for run in geometric_runs {
                 value += run.entry(row, col);
             }
@@ -366,11 +359,10 @@ pub struct SuperneoMatrixCache {
     geometric_row_offsets: RowOffsetStore,
     geometric_runs: Vec<[u64; 3]>,
     identity: bool,
-    seeded_phi81_blocks: Vec<SeededPhi81LinearBlock>,
 }
 
 impl SuperneoMatrixCache {
-    /// CSR shape of the explicit bar-transformed entries. Seeded Phi81 blocks
+    /// CSR shape of the explicit bar-transformed entries. Geometric runs
     /// remain represented separately and are not included in this entry view.
     pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
         if self.identity {

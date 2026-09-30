@@ -77,7 +77,6 @@ pub(super) fn load_complete(
             geometric_row_offsets: row_offsets(rows, total.geometric)?,
             geometric_runs: filled(total.geometric, [0; 3])?,
             identity: false,
-            seeded_phi81_blocks: Vec::new(),
         });
     }
     let mut cache = SuperneoEvalCache {

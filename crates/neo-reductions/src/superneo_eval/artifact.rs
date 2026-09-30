@@ -7,7 +7,6 @@
 use std::io::{Read, Write};
 
 use neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
-use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
@@ -18,7 +17,7 @@ use super::{
 };
 
 const MAGIC: [u8; 8] = *b"NSCEV001";
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 const HEADER_BYTES: u64 = 8 + 4 + 8 + 4 + 4 * 8 + 4 * 8;
 const DIGEST_CHUNK_ITEMS: usize = 16_384;
 
@@ -349,7 +348,6 @@ fn validate_matrix(index: usize, matrix: &SuperneoMatrixCache) -> Result<(), Sup
             || dense_count != 0
             || !matches!(matrix.geometric_row_offsets, RowOffsetStore::Empty)
             || !matrix.geometric_runs.is_empty()
-            || !matrix.seeded_phi81_blocks.is_empty()
         {
             return Err(invalid(format!("matrix {index} has invalid identity cache data")));
         }
@@ -378,15 +376,6 @@ fn validate_matrix(index: usize, matrix: &SuperneoMatrixCache) -> Result<(), Sup
         matrix.geometric_runs.is_empty(),
     )?;
     validate_geometric_runs(index, matrix)?;
-    for (block_index, block) in matrix.seeded_phi81_blocks.iter().enumerate() {
-        block
-            .validate_matrix_shape(matrix.rows, matrix.cols)
-            .map_err(|error| {
-                invalid(format!(
-                    "matrix {index} seeded block {block_index} has invalid shape: {error}"
-                ))
-            })?;
-    }
     Ok(())
 }
 
@@ -659,21 +648,7 @@ fn encoded_size(cache: &SuperneoEvalCache) -> Result<u64, SuperneoCacheArtifactE
             offset_encoded_size(&matrix.geometric_row_offsets)?,
             8,
             checked_product(matrix.geometric_runs.len(), 24, "geometric runs")?,
-            8,
         ])?;
-        for block in &matrix.seeded_phi81_blocks {
-            let seed_count = block
-                .chunk_seeds_by_row()
-                .iter()
-                .try_fold(0usize, |sum, seeds| sum.checked_add(seeds.len()))
-                .ok_or_else(|| invalid("seed count overflows"))?;
-            size = checked_sum(&[
-                size,
-                5 * 8 + 1 + 8,
-                checked_product(block.word_starts().len(), 8, "seeded word starts")?,
-                checked_product(seed_count, 32, "seeded chunk seeds")?,
-            ])?;
-        }
     }
     size = checked_sum(&[size, 1])?;
     if let Some(masks) = &cache.explicit_matrix_masks {
@@ -789,10 +764,6 @@ fn encode_matrix<W: Write>(
             encoder.u64(word)?;
         }
     }
-    encoder.usize(matrix.seeded_phi81_blocks.len(), "seeded block count")?;
-    for block in &matrix.seeded_phi81_blocks {
-        encode_seeded_block(encoder, block)?;
-    }
     Ok(())
 }
 
@@ -827,28 +798,6 @@ fn encode_offsets<W: Write>(
             Ok(())
         }
     }
-}
-
-fn encode_seeded_block<W: Write>(
-    encoder: &mut Encoder<W>,
-    block: &SeededPhi81LinearBlock,
-) -> Result<(), SuperneoCacheArtifactError> {
-    encoder.usize(block.row_start(), "seeded row start")?;
-    encoder.usize(block.word_width(), "seeded word width")?;
-    encoder.usize(block.kappa(), "seeded kappa")?;
-    encoder.usize(block.message_cols(), "seeded message columns")?;
-    encoder.usize(block.chunk_size(), "seeded chunk size")?;
-    encoder.u8(u8::from(block.has_superneo_transformed_columns()))?;
-    encoder.usize(block.word_starts().len(), "seeded word count")?;
-    for &start in block.word_starts() {
-        encoder.usize(start, "seeded word start")?;
-    }
-    for seeds in block.chunk_seeds_by_row() {
-        for seed in seeds {
-            encoder.bytes(seed)?;
-        }
-    }
-    Ok(())
 }
 
 fn encode_masks<W: Write>(encoder: &mut Encoder<W>, masks: Option<&[u16]>) -> Result<(), SuperneoCacheArtifactError> {
@@ -1045,15 +994,6 @@ fn decode_matrix<R: Read>(
         geometric_runs.push([decoder.u64()?, decoder.u64()?, decoder.u64()?]);
     }
 
-    let seeded_block_count = decoder.len(41, "seeded block count")?;
-    let mut seeded_phi81_blocks = Vec::new();
-    seeded_phi81_blocks
-        .try_reserve_exact(seeded_block_count)
-        .map_err(|_| invalid("cannot reserve seeded blocks"))?;
-    for _ in 0..seeded_block_count {
-        seeded_phi81_blocks.push(decode_seeded_block(decoder, rows, cols)?);
-    }
-
     Ok(SuperneoMatrixCache {
         rows,
         cols,
@@ -1068,7 +1008,6 @@ fn decode_matrix<R: Read>(
         geometric_row_offsets,
         geometric_runs,
         identity,
-        seeded_phi81_blocks,
     })
 }
 
@@ -1134,83 +1073,6 @@ fn ensure_remaining<R: Read>(
         return Err(invalid(format!("{label} exceeds remaining artifact bytes")));
     }
     Ok(())
-}
-
-fn decode_seeded_block<R: Read>(
-    decoder: &mut Decoder<R>,
-    rows: usize,
-    cols: usize,
-) -> Result<SeededPhi81LinearBlock, SuperneoCacheArtifactError> {
-    let row_start = decoder.usize("seeded row start")?;
-    let word_width = decoder.usize("seeded word width")?;
-    let kappa = decoder.usize("seeded kappa")?;
-    let message_cols = decoder.usize("seeded message columns")?;
-    let chunk_size = decoder.usize("seeded chunk size")?;
-    let transformed = decode_bool(decoder.u8()?, "seeded transform flag")?;
-    let word_count = decoder.len(8, "seeded word count")?;
-    if word_count == 0 || word_width == 0 || kappa == 0 || message_cols == 0 || chunk_size == 0 {
-        return Err(invalid("seeded block has a zero required dimension"));
-    }
-    let bit_count = word_count
-        .checked_mul(word_width)
-        .ok_or_else(|| invalid("seeded input width overflows"))?;
-    if bit_count.div_ceil(D) != message_cols {
-        return Err(invalid("seeded message column count does not match its input width"));
-    }
-    let row_end = kappa
-        .checked_mul(D)
-        .and_then(|height| row_start.checked_add(height))
-        .ok_or_else(|| invalid("seeded row range overflows"))?;
-    if row_end > rows {
-        return Err(invalid("seeded row range exceeds the matrix"));
-    }
-    let mut word_starts = Vec::new();
-    word_starts
-        .try_reserve_exact(word_count)
-        .map_err(|_| invalid("cannot reserve seeded word starts"))?;
-    for _ in 0..word_count {
-        let start = decoder.usize("seeded word start")?;
-        if start.checked_add(word_width).is_none_or(|end| end > cols) {
-            return Err(invalid("seeded word range exceeds the matrix"));
-        }
-        word_starts.push(start);
-    }
-    let chunks_per_row = message_cols.div_ceil(chunk_size);
-    let seed_count = kappa
-        .checked_mul(chunks_per_row)
-        .ok_or_else(|| invalid("seeded chunk count overflows"))?;
-    ensure_remaining(decoder, seed_count, 32, "seeded chunk seeds")?;
-    let mut chunk_seeds_by_row = Vec::new();
-    chunk_seeds_by_row
-        .try_reserve_exact(kappa)
-        .map_err(|_| invalid("cannot reserve seeded rows"))?;
-    for _ in 0..kappa {
-        let mut seeds = Vec::new();
-        seeds
-            .try_reserve_exact(chunks_per_row)
-            .map_err(|_| invalid("cannot reserve seeded row chunks"))?;
-        for _ in 0..chunks_per_row {
-            seeds.push(decoder.array::<32>()?);
-        }
-        chunk_seeds_by_row.push(seeds);
-    }
-    let mut block = SeededPhi81LinearBlock::new_with_word_width(
-        row_start,
-        word_starts,
-        word_width,
-        kappa,
-        message_cols,
-        chunk_size,
-        chunk_seeds_by_row,
-    )
-    .map_err(|error| invalid(format!("seeded block metadata is invalid: {error}")))?;
-    if transformed {
-        block = block.with_superneo_transformed_columns();
-    }
-    block
-        .validate_matrix_shape(rows, cols)
-        .map_err(|error| invalid(format!("seeded block shape is invalid: {error}")))?;
-    Ok(block)
 }
 
 fn decode_masks<R: Read>(decoder: &mut Decoder<R>) -> Result<Option<Vec<u16>>, SuperneoCacheArtifactError> {
@@ -1282,11 +1144,6 @@ enum DigestLeaf<'a> {
         matrix: usize,
         start: usize,
         values: &'a [[u64; 3]],
-    },
-    Seeded {
-        matrix: usize,
-        block: usize,
-        value: &'a SeededPhi81LinearBlock,
     },
     MasksMeta {
         present: bool,
@@ -1367,13 +1224,6 @@ fn digest_leaves(cache: &SuperneoEvalCache) -> Vec<DigestLeaf<'_>> {
                 matrix: matrix_index,
                 start: chunk * DIGEST_CHUNK_ITEMS,
                 values,
-            });
-        }
-        for (block, value) in matrix.seeded_phi81_blocks.iter().enumerate() {
-            leaves.push(DigestLeaf::Seeded {
-                matrix: matrix_index,
-                block,
-                value,
             });
         }
     }

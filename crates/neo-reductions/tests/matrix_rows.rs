@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use neo_ccs::{poly::Term, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock, SparsePoly};
+use neo_ccs::{poly::Term, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::{
     superneo_eval::{
@@ -622,17 +622,14 @@ fn changed_scalar_encoding_cannot_add_an_uncounted_dense_pattern() {
 }
 
 #[test]
-fn borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients() {
-    let (chunk_size, seeds) = neo_ajtai::seeded_pp_chunk_seeds([0x5C; 32], 1, 1);
-    let block = SeededPhi81LinearBlock::new_with_word_width(0, vec![0, 2], 1, 1, 1, chunk_size, seeds).unwrap();
-    let seeded = CcsMatrix::csc_with_compact_rows(
+fn borrowed_cache_preserves_compact_identity_and_geometric_coefficients() {
+    let compact = CcsMatrix::csc_with_geometric_runs(
         CscMat::from_triplets(vec![(1, 0, -F::ONE)], D, D),
-        vec![block.clone()],
         vec![GeometricRowRun::new(1, D - 3, 3, F::from_u64(7), -F::ONE)],
     )
     .unwrap();
     let structure =
-        CcsStructure::new_sparse(vec![seeded, CcsMatrix::Identity { n: D }], SparsePoly::new(2, vec![])).unwrap();
+        CcsStructure::new_sparse(vec![compact, CcsMatrix::Identity { n: D }], SparsePoly::new(2, vec![])).unwrap();
     let cache = build_superneo_eval_cache(&structure).unwrap();
     let source = CachedMatrixRows::new(&cache).unwrap();
     let expected = expanded_cache(&source);
@@ -643,19 +640,11 @@ fn borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients() 
     while start < 4 {
         let window = MatrixWindow::load_next(&source, start..4, budget).unwrap();
         compare_rows(&window, &expected, D);
-        // Also compare against the original seeded evaluator, not just the
+        // Also compare against the original cache evaluator, not just the
         // adapter-expanded dense matrix.
         compare_rows(&window, &cache, D);
         start = window.rows().end;
     }
-    let transformed: CcsMatrix<F> = CcsMatrix::csc_with_seeded_phi81(
-        CscMat::from_triplets(Vec::new(), D, D),
-        vec![block.with_superneo_transformed_columns()],
-    )
-    .unwrap();
-    let transformed = CcsStructure::new_sparse(vec![transformed], SparsePoly::new(1, vec![])).unwrap();
-    let transformed = build_superneo_eval_cache(&transformed).unwrap();
-    assert!(CachedMatrixRows::new(&transformed).is_err());
 }
 
 /// Many ternary runs across block and worker-part boundaries, with runs of

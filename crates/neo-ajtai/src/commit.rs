@@ -4,25 +4,15 @@ use neo_ccs::Mat;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as Fq;
 use rand::{CryptoRng, RngCore};
-use rand_chacha::rand_core::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 /// Bring in ring & S-action APIs from neo-math.
 use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
 
-mod seeded;
-pub use seeded::{
-    commit_row_major_seeded, commit_row_major_seeded_binary_cols, commit_row_major_seeded_binary_cols_with_chunk_seeds,
-    commit_row_major_seeded_many, seeded_pp_chunk_seeds,
-};
-
 // Compile-time guards: this file's rot_step assumes Φ₈₁ (η=81 ⇒ D=54)
 const _: () = assert!(ETA == 81, "rot_step is specialized for η=81 (D=54)");
 const _: () = assert!(D == 54, "D must be 54 when η=81");
-const DENSE_BINARY_MASK_THRESHOLD: u32 = 32;
-pub(crate) const SEEDED_RQ_BATCH: usize = 32;
 
 /// Sample a uniform element from F_q using rejection sampling to avoid bias.
 #[inline]
@@ -61,69 +51,6 @@ pub(crate) fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [
     })
 }
 
-/// Advance the seeded PP stream by one ring element without materializing coefficients.
-#[inline]
-pub(crate) fn skip_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) {
-    const Q: u64 = <Fq as PrimeField64>::ORDER_U64;
-    let mut bytes = [0u8; D * 8];
-    rng.fill_bytes(&mut bytes);
-    for idx in 0..D {
-        let start = idx * 8;
-        let x = u64::from_le_bytes(bytes[start..start + 8].try_into().expect("8-byte chunk"));
-        if x >= Q {
-            let _ = sample_uniform_fq(rng);
-        }
-    }
-}
-
-#[inline]
-fn raw_u64_rejects_goldilocks(x: u64) -> bool {
-    (x >> 32) == u32::MAX as u64 && (x as u32) != 0
-}
-
-#[inline]
-pub(crate) fn fill_uniform_rq_coeff_words_batch(
-    rng: &mut ChaCha8Rng,
-    count: usize,
-    words: &mut [u64; SEEDED_RQ_BATCH * D],
-) -> bool {
-    debug_assert!(count <= SEEDED_RQ_BATCH);
-    let checkpoint_word_pos = rng.get_word_pos();
-    let used = count * D;
-    let mut all_valid = true;
-    for word in &mut words[..used] {
-        let sampled = rng.next_u64();
-        *word = sampled;
-        all_valid &= !raw_u64_rejects_goldilocks(sampled);
-    }
-    if !all_valid {
-        rng.set_word_pos(checkpoint_word_pos);
-    }
-    all_valid
-}
-
-#[inline]
-pub(crate) fn advance_uniform_rq_coeff_validity_batch(rng: &mut ChaCha8Rng, count: usize) -> bool {
-    debug_assert!(count <= SEEDED_RQ_BATCH);
-    let checkpoint_word_pos = rng.get_word_pos();
-    let mut all_valid = true;
-    for _ in 0..(count * D) {
-        all_valid &= !raw_u64_rejects_goldilocks(rng.next_u64());
-    }
-    if !all_valid {
-        rng.set_word_pos(checkpoint_word_pos);
-    }
-    all_valid
-}
-
-#[inline(always)]
-pub(crate) fn copy_uniform_rq_coeffs_from_words(words: &[u64], out: &mut [Fq; D]) {
-    debug_assert_eq!(words.len(), D);
-    for (idx, word) in words.iter().enumerate() {
-        out[idx] = Fq::from_u64(*word);
-    }
-}
-
 /// Rotation "one-step" for Φ₈₁(X) = X^54 + X^27 + 1
 ///
 /// Turns column t into column t+1 in O(d) (no ring multiply).
@@ -140,30 +67,6 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[27] -= last; // -X^27 * last
 }
 
-#[inline(always)]
-fn rot_step_add_phi_81(cur: &[Fq; D], next: &mut [Fq; D], acc: &mut [Fq; D]) {
-    let last = cur[D - 1];
-    let next0 = Fq::ZERO - last;
-    next[0] = next0;
-    acc[0] += next0;
-
-    for idx in 1..27 {
-        let value = cur[idx - 1];
-        next[idx] = value;
-        acc[idx] += value;
-    }
-
-    let next27 = cur[26] - last;
-    next[27] = next27;
-    acc[27] += next27;
-
-    for idx in 28..D {
-        let value = cur[idx - 1];
-        next[idx] = value;
-        acc[idx] += value;
-    }
-}
-
 /// Rotation step for internal use by commit implementations.
 ///
 /// This implementation is specialized for η=81 (D=54) as enforced by compile-time assertions.
@@ -171,37 +74,6 @@ fn rot_step_add_phi_81(cur: &[Fq; D], next: &mut [Fq; D], acc: &mut [Fq; D]) {
 #[inline(always)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     rot_step_phi_81(cur, next)
-}
-
-#[inline(always)]
-fn rot_advance_add_phi_81(cur: &[Fq; D], delta: usize, next: &mut [Fq; D], acc: &mut [Fq; D]) {
-    debug_assert!(delta < D);
-    if delta == 0 {
-        *next = *cur;
-        acc_add_inplace(acc, cur);
-        return;
-    }
-    next.fill(Fq::ZERO);
-    next[delta..].copy_from_slice(&cur[..(D - delta)]);
-    if delta < 27 {
-        for src in (D - delta)..D {
-            let coeff = cur[src];
-            let exp = src + delta;
-            next[exp - 54] -= coeff;
-            next[exp - 27] -= coeff;
-        }
-    } else {
-        for src in (D - delta)..(81 - delta) {
-            let coeff = cur[src];
-            let exp = src + delta;
-            next[exp - 54] -= coeff;
-            next[exp - 27] -= coeff;
-        }
-        for src in (81 - delta)..D {
-            next[src + delta - 81] += cur[src];
-        }
-    }
-    acc_add_inplace(acc, next);
 }
 
 #[inline(always)]
@@ -221,23 +93,11 @@ fn acc_add_inplace(acc: &mut [Fq; D], col: &[Fq; D]) {
 }
 
 #[inline(always)]
-fn binary_mask_poly(mask: u64) -> RqEl {
-    let mut coeffs = [Fq::ZERO; D];
-    let mut bits = mask & ((1u64 << D) - 1);
-    while bits != 0 {
-        let idx = bits.trailing_zeros() as usize;
-        coeffs[idx] = Fq::ONE;
-        bits &= bits - 1;
-    }
-    RqEl(coeffs)
-}
-
-#[inline(always)]
 fn acc_mul_add_inplace(acc: &mut [Fq; D], col: &[Fq; D], scalar: Fq) {
     // Fast paths for the common balanced-digit case (b ∈ {2,3} ⇒ scalar ∈ {-1,0,1}).
     //
-    // NOTE: This is intentionally variable-time w.r.t. `scalar`. It is only used in the
-    // seeded PP row-major commitment path, which is a prover-only performance hot loop.
+    // NOTE: This is intentionally variable-time w.r.t. `scalar`. Its only caller,
+    // `s_mul_add_from_rot_col`, takes `scalar` from a public commitment.
     if scalar == Fq::ZERO {
         return;
     }
@@ -300,81 +160,6 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
         }
         rows.push(row);
     }
-    Ok(PP {
-        kappa,
-        m,
-        d,
-        m_rows: rows,
-    })
-}
-
-/// Parallel version of [`setup`], primarily intended for large `m` where setup dominates runtime.
-///
-/// Implementation notes:
-/// - Uses the provided `rng` only to generate one 32-byte seed per row.
-/// - Each row is generated independently in parallel using `ChaCha8Rng` seeded from that seed.
-/// - Output is deterministic given the input `rng` state, but will not match the sequential `setup`
-///   output for the same RNG because the RNG stream is partitioned.
-pub fn setup_par<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usize) -> AjtaiResult<PP<RqEl>> {
-    // Ensure d matches the fixed ring dimension from neo-math
-    if d != neo_math::ring::D {
-        return Err(AjtaiError::InvalidDimensions(
-            "d parameter must match ring dimension D".to_string(),
-        ));
-    }
-    if kappa == 0 || m == 0 {
-        return Err(AjtaiError::InvalidDimensions(
-            "kappa and m must both be nonzero".to_string(),
-        ));
-    }
-
-    let mut row_seeds = vec![[0u8; 32]; kappa];
-    for seed in row_seeds.iter_mut() {
-        rng.fill_bytes(seed);
-    }
-
-    // Deterministic chunking: must NOT depend on runtime thread count, so a verifier can
-    // re-derive the same PP from the same seed across environments.
-    let chunk_size = core::cmp::min(m, 1 << 15).max(1024);
-    let num_chunks = m.div_ceil(chunk_size);
-
-    let mut rows = Vec::with_capacity(kappa);
-    for row_seed in row_seeds {
-        // Derive per-chunk seeds deterministically from the row seed.
-        let mut seed_rng = ChaCha8Rng::from_seed(row_seed);
-        let mut chunk_seeds = vec![[0u8; 32]; num_chunks];
-        for seed in chunk_seeds.iter_mut() {
-            seed_rng.fill_bytes(seed);
-        }
-
-        // Fill the row in place in parallel. This avoids extra copies of multi-GB buffers.
-        let mut row = vec![RqEl::zero(); m];
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        {
-            row.par_chunks_mut(chunk_size)
-                .enumerate()
-                .for_each(|(chunk_idx, chunk)| {
-                    let mut chunk_rng = ChaCha8Rng::from_seed(chunk_seeds[chunk_idx]);
-                    for el in chunk.iter_mut() {
-                        let coeffs: [Fq; D] = core::array::from_fn(|_| sample_uniform_fq(&mut chunk_rng));
-                        *el = cf_unmap(coeffs);
-                    }
-                });
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            for (chunk_idx, chunk) in row.chunks_mut(chunk_size).enumerate() {
-                let mut chunk_rng = ChaCha8Rng::from_seed(chunk_seeds[chunk_idx]);
-                for el in chunk.iter_mut() {
-                    let coeffs: [Fq; D] = core::array::from_fn(|_| sample_uniform_fq(&mut chunk_rng));
-                    *el = cf_unmap(coeffs);
-                }
-            }
-        }
-
-        rows.push(row);
-    }
-
     Ok(PP {
         kappa,
         m,

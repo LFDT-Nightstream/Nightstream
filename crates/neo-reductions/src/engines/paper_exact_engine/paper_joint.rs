@@ -44,16 +44,6 @@ where
             "PaperExact running source count exceeds k_rho".into(),
         ));
     }
-    if structure
-        .matrices
-        .iter()
-        .flat_map(|matrix| matrix.seeded_phi81_blocks())
-        .any(|block| block.has_superneo_transformed_columns())
-    {
-        return Err(PiCcsError::InvalidInput(
-            "PaperExact requires original, untransformed CCS matrices".into(),
-        ));
-    }
     if structure.f.eval(&vec![Ff::ZERO; structure.t()]) != Ff::ZERO {
         return Err(PiCcsError::InvalidInput(
             "PaperExact zero-row padding requires f(0,...,0)=0".into(),
@@ -284,7 +274,7 @@ where
     for block in 0..assignment.len().div_ceil(D) {
         let mut matrix_block = [Fq::ZERO; D];
         for (lane, slot) in matrix_block.iter_mut().enumerate() {
-            *slot = Fq::from_u64(matrix_entry(matrix, row, block * D + lane, ring).as_canonical_u64());
+            *slot = Fq::from_u64(matrix_entry(matrix, row, block * D + lane).as_canonical_u64());
         }
         let product = ring_product(ring, matrix_block, assignment, block);
         for coefficient in 0..D {

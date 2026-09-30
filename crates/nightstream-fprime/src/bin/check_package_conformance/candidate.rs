@@ -22,12 +22,21 @@ const MODULUS: u64 = 0xffff_ffff_0000_0001;
 const PROFILE: [u64; 14] = [4_294_967_295, 1, 2, 16, 65_536, 1, 16, 17, 16, 14, 28, 9, 54, 22];
 const SCHEDULE: [u64; 10] = [1, 1, 1, 28, 10, 17, 14, 54, 4, 1];
 
-// Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 3.
+// Poseidon2HashChainV1BindingParity schema 1 and AjtaiSetupV1Parity schema 4.
 #[derive(Deserialize)]
 struct LeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4]);
 
 #[derive(Deserialize)]
-struct LeanSetup(u64, Vec<u8>, IgnoredAny, IgnoredAny, Vec<u8>, IgnoredAny, Vec<u64>);
+struct LeanSetup(
+    u64,
+    Vec<u8>,
+    IgnoredAny,
+    IgnoredAny,
+    Vec<u8>,
+    IgnoredAny,
+    Vec<u64>,
+    IgnoredAny,
+);
 
 #[derive(Deserialize)]
 struct LeanSparseCommitment(u64, Vec<u64>, Vec<[u64; 3]>, Vec<Vec<u64>>);
@@ -192,9 +201,9 @@ impl Candidate {
             serde_json::from_value(read_metadata(binding_path)).expect("Lean binding schema");
         assert_eq!(schema, 1);
         assert_eq!(structural, expected, "separately supplied Lean structural identity");
-        let LeanSetup(schema, setup_id, _, _, seed, _, authority) =
+        let LeanSetup(schema, setup_id, _, _, seed, _, authority, _) =
             serde_json::from_value(read_metadata(setup_path)).expect("Lean setup schema");
-        assert_eq!(schema, 3);
+        assert_eq!(schema, 4);
         assert_eq!(setup_id, SETUP_ID);
         assert_eq!(seed, PRODUCTION_SEED);
         let carrier_blocks = package.logical_column_count().div_ceil(54);

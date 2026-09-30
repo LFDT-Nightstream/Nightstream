@@ -44,8 +44,8 @@ fn independent_commitment(witness: &Mat<F>) -> Commitment {
             continue;
         }
         for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
-            // Scalar ChaCha words and ordinary ring multiplication are independent
-            // of coefficient_block, mask merging and signed convolution sums.
+            // Division-reduced scalar coefficients and ordinary ring multiplication
+            // are independent of coefficient_block, mask merging and signed sums.
             let key = Rq(std::array::from_fn(|lane| {
                 F::from_u64(coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32))
             }));

@@ -8,7 +8,9 @@
 
 use std::time::{Duration, Instant};
 
-use neo_ajtai::nightstream_fprime_setup::{
+mod chacha_v1;
+
+use chacha_v1::{
     block_words, coefficient, coefficient_block, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
 };
 use objc2::rc::Retained;
@@ -22,7 +24,7 @@ use rayon::prelude::*;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use sha3::{Shake128, Shake256};
 
-const D: usize = 54;
+use chacha_v1::D;
 const P: u64 = 0xFFFF_FFFF_0000_0001;
 const TAG: [u8; 32] = *b"nightstream-ajtai-shake-bench-v0";
 const SIGMA: [u32; 4] = [0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574];

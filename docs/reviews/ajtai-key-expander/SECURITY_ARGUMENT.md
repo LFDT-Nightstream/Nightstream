@@ -1,8 +1,10 @@
 # Ajtai key expander: security argument for review
 
-Status: draft for external review, 2026-09-29. This document proposes a
-change. It does not change the production setup, the protocol contract, Lean
-or Rust. The owner must select the expander and the seed policy.
+Status: draft for external review, 2026-09-29. The owner selected SHAKE128
+([decision](../../../decisions/fprime-ajtai-shake128-setup.md)), and Lean and
+Rust now implement the construction of section 4. The reduction of section 5
+is not yet proved in Lean or reviewed, so the security gap stays open. The
+seed and domain policy (section 6) is still an owner choice.
 
 ## 1. Purpose
 
@@ -16,9 +18,10 @@ reduction.
 - SuperNeo, Definition 8 and Theorem 6: `Setup` samples the matrix `M`
   uniformly at random. Binding follows from MSIS for a uniform matrix. The
   paper does not discuss seeds.
-- Nightstream expands `M` with `nightstream-ajtai-chacha20-wide256-v1` from
-  one fixed public seed. `PUBLIC_SEED_MSIS_ASSUMPTION.md` assumes that MSIS is
-  hard for this specific matrix.
+- Until 2026-09-29, Nightstream expanded `M` with
+  `nightstream-ajtai-chacha20-wide256-v1` from one fixed public seed.
+  `PUBLIC_SEED_MSIS_ASSUMPTION.md` assumes that MSIS is hard for that specific
+  matrix. The approval does not cover the SHAKE128 matrix.
 - Lean proves that a binding collision gives a short kernel vector for the
   same key: below `2B` for ordinary binding (`Binding.lean`) and below
   `8TB = 113,246,208` for relaxed binding (`RelaxedBinding.lean`). The
@@ -42,22 +45,29 @@ reduction.
 Kyber uses the same form of premise: its proofs model SHAKE-128, which
 expands its matrix, as a random oracle (specification round 3, §5.4). FrodoKEM
 proves the expansion step in the ideal model and states that it covers an
-attacker who knows the seed (specification 2021, §5.1.3).
+attacker who knows the seed (specification 2021, §5.1.3). Only the indexed
+XOF structure follows Kyber: Kyber samples coefficients by rejection, and this
+construction reduces 256-bit chunks instead.
 
-## 4. Proposed construction
+## 4. Construction
 
 ```text
+domain = setup_id ‖ seed        (37 + 32 bytes)
+setup_id = "nightstream-ajtai-shake128-wide256-v1"
+input(row, column) = domain ‖ row_u32_le ‖ column_u64_le        (81 bytes)
 coefficient(row, column, lane) =
-    reduce( SHAKE128(domain ‖ row_u32_le ‖ column_u64_le)[32·lane .. 32·lane + 32] )
+    reduce( SHAKE128(input(row, column))[32·lane .. 32·lane + 32] )
 ```
 
 - `reduce` interprets 32 bytes as a little-endian integer and reduces it modulo
-  the Goldilocks prime. It is the current reduction.
+  the Goldilocks prime. It is the previous wide reduction.
 - Every input has the same length, so the map from `(row, column)` to the input
-  is injective. Each key element has its own XOF input, and its 54 lanes use
-  disjoint output bytes.
-- `domain` is a fixed-length string. It names the setup version and fixes the
-  seed or the package domain (section 6).
+  is injective for rows below `2^32` and columns below `2^64`. Lean proves this
+  (`elementInput_injective`). Each key element has its own XOF input, and its
+  54 lanes use disjoint output bytes of one 1,728-byte output
+  (`elementLanes_length`).
+- `seed` is the existing 32-byte verifier-owned seed. A package domain
+  (section 6) would replace it.
 - Generation stays indexed and lazy: one XOF call gives one key element.
 
 ## 5. Argument
@@ -85,7 +95,7 @@ the oracle as follows:
 
 The attacker's own queries to setup inputs therefore return the same bytes
 that define the key, so its view stays consistent. The reduction recognizes a
-setup input by its fixed format and domain.
+setup input by its fixed 81-byte format and its 69-byte domain prefix.
 
 **Distance between Game 1 and Game 2.** In both games a chunk is a uniform
 preimage of its residue. Only the residue distribution differs: it is uniform
@@ -130,15 +140,16 @@ The owner must select a global domain or a domain for each package.
 ## 7. Lean obligations
 
 1. Specify the expander: the input encoding, its injectivity and the disjoint
-   output slices.
+   output slices. Done: `Spec/AjtaiSetupV1.lean`,
+   `Spec/AjtaiSetupV1/Shake128.lean` and `Spec/AjtaiSetupV1/IndexEncoding.lean`.
 2. Reuse the existing bias bound for the reduction of uniform 256-bit
-   integers.
-3. Prove the programming step: for any oracle algorithm, its output
+   integers (`ReductionBias.wide_frequency_error_le`).
+3. Open. Prove the programming step: for any oracle algorithm, its output
    distribution with a uniformly random `H` is within the stated distance of
    its output distribution with the programmed oracle for a uniform `A`. This
    step must cover the attacker's own oracle queries. A bias bound alone is
    not enough.
-4. Compose step 3 with the existing collision-to-kernel reduction.
+4. Open. Compose step 3 with the existing collision-to-kernel reduction.
 
 P1 and P2 stay external premises, and the Lean result stays conditional on
 them.
@@ -158,11 +169,11 @@ Measured cost of one production key pass
 CPU times use the ARMv8 SHA3 instructions. The Metal Keccak kernel is not
 tuned.
 
-- **SHAKE128 (proposed).** The random-oracle model for SHAKE128 is the
+- **SHAKE128 (selected).** The random-oracle model for SHAKE128 is the
   standard basis for public-matrix expansion (Kyber, FrodoKEM). The sponge
-  has a published indifferentiability proof. The CPU cost is about the same as
-  now. On Metal it adds about 1.5 s to an `extend` of about 18 s until the
-  kernel is tuned.
+  has a published indifferentiability proof. In the integrated prover, the CPU
+  lifecycle cost stayed within run-to-run variation. On Metal, the third
+  lifecycle step took 18.5 s instead of 17.6 s with ChaCha20.
 - **SHAKE256.** A capacity of 512 bits instead of 256. At the Nightstream
   security target, the generic term for SHAKE128 is already far smaller than
   the MSIS term. It costs about 16% more than SHAKE128 on CPU and 18% more on

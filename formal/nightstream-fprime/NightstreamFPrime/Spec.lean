@@ -12,7 +12,6 @@ import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Spec.FieldTower
-import NightstreamFPrime.Spec.AjtaiSetupV1.WordOperations
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
 import NightstreamFPrime.Spec.Folding.Nifs.VerifierCoinLaw

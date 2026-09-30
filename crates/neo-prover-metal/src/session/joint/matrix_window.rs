@@ -78,11 +78,14 @@ pub(super) fn smaller_window(rows: usize, required: usize, available: usize) -> 
 }
 
 impl MetalSession {
+    /// Load the largest prefix of `requested` that fits. `upload` copies the
+    /// matrix metadata to the device for the row kernels.
     pub(super) fn load_matrix_window(
         &self,
         plan: &MetalJointMatrixPlan<'_>,
         requested: Range<usize>,
         reserved_bytes: usize,
+        upload: bool,
     ) -> Result<MetalMatrixWindow, MetalError> {
         let budget = application::available_workspace(self, reserved_bytes).min(plan.workspace_bytes);
         let mut requested = requested;
@@ -98,9 +101,8 @@ impl MetalSession {
                 })?;
             let rows = window.rows();
             let matrices = window.cache().matrix_caches();
-            let (upload_bytes, staging_bytes) = upload_size(matrices)?;
-            let descriptors = matrices
-                .len()
+            let (upload_bytes, staging_bytes) = if upload { upload_size(matrices)? } else { (0, 0) };
+            let descriptors = if upload { matrices.len() } else { 0 }
                 .checked_mul(size_of::<MetalCompactMatrix>())
                 .ok_or(MetalError::Shape("matrix window descriptor size overflow"))?;
             let live_bytes = add_bytes(
@@ -113,10 +115,12 @@ impl MetalSession {
                 requested.end = rows.start + smaller_window(count, peak, budget)?;
                 continue;
             }
-            let empty = self.buffer(size_of::<u64>())?;
-            let mut uploaded = Vec::with_capacity(matrices.len());
-            for matrix in matrices {
-                uploaded.push(self.upload_matrix_metadata(matrix, &empty)?);
+            let mut uploaded = Vec::new();
+            if upload {
+                let empty = self.buffer(size_of::<u64>())?;
+                for matrix in matrices {
+                    uploaded.push(self.upload_matrix_metadata(matrix, &empty)?);
+                }
             }
             return Ok(MetalMatrixWindow {
                 rows,

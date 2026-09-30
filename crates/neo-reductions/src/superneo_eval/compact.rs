@@ -53,6 +53,14 @@ impl SuperneoZBlocks {
         }
         let magnitudes = (base - 1) as usize;
         let mut masks = vec![0; self.block_len() * 2 * magnitudes];
+        // Signed-unit storage already holds the magnitude-one masks.
+        if let Some((positive, negative)) = self.signed_unit_masks() {
+            for (block, target) in masks.chunks_exact_mut(2 * magnitudes).enumerate() {
+                target[0] = positive[block];
+                target[1] = negative[block];
+            }
+            return Some(masks);
+        }
         for block in 0..self.block_len() {
             for lane in 0..D {
                 let value = self.real_coefficient(block, lane);

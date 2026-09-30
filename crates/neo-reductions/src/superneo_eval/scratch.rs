@@ -1,13 +1,26 @@
 //! Owns opening coefficients and can reuse a completed SumCheck allocation.
 
+use std::ops::Range;
+
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use p3_field::PrimeCharacteristicRing;
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
 pub(super) struct RingEvalScratch {
     values: Vec<K>,
     touched: Vec<bool>,
     pub(super) active_blocks: Vec<usize>,
+}
+
+/// One contiguous block range of a scratch. Parts of one scratch are
+/// disjoint, so they can be filled concurrently.
+pub(super) struct ScratchPart<'a> {
+    first_block: usize,
+    values: &'a mut [K],
+    touched: &'a mut [bool],
+    active_blocks: &'a mut Vec<usize>,
 }
 
 impl RingEvalScratch {
@@ -34,61 +47,52 @@ impl RingEvalScratch {
         self.active_blocks.clear();
     }
 
-    fn touch(&mut self, block: usize) {
-        if !self.touched[block] {
-            self.touched[block] = true;
-            self.active_blocks.push(block);
+    /// The whole scratch as one part.
+    pub(super) fn part(&mut self) -> ScratchPart<'_> {
+        ScratchPart {
+            first_block: 0,
+            values: &mut self.values,
+            touched: &mut self.touched,
+            active_blocks: &mut self.active_blocks,
         }
     }
 
-    #[inline]
-    pub(super) fn add_coefficient(&mut self, block: usize, local: usize, real: F, imaginary: F) {
-        self.touch(block);
-        self.values[block * D + local] += K::from_coeffs([real, imaginary]);
-    }
-
-    pub(super) fn add_scaled(&mut self, block: usize, original: &Rq, real: F, imaginary: F) {
-        self.touch(block);
-        for (value, &coefficient) in self.values[block * D..(block + 1) * D]
-            .iter_mut()
-            .zip(&original.0)
+    /// Run `fill` on disjoint contiguous block ranges, one per worker thread.
+    /// Touched blocks are appended in range order.
+    pub(super) fn fill_parts(&mut self, fill: impl Fn(&mut ScratchPart<'_>) + Sync) {
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
-            *value += K::from_coeffs([real * coefficient, imaginary * coefficient]);
+            let block_count = self.touched.len();
+            let per_part = block_count.div_ceil(rayon::current_num_threads()).max(1);
+            let mut parts = vec![Vec::new(); block_count.div_ceil(per_part)];
+            self.values
+                .par_chunks_mut(per_part * D)
+                .zip(self.touched.par_chunks_mut(per_part))
+                .zip(parts.par_iter_mut())
+                .enumerate()
+                .for_each(|(index, ((values, touched), active_blocks))| {
+                    fill(&mut ScratchPart {
+                        first_block: index * per_part,
+                        values,
+                        touched,
+                        active_blocks,
+                    })
+                });
+            for part in parts {
+                self.active_blocks.extend(part);
+            }
         }
-    }
-
-    pub(super) fn add_forms(&mut self, block: usize, real: &Rq, imaginary: &Rq) {
-        self.touch(block);
-        for (local, value) in self.values[block * D..(block + 1) * D]
-            .iter_mut()
-            .enumerate()
-        {
-            *value += K::from_coeffs([real.0[local], imaginary.0[local]]);
-        }
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        fill(&mut self.part());
     }
 
     #[inline]
     pub(super) fn forms(&self, block: usize) -> (Rq, Rq) {
-        let mut real = Rq::zero();
-        let mut imaginary = Rq::zero();
-        for (local, value) in self.values[block * D..(block + 1) * D].iter().enumerate() {
-            [real.0[local], imaginary.0[local]] = value.as_coeffs();
-        }
-        (real, imaginary)
+        forms(&self.values[block * D..(block + 1) * D])
     }
 
     pub(super) fn bar_active(&mut self) {
-        for &block in &self.active_blocks {
-            let (real, imaginary) = self.forms(block);
-            let real = superneo_bar_block(real.0);
-            let imaginary = superneo_bar_block(imaginary.0);
-            for (local, value) in self.values[block * D..(block + 1) * D]
-                .iter_mut()
-                .enumerate()
-            {
-                *value = K::from_coeffs([real[local], imaginary[local]]);
-            }
-        }
+        self.part().bar_active();
     }
 
     pub(super) fn clear_active(&mut self) {
@@ -98,4 +102,98 @@ impl RingEvalScratch {
         }
         self.active_blocks.clear();
     }
+}
+
+impl ScratchPart<'_> {
+    pub(super) fn blocks(&self) -> Range<usize> {
+        self.first_block..self.first_block + self.touched.len()
+    }
+
+    /// Mark one block of this part active and return its coefficients.
+    #[inline]
+    fn slot(&mut self, block: usize) -> &mut [K] {
+        let local = block - self.first_block;
+        if !self.touched[local] {
+            self.touched[local] = true;
+            self.active_blocks.push(block);
+        }
+        &mut self.values[local * D..(local + 1) * D]
+    }
+
+    #[inline]
+    pub(super) fn add_coefficient(&mut self, block: usize, local: usize, real: F, imaginary: F) {
+        self.slot(block)[local] += K::from_coeffs([real, imaginary]);
+    }
+
+    /// Add `term * ratio^k` to the `k`th slot of `locals` in one block and
+    /// return the term for the next slot.
+    #[inline]
+    pub(super) fn add_geometric(&mut self, block: usize, locals: Range<usize>, mut term: [F; 2], ratio: F) -> [F; 2] {
+        for value in &mut self.slot(block)[locals] {
+            *value += K::from_coeffs(term);
+            term = [term[0] * ratio, term[1] * ratio];
+        }
+        term
+    }
+
+    /// Add a geometric event at one column. `resolve_geometric` later turns
+    /// the events into run sums.
+    #[inline]
+    pub(super) fn add_event(&mut self, column: usize, term: [F; 2]) {
+        self.slot(column / D)[column % D] += K::from_coeffs(term);
+    }
+
+    /// Mark a block covered by a run without adding a value to it.
+    #[inline]
+    pub(super) fn touch(&mut self, block: usize) {
+        self.slot(block);
+    }
+
+    /// Replace every value by `ratio * previous + event`, so each start event
+    /// spreads as a geometric run until its end event cancels it. Values must
+    /// hold events only. Every block a run covers is touched, so the running
+    /// sum is exactly zero across untouched blocks.
+    pub(super) fn resolve_geometric(&mut self, ratio: F) {
+        let mut running = [F::ZERO; 2];
+        for (&touched, values) in self.touched.iter().zip(self.values.chunks_exact_mut(D)) {
+            if !touched {
+                continue;
+            }
+            for value in values {
+                let [real, imaginary] = value.as_coeffs();
+                running = [running[0] * ratio + real, running[1] * ratio + imaginary];
+                *value = K::from_coeffs(running);
+            }
+        }
+    }
+
+    pub(super) fn add_scaled(&mut self, block: usize, original: &Rq, real: F, imaginary: F) {
+        for (value, &coefficient) in self.slot(block).iter_mut().zip(&original.0) {
+            *value += K::from_coeffs([real * coefficient, imaginary * coefficient]);
+        }
+    }
+
+    /// Replace every active block of this part by its `bar` image.
+    pub(super) fn bar_active(&mut self) {
+        for &block in self.active_blocks.iter() {
+            let local = block - self.first_block;
+            let values = &mut self.values[local * D..(local + 1) * D];
+            let (real, imaginary) = forms(values);
+            let real = superneo_bar_block(real.0);
+            let imaginary = superneo_bar_block(imaginary.0);
+            for (local, value) in values.iter_mut().enumerate() {
+                *value = K::from_coeffs([real[local], imaginary[local]]);
+            }
+        }
+    }
+}
+
+#[inline]
+fn forms(values: &[K]) -> (Rq, Rq) {
+    let mut real = Rq::zero();
+    let mut imaginary = Rq::zero();
+    for (local, value) in values.iter().enumerate() {
+        [real.0[local], imaginary.0[local]] = value.as_coeffs();
+    }
+    (real, imaginary)
 }

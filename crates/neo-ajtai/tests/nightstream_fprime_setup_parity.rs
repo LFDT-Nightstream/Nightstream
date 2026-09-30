@@ -1,10 +1,20 @@
 //! Lean/Rust parity for the Nightstream F-prime indexed Ajtai setup.
 
 use neo_ajtai::nightstream_fprime_setup::{
-    authority_words, block_words, coefficient, production_authority_words, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED,
-    PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+    authority_words, coefficient, element_bytes, element_input, production_authority_words, PRODUCTION_MESSAGE_COLUMNS,
+    PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
 };
 use serde_json::Value;
+use sha3::{
+    digest::{ExtendableOutput, XofReader},
+    Shake128,
+};
+
+/// FIPS 202 example: the first 32 bytes of SHAKE128 of the empty message.
+const SHAKE128_EMPTY: [u8; 32] = [
+    0x7f, 0x9c, 0x2b, 0xa4, 0xe8, 0x8f, 0x82, 0x7d, 0x61, 0x60, 0x45, 0x50, 0x76, 0x05, 0x85, 0x3e, 0xd7, 0x3b, 0x80,
+    0x93, 0xf6, 0xef, 0xbc, 0x88, 0xeb, 0x1a, 0x6e, 0xac, 0xfa, 0x66, 0xef, 0x26,
+];
 
 const FIXTURE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -27,7 +37,7 @@ fn nat_list(value: &Value) -> Vec<u64> {
 }
 
 #[test]
-fn lean_setup_vectors_match_rust_and_rfc8439() {
+fn lean_setup_vectors_match_rust_and_fips202() {
     check_lean_setup_fixture(&std::fs::read(FIXTURE_PATH).expect("read Lean setup fixture"));
 }
 
@@ -41,8 +51,8 @@ fn external_lean_setup_vectors_match_current_rust() {
 fn check_lean_setup_fixture(bytes: &[u8]) {
     let fixture: Value = serde_json::from_slice(bytes).expect("decode Lean setup fixture");
     let root = array(&fixture);
-    assert_eq!(root.len(), 7);
-    assert_eq!(nat(&root[0]), 3, "setup fixture schema");
+    assert_eq!(root.len(), 8);
+    assert_eq!(nat(&root[0]), 4, "setup fixture schema");
     assert_eq!(
         nat_list(&root[1]),
         SETUP_ID.iter().copied().map(u64::from).collect::<Vec<_>>()
@@ -56,27 +66,20 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
             .collect::<Vec<_>>()
     );
 
-    let rfc_words = [
-        0xe4e7_f110,
-        0x1559_3bd1,
-        0x1fdd_0f50,
-        0xc471_20a3,
-        0xc7f4_d1c7,
-        0x0368_c033,
-        0x9aaa_2204,
-        0x4e6c_d4c3,
-        0x4664_82d2,
-        0x09aa_9f07,
-        0x05d7_c214,
-        0xa202_8bd9,
-        0xd19c_12b5,
-        0xb94e_16de,
-        0xe883_d0cb,
-        0x4e3c_50a2,
-    ];
-    let rust_rfc = block_words(&test_seed(), 0x0900_0000, 0x4a00_0000, 1);
-    assert_eq!(rust_rfc, rfc_words, "RFC 8439 Section 2.3.2 block");
-    assert_eq!(nat_list(&root[3]), rust_rfc.map(u64::from));
+    let mut empty = [0_u8; 32];
+    Shake128::default().finalize_xof().read(&mut empty);
+    assert_eq!(empty, SHAKE128_EMPTY, "FIPS 202 SHAKE128 example");
+    assert_eq!(nat_list(&root[3]), SHAKE128_EMPTY.map(u64::from));
+
+    // Fixed-length fields: setup ID, seed, row little-endian, block little-endian.
+    let mut expected_input = SETUP_ID.to_vec();
+    expected_input.extend(test_seed());
+    expected_input.extend([1, 2, 3, 4]);
+    expected_input.extend([5, 6, 7, 8, 9, 10, 11, 12]);
+    assert_eq!(
+        element_input(&test_seed(), 0x0403_0201, 0x0c0b_0a09_0807_0605).to_vec(),
+        expected_input
+    );
 
     assert_eq!(nat_list(&root[4]), PRODUCTION_SEED.map(u64::from));
     let cases = [
@@ -98,6 +101,13 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
     }
     assert_eq!(nat_list(&root[6]), production_authority_words());
     assert_eq!(production_authority_words().len(), 73);
+
+    // One complete element: every lane, including the lanes that cross a
+    // 168-byte rate boundary.
+    assert_eq!(
+        nat_list(&root[7]),
+        element_bytes(&PRODUCTION_SEED, 1, 32_768).map(u64::from)
+    );
 
     let mut changed_seed = test_seed();
     changed_seed[0] ^= 1;

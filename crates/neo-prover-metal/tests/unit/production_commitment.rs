@@ -93,7 +93,10 @@ fn production_commitment_checks_all_inputs_before_device_work() {
             .unwrap(),
         vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)]
     );
-    assert!(session.commit_production_prefixes(&[]).unwrap().is_empty());
+    assert!(session
+        .commit_production_prefixes::<Mat<F>>(&[])
+        .unwrap()
+        .is_empty());
     let mut invalid = Mat::zero(D, 2, F::ZERO);
     invalid[(D - 1, 1)] = F::from_u64(2);
     for invalid in [

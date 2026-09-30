@@ -8,6 +8,7 @@ use neo_reductions::superneo_eval::SuperneoMatrixCache;
 use objc2_foundation::NSString;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
+use rayon::prelude::*;
 
 use super::{
     matrix_window::smaller_window, Buffer, MetalCompactMatrix, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks,
@@ -101,9 +102,6 @@ impl OpeningLayout {
                 .compact_device_parts()
                 .ok_or(MetalError::Shape("unfinished opening matrix"))?;
             let (rows, _, identity) = matrix.compact_explicit_shape();
-            if matrix.has_compact_seeded_phi81_blocks() {
-                return Err(MetalError::Shape("opening windows require original matrix rows"));
-            }
             if identity {
                 active[..rows.min(blocks * D).div_ceil(D)].fill(true);
             }
@@ -400,11 +398,26 @@ impl MetalSession {
         let mut tiled_form_tile_offsets = Vec::with_capacity(layout.tiled + 1);
         tiled_form_tile_offsets.push(0u32);
         let mut tiled_form_tiles = Vec::with_capacity(layout.tiles * 3);
-        for (application, matrix) in matrices.iter().enumerate() {
+        // Each matrix's patterns follow the previous matrices' patterns, so
+        // the transposes are independent once those bases are known.
+        let mut pattern_bases = Vec::with_capacity(matrices.len());
+        let mut pattern_count = 0usize;
+        for matrix in matrices {
+            pattern_bases.push(
+                u32::try_from(pattern_count).map_err(|_| MetalError::Shape("opening pattern count exceeds u32"))?,
+            );
+            let parts = matrix
+                .compact_device_parts()
+                .expect("validated compact matrix");
+            pattern_count += parts.dense_offsets.len().saturating_sub(1);
+        }
+        let transposes = matrices
+            .par_iter()
+            .zip(pattern_bases)
+            .map(|(matrix, pattern_base)| BlockTranspose::new(matrix, rows, columns, pattern_base))
+            .collect::<Result<Vec<_>, _>>()?;
+        for (application, (matrix, transpose)) in matrices.iter().zip(transposes).enumerate() {
             let matrix_index = application + 1;
-            let pattern_base = u32::try_from(pattern_offsets.len() - 1)
-                .map_err(|_| MetalError::Shape("opening pattern count exceeds u32"))?;
-            let transpose = BlockTranspose::new(matrix, rows, columns, pattern_base)?;
             let parts = matrix
                 .compact_device_parts()
                 .expect("validated compact matrix");
@@ -545,100 +558,102 @@ impl MetalSession {
         if matrices.len() != device_matrices.len() {
             return Err(MetalError::Shape("one-joint geometric device matrix count mismatch"));
         }
-        let plan_count = matrices
-            .iter()
-            .filter(|matrix| matrix.compact_geometric_run_count() != 0)
-            .count();
-        let mut plans = Vec::with_capacity(plan_count);
-        for (application, (matrix, device)) in matrices.iter().zip(device_matrices).enumerate() {
-            if matrix.compact_geometric_run_count() == 0 {
-                continue;
-            }
-            let mut counts = vec![0u32; blocks];
-            let mut invalid = false;
-            matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
-                if u32::try_from(index).is_err() || u32::try_from(row).is_err() {
-                    invalid = true;
-                    return;
-                }
-                let Some(end) = start.checked_add(len) else {
-                    invalid = true;
-                    return;
-                };
-                if end > blocks * D {
-                    invalid = true;
-                    return;
-                }
-                for block in start / D..end.div_ceil(D) {
-                    counts[block] = match counts[block].checked_add(1) {
-                        Some(count) => count,
-                        None => {
-                            invalid = true;
-                            return;
-                        }
+        // Host segment tables are independent per matrix; device buffers are
+        // created afterwards in matrix order.
+        let host = matrices
+            .par_iter()
+            .enumerate()
+            .filter(|(_, matrix)| matrix.compact_geometric_run_count() != 0)
+            .map(|(application, matrix)| -> Result<_, MetalError> {
+                let mut counts = vec![0u32; blocks];
+                let mut invalid = false;
+                matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
+                    if u32::try_from(index).is_err() || u32::try_from(row).is_err() {
+                        invalid = true;
+                        return;
+                    }
+                    let Some(end) = start.checked_add(len) else {
+                        invalid = true;
+                        return;
                     };
+                    if end > blocks * D {
+                        invalid = true;
+                        return;
+                    }
+                    for block in start / D..end.div_ceil(D) {
+                        counts[block] = match counts[block].checked_add(1) {
+                            Some(count) => count,
+                            None => {
+                                invalid = true;
+                                return;
+                            }
+                        };
+                    }
+                });
+                if invalid {
+                    return Err(MetalError::Shape(
+                        "one-joint geometric opening metadata exceeds device limits",
+                    ));
                 }
-            });
-            if invalid {
-                return Err(MetalError::Shape(
-                    "one-joint geometric opening metadata exceeds device limits",
-                ));
-            }
 
-            let mut offsets = Vec::with_capacity(blocks + 1);
-            offsets.push(0u32);
-            for &count in &counts {
-                offsets.push(
-                    offsets
-                        .last()
-                        .copied()
-                        .expect("geometric opening offset")
-                        .checked_add(count)
-                        .ok_or(MetalError::Shape(
-                            "one-joint geometric opening segment count exceeds u32",
-                        ))?,
-                );
-            }
-            let mut segments = vec![[0u32; 2]; offsets[blocks] as usize];
-            let mut cursor = offsets[..blocks].to_vec();
-            matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
-                let end = start + len;
-                for block in start / D..end.div_ceil(D) {
-                    let destination = cursor[block] as usize;
-                    cursor[block] += 1;
-                    segments[destination] = [row as u32, index as u32];
+                let mut offsets = Vec::with_capacity(blocks + 1);
+                offsets.push(0u32);
+                for &count in &counts {
+                    offsets.push(
+                        offsets
+                            .last()
+                            .copied()
+                            .expect("geometric opening offset")
+                            .checked_add(count)
+                            .ok_or(MetalError::Shape(
+                                "one-joint geometric opening segment count exceeds u32",
+                            ))?,
+                    );
                 }
-            });
+                let mut segments = vec![[0u32; 2]; offsets[blocks] as usize];
+                let mut cursor = offsets[..blocks].to_vec();
+                matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
+                    let end = start + len;
+                    for block in start / D..end.div_ceil(D) {
+                        let destination = cursor[block] as usize;
+                        cursor[block] += 1;
+                        segments[destination] = [row as u32, index as u32];
+                    }
+                });
 
-            // The shared active-block table already owns the column block.
-            // Consecutive starts also provide each group's segment end.
-            let group_capacity = counts.iter().filter(|&&count| count != 0).count();
-            let mut groups = Vec::<[u32; 2]>::with_capacity(group_capacity + 1);
-            for block in 0..blocks {
-                if offsets[block] == offsets[block + 1] {
-                    continue;
+                // The shared active-block table already owns the column block.
+                // Consecutive starts also provide each group's segment end.
+                let group_capacity = counts.iter().filter(|&&count| count != 0).count();
+                let mut groups = Vec::<[u32; 2]>::with_capacity(group_capacity + 1);
+                for block in 0..blocks {
+                    if offsets[block] == offsets[block + 1] {
+                        continue;
+                    }
+                    let encoded = encoded_block(application + 1, blocks, block)?;
+                    let active = active_blocks
+                        .binary_search(&encoded)
+                        .map_err(|_| MetalError::Shape("one-joint geometric block is absent from the transpose"))?;
+                    groups.push([
+                        u32::try_from(active)
+                            .map_err(|_| MetalError::Shape("one-joint geometric active block exceeds u32"))?,
+                        offsets[block],
+                    ]);
                 }
-                let encoded = encoded_block(application + 1, blocks, block)?;
-                let active = active_blocks
-                    .binary_search(&encoded)
-                    .map_err(|_| MetalError::Shape("one-joint geometric block is absent from the transpose"))?;
-                groups.push([
-                    u32::try_from(active)
-                        .map_err(|_| MetalError::Shape("one-joint geometric active block exceeds u32"))?,
-                    offsets[block],
-                ]);
-            }
-            let group_count = groups.len();
-            groups.push([0, offsets[blocks]]);
-            plans.push(DeviceGeometricOpeningPlan {
-                matrix: application + 1,
-                groups: self.buffer_from_slice(&groups)?,
-                segments: self.buffer_from_slice(&segments)?,
-                runs: device.geometric_runs.clone(),
-                group_count,
-            });
-        }
-        Ok(plans)
+                groups.push([0, offsets[blocks]]);
+                Ok((application, groups, segments))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        host.into_iter()
+            .map(|(application, groups, segments)| {
+                Ok(DeviceGeometricOpeningPlan {
+                    matrix: application + 1,
+                    groups: self.buffer_from_slice(&groups)?,
+                    segments: self.buffer_from_slice(&segments)?,
+                    runs: device_matrices[application].geometric_runs.clone(),
+                    group_count: groups.len() - 1,
+                })
+            })
+            .collect()
     }
 
     pub(super) fn eval_joint_openings(

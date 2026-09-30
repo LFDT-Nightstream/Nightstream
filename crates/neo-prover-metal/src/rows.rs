@@ -30,7 +30,10 @@ impl MetalRowProver {
 
     /// Commit complete signed-unit witnesses with the verifier-owned indexed key.
     /// Key generation, ring products, and reduction run on the device.
-    pub fn commit_production_prefixes(&self, witnesses: &[Mat<F>]) -> Result<Vec<neo_ajtai::Commitment>, PiCcsError> {
+    pub fn commit_production_prefixes<W: std::borrow::Borrow<Mat<F>>>(
+        &self,
+        witnesses: &[W],
+    ) -> Result<Vec<neo_ajtai::Commitment>, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
             self.session

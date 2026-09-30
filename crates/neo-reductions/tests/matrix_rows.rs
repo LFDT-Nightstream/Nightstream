@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use neo_ccs::{poly::Term, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock, SparsePoly};
+use neo_ccs::{poly::Term, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::{
     superneo_eval::{
@@ -622,17 +622,14 @@ fn changed_scalar_encoding_cannot_add_an_uncounted_dense_pattern() {
 }
 
 #[test]
-fn borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients() {
-    let (chunk_size, seeds) = neo_ajtai::seeded_pp_chunk_seeds([0x5C; 32], 1, 1);
-    let block = SeededPhi81LinearBlock::new_with_word_width(0, vec![0, 2], 1, 1, 1, chunk_size, seeds).unwrap();
-    let seeded = CcsMatrix::csc_with_compact_rows(
+fn borrowed_cache_preserves_compact_identity_and_geometric_coefficients() {
+    let compact = CcsMatrix::csc_with_geometric_runs(
         CscMat::from_triplets(vec![(1, 0, -F::ONE)], D, D),
-        vec![block.clone()],
         vec![GeometricRowRun::new(1, D - 3, 3, F::from_u64(7), -F::ONE)],
     )
     .unwrap();
     let structure =
-        CcsStructure::new_sparse(vec![seeded, CcsMatrix::Identity { n: D }], SparsePoly::new(2, vec![])).unwrap();
+        CcsStructure::new_sparse(vec![compact, CcsMatrix::Identity { n: D }], SparsePoly::new(2, vec![])).unwrap();
     let cache = build_superneo_eval_cache(&structure).unwrap();
     let source = CachedMatrixRows::new(&cache).unwrap();
     let expected = expanded_cache(&source);
@@ -643,17 +640,118 @@ fn borrowed_cache_preserves_compact_identity_and_original_seeded_coefficients() 
     while start < 4 {
         let window = MatrixWindow::load_next(&source, start..4, budget).unwrap();
         compare_rows(&window, &expected, D);
-        // Also compare against the original seeded evaluator, not just the
+        // Also compare against the original cache evaluator, not just the
         // adapter-expanded dense matrix.
         compare_rows(&window, &cache, D);
         start = window.rows().end;
     }
-    let transformed: CcsMatrix<F> = CcsMatrix::csc_with_seeded_phi81(
-        CscMat::from_triplets(Vec::new(), D, D),
-        vec![block.with_superneo_transformed_columns()],
-    )
-    .unwrap();
-    let transformed = CcsStructure::new_sparse(vec![transformed], SparsePoly::new(1, vec![])).unwrap();
-    let transformed = build_superneo_eval_cache(&transformed).unwrap();
-    assert!(CachedMatrixRows::new(&transformed).is_err());
+}
+
+/// Many ternary runs across block and worker-part boundaries, with runs of
+/// other ratios, lengths and edges that the run-event sweep must preserve.
+struct RunRows;
+
+impl RunRows {
+    const BLOCKS: usize = 48;
+}
+
+impl MatrixRows for RunRows {
+    fn shape(&self) -> MatrixShape {
+        MatrixShape {
+            rows: 6,
+            columns: Self::BLOCKS * D,
+            matrices: 2,
+        }
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        let columns = Self::BLOCKS * D;
+        for row in rows {
+            // Matrix zero: ratio-3 runs at scattered starts, then ratio 7.
+            for run in 0..24 {
+                let start = (row * 97 + run * 131) % (columns - 41);
+                let coefficient = F::from_usize(run + 1) - F::from_usize(3 * row);
+                sink.push_run(
+                    row,
+                    0,
+                    GeometricRowRun::new(row, start, 41, coefficient, F::from_u64(3)),
+                )?;
+            }
+            sink.push_run(
+                row,
+                0,
+                GeometricRowRun::new(row, 7 * D + 11, 41, F::from_u64(9), F::from_u64(7)),
+            )?;
+            if sink.finish_matrix_row(row, 0)?.is_break() {
+                return Ok(());
+            }
+            // Matrix one: its first run fixes ratio 5 for events; ratio 3 is
+            // added directly. One run ends on a block boundary before empty
+            // blocks, one spans more than three blocks, one has ratio zero.
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 2 * D + 4, 41, F::from_u64(2), F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 5 * D - 41, 41, F::ONE, F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 10 * D + 3, 3 * D + 7, -F::from_usize(row + 1), F::from_u64(5)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 20 * D - 3, 41, F::from_u64(4), F::from_u64(3)),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 30 * D + row, 10, F::from_u64(6), F::ZERO),
+            )?;
+            sink.push_run(
+                row,
+                1,
+                GeometricRowRun::new(row, 40 * D + row, 1, F::from_u64(8), F::ONE),
+            )?;
+            if sink.finish_matrix_row(row, 1)?.is_break() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn run_event_openings_match_expanded_rows_across_block_and_part_boundaries() {
+    let source = RunRows;
+    let cache = expanded_cache(&source);
+    let columns = source.shape().columns;
+    let variables = columns.next_power_of_two().ilog2() as usize;
+    let point = (0..variables)
+        .map(|index| K::from_coeffs([F::from_usize(index + 5), F::from_usize(2 * index + 1)]))
+        .collect::<Vec<_>>();
+    let witnesses = [
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column % 3) - F::ONE))
+                .collect::<Vec<_>>(),
+        ),
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column * column + 1)))
+                .collect::<Vec<_>>(),
+        ),
+    ];
+    let expected = cache.eval_real_v1_1_openings(&point, &witnesses).unwrap();
+    assert!(expected.iter().all(|opening| opening
+        .eval_a
+        .iter()
+        .all(|matrix| matrix.iter().any(|value| *value != K::ZERO))));
+    let actual = eval_real_v1_1_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
+    assert_eq!(actual, expected);
 }

@@ -152,16 +152,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECPadBlockRange.products_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECPadBlockRange.prefix_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECPadBlockRange.complete_eq_accumulate
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.quarterRound_eq
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.nativeStep_map
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.doubleRound_map
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.runDoubleRounds_map
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.initialState_map
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.blockWords_eq
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.first256Nat_eq
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.wideCoefficientNat_eq
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.coefficient_eq
-#audit_axioms NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeProduct.multiply_value
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECInputCheck.relation_eq_selected

@@ -27,15 +27,10 @@ where
             geometric_row_offsets: RowOffsetStore::Empty,
             geometric_runs: Vec::new(),
             identity: true,
-            seeded_phi81_blocks: Vec::new(),
         },
-        CcsMatrix::Csc(csc) => build_csc_cache(csc, Vec::new()),
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
-            let mut cache = build_csc_cache(csc, blocks.clone());
+        CcsMatrix::Csc(csc) => build_csc_cache(csc),
+        CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
+            let mut cache = build_csc_cache(csc);
             retain_geometric_runs(&mut cache, geometric_runs);
             cache
         }
@@ -125,10 +120,7 @@ fn dense_pattern_fingerprint(pattern: &Rq) -> [u64; 2] {
     [first, second]
 }
 
-fn build_csc_cache<Ff>(
-    csc: &neo_ccs::CscMat<Ff>,
-    seeded_phi81_blocks: Vec<neo_ccs::SeededPhi81LinearBlock>,
-) -> SuperneoMatrixCache
+fn build_csc_cache<Ff>(csc: &neo_ccs::CscMat<Ff>) -> SuperneoMatrixCache
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
@@ -207,7 +199,6 @@ where
         geometric_row_offsets: RowOffsetStore::Empty,
         geometric_runs: Vec::new(),
         identity: false,
-        seeded_phi81_blocks,
     }
 }
 

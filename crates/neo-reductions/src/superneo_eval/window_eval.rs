@@ -4,12 +4,12 @@
 use neo_ccs::{SparsePoly, V1_1Evaluations};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-use rayon::prelude::*;
 
+#[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+use super::eval_ring_scratch_real_z_blocks;
 use super::{
-    check_ccs_relation_zero_cached_with_blocks, eval_ring_scratch_real_z_blocks, openings::pad_opening,
-    EqualityWeights, MatrixRows, MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
+    check_ccs_relation_zero_cached_with_blocks, openings::pad_openings, EqualityWeights, MatrixRows, MatrixWindow,
+    RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
 };
 use crate::PiCcsError;
 
@@ -33,6 +33,7 @@ pub fn evaluate_terminal_rows(
         witnesses,
         workspace_bytes,
         Vec::new(),
+        None,
         Some((polynomial, fresh)),
     )
 }
@@ -45,17 +46,20 @@ pub fn eval_real_v1_1_openings_from_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
 ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-    eval_real_v1_1_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new())
+    eval_real_v1_1_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
 }
 
+/// `complete` may carry a window over every row of `source`, already built
+/// by the caller; it is used only when it also fits this call's workspace.
 pub(crate) fn eval_real_v1_1_openings_from_rows_reusing(
     source: &dyn MatrixRows,
     point: &[K],
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
+    complete: Option<MatrixWindow>,
 ) -> Result<Vec<V1_1Evaluations<K>>, PiCcsError> {
-    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, None)?.openings)
+    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None)?.openings)
 }
 
 fn evaluate_rows(
@@ -64,6 +68,7 @@ fn evaluate_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
+    complete: Option<MatrixWindow>,
     terminal: Option<(&SparsePoly<F>, &SuperneoZBlocks)>,
 ) -> Result<TerminalEvaluations, PiCcsError> {
     let shape = source.shape();
@@ -92,10 +97,10 @@ fn evaluate_rows(
         ));
     }
     let weights = EqualityWeights::new(point);
-    let mut result = witnesses
-        .iter()
-        .map(|witness| V1_1Evaluations {
-            eval_k: pad_opening(witness, &weights).to_vec(),
+    let mut result = pad_openings(witnesses, &weights)
+        .into_iter()
+        .map(|eval_k| V1_1Evaluations {
+            eval_k: eval_k.to_vec(),
             eval_a: vec![vec![K::ZERO; D]; shape.matrices],
         })
         .collect::<Vec<_>>();
@@ -120,9 +125,20 @@ fn evaluate_rows(
         size_of::<K>()
     };
     let mut scratch = (!active.is_empty()).then(|| RingEvalScratch::reuse(storage, shape.columns / D));
+    let mut complete = complete.filter(|window| {
+        window.rows() == (0..shape.rows)
+            && shape
+                .rows
+                .checked_mul(row_bytes)
+                .and_then(|payload| payload.checked_add(window.storage_bytes()))
+                .is_some_and(|required| required <= workspace_bytes)
+    });
     let mut next = 0;
     while next < shape.rows {
-        let window = MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, row_bytes)?;
+        let window = match complete.take() {
+            Some(window) => window,
+            None => MatrixWindow::load_next_with_payload(source, next..shape.rows, workspace_bytes, row_bytes)?,
+        };
         let range = window.rows();
         let row_weights: Vec<_> = if scratch.is_some() {
             range.clone().map(|row| weights.at(row)).collect()
@@ -135,13 +151,12 @@ fn evaluate_rows(
             };
             // Each local cache contains original coefficients. Reuse the same
             // global row weights across its matrices, then release both owners.
-            cache.accumulate_original_ring_form_with(range.len(), scratch, |row| row_weights[row]);
-            scratch.bar_active();
+            cache.accumulate_barred_ring_form_parallel(range.len(), scratch, |row| row_weights[row]);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let values: Vec<_> = active
-                .par_iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(scratch, &witnesses[index]))
-                .collect();
+            let values = {
+                let active: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
+                super::parallel::eval_active_blocks_many(scratch, &active)
+            };
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             let values: Vec<_> = active
                 .iter()

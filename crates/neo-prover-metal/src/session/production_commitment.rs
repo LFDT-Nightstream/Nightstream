@@ -1,8 +1,12 @@
 //! Fixed production-key commitments. Validate on the host, generate key tiles
 //! and sum signed ring products on the device. No complete key is stored.
 
+use std::borrow::Borrow;
+
 use neo_ajtai::{
-    nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS},
+    nightstream_fprime_setup::{
+        element_input, signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+    },
     Commitment,
 };
 use neo_ccs::Mat;
@@ -15,12 +19,15 @@ use super::MetalSession;
 use crate::MetalError;
 
 impl MetalSession {
-    pub(crate) fn commit_production_prefixes(&self, witnesses: &[Mat<F>]) -> Result<Vec<Commitment>, MetalError> {
+    pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
+        &self,
+        witnesses: &[W],
+    ) -> Result<Vec<Commitment>, MetalError> {
         // This is the CPU commitment's validator, including complete carrier tails.
         // Validate the entire batch before allocating or dispatching device work.
         let blocks = witnesses
             .iter()
-            .map(signed_unit_prefix_blocks)
+            .map(|witness| signed_unit_prefix_blocks(witness.borrow()))
             .collect::<Result<Vec<_>, _>>()?;
         let mut output = vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()];
         let active = blocks
@@ -31,7 +38,11 @@ impl MetalSession {
         if active.is_empty() {
             return Ok(output);
         }
-        let width = witnesses.iter().map(Mat::cols).max().unwrap();
+        let width = witnesses
+            .iter()
+            .map(|witness| witness.borrow().cols())
+            .max()
+            .unwrap();
         let mut occupied = vec![false; width];
         for blocks in &blocks {
             for block in blocks {
@@ -61,7 +72,21 @@ impl MetalSession {
         let device_masks = self.buffer_from_slice(&masks)?;
         let device_columns = self.buffer_from_slice(&columns)?;
         drop((masks, columns));
-        let seed = self.buffer_from_slice(&PRODUCTION_SEED)?;
+        // SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
+        // lanes; the kernel adds each row and column.
+        let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
+        let input = element_input(&PRODUCTION_SEED, 0, 0);
+        let prefix: [u64; 9] = std::array::from_fn(|lane| {
+            u64::from_le_bytes(std::array::from_fn(|byte| {
+                let position = 8 * lane + byte;
+                if position < fixed {
+                    input[position]
+                } else {
+                    0
+                }
+            }))
+        });
+        let prefix = self.buffer_from_slice(&prefix)?;
 
         // One SIMD-width tile of key columns per group. This follows the device
         // execution width, not a circuit-specific or memory-size constant.
@@ -111,7 +136,7 @@ impl MetalSession {
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_partials")));
             encoder.setComputePipelineState(pipeline);
             unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&seed), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&device_columns), 0, 1);
                 encoder.setBuffer_offset_atIndex(Some(&device_masks), 0, 2);
                 encoder.setBuffer_offset_atIndex(Some(&shapes), row * 6 * size_of::<u64>(), 3);

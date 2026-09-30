@@ -254,20 +254,19 @@ kernel void dec_reduce_parallel_original_form_tiles(
 // One thread per geometric span: the sum of its weighted references.
 kernel void dec_geometric_span_weights(
     device const uint *offsets [[buffer(0)]],
-    device const uint2 *references [[buffer(1)]],
-    device const ulong *runs [[buffer(2)]],
+    device const uint *rows [[buffer(1)]],
+    device const ulong *coefficients [[buffer(2)]],
     device const ulong *chi [[buffer(3)]],
     device const ulong *shape [[buffer(4)]],
     device ulong *weights [[buffer(5)]],
     uint span [[thread_position_in_grid]]) {
     Kx value = Kx{0, 0};
     for (uint entry = offsets[span]; entry < offsets[span + 1]; ++entry) {
-        uint2 reference = references[entry];
-        ulong row = reference.x;
+        ulong row = rows[entry];
         if (row >= shape[2] || row >= shape[3]) {
             continue;
         }
-        ulong coefficient = gl_from_word(runs[3 * (ulong)reference.y + 1]);
+        ulong coefficient = gl_from_word(coefficients[entry]);
         value.c0 = gl_add(value.c0, gl_mul(gl_from_word(chi[2 * row]), coefficient));
         value.c1 = gl_add(value.c1, gl_mul(gl_from_word(chi[2 * row + 1]), coefficient));
     }
@@ -285,13 +284,12 @@ inline ulong dec_span_rank(device const ulong *starts, device const uint *ranks,
 kernel void dec_add_geometric_span_forms(
     device const ulong *starts [[buffer(0)]],
     device const uint *ranks [[buffer(1)]],
-    device const uint *representatives [[buffer(2)]],
-    device const ulong *runs [[buffer(3)]],
-    device const ulong *weights [[buffer(4)]],
-    device const ulong *shape [[buffer(5)]],
-    device ulong *forms [[buffer(6)]],
-    device const uint *active_blocks [[buffer(7)]],
-    device const ulong *longest [[buffer(8)]],
+    device const ulong *shapes [[buffer(2)]],
+    device const ulong *weights [[buffer(3)]],
+    device const ulong *shape [[buffer(4)]],
+    device ulong *forms [[buffer(5)]],
+    device const uint *active_blocks [[buffer(6)]],
+    device const ulong *longest [[buffer(7)]],
     uint index [[thread_position_in_grid]]) {
     ulong active = shape[5] + index / RING_DEGREE;
     ulong local = index % RING_DEGREE;
@@ -300,13 +298,12 @@ kernel void dec_add_geometric_span_forms(
     ulong end = dec_span_rank(starts, ranks, column + 1);
     Kx value = Kx{0, 0};
     for (ulong span = dec_span_rank(starts, ranks, first); span < end; ++span) {
-        ulong run = representatives[span];
-        ulong packed = runs[3 * run];
+        ulong packed = shapes[2 * span];
         ulong start = packed & 0xfffffffful;
         if (column >= start + (packed >> 32)) {
             continue;
         }
-        ulong power = dec_pow(gl_from_word(runs[3 * run + 2]), column - start);
+        ulong power = dec_pow(gl_from_word(shapes[2 * span + 1]), column - start);
         value.c0 = gl_add(value.c0, gl_mul(gl_from_word(weights[2 * span]), power));
         value.c1 = gl_add(value.c1, gl_mul(gl_from_word(weights[2 * span + 1]), power));
     }

@@ -10,9 +10,7 @@ use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder}
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use super::{
-    matrix_window::smaller_window, Buffer, MetalCompactMatrix, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks,
-};
+use super::{matrix_window::smaller_window, Buffer, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 #[path = "spans.rs"]
@@ -65,11 +63,11 @@ struct DeviceGeometricOpeningPlan {
     matrix: usize,
     starts: Buffer,
     ranks: Buffer,
-    representatives: Buffer,
+    shapes: Buffer,
     offsets: Buffer,
-    references: Buffer,
+    rows: Buffer,
+    coefficients: Buffer,
     longest: Buffer,
-    runs: Buffer,
     span_count: usize,
 }
 
@@ -87,8 +85,8 @@ struct OpeningLayout {
     max_chunks: usize,
     max_spans: usize,
     metadata_bytes: usize,
-    /// Span layers of each application matrix with geometric runs.
-    spans: Vec<(usize, Vec<SpanLayer>)>,
+    /// Span layers of each application matrix; empty without geometric runs.
+    spans: Vec<Vec<SpanLayer>>,
 }
 
 impl OpeningLayout {
@@ -101,9 +99,19 @@ impl OpeningLayout {
             max_chunks: pad.div_ceil(CHUNK_BLOCKS),
             ..Self::default()
         };
+        layout.spans = matrices
+            .par_iter()
+            .map(|matrix| {
+                if matrix.compact_geometric_run_count() == 0 {
+                    Ok(Vec::new())
+                } else {
+                    spans::span_layers(matrix, blocks * D)
+                }
+            })
+            .collect::<Result<_, MetalError>>()?;
         let mut active = vec![false; blocks];
         let mut transpose_scratch = 0usize;
-        for matrix in matrices {
+        for (matrix, layers) in matrices.iter().zip(&layout.spans) {
             active.fill(false);
             let parts = matrix
                 .compact_device_parts()
@@ -123,14 +131,7 @@ impl OpeningLayout {
                 }
                 active[block] = true;
             }
-            for run in parts.geometric_runs {
-                let start = (run[0] & u64::from(u32::MAX)) as usize;
-                let end = start
-                    .checked_add((run[0] >> 32) as usize)
-                    .filter(|&end| end <= blocks * D)
-                    .ok_or(MetalError::Shape("opening run exceeds the carrier"))?;
-                active[start / D..end.div_ceil(D)].fill(true);
-            }
+            spans::mark_blocks(layers, &mut active);
             let count = active.iter().filter(|&&value| value).count();
             layout.active = checked_sum(&[layout.active, count])?;
             layout.chunks = checked_sum(&[layout.chunks, count.div_ceil(CHUNK_BLOCKS)])?;
@@ -163,12 +164,6 @@ impl OpeningLayout {
                 checked_product(&[entries + patterns, 8], "opening transpose size overflow")?,
             ])?);
         }
-        layout.spans = matrices
-            .par_iter()
-            .enumerate()
-            .filter(|(_, matrix)| matrix.compact_geometric_run_count() != 0)
-            .map(|(application, matrix)| Ok((application, spans::span_layers(matrix, blocks * D)?)))
-            .collect::<Result<_, MetalError>>()?;
         let matrices = matrices.len() + 1;
         // These capacities cover all original-row paths.
         let arrays = [
@@ -198,7 +193,7 @@ impl OpeningLayout {
         }
         // The host census stays live while its device copy exists.
         let mut geometric = 0usize;
-        for layer in layout.spans.iter().flat_map(|(_, layers)| layers) {
+        for layer in layout.spans.iter().flatten() {
             layout.max_spans = layout.max_spans.max(layer.span_count());
             geometric = checked_sum(&[
                 geometric,
@@ -293,7 +288,9 @@ impl MetalSession {
             let reserved = checked_sum(&[floor, plan.blocks])?;
             let mut requested_end = plan.rows;
             loop {
-                let window = self.load_matrix_window(plan, next_row..requested_end, reserved)?;
+                // The opening plan carries its own geometric data; only the
+                // terminal row check reads the uploaded matrix metadata.
+                let window = self.load_matrix_window(plan, next_row..requested_end, reserved, terminal.is_some())?;
                 let count = window.rows.end - window.rows.start;
                 let count_peak = checked_sum(&[window.workspace_peak_bytes, plan.blocks])?;
                 if count_peak > plan.workspace_bytes {
@@ -321,7 +318,6 @@ impl MetalSession {
                 if !masks.active_witnesses().is_empty() {
                     let opening = self.prepare_joint_opening_plan(
                         window.cache.matrix_caches(),
-                        &window.matrices,
                         plan.blocks * D,
                         window.rows.start,
                         include_pad,
@@ -362,7 +358,6 @@ impl MetalSession {
     fn prepare_joint_opening_plan(
         &self,
         matrices: &[SuperneoMatrixCache],
-        device_matrices: &[MetalCompactMatrix],
         scalar_columns: usize,
         row_start: usize,
         include_pad: bool,
@@ -416,7 +411,8 @@ impl MetalSession {
         let transposes = matrices
             .par_iter()
             .zip(pattern_bases)
-            .map(|(matrix, pattern_base)| BlockTranspose::new(matrix, rows, columns, pattern_base))
+            .zip(&layout.spans)
+            .map(|((matrix, pattern_base), layers)| BlockTranspose::new(matrix, layers, rows, columns, pattern_base))
             .collect::<Result<Vec<_>, _>>()?;
         for (application, (matrix, transpose)) in matrices.iter().zip(transposes).enumerate() {
             let matrix_index = application + 1;
@@ -492,7 +488,7 @@ impl MetalSession {
                     .map_err(|_| MetalError::Shape("opening chunk count exceeds u32"))?,
             );
         }
-        let geometric = self.prepare_geometric_opening_plans(device_matrices, layout)?;
+        let geometric = self.prepare_geometric_opening_plans(layout)?;
         Ok(MetalJointOpeningPlan {
             active_offsets: self.buffer_from_slice(&active_offsets)?,
             active_local_masks: self.buffer_from_slice(super::nonempty(&active_local_masks))?,
@@ -552,25 +548,20 @@ impl MetalSession {
 
     fn prepare_geometric_opening_plans(
         &self,
-        device_matrices: &[MetalCompactMatrix],
         layout: &OpeningLayout,
     ) -> Result<Vec<DeviceGeometricOpeningPlan>, MetalError> {
         let mut plans = Vec::new();
-        for (application, layers) in &layout.spans {
-            let runs = &device_matrices
-                .get(*application)
-                .ok_or(MetalError::Shape("one-joint geometric device matrix count mismatch"))?
-                .geometric_runs;
+        for (application, layers) in layout.spans.iter().enumerate() {
             for layer in layers {
                 plans.push(DeviceGeometricOpeningPlan {
                     matrix: application + 1,
                     starts: self.buffer_from_slice(&layer.starts)?,
                     ranks: self.buffer_from_slice(&layer.ranks)?,
-                    representatives: self.buffer_from_slice(&layer.representatives)?,
+                    shapes: self.buffer_from_slice(&layer.shapes)?,
                     offsets: self.buffer_from_slice(&layer.offsets)?,
-                    references: self.buffer_from_slice(&layer.references)?,
+                    rows: self.buffer_from_slice(&layer.rows)?,
+                    coefficients: self.buffer_from_slice(&layer.coefficients)?,
                     longest: self.buffer_from_slice(&[layer.longest])?,
-                    runs: runs.clone(),
                     span_count: layer.span_count(),
                 });
             }
@@ -816,8 +807,8 @@ impl MetalSession {
                 encoder.setComputePipelineState(&self.dec_geometric_span_weights);
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(&layer.offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.references), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.runs), 0, 2);
+                    encoder.setBuffer_offset_atIndex(Some(&layer.rows), 0, 1);
+                    encoder.setBuffer_offset_atIndex(Some(&layer.coefficients), 0, 2);
                     encoder.setBuffer_offset_atIndex(Some(&chi), 0, 3);
                     encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
                     encoder.setBuffer_offset_atIndex(Some(&span_weights), 0, 5);
@@ -831,13 +822,12 @@ impl MetalSession {
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(&layer.starts), 0, 0);
                     encoder.setBuffer_offset_atIndex(Some(&layer.ranks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.representatives), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.runs), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&span_weights), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.longest), 0, 8);
+                    encoder.setBuffer_offset_atIndex(Some(&layer.shapes), 0, 2);
+                    encoder.setBuffer_offset_atIndex(Some(&span_weights), 0, 3);
+                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
+                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 5);
+                    encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 6);
+                    encoder.setBuffer_offset_atIndex(Some(&layer.longest), 0, 7);
                 }
                 self.dispatch(
                     &encoder,

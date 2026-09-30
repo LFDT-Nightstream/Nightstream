@@ -376,7 +376,7 @@ impl MetalSession {
         let reserved = table_bytes(table_count, 12, size_of::<u64>())?;
         let mut next_row = row_start;
         while next_row < valid_end {
-            let window = self.load_matrix_window(plan, next_row..valid_end, reserved)?;
+            let window = self.load_matrix_window(plan, next_row..valid_end, reserved, true)?;
             self.fill_application_from_matrix_window(
                 plan,
                 masks,

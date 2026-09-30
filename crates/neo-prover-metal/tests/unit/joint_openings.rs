@@ -9,7 +9,7 @@ pub(crate) fn matrix_workspace(source: &dyn MatrixRows, rows: Range<usize>) -> u
     let host = MatrixWindow::required_workspace(source, rows.clone(), 0).unwrap();
     let window = MatrixWindow::load_next(source, rows, host).unwrap();
     let (upload, staging) = super::super::matrix_window::upload_size(window.cache().matrix_caches()).unwrap();
-    let descriptors = source.shape().matrices * size_of::<MetalCompactMatrix>();
+    let descriptors = source.shape().matrices * size_of::<super::super::MetalCompactMatrix>();
     let uploaded = window.storage_bytes() + upload + staging + descriptors;
     let opening = OpeningLayout::measure(window.cache().matrix_caches(), source.shape().columns / D, true).unwrap();
     window.workspace_peak_bytes().max(uploaded) + opening.metadata_bytes
@@ -101,15 +101,9 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
         before,
         "a plan must not upload matrix rows"
     );
-    let empty = session.buffer(size_of::<u64>()).unwrap();
-    let device_matrices = cache
-        .matrix_caches()
-        .iter()
-        .map(|matrix| session.upload_matrix_metadata(matrix, &empty).unwrap())
-        .collect::<Vec<_>>();
     let layout = OpeningLayout::measure(cache.matrix_caches(), 2, true).unwrap();
     let opening = session
-        .prepare_joint_opening_plan(cache.matrix_caches(), &device_matrices, 2 * D, 0, true, &layout)
+        .prepare_joint_opening_plan(cache.matrix_caches(), 2 * D, 0, true, &layout)
         .unwrap();
     assert!(opening.parallel_form_list_count > 0);
     assert!(opening.tiled_form_tile_count > 0);
@@ -124,7 +118,6 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
         assert_eq!(actual.eval_a, expected.eval_a);
     }
     drop(opening);
-    drop(device_matrices);
     let actual = session
         .eval_joint_dec_openings(&plan, &witnesses, &point, 2 * D)
         .unwrap()
@@ -208,30 +201,13 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
     let plan = session
         .prepare_joint_matrix_plan(&source, workspace)
         .unwrap();
-    let empty = session.buffer(size_of::<u64>()).unwrap();
-    let device_matrices = compact
-        .matrix_caches()
-        .iter()
-        .map(|matrix| session.upload_matrix_metadata(matrix, &empty).unwrap())
-        .collect::<Vec<_>>();
     let layout = OpeningLayout::measure(compact.matrix_caches(), columns.div_ceil(D), true).unwrap();
     let opening = session
-        .prepare_joint_opening_plan(
-            compact.matrix_caches(),
-            &device_matrices,
-            columns.div_ceil(D) * D,
-            0,
-            true,
-            &layout,
-        )
+        .prepare_joint_opening_plan(compact.matrix_caches(), columns.div_ceil(D) * D, 0, true, &layout)
         .unwrap();
-    let layers: Vec<_> = layout
-        .spans
-        .iter()
-        .map(|(application, layers)| (*application, layers.len()))
-        .collect();
-    assert_eq!(layers, [(0, 1), (2, 2)]);
-    let shared = &layout.spans[1].1[1];
+    let layers: Vec<_> = layout.spans.iter().map(Vec::len).collect();
+    assert_eq!(layers, [1, 0, 2]);
+    let shared = &layout.spans[2][1];
     assert_eq!((shared.span_count(), shared.offsets.as_slice()), (1, &[0, 2][..]));
     assert_eq!(opening.geometric.len(), 3);
     let masks = session
@@ -250,7 +226,6 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
     let expected_dispatches = point.len() + 1 + 6 * opening.matrix_count + 2 * opening.geometric.len();
     assert_eq!(session.activity().dispatches - before, expected_dispatches as u64);
     drop(opening);
-    drop(device_matrices);
     let streamed = session
         .eval_joint_dec_openings(&plan, &witnesses, &point, columns)
         .unwrap()

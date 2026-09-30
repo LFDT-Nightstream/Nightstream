@@ -23,7 +23,7 @@ fn empty_rows_do_not_read_dummy_offsets() {
         .prepare_joint_matrix_plan(&source, workspace)
         .unwrap();
     let window = session
-        .load_matrix_window(&plan, 0..1, 12 * size_of::<u64>())
+        .load_matrix_window(&plan, 0..1, 12 * size_of::<u64>(), true)
         .unwrap();
     let matrix = &window.matrices[0];
     assert_eq!(matrix.row_offset_width, 0);

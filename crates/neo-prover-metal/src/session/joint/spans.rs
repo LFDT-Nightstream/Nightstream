@@ -8,6 +8,7 @@
 //! an opening. A form coordinate scans the spans that start less than the
 //! longest span length before it, so long spans make that scan long.
 
+use neo_math::D;
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 
 use crate::MetalError;
@@ -18,27 +19,41 @@ pub(super) struct SpanLayer {
     pub(super) starts: Vec<u64>,
     /// Number of spans that start before each 64-column word.
     pub(super) ranks: Vec<u32>,
-    /// One run of each span, which gives its start, length and ratio.
-    pub(super) representatives: Vec<u32>,
+    /// `[start | length << 32, ratio]` of each span.
+    pub(super) shapes: Vec<[u64; 2]>,
     /// Offsets of each span's references.
     pub(super) offsets: Vec<u32>,
-    /// `[row, run]` references, grouped by span.
-    pub(super) references: Vec<[u32; 2]>,
+    /// Row of each reference, grouped by span.
+    pub(super) rows: Vec<u32>,
+    /// Canonical coefficient of each reference, grouped by span.
+    pub(super) coefficients: Vec<u64>,
     /// The longest span, which bounds the spans that can cover one column.
     pub(super) longest: u64,
 }
 
 impl SpanLayer {
     pub(super) fn span_count(&self) -> usize {
-        self.representatives.len()
+        self.shapes.len()
     }
 
     pub(super) fn device_bytes(&self) -> usize {
         size_of_val(self.starts.as_slice())
             + size_of_val(self.ranks.as_slice())
-            + size_of_val(self.representatives.as_slice())
+            + size_of_val(self.shapes.as_slice())
             + size_of_val(self.offsets.as_slice())
-            + size_of_val(self.references.as_slice())
+            + size_of_val(self.rows.as_slice())
+            + size_of_val(self.coefficients.as_slice())
+    }
+}
+
+/// Mark the column blocks that the spans of `layers` cover.
+pub(super) fn mark_blocks(layers: &[SpanLayer], active: &mut [bool]) {
+    for layer in layers {
+        for &[packed, _] in &layer.shapes {
+            let start = (packed & u64::from(u32::MAX)) as usize;
+            let end = start + (packed >> 32) as usize;
+            active[start / D..end.div_ceil(D)].fill(true);
+        }
     }
 }
 
@@ -137,22 +152,29 @@ fn span_layer(
         offsets.push(next);
     }
     let mut cursors = offsets[..counts.len()].to_vec();
-    let mut grouped = vec![[0u32; 2]; offsets[counts.len()] as usize];
+    let total = offsets[counts.len()] as usize;
+    let (mut rows, mut coefficients) = (vec![0u32; total], vec![0u64; total]);
     references(&mut |row, index| {
         let run = runs[index as usize];
         let span = span_of(run[0]);
         if same_shape(runs[representatives[span] as usize], run) {
-            grouped[cursors[span] as usize] = [row, index];
+            let cursor = cursors[span] as usize;
+            (rows[cursor], coefficients[cursor]) = (row, run[1]);
             cursors[span] += 1;
         }
     });
+    let shapes = representatives
+        .iter()
+        .map(|&run| [runs[run as usize][0], runs[run as usize][2]])
+        .collect();
     Ok((
         SpanLayer {
             starts,
             ranks,
-            representatives,
+            shapes,
             offsets,
-            references: grouped,
+            rows,
+            coefficients,
             longest,
         },
         deferred,

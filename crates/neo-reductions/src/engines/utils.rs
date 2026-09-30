@@ -139,7 +139,6 @@ const CCS_MATRIX_LEAF_IDENTITY: u64 = 2;
 const CCS_MATRIX_LEAF_COL_PTR: u64 = 3;
 const CCS_MATRIX_LEAF_ROW_IDX: u64 = 4;
 const CCS_MATRIX_LEAF_VALS: u64 = 5;
-const CCS_MATRIX_LEAF_SEEDED_PHI81: u64 = 6;
 const CCS_MATRIX_LEAF_GEOMETRIC_RUN: u64 = 7;
 
 enum CcsDigestLeaf<'a, Ff> {
@@ -167,11 +166,6 @@ enum CcsDigestLeaf<'a, Ff> {
         chunk: usize,
         start: usize,
         values: &'a [Ff],
-    },
-    SeededPhi81 {
-        matrix: usize,
-        block: usize,
-        value: &'a neo_ccs::SeededPhi81LinearBlock,
     },
     GeometricRunChunk {
         matrix: usize,
@@ -286,38 +280,6 @@ fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Go
                 absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, v.as_canonical_u64());
             }
         }
-        CcsDigestLeaf::SeededPhi81 { matrix, block, value } => {
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_SEEDED_PHI81);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *block as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.row_start() as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.kappa() as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.message_cols() as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.chunk_size() as u64);
-            absorb_digest_u64(
-                &poseidon2,
-                &mut state,
-                &mut absorbed,
-                value.has_superneo_transformed_columns() as u64,
-            );
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.word_width() as u64);
-            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.word_starts().len() as u64);
-            for &start in value.word_starts() {
-                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, start as u64);
-            }
-            absorb_digest_u64(
-                &poseidon2,
-                &mut state,
-                &mut absorbed,
-                value.chunk_seeds_by_row().len() as u64,
-            );
-            for seeds in value.chunk_seeds_by_row() {
-                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, seeds.len() as u64);
-                for seed in seeds {
-                    absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, seed);
-                }
-            }
-        }
         CcsDigestLeaf::GeometricRunChunk {
             matrix,
             chunk,
@@ -410,11 +372,7 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
                 push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
                 push_field_digest_chunks(&mut leaves, j, vals);
             }
-            CcsMatrix::CscWithSeededPhi81 {
-                csc,
-                blocks,
-                geometric_runs,
-            } => {
+            CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
                     nrows: csc.nrows,
@@ -426,13 +384,6 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
                 push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
                 push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
                 push_field_digest_chunks(&mut leaves, j, &csc.vals);
-                for (block, value) in blocks.iter().enumerate() {
-                    leaves.push(CcsDigestLeaf::SeededPhi81 {
-                        matrix: j,
-                        block,
-                        value,
-                    });
-                }
                 for (chunk, values) in geometric_runs
                     .chunks(CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK)
                     .enumerate()

@@ -50,8 +50,7 @@ pub trait MatrixRowSink {
     fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError>;
 }
 
-/// Borrow a cache without copying its rows. Plain seeded terms are emitted as
-/// scalar runs. Pretransformed seeded columns are not original one-joint input.
+/// Borrow a cache without copying its rows.
 pub struct CachedMatrixRows<'a> {
     cache: &'a SuperneoEvalCache,
     shape: MatrixShape,
@@ -68,14 +67,6 @@ impl<'a> CachedMatrixRows<'a> {
             matrices,
         };
         shape.validate(&(0..rows))?;
-        if cache.matrix_caches().iter().any(|matrix| {
-            matrix
-                .compact_seeded_phi81_blocks()
-                .iter()
-                .any(|block| block.has_superneo_transformed_columns())
-        }) {
-            return Err(invalid("matrix source cannot use pretransformed seeded columns"));
-        }
         Ok(Self { cache, shape })
     }
 }
@@ -115,19 +106,6 @@ impl MatrixRows for CachedMatrixRows<'_> {
                                 F::from_u64(ratio),
                             ),
                         )?;
-                    }
-                    for block in matrix.compact_seeded_phi81_blocks() {
-                        let mut result = Ok(());
-                        block.for_each_row_term::<F, _>(row, |column, coefficient| {
-                            if result.is_ok() {
-                                result = sink.push_run(
-                                    row,
-                                    index,
-                                    GeometricRowRun::new(row, column, 1, coefficient, F::ONE),
-                                );
-                            }
-                        });
-                        result?;
                     }
                 }
                 if sink.finish_matrix_row(row, index)?.is_break() {

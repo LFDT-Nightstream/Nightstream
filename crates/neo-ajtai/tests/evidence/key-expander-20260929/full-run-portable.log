@@ -1,0 +1,28 @@
+key pass: 22 rows x 3221095 columns = 70864090 key elements, 3826660860 coefficients; rayon threads 18; sha3 asm false
+reference checks: ok
+cpu   ChaCha20: 7.822 s checksum 67dc15fdfa9da524
+metal ChaCha20: 0.608 s checksum 67dc15fdfa9da524
+cpu   ChaCha20Contiguous: 5.127 s checksum ed23231d9a3cfa4d
+metal ChaCha20Contiguous: 0.333 s checksum ed23231d9a3cfa4d
+cpu   Shake128: 11.842 s checksum 5e5cdf6800937732
+metal Shake128: 1.373 s checksum 5e5cdf6800937732
+cpu   Shake256: 14.815 s checksum 17353c7da40a3605
+metal Shake256: 1.661 s checksum 17353c7da40a3605
+       43.94 real       580.17 user         2.52 sys
+            24985600  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                2944  page reclaims
+                   1  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   1  signals received
+                   1  voluntary context switches
+              731534  involuntary context switches
+            16662884  instructions retired
+             7498491  cycles elapsed
+             1065248  peak memory footprint

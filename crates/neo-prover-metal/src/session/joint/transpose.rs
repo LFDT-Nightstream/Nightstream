@@ -32,12 +32,6 @@ impl BlockTranspose {
             .compact_device_parts()
             .ok_or(MetalError::Shape("opening needs compact rows"))?;
         let mut active = vec![false; blocks];
-        for block in matrix.compact_seeded_column_blocks() {
-            if block >= blocks {
-                return Err(MetalError::Shape("seeded opening block is out of range"));
-            }
-            active[block] = true;
-        }
         let mut invalid = false;
         matrix.for_each_compact_geometric_run(|_, _, start, len, _, _| {
             if let Some(end) = start.checked_add(len).filter(|&end| end <= columns) {

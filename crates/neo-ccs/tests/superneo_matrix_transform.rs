@@ -39,19 +39,8 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
-            for c in 0..csc.ncols {
-                let block = c / D;
-                let local = c % D;
-                for k in csc.column_range(c) {
-                    if csc.row_index(k) == row {
-                        row_blocks[block][local] += csc.vals[k];
-                    }
-                }
-                for seeded in blocks {
-                    row_blocks[block][local] += seeded.entry::<F>(row, c);
-                }
-            }
+        CcsMatrix::CscWithGeometricRuns { .. } => {
+            panic!("the superneo transform returns plain CSC")
         }
         CcsMatrix::VerifierArtifact { .. } => panic!("test requires materialized matrix content"),
     }

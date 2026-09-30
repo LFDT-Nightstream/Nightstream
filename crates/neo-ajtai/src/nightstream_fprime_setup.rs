@@ -1,8 +1,10 @@
 //! Nightstream F-prime's verifier-owned indexed Ajtai setup.
 //!
 //! This module owns the Rust implementation of
-//! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
-//! authority framing.
+//! `nightstream-ajtai-shake128-wide256-v1`. Key element `(row, block)` is
+//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`; lane `L` is
+//! output bytes `32L..32L + 32`, reduced modulo Goldilocks as one
+//! little-endian integer. Lean owns its semantics and authority framing.
 
 use std::{borrow::Borrow, cmp::Reverse, collections::BinaryHeap, ops::Range};
 
@@ -16,13 +18,18 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake128,
+};
 
 use crate::{AjtaiError, AjtaiResult, Commitment};
 
 const GOLDILOCKS_MODULUS: u128 = 18_446_744_069_414_584_321;
-const WORD_RADIX: u128 = 1_u128 << 32;
 
-pub const SETUP_ID: &[u8] = b"nightstream-ajtai-chacha20-wide256-v1";
+pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
+/// One key element's SHAKE128 input: setup ID, seed, row and block.
+pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
 pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 3_221_095;
@@ -43,122 +50,52 @@ const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 // half-sum fits in i64 before any field reduction.
 const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (1_u128 << 32) < (1_u128 << 63));
 
-fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
-    state[a] = state[a].wrapping_add(state[b]);
-    state[d] ^= state[a];
-    state[d] = state[d].rotate_left(16);
-
-    state[c] = state[c].wrapping_add(state[d]);
-    state[b] ^= state[c];
-    state[b] = state[b].rotate_left(12);
-
-    state[a] = state[a].wrapping_add(state[b]);
-    state[d] ^= state[a];
-    state[d] = state[d].rotate_left(8);
-
-    state[c] = state[c].wrapping_add(state[d]);
-    state[b] ^= state[c];
-    state[b] = state[b].rotate_left(7);
+/// The SHAKE128 input of one key element. Every field has a fixed length,
+/// so distinct `(seed, row, block)` values give distinct inputs.
+pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPUT_BYTES] {
+    let mut input = [0_u8; ELEMENT_INPUT_BYTES];
+    let (setup_id, fields) = input.split_at_mut(SETUP_ID.len());
+    setup_id.copy_from_slice(SETUP_ID);
+    fields[..32].copy_from_slice(seed);
+    fields[32..36].copy_from_slice(&row.to_le_bytes());
+    fields[36..].copy_from_slice(&block.to_le_bytes());
+    input
 }
 
-/// One RFC-8439 block with nonce `row_u32_le || block_u64_le`.
-pub fn block_words(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> [u32; 16] {
-    let mut state = [0_u32; 16];
-    state[..4].copy_from_slice(&[0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574]);
-    for (word, bytes) in state[4..12].iter_mut().zip(seed.chunks_exact(4)) {
-        *word = u32::from_le_bytes(bytes.try_into().expect("four-byte key word"));
-    }
-    state[12] = lane;
-    state[13] = row;
-    state[14] = block as u32;
-    state[15] = (block >> 32) as u32;
-
-    let initial = state;
-    for _ in 0..10 {
-        quarter_round(&mut state, 0, 4, 8, 12);
-        quarter_round(&mut state, 1, 5, 9, 13);
-        quarter_round(&mut state, 2, 6, 10, 14);
-        quarter_round(&mut state, 3, 7, 11, 15);
-        quarter_round(&mut state, 0, 5, 10, 15);
-        quarter_round(&mut state, 1, 6, 11, 12);
-        quarter_round(&mut state, 2, 7, 8, 13);
-        quarter_round(&mut state, 3, 4, 9, 14);
-    }
-    for (word, original) in state.iter_mut().zip(initial) {
-        *word = word.wrapping_add(original);
-    }
-    state
+/// The SHAKE128 output of one key element: 32 bytes for each lane.
+pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; 32 * D] {
+    let mut xof = Shake128::default();
+    xof.update(&element_input(seed, row, block));
+    let mut bytes = [0_u8; 32 * D];
+    xof.finalize_xof().read(&mut bytes);
+    bytes
 }
 
-/// Reduce the first 256 ChaCha20 output bits modulo the Goldilocks prime.
+/// Reference coefficient for `lane < 54`: the lane's 32 output bytes as one
+/// little-endian integer, reduced by division modulo the Goldilocks prime.
 pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
-    let words = block_words(seed, row, block, lane);
-    let reduced = words[..8].iter().rev().fold(0_u128, |value, word| {
-        (value * WORD_RADIX + u128::from(*word)) % GOLDILOCKS_MODULUS
-    });
-    reduced as u64
+    let bytes = element_bytes(seed, row, block);
+    let chunk = &bytes[32 * lane as usize..32 * (lane as usize + 1)];
+    chunk.iter().rev().fold(0_u128, |value, byte| {
+        (value * 256 + u128::from(*byte)) % GOLDILOCKS_MODULUS
+    }) as u64
 }
 
-/// Stream the 54 coefficients of one exact indexed key element.
-///
-/// The RNG's high counter word holds the RFC-8439 nonce row, and its stream
-/// identifier holds the nonce block. One full 64-byte block is consumed per
-/// lane; only its first 256 bits enter that lane's wide reduction.
+/// The 54 coefficients of one exact indexed key element.
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
-    // All 54 lane blocks are evaluated together, one per array lane, so the
-    // compiler can vectorize the ChaCha20 rounds across lanes.
-    let mut state = [[0_u32; D]; 16];
-    for (word, constant) in state[..4]
-        .iter_mut()
-        .zip([0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574])
-    {
-        *word = [constant; D];
-    }
-    for (word, bytes) in state[4..12].iter_mut().zip(seed.chunks_exact(4)) {
-        *word = [u32::from_le_bytes(bytes.try_into().expect("four-byte key word")); D];
-    }
-    state[12] = core::array::from_fn(|lane| lane as u32);
-    state[13] = [row; D];
-    state[14] = [block as u32; D];
-    state[15] = [(block >> 32) as u32; D];
-    let words = first_words(&state);
-    core::array::from_fn(|lane| reduce_first_words(core::array::from_fn(|word| words[word][lane])))
+    let bytes = element_bytes(seed, row, block);
+    core::array::from_fn(|lane| {
+        reduce_words(core::array::from_fn(|word| {
+            let start = 32 * lane + 4 * word;
+            u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
+        }))
+    })
 }
 
-/// The first eight output words of each lane's ChaCha20 block.
+/// Reduce eight little-endian 32-bit words, one 256-bit integer, modulo
+/// Goldilocks.
 #[inline(always)]
-fn first_words(initial: &[[u32; D]; 16]) -> [[u32; D]; 8] {
-    let mut state = *initial;
-    for _ in 0..10 {
-        quarter_round_lanes(&mut state, 0, 4, 8, 12);
-        quarter_round_lanes(&mut state, 1, 5, 9, 13);
-        quarter_round_lanes(&mut state, 2, 6, 10, 14);
-        quarter_round_lanes(&mut state, 3, 7, 11, 15);
-        quarter_round_lanes(&mut state, 0, 5, 10, 15);
-        quarter_round_lanes(&mut state, 1, 6, 11, 12);
-        quarter_round_lanes(&mut state, 2, 7, 8, 13);
-        quarter_round_lanes(&mut state, 3, 4, 9, 14);
-    }
-    core::array::from_fn(|word| core::array::from_fn(|lane| state[word][lane].wrapping_add(initial[word][lane])))
-}
-
-#[inline(always)]
-fn quarter_round_lanes(state: &mut [[u32; D]; 16], a: usize, b: usize, c: usize, d: usize) {
-    for lane in 0..D {
-        state[a][lane] = state[a][lane].wrapping_add(state[b][lane]);
-        state[d][lane] = (state[d][lane] ^ state[a][lane]).rotate_left(16);
-        state[c][lane] = state[c][lane].wrapping_add(state[d][lane]);
-        state[b][lane] = (state[b][lane] ^ state[c][lane]).rotate_left(12);
-        state[a][lane] = state[a][lane].wrapping_add(state[b][lane]);
-        state[d][lane] = (state[d][lane] ^ state[a][lane]).rotate_left(8);
-        state[c][lane] = state[c][lane].wrapping_add(state[d][lane]);
-        state[b][lane] = (state[b][lane] ^ state[c][lane]).rotate_left(7);
-    }
-}
-
-/// Reduce the first 256 output bits of one block modulo Goldilocks.
-#[inline(always)]
-fn reduce_first_words(words: [u32; 8]) -> u64 {
+fn reduce_words(words: [u32; 8]) -> u64 {
     let words = words.map(i64::from);
     // For x = 2^32, x^2 = x - 1 and x^6 = 1 modulo Goldilocks.
     // Each signed sum has magnitude at most 3 * (2^32 - 1), so i64

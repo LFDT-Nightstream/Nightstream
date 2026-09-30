@@ -47,6 +47,30 @@ impl MetalRowProver {
         }
     }
 
+    /// Mix the Π_RLC witnesses `Σ ρ_i·Z_i` and split the parent into `digits`
+    /// balanced base-`base` planes on the device; the parent stays there.
+    /// Returns the planes and their nonzero flags. Unsupported inputs return
+    /// an error; callers do not receive an implicit host fallback.
+    pub fn split_rlc_witnesses(
+        &self,
+        rhos: &[Mat<F>],
+        witnesses: &[&Mat<F>],
+        digits: usize,
+        base: u32,
+    ) -> Result<(Vec<Mat<F>>, Vec<bool>), PiCcsError> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            self.session
+                .split_rlc_witnesses(rhos, witnesses, digits, base)
+                .map_err(oracle_error)
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        {
+            let _ = (rhos, witnesses, digits, base);
+            Err(oracle_error(MetalError::Unavailable))
+        }
+    }
+
     /// Compute every supplied child opening on the device. Unsupported shapes
     /// return an error; callers do not receive an implicit host fallback.
     pub fn child_openings(

@@ -8,10 +8,7 @@ use crate::folding::{
 };
 use neo_math::D;
 use neo_prover_metal::MetalRowProver;
-use neo_reductions::{
-    common::split_b_matrix_k_with_nonzero_flags, optimized_engine::optimized_prove_with_matrix_rows,
-    superneo_eval::MatrixRows,
-};
+use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
 
 pub(crate) fn prove(
     device: &mut MetalRowProver,
@@ -47,20 +44,31 @@ pub(crate) fn prove(
         .map(|witness| &witness.Z)
         .chain(running.witnesses.iter())
         .collect();
-    let (parent, r) = pi_rlc::prove_refs(transcript, params, structure, ajtai_rlc_mixer, &c.outputs, &sources)?;
+    // The parent witness stays on the device; only its PiDEC digits return.
+    let (parent, split, r) = {
+        let device = &*device;
+        pi_rlc::prove_refs_resident(
+            transcript,
+            params,
+            structure,
+            ajtai_rlc_mixer,
+            &c.outputs,
+            &sources,
+            |rhos, witnesses| device.split_rlc_witnesses(rhos, witnesses, params.k_rho() as usize, params.b()),
+        )?
+    };
     drop(sources);
     drop(witnesses);
     drop(running);
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent.witness, params.k_rho() as usize, params.b())
+    let (digits, flags) = split
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    drop(parent.witness);
     let commitments = device
         .commit_production_prefixes(&digits)
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let openings = device
-        .child_openings(rows, workspace_bytes, &digits, &parent.claim.r, structure.m)
+        .child_openings(rows, workspace_bytes, &digits, &parent.r, structure.m)
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let (children, ok_y, ok_x, ok_c) =
@@ -68,7 +76,7 @@ pub(crate) fn prove(
             neo_reductions::api::FoldingMode::Optimized,
             structure,
             params.inner(),
-            &parent.claim,
+            &parent,
             &digits,
             &flags,
             D.next_power_of_two().trailing_zeros() as usize,
@@ -82,9 +90,9 @@ pub(crate) fn prove(
         return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
     }
     let d = pi_dec::Proof { children };
-    let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent.claim, &d)?;
+    let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((
-        RunningInstance::new(children, digits, Some(parent.claim)),
+        RunningInstance::new(children, digits, Some(parent)),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,

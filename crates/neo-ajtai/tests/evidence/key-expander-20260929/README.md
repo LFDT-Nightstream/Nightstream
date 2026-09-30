@@ -26,8 +26,10 @@ source differs:
 The tag is `nightstream-ajtai-shake-bench-v0` (32 bytes). It is a benchmark
 value, not a proposed protocol constant.
 
-The CPU `ChaCha20` path is the production `coefficient_block`. The other CPU
-paths and all Metal kernels are in `bench/`. Each pass folds every coefficient
+The CPU `ChaCha20` path is the production `coefficient_block` at 5bd5873f4.
+After the production setup moved to SHAKE128, `bench/src/chacha_v1.rs` holds
+an unchanged copy; its checksums equal the recorded runs. The other CPU paths
+and all Metal kernels are in `bench/`. Each pass folds every coefficient
 into an order-independent checksum. The program stops if the CPU and Metal
 checksums differ. Before timing, it compares scattered elements with the
 scalar production `coefficient`, the scalar RFC 8439 block and a

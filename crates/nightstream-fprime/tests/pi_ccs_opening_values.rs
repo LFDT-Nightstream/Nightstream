@@ -274,13 +274,12 @@ fn check_positive_opening(sources: OpeningSources) {
                 .as_ref()
                 .expect("current Lean setup fixture"),
         );
-        assert_eq!(setup[0], 3, "wide256 setup schema");
         let authority: Vec<u64> = serde_json::from_value(setup[6].clone()).expect("complete Lean setup authority");
         assert_eq!(authority.len(), 73);
         assert_eq!(authority[0], 37);
         assert_eq!(
             &authority[1..38],
-            b"nightstream-ajtai-chacha20-wide256-v1"
+            commitment::SETUP_ID
                 .iter()
                 .map(|&byte| u64::from(byte))
                 .collect::<Vec<_>>()
@@ -297,21 +296,7 @@ fn check_positive_opening(sources: OpeningSources) {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        assert_eq!(setup[4], json!(seed));
-        let test_seed: [u8; 32] = serde_json::from_value(setup[2].clone()).expect("Lean RFC test seed");
-        let expected_block: [u32; 16] = serde_json::from_value(setup[3].clone()).expect("Lean RFC block words");
-        assert_eq!(
-            commitment::block_words(&test_seed, 0x09000000, 0x4a000000, 1),
-            expected_block
-        );
-        let samples: Vec<[u64; 4]> =
-            serde_json::from_value(setup[5].clone()).expect("Lean indexed coefficient vectors");
-        for [sample_row, block, lane, expected] in samples {
-            assert_eq!(
-                commitment::coefficient(&seed, sample_row.try_into().unwrap(), block, lane.try_into().unwrap()),
-                expected
-            );
-        }
+        commitment::check_lean_setup_vectors(&setup, &seed);
         let claimed: Vec<u64> = serde_json::from_value(input[1].clone()).expect("complete claimed commitment");
         assert_eq!(claimed.len(), 22 * DEGREE);
         assert!(claimed

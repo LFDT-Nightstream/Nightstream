@@ -23,6 +23,7 @@ def inputsSupported
   refine {
     iteration := ?_
     inverse := ?_
+    flag := ?_
     initialState := ?_
     currentState := ?_
     recursive := recursiveSupported logicalWidth publicFits
@@ -32,7 +33,8 @@ def inputsSupported
     rw [stateStart_eq]
     norm_num [InRange, stateCount, iterationExpr,
       PilotProduction.priorPreimageStart, iterationWordIndex]
-  · exact Or.inr rfl
+  · exact Or.inr (Or.inl rfl)
+  · exact Or.inr (Or.inr rfl)
   · intro index
     simp only [interface, initialStateExpr, Expr.VarsSatisfy]
     apply logical_state
@@ -59,8 +61,7 @@ theorem logicalConstraints_varsSatisfy
     ∀ expression ∈ RunningTransitionLayout.logicalConstraints
         logicalWidth publicFits,
       expression.VarsSatisfy Logical := by
-  rw [RunningTransitionLayout.logicalConstraints_eq]
-  exact RunningTransition.constraints_varsSatisfy
+  exact RunningTransition.flatConstraints_varsSatisfy
     (interface logicalWidth publicFits) phaseOffset Logical
       (inputsSupported logicalWidth publicFits)
 

@@ -51,7 +51,7 @@ impl PreparedLifecycle {
         }
         let structure = package.ccs_structure_header()?;
         let params = crate::folding::Params::for_ccs_shape(
-            structure.n,
+            structure.domain_rows(),
             structure.m,
             structure.t(),
             structure.max_degree(),

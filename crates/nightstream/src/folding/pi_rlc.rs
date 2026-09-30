@@ -144,11 +144,12 @@ fn validate_r_shape(s: &crate::folding::Structure, inputs: &[CeClaim], combined:
 
 fn validate_r_shape_one(owner: &'static str, s: &crate::folding::Structure, claim: &CeClaim) -> Result<(), Error> {
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let expected =
-        s.n.max(assignment_width)
-            .next_power_of_two()
-            .max(2)
-            .trailing_zeros() as usize;
+    let expected = s
+        .domain_rows()
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     if claim.r.len() != expected {
         return Err(Error::RShape(owner));
     }

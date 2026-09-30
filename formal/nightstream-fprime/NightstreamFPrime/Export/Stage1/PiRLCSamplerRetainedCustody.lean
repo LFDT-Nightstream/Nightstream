@@ -633,7 +633,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 27743622 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 27427444 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

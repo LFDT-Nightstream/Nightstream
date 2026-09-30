@@ -199,7 +199,7 @@ impl Fixture {
         let wire = fs::read(saved.join("proof.native")).unwrap();
         assert!(proof.canonical_bytes() == wire, "exact retained native proof");
         let params = Params::for_ccs_shape(
-            package.structure().n,
+            package.structure().domain_rows(),
             package.structure().m,
             package.structure().t(),
             package.structure().max_degree(),
@@ -466,7 +466,7 @@ fn selected_plain_step_rejects_auxiliary_commitments() {
 fn saved_proof_and_transcript_match_lean() {
     let fixture = Fixture::load();
     let params = Params::for_ccs_shape(
-        fixture.package.structure.n,
+        fixture.package.structure.domain_rows(),
         fixture.package.structure.m,
         fixture.package.structure.t(),
         fixture.package.structure.max_degree(),

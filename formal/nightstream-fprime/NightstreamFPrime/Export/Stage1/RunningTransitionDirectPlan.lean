@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 27743901 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 27427723 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -535,7 +535,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 8 := lane.isLt
-      have address : 27380424 + index.val =
+      have address : 27360382 + index.val =
           14751804 + invocation.val * 592 + 584 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
@@ -673,8 +673,8 @@ def plan
       Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
-    (plan relation geometry).rowCount = 345495 := by
-  change (RunningTransitionDirectSource.program relation).rowCount = 345495
+    (plan relation geometry).rowCount = 49359 := by
+  change (RunningTransitionDirectSource.program relation).rowCount = 49359
   exact RunningTransitionDirectSource.program_rowCount relation
 
 /-- The compiled transition plan depends on relation shape only. -/

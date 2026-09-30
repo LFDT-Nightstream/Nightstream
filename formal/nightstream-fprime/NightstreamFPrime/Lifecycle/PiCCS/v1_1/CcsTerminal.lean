@@ -16,7 +16,8 @@ Outputs:
 - the exact symbolic fresh CCS residual term.
 
 Constraint groups:
-- C1: the opaque reusable `Sparse.Owned` polynomial evaluator.
+- C1: the reusable `Sparse.Owned` polynomial evaluator: 250 stored extension
+  products and two result cells.
 
 Parent coverage:
 - `ProtocolPolynomial.ccsAtMessage` inside `PiCCS.v1_1.Coverage.chain`.
@@ -137,8 +138,17 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   build relation interface env offset assumptions
 
-def privateCount : Nat := 2
-def rowCount : Nat := 2
+/-- The 74 production monomials store 250 extension products. -/
+theorem productCount_eq
+    {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    Sparse.Owned.productCount (polynomial relation) = 750 := by
+  rfl
+
+def privateCount : Nat := 752
+def rowCount : Nat := 752
 
 theorem localLength_eq
     {logicalWidth : Nat}
@@ -148,8 +158,8 @@ theorem localLength_eq
     (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit relation interface).main offset) =
       privateCount := by
-  exact Sparse.Owned.localLength_eq (polynomial relation)
-    (sparseInterface interface) offset
+  rw [circuit, Sparse.Owned.localLength_eq, productCount_eq]
+  rfl
 
 theorem operations_length
     {logicalWidth : Nat}
@@ -170,8 +180,8 @@ theorem flatConstraints_length
     (flatConstraints
       (Circuit.ops (circuit relation interface).main offset)).length =
       rowCount := by
-  exact Sparse.Owned.flatConstraints_length (polynomial relation)
-    (sparseInterface interface) offset
+  rw [circuit, Sparse.Owned.flatConstraints_length, productCount_eq]
+  rfl
 
 theorem flatConstraints_varsBelow
     {logicalWidth : Nat}
@@ -183,9 +193,10 @@ theorem flatConstraints_varsBelow
     ∀ constraint ∈ flatConstraints
       (Circuit.ops (circuit relation interface).main offset),
       constraint.VarsBelow (offset + privateCount) := by
-  simpa [privateCount] using!
-    Sparse.Owned.flatConstraints_varsBelow (polynomial relation)
-      (sparseInterface interface) offset _assumptions
+  have scope := Sparse.Owned.flatConstraints_varsBelow (polynomial relation)
+    (sparseInterface interface) offset _assumptions
+  rw [productCount_eq] at scope
+  exact scope
 
 private def freshIndex : Fin productionShape.freshCount :=
   ⟨0, by

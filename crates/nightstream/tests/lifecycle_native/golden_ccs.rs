@@ -36,7 +36,14 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
         .unwrap()
         .security_bits;
     // Use the fixture's derived level; this checker sets no application policy.
-    let params = Params::for_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree(), level).unwrap();
+    let params = Params::for_ccs_shape(
+        structure.domain_rows(),
+        structure.m,
+        structure.t(),
+        structure.max_degree(),
+        level,
+    )
+    .unwrap();
     let input = read(input_path.to_path_buf());
     let lean = read(lean_path.to_path_buf());
     assert_eq!(input.as_array().unwrap().len(), 7);

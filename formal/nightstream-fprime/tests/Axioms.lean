@@ -320,6 +320,16 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.operations_length
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.flatConstraints_length
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.flatConstraints_varsBelow
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.eval_scale
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.storeProducts_sound
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.compileMonomial_sound
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.compileTerms_sound
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.compileTerms_length
+#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.program_length
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Sparse.recipes_direct
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Sparse.ownedCircuit_totalFreshCount
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Sparse.ownedCircuit_totalRowCount
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.CcsTerminal.productCount_eq
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.chainConstraints_length
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.chainConstraints_varsBelow
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.constraints_length
@@ -786,6 +796,9 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Poseidon2.Duplex.compile_output_affine
 #audit_axioms NightstreamFPrime.Layout.R1CS.IsDirectRecipe.mul_add
 #audit_axioms NightstreamFPrime.Layout.R1CS.productSumRecipeRow?_eq_none_of_rest
+#audit_axioms NightstreamFPrime.Layout.R1CS.directConstraint_rankOne_ne_none
+#audit_axioms NightstreamFPrime.Layout.R1CS.constraintFreshCount_rankOne_eq_zero
+#audit_axioms NightstreamFPrime.Layout.R1CS.constraintRowCount_rankOne_eq_one
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.recipesCausal_concat
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes_causal
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Horner.productAt_sound

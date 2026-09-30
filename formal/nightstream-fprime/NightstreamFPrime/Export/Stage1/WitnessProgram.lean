@@ -217,7 +217,7 @@ private theorem witnesses_assertions (values : List Expr) :
   | cons value rest inductionHypothesis =>
       simp [witnesses, Op.witnesses]
 
-/-- Closed-form executable form of the sole running-transition witness batch.
+/-- Closed-form executable form of the two running-transition witness batches.
 It avoids traversing all 45,894 assertion operations during emission. -/
 def directRunningTransitionBatches
     (logicalWidth : Nat)
@@ -229,8 +229,11 @@ def directRunningTransitionBatches
   let offset :=
     NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
   [remapBatch (WitnessBatch.hinted offset
-    [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.inverseHint
-      interface offset])]
+      [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.inverseHint
+        interface offset]),
+    remapBatch (WitnessBatch.arithmetic (offset + 1)
+      [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagRecipe
+        interface offset])]
 
 theorem directRunningTransitionBatches_eq
     (logicalWidth : Nat)
@@ -239,7 +242,7 @@ theorem directRunningTransitionBatches_eq
     directRunningTransitionBatches logicalWidth publicFits =
       runningTransitionBatches logicalWidth publicFits := by
   unfold directRunningTransitionBatches runningTransitionBatches childBatches
-  change [_] =
+  change [_, _] =
     (witnesses
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.operations
         (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
@@ -247,13 +250,13 @@ theorem directRunningTransitionBatches_eq
         NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset)
       ).map remapBatch
   unfold NightstreamFPrime.Lifecycle.Stage1.RunningTransition.operations
-  change [_] =
-    ([_] ++ witnesses
+  change [_, _] =
+    ([_] ++ ([_] ++ witnesses
       ((NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraints
         (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
           logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
-      ).map Op.assertZero)).map remapBatch
+      ).map Op.assertZero))).map remapBatch
   rw [witnesses_assertions]
   rfl
 

@@ -10,7 +10,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-theorem logicalColumnCount_eq : logicalColumnCount = 27447763 := by
+theorem logicalColumnCount_eq : logicalColumnCount = 27427722 := by
   rfl
 
 theorem physicalColumnCount_eq
@@ -18,10 +18,10 @@ theorem physicalColumnCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount logicalWidth publicFits = 27743900 := by
+    physicalColumnCount logicalWidth publicFits = 27427722 := by
   rw [physicalColumnCount, R1CS.LoweringPlan.next_eq,
     plan_firstFresh, logicalColumnCount_eq,
-    show (plan logicalWidth publicFits).freshColumnCount = 296137 from
+    show (plan logicalWidth publicFits).freshColumnCount = 0 from
       physicalFreshColumnCount_eq relation]
 
 attribute [simp] logicalColumnCount_eq

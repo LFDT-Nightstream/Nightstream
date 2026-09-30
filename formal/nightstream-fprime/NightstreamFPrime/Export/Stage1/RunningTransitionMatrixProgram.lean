@@ -65,9 +65,9 @@ def substitution (program : ApplicationProgram) : SourceSubstitution where
   grids := [roundC0Grid program, roundC1Grid program]
 
 def rowSchedule : IndexSchedule :=
-  .rangeList [⟨RunningTransitionArithmetic.rowStart, 345495⟩]
+  .rangeList [⟨RunningTransitionArithmetic.rowStart, 49359⟩]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 345495 := by
+@[simp] theorem rowSchedule_count : rowSchedule.count = 49359 := by
   rfl
 
 def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
@@ -85,7 +85,7 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 345495 := by
+    (matrixProgram geometry).rowCount = 49359 := by
   rfl
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram

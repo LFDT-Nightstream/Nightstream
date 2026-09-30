@@ -220,7 +220,7 @@ private theorem initial_le_ccs :
   exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
-    PiCCSArithmetic.ccsLogicalStart + 2 ≤
+    PiCCSArithmetic.ccsLogicalStart + 752 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.ccsLogicalStart
@@ -254,10 +254,7 @@ private theorem norm_finish_le :
 private theorem initial_le_final :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.finalIdentityLogicalStart := by
-  exact Nat.le_trans initial_le_norm (by
-    norm_num [PiCCSArithmetic.finalIdentityLogicalStart,
-      PiCCSStarts.finalIdentityLogicalStart,
-      PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart])
+  exact Nat.le_trans initial_le_norm (Nat.le_add_right _ _)
 
 private theorem final_finish_le :
     PiCCSArithmetic.finalIdentityLogicalStart + FinalIdentity.privateCount ≤
@@ -485,8 +482,11 @@ theorem emittedConstraints_varsSatisfy
           (CcsTerminal.sparseInterface ccsInterface)).main
           PiCCSArithmetic.ccsLogicalStart) → Source index := by
     intro index lower upper
-    rw [Sparse.Owned.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 2
+    have productCountEq :
+        Sparse.Owned.productCount Formal.ccsRowPolynomial = 750 := by
+      rfl
+    rw [Sparse.Owned.localLength_eq, productCountEq] at upper
+    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 752
       initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported
@@ -621,7 +621,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 23748 by
+    rw [show R1CS.totalFreshCount constraints = 2956 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart

@@ -881,7 +881,7 @@ theorem ccsRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (ccsRows logicalWidth publicFits).length = 20794 := by
+    (ccsRows logicalWidth publicFits).length = 752 := by
   rw [ccsRows, compilePacket_length]
   unfold ccsConstraints mainConstraints
   rw [ccsLogicalStart_matches logicalWidth publicFits]
@@ -955,7 +955,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 144325 := by
+    (arithmeticRows logicalWidth publicFits).length = 124283 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

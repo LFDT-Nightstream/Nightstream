@@ -37,8 +37,8 @@ structure RunningSupported {logicalWidth : Nat}
       ((running.evaluation source).eval_A matrix coefficient).c1.VarsSatisfy
         allowed
 
-/-- Support premises for the complete transition interface and its sole
-logical witness. -/
+/-- Support premises for the complete transition interface and its two
+logical witnesses: the inverse hint and the stored flag. -/
 structure InputsSupported {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -46,6 +46,7 @@ structure InputsSupported {logicalWidth : Nat}
     (allowed : Nat → Prop) : Prop where
   iteration : (interface.iteration offset).VarsSatisfy allowed
   inverse : allowed offset
+  flag : allowed (offset + 1)
   initialState : ∀ index,
     (interface.initialState offset index).VarsSatisfy allowed
   currentState : ∀ index,
@@ -202,8 +203,8 @@ private theorem recursiveFlag_varsSatisfy {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :
-    (recursiveFlag interface offset).VarsSatisfy allowed := by
-  exact ⟨support.iteration, support.inverse⟩
+    (recursiveFlag interface offset).VarsSatisfy allowed :=
+  support.flag
 
 private theorem baseFlag_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -211,44 +212,42 @@ private theorem baseFlag_varsSatisfy {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :
-    (baseFlag interface offset).VarsSatisfy allowed := by
-  exact ⟨trivial, ⟨trivial,
-    recursiveFlag_varsSatisfy interface offset allowed support⟩⟩
+    (baseFlag interface offset).VarsSatisfy allowed :=
+  Expr.VarsSatisfy.sub _ _ allowed trivial
+    (recursiveFlag_varsSatisfy interface offset allowed support)
 
 /-- Every exact running-transition constraint uses only the selected source
-support and the sole logical inverse witness selected by that support. -/
-theorem constraints_varsSatisfy {logicalWidth : Nat}
+support, the logical inverse witness, and the stored flag. -/
+theorem flatConstraints_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :
-    ∀ expression ∈ constraints interface offset,
+    ∀ expression ∈ flatConstraints (operations interface offset),
       expression.VarsSatisfy allowed := by
+  have baseFlag := baseFlag_varsSatisfy interface offset allowed support
   intro expression member
+  rw [flatConstraints_operations] at member
   simp only [constraints, List.mem_cons, List.mem_append] at member
-  rcases member with rfl | muxMember | stateMember
-  · exact ⟨support.iteration,
-      baseFlag_varsSatisfy interface offset allowed support⟩
+  rcases member with rfl | rfl | muxMember | stateMember
+  · exact Expr.VarsSatisfy.sub _ _ allowed support.flag
+      (Expr.VarsSatisfy.mul _ _ allowed support.iteration support.inverse)
+  · exact Expr.VarsSatisfy.sub _ _ allowed trivial
+      (Expr.VarsSatisfy.mul _ _ allowed support.iteration baseFlag)
   · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
-    change
-      (((baseFlag interface offset).VarsSatisfy allowed ∧ True) ∧
-        ((recursiveFlag interface offset).VarsSatisfy allowed ∧
-          (runningWord (interface.recursive offset) index).VarsSatisfy
-            allowed)) ∧
-        (True ∧ (runningWord (interface.output offset) index).VarsSatisfy
-          allowed)
-    exact ⟨⟨⟨baseFlag_varsSatisfy interface offset allowed support,
-          trivial⟩,
-        ⟨recursiveFlag_varsSatisfy interface offset allowed support,
-          runningWord_varsSatisfy (interface.recursive offset) allowed
-            support.recursive index⟩⟩,
-      ⟨trivial,
-        runningWord_varsSatisfy (interface.output offset) allowed
-          support.output index⟩⟩
+    exact Expr.VarsSatisfy.sub _ _ allowed
+      (Expr.VarsSatisfy.sub _ _ allowed
+        (runningWord_varsSatisfy (interface.output offset) allowed
+          support.output index) trivial)
+      (Expr.VarsSatisfy.mul _ _ allowed support.flag
+        (Expr.VarsSatisfy.sub _ _ allowed
+          (runningWord_varsSatisfy (interface.recursive offset) allowed
+            support.recursive index) trivial))
   · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
-    simp only [baseStateConstraint, Expr.VarsSatisfy]
-    exact ⟨baseFlag_varsSatisfy interface offset allowed support,
-      support.initialState index, trivial, support.currentState index⟩
+    exact Expr.VarsSatisfy.sub _ _ allowed trivial
+      (Expr.VarsSatisfy.mul _ _ allowed baseFlag
+        (Expr.VarsSatisfy.sub _ _ allowed (support.initialState index)
+          (support.currentState index)))
 
 end NightstreamFPrime.Lifecycle.Stage1.RunningTransition

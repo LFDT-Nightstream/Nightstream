@@ -2,11 +2,12 @@ import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Polynomial.Sparse
 
 /-!
-Owns the physical multiplication-count model for the reusable sparse
-quadratic-extension polynomial evaluator.
+Owns the physical footprint of the owned sparse quadratic-extension polynomial
+evaluator. Every stored product cell and both result cells are one rank-one
+row, so the evaluator needs no lowering cell.
 
-The count model follows the symbolic expression constructors. It does not
-inspect a physical column number or evaluate an emitted circuit package.
+The proof follows the symbolic recipe constructors. It does not inspect a
+physical column number or evaluate an emitted circuit package.
 -/
 
 namespace NightstreamFPrime.Layout.Polynomial.Sparse
@@ -15,235 +16,107 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Layout.Polynomial.Horner
+open NightstreamFPrime.Gadgets.Polynomial.Sparse
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-- Multiplication-node counts for the two base-field components. -/
-structure Counts where
-  c0 : Nat
-  c1 : Nat
-deriving DecidableEq
+private theorem storeProducts_direct :
+    ∀ (start : Nat) (accumulated : KExpr) (rest : List KExpr),
+      KAffine accumulated → (∀ factor ∈ rest, KAffine factor) →
+      R1CS.RecipesDirect start
+          (Owned.storeProducts start accumulated rest).recipes ∧
+        KAffine (Owned.storeProducts start accumulated rest).output
+  | _, _, [], accumulatedAffine, _ => ⟨trivial, accumulatedAffine⟩
+  | start, accumulated, factor :: rest, accumulatedAffine, restAffine => by
+      have tail := storeProducts_direct (start + 3)
+        (NightstreamFPrime.Gadgets.Polynomial.Horner.productAt start) rest
+        ⟨R1CS.isAffine_var _, R1CS.isAffine_var _⟩
+        (fun current member => restAffine current (by simp [member]))
+      refine ⟨?_, tail.2⟩
+      exact R1CS.recipesDirect_append start _ _
+        (mulRecipes_direct start accumulated factor accumulatedAffine
+          (restAffine factor (by simp)))
+        (by simpa using tail.1)
 
-namespace Counts
-
-def zero : Counts := ⟨0, 0⟩
-
-def add (left right : Counts) : Counts :=
-  ⟨left.c0 + right.c0, left.c1 + right.c1⟩
-
-/-- Cost of one symbolic quadratic-extension multiplication. -/
-def mul (left right : Counts) : Counts :=
-  ⟨left.c0 + right.c0 + left.c1 + right.c1 + 3,
-    left.c0 + right.c1 + left.c1 + right.c0 + 2⟩
-
-end Counts
-
-def expressionCounts (value : KExpr) : Counts :=
-  ⟨R1CS.mulCount value.c0, R1CS.mulCount value.c1⟩
-
-@[simp] theorem expressionCounts_zero :
-    expressionCounts KExpr.zero = Counts.zero := by
-  rfl
-
-@[simp] theorem expressionCounts_one :
-    expressionCounts KExpr.one = Counts.zero := by
-  rfl
-
-@[simp] theorem expressionCounts_constant (value : K) :
-    expressionCounts
-      (NightstreamFPrime.Gadgets.Polynomial.Sparse.constant value) =
-        Counts.zero := by
-  rfl
-
-@[simp] theorem expressionCounts_add (left right : KExpr) :
-    expressionCounts (KExpr.add left right) =
-      Counts.add (expressionCounts left) (expressionCounts right) := by
-  cases left
-  cases right
-  rfl
-
-@[simp] theorem expressionCounts_mul (left right : KExpr) :
-    expressionCounts (KExpr.mul left right) =
-      Counts.mul (expressionCounts left) (expressionCounts right) := by
-  cases left
-  cases right
-  simp [expressionCounts, Counts.mul, KExpr.mul, R1CS.mulCount]
-  constructor <;> omega
-
-def powCounts (value : Counts) : Nat → Counts
-  | 0 => Counts.zero
-  | exponent + 1 => Counts.mul (powCounts value exponent) value
-
-theorem expressionCounts_pow (value : KExpr) : ∀ exponent,
-    expressionCounts
-        (NightstreamFPrime.Gadgets.Polynomial.Sparse.pow value exponent) =
-      powCounts (expressionCounts value) exponent
-  | 0 => rfl
-  | exponent + 1 => by
-      simp only [NightstreamFPrime.Gadgets.Polynomial.Sparse.pow,
-        powCounts, expressionCounts_mul]
-      rw [expressionCounts_pow value exponent]
-
-def multiplyPowerCounts
-    (accumulated value : Counts) (exponent : Nat) : Counts :=
-  if exponent = 0 then accumulated
-  else Counts.mul accumulated (powCounts value exponent)
-
-theorem expressionCounts_multiplyPower
-    (accumulated value : KExpr) (exponent : Nat) :
-    expressionCounts
-        (NightstreamFPrime.Gadgets.Polynomial.Sparse.multiplyPower
-          accumulated value exponent) =
-      multiplyPowerCounts (expressionCounts accumulated)
-        (expressionCounts value) exponent := by
-  by_cases zero : exponent = 0
-  · simp [NightstreamFPrime.Gadgets.Polynomial.Sparse.multiplyPower,
-      multiplyPowerCounts, zero]
-  · simp only [NightstreamFPrime.Gadgets.Polynomial.Sparse.multiplyPower,
-      multiplyPowerCounts, zero, if_false, expressionCounts_mul]
-    rw [expressionCounts_pow]
-
-def monomialCounts {Field : Type} {matrixCount : Nat}
-    (monomial : Monomial Field matrixCount)
-    (point : Fin matrixCount → Counts) : Counts :=
-  (canonicalFinIndices matrixCount).foldl
-    (fun accumulated index =>
-      multiplyPowerCounts accumulated (point index)
-        (monomial.exponents index))
-    Counts.zero
-
-private theorem expressionCounts_monomialFold {matrixCount : Nat}
+private theorem compileMonomial_direct {matrixCount : Nat} (start : Nat)
     (monomial : Monomial K matrixCount)
-    (point : Fin matrixCount → KExpr) :
-    ∀ (indices : List (Fin matrixCount)) (initial : KExpr),
-      expressionCounts
-          (indices.foldl
-            (fun accumulated index =>
-              NightstreamFPrime.Gadgets.Polynomial.Sparse.multiplyPower
-                accumulated (point index) (monomial.exponents index))
-            initial) =
-        indices.foldl
-          (fun accumulated index =>
-            multiplyPowerCounts accumulated (expressionCounts (point index))
-              (monomial.exponents index))
-          (expressionCounts initial)
-  | [], _ => rfl
-  | index :: indices, initial => by
-      simp only [List.foldl_cons]
-      rw [expressionCounts_monomialFold monomial point indices]
-      rw [expressionCounts_multiplyPower]
-
-theorem expressionCounts_evaluateMonomial {matrixCount : Nat}
-    (monomial : Monomial K matrixCount)
-    (point : Fin matrixCount → KExpr) :
-    expressionCounts
-        (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
-          monomial point) =
-      monomialCounts monomial (fun index => expressionCounts (point index)) := by
-  unfold NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
-    monomialCounts
-  rw [expressionCounts_monomialFold]
-  rfl
-
-def polynomialCounts {Field : Type} {matrixCount : Nat}
-    (polynomial : ConstraintPolynomial Field matrixCount)
-    (point : Fin matrixCount → Counts) : Counts :=
-  polynomial.terms.foldl
-    (fun accumulated monomial =>
-      Counts.add accumulated (monomialCounts monomial point))
-    Counts.zero
-
-private theorem expressionCounts_polynomialFold {matrixCount : Nat}
-    (point : Fin matrixCount → KExpr) :
-    ∀ (terms : List (Monomial K matrixCount)) (initial : KExpr),
-      expressionCounts
-          (terms.foldl
-            (fun accumulated monomial =>
-              KExpr.add accumulated
-                (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
-                  monomial point))
-            initial) =
-        terms.foldl
-          (fun accumulated monomial =>
-            Counts.add accumulated
-              (monomialCounts monomial
-                (fun index => expressionCounts (point index))))
-          (expressionCounts initial)
-  | [], _ => rfl
-  | monomial :: terms, initial => by
-      simp only [List.foldl_cons]
-      rw [expressionCounts_polynomialFold point terms]
-      rw [expressionCounts_add, expressionCounts_evaluateMonomial]
-
-theorem expressionCounts_evaluate {matrixCount : Nat}
-    (polynomial : ConstraintPolynomial K matrixCount)
-    (point : Fin matrixCount → KExpr) :
-    expressionCounts
-        (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluate polynomial point) =
-      polynomialCounts polynomial
-        (fun index => expressionCounts (point index)) := by
-  unfold NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluate polynomialCounts
-  rw [expressionCounts_polynomialFold]
-  rfl
-
-def linearPolynomialCounts {Field : Type} {matrixCount : Nat}
-    (polynomial : ConstraintPolynomial Field matrixCount) : Counts :=
-  polynomialCounts polynomial (fun _ => Counts.zero)
-
-theorem expressionCounts_evaluate_of_linear {matrixCount : Nat}
-    (polynomial : ConstraintPolynomial K matrixCount)
     (point : Fin matrixCount → KExpr)
-    (linear : ∀ index, KExprLinear (point index)) :
-    expressionCounts
-        (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluate polynomial point) =
-      linearPolynomialCounts polynomial := by
-  rw [expressionCounts_evaluate]
-  unfold linearPolynomialCounts
-  congr 2
-  funext index
-  simp [expressionCounts, Counts.zero, (linear index).c0_mulCount,
-    (linear index).c1_mulCount]
+    (pointAffine : ∀ index, KAffine (point index)) :
+    R1CS.RecipesDirect start (Owned.compileMonomial start monomial point).recipes ∧
+      KAffine (Owned.compileMonomial start monomial point).output := by
+  have factorsAffine : ∀ factor ∈ Owned.factors monomial point, KAffine factor := by
+    intro factor member
+    simp only [Owned.factors, List.mem_flatMap, List.mem_replicate] at member
+    rcases member with ⟨index, _, _, rfl⟩
+    exact pointAffine index
+  unfold Owned.compileMonomial
+  cases equals : Owned.factors monomial point with
+  | nil => exact ⟨trivial, R1CS.isAffine_const _, R1CS.isAffine_const _⟩
+  | cons first rest =>
+      rw [equals] at factorsAffine
+      have firstAffine := factorsAffine first (by simp)
+      exact storeProducts_direct start _ rest
+        ⟨R1CS.IsAffine.add (R1CS.IsAffine.const_mul _ firstAffine.1)
+            (R1CS.IsAffine.const_mul _ firstAffine.2),
+          R1CS.IsAffine.add (R1CS.IsAffine.const_mul _ firstAffine.2)
+            (R1CS.IsAffine.const_mul _ firstAffine.1)⟩
+        (fun factor member => factorsAffine factor (by simp [member]))
 
-theorem monomialCounts_liftMonomial
-    {Base : Type}
-    {matrixCount : Nat}
-    (lift : Base → K)
-    (monomial : Monomial Base matrixCount)
-    (point : Fin matrixCount → Counts) :
-    monomialCounts
-        (ConstraintPolynomialLift.liftMonomial lift monomial) point =
-      monomialCounts monomial point := by
-  rfl
+private theorem compileTerms_direct {matrixCount : Nat}
+    (point : Fin matrixCount → KExpr)
+    (pointAffine : ∀ index, KAffine (point index)) :
+    ∀ (start : Nat) (sum : KExpr) (terms : List (Monomial K matrixCount)),
+      KAffine sum →
+      R1CS.RecipesDirect start (Owned.compileTerms point start sum terms).recipes ∧
+        KAffine (Owned.compileTerms point start sum terms).output
+  | _, _, [], sumAffine => ⟨trivial, sumAffine⟩
+  | start, sum, monomial :: rest, sumAffine => by
+      let term := Owned.compileMonomial start monomial point
+      have termDirect := compileMonomial_direct start monomial point
+        pointAffine
+      have tail := compileTerms_direct point pointAffine
+        (start + term.recipes.length) (KExpr.add sum term.output) rest
+        ⟨R1CS.IsAffine.add sumAffine.1 termDirect.2.1,
+          R1CS.IsAffine.add sumAffine.2 termDirect.2.2⟩
+      exact ⟨R1CS.recipesDirect_append start _ _ termDirect.1 tail.1, tail.2⟩
 
-private theorem polynomialCounts_map_liftMonomial
-    {Base : Type}
-    {matrixCount : Nat}
-    (lift : Base → K)
-    (point : Fin matrixCount → Counts) :
-    ∀ (terms : List (Monomial Base matrixCount)) (initial : Counts),
-      (terms.map (ConstraintPolynomialLift.liftMonomial lift)).foldl
-          (fun accumulated monomial =>
-            Counts.add accumulated (monomialCounts monomial point)) initial =
-        terms.foldl
-          (fun accumulated monomial =>
-            Counts.add accumulated (monomialCounts monomial point)) initial
-  | [], _ => rfl
-  | monomial :: terms, initial => by
-      simp only [List.map_cons, List.foldl_cons,
-        monomialCounts_liftMonomial]
-      exact polynomialCounts_map_liftMonomial lift point terms _
+/-- Every stored product and both result cells are one rank-one row. -/
+theorem recipes_direct {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Owned.Interface matrixCount) (offset : Nat)
+    (pointAffine : ∀ index, KAffine (interface.point offset index)) :
+    R1CS.RecipesDirect offset (Owned.recipes polynomial interface offset) := by
+  have terms := compileTerms_direct (interface.point offset) pointAffine
+    offset KExpr.zero polynomial.terms
+    ⟨R1CS.isAffine_const _, R1CS.isAffine_const _⟩
+  exact R1CS.recipesDirect_append offset _ _ terms.1
+    ⟨R1CS.IsDirectRecipe.of_affine _ terms.2.1,
+      R1CS.IsDirectRecipe.of_affine _ terms.2.2, trivial⟩
 
-theorem linearPolynomialCounts_liftConstraintPolynomial
-    {Base : Type}
-    {matrixCount : Nat}
-    (lift : Base → K)
-    (polynomial : ConstraintPolynomial Base matrixCount) :
-    linearPolynomialCounts
-        (ConstraintPolynomialLift.liftConstraintPolynomial lift polynomial) =
-      linearPolynomialCounts polynomial := by
-  unfold linearPolynomialCounts polynomialCounts
-    ConstraintPolynomialLift.liftConstraintPolynomial
-  exact polynomialCounts_map_liftMonomial lift (fun _ => Counts.zero)
-    polynomial.terms Counts.zero
+theorem ownedCircuit_totalFreshCount {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Owned.Interface matrixCount) (offset : Nat)
+    (pointAffine : ∀ index, KAffine (interface.point offset index)) :
+    R1CS.totalFreshCount (flatConstraints (Circuit.ops
+      (Owned.circuit polynomial interface).main offset)) = 0 := by
+  change R1CS.totalFreshCount
+    (flatConstraints (Owned.opsAt polynomial interface offset)) = 0
+  rw [Owned.flatConstraints_opsAt]
+  exact R1CS.recipeConstraints_totalFreshCount offset _
+    (recipes_direct polynomial interface offset pointAffine)
+
+theorem ownedCircuit_totalRowCount {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Owned.Interface matrixCount) (offset : Nat)
+    (pointAffine : ∀ index, KAffine (interface.point offset index)) :
+    R1CS.totalRowCount (flatConstraints (Circuit.ops
+      (Owned.circuit polynomial interface).main offset)) =
+      Owned.productCount polynomial + 2 := by
+  change R1CS.totalRowCount
+    (flatConstraints (Owned.opsAt polynomial interface offset)) = _
+  rw [Owned.flatConstraints_opsAt,
+    R1CS.recipeConstraints_totalRowCount offset _
+      (recipes_direct polynomial interface offset pointAffine),
+    Owned.recipes_length]
 
 end NightstreamFPrime.Layout.Polynomial.Sparse

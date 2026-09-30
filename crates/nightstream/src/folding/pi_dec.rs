@@ -165,11 +165,12 @@ fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Re
 }
 
 fn validate_r_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected =
-        s.n.max(neo_reductions::common::superneo_carrier_width(s.m))
-            .next_power_of_two()
-            .max(2)
-            .trailing_zeros() as usize;
+    let expected = s
+        .domain_rows()
+        .max(neo_reductions::common::superneo_carrier_width(s.m))
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     if claim.r.len() != expected {
         return Err(Error::RShape(owner));
     }

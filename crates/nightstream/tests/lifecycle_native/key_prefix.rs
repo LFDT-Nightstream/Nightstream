@@ -10,8 +10,8 @@ use crate::lifecycle::validate_key_prefix;
 fn preparation_requires_the_exact_selected_key_prefix_authority() {
     // ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts:
     // four private words and four addition outputs require eight retained words.
-    let addition_width: usize = 146_262_276 + 41 * 8;
-    let golden_width: usize = 146_262_276 + 41 * 7_700;
+    let addition_width: usize = 133_298_978 + 41 * 8;
+    let golden_width: usize = 133_298_978 + 41 * 7_700;
     for width in [
         addition_width,
         golden_width,

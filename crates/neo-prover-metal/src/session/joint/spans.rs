@@ -7,11 +7,36 @@
 //! to the next layer. Field addition is exact, so the grouping cannot change
 //! an opening. A form coordinate scans the spans that start less than the
 //! longest span length before it, so long spans make that scan long.
+//!
+//! The census reserves the bytes of every host array, including its
+//! temporary arrays, before it allocates it. A census that does not fit its
+//! budget stops, and the caller loads a smaller window.
+
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use neo_math::D;
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 
 use crate::MetalError;
+
+/// Host bytes that span censuses may still allocate.
+pub(super) struct CensusBudget(AtomicUsize);
+
+impl CensusBudget {
+    pub(super) fn new(bytes: usize) -> Self {
+        Self(AtomicUsize::new(bytes))
+    }
+
+    pub(super) fn left(&self) -> usize {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    fn reserve(&self, bytes: usize) -> bool {
+        self.0
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| left.checked_sub(bytes))
+            .is_ok()
+    }
+}
 
 /// Spans with distinct start columns and their grouped references.
 pub(super) struct SpanLayer {
@@ -58,13 +83,18 @@ pub(super) fn mark_blocks(layers: &[SpanLayer], active: &mut [bool]) {
 }
 
 /// Group the runs of `matrix` into span layers over `columns` carrier columns.
-pub(super) fn span_layers(matrix: &SuperneoMatrixCache, columns: usize) -> Result<Vec<SpanLayer>, MetalError> {
+/// `None` means the census does not fit `budget`.
+pub(super) fn span_layers(
+    matrix: &SuperneoMatrixCache,
+    columns: usize,
+    budget: &CensusBudget,
+) -> Result<Option<Vec<SpanLayer>>, MetalError> {
     let runs = matrix
         .compact_device_parts()
         .ok_or(MetalError::Shape("unfinished opening matrix"))?
         .geometric_runs;
     let mut invalid = false;
-    let (layer, mut deferred) = span_layer(runs, columns, |visit| {
+    let first = span_layer(runs, columns, budget, |visit| {
         matrix.for_each_compact_geometric_run(|index, row, _, _, _, _| {
             match (u32::try_from(row), u32::try_from(index)) {
                 (Ok(row), Ok(index)) => visit(row, index),
@@ -77,27 +107,39 @@ pub(super) fn span_layers(matrix: &SuperneoMatrixCache, columns: usize) -> Resul
             "one-joint geometric opening metadata exceeds device limits",
         ));
     }
+    let Some((layer, mut deferred)) = first else {
+        return Ok(None);
+    };
     let mut layers = vec![layer];
     while !deferred.is_empty() {
-        let (layer, next) = span_layer(runs, columns, |visit| {
+        let next = span_layer(runs, columns, budget, |visit| {
             for &[row, index] in &deferred {
                 visit(row, index);
             }
         })?;
+        let Some((layer, next)) = next else {
+            return Ok(None);
+        };
         layers.push(layer);
         deferred = next;
     }
-    Ok(layers)
+    Ok(Some(layers))
 }
 
 /// Build one layer from the visited `(row, run)` references, and return the
-/// references whose start already has a span of another shape.
+/// references whose start already has a span of another shape. `None` means
+/// the layer does not fit `budget`.
 fn span_layer(
     runs: &[[u64; 3]],
     columns: usize,
+    budget: &CensusBudget,
     mut references: impl FnMut(&mut dyn FnMut(u32, u32)),
-) -> Result<(SpanLayer, Vec<[u32; 2]>), MetalError> {
+) -> Result<Option<(SpanLayer, Vec<[u32; 2]>)>, MetalError> {
     let words = columns / 64 + 1;
+    // The start bitset and its word ranks.
+    if !budget.reserve(words * (size_of::<u64>() + size_of::<u32>())) {
+        return Ok(None);
+    }
     let mut starts = vec![0u64; words];
     let mut longest = 0u64;
     let mut outside = false;
@@ -126,10 +168,15 @@ fn span_layer(
     };
     let same_shape = |left: [u64; 3], right: [u64; 3]| left[0] == right[0] && left[2] == right[2];
 
-    let mut representatives = vec![u32::MAX; spans as usize];
-    let mut counts = vec![0u32; spans as usize];
-    let mut deferred = Vec::new();
-    references(&mut |row, index| {
+    // Representatives, counts, cursors and offsets, then the shapes.
+    let spans = spans as usize;
+    if !budget.reserve(spans * (4 * size_of::<u32>() + size_of::<[u64; 2]>()) + size_of::<u32>()) {
+        return Ok(None);
+    }
+    let mut representatives = vec![u32::MAX; spans];
+    let mut counts = vec![0u32; spans];
+    let mut deferred_count = 0usize;
+    references(&mut |_, index| {
         let run = runs[index as usize];
         let span = span_of(run[0]);
         if representatives[span] == u32::MAX {
@@ -138,7 +185,7 @@ fn span_layer(
         if same_shape(runs[representatives[span] as usize], run) {
             counts[span] += 1;
         } else {
-            deferred.push([row, index]);
+            deferred_count += 1;
         }
     });
     let mut offsets = Vec::with_capacity(counts.len() + 1);
@@ -153,7 +200,12 @@ fn span_layer(
     }
     let mut cursors = offsets[..counts.len()].to_vec();
     let total = offsets[counts.len()] as usize;
+    // Rows and coefficients of this layer, and the references it defers.
+    if !budget.reserve(total * (size_of::<u32>() + size_of::<u64>()) + deferred_count * size_of::<[u32; 2]>()) {
+        return Ok(None);
+    }
     let (mut rows, mut coefficients) = (vec![0u32; total], vec![0u64; total]);
+    let mut deferred = Vec::with_capacity(deferred_count);
     references(&mut |row, index| {
         let run = runs[index as usize];
         let span = span_of(run[0]);
@@ -161,13 +213,15 @@ fn span_layer(
             let cursor = cursors[span] as usize;
             (rows[cursor], coefficients[cursor]) = (row, run[1]);
             cursors[span] += 1;
+        } else {
+            deferred.push([row, index]);
         }
     });
     let shapes = representatives
         .iter()
         .map(|&run| [runs[run as usize][0], runs[run as usize][2]])
         .collect();
-    Ok((
+    Ok(Some((
         SpanLayer {
             starts,
             ranks,
@@ -178,5 +232,5 @@ fn span_layer(
             longest,
         },
         deferred,
-    ))
+    )))
 }

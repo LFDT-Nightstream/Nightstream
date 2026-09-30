@@ -87,10 +87,19 @@ struct OpeningLayout {
     metadata_bytes: usize,
     /// Span layers of each application matrix; empty without geometric runs.
     spans: Vec<Vec<SpanLayer>>,
+    /// Host bytes that the span census reserved, with its temporary arrays.
+    census_bytes: usize,
 }
 
 impl OpeningLayout {
-    fn measure(matrices: &[SuperneoMatrixCache], blocks: usize, include_pad: bool) -> Result<Self, MetalError> {
+    /// Size the opening metadata of one window. The span census allocates at
+    /// most `census_bytes` host bytes; `None` means it needs more.
+    fn measure(
+        matrices: &[SuperneoMatrixCache],
+        blocks: usize,
+        include_pad: bool,
+        census_bytes: usize,
+    ) -> Result<Option<Self>, MetalError> {
         let pad = if include_pad { blocks } else { 0 };
         let mut layout = Self {
             active: pad,
@@ -99,16 +108,22 @@ impl OpeningLayout {
             max_chunks: pad.div_ceil(CHUNK_BLOCKS),
             ..Self::default()
         };
-        layout.spans = matrices
+        let budget = spans::CensusBudget::new(census_bytes);
+        let census: Option<Vec<_>> = matrices
             .par_iter()
             .map(|matrix| {
                 if matrix.compact_geometric_run_count() == 0 {
-                    Ok(Vec::new())
+                    Ok(Some(Vec::new()))
                 } else {
-                    spans::span_layers(matrix, blocks * D)
+                    spans::span_layers(matrix, blocks * D, &budget)
                 }
             })
             .collect::<Result<_, MetalError>>()?;
+        let Some(census) = census else {
+            return Ok(None);
+        };
+        layout.spans = census;
+        layout.census_bytes = census_bytes - budget.left();
         let mut active = vec![false; blocks];
         let mut transpose_scratch = 0usize;
         for (matrix, layers) in matrices.iter().zip(&layout.spans) {
@@ -191,18 +206,19 @@ impl OpeningLayout {
                 checked_product(&[count.max(1), width], "opening index size overflow")?,
             ])?;
         }
-        // The host census stays live while its device copy exists.
-        let mut geometric = 0usize;
+        // The host census, with its temporary arrays, stays live while its
+        // device copy exists.
+        let mut geometric = layout.census_bytes;
         for layer in layout.spans.iter().flatten() {
             layout.max_spans = layout.max_spans.max(layer.span_count());
             geometric = checked_sum(&[
                 geometric,
-                checked_product(&[layer.device_bytes(), 2], "geometric index size overflow")?,
+                layer.device_bytes(),
                 size_of::<u64>() + size_of::<DeviceGeometricOpeningPlan>(),
             ])?;
         }
         layout.metadata_bytes = checked_sum(&[host, device, geometric, transpose_scratch.max(blocks)])?;
-        Ok(layout)
+        Ok(Some(layout))
     }
 
     fn evaluation_bytes(&self, rows: usize, point_len: usize, active_witnesses: usize) -> Result<usize, MetalError> {
@@ -297,7 +313,18 @@ impl MetalSession {
                     requested_end = next_row + smaller_window(count, count_peak, plan.workspace_bytes)?;
                     continue;
                 }
-                let layout = OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad)?;
+                // The census is host memory beside the window. It stops before
+                // it exceeds the workspace, and then the window shrinks.
+                let census_bytes = plan
+                    .workspace_bytes
+                    .saturating_sub(window.workspace_peak_bytes);
+                let Some(layout) =
+                    OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad, census_bytes)?
+                else {
+                    requested_end =
+                        next_row + smaller_window(count, plan.workspace_bytes.saturating_add(1), plan.workspace_bytes)?;
+                    continue;
+                };
                 let evaluation = layout
                     .evaluation_bytes(count, point.len(), masks.active_witnesses().len())?
                     .max(

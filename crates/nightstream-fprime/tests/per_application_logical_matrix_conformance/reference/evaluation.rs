@@ -8,10 +8,10 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 6_064_606;
+pub const ACTIVE_ROWS: usize = 4_131_470;
 pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 242_590_792;
-pub const CARRIER_WIDTH: usize = 242_590_842;
+pub const LOGICAL_WIDTH: usize = 173_939_080;
+pub const CARRIER_WIDTH: usize = 173_939_130;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Evaluation {
@@ -164,6 +164,7 @@ fn evaluate_range(
     let mut public_bit_mutations = [None; 256];
     let mut zero_slot_mutation_rejected = false;
     let mut candidate_columns = Vec::new();
+    let matrix_degrees = relation.slot_degrees();
     program.visit_rows(start, end, sources, |ordinal, row| {
         if ordinal != next {
             return Err(format!("logical row order changed: got {ordinal}, expected {next}"));
@@ -181,9 +182,14 @@ fn evaluate_range(
         for (slot, detected) in matrix_mutations.iter_mut().enumerate() {
             if detected.is_none() {
                 let mut changed = matrix_values;
-                changed[slot] += Field::ONE;
-                if relation.evaluate(&changed) != Field::ZERO {
-                    *detected = Some(ordinal);
+                // A unit change can remain a root of a range polynomial.
+                // Its decoded degree gives the required distinct probes.
+                for _ in 0..matrix_degrees[slot] {
+                    changed[slot] += Field::ONE;
+                    if relation.evaluate(&changed) != Field::ZERO {
+                        *detected = Some(ordinal);
+                        break;
+                    }
                 }
             }
         }

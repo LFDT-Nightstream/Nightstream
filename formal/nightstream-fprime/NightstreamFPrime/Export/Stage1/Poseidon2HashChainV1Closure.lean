@@ -9,9 +9,9 @@ are fixed definitions. The deterministic Lean reduction uses no external
 premise; strong-set invertibility is proved by
 `Spec.Phi81StrongSet.lowNormInvertibility`.
 The final quantitative claim remains conditional on the owner-recorded
-Module-SIS, ChaCha20, wide-reduction, Poseidon2, and Fiat--Shamir/forking
-analyses; this package has no adversary or probability model that could state
-those analyses as kernel theorems.
+Module-SIS, wide-reduction, Poseidon2, and Fiat--Shamir/forking analyses and
+on a SHAKE128 random-oracle analysis; this package has no adversary or
+probability model that could state those analyses as kernel theorems.
 
 This module does not execute or authorize a proof backend.
 -/

@@ -31,7 +31,7 @@ theorem directSemantics_imply_samplerSpec
     (samplerGeometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
@@ -94,7 +94,7 @@ theorem directSemantics_imply_samplerChain
     (samplerGeometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (piCcsEncoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))

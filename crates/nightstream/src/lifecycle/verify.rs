@@ -161,7 +161,10 @@ impl PreparedLifecycle {
                 return Err(VerifyError::Fresh("witness public projection differs from x"));
             }
         }
-        let commitments = self.backend.commit(&running.witnesses)?;
+        // One key expansion commits the running witnesses and the fresh carrier.
+        let witnesses: Vec<_> = running.witnesses.iter().chain([&fresh.witness.Z]).collect();
+        let mut commitments = self.backend.commit(&witnesses)?;
+        let commitment = commitments.pop().expect("one commitment per witness");
         for (index, (claim, commitment)) in running.claims.iter().zip(commitments).enumerate() {
             if commitment != claim.c {
                 return Err(VerifyError::Running {
@@ -170,10 +173,6 @@ impl PreparedLifecycle {
                 });
             }
         }
-        let commitment = self
-            .backend
-            .commit(std::slice::from_ref(&fresh.witness.Z))?
-            .remove(0);
         if commitment != fresh.claim.c {
             return Err(VerifyError::Fresh("fixed-key commitment differs from the witness"));
         }

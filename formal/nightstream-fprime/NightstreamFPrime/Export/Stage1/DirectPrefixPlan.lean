@@ -117,7 +117,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan payloadForms values geometry).rowCount = 4834064 := by
+    (plan payloadForms values geometry).rowCount = 2900928 := by
   simp [plan, poseidonPlan, pilotPiCcsPlan, pilotPlan, piCcsPlan,
     samplerPlan, piRlcPlan]
 
@@ -147,7 +147,7 @@ structure Semantics {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   pilot : PilotPoseidonPlan.Semantics (pilotGeometry geometry) assignment
   piCcsEncoding : PiCCSPoseidonPreservation.Encoding payloadForms geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment
@@ -168,7 +168,7 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   retained : PiRLCRetainedPreservation.Encodes
     (prefixGeometry geometry) assignment base groupValue
   piRlcValues : ∀ invocation,
@@ -200,7 +200,7 @@ theorem rowsZero_implies_semantics
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiCCSPoseidonPlan.oneColumn geometry) = 1)
     (encodes : Encodes payloadForms values geometry assignment base groupValue)
     (rowsZero : (plan payloadForms values geometry).RowsZero assignment) :

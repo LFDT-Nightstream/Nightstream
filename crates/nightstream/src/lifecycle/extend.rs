@@ -87,7 +87,7 @@ impl PreparedLifecycle {
                 let fresh_claim = fresh.claim.clone();
                 let (next, proof) = self.prove(vec![fresh], running)?;
                 let inputs = self.step_inputs(&state, &prior, &fresh_claim, &proof, application_witness, output)?;
-                Ok(self.complete_step(inputs, next.witnesses, application_values)?)
+                Ok(self.complete_proved_step(inputs, next, application_values)?)
             }
         }
     }

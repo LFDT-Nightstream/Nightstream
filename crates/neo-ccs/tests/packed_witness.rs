@@ -92,3 +92,25 @@ fn signed_unit_column_masks_reject_noncanonical_shapes() {
         .expect("row 63 is canonical for a 64-row matrix");
     assert_eq!(high_row[(63, 0)], Goldilocks::ONE);
 }
+
+#[test]
+fn balanced_columns_pack_like_column_masks_and_reject_other_values() {
+    // Three rows, four columns; the values stop inside the third column.
+    let values = [1i8, 0, -1, 0, -1, 1, 1, 1];
+    let packed = Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &values).unwrap();
+    let expected = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(
+        3,
+        4,
+        &[0b001, 0b100, 0b011, 0],
+        &[0b100, 0b010, 0, 0],
+    )
+    .unwrap();
+    assert_eq!(
+        packed.packed_signed_unit_column_masks(),
+        expected.packed_signed_unit_column_masks()
+    );
+    assert_eq!(packed, expected);
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0, 2]).is_err());
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0, 0, -2]).is_err());
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0; 13]).is_err());
+}

@@ -27,30 +27,42 @@ fn norm_coefficients(
 ) -> [K; 4] {
     let mut result = [K::ZERO; 4];
     for (source, table) in assignments.iter().enumerate() {
-        let term = |index| {
-            let (low, high) = table.pair(index);
-            prefix::norm_pair(low, high).map(|value| value * weights.at(pair_offset + index))
+        let pairs = table.len().div_ceil(2);
+        let coefficients = match table.early_pairs() {
+            Some(early) => prefix::early_norm_coefficients(&early, pairs, weights, pair_offset),
+            None => pair_norm_coefficients(table, pairs, weights, pair_offset),
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let coefficients = (0..table.len().div_ceil(2))
-            .into_par_iter()
-            .map(term)
-            .reduce(
-                || [K::ZERO; 4],
-                |left, right| std::array::from_fn(|index| left[index] + right[index]),
-            );
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let coefficients = (0..table.len().div_ceil(2))
-            .map(term)
-            .fold([K::ZERO; 4], |left, right| {
-                std::array::from_fn(|index| left[index] + right[index])
-            });
         let weight = gamma_power(gamma, source);
         for index in 0..4 {
             result[index] += weight * coefficients[index];
         }
     }
     result
+}
+
+fn pair_norm_coefficients(
+    table: &Assignment<'_>,
+    pairs: usize,
+    weights: &EqualityWeights,
+    pair_offset: usize,
+) -> [K; 4] {
+    let term = |index| {
+        let (low, high) = table.pair(index);
+        prefix::norm_pair(low, high).map(|value| value * weights.at(pair_offset + index))
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        (0..pairs).into_par_iter().map(term).reduce(
+            || [K::ZERO; 4],
+            |left, right| std::array::from_fn(|index| left[index] + right[index]),
+        )
+    }
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    {
+        (0..pairs).map(term).fold([K::ZERO; 4], |left, right| {
+            std::array::from_fn(|index| left[index] + right[index])
+        })
+    }
 }
 
 pub struct OptimizedPaperJointOracle<'a> {
@@ -261,7 +273,9 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             ));
         }
         // The completed SumCheck tables are not inputs to witness openings.
+        // Their complete row window, if still retained, is the same source.
         self.assignments.clear();
+        let complete = self.fresh_tables.take_complete_window();
         self.fresh_tables.clear();
         let storage = core::mem::take(&mut self.evaluation_table);
         crate::superneo_eval::eval_real_v1_1_openings_from_rows_reusing(
@@ -270,6 +284,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             &self.witness_blocks,
             self.workspace_bytes,
             storage,
+            complete,
         )
         .map(Some)
     }

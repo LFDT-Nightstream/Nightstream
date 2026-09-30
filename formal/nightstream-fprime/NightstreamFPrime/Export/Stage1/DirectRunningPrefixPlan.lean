@@ -81,7 +81,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 5179559 := by
+    (plan relation payloadForms values geometry).rowCount = 3246423 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff
@@ -108,7 +108,7 @@ structure Encodes
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   prior : DirectPrefixPlan.Encodes payloadForms values (prefixGeometry geometry) assignment
     base groupValue
   transition : RunningTransitionRetainedGeometry.Encodes geometry assignment
@@ -125,7 +125,7 @@ structure Semantics
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   prior : DirectPrefixPlan.Semantics payloadForms (prefixGeometry geometry) assignment base
     groupValue
   transition : NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.PhysicalHolds
@@ -162,7 +162,7 @@ theorem rowsZero_implies_semantics
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (RunningTransitionRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes payloadForms values geometry assignment base groupValue)

@@ -174,7 +174,7 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
           rw [PiRLCSamplerPoseidonPlan.retainedBlock_slotCount]; omega⟩)
       ⟨lane.val, by omega⟩ = (Location.poseidon source lane).form geometry := by
     unfold Location.form PiRLCSamplerPoseidonPlan.interface PoseidonRetainedFamily.familyInterface
-      PoseidonRetainedFamily.outputState
+      PoseidonSboxFamilyPlan.Interface.output
     apply congrArg (fun state => SparseLayer.external state (Sampler.rateLane lane))
     funext selected
     apply congrArg ((PiRLCSamplerPoseidonPlan.retainedBlock program).form

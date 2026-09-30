@@ -1,3 +1,5 @@
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use super::block_sums::{add_pair_sums, to_extension, zero_pair_sums, TaskSums, TASK_BLOCKS};
 use super::{is_all_zero, RingEvalScratch, SuperneoZBlocks, F};
 use neo_math::{KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
@@ -52,4 +54,23 @@ pub(super) fn eval_active_blocks(scratch: &RingEvalScratch, z_blocks: &SuperneoZ
         let _ = (scratch, z_blocks);
         None
     }
+}
+
+/// Evaluate every witness against the active scratch blocks. Each block's
+/// forms are read once for all witnesses, and blocks are split across
+/// workers; the result is `eval_ring_scratch_real_z_blocks` per witness.
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+pub(super) fn eval_active_blocks_many(scratch: &RingEvalScratch, witnesses: &[&SuperneoZBlocks]) -> Vec<[K; D]> {
+    let sums = scratch
+        .active_blocks
+        .par_chunks(TASK_BLOCKS)
+        .map(|blocks| {
+            let mut sums = TaskSums::new(witnesses.len());
+            for &block in blocks {
+                sums.add_block(witnesses, block, || scratch.forms(block));
+            }
+            sums.finish()
+        })
+        .reduce(|| zero_pair_sums(witnesses.len()), add_pair_sums);
+    to_extension(sums)
 }

@@ -39,17 +39,17 @@ const PI_CCS_ROW_END: usize = 19_936_967;
 // Stage1.sourceToSpartan maps the source boundary 20_064_823 here.
 const PI_CCS_PRIVATE_END: usize = 20_064_545;
 const PI_CCS_FIRST_GENERATED_COLUMN: usize = 14_751_526;
-const PI_CCS_LOGICAL_ROW_END: usize = 3_864_823;
+const PI_CCS_LOGICAL_ROW_END: usize = 3_606_391;
 const PI_CCS_LOGICAL_BLOCK_ENDS: [usize; 9] = [
-    1_160_900,
-    2_321_800,
-    3_036_576,
-    3_051_784,
-    3_863_453,
-    3_864_783,
-    3_864_791,
+    1_062_100,
+    2_124_200,
+    2_778_144,
+    2_793_352,
+    3_605_021,
+    3_606_351,
+    3_606_359,
     PI_CCS_LOGICAL_ROW_END,
-    3_879_205,
+    3_609_315,
 ];
 const PI_CCS_LOGICAL_BLOCK_OPCODES: [usize; 9] = [2, 2, 2, 1, 0, 0, 1, 1, 2];
 const PUBLIC_INPUT_COUNT: usize = 278;

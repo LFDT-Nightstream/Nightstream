@@ -44,8 +44,8 @@ fn independent_commitment(witness: &Mat<F>) -> Commitment {
             continue;
         }
         for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
-            // Scalar ChaCha words and ordinary ring multiplication are independent
-            // of coefficient_block, mask merging and signed convolution sums.
+            // Division-reduced scalar coefficients and ordinary ring multiplication
+            // are independent of coefficient_block, mask merging and signed sums.
             let key = Rq(std::array::from_fn(|lane| {
                 F::from_u64(coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32))
             }));
@@ -106,8 +106,34 @@ fn batched_prefix_commitments_match_scalar_and_independent_ring_products() {
 }
 
 #[test]
+fn commitments_add_partial_sums_across_key_column_ranges() {
+    // Commitment tasks split each key row into 65,536-column ranges. Put
+    // nonzero columns on both sides of two range boundaries and at the end.
+    let columns = 2 * 65_536 + 7;
+    let mut positive = vec![0u64; columns];
+    let mut negative = vec![0u64; columns];
+    for (column, lanes) in [
+        (0, 0b101),
+        (65_535, 1 << (D - 1)),
+        (65_536, 0b11 << 7),
+        (131_072, 1 << 20),
+        (columns - 1, 1),
+    ] {
+        positive[column] = lanes;
+    }
+    negative[3] = 1;
+    negative[65_536] = 1 << 40;
+    let wide = Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap();
+    let narrow = column_packed(&dense(2, &[(0, 1, 1), (D - 1, 0, -1)]));
+    let batch = commit_production_signed_unit_prefix_matrices(&[wide.clone(), narrow.clone()]).unwrap();
+    assert_eq!(batch[0], commit_production_signed_unit_prefix_matrix(&wide).unwrap());
+    assert_eq!(batch[0], independent_commitment(&wide));
+    assert_eq!(batch[1], independent_commitment(&narrow));
+}
+
+#[test]
 fn empty_and_zero_batches_preserve_order_and_prefix_dimensions() {
-    assert!(commit_production_signed_unit_prefix_matrices(&[])
+    assert!(commit_production_signed_unit_prefix_matrices::<Mat<F>>(&[])
         .unwrap()
         .is_empty());
     let witnesses = [

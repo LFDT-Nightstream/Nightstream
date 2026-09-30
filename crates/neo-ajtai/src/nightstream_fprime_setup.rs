@@ -1,29 +1,38 @@
 //! Nightstream F-prime's verifier-owned indexed Ajtai setup.
 //!
 //! This module owns the Rust implementation of
-//! `nightstream-ajtai-chacha20-wide256-v1`. Lean owns its semantics and
-//! authority framing.
+//! `nightstream-ajtai-shake128-wide256-v1`. Key element `(row, block)` is
+//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`; lane `L` is
+//! output bytes `32L..32L + 32`, reduced modulo Goldilocks as one
+//! little-endian integer. Lean owns its semantics and authority framing.
 
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::{borrow::Borrow, cmp::Reverse, collections::BinaryHeap, ops::Range};
 
 use neo_ccs::Mat;
-use neo_math::{balanced::to_balanced_i128, ring::D};
+use neo_math::{
+    balanced::to_balanced_i128,
+    ring::D,
+    signed_sums::{SignedShiftSums, SplitRing},
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake128,
+};
 
 use crate::{AjtaiError, AjtaiResult, Commitment};
 
 const GOLDILOCKS_MODULUS: u128 = 18_446_744_069_414_584_321;
-const WORD_RADIX: u128 = 1_u128 << 32;
 
-pub const SETUP_ID: &[u8] = b"nightstream-ajtai-chacha20-wide256-v1";
+pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
+/// One key element's SHAKE128 input: setup ID, seed, row and block.
+pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
 pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 4_492_423;
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 3_221_095;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 // Approved public-seed MSIS matrix; applications bind their exact key prefix.
 // Lean authority: Poseidon2HashChainV1Setup.approvedMsis_carrierWidth.
@@ -37,88 +46,63 @@ pub const PRODUCTION_SEED: [u8; 32] = [
 const _: () = assert!(D == 54);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 // A raw convolution degree has at most 54 terms from each message column.
-// Each sign partition therefore fits in 92 bits, before any field reduction.
-const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (GOLDILOCKS_MODULUS - 1) < (1_u128 << 92));
+// Each term adds one 32-bit half of a key coefficient, so every signed
+// half-sum fits in i64 before any field reduction.
+const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (1_u128 << 32) < (1_u128 << 63));
 
-fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
-    state[a] = state[a].wrapping_add(state[b]);
-    state[d] ^= state[a];
-    state[d] = state[d].rotate_left(16);
-
-    state[c] = state[c].wrapping_add(state[d]);
-    state[b] ^= state[c];
-    state[b] = state[b].rotate_left(12);
-
-    state[a] = state[a].wrapping_add(state[b]);
-    state[d] ^= state[a];
-    state[d] = state[d].rotate_left(8);
-
-    state[c] = state[c].wrapping_add(state[d]);
-    state[b] ^= state[c];
-    state[b] = state[b].rotate_left(7);
+/// The SHAKE128 input of one key element. Every field has a fixed length,
+/// so distinct `(seed, row, block)` values give distinct inputs.
+pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPUT_BYTES] {
+    let mut input = [0_u8; ELEMENT_INPUT_BYTES];
+    let (setup_id, fields) = input.split_at_mut(SETUP_ID.len());
+    setup_id.copy_from_slice(SETUP_ID);
+    fields[..32].copy_from_slice(seed);
+    fields[32..36].copy_from_slice(&row.to_le_bytes());
+    fields[36..].copy_from_slice(&block.to_le_bytes());
+    input
 }
 
-/// One RFC-8439 block with nonce `row_u32_le || block_u64_le`.
-pub fn block_words(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> [u32; 16] {
-    let mut state = [0_u32; 16];
-    state[..4].copy_from_slice(&[0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574]);
-    for (word, bytes) in state[4..12].iter_mut().zip(seed.chunks_exact(4)) {
-        *word = u32::from_le_bytes(bytes.try_into().expect("four-byte key word"));
-    }
-    state[12] = lane;
-    state[13] = row;
-    state[14] = block as u32;
-    state[15] = (block >> 32) as u32;
-
-    let initial = state;
-    for _ in 0..10 {
-        quarter_round(&mut state, 0, 4, 8, 12);
-        quarter_round(&mut state, 1, 5, 9, 13);
-        quarter_round(&mut state, 2, 6, 10, 14);
-        quarter_round(&mut state, 3, 7, 11, 15);
-        quarter_round(&mut state, 0, 5, 10, 15);
-        quarter_round(&mut state, 1, 6, 11, 12);
-        quarter_round(&mut state, 2, 7, 8, 13);
-        quarter_round(&mut state, 3, 4, 9, 14);
-    }
-    for (word, original) in state.iter_mut().zip(initial) {
-        *word = word.wrapping_add(original);
-    }
-    state
+/// The SHAKE128 output of one key element: 32 bytes for each lane.
+pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; 32 * D] {
+    let mut xof = Shake128::default();
+    xof.update(&element_input(seed, row, block));
+    let mut bytes = [0_u8; 32 * D];
+    xof.finalize_xof().read(&mut bytes);
+    bytes
 }
 
-/// Reduce the first 256 ChaCha20 output bits modulo the Goldilocks prime.
+/// Reference coefficient for `lane < 54`: the lane's 32 output bytes as one
+/// little-endian integer, reduced by division modulo the Goldilocks prime.
 pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
-    let words = block_words(seed, row, block, lane);
-    let reduced = words[..8].iter().rev().fold(0_u128, |value, word| {
-        (value * WORD_RADIX + u128::from(*word)) % GOLDILOCKS_MODULUS
-    });
-    reduced as u64
+    let bytes = element_bytes(seed, row, block);
+    let chunk = &bytes[32 * lane as usize..32 * (lane as usize + 1)];
+    chunk.iter().rev().fold(0_u128, |value, byte| {
+        (value * 256 + u128::from(*byte)) % GOLDILOCKS_MODULUS
+    }) as u64
 }
 
-/// Stream the 54 coefficients of one exact indexed key element.
-///
-/// The RNG's high counter word holds the RFC-8439 nonce row, and its stream
-/// identifier holds the nonce block. One full 64-byte block is consumed per
-/// lane; only its first 256 bits enter that lane's wide reduction.
+/// The 54 coefficients of one exact indexed key element.
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
-    let mut rng = ChaCha20Rng::from_seed(*seed);
-    rng.set_stream(block);
-    rng.set_word_pos(u128::from(row) << 36);
-    let mut bytes = [0_u8; D * 64];
-    rng.fill_bytes(&mut bytes);
+    let bytes = element_bytes(seed, row, block);
     core::array::from_fn(|lane| {
-        let words: [i64; 8] = core::array::from_fn(|word| {
-            let start = lane * 64 + word * 4;
-            i64::from(u32::from_le_bytes(bytes[start..start + 4].try_into().unwrap()))
-        });
-        // For x = 2^32, x^2 = x - 1 and x^6 = 1 modulo Goldilocks.
-        // Each signed sum has magnitude at most 3 * (2^32 - 1), so i64
-        // arithmetic is exact. The scalar coefficient keeps the division reference.
-        let a = words[0] - words[2] - words[3] + words[5] + words[6];
-        let b = words[1] + words[2] - words[4] - words[5] + words[7];
-        (Goldilocks::from_i64(a) + Goldilocks::from_i64(b) * Goldilocks::from_u64(1_u64 << 32)).as_canonical_u64()
+        reduce_words(core::array::from_fn(|word| {
+            let start = 32 * lane + 4 * word;
+            u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
+        }))
     })
+}
+
+/// Reduce eight little-endian 32-bit words, one 256-bit integer, modulo
+/// Goldilocks.
+#[inline(always)]
+fn reduce_words(words: [u32; 8]) -> u64 {
+    let words = words.map(i64::from);
+    // For x = 2^32, x^2 = x - 1 and x^6 = 1 modulo Goldilocks.
+    // Each signed sum has magnitude at most 3 * (2^32 - 1), so i64
+    // arithmetic is exact. The scalar coefficient keeps the division reference.
+    let a = words[0] - words[2] - words[3] + words[5] + words[6];
+    let b = words[1] + words[2] - words[4] - words[5] + words[7];
+    (Goldilocks::from_i64(a) + Goldilocks::from_i64(b) * Goldilocks::from_u64(1_u64 << 32)).as_canonical_u64()
 }
 
 /// One nonzero block of a validated signed-unit production-key prefix.
@@ -142,53 +126,59 @@ impl SignedBlock {
     }
 }
 
-#[derive(Clone)]
-struct SignedSums {
-    positive: [u128; 2 * D - 1],
-    negative: [u128; 2 * D - 1],
-}
-
-fn add_shifted_coefficients(sum: &mut [u128; 2 * D - 1], mut positions: u64, coefficients: &[u64; D]) {
-    while positions != 0 {
-        let shift = positions.trailing_zeros() as usize;
-        for (lane, coefficient) in coefficients.iter().copied().enumerate() {
-            sum[shift + lane] += u128::from(coefficient);
-        }
-        positions &= positions - 1;
-    }
-}
-
-fn commit_row(row: u32, blocks: &[SignedBlock], output: &mut [Goldilocks]) {
-    let mut positive = [0_u128; 2 * D - 1];
-    let mut negative = [0_u128; 2 * D - 1];
+fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
+    let mut sums = SignedShiftSums::zero();
     for block in blocks {
-        let coefficients = coefficient_block(&PRODUCTION_SEED, row, block.index);
-        add_shifted_coefficients(&mut positive, block.positive, &coefficients);
-        add_shifted_coefficients(&mut negative, block.negative, &coefficients);
+        sums.add_signed_units(&split_key(row, block.index), block.positive, block.negative);
     }
-    reduce_signed_sums(&positive, &negative, output);
+    sums
 }
 
-fn reduce_signed_sums(positive: &[u128; 2 * D - 1], negative: &[u128; 2 * D - 1], output: &mut [Goldilocks]) {
-    let raw: [Goldilocks; 2 * D - 1] = core::array::from_fn(|degree| {
-        let value = (positive[degree] % GOLDILOCKS_MODULUS + GOLDILOCKS_MODULUS
-            - negative[degree] % GOLDILOCKS_MODULUS)
-            % GOLDILOCKS_MODULUS;
-        Goldilocks::from_u64(value as u64)
-    });
-    // X^54 = -X^27 - 1 and X^81 = 1. Reduce only after summing all blocks.
-    for lane in 0..D {
-        output[lane] = if lane < D / 2 {
-            let high = if lane + 81 < raw.len() {
-                raw[lane + 81]
-            } else {
-                Goldilocks::ZERO
-            };
-            raw[lane] - raw[lane + D] + high
-        } else {
-            raw[lane] - raw[lane + D / 2]
-        };
-    }
+/// One indexed key element, split for exact signed accumulation.
+fn split_key(row: u32, block: u64) -> SplitRing {
+    SplitRing::new(&coefficient_block(&PRODUCTION_SEED, row, block).map(Goldilocks::from_u64))
+}
+
+/// Key columns per commitment task. The 22 key rows alone leave workers
+/// idle, so each row is also split into column ranges.
+const TASK_COLUMNS: u64 = 1 << 16;
+
+/// The blocks whose key column lies in `columns`.
+fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
+    let start = blocks.partition_point(|block| block.index < columns.start);
+    let end = blocks.partition_point(|block| block.index < columns.end);
+    &blocks[start..end]
+}
+
+/// Run `sums_for` for every key row and column range, then add each row's
+/// partial sums. Raw sums are exact integers, so the split does not change
+/// the reduced commitment.
+fn row_totals(
+    column_count: u64,
+    sums_for: impl Fn(u32, Range<u64>) -> Vec<SignedShiftSums> + Sync,
+) -> Vec<Vec<SignedShiftSums>> {
+    let ranges = column_count.div_ceil(TASK_COLUMNS);
+    let tasks = 0..PRODUCTION_VERIFIER_ROWS * ranges;
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let tasks = tasks.into_par_iter();
+    let partial: Vec<_> = tasks
+        .map(|task| {
+            let start = task % ranges * TASK_COLUMNS;
+            sums_for((task / ranges) as u32, start..(start + TASK_COLUMNS).min(column_count))
+        })
+        .collect();
+    partial
+        .chunks(ranges as usize)
+        .map(|row| {
+            let mut total = row[0].clone();
+            for part in &row[1..] {
+                for (total, part) in total.iter_mut().zip(part) {
+                    total.add(part);
+                }
+            }
+            total
+        })
+        .collect()
 }
 
 /// Commit the complete signed-unit carrier with the fixed production key.
@@ -338,14 +328,14 @@ impl SignedUnitBatchError {
 /// Different valid prefix widths use their original indexed key addresses.
 /// Each nonzero block in the union is expanded once per key row, then shared by
 /// all witnesses that use it. No dense key or extended witness is allocated.
-pub fn commit_production_signed_unit_prefix_matrices(
-    witnesses: &[Mat<Goldilocks>],
+pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>(
+    witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
     let blocks = witnesses
         .iter()
         .enumerate()
         .map(|(witness_index, witness)| {
-            signed_unit_prefix_blocks(witness).map_err(|source| SignedUnitBatchError { witness_index, source })
+            signed_unit_prefix_blocks(witness.borrow()).map_err(|source| SignedUnitBatchError { witness_index, source })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut commitments: Vec<_> = (0..witnesses.len())
@@ -354,29 +344,31 @@ pub fn commit_production_signed_unit_prefix_matrices(
     if blocks.iter().all(Vec::is_empty) {
         return Ok(commitments);
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_par_iter();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let rows = (0..PRODUCTION_VERIFIER_ROWS as usize).into_iter();
-    let outputs: Vec<_> = rows
-        .map(|row| commit_batch_row(row as u32, &blocks))
-        .collect();
-    for (row, outputs) in outputs.into_iter().enumerate() {
-        for (commitment, output) in commitments.iter_mut().zip(outputs) {
-            commitment.col_mut(row).copy_from_slice(&output);
+    let column_count = blocks
+        .iter()
+        .filter_map(|blocks| blocks.last())
+        .map(|block| block.index + 1)
+        .max()
+        .expect("a nonempty witness");
+    let totals = row_totals(column_count, |row, columns| {
+        let blocks: Vec<_> = blocks
+            .iter()
+            .map(|blocks| column_slice(blocks, &columns))
+            .collect();
+        batch_sums(row, &blocks)
+    });
+    for (row, totals) in totals.into_iter().enumerate() {
+        for (commitment, total) in commitments.iter_mut().zip(totals) {
+            commitment.col_mut(row).copy_from_slice(&total.reduce());
         }
     }
     Ok(commitments)
 }
 
-fn commit_batch_row(row: u32, blocks: &[Vec<SignedBlock>]) -> Vec<[Goldilocks; D]> {
-    let mut sums = vec![
-        SignedSums {
-            positive: [0; 2 * D - 1],
-            negative: [0; 2 * D - 1]
-        };
-        blocks.len()
-    ];
+/// Each key block is expanded once per row, then shared by every witness
+/// that uses its column.
+fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
+    let mut sums = vec![SignedShiftSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
     let mut next = BinaryHeap::new();
     for (witness, blocks) in blocks.iter().enumerate() {
@@ -385,41 +377,34 @@ fn commit_batch_row(row: u32, blocks: &[Vec<SignedBlock>]) -> Vec<[Goldilocks; D
         }
     }
     while let Some(&Reverse((block_index, _))) = next.peek() {
-        let coefficients = coefficient_block(&PRODUCTION_SEED, row, block_index);
+        let key = split_key(row, block_index);
         while let Some(&Reverse((index, witness))) = next.peek() {
             if index != block_index {
                 break;
             }
             next.pop();
             let block = &blocks[witness][positions[witness]];
-            add_shifted_coefficients(&mut sums[witness].positive, block.positive, &coefficients);
-            add_shifted_coefficients(&mut sums[witness].negative, block.negative, &coefficients);
+            sums[witness].add_signed_units(&key, block.positive, block.negative);
             positions[witness] += 1;
             if let Some(block) = blocks[witness].get(positions[witness]) {
                 next.push(Reverse((block.index, witness)));
             }
         }
     }
-    sums.into_iter()
-        .map(|sum| {
-            let mut output = [Goldilocks::ZERO; D];
-            reduce_signed_sums(&sum.positive, &sum.negative, &mut output);
-            output
-        })
-        .collect()
+    sums
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
     let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
-    if blocks.is_empty() {
+    let Some(last) = blocks.last() else {
         return commitment;
+    };
+    let totals = row_totals(last.index + 1, |row, columns| {
+        vec![signed_sums(row, column_slice(blocks, &columns))]
+    });
+    for (output, totals) in commitment.data.chunks_mut(D).zip(totals) {
+        output.copy_from_slice(&totals[0].reduce());
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let rows = commitment.data.par_chunks_mut(D);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let rows = commitment.data.chunks_mut(D);
-    rows.enumerate()
-        .for_each(|(row, output)| commit_row(row as u32, blocks, output));
     commitment
 }
 

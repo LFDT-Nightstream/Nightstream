@@ -223,7 +223,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (location : Location) :
@@ -663,7 +663,7 @@ theorem sourceMap_form_eval_of_target
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (column : Fin Spartan.spartanColumnCount)
@@ -687,7 +687,7 @@ private theorem preservesCombination
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
@@ -736,7 +736,7 @@ theorem inputs_preserve
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :
     ∀ index, OrdinarySourcePlan.SourceMap.PreservesRow
@@ -771,7 +771,7 @@ theorem programRow_preserve
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (index : Fin 811669) :
@@ -869,7 +869,7 @@ theorem rowsZero_iff_rowsHold
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue)) :

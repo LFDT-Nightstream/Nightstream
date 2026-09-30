@@ -74,10 +74,10 @@ private theorem invocation_zero {columns arity : Nat} (firstRow : Nat)
       ringKZero := by
   funext output
   rw [PiDECMatrixInvocation.sum_prepare_value]
-  change NumericCompletionSum.numericSum extensionOps 94 _ = extensionOps.zero
+  change NumericCompletionSum.numericSum extensionOps 86 _ = extensionOps.zero
   apply numericSum_of_zero
   intro index
-  by_cases live : index < 94
+  by_cases live : index < 86
   · simp only [dif_pos live, evalSparse_zero, weighted_zero]
   · simp only [dif_neg live, weighted_zero]
 

@@ -85,6 +85,9 @@ jobs:
     - name: Run matrix interpreter tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::matrix_program
 
+    - name: Run Phi81 quotient witness tests
+      run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::assignment_transport::quotient_tests
+
     - name: Run assignment transport boundary tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib package::sealed::sealed_tests
 

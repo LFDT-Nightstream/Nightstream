@@ -11,6 +11,7 @@ pub mod balanced;
 pub mod field;
 pub mod ring;
 pub mod s_action;
+pub mod signed_sums;
 
 /// Errors from S-action operations
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

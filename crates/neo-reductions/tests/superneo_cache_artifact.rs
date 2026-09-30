@@ -1,7 +1,7 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
-use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, SeededPhi81LinearBlock, SparsePoly};
+use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::engines::utils::digest_ccs_matrices;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
@@ -13,21 +13,6 @@ use p3_field::PrimeCharacteristicRing;
 fn artifact_fixture() -> CcsStructure<F> {
     let rows = 2 * D;
     let cols = rows;
-    let word_width = 41;
-    let word_starts = vec![1, 42];
-    let message_cols = (word_starts.len() * word_width).div_ceil(D);
-    let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds([0x5c; 32], 1, message_cols);
-    let seeded = SeededPhi81LinearBlock::new_with_word_width(
-        D,
-        word_starts,
-        word_width,
-        1,
-        message_cols,
-        chunk_size,
-        chunk_seeds,
-    )
-    .expect("valid seeded block")
-    .with_superneo_transformed_columns();
     let geometric = GeometricRowRun::new(7, D - 9, 41, F::from_u64(7), F::from_u64(3));
     let explicit = CscMat::from_triplets(
         vec![
@@ -39,8 +24,7 @@ fn artifact_fixture() -> CcsStructure<F> {
         rows,
         cols,
     );
-    let compact =
-        CcsMatrix::csc_with_compact_rows(explicit, vec![seeded], vec![geometric]).expect("valid compact matrix");
+    let compact = CcsMatrix::csc_with_geometric_runs(explicit, vec![geometric]).expect("valid compact matrix");
     CcsStructure::new_sparse(
         vec![CcsMatrix::Identity { n: rows }, compact],
         SparsePoly::new(2, vec![]),

@@ -432,7 +432,7 @@ theorem semanticEnv_challengeColumn_eq_baseEnv
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
@@ -549,7 +549,7 @@ private theorem challengeExpr_evalRing_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (descriptor : PiRLCProductSchedule.Descriptor) :
@@ -629,7 +629,7 @@ theorem sourceConstraint_eval_eq
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (descriptor : PiRLCProductSchedule.Descriptor) :
@@ -652,7 +652,7 @@ theorem sourceConstraint_zero_of_productSemantics
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : PiRLCRetainedPreservation.Encodes
       (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry) assignment base groupValue)
     (product : ∀ invocation,

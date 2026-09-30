@@ -234,7 +234,6 @@ fn transform_ccs_matrix_superneo(
     }
 
     let mut triplets: Vec<(usize, usize, Fq)> = Vec::new();
-    let mut transformed_blocks = Vec::new();
     match src {
         CcsMatrix::Identity { n } => {
             if *n != ncols {
@@ -273,11 +272,7 @@ fn transform_ccs_matrix_superneo(
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
+        CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             triplets.reserve(csc.vals.len() * D);
             for c in 0..csc.ncols {
                 let block = c / D;
@@ -307,11 +302,6 @@ fn transform_ccs_matrix_superneo(
                     }
                 });
             }
-            transformed_blocks.extend(
-                blocks
-                    .iter()
-                    .map(|block| block.with_superneo_transformed_columns()),
-            );
         }
         CcsMatrix::VerifierArtifact { .. } => {
             return Err(RelationError::Message(
@@ -320,13 +310,7 @@ fn transform_ccs_matrix_superneo(
         }
     }
 
-    let csc = CscMat::from_triplets(triplets, nrows, ncols);
-    if transformed_blocks.is_empty() {
-        Ok(CcsMatrix::Csc(csc))
-    } else {
-        CcsMatrix::csc_with_seeded_phi81(csc, transformed_blocks)
-            .map_err(|error| RelationError::Message(error.to_string()))
-    }
+    Ok(CcsMatrix::Csc(CscMat::from_triplets(triplets, nrows, ncols)))
 }
 
 /// Nebula split-witness lane commitments in the `adv` tuple.
@@ -555,19 +539,12 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
             }
             acc
         }
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
+        CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             let mut acc = GoldiF::ZERO;
             for idx in csc.column_range(col) {
                 if csc.row_index(idx) == row {
                     acc += csc.vals[idx].into();
                 }
-            }
-            for block in blocks {
-                acc += block.entry::<GoldiF>(row, col);
             }
             for run in geometric_runs {
                 acc += run.entry(row, col).into();

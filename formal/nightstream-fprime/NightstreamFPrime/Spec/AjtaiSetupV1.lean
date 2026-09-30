@@ -1,23 +1,24 @@
-import NightstreamFPrime.Spec.AjtaiSetupV1.ChaCha20
+import NightstreamFPrime.Spec.AjtaiSetupV1.Shake128
 import NightstreamFPrime.Spec.Poseidon2
 
 /-!
 Owns the exact compact Ajtai setup selected by
-`nightstream-ajtai-chacha20-wide256-v1`.
+`nightstream-ajtai-shake128-wide256-v1`.
 
-The verifier owns one canonical 32-byte seed. Each key coefficient uses one
-RFC-8439 ChaCha20 block with nonce `row_u32_le || block_u64_le`, counter equal
-to the coefficient lane, and reduction of the first 256 output bits modulo
-the Goldilocks prime. The key remains an indexed finite function. There is no
+The verifier owns one canonical 32-byte seed. Key element `(row, block)` is
+SHAKE128 of the 81-byte input `setup_id || seed || row_u32_le ||
+block_u64_le`. Its coefficient `lane` is output bytes `32 * lane` to
+`32 * lane + 31`, read as one little-endian integer and reduced modulo the
+Goldilocks prime. The key remains an indexed finite function. There is no
 rejection, retry, fallback, or expanded key list.
 -/
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-- ASCII bytes of `nightstream-ajtai-chacha20-wide256-v1`. -/
+/-- ASCII bytes of `nightstream-ajtai-shake128-wide256-v1`. -/
 def setupIdBytes : List Nat :=
   [110, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 45, 97, 106,
-    116, 97, 105, 45, 99, 104, 97, 99, 104, 97, 50, 48, 45, 119, 105,
+    116, 97, 105, 45, 115, 104, 97, 107, 101, 49, 50, 56, 45, 119, 105,
     100, 101, 50, 53, 54, 45, 118, 49]
 
 @[simp] theorem setupIdBytes_length : setupIdBytes.length = 37 := by
@@ -29,9 +30,44 @@ structure Seed where
   length_eq : bytes.length = 32
   canonical : forall byte, byte ∈ bytes -> byte < 256
 
+/-- The `count` low bytes of `value`, least significant first. -/
+def littleEndianBytes : Nat → Nat → List Nat
+  | 0, _ => []
+  | count + 1, value => value % 256 :: littleEndianBytes count (value / 256)
+
+@[simp] theorem littleEndianBytes_length (count value : Nat) :
+    (littleEndianBytes count value).length = count := by
+  induction count generalizing value with
+  | zero => rfl
+  | succ count ih => simp [littleEndianBytes, ih]
+
+/-- The SHAKE128 input of key element `(row, block)`. Each field has a fixed
+length; rows below `2 ^ 32` and blocks below `2 ^ 64` lose no bits. -/
+def elementInput (seed : List Nat) (row block : Nat) : List Nat :=
+  setupIdBytes ++ seed ++ littleEndianBytes 4 row ++ littleEndianBytes 8 block
+
+/-- The 216 SHAKE128 output lanes (1,728 bytes) of key element `(row, block)`. -/
+def elementLanes (seed : List Nat) (row block : Nat) : List UInt64 :=
+  Shake128.lanes (elementInput seed row block) (4 * ringDegree)
+
+/-- Output lanes `4 * lane` to `4 * lane + 3`, that is output bytes
+`32 * lane` to `32 * lane + 31`, as one little-endian integer. -/
+def laneWord (lanes : List UInt64) (lane : Nat) : Nat :=
+  (lanes.getD (4 * lane) 0).toNat + 2 ^ 64 * ((lanes.getD (4 * lane + 1) 0).toNat +
+    2 ^ 64 * ((lanes.getD (4 * lane + 2) 0).toNat +
+      2 ^ 64 * (lanes.getD (4 * lane + 3) 0).toNat))
+
+theorem laneWord_lt (lanes : List UInt64) (lane : Nat) : laneWord lanes lane < 2 ^ 256 := by
+  have w0 := UInt64.toNat_lt (lanes.getD (4 * lane) 0)
+  have w1 := UInt64.toNat_lt (lanes.getD (4 * lane + 1) 0)
+  have w2 := UInt64.toNat_lt (lanes.getD (4 * lane + 2) 0)
+  have w3 := UInt64.toNat_lt (lanes.getD (4 * lane + 3) 0)
+  unfold laneWord
+  omega
+
 /-- Total wide-reduction coefficient function. -/
 def wideCoefficientNat (seed : List Nat) (row block lane : Nat) : Nat :=
-  ChaCha20.first256Nat seed row block lane % goldilocksModulus
+  laneWord (elementLanes seed row block) lane % goldilocksModulus
 
 theorem wideCoefficientNat_lt (seed : List Nat) (row block lane : Nat) :
     wideCoefficientNat seed row block lane < goldilocksModulus := by

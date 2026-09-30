@@ -16,13 +16,12 @@ pub(super) const BLOCK_COUNT: usize = 26;
 const PHYSICAL_COLUMNS: usize = 28_418_945;
 const PHYSICAL_PUBLIC: usize = 278;
 const LOGICAL_PUBLIC: usize = 270;
-const LOGICAL_WIDTH: usize = 242_590_792;
-const CARRIER_WIDTH: usize = 242_590_842;
+const LOGICAL_WIDTH: usize = 173_939_080;
+const CARRIER_WIDTH: usize = 173_939_130;
 const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 52_326;
-const PHI81_GROUPS: usize = 33;
-const PHI81_GROUP_VALUES: usize = PHI81_INVOCATIONS * PHI81_GROUPS;
+const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
 const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
 
 #[derive(Deserialize)]
@@ -223,22 +222,22 @@ struct Phi81Plan {
     challenge_source_stride: usize,
     challenge_shift: u64,
     value_sources: Vec<Run>,
-    group_opcode: usize,
+    quotient_opcode: usize,
 }
 
 impl Phi81Plan {
     fn decode(value: &Value) -> Result<Self> {
-        let fields = exact_array(value, 15, "Phi81 assignment plan")?;
-        let constants = fields[..8]
+        let fields = exact_array(value, 11, "Phi81 assignment plan")?;
+        let constants = fields[..4]
             .iter()
             .enumerate()
             .map(|(index, value)| word(value, &format!("Phi81 constant {index}")))
             .collect::<Result<Vec<_>>>()?;
-        if constants != [54, 27, 81, 106, 3, 162, 5, 33] {
+        if constants != [54, 27, 81, 54] {
             return Err("unexpected Phi81 assignment constants".into());
         }
         let expected_shapes = [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]];
-        let shape_values = exact_array(&fields[8], expected_shapes.len(), "Phi81 family shapes")?;
+        let shape_values = exact_array(&fields[4], expected_shapes.len(), "Phi81 family shapes")?;
         let mut first_invocation = 0usize;
         let mut families = Vec::with_capacity(expected_shapes.len());
         for (value, expected) in shape_values.iter().zip(expected_shapes) {
@@ -263,16 +262,16 @@ impl Phi81Plan {
         if first_invocation != PHI81_INVOCATIONS {
             return Err("unexpected Phi81 invocation count".into());
         }
-        let tail = fields[9..13]
+        let tail = fields[5..9]
             .iter()
-            .chain([&fields[14]])
+            .chain([&fields[10]])
             .enumerate()
             .map(|(index, value)| word(value, &format!("Phi81 selector {index}")))
             .collect::<Result<Vec<_>>>()?;
         if tail != [4, 0, 54, 2, 3] {
             return Err("unexpected Phi81 assignment selectors".into());
         }
-        let value_sources = decode_runs(&fields[13], PHI81_INVOCATIONS)?;
+        let value_sources = decode_runs(&fields[9], PHI81_INVOCATIONS)?;
         if value_sources
             .iter()
             .any(|run| run.first + run.step * (run.count - 1) >= PHYSICAL_COLUMNS)
@@ -286,7 +285,7 @@ impl Phi81Plan {
             challenge_source_stride: tail[2],
             challenge_shift: tail[3] as u64,
             value_sources,
-            group_opcode: tail[4],
+            quotient_opcode: tail[4],
         })
     }
 }
@@ -373,7 +372,7 @@ impl Physical<'_> {
 
 struct Domains<'a> {
     physical: Physical<'a>,
-    groups: Vec<u64>,
+    quotients: Vec<u64>,
 }
 
 impl Domains<'_> {
@@ -381,7 +380,7 @@ impl Domains<'_> {
         if index < PHYSICAL_COLUMNS {
             return self.physical.value(index);
         }
-        self.groups
+        self.quotients
             .get(index - PHYSICAL_COLUMNS)
             .copied()
             .ok_or_else(|| "retained assignment source is out of range".into())
@@ -446,7 +445,7 @@ impl LogicalAssignment {
         }
 
         let transport = Transport::decode(&raw_transport)?;
-        let groups = derive_phi81_groups(&transport, &physical)?;
+        let quotients = derive_phi81_quotients(&transport, &physical)?;
         let output_digest = transport
             .output_digest_expressions
             .iter()
@@ -455,7 +454,7 @@ impl LogicalAssignment {
         let output_digest: [u64; OUTPUT_DIGEST_WORDS] = output_digest
             .try_into()
             .map_err(|_| "output digest word count".to_string())?;
-        let domains = Domains { physical, groups };
+        let domains = Domains { physical, quotients };
         validate_derived_block_sources(&transport, &domains, output_digest)?;
 
         let mut values = Vec::with_capacity(LOGICAL_WIDTH);
@@ -555,7 +554,7 @@ pub struct PartialLogicalAssignment<'a> {
     transport: Transport,
     physical: Physical<'a>,
     block_ranges: Vec<Range<usize>>,
-    groups: OnceLock<Result<Vec<u64>>>,
+    quotients: OnceLock<Result<Vec<u64>>>,
     output_digest: OnceLock<Result<[u64; OUTPUT_DIGEST_WORDS]>>,
 }
 
@@ -631,7 +630,7 @@ impl<'a> PartialLogicalAssignment<'a> {
                 unavailable_private: None,
             },
             block_ranges,
-            groups: OnceLock::new(),
+            quotients: OnceLock::new(),
             output_digest: OnceLock::new(),
         })
     }
@@ -700,20 +699,20 @@ impl<'a> PartialLogicalAssignment<'a> {
             return self.physical.value(index);
         }
         let index = index - PHYSICAL_COLUMNS;
-        if index >= PHI81_GROUP_VALUES {
-            return Err("retained Phi81 group source is out of range".into());
+        if index >= PHI81_QUOTIENT_VALUES {
+            return Err("retained Phi81 quotient source is out of range".into());
         }
-        let groups = match self
-            .groups
-            .get_or_init(|| derive_phi81_groups(&self.transport, &self.physical))
+        let quotients = match self
+            .quotients
+            .get_or_init(|| derive_phi81_quotients(&self.transport, &self.physical))
         {
             Ok(values) => values,
             Err(error) => return Err(error.clone()),
         };
-        groups
+        quotients
             .get(index)
             .copied()
-            .ok_or_else(|| "retained Phi81 group source is out of range".into())
+            .ok_or_else(|| "retained Phi81 quotient source is out of range".into())
     }
 
     fn output_digest(&self) -> Result<[u64; OUTPUT_DIGEST_WORDS]> {
@@ -771,64 +770,52 @@ fn raw_block_value(block: &BlockPlan, slot: usize, physical: &Physical<'_>) -> R
     physical.value(source)
 }
 
-fn derive_phi81_groups(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
+fn derive_phi81_quotients(transport: &Transport, physical: &Physical<'_>) -> Result<Vec<u64>> {
     let plan = &transport.phi81;
     let challenge = transport.block(plan.challenge_opcode)?;
-    let output = transport.block(plan.group_opcode)?;
-    if output.slot_count != PHI81_GROUP_VALUES {
-        return Err("Phi81 group-output block has the wrong slot count".into());
+    let output = transport.block(plan.quotient_opcode)?;
+    if output.slot_count != PHI81_QUOTIENT_VALUES {
+        return Err("Phi81 quotient-output block has the wrong slot count".into());
     }
-    let mut groups = Vec::with_capacity(PHI81_GROUP_VALUES);
+    let mut quotients = vec![0; PHI81_QUOTIENT_VALUES];
     for family in &plan.families {
         for source in 0..family.source_count {
+            let mut left = [0u64; 54];
+            for (degree, coefficient) in left.iter_mut().enumerate() {
+                let slot = plan
+                    .challenge_slot_base
+                    .checked_add(source * plan.challenge_source_stride)
+                    .and_then(|slot| slot.checked_add(degree))
+                    .ok_or_else(|| "Phi81 challenge slot overflow".to_string())?;
+                *coefficient = sub_mod(raw_block_value(challenge, slot, physical)?, plan.challenge_shift);
+            }
             for block in 0..family.block_count {
-                for lane in 0..54 {
-                    for cell in 0..family.cell_count {
-                        let invocation = family.invocation(source, block, lane, cell)?;
-                        if invocation != groups.len() / PHI81_GROUPS {
-                            return Err("Phi81 invocation order mismatch".into());
+                for cell in 0..family.cell_count {
+                    let mut right = [0u64; 54];
+                    for (degree, coefficient) in right.iter_mut().enumerate() {
+                        let slot = family.invocation(source, block, degree, cell)?;
+                        *coefficient = physical.value(source_at(&plan.value_sources, slot)?)?;
+                    }
+                    // Independent monic long division, not the consumer's closed coefficient formula.
+                    let mut product = [0u64; 108];
+                    for (i, &a) in left.iter().enumerate() {
+                        for (j, &b) in right.iter().enumerate() {
+                            product[i + j] = add_mod(product[i + j], mul_mod(a, b));
                         }
-                        for group in 0..PHI81_GROUPS {
-                            let mut sum = 0u64;
-                            for raw_term in group * 5..((group + 1) * 5).min(162) {
-                                let section = raw_term / 54;
-                                let convolution_source = raw_term % 54;
-                                let (degree, sign) = match section {
-                                    0 => (lane, 1i8),
-                                    1 => (lane + if lane < 27 { 54 } else { 27 }, -1i8),
-                                    2 if lane + 81 <= 106 => (lane + 81, 1i8),
-                                    2 => continue,
-                                    _ => return Err("Phi81 raw term is out of range".into()),
-                                };
-                                if convolution_source > degree || degree - convolution_source >= 54 {
-                                    continue;
-                                }
-                                let challenge_slot = plan
-                                    .challenge_slot_base
-                                    .checked_add(source * plan.challenge_source_stride)
-                                    .and_then(|slot| slot.checked_add(convolution_source))
-                                    .ok_or_else(|| "Phi81 challenge slot overflow".to_string())?;
-                                let challenge_value = raw_block_value(challenge, challenge_slot, physical)?;
-                                let shifted_challenge = sub_mod(challenge_value, plan.challenge_shift);
-                                let value_lane = degree - convolution_source;
-                                let value_slot = family.invocation(source, block, value_lane, cell)?;
-                                let product = mul_mod(
-                                    shifted_challenge,
-                                    physical.value(source_at(&plan.value_sources, value_slot)?)?,
-                                );
-                                sum = add_mod(sum, if sign < 0 { neg_mod(product) } else { product });
-                            }
-                            groups.push(sum);
+                    }
+                    for degree in (54..108).rev() {
+                        let coefficient = product[degree];
+                        let lane = degree - 54;
+                        quotients[family.invocation(source, block, lane, cell)?] = coefficient;
+                        for shift in [0, 27, 54] {
+                            product[lane + shift] = sub_mod(product[lane + shift], coefficient);
                         }
                     }
                 }
             }
         }
     }
-    if groups.len() != PHI81_GROUP_VALUES {
-        return Err("Phi81 derived group count mismatch".into());
-    }
-    Ok(groups)
+    Ok(quotients)
 }
 
 fn validate_derived_block_sources(
@@ -836,10 +823,10 @@ fn validate_derived_block_sources(
     domains: &Domains<'_>,
     output_digest: [u64; OUTPUT_DIGEST_WORDS],
 ) -> Result<()> {
-    let group = transport.block(transport.phi81.group_opcode)?;
+    let group = transport.block(transport.phi81.quotient_opcode)?;
     for slot in 0..group.slot_count {
-        if domains.value(group.domain, group.source(slot)?)? != domains.groups[slot] {
-            return Err("Phi81 group source map does not select the derived value".into());
+        if domains.value(group.domain, group.source(slot)?)? != domains.quotients[slot] {
+            return Err("Phi81 quotient source map does not select the derived value".into());
         }
     }
     let digest = transport.block(19)?;

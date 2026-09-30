@@ -97,7 +97,7 @@ theorem transcriptEnv_eq_semanticEnv_of_beforeSampler
       NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra.Assignment
         F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     {column : Nat} (before : column < PiRLCStarts.samplerLogicalStart) :
     Spartan.pullback
         (PiCCSTranscriptEndpointPlan.transcriptEnv program base groupValue) column =

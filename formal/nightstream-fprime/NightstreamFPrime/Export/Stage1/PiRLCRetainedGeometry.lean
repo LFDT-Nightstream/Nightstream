@@ -101,7 +101,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 187004140 := by
+    prefixLogicalWidth program = 118352428 := by
   unfold prefixLogicalWidth productOutputStart
     challengeStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
@@ -119,7 +119,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 /-- The prefix owns a fixed number of coordinates. Reading its width does
 not need the selected application's source-domain size or circuit. -/
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  187004140
+  118352428
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by

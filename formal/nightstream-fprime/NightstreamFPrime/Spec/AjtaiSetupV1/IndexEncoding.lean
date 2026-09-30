@@ -1,119 +1,54 @@
-import Mathlib.Data.List.GetD
-import Mathlib.Data.Fintype.Fin
-import Mathlib.Tactic.FinCases
-import Mathlib.Tactic.NormNum
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-! Exact little-endian seed bytes and bounded nonce/counter indices for the
-selected ChaCha20 setup. No statement about pseudorandomness is made. -/
+/-! The SHAKE128 input of a key element determines its seed, row and block,
+and each element has one output lane for each coefficient word. The range
+premises are essential. No statement about SHAKE128 output is made. -/
 
-namespace NightstreamFPrime.Spec.AjtaiSetupV1.ChaCha20
+namespace NightstreamFPrime.Spec.AjtaiSetupV1
 
-private theorem recover_four_bytes (a b c d : Nat)
-    (ha : a < 256) (hb : b < 256) (hc : c < 256) (hd : d < 256)
-    (byte : Fin 4) :
-    ((a + 256 * b + 65536 * c + 16777216 * d) % wordModulus /
-      256 ^ byte.val) % 256 = [a, b, c, d].getD byte.val 0 := by
-  have wordBound : a + 256 * b + 65536 * c + 16777216 * d < wordModulus := by
-    unfold wordModulus
-    omega
-  rw [Nat.mod_eq_of_lt wordBound]
-  fin_cases byte <;> norm_num <;> omega
+/-- Equal encodings agree on every encoded bit. -/
+theorem littleEndianBytes_mod (count left right : Nat)
+    (same : littleEndianBytes count left = littleEndianBytes count right) :
+    left % 256 ^ count = right % 256 ^ count := by
+  induction count generalizing left right with
+  | zero => rw [Nat.pow_zero, Nat.mod_one, Nat.mod_one]
+  | succ count ih =>
+      simp only [littleEndianBytes, List.cons.injEq] at same
+      rw [Nat.pow_succ', Nat.mod_mul, Nat.mod_mul, same.1, ih _ _ same.2]
 
-private theorem seedByte_lt (seed : Seed) (index : Nat) :
-    seed.bytes.getD index 0 < 256 := by
-  by_cases bounded : index < seed.bytes.length
-  · rw [List.getD_eq_getElem (l := seed.bytes) (d := 0) bounded]
-    exact seed.canonical _ (List.getElem_mem bounded)
-  · have zero : seed.bytes.getD index 0 = 0 := by
-      apply List.getD_eq_default
-      omega
-    rw [zero]
-    decide
+theorem elementInput_length (seed : Seed) (row block : Nat) :
+    (elementInput seed.bytes row block).length = 81 := by
+  simp [elementInput, seed.length_eq]
 
-/-- Every byte of an encoded seed word is recovered in little-endian order.
-Canonical seed bytes ensure the modular word conversion loses no information. -/
-theorem littleEndian32_byte (seed : Seed) (offset : Nat) (byte : Fin 4) :
-    (littleEndian32 seed.bytes offset / 256 ^ byte.val) % 256 =
-      seed.bytes.getD (offset + byte.val) 0 := by
-  have recovered := recover_four_bytes
-    (seed.bytes.getD offset 0) (seed.bytes.getD (offset + 1) 0)
-    (seed.bytes.getD (offset + 2) 0) (seed.bytes.getD (offset + 3) 0)
-    (seedByte_lt seed offset) (seedByte_lt seed (offset + 1))
-    (seedByte_lt seed (offset + 2)) (seedByte_lt seed (offset + 3)) byte
-  change (littleEndian32 seed.bytes offset / 256 ^ byte.val) % 256 =
-    [seed.bytes.getD offset 0, seed.bytes.getD (offset + 1) 0,
-      seed.bytes.getD (offset + 2) 0, seed.bytes.getD (offset + 3) 0].getD byte.val 0
-    at recovered
-  rw [recovered]
-  fin_cases byte <;> simp
-
-/-- The eight seed words occupy positions 4 through 11 in their stated order. -/
-theorem initialState_seed_word (seed : List Nat) (row block lane : Nat)
-    (word : Fin 8) :
-    getWord (initialState seed row block lane) (4 + word.val) =
-      littleEndian32 seed (4 * word.val) := by
-  fin_cases word <;> rfl
-
-/-- Equality of the initial state preserves all 32 canonical seed bytes. -/
-theorem initialState_seed_injective (left right : Seed)
-    (leftRow leftBlock leftLane rightRow rightBlock rightLane : Nat)
-    (same : initialState left.bytes leftRow leftBlock leftLane =
-      initialState right.bytes rightRow rightBlock rightLane) : left = right := by
-  have sameBytes : left.bytes = right.bytes := by
-    apply List.ext_getElem
-    · rw [left.length_eq, right.length_eq]
-    · intro index leftBound rightBound
-      have indexBound : index < 32 := by simpa [left.length_eq] using leftBound
-      let word : Fin 8 := ⟨index / 4, by omega⟩
-      let byte : Fin 4 := ⟨index % 4, Nat.mod_lt _ (by decide)⟩
-      have sameWord :
-          getWord (initialState left.bytes leftRow leftBlock leftLane) (4 + word.val) =
-          getWord (initialState right.bytes rightRow rightBlock rightLane) (4 + word.val) :=
-        congrArg (fun state => getWord state (4 + word.val)) same
-      rw [initialState_seed_word left.bytes leftRow leftBlock leftLane word,
-        initialState_seed_word right.bytes rightRow rightBlock rightLane word] at sameWord
-      have recovered :
-          (littleEndian32 left.bytes (4 * word.val) / 256 ^ byte.val) % 256 =
-          (littleEndian32 right.bytes (4 * word.val) / 256 ^ byte.val) % 256 :=
-        congrArg (fun value => value / 256 ^ byte.val % 256) sameWord
-      rw [littleEndian32_byte left (4 * word.val) byte,
-        littleEndian32_byte right (4 * word.val) byte] at recovered
-      have position : 4 * word.val + byte.val = index := by
-        dsimp [word, byte]
-        omega
-      rw [position] at recovered
-      simpa only [List.getD_eq_getElem (l := left.bytes) (d := 0) leftBound,
-        List.getD_eq_getElem (l := right.bytes) (d := 0) rightBound] using recovered
+/-- Distinct seeds or in-range coordinates never share a SHAKE128 input. -/
+theorem elementInput_injective (left right : Seed)
+    (leftRow leftBlock rightRow rightBlock : Nat)
+    (leftRowBound : leftRow < 2 ^ 32) (rightRowBound : rightRow < 2 ^ 32)
+    (leftBlockBound : leftBlock < 2 ^ 64) (rightBlockBound : rightBlock < 2 ^ 64)
+    (same : elementInput left.bytes leftRow leftBlock =
+      elementInput right.bytes rightRow rightBlock) :
+    left = right ∧ leftRow = rightRow ∧ leftBlock = rightBlock := by
+  unfold elementInput at same
+  obtain ⟨withRow, blockBytes⟩ := List.append_inj same
+    (by simp [left.length_eq, right.length_eq])
+  obtain ⟨withSeed, rowBytes⟩ := List.append_inj withRow
+    (by simp [left.length_eq, right.length_eq])
+  have seedBytes := (List.append_inj withSeed rfl).2
+  have row := littleEndianBytes_mod 4 _ _ rowBytes
+  have block := littleEndianBytes_mod 8 _ _ blockBytes
+  rw [Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq leftRowBound (by decide)),
+    Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq rightRowBound (by decide))] at row
+  rw [Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq leftBlockBound (by decide)),
+    Nat.mod_eq_of_lt (Nat.lt_of_lt_of_eq rightBlockBound (by decide))] at block
+  refine ⟨?_, row, block⟩
   cases left
   cases right
-  cases sameBytes
+  cases seedBytes
   rfl
 
-/-- Distinct in-range key coordinates cannot alias the nonce/counter frame,
-even when the seed words differ. The range premises are essential. -/
-theorem initialState_index_injective
-    (leftSeed rightSeed : List Nat)
-    (leftRow leftBlock leftLane rightRow rightBlock rightLane : Nat)
-    (leftRowBound : leftRow < wordModulus)
-    (rightRowBound : rightRow < wordModulus)
-    (leftBlockBound : leftBlock < wordModulus ^ 2)
-    (rightBlockBound : rightBlock < wordModulus ^ 2)
-    (leftLaneBound : leftLane < wordModulus)
-    (rightLaneBound : rightLane < wordModulus)
-    (same : initialState leftSeed leftRow leftBlock leftLane =
-      initialState rightSeed rightRow rightBlock rightLane) :
-    leftRow = rightRow ∧ leftBlock = rightBlock ∧ leftLane = rightLane := by
-  have counter := congrArg (fun state => getWord state 12) same
-  have row := congrArg (fun state => getWord state 13) same
-  have low := congrArg (fun state => getWord state 14) same
-  have high := congrArg (fun state => getWord state 15) same
-  change leftLane % wordModulus = rightLane % wordModulus at counter
-  change leftRow % wordModulus = rightRow % wordModulus at row
-  change leftBlock % wordModulus = rightBlock % wordModulus at low
-  change (leftBlock / wordModulus) % wordModulus =
-    (rightBlock / wordModulus) % wordModulus at high
-  norm_num [wordModulus] at *
-  omega
+/-- Every coefficient word reads squeezed output, never a default lane. -/
+theorem elementLanes_length (seed : List Nat) (row block : Nat) :
+    (elementLanes seed row block).length = 4 * ringDegree :=
+  Shake128.lanes_length _ _
 
-end NightstreamFPrime.Spec.AjtaiSetupV1.ChaCha20
+end NightstreamFPrime.Spec.AjtaiSetupV1

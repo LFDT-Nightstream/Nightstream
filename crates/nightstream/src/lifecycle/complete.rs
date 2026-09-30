@@ -3,7 +3,7 @@
 //! supplies the fresh assignment committed under the fixed production key.
 //! Full CE evaluations and terminal acceptance remain verifier obligations.
 
-use neo_ajtai::nightstream_fprime_setup::MAX_MESSAGE_COLUMNS;
+use neo_ajtai::{nightstream_fprime_setup::MAX_MESSAGE_COLUMNS, Commitment};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::project_x_from_witness_mat;
@@ -93,8 +93,35 @@ impl PreparedLifecycle {
         child_witnesses: Vec<Mat<F>>,
         application_values: Option<&[F]>,
     ) -> Result<Stage1Envelope, CompleteStepError> {
+        self.complete(inputs, child_witnesses, None, application_values)
+    }
+
+    /// Complete the step from the running instance that `prove` returned for
+    /// it. Every prover backend sets the child claim commitments from these
+    /// digit witnesses, so they are compared with the verified children
+    /// instead of recomputed. The terminal verifier recommits all witnesses.
+    pub(super) fn complete_proved_step(
+        &self,
+        inputs: Stage1StepInputs,
+        proved: RunningInstance,
+        application_values: Option<&[F]>,
+    ) -> Result<Stage1Envelope, CompleteStepError> {
+        let commitments = proved.claims.into_iter().map(|claim| claim.c).collect();
+        self.complete(inputs, proved.witnesses, Some(commitments), application_values)
+    }
+
+    fn complete(
+        &self,
+        inputs: Stage1StepInputs,
+        child_witnesses: Vec<Mat<F>>,
+        proved_commitments: Option<Vec<Commitment>>,
+        application_values: Option<&[F]>,
+    ) -> Result<Stage1Envelope, CompleteStepError> {
         if child_witnesses.len() != PI_DEC_V1_1_CHILD_COUNT
             || inputs.next_running().claims.len() != PI_DEC_V1_1_CHILD_COUNT
+            || proved_commitments
+                .as_ref()
+                .is_some_and(|commitments| commitments.len() != PI_DEC_V1_1_CHILD_COUNT)
         {
             return Err(CompleteStepError::Input(
                 "child witness count differs from the selected profile",
@@ -120,28 +147,6 @@ impl PreparedLifecycle {
                 });
             }
         }
-        // Validate every coefficient, including the running tails, before
-        // sharing exact indexed key coefficients across the child witnesses.
-        #[cfg(test)]
-        let started = std::time::Instant::now();
-        let commitments = self.backend.commit(&child_witnesses)?;
-        #[cfg(test)]
-        eprintln!("complete child commitments elapsed={:?}", started.elapsed());
-        for (index, (claim, commitment)) in inputs
-            .next_running()
-            .claims
-            .iter()
-            .zip(commitments)
-            .enumerate()
-        {
-            if commitment != claim.c {
-                return Err(CompleteStepError::ChildWitness {
-                    index,
-                    reason: "fixed-key commitment differs from the verified child",
-                });
-            }
-        }
-
         #[cfg(test)]
         let started = std::time::Instant::now();
         let physical = match application_values {
@@ -179,35 +184,48 @@ impl PreparedLifecycle {
             }
         }
 
-        let mut positive = vec![0u64; blocks];
-        let mut negative = vec![0u64; blocks];
-        for (column, &value) in logical.balanced_values().iter().enumerate() {
-            let mask = 1u64 << (column % D);
-            match value {
-                0 => {}
-                1 => positive[column / D] |= mask,
-                -1 => negative[column / D] |= mask,
-                _ => {
-                    return Err(CompleteStepError::Input(
-                        "fresh logical assignment exceeds the strict unit norm",
-                    ))
-                }
-            }
-        }
-        // Bits outside the logical assignment stay zero in the complete carrier.
-        let packed = Mat::<F>::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative)
-            .map_err(CompleteStepError::Input)?;
-        drop((logical, positive, negative));
+        // The length fits the carrier, so a failure is a coordinate outside
+        // -1, 0, 1. Bits outside the logical assignment stay zero.
+        let packed = Mat::<F>::compact_signed_unit_from_balanced_columns(D, blocks, logical.balanced_values())
+            .map_err(|_| CompleteStepError::Input("fresh logical assignment exceeds the strict unit norm"))?;
+        drop(logical);
         #[cfg(test)]
         eprintln!("complete logical packing elapsed={:?}", started.elapsed());
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let commitment = self
-            .backend
-            .commit(std::slice::from_ref(&packed))?
-            .remove(0);
+        let mut child_witnesses = child_witnesses;
+        let (commitments, commitment, packed) = match proved_commitments {
+            Some(commitments) => {
+                let commitment = self.backend.commit(std::slice::from_ref(&packed))?.pop();
+                (commitments, commitment.expect("one commitment per witness"), packed)
+            }
+            None => {
+                // One key expansion commits the children and the fresh carrier.
+                // The batch validates every coefficient, including the running
+                // tails, before it shares exact indexed key coefficients.
+                child_witnesses.push(packed);
+                let mut commitments = self.backend.commit(&child_witnesses)?;
+                let packed = child_witnesses.pop().expect("fresh carrier was appended");
+                let commitment = commitments.pop().expect("one commitment per witness");
+                (commitments, commitment, packed)
+            }
+        };
         #[cfg(test)]
-        eprintln!("complete fresh commitment elapsed={:?}", started.elapsed());
+        eprintln!("complete child and fresh commitments elapsed={:?}", started.elapsed());
+        for (index, (claim, commitment)) in inputs
+            .next_running()
+            .claims
+            .iter()
+            .zip(&commitments)
+            .enumerate()
+        {
+            if *commitment != claim.c {
+                return Err(CompleteStepError::ChildWitness {
+                    index,
+                    reason: "fixed-key commitment differs from the verified child",
+                });
+            }
+        }
         let fresh = CcsInstance {
             claim: CcsClaim {
                 c: commitment,

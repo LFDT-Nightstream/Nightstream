@@ -25,8 +25,8 @@ link them to the same canonical transport used by canonicalRawValues. -/
 structure Prepared (program : Program) where
   baseWidth : Nat
   baseWidth_eq : baseWidth = PiRLCProductPlan.baseSourceWidth program
-  phi81 : Phi81GroupRecipe
-  phi81_eq : phi81 = phi81GroupRecipe program
+  phi81 : Phi81QuotientRecipe
+  phi81_eq : phi81 = phi81QuotientRecipe program
   challenge : CanonicalBlockAssignment.BlockValue
   challenge_eq : challenge =
     PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
@@ -34,7 +34,7 @@ structure Prepared (program : Program) where
 /-- Return a record, not a curried slot reader. Each selected block and the
 numeric source width are constructed before any product callback is used. -/
 @[noinline] def prepare (program : Program) : Prepared program :=
-  let phi81 := phi81GroupRecipe program
+  let phi81 := phi81QuotientRecipe program
   { baseWidth := PiRLCProductPlan.baseSourceWidth program
     baseWidth_eq := rfl
     phi81 := phi81
@@ -124,19 +124,21 @@ private theorem valueRing_eq {program : Program}
   funext lane
   exact sourceValue_eq prepared base _
 
-/-- Phi81 keeps the existing signed convolutions, group order and summation. -/
+/-- Reuse the checked quotient formula on the prepared ring operands. -/
 def groupValue {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
-    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Nat) : F :=
-  let descriptor := PiRLCProductSchedule.descriptor invocation
-  PerApplicationAssignmentTransportProducts.ringGroupValue prepared.phi81
+    (invocation : Fin PiRLCProductSchedule.invocationCount) (_group : Nat) : F :=
+  let ring := PiRLCProductRingSchedule.ringInvocation invocation
+  let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
+  let descriptor := PiRLCProductSchedule.descriptor representative
+  Phi81Relation.QuotientProduct.quotientCoeff
     (challengeRing prepared base descriptor) (valueRing prepared base descriptor)
-    descriptor.lane group
+    (PiRLCProductSchedule.descriptor invocation).lane
 
-/-- Exact equality for every retained Phi81 invocation and group. -/
+/-- Exact equality for every retained Phi81 quotient coefficient. -/
 theorem groupValue_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
-    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Fin 33) :
+    (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Fin 1) :
     groupValue prepared base invocation group.val =
       (PerApplicationAssignmentTransportExecution.canonicalRawValues program base).groupValue
         invocation group := by

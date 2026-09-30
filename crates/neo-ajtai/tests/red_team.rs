@@ -1,8 +1,6 @@
 // crates/neo-ajtai/tests/red_team.rs
 #![allow(non_snake_case)] // Allow Z, Z_bad, etc. for matrix notation consistency
-use neo_ajtai::{
-    commit, decomp_b, s_lincomb, setup, setup_par, verify_open, verify_split_open, Commitment, DecompStyle, PP,
-};
+use neo_ajtai::{commit, decomp_b, s_lincomb, setup, verify_open, verify_split_open, Commitment, DecompStyle, PP};
 use neo_math::ring::{Rq as RqEl, D};
 use neo_params::NeoParams;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -104,14 +102,10 @@ fn ajtai_setup_rejects_zero_module_rank() {
         })
         .unwrap_or(false);
 
-    let mut parallel_rng = rand::rngs::StdRng::from_seed([0xC2; 32]);
-    let parallel = setup_par(&mut parallel_rng, D, 0, 1);
-
     assert!(
-        serial.is_err() && parallel.is_err() && !false_opening_accepted,
-        "Ajtai setup accepted kappa=0 (serial_ok={}, parallel_ok={}) and false opening={false_opening_accepted}",
+        serial.is_err() && !false_opening_accepted,
+        "Ajtai setup accepted kappa=0 (serial_ok={}) and false opening={false_opening_accepted}",
         serial.is_ok(),
-        parallel.is_ok(),
     );
 }
 

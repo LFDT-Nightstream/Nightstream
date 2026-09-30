@@ -292,7 +292,7 @@ theorem transcriptForm_eval
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment
@@ -324,7 +324,7 @@ theorem pointForm_eval
     (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (sboxes : (PiCCSPoseidonPlan.retainedBlock program).EncodesAt
       (PiCCSPoseidonPlan.retainedStart program)
       (PiCCSPoseidonPlan.retainedFits geometry) assignment

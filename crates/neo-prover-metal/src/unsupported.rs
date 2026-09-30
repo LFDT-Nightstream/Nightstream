@@ -132,15 +132,6 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    pub(crate) fn prepare_ajtai_low_norm_seeded(
-        &self,
-        _seed: [u8; 32],
-        _rows: usize,
-        _cols: usize,
-    ) -> Result<MetalAjtaiLowNormPlan, MetalError> {
-        Err(MetalError::Unavailable)
-    }
-
     pub fn ajtai_low_norm_with_plan(
         &self,
         _plan: &MetalAjtaiLowNormPlan,

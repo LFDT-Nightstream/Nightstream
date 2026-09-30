@@ -28,10 +28,10 @@ pub fn self_consistent_bytes(sealed_bytes: &[u8], family: RecipeFamily) -> Resul
     }
     match family {
         RecipeFamily::Phi81 => {
-            let first = transport[2][13][0][0]
+            let first = transport[2][9][0][0]
                 .as_u64()
                 .ok_or_else(|| "missing Phi81 operand source".to_string())?;
-            transport[2][13][0][0] = Value::from(if first == 0 { 1 } else { first - 1 });
+            transport[2][9][0][0] = Value::from(if first == 0 { 1 } else { first - 1 });
         }
         RecipeFamily::ChallengeWords => {
             shift_block_sources(transport, 4)?;

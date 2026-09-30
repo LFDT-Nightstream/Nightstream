@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::{
-    CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, CscMat, Mat, SeededPhi81LinearBlock, SparsePoly, Term,
-};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{dec_children_with_commit, prove, rlc_with_commit, verify, FoldingMode};
@@ -53,27 +51,6 @@ fn rectangular_ccs(rows: usize, columns: usize) -> CcsStructure<F> {
         ),
     )
     .expect("valid rectangular CCS")
-}
-
-fn seeded_phi81_ccs() -> CcsStructure<F> {
-    let seed = [0x6D; 32];
-    let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds(seed, 1, 1);
-    let block = SeededPhi81LinearBlock::new_with_word_width(0, vec![1], 41, 1, 1, chunk_size, chunk_seeds)
-        .expect("seeded Phi81 block");
-    let matrix = CcsMatrix::csc_with_seeded_phi81(CscMat::from_triplets(Vec::new(), D, D + 1), vec![block])
-        .expect("seeded Phi81 matrix");
-    CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, Vec::new())).expect("seeded Phi81 CCS")
-}
-
-fn transformed_seeded_phi81_ccs() -> CcsStructure<F> {
-    let seed = [0x6D; 32];
-    let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds(seed, 1, 1);
-    let block = SeededPhi81LinearBlock::new_with_word_width(0, vec![1], 41, 1, 1, chunk_size, chunk_seeds)
-        .expect("seeded Phi81 block")
-        .with_superneo_transformed_columns();
-    let matrix = CcsMatrix::csc_with_seeded_phi81(CscMat::from_triplets(Vec::new(), D, D + 1), vec![block])
-        .expect("seeded Phi81 matrix");
-    CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, Vec::new())).expect("seeded Phi81 CCS")
 }
 
 fn committer(params: &NeoParams, columns: usize) -> AjtaiSModule {
@@ -501,66 +478,6 @@ fn accepting_v1_1_path_exports_receipt_and_rejects_mutations() {
         &cache,
     )
     .is_err());
-}
-
-#[test]
-fn public_crosscheck_covers_seeded_phi81_matrix_descriptors() {
-    let structure = seeded_phi81_ccs();
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D + 1).expect("parameters");
-    let log = committer(&params, D + 1);
-    let (claim, witness) = source(&log, D + 1, 9);
-    let label = b"padded-row/seeded-phi81";
-    let mode = FoldingMode::OptimizedWithCrosscheck;
-    let (outputs, proof) = prove_mode(
-        mode.clone(),
-        label,
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        std::slice::from_ref(&witness),
-        &[],
-        &[],
-        &log,
-    )
-    .expect("seeded Phi81 crosscheck proof");
-    assert!(verify(
-        mode,
-        &mut Poseidon2Transcript::new(label),
-        &params,
-        &structure,
-        std::slice::from_ref(&claim),
-        &[],
-        &outputs,
-        &proof,
-    )
-    .expect("seeded Phi81 crosscheck verify"));
-}
-
-#[test]
-fn selected_engines_reject_pretransformed_seeded_matrix_descriptors() {
-    let structure = transformed_seeded_phi81_ccs();
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D + 1).expect("parameters");
-    let log = committer(&params, D + 1);
-    let (claim, witness) = source(&log, D + 1, 9);
-
-    for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
-        let error = prove_mode(
-            mode,
-            b"padded-row/pretransformed-seeded-phi81",
-            &params,
-            &structure,
-            std::slice::from_ref(&claim),
-            std::slice::from_ref(&witness),
-            &[],
-            &[],
-            &log,
-        )
-        .expect_err("the selected protocol must apply the paper transform exactly once");
-        assert!(
-            error.to_string().contains("untransformed CCS matrices"),
-            "unexpected error: {error}"
-        );
-    }
 }
 
 #[test]

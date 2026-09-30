@@ -6,6 +6,8 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
+use crate::superneo_eval::EqualityWeights;
+
 pub(super) fn pair(values: &[K], index: usize) -> (K, K) {
     (
         values.get(2 * index).copied().unwrap_or(K::ZERO),
@@ -117,6 +119,21 @@ impl<'a> Assignment<'a> {
         (self.get(2 * index), self.get(2 * index + 1))
     }
 
+    /// The pair codes of a prefix whose pairs take few distinct values.
+    pub(super) fn early_pairs(&self) -> Option<EarlyPairs<'_>> {
+        match self {
+            Self::Input { witness, len } if *len != 0 => witness
+                .packed_signed_unit_column_masks()
+                .map(|(positive, negative)| EarlyPairs::Masks { positive, negative }),
+            Self::Encoded { codes, values, zero } if values.len() <= MAX_EARLY_VALUES => Some(EarlyPairs::Encoded {
+                codes,
+                values,
+                zero: *zero,
+            }),
+            _ => None,
+        }
+    }
+
     pub(super) fn fold(&mut self, challenge: K) {
         let encoding = match self {
             Self::Input { witness, len } if *len != 0 && witness.is_packed_signed_unit() => {
@@ -144,6 +161,7 @@ impl<'a> Assignment<'a> {
                 return;
             }
             let current: &Self = self;
+            let masks = current.early_pairs();
             let code = |index| match current {
                 Self::Input { witness, len } if index < *len => {
                     let value = witness[(index % D, index / D)];
@@ -158,7 +176,10 @@ impl<'a> Assignment<'a> {
                 Self::Input { .. } => zero,
                 Self::Encoded { .. } | Self::Folded(_) => unreachable!("only initial codes need an allocation"),
             };
-            let pair_code = |index| code(2 * index) + base as u16 * code(2 * index + 1);
+            let pair_code = |index| match &masks {
+                Some(pairs) => pairs.code(index) as u16,
+                None => code(2 * index) + base as u16 * code(2 * index + 1),
+            };
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let codes = (0..self.len().div_ceil(2))
                 .into_par_iter()
@@ -193,6 +214,98 @@ impl<'a> Assignment<'a> {
 #[cfg(test)]
 #[path = "../../../tests/unit/assignment_prefix.rs"]
 mod tests;
+
+/// At most 81 values give at most 6,561 distinct pairs.
+const MAX_EARLY_VALUES: usize = 81;
+
+/// Pairs of an early prefix. Pair `index` is `(values[code % base],
+/// values[code / base])` for `code = self.code(index)` and `base = values.len()`.
+pub(super) enum EarlyPairs<'a> {
+    /// Signed-unit input columns; codes 0, 1, 2 are -1, 0, 1.
+    Masks {
+        positive: &'a [u64],
+        negative: &'a [u64],
+    },
+    Encoded {
+        codes: &'a [u16],
+        values: &'a [K],
+        zero: u16,
+    },
+}
+
+impl EarlyPairs<'_> {
+    pub(super) fn values(&self) -> &[K] {
+        const SIGNED_UNITS: [K; 3] = [K::NEG_ONE, K::ZERO, K::ONE];
+        match self {
+            Self::Masks { .. } => &SIGNED_UNITS,
+            Self::Encoded { values, .. } => values,
+        }
+    }
+
+    #[inline]
+    pub(super) fn code(&self, index: usize) -> usize {
+        match self {
+            Self::Masks { positive, negative } => {
+                // D is even, so both coordinates of a pair share one column.
+                let (column, lane) = ((2 * index) / D, (2 * index) % D);
+                let (Some(&positive), Some(&negative)) = (positive.get(column), negative.get(column)) else {
+                    return 4;
+                };
+                let unit = |lane: usize| (1 + (positive >> lane & 1) - (negative >> lane & 1)) as usize;
+                unit(lane) + 3 * unit(lane + 1)
+            }
+            Self::Encoded { codes, values, zero } => {
+                let code = |index: usize| usize::from(codes.get(index).copied().unwrap_or(*zero));
+                code(2 * index) + values.len() * code(2 * index + 1)
+            }
+        }
+    }
+}
+
+/// `sum_index weight(offset + index) * norm_pair(pair(index))` over the
+/// first `pairs` pairs. Weights are summed per pair code first; field sums
+/// are exact, so each distinct pair's norm is evaluated once.
+pub(super) fn early_norm_coefficients(
+    early: &EarlyPairs<'_>,
+    pairs: usize,
+    weights: &EqualityWeights,
+    offset: usize,
+) -> [K; 4] {
+    let values = early.values();
+    let base = values.len();
+    let zero = || vec![K::ZERO; base * base];
+    let add = |mut buckets: Vec<K>, index: usize| {
+        buckets[early.code(index)] += weights.at(offset + index);
+        buckets
+    };
+    let merge = |mut left: Vec<K>, right: Vec<K>| {
+        for (left, right) in left.iter_mut().zip(right) {
+            *left += right;
+        }
+        left
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let buckets = (0..pairs)
+        .into_par_iter()
+        .with_min_len(1 << 14)
+        .fold(zero, add)
+        .reduce(zero, merge);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let buckets = (0..pairs).fold(zero(), add);
+    let mut result = [K::ZERO; 4];
+    for (code, weight) in buckets.into_iter().enumerate() {
+        if weight == K::ZERO {
+            continue;
+        }
+        for (total, value) in result
+            .iter_mut()
+            .zip(norm_pair(values[code % base], values[code / base]))
+        {
+            *total += value * weight;
+        }
+    }
+    result
+}
 
 pub(super) fn norm_pair(low: K, high: K) -> [K; 4] {
     let delta = high - low;

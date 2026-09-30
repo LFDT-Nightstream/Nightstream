@@ -12,7 +12,7 @@ use super::{
     RetainedKind, RowForms, RowView,
 };
 
-const ROWS_PER_INVOCATION: usize = 94;
+const ROWS_PER_INVOCATION: usize = 86;
 const SBOX_ROWS_PER_INVOCATION: usize = 86;
 const WIDTH: usize = 8;
 

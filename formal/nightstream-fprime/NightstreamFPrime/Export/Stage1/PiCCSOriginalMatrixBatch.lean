@@ -30,7 +30,7 @@ open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 abbrev Batch := Vector MaterializedRingK (productionShape.sourceCount * matrixCount)
 
 abbrev PreparedInvocation :=
-  Vector (Vector (Vector PortValues 94) ringDegree) productionShape.sourceCount
+  Vector (Vector (Vector PortValues 86) ringDegree) productionShape.sourceCount
 
 private theorem ofFn_get {Alpha : Type} {size : Nat}
     (values : Fin size → Alpha) (index : Fin size) :
@@ -119,7 +119,7 @@ theorem prepareInvocation_source {columns : Nat}
 private def invocationRow (prepared : PreparedInvocation) (start index : Nat) :
     Vector StoredRing (productionShape.sourceCount * matrixCount) :=
   if start ≤ index then
-    if bounded : index - start < 94 then
+    if bounded : index - start < 86 then
       let selected := Vector.ofFn fun source : Fin productionShape.sourceCount =>
         Vector.ofFn fun output : Fin ringDegree =>
           ((prepared.get source).get output).get ⟨index - start, bounded⟩
@@ -133,23 +133,23 @@ private theorem invocationRow_value (prepared : PreparedInvocation) (start index
     (source : Fin productionShape.sourceCount) (port : Fin matrixCount) (output : Fin ringDegree) :
     ((invocationRow prepared start (start + index)).get
         (Fin.encodeProd (source, port))).get output =
-      if bounded : index < 94 then
+      if bounded : index < 86 then
         (((prepared.get source).get output).get ⟨index, bounded⟩).get port
       else 0 := by
   have lower : start ≤ start + index := by omega
   rw [invocationRow, if_pos lower, Nat.add_sub_cancel_left]
-  by_cases bounded : index < 94
+  by_cases bounded : index < 86
   · simp only [dif_pos bounded, ofFn_get, Fin.decodeProd_encodeProd]
   · rw [dif_neg bounded, dif_neg bounded]
     change ((Vector.replicate (productionShape.sourceCount * matrixCount)
       (Vector.replicate ringDegree (0 : F)))[(Fin.encodeProd (source, port)).val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- One 94-row traversal of supplied numeric tables. Each stored source/lane
+/-- One 86-row traversal of supplied numeric tables. Each stored source/lane
 record is selected once per row and shared across all matrix ports. -/
 def sumInvocation {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : PreparedInvocation) : Batch :=
-  PiDECEvaluationBatch.range start 94 point (invocationRow prepared start)
+  PiDECEvaluationBatch.range start 86 point (invocationRow prepared start)
 
 /-- Exact projection for arbitrary supplied prepared tables, including every
 source, port, ring lane and both field coordinates. The point weights and
@@ -161,7 +161,7 @@ theorem sumInvocation_source_port {arity : Nat} (start : Nat) (point : CubePoint
       ((PiDECMatrixInvocation.sum start point (prepared.get source)).get port).toRing := by
   funext output
   rw [sumInvocation, PiDECEvaluationBatch.range_value, PiDECMatrixInvocation.sum_value]
-  apply congrArg (NumericCompletionSum.numericSum extensionOps 94)
+  apply congrArg (NumericCompletionSum.numericSum extensionOps 86)
   funext index
   rw [invocationRow_value]
 
@@ -174,7 +174,7 @@ def sumInvocations {columns arity count : Nat} (firstRow : Nat)
     (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) : Batch :=
   PiDECEvaluationBatch.sum count fun index =>
     if live : index < count then
-      sumInvocation (firstRow + 94 * index) point
+      sumInvocation (firstRow + 86 * index) point
         (prepareInvocation read (interfaces.get ⟨index, live⟩))
     else PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
 
@@ -194,7 +194,7 @@ theorem sumInvocations_source_port {columns arity count : Nat} (firstRow : Nat)
   funext index
   by_cases live : index < count
   · simpa only [dif_pos live, prepareInvocation_source] using
-      congrFun (sumInvocation_source_port (firstRow + 94 * index) point
+      congrFun (sumInvocation_source_port (firstRow + 86 * index) point
         (prepareInvocation read (interfaces.get ⟨index, live⟩)) source port) output
   · simp only [dif_neg live, PiDECEvaluationBatch.zero_value]
 

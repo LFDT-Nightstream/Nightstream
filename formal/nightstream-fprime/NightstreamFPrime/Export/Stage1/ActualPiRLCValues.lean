@@ -101,6 +101,28 @@ private theorem priorForm_eval
       descriptor_invocation, notFirst, outputValue]
     rfl
 
+private theorem challenge_withLane
+    (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (descriptor : Descriptor)
+    (lane : Fin ringDegree) :
+    challenge geometry assignment (descriptor.withLane lane) =
+      challenge geometry assignment descriptor := by
+  funext coefficient
+  dsimp only [challenge, inputs, PiRLCProductMatrixProgram.inputs,
+    PiRLCRetainedInputs.productInputs]
+  simp only [descriptor_invocation]
+  cases descriptor
+  rfl
+
+private theorem piCcsValue_withLane
+    (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
+    (assignment : Assignment F logicalWidth) (descriptor : Descriptor)
+    (lane : Fin ringDegree) :
+    piCcsValue geometry assignment (descriptor.withLane lane) =
+      piCcsValue geometry assignment descriptor := by
+  rcases descriptor with ⟨family, source, block, oldLane, cell⟩
+  cases family <;> rfl
+
 /-- All product rows force the recurrence on the actual shared input values. -/
 theorem rowsZero_implies_equation
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
@@ -112,19 +134,34 @@ theorem rowsZero_implies_equation
       (if first : descriptor.source.val = 0 then 0
        else outputValue geometry assignment (descriptor.previousSource first)) +
         contribution geometry assignment descriptor := by
-  have equation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
+  let ring := (PiRLCProductRingSchedule.ofLane descriptor).invocation
+  have ringEquation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
     (PiRLCProductPlan.interface (inputs geometry)) PiRLCProductPlan.rowCount_le
-    assignment one rows descriptor.invocation
-  change outputValue geometry assignment descriptor =
-    (PiRLCProductPlan.priorForm (inputs geometry) descriptor.invocation).eval assignment +
+    assignment one rows ring
+  have equation := congrFun ringEquation descriptor.lane
+  change (PiRLCProductPlan.outputForm (inputs geometry)
+      (PiRLCProductRingSchedule.laneInvocation ring descriptor.lane)).eval assignment =
+    (PiRLCProductPlan.priorForm (inputs geometry)
+      (PiRLCProductRingSchedule.laneInvocation ring descriptor.lane)).eval assignment +
       ringFMul
         (Phi81ProductPlan.evalState assignment
-          (PiRLCProductPlan.challengeState (inputs geometry) descriptor.invocation))
+          (PiRLCProductPlan.challengeState (inputs geometry)
+            (PiRLCProductRingSchedule.laneInvocation ring
+              PiRLCProductRingSchedule.zeroLane)))
         (Phi81ProductPlan.evalState assignment
-          (PiRLCProductPlan.valueState (inputs geometry) descriptor.invocation))
-        (PiRLCProductSchedule.descriptor descriptor.invocation).lane at equation
-  rw [priorForm_eval, challengeState_eval geometry assignment descriptor one,
-    valueState_eval, descriptor_invocation] at equation
+          (PiRLCProductPlan.valueState (inputs geometry)
+            (PiRLCProductRingSchedule.laneInvocation ring
+              PiRLCProductRingSchedule.zeroLane))) descriptor.lane at equation
+  have selectedLane : PiRLCProductRingSchedule.laneInvocation ring descriptor.lane =
+      descriptor.invocation := by
+    simp [ring, PiRLCProductRingSchedule.laneInvocation]
+  have representative : PiRLCProductRingSchedule.laneInvocation ring
+        PiRLCProductRingSchedule.zeroLane =
+      (descriptor.withLane PiRLCProductRingSchedule.zeroLane).invocation := by
+    simp [ring, PiRLCProductRingSchedule.laneInvocation]
+  rw [selectedLane, representative, priorForm_eval,
+    challengeState_eval geometry assignment _ one, valueState_eval,
+    challenge_withLane, piCcsValue_withLane] at equation
   exact equation
 
 private theorem prefix_sum

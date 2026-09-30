@@ -23,8 +23,8 @@ from check_piccs_prefix_fold import read_round
 
 # Exact complete input profile required by this replay milestone.
 SOURCES = 17
-CARRIER = 242590842
-INPUT_CODES = 60647711
+CARRIER = 173939130
+INPUT_CODES = (CARRIER + 3) // 4
 OUTPUT_ROWS = (INPUT_CODES + 1) // 2
 TABLE_SIZE = 3 ** 4
 ZERO_CODE = 40

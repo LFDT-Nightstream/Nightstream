@@ -177,12 +177,13 @@ impl MetalSession {
         fresh: &Mat<F>,
     ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
         let variables = (usize::BITS
-            - plan
-                .rows
+            - structure
+                .domain_rows()
+                .max(plan.rows)
                 .max(plan.blocks * D)
                 .saturating_sub(1)
                 .leading_zeros()) as usize;
-        if witnesses.is_empty() || point.len() < variables {
+        if witnesses.is_empty() || point.len() != variables {
             return Err(MetalError::Shape("terminal running opening shape"));
         }
         let terminal = self.prepare_terminal_row_check(plan, structure, fresh)?;

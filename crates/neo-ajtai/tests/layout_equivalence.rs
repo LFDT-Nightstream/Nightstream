@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use neo_ajtai::{commit, commit_row_major, decomp_b, decomp_b_row_major, setup_par, DecompStyle};
+use neo_ajtai::{commit, commit_row_major, decomp_b, decomp_b_row_major, setup, DecompStyle};
 use neo_ccs::Mat;
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
@@ -76,7 +76,7 @@ fn commit_row_major_matches_commit_over_column_major_buffer() {
 
     for &m in &[1usize, 7usize, 300usize] {
         let mut rng = ChaCha8Rng::from_seed([7u8; 32]);
-        let pp = setup_par(&mut rng, d, kappa, m).expect("setup_par");
+        let pp = setup(&mut rng, d, kappa, m).expect("setup");
 
         let mut data = Vec::with_capacity(d * m);
         for r in 0..d {

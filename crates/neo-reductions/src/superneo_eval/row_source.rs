@@ -51,7 +51,6 @@ impl SuperneoEvalCacheBuilder {
                 geometric_row_offsets: RowOffsetStore::Empty,
                 geometric_runs: Vec::new(),
                 identity: false,
-                seeded_phi81_blocks: Vec::new(),
             })
             .collect();
         let explicit_matrix_masks = if matrices <= u16::BITS as usize {

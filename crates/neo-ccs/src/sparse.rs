@@ -10,7 +10,6 @@
 
 use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;
-use crate::seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -478,15 +477,10 @@ pub enum CcsMatrix<Ff> {
     },
     /// A sparse matrix stored in CSC form.
     Csc(CscMat<Ff>),
-    /// A sparse CSC base plus compact seeded Phi81 linear blocks.
-    ///
-    /// The blocks are part of the matrix, not auxiliary advice. Their public
-    /// chunk seeds deterministically define every omitted coefficient.
-    CscWithSeededPhi81 {
-        /// Ordinary sparse terms not owned by a compact block.
+    /// A sparse CSC base plus compact geometric row runs.
+    CscWithGeometricRuns {
+        /// Ordinary sparse terms not owned by a geometric run.
         csc: CscMat<Ff>,
-        /// Compact seeded blocks, each occupying disjoint constraint rows.
-        blocks: Vec<SeededPhi81LinearBlock>,
         /// Compact contiguous radix expansions in individual rows.
         geometric_runs: Vec<GeometricRowRun<Ff>>,
     },
@@ -505,37 +499,13 @@ pub enum CcsMatrix<Ff> {
 }
 
 impl<Ff> CcsMatrix<Ff> {
-    /// Build a matrix from an ordinary CSC base and compact seeded blocks.
-    pub fn csc_with_seeded_phi81(
+    /// Build a matrix from ordinary CSC terms and compact geometric row runs.
+    pub fn csc_with_geometric_runs(
         csc: CscMat<Ff>,
-        blocks: Vec<SeededPhi81LinearBlock>,
-    ) -> Result<Self, SeededPhi81Error> {
-        if blocks.is_empty() {
-            return Ok(Self::Csc(csc));
-        }
-        for block in &blocks {
-            block.validate_matrix_shape(csc.nrows, csc.ncols)?;
-        }
-        Ok(Self::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs: Vec::new(),
-        })
-    }
-
-    /// Build a matrix from ordinary CSC terms and compact structured terms.
-    pub fn csc_with_compact_rows(
-        csc: CscMat<Ff>,
-        blocks: Vec<SeededPhi81LinearBlock>,
         mut geometric_runs: Vec<GeometricRowRun<Ff>>,
     ) -> Result<Self, String> {
-        if blocks.is_empty() && geometric_runs.is_empty() {
+        if geometric_runs.is_empty() {
             return Ok(Self::Csc(csc));
-        }
-        for block in &blocks {
-            block
-                .validate_matrix_shape(csc.nrows, csc.ncols)
-                .map_err(|error| error.to_string())?;
         }
         for (index, run) in geometric_runs.iter().enumerate() {
             if !run.validate_shape(csc.nrows, csc.ncols) {
@@ -546,11 +516,7 @@ impl<Ff> CcsMatrix<Ff> {
             }
         }
         geometric_runs.sort_unstable_by_key(|run| (run.row(), run.column_start(), run.len()));
-        Ok(Self::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        })
+        Ok(Self::CscWithGeometricRuns { csc, geometric_runs })
     }
 
     /// Number of rows.
@@ -558,7 +524,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.nrows,
-            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.nrows,
+            CcsMatrix::CscWithGeometricRuns { csc, .. } => csc.nrows,
             CcsMatrix::VerifierArtifact { rows, .. } => *rows,
         }
     }
@@ -568,7 +534,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.ncols,
-            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.ncols,
+            CcsMatrix::CscWithGeometricRuns { csc, .. } => csc.ncols,
             CcsMatrix::VerifierArtifact { cols, .. } => *cols,
         }
     }
@@ -578,7 +544,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => None,
             CcsMatrix::Csc(m) => Some(m),
-            CcsMatrix::CscWithSeededPhi81 { .. } | CcsMatrix::VerifierArtifact { .. } => None,
+            CcsMatrix::CscWithGeometricRuns { .. } | CcsMatrix::VerifierArtifact { .. } => None,
         }
     }
 
@@ -586,23 +552,15 @@ impl<Ff> CcsMatrix<Ff> {
     pub fn sparse_component(&self) -> Option<&CscMat<Ff>> {
         match self {
             CcsMatrix::Identity { .. } => None,
-            CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => Some(csc),
+            CcsMatrix::Csc(csc) | CcsMatrix::CscWithGeometricRuns { csc, .. } => Some(csc),
             CcsMatrix::VerifierArtifact { .. } => None,
-        }
-    }
-
-    /// Borrow the compact seeded blocks in this matrix.
-    pub fn seeded_phi81_blocks(&self) -> &[SeededPhi81LinearBlock] {
-        match self {
-            CcsMatrix::CscWithSeededPhi81 { blocks, .. } => blocks,
-            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
         }
     }
 
     /// Borrow compact geometric row runs in this matrix.
     pub fn geometric_runs(&self) -> &[GeometricRowRun<Ff>] {
         match self {
-            CcsMatrix::CscWithSeededPhi81 { geometric_runs, .. } => geometric_runs,
+            CcsMatrix::CscWithGeometricRuns { geometric_runs, .. } => geometric_runs,
             CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
         }
     }
@@ -613,7 +571,7 @@ impl<Ff: Field> CcsMatrix<Ff> {
     pub fn has_canonical_csc(&self) -> bool {
         match self {
             Self::Identity { n } => *n > 0,
-            Self::Csc(csc) | Self::CscWithSeededPhi81 { csc, .. } => csc.is_canonical(),
+            Self::Csc(csc) | Self::CscWithGeometricRuns { csc, .. } => csc.is_canonical(),
             Self::VerifierArtifact { .. } => false,
         }
     }
@@ -646,7 +604,7 @@ where
                 }
                 true
             }
-            CcsMatrix::CscWithSeededPhi81 { .. } => false,
+            CcsMatrix::CscWithGeometricRuns { .. } => false,
             CcsMatrix::VerifierArtifact { .. } => false,
         }
     }
@@ -656,8 +614,7 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
     /// Materialize one exact sparse row from every additive matrix component.
     ///
     /// The result is sorted by column, contains no duplicate columns or zero
-    /// coefficients, and includes ordinary CSC, seeded Phi81, and geometric
-    /// contributions after field addition. `None` means only that `row` is
+    /// coefficients, and includes ordinary CSC and geometric contributions after field addition. `None` means only that `row` is
     /// outside the matrix.
     pub fn materialize_row(&self, row: usize) -> Option<Vec<(usize, Ff)>> {
         if row >= self.rows() {
@@ -667,17 +624,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => accumulate_row_term(&mut terms, row, Ff::ONE),
             CcsMatrix::Csc(csc) => accumulate_csc_row(&mut terms, csc, row),
-            CcsMatrix::CscWithSeededPhi81 {
-                csc,
-                blocks,
-                geometric_runs,
-            } => {
+            CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 accumulate_csc_row(&mut terms, csc, row);
-                for block in blocks {
-                    block.for_each_row_term::<Ff, _>(row, |column, coefficient| {
-                        accumulate_row_term(&mut terms, column, coefficient);
-                    });
-                }
                 for run in geometric_runs.iter().filter(|run| run.row() == row) {
                     run.for_each_term(|_, column, coefficient| {
                         accumulate_row_term(&mut terms, column, coefficient);
@@ -711,15 +659,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_transpose_into(x, y, n_eff),
-            CcsMatrix::CscWithSeededPhi81 {
-                csc,
-                blocks,
-                geometric_runs,
-            } => {
+            CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 csc.add_mul_transpose_into(x, y, n_eff);
-                for block in blocks {
-                    block.add_mul_transpose_into::<Ff, Kf>(x, y, n_eff);
-                }
                 for run in geometric_runs {
                     run.add_mul_transpose_into(x, y, n_eff);
                 }
@@ -745,15 +686,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_into(x, y, n_eff),
-            CcsMatrix::CscWithSeededPhi81 {
-                csc,
-                blocks,
-                geometric_runs,
-            } => {
+            CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 csc.add_mul_into(x, y, n_eff);
-                for block in blocks {
-                    block.add_mul_into::<Ff, Kf>(x, y, n_eff);
-                }
                 for run in geometric_runs {
                     run.add_mul_into(x, y, n_eff);
                 }

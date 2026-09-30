@@ -273,7 +273,7 @@ fn replay_matches_cpu_and_resident_rounds_transcript_and_complete_openings() {
         let plan = session
             .prepare_joint_matrix_plan(&source, metadata_workspace)
             .unwrap();
-        let matrix_window = session.load_matrix_window(&plan, 0..rows, 0).unwrap();
+        let matrix_window = session.load_matrix_window(&plan, 0..rows, 0, true).unwrap();
         assert!(matrix_window.matrices[0].geometric_row_offset_width != 0);
         drop(matrix_window);
         assert!(rows * MATRIX_COUNT * size_of::<F>() > workspace);

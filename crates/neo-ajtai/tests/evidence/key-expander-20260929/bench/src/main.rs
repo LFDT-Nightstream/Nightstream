@@ -1,4 +1,4 @@
-//! Time one complete indexed Ajtai key pass for four expanders on the CPU and
+//! Time one complete indexed Ajtai key pass for two expanders on the CPU and
 //! on Metal. Every expander gives 54 coefficients per key element
 //! (row, column); each coefficient is 32 little-endian bytes reduced modulo
 //! the Goldilocks prime. Only the byte source differs.
@@ -8,11 +8,6 @@
 
 use std::time::{Duration, Instant};
 
-mod chacha_v1;
-
-use chacha_v1::{
-    block_words, coefficient, coefficient_block, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
-};
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_foundation::NSString;
@@ -24,35 +19,29 @@ use rayon::prelude::*;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 use sha3::{Shake128, Shake256};
 
-use chacha_v1::D;
+const D: usize = 54;
 const P: u64 = 0xFFFF_FFFF_0000_0001;
+const PRODUCTION_VERIFIER_ROWS: u64 = 22;
+const PRODUCTION_MESSAGE_COLUMNS: u64 = 3_221_095;
+const PRODUCTION_SEED: [u8; 32] = [
+    252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146, 215, 215, 171, 68, 216, 26, 193, 123, 69, 168, 231,
+    189, 76, 31, 30, 55, 23, 2,
+];
 const TAG: [u8; 32] = *b"nightstream-ajtai-shake-bench-v0";
-const SIGMA: [u32; 4] = [0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574];
 const METAL_SOURCE: &str = include_str!("expander.metal");
 const METAL_THREADS: u64 = 1 << 17;
 
 #[derive(Clone, Copy, Debug)]
 enum Expander {
-    /// The current setup: one ChaCha20 block per coefficient.
-    ChaCha20,
-    /// Both halves of each ChaCha20 block: 27 blocks per key element.
-    ChaCha20Contiguous,
     Shake128,
     Shake256,
 }
 
-const EXPANDERS: [Expander; 4] = [
-    Expander::ChaCha20,
-    Expander::ChaCha20Contiguous,
-    Expander::Shake128,
-    Expander::Shake256,
-];
+const EXPANDERS: [Expander; 2] = [Expander::Shake128, Expander::Shake256];
 
 impl Expander {
     fn kernel(self) -> &'static str {
         match self {
-            Self::ChaCha20 => "expand_chacha20",
-            Self::ChaCha20Contiguous => "expand_chacha20_contiguous",
             Self::Shake128 => "expand_shake128",
             Self::Shake256 => "expand_shake256",
         }
@@ -60,8 +49,6 @@ impl Expander {
 
     fn element(self, row: u32, column: u64) -> [u64; D] {
         match self {
-            Self::ChaCha20 => coefficient_block(&PRODUCTION_SEED, row, column),
-            Self::ChaCha20Contiguous => chacha_contiguous(row, column),
             Self::Shake128 => shake::<Shake128>(row, column),
             Self::Shake256 => shake::<Shake256>(row, column),
         }
@@ -105,60 +92,6 @@ fn le_words(bytes: &[u8]) -> [u32; 8] {
     std::array::from_fn(|i| u32::from_le_bytes(bytes[4 * i..4 * i + 4].try_into().unwrap()))
 }
 
-fn seed_words() -> [u32; 8] {
-    std::array::from_fn(|i| u32::from_le_bytes(PRODUCTION_SEED[4 * i..4 * i + 4].try_into().unwrap()))
-}
-
-#[inline(always)]
-fn quarter_round<const L: usize>(s: &mut [[u32; L]; 16], a: usize, b: usize, c: usize, d: usize) {
-    for l in 0..L {
-        s[a][l] = s[a][l].wrapping_add(s[b][l]);
-        s[d][l] = (s[d][l] ^ s[a][l]).rotate_left(16);
-        s[c][l] = s[c][l].wrapping_add(s[d][l]);
-        s[b][l] = (s[b][l] ^ s[c][l]).rotate_left(12);
-        s[a][l] = s[a][l].wrapping_add(s[b][l]);
-        s[d][l] = (s[d][l] ^ s[a][l]).rotate_left(8);
-        s[c][l] = s[c][l].wrapping_add(s[d][l]);
-        s[b][l] = (s[b][l] ^ s[c][l]).rotate_left(7);
-    }
-}
-
-/// 27 ChaCha20 blocks, evaluated lane-parallel like the production code.
-/// Block k gives lanes 2k (words 0..8) and 2k+1 (words 8..16).
-fn chacha_contiguous(row: u32, column: u64) -> [u64; D] {
-    const L: usize = D / 2;
-    let key = seed_words();
-    let mut initial = [[0u32; L]; 16];
-    for (word, constant) in initial[..4].iter_mut().zip(SIGMA) {
-        *word = [constant; L];
-    }
-    for (word, key_word) in initial[4..12].iter_mut().zip(key) {
-        *word = [key_word; L];
-    }
-    initial[12] = std::array::from_fn(|lane| lane as u32);
-    initial[13] = [row; L];
-    initial[14] = [column as u32; L];
-    initial[15] = [(column >> 32) as u32; L];
-    let mut s = initial;
-    for _ in 0..10 {
-        quarter_round(&mut s, 0, 4, 8, 12);
-        quarter_round(&mut s, 1, 5, 9, 13);
-        quarter_round(&mut s, 2, 6, 10, 14);
-        quarter_round(&mut s, 3, 7, 11, 15);
-        quarter_round(&mut s, 0, 5, 10, 15);
-        quarter_round(&mut s, 1, 6, 11, 12);
-        quarter_round(&mut s, 2, 7, 8, 13);
-        quarter_round(&mut s, 3, 4, 9, 14);
-    }
-    let mut out = [0u64; D];
-    for lane in 0..L {
-        let word = |w: usize| s[w][lane].wrapping_add(initial[w][lane]);
-        out[2 * lane] = reduce(std::array::from_fn(word));
-        out[2 * lane + 1] = reduce(std::array::from_fn(|w| word(8 + w)));
-    }
-    out
-}
-
 fn shake_input(row: u32, column: u64) -> [u8; 76] {
     let mut input = [0u8; 76];
     input[..32].copy_from_slice(&TAG);
@@ -186,21 +119,9 @@ fn element_checksum(index: u64, coefficients: &[u64; D]) -> u64 {
         })
 }
 
-/// Independent references on scattered elements: the scalar production
-/// coefficient, the scalar RFC 8439 block, and division-based reduction.
+/// Independent reference on scattered elements: division-based reduction.
 fn check_references() {
     for (row, column) in [(0u32, 0u64), (7, 1_234_567), (21, PRODUCTION_MESSAGE_COLUMNS - 1)] {
-        let current = Expander::ChaCha20.element(row, column);
-        let contiguous = Expander::ChaCha20Contiguous.element(row, column);
-        for block in 0..D as u32 / 2 {
-            let words = block_words(&PRODUCTION_SEED, row, column, block);
-            assert_eq!(
-                contiguous[2 * block as usize],
-                coefficient(&PRODUCTION_SEED, row, column, block)
-            );
-            let second: [u32; 8] = words[8..].try_into().unwrap();
-            assert_eq!(contiguous[2 * block as usize + 1], reduce_by_division(second));
-        }
         let bytes = {
             let mut xof = Shake128::default();
             xof.update(&shake_input(row, column));
@@ -214,9 +135,6 @@ fn check_references() {
                 shake[lane],
                 reduce_by_division(le_words(&bytes[32 * lane..32 * lane + 32]))
             );
-        }
-        for lane in 0..D as u32 {
-            assert_eq!(current[lane as usize], coefficient(&PRODUCTION_SEED, row, column, lane));
         }
     }
     println!("reference checks: ok");
@@ -265,7 +183,6 @@ fn metal_pass(expander: Expander, rows: u64, columns: u64) -> (u64, Duration) {
     let pipeline = device
         .newComputePipelineStateWithFunction_error(&function)
         .expect("pipeline");
-    let seed = shared_buffer(&device, &seed_words());
     let prefix: Vec<u64> = TAG
         .chunks_exact(8)
         .chain(PRODUCTION_SEED.chunks_exact(8))
@@ -284,10 +201,9 @@ fn metal_pass(expander: Expander, rows: u64, columns: u64) -> (u64, Duration) {
         let encoder = command.computeCommandEncoder().expect("encoder");
         encoder.setComputePipelineState(&pipeline);
         unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&seed), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&out), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(shape), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&out), 0, 2);
         }
         encoder.dispatchThreads_threadsPerThreadgroup(
             MTLSize {

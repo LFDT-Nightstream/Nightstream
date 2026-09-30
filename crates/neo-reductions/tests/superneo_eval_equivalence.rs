@@ -1022,3 +1022,75 @@ fn cached_superneo_ring_real_z_blocks_match_scalar_eval() {
         assert_eq!(scalar[j], ring[j][0], "matrix {j}: scalar eval must equal ct(y_ring)");
     }
 }
+
+#[test]
+fn chunked_row_dots_match_complete_rows_and_expanded_csc() {
+    let rows = 2 * D + 5;
+    let columns = 3 * D;
+    // One run every seventh row; the runs cross ring-block boundaries.
+    let runs: Vec<_> = (0..rows)
+        .step_by(7)
+        .map(|row| {
+            GeometricRowRun::new(
+                row,
+                (row * 13) % (columns - 41),
+                41,
+                F::from_u64(row as u64 + 2),
+                F::from_u64(3),
+            )
+        })
+        .collect();
+    let explicit: Vec<_> = (0..rows)
+        .map(|row| {
+            (
+                row,
+                (row * 29 + 5) % columns,
+                F::from_u64(row as u64 + 1) - F::from_u64(40),
+            )
+        })
+        .collect();
+    let mut expanded = explicit.clone();
+    for run in &runs {
+        run.for_each_term(|row, column, value| expanded.push((row, column, value)));
+    }
+    let polynomial = SparsePoly::new(1, vec![]);
+    let compact = CcsMatrix::csc_with_geometric_runs(CscMat::from_triplets(explicit, rows, columns), runs)
+        .expect("valid compact matrix");
+    let compact = CcsStructure::new_sparse(vec![compact], polynomial.clone()).expect("compact structure");
+    let expanded = CcsMatrix::Csc(CscMat::from_triplets(expanded, rows, columns));
+    let expanded = CcsStructure::new_sparse(vec![expanded], polynomial).expect("expanded structure");
+    let compact_cache = build_superneo_eval_cache(&compact).expect("compact cache");
+    let expanded_cache = build_superneo_eval_cache(&expanded).expect("expanded cache");
+    let compact_matrix = compact_cache.matrix(0).expect("compact matrix cache");
+
+    let z: Vec<K> = (0..columns)
+        .map(|column| match (column * 31 + 7) % 3 {
+            0 => -K::ONE,
+            1 => K::ZERO,
+            _ => K::ONE,
+        })
+        .collect();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let mut complete = vec![K::ZERO; rows];
+    compact_matrix.fill_row_dots_real_with_blocks(&mut complete, &z_blocks);
+    let mut expected = vec![K::ZERO; rows];
+    expanded_cache
+        .matrix(0)
+        .expect("expanded matrix cache")
+        .fill_row_dots_real_with_blocks(&mut expected, &z_blocks);
+    assert_eq!(complete, expected);
+
+    // Disjoint row ranges, split inside and at the end of ring blocks.
+    for splits in [vec![rows / 3], vec![D / 3, D, D + 17, 2 * D]] {
+        let mut chunked = vec![K::ZERO; rows];
+        let mut rest = chunked.as_mut_slice();
+        let mut first = 0;
+        for end in splits.iter().copied().chain([rows]) {
+            let (chunk, tail) = rest.split_at_mut(end - first);
+            compact_matrix.fill_row_dots_real_from(first, chunk, &z_blocks);
+            rest = tail;
+            first = end;
+        }
+        assert_eq!(chunked, complete, "row splits {splits:?}");
+    }
+}

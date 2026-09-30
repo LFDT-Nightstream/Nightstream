@@ -1,6 +1,6 @@
 {"benchmark":"poseidon2_hash_chain_v1","event":"package_compile_started","output":"app.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2}
 {"event":"phase_started","phase":"compile","step":null}
-{"event":"phase_finished","phase":"compile","seconds":12.761143166,"step":null}
+{"event":"phase_finished","phase":"compile","seconds":12.915711042,"step":null}
 {"event":"phase_started","phase":"save","step":null}
-{"event":"phase_finished","phase":"save","seconds":0.069283833,"step":null}
-{"circuit_identity":[2441237571630748690,11493012538563357378,7440387007046246470,5401368983676244264],"event":"package_compile_finished","output":"app.nsc","saved":true,"schema":2,"seconds":12.8305}
+{"event":"phase_finished","phase":"save","seconds":0.068050083,"step":null}
+{"circuit_identity":[2441237571630748690,11493012538563357378,7440387007046246470,5401368983676244264],"event":"package_compile_finished","output":"app.nsc","saved":true,"schema":2,"seconds":12.983829875}

@@ -62,7 +62,7 @@ def piCcsOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   outputHashOffset program + 7311200
 
 def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piCcsOffset program + 4581414
+  piCcsOffset program + 4622677
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piRlcOffset program + PiRLC.v1_1.Formal.logicalPrivateCount
@@ -71,7 +71,7 @@ def runningOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piDecOffset program + Lifecycle.PiDEC.v1_1.Formal.logicalPrivateCount
 
 def applicationOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  runningOffset program + 1
+  runningOffset program + 2
 
 def piCcsInterface
     (program : Lifecycle.Stage1.Application.Program) :
@@ -361,9 +361,9 @@ private theorem piCcsPrivateCount_eq
     (template : Proof (ProductionKey.degreeBound relation)) :
     (Lifecycle.Stage1.piCcsChild relation ajtai program
       (interface relation program) template).privateCount (piCcsOffset program) =
-      4581414 := by
+      4622677 := by
   change Lifecycle.PiCCS.v1_1.Formal.privateCount
-    (ProductionKey.degreeBound relation) = 4581414
+    (ProductionKey.degreeBound relation) = 4622677
   exact Lifecycle.PiCCS.v1_1.Formal.privateCount_eq_of_degreeBound_eq_nine
     _ (ProductionKey.degreeBound_eq relation)
 

@@ -86,7 +86,8 @@ private theorem digit_directConstraint_eq_none
     lowerAffine_mul_eq_none (inputs.digit_nonconstant index)
       (difference_nonconstant interface offset index)
   unfold Lifecycle.PiDEC.v1_1.SignedSplitScalar.digitConstraint
-  simp [R1CS.directConstraint, R1CS.affineConstraint, nonAffine]
+  simp [R1CS.directConstraint, R1CS.affineOrRankOneConstraint,
+    R1CS.affineConstraint, R1CS.rankOneConstraint, nonAffine]
 
 theorem sign_freshCount_eq (offset : Nat) :
     R1CS.constraintFreshCount

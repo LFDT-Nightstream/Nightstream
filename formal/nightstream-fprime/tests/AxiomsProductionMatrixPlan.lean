@@ -138,10 +138,6 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.output_varsSatisfy
 #audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.flatConstraints_varsSatisfy
 #audit_axioms NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.output_varsSatisfy
-#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.pow_supported
-#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.multiplyPower_supported
-#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial_supported
-#audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluate_supported
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.flatConstraints_varsSatisfy
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.output_varsSatisfy
 #audit_axioms NightstreamFPrime.Gadgets.Polynomial.Power.flatConstraints_varsSatisfy

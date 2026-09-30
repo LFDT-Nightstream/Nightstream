@@ -16,7 +16,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Exact support propagation through the production two-row CCS terminal. -/
+/-- Exact support propagation through the production CCS terminal. -/
 theorem flatConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

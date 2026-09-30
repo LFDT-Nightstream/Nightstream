@@ -9,8 +9,8 @@ import sys
 
 from check_piccs_binary_fold import P, require
 
-PAD_BLOCKS = 3221095
-MATRIX_ROWS = 4131470
+PAD_BLOCKS = 2474346
+MATRIX_ROWS = 3147948
 
 
 def main():

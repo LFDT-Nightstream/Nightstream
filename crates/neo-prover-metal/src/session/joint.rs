@@ -131,7 +131,7 @@ impl MetalSession {
                 .max(plan.blocks * D)
                 .saturating_sub(1)
                 .leading_zeros()) as usize;
-        if witnesses.is_empty() || assignment_width.div_ceil(D) != plan.blocks || point.len() != variables {
+        if witnesses.is_empty() || assignment_width.div_ceil(D) != plan.blocks || point.len() < variables {
             return Err(MetalError::Shape("one-joint PiDEC opening shape is invalid"));
         }
         let source_blocks = witnesses
@@ -182,7 +182,7 @@ impl MetalSession {
                 .max(plan.blocks * D)
                 .saturating_sub(1)
                 .leading_zeros()) as usize;
-        if witnesses.is_empty() || point.len() != variables {
+        if witnesses.is_empty() || point.len() < variables {
             return Err(MetalError::Shape("terminal running opening shape"));
         }
         let terminal = self.prepare_terminal_row_check(plan, structure, fresh)?;

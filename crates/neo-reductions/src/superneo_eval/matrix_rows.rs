@@ -7,7 +7,7 @@ use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-use super::SuperneoEvalCache;
+use super::{RetainedMatrixWindow, SuperneoEvalCache};
 use crate::PiCcsError;
 
 /// Global source dimensions. Columns include the complete padded carrier.
@@ -42,6 +42,12 @@ pub trait MatrixRows: Sync {
     fn shape(&self) -> MatrixShape;
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError>;
+
+    /// Where the owner of this source keeps its complete window between
+    /// operations. The slot must serve this source only. `None` keeps nothing.
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        None
+    }
 }
 
 pub trait MatrixRowSink {

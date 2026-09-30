@@ -66,7 +66,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     assert_eq!(proof.canonical_bytes(), fs::read(saved.join("proof.native")).unwrap());
     let expected_nifs = read(artifact("nightstream-fprime-stage1-base-nifs-result-v1.json"));
     let params = Params::for_ccs_shape(
-        package.structure.n,
+        package.structure.domain_rows(),
         package.structure.m,
         package.structure.t(),
         package.structure.max_degree(),

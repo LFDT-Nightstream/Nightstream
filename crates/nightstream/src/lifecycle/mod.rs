@@ -8,6 +8,7 @@ use neo_ajtai::nightstream_fprime_setup::{
     authority_words, MAX_CARRIER_WIDTH, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_math::D;
+use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{
     LoadedPerApplicationPackage, PackageError, PiCcsV1_1PackageInputs, PiDecV1_1PackageInputs, Stage1VerifierBinding,
     WitnessAssignment,
@@ -36,6 +37,7 @@ pub struct PreparedLifecycle {
     binding: Stage1VerifierBinding,
     backend: Backend,
     params: crate::folding::Params,
+    matrix_window: std::sync::Arc<RetainedMatrixWindow>,
 }
 impl PreparedLifecycle {
     pub(crate) fn from_package(
@@ -49,7 +51,7 @@ impl PreparedLifecycle {
         }
         let structure = package.ccs_structure_header()?;
         let params = crate::folding::Params::for_ccs_shape(
-            structure.n,
+            structure.domain_rows(),
             structure.m,
             structure.t(),
             structure.max_degree(),
@@ -65,7 +67,14 @@ impl PreparedLifecycle {
             binding,
             backend,
             params,
+            matrix_window: Default::default(),
         })
+    }
+    /// Use the circuit's slot, so that its prover and verifier keep one
+    /// complete matrix window between them.
+    pub(crate) fn sharing_matrix_window(mut self, window: std::sync::Arc<RetainedMatrixWindow>) -> Self {
+        self.matrix_window = window;
+        self
     }
     pub(crate) fn engine(&self) -> Engine {
         self.backend.engine()

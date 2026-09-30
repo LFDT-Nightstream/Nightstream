@@ -92,7 +92,7 @@ private theorem targetLength_eq
   exact Nat.add_sub_cancel_left _ _
 
 theorem runningTransitionTargetLength_eq :
-    Data.runningTransitionWitnessLength = 296138 := by
+    Data.runningTransitionWitnessLength = 2 := by
   rfl
 
 theorem runningTransitionTargetEnd_eq :

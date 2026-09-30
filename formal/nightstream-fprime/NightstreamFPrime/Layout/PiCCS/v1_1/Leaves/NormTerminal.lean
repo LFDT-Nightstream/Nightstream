@@ -46,6 +46,8 @@ structure ResidualShape (value : KExpr) : Prop where
   c1_mulCount : R1CS.mulCount value.c1 = 9
   c0_nonconstant : Nonconstant value.c0
   c1_nonconstant : Nonconstant value.c1
+  c0_nonAffine : R1CS.lowerAffine value.c0 = none
+  c1_nonAffine : R1CS.lowerAffine value.c1 = none
 
 /-- Stable physical wire shape for the verifier challenge and all source
 assignments. -/
@@ -68,7 +70,7 @@ structure InputsLinear
 theorem residualExpr_shape (value : KExpr) (linear : KExprLinear value) :
     ResidualShape
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.residualExpr value) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, rfl, rfl⟩
   · simp [NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.residualExpr,
       KExpr.one, KExpr.add, KExpr.sub, KExpr.mul, R1CS.mulCount,
       mulCount_sub,
@@ -138,117 +140,134 @@ theorem output_varsBelow_finalIdentity
   rw [outputEq, boundEq]
   exact below
 
+/-! The norm residual operand is not affine, so its three product recipes use
+the general lowering. -/
+
+private theorem high_directConstraint_eq_none (output : Nat)
+    (point right : KExpr) (pointLinear : KExprLinear point)
+    (rightShape : ResidualShape right) :
+    R1CS.directConstraint
+      (Expr.var output - point.c1 * right.c1) = none := by
+  have productNone : R1CS.lowerAffine (.mul point.c1 right.c1) = none :=
+    lowerAffine_mul_eq_none pointLinear.c1_nonconstant
+      rightShape.c1_nonconstant
+  change R1CS.directConstraint
+    (.add (.var output) (.mul (.const (-1)) (.mul point.c1 right.c1))) = none
+  cases pointAffine : R1CS.lowerAffine point.c1 <;>
+    simp [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.affineConstraint, R1CS.lowerAffine, productNone,
+      rightShape.c1_nonAffine, pointAffine]
+
 private theorem c0_directConstraint_eq_none (output : Nat)
     (point right : KExpr) (pointLinear : KExprLinear point)
     (rightShape : ResidualShape right) :
     R1CS.directConstraint
-      (Expr.var output - (KExpr.mul point right).c0) = none := by
+      (Expr.var (output + 1) -
+        (point.c0 * right.c0 + 7 * Expr.var output)) = none := by
+  have productNone : R1CS.lowerAffine (.mul point.c0 right.c0) = none :=
+    lowerAffine_mul_eq_none pointLinear.c0_nonconstant
+      rightShape.c0_nonconstant
   change R1CS.directConstraint
-    (Expr.var output -
-      (point.c0 * right.c0 + 7 * point.c1 * right.c1)) = none
-  apply directConstraint_sub_add_eq_none
-  exact lowerAffine_mul_eq_none pointLinear.c0_nonconstant
-    rightShape.c0_nonconstant
-
-private theorem c1_directConstraint_eq_none (output : Nat)
-    (point right : KExpr) (pointLinear : KExprLinear point)
-    (rightShape : ResidualShape right) :
-    R1CS.directConstraint
-      (Expr.var output - (KExpr.mul point right).c1) = none := by
-  change R1CS.directConstraint
-    (Expr.var output -
-      (point.c0 * right.c1 + point.c1 * right.c0)) = none
-  apply directConstraint_sub_add_eq_none
-  exact lowerAffine_mul_eq_none pointLinear.c0_nonconstant
-    rightShape.c1_nonconstant
-
-private theorem c0_freshCount_eq (output : Nat)
-    (point right : KExpr) (pointLinear : KExprLinear point)
-    (rightShape : ResidualShape right) :
-    R1CS.constraintFreshCount
-      (Expr.var output - (KExpr.mul point right).c0) = 23 := by
-  unfold R1CS.constraintFreshCount
-  rw [c0_directConstraint_eq_none output point right pointLinear rightShape]
-  change R1CS.mulCount
-    (.add (.var output)
+    (.add (.var (output + 1))
       (.mul (.const (-1))
         (.add (.mul point.c0 right.c0)
-          (.mul (.mul (.const 7) point.c1) right.c1)))) = 23
-  simp only [R1CS.mulCount, pointLinear.c0_mulCount,
-    pointLinear.c1_mulCount, rightShape.c0_mulCount,
-    rightShape.c1_mulCount]
+          (.mul (.const 7) (.var output))))) = none
+  cases pointAffine : R1CS.lowerAffine point.c0 <;>
+    simp [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
+      productNone, rightShape.c0_nonAffine, pointAffine]
 
-private theorem c1_freshCount_eq (output : Nat)
-    (point right : KExpr) (pointLinear : KExprLinear point)
-    (rightShape : ResidualShape right) :
-    R1CS.constraintFreshCount
-      (Expr.var output - (KExpr.mul point right).c1) = 22 := by
-  unfold R1CS.constraintFreshCount
-  rw [c1_directConstraint_eq_none output point right pointLinear rightShape]
-  change R1CS.mulCount
-    (.add (.var output)
+private theorem c1_directConstraint_eq_none (output : Nat)
+    (point right : KExpr) (rightShape : ResidualShape right) :
+    R1CS.directConstraint
+      (Expr.var (output + 1 + 1) -
+        ((point.c0 + point.c1) * (right.c0 + right.c1) +
+          (-Expr.var (output + 1) + 6 * Expr.var output))) = none := by
+  change R1CS.directConstraint
+    (.add (.var (output + 1 + 1))
       (.mul (.const (-1))
-        (.add (.mul point.c0 right.c1)
-          (.mul point.c1 right.c0)))) = 22
-  simp only [R1CS.mulCount, pointLinear.c0_mulCount,
-    pointLinear.c1_mulCount, rightShape.c0_mulCount,
-    rightShape.c1_mulCount]
+        (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
+          (.add (.mul (.const (-1)) (.var (output + 1)))
+            (.mul (.const 6) (.var output)))))) = none
+  cases pointAffine : R1CS.lowerAffine (.add point.c0 point.c1) <;>
+    simp_all [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
+      rightShape.c0_nonAffine]
 
-private theorem c0_rowCount_eq (output : Nat)
+private theorem high_mulCount_eq (output : Nat)
     (point right : KExpr) (pointLinear : KExprLinear point)
     (rightShape : ResidualShape right) :
-    R1CS.constraintRowCount
-      (Expr.var output - (KExpr.mul point right).c0) = 24 := by
-  unfold R1CS.constraintRowCount
-  rw [c0_directConstraint_eq_none output point right pointLinear rightShape]
+    R1CS.mulCount (Expr.var output - point.c1 * right.c1) = 11 := by
   change R1CS.mulCount
-      (.add (.var output)
-        (.mul (.const (-1))
-          (.add (.mul point.c0 right.c0)
-            (.mul (.mul (.const 7) point.c1) right.c1)))) + 1 = 24
-  simp only [R1CS.mulCount, pointLinear.c0_mulCount,
-    pointLinear.c1_mulCount, rightShape.c0_mulCount,
-    rightShape.c1_mulCount]
+    (.add (.var output) (.mul (.const (-1)) (.mul point.c1 right.c1))) = 11
+  simp only [R1CS.mulCount, pointLinear.c1_mulCount, rightShape.c1_mulCount]
 
-private theorem c1_rowCount_eq (output : Nat)
+private theorem c0_mulCount_eq (output : Nat)
     (point right : KExpr) (pointLinear : KExprLinear point)
     (rightShape : ResidualShape right) :
-    R1CS.constraintRowCount
-      (Expr.var output - (KExpr.mul point right).c1) = 23 := by
-  unfold R1CS.constraintRowCount
-  rw [c1_directConstraint_eq_none output point right pointLinear rightShape]
+    R1CS.mulCount
+      (Expr.var (output + 1) -
+        (point.c0 * right.c0 + 7 * Expr.var output)) = 13 := by
   change R1CS.mulCount
-      (.add (.var output)
-        (.mul (.const (-1))
-          (.add (.mul point.c0 right.c1)
-            (.mul point.c1 right.c0)))) + 1 = 23
-  simp only [R1CS.mulCount, pointLinear.c0_mulCount,
-    pointLinear.c1_mulCount, rightShape.c0_mulCount,
-    rightShape.c1_mulCount]
+    (.add (.var (output + 1))
+      (.mul (.const (-1))
+        (.add (.mul point.c0 right.c0)
+          (.mul (.const 7) (.var output))))) = 13
+  simp only [R1CS.mulCount, pointLinear.c0_mulCount, rightShape.c0_mulCount]
+
+private theorem c1_mulCount_eq (output : Nat)
+    (point right : KExpr) (pointLinear : KExprLinear point)
+    (rightShape : ResidualShape right) :
+    R1CS.mulCount
+      (Expr.var (output + 1 + 1) -
+        ((point.c0 + point.c1) * (right.c0 + right.c1) +
+          (-Expr.var (output + 1) + 6 * Expr.var output))) = 23 := by
+  change R1CS.mulCount
+    (.add (.var (output + 1 + 1))
+      (.mul (.const (-1))
+        (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
+          (.add (.mul (.const (-1)) (.var (output + 1)))
+            (.mul (.const 6) (.var output)))))) = 23
+  simp only [R1CS.mulCount, pointLinear.c0_mulCount, pointLinear.c1_mulCount,
+    rightShape.c0_mulCount, rightShape.c1_mulCount]
 
 theorem mulRecipes_totalFreshCount (output : Nat) (point right : KExpr)
     (pointLinear : KExprLinear point) (rightShape : ResidualShape right) :
     R1CS.totalFreshCount
-      (recipeConstraints output (Horner.mulRecipes point right)) = 45 := by
+      (recipeConstraints output (Horner.mulRecipes output point right)) =
+      47 := by
   simp only [Horner.mulRecipes, recipeConstraints, R1CS.totalFreshCount,
-    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
-  rw [c0_freshCount_eq output point right pointLinear rightShape,
-    c1_freshCount_eq (output + 1) point right pointLinear rightShape]
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
+    R1CS.constraintFreshCount]
+  rw [high_directConstraint_eq_none output point right pointLinear rightShape,
+    c0_directConstraint_eq_none output point right pointLinear rightShape,
+    c1_directConstraint_eq_none output point right rightShape,
+    high_mulCount_eq output point right pointLinear rightShape,
+    c0_mulCount_eq output point right pointLinear rightShape,
+    c1_mulCount_eq output point right pointLinear rightShape]
+  rfl
 
 theorem mulRecipes_totalRowCount (output : Nat) (point right : KExpr)
     (pointLinear : KExprLinear point) (rightShape : ResidualShape right) :
     R1CS.totalRowCount
-      (recipeConstraints output (Horner.mulRecipes point right)) = 47 := by
+      (recipeConstraints output (Horner.mulRecipes output point right)) =
+      50 := by
   simp only [Horner.mulRecipes, recipeConstraints, R1CS.totalRowCount,
-    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
-  rw [c0_rowCount_eq output point right pointLinear rightShape,
-    c1_rowCount_eq (output + 1) point right pointLinear rightShape]
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
+    R1CS.constraintRowCount]
+  rw [high_directConstraint_eq_none output point right pointLinear rightShape,
+    c0_directConstraint_eq_none output point right pointLinear rightShape,
+    c1_directConstraint_eq_none output point right rightShape,
+    high_mulCount_eq output point right pointLinear rightShape,
+    c0_mulCount_eq output point right pointLinear rightShape,
+    c1_mulCount_eq output point right pointLinear rightShape]
+  rfl
 
 private theorem add_product_shape (coefficient : KExpr)
     (shape : ResidualShape coefficient) (start : Nat) :
     ResidualShape (KExpr.add coefficient (Horner.productAt start)) := by
   have productLinear := productAt_linear start
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [KExpr.add, R1CS.mulCount, shape.c0_mulCount,
       productLinear.c0_mulCount]
   · simp [KExpr.add, R1CS.mulCount, shape.c1_mulCount,
@@ -259,6 +278,10 @@ private theorem add_product_shape (coefficient : KExpr)
   · intro constant equality
     change Expr.add _ _ = Expr.const constant at equality
     cases equality
+  · change R1CS.lowerAffine (.add coefficient.c0 _) = none
+    simp [R1CS.lowerAffine, shape.c0_nonAffine]
+  · change R1CS.lowerAffine (.add coefficient.c1 _) = none
+    simp [R1CS.lowerAffine, shape.c1_nonAffine]
 
 theorem compile_output_shape_of_nonempty (start : Nat) (point : KExpr)
     (coefficients : List KExpr) (nonempty : coefficients ≠ [])
@@ -286,37 +309,6 @@ theorem compile_totalFreshCount (start : Nat) (point : KExpr)
       ResidualShape coefficient) :
     R1CS.totalFreshCount
       (recipeConstraints start (Horner.compile start point coefficients).recipes) =
-      45 * (coefficients.length - 1) := by
-  induction coefficients generalizing start with
-  | nil => rfl
-  | cons coefficient coefficients inductionHypothesis =>
-      cases coefficients with
-      | nil => rfl
-      | cons next rest =>
-          let tail := Horner.compile start point (next :: rest)
-          have tailShape : ∀ current ∈ next :: rest,
-              ResidualShape current := by
-            intro current member
-            exact coefficientsShape current (by simp [member])
-          have tailOutputShape : ResidualShape tail.output :=
-            compile_output_shape_of_nonempty start point (next :: rest)
-              (by simp) tailShape
-          rw [show (Horner.compile start point
-              (coefficient :: next :: rest)).recipes =
-              tail.recipes ++ Horner.mulRecipes point tail.output by rfl]
-          rw [recipeConstraints_append, R1CS.totalFreshCount_append,
-            inductionHypothesis (start := start) tailShape,
-            mulRecipes_totalFreshCount _ point tail.output pointLinear
-              tailOutputShape]
-          simp only [List.length_cons]
-          omega
-
-theorem compile_totalRowCount (start : Nat) (point : KExpr)
-    (coefficients : List KExpr) (pointLinear : KExprLinear point)
-    (coefficientsShape : ∀ coefficient ∈ coefficients,
-      ResidualShape coefficient) :
-    R1CS.totalRowCount
-      (recipeConstraints start (Horner.compile start point coefficients).recipes) =
       47 * (coefficients.length - 1) := by
   induction coefficients generalizing start with
   | nil => rfl
@@ -334,7 +326,42 @@ theorem compile_totalRowCount (start : Nat) (point : KExpr)
               (by simp) tailShape
           rw [show (Horner.compile start point
               (coefficient :: next :: rest)).recipes =
-              tail.recipes ++ Horner.mulRecipes point tail.output by rfl]
+              tail.recipes ++
+                Horner.mulRecipes (start + tail.recipes.length) point
+                  tail.output by rfl]
+          rw [recipeConstraints_append, R1CS.totalFreshCount_append,
+            inductionHypothesis (start := start) tailShape,
+            mulRecipes_totalFreshCount _ point tail.output pointLinear
+              tailOutputShape]
+          simp only [List.length_cons]
+          omega
+
+theorem compile_totalRowCount (start : Nat) (point : KExpr)
+    (coefficients : List KExpr) (pointLinear : KExprLinear point)
+    (coefficientsShape : ∀ coefficient ∈ coefficients,
+      ResidualShape coefficient) :
+    R1CS.totalRowCount
+      (recipeConstraints start (Horner.compile start point coefficients).recipes) =
+      50 * (coefficients.length - 1) := by
+  induction coefficients generalizing start with
+  | nil => rfl
+  | cons coefficient coefficients inductionHypothesis =>
+      cases coefficients with
+      | nil => rfl
+      | cons next rest =>
+          let tail := Horner.compile start point (next :: rest)
+          have tailShape : ∀ current ∈ next :: rest,
+              ResidualShape current := by
+            intro current member
+            exact coefficientsShape current (by simp [member])
+          have tailOutputShape : ResidualShape tail.output :=
+            compile_output_shape_of_nonempty start point (next :: rest)
+              (by simp) tailShape
+          rw [show (Horner.compile start point
+              (coefficient :: next :: rest)).recipes =
+              tail.recipes ++
+                Horner.mulRecipes (start + tail.recipes.length) point
+                  tail.output by rfl]
           rw [recipeConstraints_append, R1CS.totalRowCount_append,
             inductionHypothesis (start := start) tailShape,
             mulRecipes_totalRowCount _ point tail.output pointLinear
@@ -378,7 +405,7 @@ private theorem core_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.circuit interface
-        ).main offset)) = 720 := by
+        ).main offset)) = 752 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalFreshCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -390,7 +417,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.NormTerminal.circuit interface
-        ).main offset)) = 752 := by
+        ).main offset)) = 800 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalRowCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -403,8 +430,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.normInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.normCircuit relation interface) where
-  freshColumnCount := fun _ => 720
-  physicalRowCount := fun _ => 752
+  freshColumnCount := fun _ => 752
+  physicalRowCount := fun _ => 800
   freshColumnCount_eq := by
     intro offset
     unfold Formal.normCircuit
@@ -423,7 +450,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 720 :=
+      (Formal.normCircuit relation interface).main offset)) = 752 :=
   (footprint relation interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -433,7 +460,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 752 :=
+      (Formal.normCircuit relation interface).main offset)) = 800 :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -445,10 +472,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.normCircuit relation interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.normCircuit relation interface).main offset)) = 752 := by
+        (Formal.normCircuit relation interface).main offset)) = 800 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.normCircuit relation interface).main
-        offset) = 32 := by
+        offset) = 48 := by
     unfold Formal.normCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

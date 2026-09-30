@@ -87,7 +87,7 @@ fn evaluate_rows(
     if shape.columns == 0
         || shape.columns % D != 0
         || shape.matrices == 0
-        || point.len() != variables
+        || point.len() < variables
         || witnesses
             .iter()
             .any(|w| w.block_len() != shape.columns / D || !w.imag_all_zero)

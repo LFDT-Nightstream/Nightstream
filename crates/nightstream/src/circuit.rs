@@ -4,6 +4,7 @@
 use std::{path::Path, sync::Arc};
 
 use neo_math::F;
+use neo_reductions::superneo_eval::RetainedMatrixWindow;
 use nightstream_fprime::{LoadedPerApplicationPackage, Stage1VerifierBinding};
 use p3_field::PrimeField64;
 
@@ -38,6 +39,8 @@ struct CompiledCircuit {
     application: ApplicationCircuit,
     package: Arc<LoadedPerApplicationPackage>,
     binding: Stage1VerifierBinding,
+    /// The package's complete matrix window, shared by every lifecycle.
+    matrix_window: Arc<RetainedMatrixWindow>,
 }
 
 impl CompiledCircuit {
@@ -47,7 +50,8 @@ impl CompiledCircuit {
             self.binding.clone(),
             backend,
             minimum_security_bits,
-        )?)
+        )?
+        .sharing_matrix_window(Arc::clone(&self.matrix_window)))
     }
 }
 
@@ -69,6 +73,7 @@ impl Circuit {
                 application,
                 package: Arc::new(package),
                 binding,
+                matrix_window: Arc::default(),
             }),
         })
     }

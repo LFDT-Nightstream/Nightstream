@@ -365,14 +365,14 @@ def sumcheckInterface {logicalWidth degreeBound : Nat}
   initial := initialClaimOutput interface
   round := roundTranscriptRound interface
 
-/-- First row position of the zero-private-variable SumCheck child. -/
+/-- Start of the SumCheck child, which stores its round evaluations. -/
 def sumcheckStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   initialClaimStart interface + InitialClaim.privateCount
 
-/-- The chain-owned final `p_i(r_i)` expression. -/
+/-- The chain-owned stored final `p_i(r_i)` value. -/
 def sumcheckOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -382,15 +382,16 @@ def sumcheckOutput {logicalWidth degreeBound : Nat}
     (sumcheckStart interface)
 
 /-- The parent-facing SumCheck output uses only variables that precede the
-canonical SumCheck child start. -/
-theorem sumcheckOutput_varsBelow_start {logicalWidth degreeBound : Nat}
+end of the canonical SumCheck child. -/
+theorem sumcheckOutput_varsBelow_end {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat)
     (assumptions : SumcheckChain.Assumptions (sumcheckInterface interface)
       (sumcheckStart interface) (fun _ => 0)) :
-    (sumcheckOutput interface offset).VarsBelow (sumcheckStart interface) := by
+    (sumcheckOutput interface offset).VarsBelow
+      (sumcheckStart interface + SumcheckChain.privateCount degreeBound) := by
   unfold sumcheckOutput
   exact SumcheckChain.output_varsBelow (sumcheckInterface interface)
     (sumcheckStart interface) assumptions
@@ -407,12 +408,12 @@ def evalKInterface {logicalWidth degreeBound : Nat}
     (interface.output offset).padCoordinate
       (runningSourceIndex coordinate.running) coordinate.coefficient
 
-/-- Eval_K starts where the zero-private-variable SumCheck child ends. -/
+/-- Eval_K starts where the SumCheck child's stored interval ends. -/
 def evalKStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  sumcheckStart interface
+  sumcheckStart interface + SumcheckChain.privateCount degreeBound
 
 /-- Child-owned unshifted `E_K`. -/
 def evalKOutput {logicalWidth degreeBound : Nat}
@@ -637,7 +638,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (InitialClaim.circuit (initialClaimInterface interface)) 25918 25918
+    (InitialClaim.circuit (initialClaimInterface interface)) 38877 38877
     (InitialClaim.localLength_eq (initialClaimInterface interface))
     (InitialClaim.flatConstraints_length (initialClaimInterface interface))
 
@@ -646,7 +647,9 @@ def sumcheckCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (SumcheckChain.circuit (sumcheckInterface interface)) 0 56
+    (SumcheckChain.circuit (sumcheckInterface interface))
+      (SumcheckChain.privateCount degreeBound)
+      (SumcheckChain.privateCount degreeBound + 56)
     (SumcheckChain.localLength_eq (sumcheckInterface interface))
     (SumcheckChain.flatConstraints_length (sumcheckInterface interface))
 
@@ -689,7 +692,7 @@ def normCircuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (NormTerminal.circuit (normInterface relation interface)) 32 32
+    (NormTerminal.circuit (normInterface relation interface)) 48 48
     (NormTerminal.localLength_eq (normInterface relation interface))
     (NormTerminal.flatConstraints_length (normInterface relation interface))
 
@@ -700,7 +703,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 27760
+      FinalIdentity.privateCount 41584
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -890,7 +893,6 @@ def evalKOffset {logicalWidth degreeBound : Nat}
   unfold evalKStart evalKOffset nextOffset childLength sumcheckCircuit
   rw [sumcheckStart_atOffset, FormalCircuit.withConstantFootprint_main,
     SumcheckChain.localLength_eq]
-  omega
 
 def evalAOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 Owns one fixed-exponent power circuit over the production quadratic extension.
 
 The circuit reuses the causal owned Horner child with the constant-first
-coefficient list `[0, ..., 0, 1]`. It allocates `2 * exponent` base-field
+coefficient list `[0, ..., 0, 1]`. It allocates `3 * exponent` base-field
 variables and does not use exponent-sized kernel evaluation.
 -/
 
@@ -95,12 +95,12 @@ theorem coefficientExprs_length (exponent : Nat) :
 theorem localLength_eq (exponent : Nat) (interface : Interface)
     (offset : Nat) :
     localLength (Circuit.ops (circuit exponent interface).main offset) =
-      2 * exponent := by
+      3 * exponent := by
   change localLength
     (Circuit.ops (Horner.Owned.circuit
       (hornerInterface exponent interface)).main offset) = _
   rw [Horner.Owned.localLength_eq]
-  change 2 * ((coefficientExprs exponent).length - 1) = 2 * exponent
+  change 3 * ((coefficientExprs exponent).length - 1) = 3 * exponent
   rw [coefficientExprs_length]
   omega
 
@@ -113,11 +113,11 @@ theorem flatConstraints_length (exponent : Nat) (interface : Interface)
     (offset : Nat) :
     (flatConstraints
       (Circuit.ops (circuit exponent interface).main offset)).length =
-      2 * exponent := by
+      3 * exponent := by
   change (flatConstraints (Circuit.ops (Horner.Owned.circuit
     (hornerInterface exponent interface)).main offset)).length = _
   rw [Horner.Owned.flatConstraints_length]
-  change 2 * ((coefficientExprs exponent).length - 1) = 2 * exponent
+  change 3 * ((coefficientExprs exponent).length - 1) = 3 * exponent
   rw [coefficientExprs_length]
   omega
 
@@ -126,7 +126,7 @@ theorem flatConstraints_varsBelow_exact (exponent : Nat)
     (assumptions : Assumptions exponent interface offset env) :
     ∀ expression ∈ flatConstraints
       (Circuit.ops (circuit exponent interface).main offset),
-      expression.VarsBelow (offset + 2 * exponent) := by
+      expression.VarsBelow (offset + 3 * exponent) := by
   have scope := Horner.Owned.flatConstraints_varsBelow
     (hornerInterface exponent interface) offset env assumptions
   change ∀ expression ∈ flatConstraints
@@ -142,7 +142,7 @@ theorem output_varsBelow (exponent : Nat) (interface : Interface)
     (offset : Nat) (env : Env)
     (assumptions : Assumptions exponent interface offset env) :
     (output exponent interface offset).VarsBelow
-      (offset + 2 * exponent) := by
+      (offset + 3 * exponent) := by
   have below := Horner.Owned.output_varsBelow
     (hornerInterface exponent interface) offset env assumptions
   change (output exponent interface offset).VarsBelow

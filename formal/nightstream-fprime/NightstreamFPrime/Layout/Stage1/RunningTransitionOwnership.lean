@@ -2,9 +2,9 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
 /-!
 Owns every physical row and column of the Stage 1 running transition.
-The transition is parent wiring: one flag-binding family, one indexed mux
-family, and four base-state equality rows. No file boundary or copy family
-exists.
+The transition is parent wiring: one stored-flag recipe row, one
+flag-binding row, one indexed mux family, and four base-state equality rows.
+No file boundary or copy family exists.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.Ownership
@@ -19,14 +19,16 @@ open NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 inductive ConstraintOwner where
+  | flag
   | binding
   | mux (word : Nat)
   | baseState (word : Nat)
 deriving Repr, DecidableEq
 
 def constraintOwner : Nat → ConstraintOwner
-  | 0 => .binding
-  | logicalRow + 1 =>
+  | 0 => .flag
+  | 1 => .binding
+  | logicalRow + 2 =>
       if logicalRow < RunningTransition.exactWordCount then
         .mux logicalRow
       else
@@ -90,7 +92,7 @@ theorem rowOwners_length
   calc
     _ = R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) :=
       ownersFor_length _ _
-    _ = 345495 := totalRowCount_eq relation
+    _ = 49359 := totalRowCount_eq relation
     _ = _ := (physicalRowCount_eq relation).symm
 
 theorem rowOwners_length_production
@@ -98,7 +100,7 @@ theorem rowOwners_length_production
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (rowOwners logicalWidth publicFits).length = 345495 := by
+    (rowOwners logicalWidth publicFits).length = 49359 := by
   rw [rowOwners_length relation, physicalRowCount_eq relation]
 
 def rowOwner
@@ -136,6 +138,8 @@ theorem noBoundaryRows
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     logicalConstraints logicalWidth publicFits =
+      RunningTransition.flagConstraint (interface logicalWidth publicFits)
+          phaseOffset ::
       RunningTransition.bindingConstraint (interface logicalWidth publicFits)
           phaseOffset ::
         (RunningTransition.muxConstraints (interface logicalWidth publicFits)
@@ -148,6 +152,7 @@ theorem noBoundaryRows
 inductive ColumnOwner where
   | external (index : Nat)
   | inverseHint
+  | storedFlag
   | r1csIntermediate (index : Nat)
 deriving Repr, DecidableEq
 
@@ -159,8 +164,10 @@ def columnOwner
     ColumnOwner :=
   if column.val < phaseOffset then
     .external column.val
-  else if column.val < logicalColumnCount then
+  else if column.val = phaseOffset then
     .inverseHint
+  else if column.val < logicalColumnCount then
+    .storedFlag
   else
     .r1csIntermediate (column.val - logicalColumnCount)
 
@@ -179,11 +186,21 @@ theorem columnOwner_inverseHint
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (column : Fin (physicalColumnCount logicalWidth publicFits))
-    (atOrAbove : phaseOffset ≤ column.val)
-    (below : column.val < logicalColumnCount) :
+    (atPhase : column.val = phaseOffset) :
     columnOwner logicalWidth publicFits column = .inverseHint := by
   unfold columnOwner
-  rw [if_neg (Nat.not_lt.mpr atOrAbove), if_pos below]
+  rw [if_neg (by omega), if_pos atPhase]
+
+theorem columnOwner_storedFlag
+    (logicalWidth : Nat)
+    (publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth)
+    (column : Fin (physicalColumnCount logicalWidth publicFits))
+    (above : phaseOffset < column.val)
+    (below : column.val < logicalColumnCount) :
+    columnOwner logicalWidth publicFits column = .storedFlag := by
+  unfold columnOwner
+  rw [if_neg (by omega), if_neg (by omega), if_pos below]
 
 theorem columnOwner_r1csIntermediate
     (logicalWidth : Nat)
@@ -198,8 +215,13 @@ theorem columnOwner_r1csIntermediate
       unfold logicalColumnCount
       omega
     exact Nat.le_trans logicalAbove atOrAbove
+  have phaseBelow : phaseOffset < column.val := by
+    have logicalAbove : phaseOffset < logicalColumnCount := by
+      unfold logicalColumnCount RunningTransition.exactPrivateCount
+      omega
+    exact Nat.lt_of_lt_of_le logicalAbove atOrAbove
   unfold columnOwner
-  rw [if_neg (Nat.not_lt.mpr phaseAbove),
+  rw [if_neg (Nat.not_lt.mpr phaseAbove), if_neg (by omega),
     if_neg (Nat.not_lt.mpr atOrAbove)]
 
 theorem columnOwner_unique

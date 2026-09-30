@@ -48,10 +48,14 @@ def canonicalPlan
   freshStart :=
     NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.logicalColumnCount
   constraints :=
-    NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
-      (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
-        logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
+    NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagConstraint
+        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+          logicalWidth publicFits)
+        NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset ::
+      NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
+        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+          logicalWidth publicFits)
+        NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
 
 abbrev canonicalLayoutPlan
     (logicalWidth : Nat)
@@ -94,10 +98,14 @@ theorem canonicalPlan_matches
       (canonicalLayoutPlan logicalWidth publicFits) := by
   constructor
   · change
-      NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
-          (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
-            logicalWidth publicFits)
-          NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset =
+      NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagConstraint
+            (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+              logicalWidth publicFits)
+            NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset ::
+          NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
+            (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+              logicalWidth publicFits)
+            NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset =
         logicalConstraints logicalWidth publicFits
     rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints]
     exact (logicalConstraints_eq logicalWidth publicFits).symm
@@ -114,13 +122,17 @@ theorem canonicalPlan_rowCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      345495 := by
+      49359 := by
   change R1CS.totalRowCount
-      (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
-        (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
-          logicalWidth publicFits)
-        NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
-    345495
+      (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagConstraint
+          (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+            logicalWidth publicFits)
+          NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset ::
+        NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast
+          (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
+            logicalWidth publicFits)
+          NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
+    49359
   rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints,
     ← logicalConstraints_eq]
   exact NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalRowCount_eq

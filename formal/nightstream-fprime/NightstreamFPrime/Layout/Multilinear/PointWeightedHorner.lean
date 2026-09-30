@@ -158,8 +158,7 @@ private theorem horner_totalFreshCount {variableCount : Nat}
     (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (Logical.hornerCircuitAt interface offset).main
-        (Logical.hornerOffset interface offset))) =
-      7 * ((interface.coefficients offset).length - 1) := by
+        (Logical.hornerOffset interface offset))) = 0 := by
   unfold Logical.hornerCircuitAt
     NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.hornerCircuitAt
   apply ownedCircuit_totalFreshCount
@@ -172,7 +171,7 @@ private theorem horner_totalRowCount {variableCount : Nat}
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Logical.hornerCircuitAt interface offset).main
         (Logical.hornerOffset interface offset))) =
-      9 * ((interface.coefficients offset).length - 1) := by
+      3 * ((interface.coefficients offset).length - 1) := by
   unfold Logical.hornerCircuitAt
     NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.hornerCircuitAt
   apply ownedCircuit_totalRowCount
@@ -184,15 +183,14 @@ theorem totalFreshCount {variableCount : Nat}
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints
       (Circuit.ops (Logical.circuit interface positive).main offset)) =
-      (24 * variableCount - 7) +
-        7 * ((interface.coefficients offset).length - 1) := by
+      24 * variableCount - 7 := by
   unfold Logical.circuit
     NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.circuit
   rw [NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.main_ops,
     NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.flatConstraints_opsAt,
     R1CS.totalFreshCount_append,
     point_totalFreshCount interface offset positive inputs,
-    horner_totalFreshCount interface offset inputs]
+    horner_totalFreshCount interface offset inputs, Nat.add_zero]
 
 theorem totalRowCount {variableCount : Nat}
     (interface : Logical.Interface variableCount) (positive : 0 < variableCount)
@@ -200,7 +198,7 @@ theorem totalRowCount {variableCount : Nat}
     R1CS.totalRowCount (flatConstraints
       (Circuit.ops (Logical.circuit interface positive).main offset)) =
       (28 * variableCount - 9) +
-        9 * ((interface.coefficients offset).length - 1) := by
+        3 * ((interface.coefficients offset).length - 1) := by
   unfold Logical.circuit
     NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.circuit
   rw [NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned.main_ops,
@@ -214,12 +212,10 @@ def footprint {variableCount : Nat}
     (interface : Logical.Interface variableCount) (positive : 0 < variableCount)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface positive) where
-  freshColumnCount := fun offset =>
-    (24 * variableCount - 7) +
-      7 * ((interface.coefficients offset).length - 1)
+  freshColumnCount := fun _ => 24 * variableCount - 7
   physicalRowCount := fun offset =>
     (28 * variableCount - 9) +
-      9 * ((interface.coefficients offset).length - 1)
+      3 * ((interface.coefficients offset).length - 1)
   freshColumnCount_eq := fun offset =>
     totalFreshCount interface positive offset (inputs offset)
   physicalRowCount_eq := fun offset =>

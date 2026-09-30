@@ -99,15 +99,15 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     productionProfile, Phi81MatrixSource.phi81Shape, Shape.sourceCount]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 32 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 48 := by
   change localLength
     (Circuit.ops (Horner.Owned.circuit (ownedInterface interface)).main offset) = _
   rw [Horner.Owned.localLength_eq]
-  change 2 * ((coefficientExprs interface offset).length - 1) = 32
+  change 3 * ((coefficientExprs interface offset).length - 1) = 48
   rw [coefficientExprs_length]
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 32
+def privateCount : Nat := 48
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 :=
@@ -115,12 +115,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      32 := by
+      48 := by
   change (flatConstraints
     (Circuit.ops (Horner.Owned.circuit
       (ownedInterface interface)).main offset)).length = _
   rw [Horner.Owned.flatConstraints_length]
-  change 2 * ((coefficientExprs interface offset).length - 1) = 32
+  change 3 * ((coefficientExprs interface offset).length - 1) = 48
   rw [coefficientExprs_length]
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)

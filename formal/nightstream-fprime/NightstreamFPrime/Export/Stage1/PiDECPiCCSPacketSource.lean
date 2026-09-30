@@ -37,30 +37,30 @@ def row? (logicalWidth : Nat)
       (PiCCSArithmetic.statementBindingRows logicalWidth publicFits)[ordinal]?
     else
       let ordinal := ordinal - 160
-      if ordinal < 116631 then
+      if ordinal < 38877 then
         (PiCCSArithmetic.initialClaimRows logicalWidth publicFits)[ordinal]?
       else
-        let ordinal := ordinal - 116631
-        if ordinal < 424657 then
+        let ordinal := ordinal - 38877
+        if ordinal < 812 then
           (PiCCSArithmetic.sumcheckRows logicalWidth publicFits)[ordinal]?
         else
-          let ordinal := ordinal - 424657
-          if ordinal < 8542 then
+          let ordinal := ordinal - 812
+          if ordinal < 3364 then
             (PiCCSArithmetic.evalKRows logicalWidth publicFits)[ordinal]?
           else
-            let ordinal := ordinal - 8542
-            if ordinal < 109630 then
+            let ordinal := ordinal - 3364
+            if ordinal < 37060 then
               (PiCCSArithmetic.evalARows logicalWidth publicFits)[ordinal]?
             else
-              let ordinal := ordinal - 109630
-              if ordinal < 20794 then
+              let ordinal := ordinal - 37060
+              if ordinal < 752 then
                 (PiCCSArithmetic.ccsRows logicalWidth publicFits)[ordinal]?
               else
-                let ordinal := ordinal - 20794
-                if ordinal < 752 then
+                let ordinal := ordinal - 752
+                if ordinal < 800 then
                   (PiCCSArithmetic.normRows logicalWidth publicFits)[ordinal]?
                 else
-                  (PiCCSArithmetic.finalIdentityRows logicalWidth publicFits)[ordinal - 752]?
+                  (PiCCSArithmetic.finalIdentityRows logicalWidth publicFits)[ordinal - 800]?
   selected.map Rows.CompiledRow.toR1CS
 
 /-- Total optional-output equality to the existing source list. The proof
@@ -101,7 +101,7 @@ theorem row?_eq_programRow
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 811669) :
+    (index : Fin 124283) :
     row? logicalWidth publicFits index.val =
       some (PiCCSOrdinaryDirectSource.programRow relation index) := by
   rw [row?_eq_sourceRows_getElem? relation]

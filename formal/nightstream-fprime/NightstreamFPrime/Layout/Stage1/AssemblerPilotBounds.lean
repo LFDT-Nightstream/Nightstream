@@ -16,7 +16,7 @@ open NightstreamFPrime.Lifecycle
 theorem rootOffset_eq
     (program : Lifecycle.Stage1.Application.Program) :
     AssemblerInputs.rootOffset program =
-      28411244 + program.witnessWordCount := by
+      27427722 + program.witnessWordCount := by
   unfold AssemblerInputs.rootOffset AssemblerInputs.applicationLocalStart
     AssemblerInputs.applicationWitnessStart
   rw [Spartan.sourceColumnCount_eq]

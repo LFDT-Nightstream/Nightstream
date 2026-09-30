@@ -526,6 +526,41 @@ private theorem affineConstraint_row_varsBelow (expression : Expr)
         change term ∈ ([] : List (Nat × F)) at member
         simp at member
 
+private theorem productSumRecipeRow_row_varsBelow (output start : Nat)
+    (product rest : Expr) (outputBelow : output < start)
+    (scope : (Expr.add product rest).VarsBelow start)
+    (result : RecipeRowResult output (.add product rest))
+    (found : productSumRecipeRow? output product rest = some result) :
+    result.row.VarsBelow start := by
+  cases product with
+  | var index => simp [productSumRecipeRow?] at found
+  | const value => simp [productSumRecipeRow?] at found
+  | add left right => simp [productSumRecipeRow?] at found
+  | mul left right =>
+      cases leftEq : lowerAffine left with
+      | none => simp [productSumRecipeRow?, leftEq] at found
+      | some loweredLeft =>
+          cases rightEq : lowerAffine right with
+          | none => simp [productSumRecipeRow?, leftEq, rightEq] at found
+          | some loweredRight =>
+              cases restEq : lowerAffine rest with
+              | none =>
+                  simp [productSumRecipeRow?, leftEq, rightEq, restEq] at found
+              | some loweredRest =>
+                  simp only [productSumRecipeRow?, leftEq, rightEq, restEq,
+                    Option.some.injEq] at found
+                  subst result
+                  exact ⟨lowerAffine_varsBelow left start scope.1.1
+                      loweredLeft leftEq,
+                    lowerAffine_varsBelow right start scope.1.2
+                      loweredRight rightEq,
+                    LinearCombination.VarsBelow.add _ _ _
+                      (LinearCombination.VarsBelow.ofVar output start
+                        outputBelow)
+                      (LinearCombination.VarsBelow.scale (-1) _ start
+                        (lowerAffine_varsBelow rest start scope.2
+                          loweredRest restEq))⟩
+
 private theorem directRecipeRow_row_varsBelow (output start : Nat)
     (recipe : Expr) (outputBelow : output < start)
     (scope : recipe.VarsBelow start)
@@ -545,7 +580,10 @@ private theorem directRecipeRow_row_varsBelow (output start : Nat)
       cases recipe with
       | var index => simp [directRecipeRow, affineEq] at found
       | const value => simp [directRecipeRow, affineEq] at found
-      | add left right => simp [directRecipeRow, affineEq] at found
+      | add left right =>
+          simp only [directRecipeRow, affineEq] at found
+          exact productSumRecipeRow_row_varsBelow output start left right
+            outputBelow scope result found
       | mul left right =>
           cases leftEq : lowerAffine left with
           | none => simp [directRecipeRow, affineEq, leftEq] at found
@@ -563,6 +601,66 @@ private theorem directRecipeRow_row_varsBelow (output start : Nat)
                       loweredRight rightEq,
                     LinearCombination.VarsBelow.ofVar output start outputBelow⟩
 
+private theorem rankOneConstraint_row_varsBelow (expression : Expr)
+    (start : Nat) (scope : expression.VarsBelow start)
+    (result : DirectConstraintResult expression)
+    (found : rankOneConstraint expression = some result) :
+    result.row.VarsBelow start := by
+  match expression, scope, result, found with
+  | .add constant (.mul (.const coefficient) (.mul left right)), scope, result,
+      found =>
+      by_cases coefficientEquals : coefficient = -1
+      · rw [rankOneConstraint, dif_pos coefficientEquals] at found
+        cases constantEq : lowerAffine constant with
+        | none => simp [constantEq] at found
+        | some loweredConstant =>
+            cases leftEq : lowerAffine left with
+            | none => simp [constantEq, leftEq] at found
+            | some loweredLeft =>
+                cases rightEq : lowerAffine right with
+                | none => simp [constantEq, leftEq, rightEq] at found
+                | some loweredRight =>
+                    simp only [constantEq, leftEq, rightEq,
+                      Option.some.injEq] at found
+                    subst result
+                    exact ⟨lowerAffine_varsBelow left start scope.2.2.1
+                        loweredLeft leftEq,
+                      lowerAffine_varsBelow right start scope.2.2.2
+                        loweredRight rightEq,
+                      lowerAffine_varsBelow constant start scope.1
+                        loweredConstant constantEq⟩
+      · rw [rankOneConstraint, dif_neg coefficientEquals] at found
+        cases found
+  | .var _, _, _, found => cases found
+  | .const _, _, _, found => cases found
+  | .mul _ _, _, _, found => cases found
+  | .add _ (.var _), _, _, found => cases found
+  | .add _ (.const _), _, _, found => cases found
+  | .add _ (.add _ _), _, _, found => cases found
+  | .add _ (.mul (.var _) _), _, _, found => cases found
+  | .add _ (.mul (.add _ _) _), _, _, found => cases found
+  | .add _ (.mul (.mul _ _) _), _, _, found => cases found
+  | .add _ (.mul (.const _) (.var _)), _, _, found => cases found
+  | .add _ (.mul (.const _) (.const _)), _, _, found => cases found
+  | .add _ (.mul (.const _) (.add _ _)), _, _, found => cases found
+
+private theorem affineOrRankOne_row_varsBelow (expression : Expr)
+    (start : Nat) (scope : expression.VarsBelow start)
+    (result : DirectConstraintResult expression)
+    (found : affineOrRankOneConstraint expression = some result) :
+    result.row.VarsBelow start := by
+  unfold affineOrRankOneConstraint at found
+  cases affineEq : affineConstraint expression with
+  | some lowered =>
+      rw [affineEq] at found
+      simp only [Option.some.injEq] at found
+      subst result
+      exact affineConstraint_row_varsBelow expression start scope lowered
+        affineEq
+  | none =>
+      rw [affineEq] at found
+      exact rankOneConstraint_row_varsBelow expression start scope result found
+
 private theorem directConstraint_row_varsBelow (expression : Expr)
     (start : Nat) (scope : expression.VarsBelow start)
     (result : DirectConstraintResult expression)
@@ -570,11 +668,11 @@ private theorem directConstraint_row_varsBelow (expression : Expr)
     result.row.VarsBelow start := by
   cases expression with
   | var index =>
-      exact affineConstraint_row_varsBelow (.var index) start scope result found
+      exact affineOrRankOne_row_varsBelow (.var index) start scope result found
   | const value =>
-      exact affineConstraint_row_varsBelow (.const value) start scope result found
+      exact affineOrRankOne_row_varsBelow (.const value) start scope result found
   | mul left right =>
-      exact affineConstraint_row_varsBelow (.mul left right) start scope result
+      exact affineOrRankOne_row_varsBelow (.mul left right) start scope result
         found
   | add left right =>
       cases left with
@@ -603,34 +701,34 @@ private theorem directConstraint_row_varsBelow (expression : Expr)
                       (.add (.var output) (.mul (.const coefficient) recipe))
                       start scope result found
               | var index =>
-                  exact affineConstraint_row_varsBelow
+                  exact affineOrRankOne_row_varsBelow
                     (.add (.var output) (.mul (.var index) recipe)) start scope
                     result found
               | add first second =>
-                  exact affineConstraint_row_varsBelow
+                  exact affineOrRankOne_row_varsBelow
                     (.add (.var output) (.mul (.add first second) recipe)) start
                     scope result found
               | mul first second =>
-                  exact affineConstraint_row_varsBelow
+                  exact affineOrRankOne_row_varsBelow
                     (.add (.var output) (.mul (.mul first second) recipe)) start
                     scope result found
           | var index =>
-              exact affineConstraint_row_varsBelow
+              exact affineOrRankOne_row_varsBelow
                 (.add (.var output) (.var index)) start scope result found
           | const value =>
-              exact affineConstraint_row_varsBelow
+              exact affineOrRankOne_row_varsBelow
                 (.add (.var output) (.const value)) start scope result found
           | add first second =>
-              exact affineConstraint_row_varsBelow
+              exact affineOrRankOne_row_varsBelow
                 (.add (.var output) (.add first second)) start scope result found
       | const value =>
-          exact affineConstraint_row_varsBelow
+          exact affineOrRankOne_row_varsBelow
             (.add (.const value) right) start scope result found
       | add first second =>
-          exact affineConstraint_row_varsBelow
+          exact affineOrRankOne_row_varsBelow
             (.add (.add first second) right) start scope result found
       | mul first second =>
-          exact affineConstraint_row_varsBelow
+          exact affineOrRankOne_row_varsBelow
             (.add (.mul first second) right) start scope result found
 
 theorem lowerConstraint_rows_varsBelow (expression : Expr) (start : Nat)

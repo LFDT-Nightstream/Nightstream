@@ -123,20 +123,20 @@ private theorem fixedLocal_source (start length : Nat)
 
 private theorem initialProgramLength
     (interface : InitialClaim.Interface) (offset : Nat) :
-    (InitialClaim.program interface offset).recipes.length = 25918 := by
+    (InitialClaim.program interface offset).recipes.length = 38877 := by
   unfold InitialClaim.program Horner.Owned.program
   rw [Horner.compile_recipes_length]
-  change 2 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
-    25918
+  change 3 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
+    38877
   rw [InitialClaim.coefficientExprs_length]
 
 private theorem normProgramLength
     (interface : NormTerminal.Interface) (offset : Nat) :
     (Horner.Owned.program (NormTerminal.ownedInterface interface) offset
-      ).recipes.length = 32 := by
+      ).recipes.length = 48 := by
   unfold Horner.Owned.program
   rw [Horner.compile_recipes_length]
-  change 2 * ((NormTerminal.coefficientExprs interface offset).length - 1) = 32
+  change 3 * ((NormTerminal.coefficientExprs interface offset).length - 1) = 48
   rw [NormTerminal.coefficientExprs_length]
 
 private theorem initial_le_initial :
@@ -145,10 +145,25 @@ private theorem initial_le_initial :
   Nat.le_refl _
 
 private theorem initial_finish_le :
-    PiCCSArithmetic.initialClaimLogicalStart + 25918 ≤
+    PiCCSArithmetic.initialClaimLogicalStart + 38877 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.initialClaimLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
+
+private theorem initial_le_sumcheck :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.sumcheckLogicalStart :=
+  Nat.le_add_right _ _
+
+private theorem sumcheck_finish_le :
+    PiCCSArithmetic.sumcheckLogicalStart + 756 ≤
+      PiCCSStarts.outputBindingWitnessStart := by
+  rw [PiCCSStarts.outputBindingWitnessStart_eq]
+  unfold PiCCSArithmetic.sumcheckLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
     PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
   norm_num
@@ -165,7 +180,7 @@ private theorem initial_le_evalK :
   norm_num
 
 private theorem evalK_finish_le :
-    PiCCSArithmetic.evalKLogicalStart + 1836 ≤
+    PiCCSArithmetic.evalKLogicalStart + 2699 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalKLogicalStart
@@ -188,7 +203,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 24300 ≤
+    PiCCSArithmetic.evalALogicalStart + 36395 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -205,7 +220,7 @@ private theorem initial_le_ccs :
   exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
-    PiCCSArithmetic.ccsLogicalStart + 2 ≤
+    PiCCSArithmetic.ccsLogicalStart + 752 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.ccsLogicalStart
@@ -223,7 +238,7 @@ private theorem initial_le_norm :
   exact Nat.le_trans initial_le_ccs (Nat.le_add_right _ _)
 
 private theorem norm_finish_le :
-    PiCCSArithmetic.normLogicalStart + 32 ≤
+    PiCCSArithmetic.normLogicalStart + 48 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.normLogicalStart
@@ -239,10 +254,7 @@ private theorem norm_finish_le :
 private theorem initial_le_final :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.finalIdentityLogicalStart := by
-  exact Nat.le_trans initial_le_norm (by
-    norm_num [PiCCSArithmetic.finalIdentityLogicalStart,
-      PiCCSStarts.finalIdentityLogicalStart,
-      PiCCSArithmetic.normLogicalStart, PiCCSStarts.normLogicalStart])
+  exact Nat.le_trans initial_le_norm (Nat.le_add_right _ _)
 
 private theorem final_finish_le :
     PiCCSArithmetic.finalIdentityLogicalStart + FinalIdentity.privateCount ≤
@@ -373,12 +385,18 @@ theorem emittedConstraints_varsSatisfy
     · simpa [sumcheckInterface, Formal.sumcheckInterface,
         Formal.roundTranscriptRound, RoundTranscript.round,
         RoundTranscript.Message.asRound] using! transcript.roundPoint roundIndex
+  have sumcheckLocal : ∀ index,
+      PiCCSArithmetic.sumcheckLogicalStart ≤ index →
+      index < PiCCSArithmetic.sumcheckLogicalStart +
+        SumcheckChain.privateCount 9 → Source index :=
+    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 756
+      initial_le_sumcheck sumcheck_finish_le
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have sumcheckOutput := SumcheckChain.output_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have evalKLocal : ∀ index,
       PiCCSArithmetic.evalKLogicalStart ≤ index →
       index < PiCCSArithmetic.evalKLogicalStart + localLength
@@ -386,7 +404,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalKLogicalStart) → Source index := by
     intro index lower upper
     rw [EvalKTerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 1836
+    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2699
       initial_le_evalK evalK_finish_le index lower upper
   have evalKRoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -425,7 +443,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 24300
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 36395
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -464,8 +482,11 @@ theorem emittedConstraints_varsSatisfy
           (CcsTerminal.sparseInterface ccsInterface)).main
           PiCCSArithmetic.ccsLogicalStart) → Source index := by
     intro index lower upper
-    rw [Sparse.Owned.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 2
+    have productCountEq :
+        Sparse.Owned.productCount Formal.ccsRowPolynomial = 750 := by
+      rfl
+    rw [Sparse.Owned.localLength_eq, productCountEq] at upper
+    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 752
       initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported
@@ -600,7 +621,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 731605 by
+    rw [show R1CS.totalFreshCount constraints = 2956 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart

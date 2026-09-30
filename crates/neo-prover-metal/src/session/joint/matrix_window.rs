@@ -8,7 +8,7 @@ use super::*;
 
 pub(super) struct MetalMatrixWindow {
     pub(super) rows: Range<usize>,
-    pub(super) cache: SuperneoEvalCache,
+    pub(super) cache: std::sync::Arc<SuperneoEvalCache>,
     pub(super) matrices: Vec<MetalCompactMatrix>,
     pub(super) workspace_peak_bytes: usize,
     pub(super) upload_bytes: usize,

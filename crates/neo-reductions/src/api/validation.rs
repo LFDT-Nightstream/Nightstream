@@ -24,7 +24,8 @@ pub(crate) fn ensure_superneo_width(s: &CcsStructure<F>) -> Result<(), PiCcsErro
 
 #[inline]
 pub(crate) fn ell_n_for_ccs(s: &CcsStructure<F>) -> usize {
-    s.n.max(crate::common::superneo_carrier_width(s.m))
+    s.domain_rows()
+        .max(crate::common::superneo_carrier_width(s.m))
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize

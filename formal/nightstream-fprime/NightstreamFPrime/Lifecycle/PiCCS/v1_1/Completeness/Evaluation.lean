@@ -85,7 +85,22 @@ private theorem appendInitialClaim
   · simpa [shared, sumcheckOffset] using nextEq
   · simpa [shared] using! childSpec
 
-private theorem sumcheckEvidence_of_accepted
+/-- The identity `offset + stored cells` of the SumCheck child is the start of
+the next child. -/
+private theorem sumcheckEnd_eq_evalKOffset
+    {logicalWidth degreeBound : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (interface : Interface logicalWidth degreeBound publicFits)
+    (offset : Nat) :
+    sumcheckOffset interface offset + SumcheckChain.privateCount degreeBound =
+      evalKOffset interface offset := by
+  unfold evalKOffset nextOffset childLength sumcheckCircuit
+  rw [FormalCircuit.withConstantFootprint_main, SumcheckChain.localLength_eq]
+
+/-- Append the SumCheck child from an accepted proof. Honest execution stores
+every round evaluation; the stored final claim is the canonical terminal. -/
+private theorem appendSumcheckChain
     {logicalWidth base : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -115,12 +130,19 @@ private theorem sumcheckEvidence_of_accepted
         (roundTranscriptOffset interface offset) before.current)
     (initialSpec : InitialClaim.SpecHolds
       (initialClaimInterface (atOffset interface offset))
-        (initialClaimOffset interface offset) before.current) :
-    SumcheckChain.SpecHolds
-        (sumcheckInterface (atOffset interface offset))
-          (sumcheckOffset interface offset) before.current ∧
+        (initialClaimOffset interface offset) before.current)
+    (startEq : base + localLength before.operations =
+      sumcheckOffset interface offset) :
+    ∃ after : Sequence.Prefix env base,
+      after.operations = before.operations ++
+        [childOp "piccs.v1_1.sumcheck_chain"
+          (sumcheckCircuit (atOffset interface offset))
+            (sumcheckOffset interface offset)] ∧
+      base + localLength after.operations =
+        evalKOffset interface offset ∧
+      Sequence.PreservesPrefix before after ∧
       (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
-        (sumcheckOffset interface offset)).eval before.current =
+        (sumcheckOffset interface offset)).eval after.current =
         ProtocolPolynomial.terminalFromMessage extensionOps
           (ChallengeDerivation.productionContext relation ajtai
             (evalRunning interface offset before.current)
@@ -225,71 +247,115 @@ private theorem sumcheckEvidence_of_accepted
           (roundTranscriptOffset interface offset) roundIndex).eval
             before.current
     rw [startEq]
-  have evidence := SumcheckChain.keyChain_implies_spec_and_terminal
-    relation ajtai running fresh proof (sumcheckInterface shared)
-      (sumcheckOffset interface offset) before.current
-      (by
-        change (InitialClaim.output (initialClaimInterface shared)
-          (initialClaimStart shared)).eval before.current = _
-        have startEq : initialClaimStart shared =
-            initialClaimOffset interface offset := by
-          simpa [shared] using initialClaimStart_atOffset interface offset
-        rw [startEq]
-        exact initialEq)
-      (by
-        intro roundIndex
-        rfl)
-      (sumcheckRoundPointEq.trans roundCoverage.1)
-      (by
-        simpa [ChallengeDerivation.productionContext] using! coverage.chain)
-  simpa [shared, running, fresh, proof] using evidence
-
-private theorem appendSumcheckChain
-    {logicalWidth degreeBound base : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Interface logicalWidth degreeBound publicFits)
-    (env : Env) (offset : Nat)
-    (assumptions : Assumptions relation interface offset env)
-    (before : Sequence.Prefix env base)
-    (childSpec : SumcheckChain.SpecHolds
-      (sumcheckInterface (atOffset interface offset))
-        (sumcheckOffset interface offset) before.current)
-    (startEq : base + localLength before.operations =
-      sumcheckOffset interface offset) :
-    ∃ after : Sequence.Prefix env base,
-      after.operations = before.operations ++
-        [childOp "piccs.v1_1.sumcheck_chain"
-          (sumcheckCircuit (atOffset interface offset))
-            (sumcheckOffset interface offset)] ∧
-      base + localLength after.operations =
-        evalKOffset interface offset ∧
-      Sequence.PreservesPrefix before after := by
-  let shared := atOffset interface offset
   let childStart := sumcheckOffset interface offset
   have childAssumptions : SumcheckChain.Assumptions
       (sumcheckInterface shared) childStart before.current :=
     (assumptionsAt assumptions before.current).sumcheck
+  have initialAt : ((sumcheckInterface shared).initial childStart).eval
+      before.current =
+      (ChallengeDerivation.productionContext
+        relation ajtai running fresh).input.initial extensionOps
+          ((ProductionKey.key relation ajtai).piCcsExecution
+            running fresh proof).coins.gamma := by
+    change (InitialClaim.output (initialClaimInterface shared)
+      (initialClaimStart shared)).eval before.current = _
+    have startEq : initialClaimStart shared =
+        initialClaimOffset interface offset := by
+      simpa [shared] using initialClaimStart_atOffset interface offset
+    rw [startEq]
+    exact initialEq
+  have roundPointAt := sumcheckRoundPointEq.trans roundCoverage.1
+  have chainAt : SumCheck.Finite.FixedPhase.Chain extensionOps.toOps
+      ((ChallengeDerivation.productionContext
+        relation ajtai running fresh).input.initial extensionOps
+          ((ProductionKey.key relation ajtai).piCcsExecution
+            running fresh proof).coins.gamma)
+      ((ProductionKey.key relation ajtai).piCcsFixedCertificate
+        running fresh proof).rounds
+      ((ProductionKey.key relation ajtai).piCcsExecution
+        running fresh proof).coins.roundPoint.coordinates
+      (ProtocolPolynomial.terminalFromMessage extensionOps
+        (ChallengeDerivation.productionContext
+          relation ajtai running fresh).input
+        ((ProductionKey.key relation ajtai).piCcsExecution
+          running fresh proof).coins.alpha
+        ((ProductionKey.key relation ajtai).piCcsExecution
+          running fresh proof).coins.gamma
+        ((ProductionKey.key relation ajtai).piCcsExecution
+          running fresh proof).coins.roundPoint
+        ((ProductionKey.key relation ajtai).piCcsCertificate
+          running fresh proof).output) := by
+    simpa [ChallengeDerivation.productionContext] using! coverage.chain
+  have mainEq : (sumcheckCircuit shared).main =
+      (SumcheckChain.circuit (sumcheckInterface shared)).main := by
+    unfold sumcheckCircuit
+    rw [FormalCircuit.withConstantFootprint_main]
+  rcases SumcheckChain.keyChain_build relation ajtai running fresh proof
+      (sumcheckInterface shared) childStart before.current childAssumptions
+      initialAt (fun _ => rfl) roundPointAt chainAt with
+    ⟨built, childAgrees, childRows, _builtTerminal⟩
+  rw [← mainEq] at childAgrees childRows
   have zeroAssumptions : SumcheckChain.Assumptions
       (sumcheckInterface shared) childStart (fun _ => 0) := by
-        simpa [SumcheckChain.Assumptions, FixedChain.Assumptions] using!
-          childAssumptions
+    simpa [SumcheckChain.Assumptions, FixedChain.Assumptions] using!
+      childAssumptions
   have childScope : ∀ expression ∈ flatConstraints
       (Circuit.ops (sumcheckCircuit shared).main childStart),
       expression.VarsBelow (childStart + localLength
         (Circuit.ops (sumcheckCircuit shared).main childStart)) := by
-    intro expression member
-    have below := SumcheckChain.flatConstraints_varsBelow
-      (sumcheckInterface shared) childStart zeroAssumptions expression member
-    simpa [sumcheckCircuit, SumcheckChain.localLength_eq] using below
-  rcases appendAt before "piccs.v1_1.sumcheck_chain"
-      (sumcheckCircuit shared) childStart startEq childScope childAssumptions
-      childSpec with
-    ⟨after, operationsEq, nextEq, preserves, _childHolds⟩
-  refine ⟨after, ?_, ?_, preserves⟩
+    rw [mainEq, SumcheckChain.localLength_eq]
+    exact SumcheckChain.flatConstraints_varsBelow
+      (sumcheckInterface shared) childStart zeroAssumptions
+  rcases appendBuiltAt before "piccs.v1_1.sumcheck_chain"
+      (sumcheckCircuit shared) childStart startEq childScope built
+      childAgrees childRows with
+    ⟨after, operationsEq, nextEq, preserves, childHolds⟩
+  rw [mainEq] at childHolds
+  have agreesBefore : ∀ index, index < childStart →
+      after.current index = before.current index := by
+    intro index below
+    apply preserves.values index
+    rw [startEq]
+    exact below
+  have initialAfter := (((sumcheckInterface shared).initial
+    childStart).eval_eq_of_agree_below childStart after.current
+      before.current childAssumptions.1 agreesBefore).trans initialAt
+  have roundsAfter : ∀ roundIndex,
+      ((sumcheckInterface shared).round childStart
+        roundIndex).semanticPolynomial after.current =
+        proof.piCcsRounds roundIndex := by
+    intro roundIndex
+    have roundBelow : ((sumcheckInterface shared).round childStart
+        roundIndex).VarsBelow childStart := childAssumptions.2 roundIndex
+    rw [FixedChain.Round.semanticPolynomial_eq_of_agree_below _ childStart
+      after.current before.current roundBelow agreesBefore]
+    rfl
+  have roundPointAfter : SumcheckChain.evalRoundPoint
+      (sumcheckInterface shared) childStart after.current =
+      ((ProductionKey.key relation ajtai).piCcsExecution
+        running fresh proof).coins.roundPoint := by
+    refine Eq.trans ?_ roundPointAt
+    apply cubePoint_eq_of_coordinates
+    change (List.ofFn ((sumcheckInterface shared).round childStart)).map
+        (fun round => round.challenge.eval after.current) =
+      (List.ofFn ((sumcheckInterface shared).round childStart)).map
+        (fun round => round.challenge.eval before.current)
+    apply List.map_congr_left
+    intro round member
+    rw [List.mem_ofFn'] at member
+    rcases member with ⟨roundIndex, rfl⟩
+    have roundBelow : ((sumcheckInterface shared).round childStart
+        roundIndex).VarsBelow childStart := childAssumptions.2 roundIndex
+    exact ((sumcheckInterface shared).round childStart
+      roundIndex).challenge.eval_eq_of_agree_below childStart after.current
+        before.current roundBelow.2 agreesBefore
+  have terminalAfter := SumcheckChain.output_eval_of_keyChain relation ajtai
+    running fresh proof (sumcheckInterface shared) childStart after.current
+    initialAfter roundsAfter roundPointAfter chainAt childHolds
+  refine ⟨after, ?_, ?_, preserves, ?_⟩
   · simpa [shared, childStart] using operationsEq
   · simpa [shared, childStart] using! nextEq
+  · simpa [shared, running, fresh, proof, childStart] using terminalAfter
 
 private theorem appendEvalKTerminal
     {logicalWidth degreeBound base : Nat}
@@ -717,9 +783,9 @@ theorem evidence_preserved
     unfold ccsOffset evalAOffset evalKOffset sumcheckOffset nextOffset
       childLength
     omega
-  have sumcheckLeCcs : sumcheckOffset interface offset ≤
+  have evalKLeCcs : evalKOffset interface offset ≤
       ccsOffset interface offset := by
-    unfold ccsOffset evalAOffset evalKOffset nextOffset childLength
+    unfold ccsOffset evalAOffset nextOffset childLength
     omega
   have evalALeCcs : evalAOffset interface offset ≤
       ccsOffset interface offset := by
@@ -812,8 +878,10 @@ theorem evidence_preserved
         ((assumptionsAt assumptions (fun _ => 0)).sumcheck)
     have belowCcs : (SumcheckChain.output (sumcheckInterface shared)
         (sumcheckOffset interface offset)).VarsBelow
-          (ccsOffset interface offset) :=
-      KExpr.varsBelow_mono _ below sumcheckLeCcs
+          (ccsOffset interface offset) := by
+      apply KExpr.varsBelow_mono _ below
+      rw [sumcheckEnd_eq_evalKOffset]
+      exact evalKLeCcs
     exact (SumcheckChain.output (sumcheckInterface shared)
       (sumcheckOffset interface offset)).eval_eq_of_agree_below
         (ccsOffset interface offset) after.current before.current belowCcs
@@ -907,19 +975,18 @@ theorem completeEvaluationPrefix
     ⟨p5, o5, n5, p4to5, initialSpecP5⟩
   have transcriptP5 := transcriptSpecs_preserved relation interface env offset
     assumptions before p5 startEq p4to5 statementSpec challengeSpec roundSpec
-  have sumcheckEvidenceP5 := sumcheckEvidence_of_accepted relation ajtai
-    interface env offset template assumptions accepted p5 offsetLeBase transcriptP5.1
-      transcriptP5.2.1 transcriptP5.2.2 initialSpecP5
-  rcases appendSumcheckChain relation interface env offset assumptions
-      p5 sumcheckEvidenceP5.1 n5 with
-    ⟨p6, o6, n6, p5to6⟩
+  rcases appendSumcheckChain relation ajtai interface env offset template
+      assumptions accepted p5 offsetLeBase transcriptP5.1 transcriptP5.2.1
+      transcriptP5.2.2 initialSpecP5 n5 with
+    ⟨p6, o6, n6, p5to6, terminalP6⟩
   rcases appendEvalKTerminal relation interface env offset assumptions
       p6 n6 with
     ⟨p7, o7, n7, p6to7, _evalKSpecP7⟩
   rcases appendEvalATerminal relation interface env offset assumptions
       p7 n7 with
     ⟨p8, o8, n8, p7to8, evalASpecP8⟩
-  have p5to8 := (p5to6.trans p6to7).trans p7to8
+  have p6to8 := p6to7.trans p7to8
+  have p5to8 := p5to6.trans p6to8
   have p4to8 := p4to5.trans p5to8
   have transcriptP8 := transcriptSpecs_preserved relation interface env offset
     assumptions before p8 startEq p4to8 statementSpec challengeSpec roundSpec
@@ -941,13 +1008,15 @@ theorem completeEvaluationPrefix
       (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
         (sumcheckOffset interface offset)).eval p8.current =
       (SumcheckChain.output (sumcheckInterface (atOffset interface offset))
-        (sumcheckOffset interface offset)).eval p5.current := by
+        (sumcheckOffset interface offset)).eval p6.current := by
     exact (SumcheckChain.output (sumcheckInterface
       (atOffset interface offset)) (sumcheckOffset interface offset)
-      ).eval_eq_of_agree_below (sumcheckOffset interface offset) p8.current
-        p5.current sumcheckOutputBelow (fun index below =>
-          p5to8.values index (by rw [n5]; exact below))
-  have terminalP8 := sumcheckEvidenceP5.2
+      ).eval_eq_of_agree_below _ p8.current
+        p6.current sumcheckOutputBelow (fun index below =>
+          p6to8.values index (by
+            rw [n6, ← sumcheckEnd_eq_evalKOffset]
+            exact below))
+  have terminalP8 := terminalP6
   rw [runningEq, freshEq, proofEq] at terminalP8
   have terminalP8' := sumcheckOutputEq.trans terminalP8
   have p8Holds := holdsFlat_implies_holds p8.current p8.operations p8.rows

@@ -68,11 +68,17 @@ private theorem lowerAffine_add_eq_none_of_right
 
 private theorem directConstraint_sub_add_eq_none_of_recipe
     (output : Nat) (first second : Expr)
-    (recipeNone : R1CS.lowerAffine (first + second) = none) :
+    (secondNone : R1CS.lowerAffine second = none) :
     R1CS.directConstraint (Expr.var output - (first + second)) = none := by
+  have recipeNone : R1CS.lowerAffine (first + second) = none :=
+    lowerAffine_add_eq_none_of_right _ _ secondNone
   have directRecipeNone :
       R1CS.directRecipeRow output (first + second) = none := by
-    simp [R1CS.directRecipeRow, recipeNone]
+    change R1CS.directRecipeRow output (Expr.add first second) = none
+    have recipeNone' : R1CS.lowerAffine (Expr.add first second) = none :=
+      recipeNone
+    simp [R1CS.directRecipeRow, recipeNone',
+      R1CS.productSumRecipeRow?_eq_none_of_rest _ _ _ secondNone]
   have negativeNone :
       R1CS.lowerAffine ((Expr.const (-1)) * (first + second)) = none := by
     unfold R1CS.lowerAffine
@@ -97,10 +103,13 @@ private theorem directConstraint_sub_add_eq_none_of_recipe
   · rename_i false
     exact (false trivial).elim
 
-private theorem factorExpr_c0_lowerAffine_eq_none
+private theorem factorProduct_c0_lowerAffine_eq_none
     (coordinate : Logical.CoordinateExpr)
     (linear : CoordinateLinear coordinate) :
-    R1CS.lowerAffine (Logical.factorExpr coordinate).c0 = none := by
+    R1CS.lowerAffine
+      (KExpr.mul coordinate.left
+        (KExpr.sub coordinate.right
+          (KExpr.sub KExpr.one coordinate.right))).c0 = none := by
   let oneMinusRight := KExpr.sub KExpr.one coordinate.right
   let difference := KExpr.sub coordinate.right oneMinusRight
   have differenceNonconstant : Nonconstant difference.c0 := by
@@ -117,14 +126,15 @@ private theorem factorExpr_c0_lowerAffine_eq_none
       (coordinate.left.c0 * difference.c0 +
         7 * coordinate.left.c1 * difference.c1) = none
     exact lowerAffine_add_eq_none_of_left _ _ firstProductNone
-  change R1CS.lowerAffine
-    (oneMinusRight.c0 + (KExpr.mul coordinate.left difference).c0) = none
-  exact lowerAffine_add_eq_none_of_right _ _ productNone
+  exact productNone
 
-private theorem factorExpr_c1_lowerAffine_eq_none
+private theorem factorProduct_c1_lowerAffine_eq_none
     (coordinate : Logical.CoordinateExpr)
     (linear : CoordinateLinear coordinate) :
-    R1CS.lowerAffine (Logical.factorExpr coordinate).c1 = none := by
+    R1CS.lowerAffine
+      (KExpr.mul coordinate.left
+        (KExpr.sub coordinate.right
+          (KExpr.sub KExpr.one coordinate.right))).c1 = none := by
   let oneMinusRight := KExpr.sub KExpr.one coordinate.right
   let difference := KExpr.sub coordinate.right oneMinusRight
   have differenceNonconstant : Nonconstant difference.c1 := by
@@ -141,9 +151,7 @@ private theorem factorExpr_c1_lowerAffine_eq_none
       (coordinate.left.c0 * difference.c1 +
         coordinate.left.c1 * difference.c0) = none
     exact lowerAffine_add_eq_none_of_left _ _ firstProductNone
-  change R1CS.lowerAffine
-    (oneMinusRight.c1 + (KExpr.mul coordinate.left difference).c1) = none
-  exact lowerAffine_add_eq_none_of_right _ _ productNone
+  exact productNone
 
 private theorem directConstraint_factor_c0_eq_none
     (output : Nat) (coordinate : Logical.CoordinateExpr)
@@ -152,7 +160,7 @@ private theorem directConstraint_factor_c0_eq_none
       (Expr.var output - (Logical.factorExpr coordinate).c0) = none := by
   let oneMinusRight := KExpr.sub KExpr.one coordinate.right
   let difference := KExpr.sub coordinate.right oneMinusRight
-  have recipeNone := factorExpr_c0_lowerAffine_eq_none coordinate linear
+  have recipeNone := factorProduct_c0_lowerAffine_eq_none coordinate linear
   change R1CS.directConstraint
     (Expr.var output -
       (oneMinusRight.c0 + (KExpr.mul coordinate.left difference).c0)) = none
@@ -165,7 +173,7 @@ private theorem directConstraint_factor_c1_eq_none
       (Expr.var output - (Logical.factorExpr coordinate).c1) = none := by
   let oneMinusRight := KExpr.sub KExpr.one coordinate.right
   let difference := KExpr.sub coordinate.right oneMinusRight
-  have recipeNone := factorExpr_c1_lowerAffine_eq_none coordinate linear
+  have recipeNone := factorProduct_c1_lowerAffine_eq_none coordinate linear
   change R1CS.directConstraint
     (Expr.var output -
       (oneMinusRight.c1 + (KExpr.mul coordinate.left difference).c1)) = none
@@ -255,9 +263,8 @@ theorem mulRecipes_totalFreshCount (output : Nat) (left right : KExpr)
     R1CS.totalFreshCount
       (recipeConstraints output (Logical.mulRecipes left right)) = 7 := by
   simpa [Logical.mulRecipes,
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.mulRecipes,
-    NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes] using
-    NightstreamFPrime.Layout.Polynomial.Horner.mulRecipes_totalFreshCount
+    NightstreamFPrime.Gadgets.Multilinear.PointEquality.mulRecipes] using
+    NightstreamFPrime.Layout.Polynomial.Horner.nestedMulRecipes_totalFreshCount
       output left right leftLinear rightLinear
 
 theorem mulRecipes_totalRowCount (output : Nat) (left right : KExpr)
@@ -265,9 +272,8 @@ theorem mulRecipes_totalRowCount (output : Nat) (left right : KExpr)
     R1CS.totalRowCount
       (recipeConstraints output (Logical.mulRecipes left right)) = 9 := by
   simpa [Logical.mulRecipes,
-    NightstreamFPrime.Gadgets.Multilinear.PointEquality.mulRecipes,
-    NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes] using
-    NightstreamFPrime.Layout.Polynomial.Horner.mulRecipes_totalRowCount
+    NightstreamFPrime.Gadgets.Multilinear.PointEquality.mulRecipes] using
+    NightstreamFPrime.Layout.Polynomial.Horner.nestedMulRecipes_totalRowCount
       output left right leftLinear rightLinear
 
 theorem compile_output_linear_of_nonempty (start : Nat)

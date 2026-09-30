@@ -136,7 +136,7 @@ impl SuperneoMatrixCache {
             let mut blocks = Vec::new();
             offsets.push(0);
             for row in row_start..row_end {
-                for rb in self.row_blocks_including_seeded(row) {
+                for rb in self.expanded_row_blocks(row) {
                     let re_form = weighted_projection_form_from_orig(&rb.orig, &basis_re_forms);
                     let im_form = weighted_projection_form_from_orig(&rb.orig, &basis_im_forms);
                     if is_all_zero(&re_form.0) && is_all_zero(&im_form.0) {
@@ -208,7 +208,7 @@ impl SuperneoMatrixCache {
         let mut row_re = [F::ZERO; D];
         let mut row_im = [F::ZERO; D];
 
-        for rb in self.row_blocks_including_seeded(row) {
+        for rb in self.expanded_row_blocks(row) {
             if !z_blocks.block_nonzero(rb.blk) {
                 continue;
             }
@@ -252,7 +252,7 @@ impl SuperneoMatrixCache {
 
         if z_blocks.imag_all_zero {
             let mut acc = K::ZERO;
-            for rb in self.row_blocks_including_seeded(row) {
+            for rb in self.expanded_row_blocks(row) {
                 if !z_blocks.real_nonzero(rb.blk) {
                     continue;
                 }
@@ -292,7 +292,7 @@ impl SuperneoMatrixCache {
         let mut acc_re = F::ZERO;
         let mut acc_im = F::ZERO;
 
-        for rb in self.row_blocks_including_seeded(row) {
+        for rb in self.expanded_row_blocks(row) {
             if !z_blocks.block_nonzero(rb.blk) {
                 continue;
             }
@@ -365,7 +365,7 @@ impl SuperneoMatrixCache {
                     continue;
                 }
                 let [w_re, w_im] = w.as_coeffs();
-                for rb in self.row_blocks_including_seeded(row) {
+                for rb in self.expanded_row_blocks(row) {
                     if !z_blocks.real_nonzero(rb.blk) {
                         continue;
                     }
@@ -444,7 +444,7 @@ impl SuperneoMatrixCache {
             if w == K::ZERO {
                 continue;
             }
-            for rb in self.row_blocks_including_seeded(row) {
+            for rb in self.expanded_row_blocks(row) {
                 let base = rb.blk * D;
                 for i in 0..D {
                     let a = rb.orig.0[i];

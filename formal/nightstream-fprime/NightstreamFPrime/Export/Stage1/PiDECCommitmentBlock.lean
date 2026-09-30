@@ -1,5 +1,4 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
-import NightstreamFPrime.Export.NativeAjtaiChaCha
 import NightstreamFPrime.Export.Stage1.PiDECNativeProduct
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
@@ -37,18 +36,66 @@ theorem multiplyChild_value (key child : StoredRing) :
     rw [Vector.getElem_replicate]
   · exact PiDECNativeProduct.multiply_value key child
 
-/-- Materialize the exact lazy key at one row and block. -/
+private theorem reduceWide64_toNat (low high : UInt64) :
+    (NativePoseidon2.reduceWide64 low high).toNat =
+      (low.toNat + 2 ^ 64 * high.toNat) % goldilocksModulus := by
+  have wordValue (value : UInt64) :
+      value.denote.val = value.toNat % goldilocksModulus := rfl
+  have natValue (value : Nat) :
+      (Poseidon2.ofNat value).val = value % goldilocksModulus := rfl
+  have result := congrArg Fin.val (NativePoseidon2.reduceWide64_denote low high)
+  simp only [Fin.val_add, Fin.val_mul, wordValue, natValue] at result
+  rw [Nat.mod_eq_of_lt (NativePoseidon2.reduceWide64_canonical low high)] at result
+  calc
+    (NativePoseidon2.reduceWide64 low high).toNat =
+        (low.toNat % goldilocksModulus +
+          ((NativePoseidon2.radix % goldilocksModulus *
+            (NativePoseidon2.radix % goldilocksModulus)) % goldilocksModulus *
+              (high.toNat % goldilocksModulus)) % goldilocksModulus) %
+                goldilocksModulus := result
+    _ = (low.toNat + (NativePoseidon2.radix * NativePoseidon2.radix) *
+          high.toNat) % goldilocksModulus := by
+      simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
+    _ = _ := rfl
+
+/-- Coefficient `lane` from its four output lanes, reduced on native words. -/
+private def laneCoefficient (lanes : Array UInt64) (lane : Nat) : UInt64 :=
+  let word := fun index => lanes.getD (4 * lane + index) 0
+  NativePoseidon2.reduceWide64 (word 0)
+    (NativePoseidon2.reduceWide64 (word 1) (NativePoseidon2.reduceWide64 (word 2) (word 3)))
+
+private theorem laneCoefficient_toNat (lanes : List UInt64) (lane : Nat) :
+    (laneCoefficient lanes.toArray lane).toNat =
+      AjtaiSetupV1.laneWord lanes lane % goldilocksModulus := by
+  have read (index : Nat) : lanes.toArray.getD index 0 = lanes.getD index 0 := by
+    simp [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+  simp only [laneCoefficient, reduceWide64_toNat, read, AjtaiSetupV1.laneWord, Nat.add_zero]
+  simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
+
+/-- Materialize the exact lazy key at one row and block: one SHAKE128 call
+gives all 54 coefficients. -/
 def keyBlock {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) : StoredRing :=
-  NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock setup row block
+  let lanes := (AjtaiSetupV1.elementLanes setup.seed.bytes row.val block.val).toArray
+  Vector.ofFn fun lane =>
+    ⟨(laneCoefficient lanes lane.val).toNat, NativePoseidon2.reduceWide64_canonical _ _⟩
 
 /-- Stored access is the existing semantic key coordinate. -/
 theorem keyBlock_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) :
-    (keyBlock setup row block).get = setup.verifierKey row block :=
-  NightstreamFPrime.Export.NativeAjtaiChaCha.keyBlock_value setup row block
+    (keyBlock setup row block).get = setup.verifierKey row block := by
+  funext lane
+  change (Vector.ofFn (fun selected : Fin ringDegree =>
+    (⟨(laneCoefficient (AjtaiSetupV1.elementLanes setup.seed.bytes row.val block.val).toArray
+      selected.val).toNat, NativePoseidon2.reduceWide64_canonical _ _⟩ : F)))[lane.val] = _
+  rw [Vector.getElem_ofFn]
+  apply Fin.ext
+  dsimp only
+  rw [laneCoefficient_toNat]
+  simp only [AjtaiSetupV1.Setup.verifierKey, AjtaiSetupV1.Setup.coefficientNat,
+    AjtaiSetupV1.wideCoefficientNat]
 
 /-- Share one materialized key across the stored block products. -/
 def products {count : Nat} (key : StoredRing) (children : Vector StoredRing count) :

@@ -57,8 +57,11 @@ fn evaluate_row(seed: &[u8; 32], row: u32, bytes: &[u8], bound: u64) -> [[u64; D
                 if parent.iter().all(|&value| value == 0) {
                     return sums;
                 }
-                for lane in 0..DEGREE {
-                    let key = i128::from(commitment::coefficient(seed, row, block as u64, lane as u32));
+                for (lane, &key) in commitment::coefficients(seed, row, block as u64)
+                    .iter()
+                    .enumerate()
+                {
+                    let key = i128::from(key);
                     for (power, &value) in parent.iter().enumerate() {
                         let coefficient = if value < 0 { -key } else { key };
                         let mut digits = value.unsigned_abs();
@@ -123,13 +126,12 @@ fn independent_actual_child_commitments() {
     assert!(bound < 1 << DIGITS);
 
     let setup = read(&inputs.setup_fixture);
-    assert_eq!(setup[0], 3, "Lean wide256 setup schema");
     let authority: Vec<u64> = serde_json::from_value(setup[6].clone()).expect("Lean setup authority");
     assert_eq!(authority.len(), 73);
     assert_eq!(authority[0], 37);
     assert_eq!(
         &authority[1..38],
-        b"nightstream-ajtai-chacha20-wide256-v1"
+        commitment::SETUP_ID
             .iter()
             .map(|&byte| u64::from(byte))
             .collect::<Vec<_>>()
@@ -142,20 +144,7 @@ fn independent_actual_child_commitments() {
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
-    assert_eq!(setup[4], json!(seed));
-    let test_seed: [u8; 32] = serde_json::from_value(setup[2].clone()).expect("Lean RFC seed");
-    let expected_block: [u32; 16] = serde_json::from_value(setup[3].clone()).expect("Lean RFC block");
-    assert_eq!(
-        commitment::block_words(&test_seed, 0x09000000, 0x4a000000, 1),
-        expected_block
-    );
-    let samples: Vec<[u64; 4]> = serde_json::from_value(setup[5].clone()).expect("Lean indexed setup samples");
-    for [row, block, lane, expected] in samples {
-        assert_eq!(
-            commitment::coefficient(&seed, row.try_into().unwrap(), block, lane.try_into().unwrap()),
-            expected
-        );
-    }
+    commitment::check_lean_setup_vectors(&setup, &seed);
     drop(binding);
     drop(package);
     drop(bytes);

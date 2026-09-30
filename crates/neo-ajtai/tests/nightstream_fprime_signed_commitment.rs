@@ -45,8 +45,8 @@ fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
             );
         }
     }
-    // The existing RFC-8439 fixture uses this seed and nonce. Checking all
-    // lanes also crosses every four-block SIMD buffer boundary up to lane 53.
+    // The Lean fixture test seed. All lanes cross every SHAKE128 rate
+    // boundary of the 1,728-byte element output.
     let seed = core::array::from_fn(|index| index as u8);
     let streamed = coefficient_block(&seed, 0x0900_0000, 0x4a00_0000);
     for lane in 0..D {

@@ -6,7 +6,7 @@ import Mathlib.Tactic.NormNum
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-! Event-frequency error for uniform integer sampling followed by modular
-reduction. No premise about ChaCha20 output distribution is introduced. -/
+reduction. No premise about SHAKE128 output distribution is introduced. -/
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 

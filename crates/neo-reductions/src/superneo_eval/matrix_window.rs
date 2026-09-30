@@ -108,7 +108,6 @@ impl MatrixWindow {
                 geometric_row_offsets: row_offsets(rows.len(), counts.geometric)?,
                 geometric_runs: reserved(counts.geometric)?,
                 identity: false,
-                seeded_phi81_blocks: Vec::new(),
             });
         }
         let mut cache = SuperneoEvalCache {

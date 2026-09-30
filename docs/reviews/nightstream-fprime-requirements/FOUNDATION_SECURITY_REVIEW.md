@@ -1,6 +1,6 @@
 # Foundations: remaining security links
 
-This review uses the checked working tree on 2026-09-08. All 11 proof records closed before link work began. All seven links now have checked reduction/review evidence or the explicit owner-approved cryptographic assumption. The complete boundary, library and axiom gates passed.
+This review uses the checked working tree on 2026-09-08. On 2026-09-29 the setup changed to SHAKE128; the approved assumption below covers only the earlier ChaCha20 matrix (see `PUBLIC_SEED_MSIS_ASSUMPTION.md`). All 11 proof records closed before link work began. All seven links now have checked reduction/review evidence or the explicit owner-approved cryptographic assumption. The complete boundary, library and axiom gates passed.
 
 ## Closed links
 

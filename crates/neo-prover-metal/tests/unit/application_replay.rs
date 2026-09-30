@@ -63,9 +63,8 @@ impl Fixture {
             .into_iter()
             .enumerate()
             .map(|(matrix, terms)| {
-                CcsMatrix::csc_with_compact_rows(
+                CcsMatrix::csc_with_geometric_runs(
                     CscMat::from_triplets(terms, rows, columns),
-                    Vec::new(),
                     if matrix == 0 || matrix == 2 {
                         runs.clone()
                     } else {

@@ -1,66 +1,146 @@
-//! Independent indexed ChaCha20 and signed-integer Ajtai evaluation.
-//! Spec.AjtaiSetupV1 fixes the nonce, counter, and 256-bit reduction.
-//! No production RNG, key expander, or commitment routine is called.
+//! Independent indexed SHAKE128 and signed-integer Ajtai evaluation.
+//! Spec.AjtaiSetupV1 fixes the element input, the lane bytes, and the 256-bit
+//! reduction. No production hash, key expander, or commitment routine is called.
 
 use rayon::prelude::*;
+use serde_json::{json, Value};
 
 const DEGREE: usize = 54;
 const MODULUS: u128 = 18_446_744_069_414_584_321;
+const RATE: usize = 168;
+pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
 
-fn quarter(state: &mut [u32; 16], indices: [usize; 4]) {
-    let [ai, bi, ci, di] = indices;
-    let [mut a, mut b, mut c, mut d] = indices.map(|index| state[index]);
-    a = a.wrapping_add(b);
-    d = (d ^ a).rotate_left(16);
-    c = c.wrapping_add(d);
-    b = (b ^ c).rotate_left(12);
-    a = a.wrapping_add(b);
-    d = (d ^ a).rotate_left(8);
-    c = c.wrapping_add(d);
-    b = (b ^ c).rotate_left(7);
-    state[ai] = a;
-    state[bi] = b;
-    state[ci] = c;
-    state[di] = d;
+/// FIPS 202 example: the first 32 bytes of SHAKE128 of the empty message.
+const SHAKE128_EMPTY: [u8; 32] = [
+    0x7f, 0x9c, 0x2b, 0xa4, 0xe8, 0x8f, 0x82, 0x7d, 0x61, 0x60, 0x45, 0x50, 0x76, 0x05, 0x85, 0x3e, 0xd7, 0x3b, 0x80,
+    0x93, 0xf6, 0xef, 0xbc, 0x88, 0xeb, 0x1a, 0x6e, 0xac, 0xfa, 0x66, 0xef, 0x26,
+];
+
+/// Round constants of step iota (FIPS 202, Section 3.2.5).
+const ROUND_CONSTANTS: [u64; 24] = [
+    0x0000_0000_0000_0001,
+    0x0000_0000_0000_8082,
+    0x8000_0000_0000_808a,
+    0x8000_0000_8000_8000,
+    0x0000_0000_0000_808b,
+    0x0000_0000_8000_0001,
+    0x8000_0000_8000_8081,
+    0x8000_0000_0000_8009,
+    0x0000_0000_0000_008a,
+    0x0000_0000_0000_0088,
+    0x0000_0000_8000_8009,
+    0x0000_0000_8000_000a,
+    0x0000_0000_8000_808b,
+    0x8000_0000_0000_008b,
+    0x8000_0000_0000_8089,
+    0x8000_0000_0000_8003,
+    0x8000_0000_0000_8002,
+    0x8000_0000_0000_0080,
+    0x0000_0000_0000_800a,
+    0x8000_0000_8000_000a,
+    0x8000_0000_8000_8081,
+    0x8000_0000_0000_8080,
+    0x0000_0000_8000_0001,
+    0x8000_0000_8000_8008,
+];
+
+/// Rotation offsets of step rho (FIPS 202, Table 2), at lane `x + 5y`.
+const RHO: [u32; 25] = [
+    0, 1, 62, 28, 27, 36, 44, 6, 55, 20, 3, 10, 43, 25, 39, 41, 45, 15, 21, 8, 18, 2, 61, 56, 14,
+];
+
+fn keccak_f(state: &mut [u64; 25]) {
+    for round_constant in ROUND_CONSTANTS {
+        let parity: [u64; 5] = std::array::from_fn(|x| (0..5).fold(0, |sum, y| sum ^ state[x + 5 * y]));
+        for x in 0..5 {
+            let theta = parity[(x + 4) % 5] ^ parity[(x + 1) % 5].rotate_left(1);
+            for y in 0..5 {
+                state[x + 5 * y] ^= theta;
+            }
+        }
+        // rho and pi: lane (x, y) moves to (y, 2x + 3y).
+        let mut moved = [0u64; 25];
+        for x in 0..5 {
+            for y in 0..5 {
+                moved[y + 5 * ((2 * x + 3 * y) % 5)] = state[x + 5 * y].rotate_left(RHO[x + 5 * y]);
+            }
+        }
+        for y in 0..5 {
+            for x in 0..5 {
+                state[x + 5 * y] = moved[x + 5 * y] ^ (!moved[(x + 1) % 5 + 5 * y] & moved[(x + 2) % 5 + 5 * y]);
+            }
+        }
+        state[0] ^= round_constant;
+    }
 }
 
-pub fn block_words(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> [u32; 16] {
-    let mut initial = [0u32; 16];
-    for (index, bytes) in b"expand 32-byte k".chunks_exact(4).enumerate() {
-        initial[index] = u32::from_le_bytes(bytes.try_into().unwrap());
-    }
-    for (index, bytes) in seed.chunks_exact(4).enumerate() {
-        initial[index + 4] = u32::from_le_bytes(bytes.try_into().unwrap());
-    }
-    initial[12..].copy_from_slice(&[lane, row, block as u32, (block >> 32) as u32]);
-    let mut state = initial;
-    for _ in 0..10 {
-        for column in 0..4 {
-            quarter(&mut state, [column, column + 4, column + 8, column + 12]);
+/// SHAKE128 (FIPS 202, Section 6.2) of `message`, `length` output bytes.
+pub fn shake128(message: &[u8], length: usize) -> Vec<u8> {
+    let mut padded = message.to_vec();
+    padded.push(0x1f);
+    padded.resize(padded.len().div_ceil(RATE) * RATE, 0);
+    *padded.last_mut().unwrap() |= 0x80;
+    let mut state = [0u64; 25];
+    for block in padded.chunks_exact(RATE) {
+        for (lane, bytes) in state.iter_mut().zip(block.chunks_exact(8)) {
+            *lane ^= u64::from_le_bytes(bytes.try_into().unwrap());
         }
-        for column in 0..4 {
-            quarter(
-                &mut state,
-                [
-                    column,
-                    4 + (column + 1) % 4,
-                    8 + (column + 2) % 4,
-                    12 + (column + 3) % 4,
-                ],
-            );
-        }
+        keccak_f(&mut state);
     }
-    std::array::from_fn(|index| state[index].wrapping_add(initial[index]))
+    let mut output = Vec::with_capacity(length.div_ceil(RATE) * RATE);
+    loop {
+        for lane in &state[..RATE / 8] {
+            output.extend(lane.to_le_bytes());
+        }
+        if output.len() >= length {
+            output.truncate(length);
+            return output;
+        }
+        keccak_f(&mut state);
+    }
 }
 
-pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
-    let words = block_words(seed, row, block, lane);
-    // Four 64-bit limbs give the same little-endian 256-bit integer as
-    // Lean's eight 32-bit limbs. The accumulator is reduced at each limb.
-    (0..4).rev().fold(0u128, |value, limb| {
-        let word = u64::from(words[2 * limb]) | (u64::from(words[2 * limb + 1]) << 32);
-        ((value << 64) | u128::from(word)) % MODULUS
-    }) as u64
+/// All `32 * DEGREE` output bytes of key element `(row, block)`.
+pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> Vec<u8> {
+    let mut input = SETUP_ID.to_vec();
+    input.extend(seed);
+    input.extend(row.to_le_bytes());
+    input.extend(block.to_le_bytes());
+    shake128(&input, 32 * DEGREE)
+}
+
+/// Coefficient `lane` is bytes `32 * lane .. 32 * lane + 32`, read as one
+/// little-endian 256-bit integer and reduced modulo q.
+pub fn coefficients(seed: &[u8; 32], row: u32, block: u64) -> [u64; DEGREE] {
+    let bytes = element_bytes(seed, row, block);
+    std::array::from_fn(|lane| {
+        bytes[32 * lane..32 * lane + 32]
+            .chunks_exact(8)
+            .rev()
+            .fold(0u128, |value, limb| {
+                ((value << 64) | u128::from(u64::from_le_bytes(limb.try_into().unwrap()))) % MODULUS
+            }) as u64
+    })
+}
+
+/// Check the schema-4 Lean setup fixture for `seed`: the FIPS 202 example,
+/// the indexed coefficients, and one complete key element.
+pub fn check_lean_setup_vectors(setup: &Value, seed: &[u8; 32]) {
+    assert_eq!(setup[0], 4, "Lean SHAKE128 setup schema");
+    assert_eq!(setup[1], json!(SETUP_ID));
+    assert_eq!(setup[4], json!(seed));
+    assert_eq!(shake128(&[], 32), SHAKE128_EMPTY, "FIPS 202 SHAKE128 example");
+    assert_eq!(setup[3], json!(SHAKE128_EMPTY));
+    let samples: Vec<[u64; 4]> = serde_json::from_value(setup[5].clone()).expect("Lean indexed coefficients");
+    assert!(!samples.is_empty());
+    for [row, block, lane, expected] in samples {
+        assert_eq!(
+            coefficients(seed, row.try_into().unwrap(), block)[lane as usize],
+            expected
+        );
+    }
+    // All lanes, including those that cross a 168-byte rate boundary.
+    assert_eq!(setup[7], json!(element_bytes(seed, 1, 32_768)));
 }
 
 pub fn commitment_row(seed: &[u8; 32], row: u32, carrier: &[u8]) -> [u64; DEGREE] {
@@ -76,9 +156,10 @@ pub fn commitment_row(seed: &[u8; 32], row: u32, carrier: &[u8]) -> [u64; DEGREE
         .enumerate()
         .filter(|(_, values)| values.iter().any(|&value| value != 0))
         .map(|(block, values)| {
+            let key = coefficients(seed, row, block as u64);
             let mut product = [0i128; 2 * DEGREE - 1];
-            for lane in 0..DEGREE {
-                let coefficient = i128::from(coefficient(seed, row, block as u64, lane as u32));
+            for (lane, &coefficient) in key.iter().enumerate() {
+                let coefficient = i128::from(coefficient);
                 for (power, &value) in values.iter().enumerate() {
                     match value {
                         0 => {}

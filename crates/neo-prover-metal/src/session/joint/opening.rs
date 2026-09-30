@@ -102,9 +102,6 @@ impl OpeningLayout {
                 .compact_device_parts()
                 .ok_or(MetalError::Shape("unfinished opening matrix"))?;
             let (rows, _, identity) = matrix.compact_explicit_shape();
-            if matrix.has_compact_seeded_phi81_blocks() {
-                return Err(MetalError::Shape("opening windows require original matrix rows"));
-            }
             if identity {
                 active[..rows.min(blocks * D).div_ceil(D)].fill(true);
             }

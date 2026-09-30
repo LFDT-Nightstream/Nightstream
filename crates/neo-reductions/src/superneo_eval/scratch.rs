@@ -86,12 +86,6 @@ impl RingEvalScratch {
         fill(&mut self.part());
     }
 
-    pub(super) fn add_forms(&mut self, block: usize, real: &Rq, imaginary: &Rq) {
-        for (local, value) in self.part().slot(block).iter_mut().enumerate() {
-            *value += K::from_coeffs([real.0[local], imaginary.0[local]]);
-        }
-    }
-
     #[inline]
     pub(super) fn forms(&self, block: usize) -> (Rq, Rq) {
         forms(&self.values[block * D..(block + 1) * D])

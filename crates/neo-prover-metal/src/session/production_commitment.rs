@@ -4,7 +4,9 @@
 use std::borrow::Borrow;
 
 use neo_ajtai::{
-    nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS},
+    nightstream_fprime_setup::{
+        element_input, signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+    },
     Commitment,
 };
 use neo_ccs::Mat;
@@ -70,7 +72,21 @@ impl MetalSession {
         let device_masks = self.buffer_from_slice(&masks)?;
         let device_columns = self.buffer_from_slice(&columns)?;
         drop((masks, columns));
-        let seed = self.buffer_from_slice(&PRODUCTION_SEED)?;
+        // SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
+        // lanes; the kernel adds each row and column.
+        let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
+        let input = element_input(&PRODUCTION_SEED, 0, 0);
+        let prefix: [u64; 9] = std::array::from_fn(|lane| {
+            u64::from_le_bytes(std::array::from_fn(|byte| {
+                let position = 8 * lane + byte;
+                if position < fixed {
+                    input[position]
+                } else {
+                    0
+                }
+            }))
+        });
+        let prefix = self.buffer_from_slice(&prefix)?;
 
         // One SIMD-width tile of key columns per group. This follows the device
         // execution width, not a circuit-specific or memory-size constant.
@@ -120,7 +136,7 @@ impl MetalSession {
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_partials")));
             encoder.setComputePipelineState(pipeline);
             unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&seed), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&device_columns), 0, 1);
                 encoder.setBuffer_offset_atIndex(Some(&device_masks), 0, 2);
                 encoder.setBuffer_offset_atIndex(Some(&shapes), row * 6 * size_of::<u64>(), 3);

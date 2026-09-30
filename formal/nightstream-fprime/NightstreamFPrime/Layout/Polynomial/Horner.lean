@@ -3,7 +3,8 @@ import NightstreamFPrime.Gadgets.Polynomial.Horner
 
 /-!
 Owns physical lowering for the reusable quadratic-extension Horner compiler.
-It proves the current R1CS cost structurally from the coefficient-list length.
+Each stored product is three rank-one rows and no lowering cell. The cost is
+proved structurally from the coefficient-list length.
 It does not own any protocol coefficient order or exponent schedule.
 -/
 
@@ -70,14 +71,23 @@ theorem lowerAffine_mul_eq_none {left right : Expr}
   cases left <;> cases right <;>
     simp_all [Nonconstant, R1CS.lowerAffine]
 
+/-- A recipe that is a sum of two non-affine parts has no one-row lowering. -/
 theorem directConstraint_sub_add_eq_none
     (output : Nat) (left right : Expr)
-    (leftNone : R1CS.lowerAffine left = none) :
+    (leftNone : R1CS.lowerAffine left = none)
+    (rightNone : R1CS.lowerAffine right = none) :
     R1CS.directConstraint (Expr.var output - (left + right)) = none := by
   change R1CS.directConstraint
     (.add (.var output) (.mul (.const (-1)) (.add left right))) = none
-  simp [R1CS.directConstraint, R1CS.directRecipeRow,
-    R1CS.affineConstraint, R1CS.lowerAffine, leftNone]
+  cases left <;>
+    simp_all [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine]
+
+private theorem scaledHigh_lowerAffine_none (left right : KExpr)
+    (rightLinear : KExprLinear right) :
+    R1CS.lowerAffine ((7 : Expr) * left.c1 * right.c1) = none :=
+  lowerAffine_mul_eq_none (by simp [Nonconstant, HMul.hMul, Mul.mul])
+    rightLinear.c1_nonconstant
 
 private theorem c0_directConstraint_eq_none (output : Nat)
     (left right : KExpr)
@@ -89,8 +99,9 @@ private theorem c0_directConstraint_eq_none (output : Nat)
     (Expr.var output -
       (left.c0 * right.c0 + (7 : Expr) * left.c1 * right.c1)) = none
   apply directConstraint_sub_add_eq_none
-  exact lowerAffine_mul_eq_none leftLinear.c0_nonconstant
-    rightLinear.c0_nonconstant
+  · exact lowerAffine_mul_eq_none leftLinear.c0_nonconstant
+      rightLinear.c0_nonconstant
+  · exact scaledHigh_lowerAffine_none left right rightLinear
 
 private theorem c1_directConstraint_eq_none (output : Nat)
     (left right : KExpr)
@@ -102,8 +113,10 @@ private theorem c1_directConstraint_eq_none (output : Nat)
     (Expr.var output -
       (left.c0 * right.c1 + left.c1 * right.c0)) = none
   apply directConstraint_sub_add_eq_none
-  exact lowerAffine_mul_eq_none leftLinear.c0_nonconstant
-    rightLinear.c1_nonconstant
+  · exact lowerAffine_mul_eq_none leftLinear.c0_nonconstant
+      rightLinear.c1_nonconstant
+  · exact lowerAffine_mul_eq_none leftLinear.c1_nonconstant
+      rightLinear.c0_nonconstant
 
 private theorem c0_constraint_mulCount_eq (output : Nat)
     (left right : KExpr)
@@ -171,31 +184,121 @@ private theorem c1_rowCount_eq (output : Nat) (left right : KExpr)
   rw [c1_directConstraint_eq_none output left right leftLinear rightLinear]
   rw [c1_constraint_mulCount_eq output left right leftLinear rightLinear]
 
+/-- Cost of the two-cell product whose recipes are the nested components of
+`KExpr.mul`. Only gadgets that still store a product in this form use it. -/
+theorem nestedMulRecipes_totalFreshCount (output : Nat) (left right : KExpr)
+    (leftLinear : KExprLinear left)
+    (rightLinear : KExprLinear right) :
+    R1CS.totalFreshCount
+      (recipeConstraints output
+        [(KExpr.mul left right).c0, (KExpr.mul left right).c1]) = 7 := by
+  simp only [recipeConstraints, R1CS.totalFreshCount,
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
+  rw [c0_freshCount_eq output left right leftLinear rightLinear,
+    c1_freshCount_eq (output + 1) left right leftLinear rightLinear]
+
+theorem nestedMulRecipes_totalRowCount (output : Nat) (left right : KExpr)
+    (leftLinear : KExprLinear left)
+    (rightLinear : KExprLinear right) :
+    R1CS.totalRowCount
+      (recipeConstraints output
+        [(KExpr.mul left right).c0, (KExpr.mul left right).c1]) = 9 := by
+  simp only [recipeConstraints, R1CS.totalRowCount,
+    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
+  rw [c0_rowCount_eq output left right leftLinear rightLinear,
+    c1_rowCount_eq (output + 1) left right leftLinear rightLinear]
+
+/-- Each of the three stored-product recipes is one rank-one row when both
+operands are affine. -/
+theorem mulRecipes_direct (output : Nat) (left right : KExpr)
+    (leftAffine : R1CS.IsAffine left.c0 ∧ R1CS.IsAffine left.c1)
+    (rightAffine : R1CS.IsAffine right.c0 ∧ R1CS.IsAffine right.c1) :
+    R1CS.RecipesDirect output
+      (NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes output
+        left right) := by
+  refine ⟨R1CS.IsDirectRecipe.mul output leftAffine.2 rightAffine.2,
+    R1CS.IsDirectRecipe.mul_add (output + 1) leftAffine.1 rightAffine.1
+      (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var output)),
+    R1CS.IsDirectRecipe.mul_add (output + 1 + 1)
+      (R1CS.IsAffine.add leftAffine.1 leftAffine.2)
+      (R1CS.IsAffine.add rightAffine.1 rightAffine.2)
+      (R1CS.IsAffine.add
+        (R1CS.IsAffine.const_mul (-1) (R1CS.isAffine_var (output + 1)))
+        (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var output))),
+    trivial⟩
+
+/-- Both coordinates are affine expressions. -/
+def KAffine (value : KExpr) : Prop :=
+  R1CS.IsAffine value.c0 ∧ R1CS.IsAffine value.c1
+
+theorem KExprLinear.kAffine {value : KExpr} (linear : KExprLinear value) :
+    KAffine value :=
+  linear.isAffine
+
+/-- The accumulator of an affine coefficient list stays affine. -/
+theorem compile_output_kAffine (start : Nat) (point : KExpr) :
+    ∀ coefficients : List KExpr,
+      (∀ coefficient ∈ coefficients, KAffine coefficient) →
+      KAffine
+        (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start point
+          coefficients).output
+  | [], _ => ⟨R1CS.isAffine_const _, R1CS.isAffine_const _⟩
+  | [coefficient], coefficientsAffine => coefficientsAffine coefficient (by simp)
+  | coefficient :: _ :: _, coefficientsAffine =>
+      ⟨R1CS.IsAffine.add (coefficientsAffine coefficient (by simp)).1
+          (R1CS.isAffine_var _),
+        R1CS.IsAffine.add (coefficientsAffine coefficient (by simp)).2
+          (R1CS.isAffine_var _)⟩
+
+/-- Every Horner recipe over affine operands is one rank-one row. -/
+theorem compile_recipesDirect (start : Nat) (point : KExpr)
+    (coefficients : List KExpr) (pointAffine : KAffine point)
+    (coefficientsAffine : ∀ coefficient ∈ coefficients,
+      KAffine coefficient) :
+    R1CS.RecipesDirect start
+      (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start point
+        coefficients).recipes := by
+  induction coefficients generalizing start with
+  | nil => trivial
+  | cons coefficient coefficients inductionHypothesis =>
+      cases coefficients with
+      | nil => trivial
+      | cons next rest =>
+          let tail := NightstreamFPrime.Gadgets.Polynomial.Horner.compile
+            start point (next :: rest)
+          have tailAffine : ∀ current ∈ next :: rest, KAffine current :=
+            fun current member =>
+              coefficientsAffine current (by simp [member])
+          change R1CS.RecipesDirect start
+            (tail.recipes ++
+              NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes
+                (start + tail.recipes.length) point tail.output)
+          exact R1CS.recipesDirect_append start _ _
+            (inductionHypothesis (start := start) tailAffine)
+            (mulRecipes_direct _ point tail.output pointAffine
+              (compile_output_kAffine start point (next :: rest) tailAffine))
+
 theorem mulRecipes_totalFreshCount (output : Nat) (left right : KExpr)
     (leftLinear : KExprLinear left)
     (rightLinear : KExprLinear right) :
     R1CS.totalFreshCount
       (recipeConstraints output
-        (NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes left right)) =
-      7 := by
-  simp only [NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes,
-    recipeConstraints, R1CS.totalFreshCount,
-    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
-  rw [c0_freshCount_eq output left right leftLinear rightLinear,
-    c1_freshCount_eq (output + 1) left right leftLinear rightLinear]
+        (NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes output
+          left right)) = 0 :=
+  R1CS.recipeConstraints_totalFreshCount output _
+    (mulRecipes_direct output left right leftLinear.isAffine
+      rightLinear.isAffine)
 
 theorem mulRecipes_totalRowCount (output : Nat) (left right : KExpr)
     (leftLinear : KExprLinear left)
     (rightLinear : KExprLinear right) :
     R1CS.totalRowCount
       (recipeConstraints output
-        (NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes left right)) =
-      9 := by
-  simp only [NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes,
-    recipeConstraints, R1CS.totalRowCount,
-    List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero]
-  rw [c0_rowCount_eq output left right leftLinear rightLinear,
-    c1_rowCount_eq (output + 1) left right leftLinear rightLinear]
+        (NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes output
+          left right)) = 3 :=
+  R1CS.recipeConstraints_totalRowCount output _
+    (mulRecipes_direct output left right leftLinear.isAffine
+      rightLinear.isAffine)
 
 theorem compile_output_linear (start : Nat) (point : KExpr)
     (coefficients : List KExpr)
@@ -239,8 +342,7 @@ theorem compile_totalFreshCount (start : Nat) (point : KExpr)
     R1CS.totalFreshCount
       (recipeConstraints start
         (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start point
-          coefficients).recipes) =
-      7 * (coefficients.length - 1) := by
+          coefficients).recipes) = 0 := by
   induction coefficients generalizing start with
   | nil => rfl
   | cons coefficient coefficients inductionHypothesis =>
@@ -260,13 +362,11 @@ theorem compile_totalFreshCount (start : Nat) (point : KExpr)
               (coefficient :: next :: rest)).recipes =
               tail.recipes ++
                 NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes
-                  point tail.output by rfl]
+                  (start + tail.recipes.length) point tail.output by rfl]
           rw [recipeConstraints_append, R1CS.totalFreshCount_append,
             inductionHypothesis (start := start) tailCoefficientsLinear,
             mulRecipes_totalFreshCount _ point tail.output pointLinear
               tailOutputLinear]
-          simp only [List.length_cons]
-          omega
 
 theorem compile_totalRowCount (start : Nat) (point : KExpr)
     (coefficients : List KExpr)
@@ -277,7 +377,7 @@ theorem compile_totalRowCount (start : Nat) (point : KExpr)
       (recipeConstraints start
         (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start point
           coefficients).recipes) =
-      9 * (coefficients.length - 1) := by
+      3 * (coefficients.length - 1) := by
   induction coefficients generalizing start with
   | nil => rfl
   | cons coefficient coefficients inductionHypothesis =>
@@ -297,7 +397,7 @@ theorem compile_totalRowCount (start : Nat) (point : KExpr)
               (coefficient :: next :: rest)).recipes =
               tail.recipes ++
                 NightstreamFPrime.Gadgets.Polynomial.Horner.mulRecipes
-                  point tail.output by rfl]
+                  (start + tail.recipes.length) point tail.output by rfl]
           rw [recipeConstraints_append, R1CS.totalRowCount_append,
             inductionHypothesis (start := start) tailCoefficientsLinear,
             mulRecipes_totalRowCount _ point tail.output pointLinear
@@ -313,8 +413,7 @@ theorem ownedCircuit_totalFreshCount
       KExprLinear coefficient) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit interface
-        ).main offset)) =
-      7 * ((interface.coefficients offset).length - 1) := by
+        ).main offset)) = 0 := by
   rw [NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_ops,
     NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.flatConstraints_opsAt]
   unfold NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
@@ -330,7 +429,7 @@ theorem ownedCircuit_totalRowCount
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit interface
         ).main offset)) =
-      9 * ((interface.coefficients offset).length - 1) := by
+      3 * ((interface.coefficients offset).length - 1) := by
   rw [NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.circuit_ops,
     NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.flatConstraints_opsAt]
   unfold NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program

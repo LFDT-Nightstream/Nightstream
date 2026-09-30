@@ -75,10 +75,10 @@ private theorem equalities_supported (left right : KExpr)
 private theorem roundInterval_allowed {degree : Nat} (start : Nat)
     (rounds : Nat) (allowed : Nat → Prop)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * (rounds + 1) → allowed index) :
+      index < start + 3 * degree * (rounds + 1) → allowed index) :
     ∀ index,
       NightstreamFPrime.Circuit.SupportRange.Extend allowed start
-        (start + 2 * degree) index → allowed index := by
+        (start + 3 * degree) index → allowed index := by
   intro index support
   rcases support with support | ⟨lower, upper⟩
   · exact support
@@ -89,9 +89,9 @@ private theorem roundInterval_allowed {degree : Nat} (start : Nat)
 private theorem laterInterval_allowed {degree : Nat} (start : Nat)
     (rounds : Nat) (allowed : Nat → Prop)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * (rounds + 1) → allowed index) :
-    ∀ index, start + 2 * degree ≤ index →
-      index < start + 2 * degree + 2 * degree * rounds → allowed index := by
+      index < start + 3 * degree * (rounds + 1) → allowed index) :
+    ∀ index, start + 3 * degree ≤ index →
+      index < start + 3 * degree + 3 * degree * rounds → allowed index := by
   intro index lower upper
   apply stored index (by omega)
   rw [Nat.mul_succ]
@@ -101,13 +101,13 @@ private theorem roundOutput_supported {degree : Nat} (start : Nat)
     (round : FixedChain.Round degree) (rounds : Nat) (allowed : Nat → Prop)
     (roundSupport : RoundSupported round allowed)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * (rounds + 1) → allowed index) :
+      index < start + 3 * degree * (rounds + 1) → allowed index) :
     KSupported (FixedChain.Owned.roundProgram start round).output allowed := by
   have supported := (NightstreamFPrime.Gadgets.Polynomial.Horner.compile_varsSatisfy
     start round.challenge round.coefficients allowed roundSupport.2
     (coefficients_supported round allowed roundSupport)).2
   rw [show (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start
-      round.challenge round.coefficients).recipes.length = 2 * degree from
+      round.challenge round.coefficients).recipes.length = 3 * degree from
     FixedChain.Owned.roundProgram_recipes_length start round] at supported
   exact NightstreamFPrime.Gadgets.Polynomial.Horner.KSupported.mono supported
     (roundInterval_allowed start rounds allowed stored)
@@ -116,7 +116,7 @@ private theorem recipeRows_supported {degree : Nat} (start : Nat)
     (rounds : List (FixedChain.Round degree)) (allowed : Nat → Prop)
     (roundsSupport : ∀ round ∈ rounds, RoundSupported round allowed)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * rounds.length → allowed index) :
+      index < start + 3 * degree * rounds.length → allowed index) :
     ∀ expression ∈ recipeConstraints start
         (FixedChain.Owned.recipesFrom start rounds),
       expression.VarsSatisfy allowed := by
@@ -136,11 +136,11 @@ private theorem recipeRows_supported {degree : Nat} (start : Nat)
             (coefficients_supported round allowed roundSupport)
             expression headMember
         rw [show (NightstreamFPrime.Gadgets.Polynomial.Horner.compile start
-            round.challenge round.coefficients).recipes.length = 2 * degree from
+            round.challenge round.coefficients).recipes.length = 3 * degree from
           FixedChain.Owned.roundProgram_recipes_length start round] at supported
         exact Expr.VarsSatisfy.mono expression supported
           (roundInterval_allowed start rounds.length allowed stored)
-      · exact inductionHypothesis (start + 2 * degree)
+      · exact inductionHypothesis (start + 3 * degree)
           (fun later laterMember => roundsSupport later (by simp [laterMember]))
           (laterInterval_allowed start rounds.length allowed stored)
           expression tailMember
@@ -150,7 +150,7 @@ private theorem equalityRows_supported {degree : Nat} (start : Nat)
     (allowed : Nat → Prop) (currentSupport : KSupported current allowed)
     (roundsSupport : ∀ round ∈ rounds, RoundSupported round allowed)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * rounds.length → allowed index) :
+      index < start + 3 * degree * rounds.length → allowed index) :
     ∀ expression ∈ FixedChain.Owned.equalitiesFrom start current rounds,
       expression.VarsSatisfy allowed := by
   induction rounds generalizing start current with
@@ -166,7 +166,7 @@ private theorem equalityRows_supported {degree : Nat} (start : Nat)
           (boundarySum_supported round.coefficients allowed
             (coefficients_supported round allowed roundSupport))
           expression headMember
-      · exact inductionHypothesis (start + 2 * degree)
+      · exact inductionHypothesis (start + 3 * degree)
           (FixedChain.Owned.roundProgram start round).output
           (roundOutput_supported start round rounds.length allowed
             roundSupport stored)
@@ -179,12 +179,12 @@ private theorem outputFrom_supported {degree : Nat} (start : Nat)
     (allowed : Nat → Prop) (currentSupport : KSupported current allowed)
     (roundsSupport : ∀ round ∈ rounds, RoundSupported round allowed)
     (stored : ∀ index, start ≤ index →
-      index < start + 2 * degree * rounds.length → allowed index) :
+      index < start + 3 * degree * rounds.length → allowed index) :
     KSupported (FixedChain.Owned.outputFrom start current rounds) allowed := by
   induction rounds generalizing start current with
   | nil => exact currentSupport
   | cons round rounds inductionHypothesis =>
-      exact inductionHypothesis (start + 2 * degree)
+      exact inductionHypothesis (start + 3 * degree)
         (FixedChain.Owned.roundProgram start round).output
         (roundOutput_supported start round rounds.length allowed
           (roundsSupport round (by simp)) stored)
@@ -207,7 +207,7 @@ private theorem coreStored_allowed {degree : Nat}
     (storedSupport : ∀ index, offset ≤ index →
       index < offset + privateCount degree → allowed index) :
     ∀ index, offset ≤ index →
-      index < offset + 2 * degree *
+      index < offset + 3 * degree *
         (coreInterface interface offset).rounds.length → allowed index := by
   intro index lower upper
   apply storedSupport index lower

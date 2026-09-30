@@ -638,7 +638,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (InitialClaim.circuit (initialClaimInterface interface)) 25918 25918
+    (InitialClaim.circuit (initialClaimInterface interface)) 38877 38877
     (InitialClaim.localLength_eq (initialClaimInterface interface))
     (InitialClaim.flatConstraints_length (initialClaimInterface interface))
 
@@ -692,7 +692,7 @@ def normCircuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (NormTerminal.circuit (normInterface relation interface)) 32 32
+    (NormTerminal.circuit (normInterface relation interface)) 48 48
     (NormTerminal.localLength_eq (normInterface relation interface))
     (NormTerminal.flatConstraints_length (normInterface relation interface))
 
@@ -703,7 +703,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 27760
+      FinalIdentity.privateCount 41584
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 

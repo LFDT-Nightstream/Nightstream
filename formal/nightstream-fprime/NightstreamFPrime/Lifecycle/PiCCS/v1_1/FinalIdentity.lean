@@ -276,12 +276,12 @@ private theorem pointLength_eq (interface : Interface) (offset : Nat) :
           cubeVariables])
 
 private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
-    matrixLength interface offset = 1728 := by
+    matrixLength interface offset = 2592 := by
   unfold matrixLength matrixPowerCircuitAt
   rw [Power.localLength_eq, matrixExponent_eq]
 
 private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
-    constraintLength interface offset = 25920 := by
+    constraintLength interface offset = 38880 := by
   unfold constraintLength constraintPowerCircuitAt
   rw [Power.localLength_eq, constraintExponent_eq]
 
@@ -894,10 +894,10 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression terminalMember
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 27758
+def privateCount : Nat := 41582
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 27758 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 41582 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
@@ -908,7 +908,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      27760 := by
+      41584 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
@@ -921,13 +921,13 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
             cubeVariables])
   have matrixFlat :
       (flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset))).length = 1728 := by
+        (matrixOffset interface offset))).length = 2592 := by
     unfold matrixPowerCircuitAt
     rw [Power.flatConstraints_length, matrixExponent_eq]
   have constraintFlat :
       (flatConstraints (Circuit.ops
         (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset))).length = 25920 := by
+        (constraintOffset interface offset))).length = 38880 := by
     unfold constraintPowerCircuitAt
     rw [Power.flatConstraints_length, constraintExponent_eq]
   rw [flatConstraints_opsAt, List.length_append, List.length_append,

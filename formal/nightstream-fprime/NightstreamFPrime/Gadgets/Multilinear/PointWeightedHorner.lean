@@ -180,7 +180,7 @@ theorem pointProgramLength_eq_of_positive {variableCount : Nat}
 theorem hornerLength_eq {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) :
     hornerLength interface offset =
-      2 * ((interface.coefficients offset).length - 1) := by
+      3 * ((interface.coefficients offset).length - 1) := by
   unfold hornerLength hornerCircuitAt
   rw [Horner.localLength_eq]
   rfl
@@ -492,7 +492,7 @@ theorem localLength_eq {variableCount : Nat}
     (offset : Nat) :
     localLength (Circuit.ops (circuit interface positive).main offset) =
       (4 * variableCount - 2) +
-        2 * ((interface.coefficients offset).length - 1) := by
+        3 * ((interface.coefficients offset).length - 1) := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq_of_positive interface offset positive,
     hornerLength_eq]
@@ -509,7 +509,7 @@ theorem flatConstraints_length {variableCount : Nat}
     (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface positive).main offset)).length =
       4 * variableCount +
-        (2 * ((interface.coefficients offset).length - 1) + 2) + 2 := by
+        (3 * ((interface.coefficients offset).length - 1) + 2) + 2 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlatLength :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
@@ -520,7 +520,7 @@ theorem flatConstraints_length {variableCount : Nat}
   have hornerFlatLength :
       (flatConstraints (Circuit.ops (hornerCircuitAt interface offset).main
         (hornerOffset interface offset))).length =
-        2 * ((interface.coefficients offset).length - 1) + 2 := by
+        3 * ((interface.coefficients offset).length - 1) + 2 := by
     unfold hornerCircuitAt
     rw [Horner.flatConstraints_length]
     rfl
@@ -650,7 +650,7 @@ theorem pointLength_eq_of_positive {variableCount : Nat}
 theorem hornerLength_eq {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) :
     hornerLength interface offset =
-      2 * ((interface.coefficients offset).length - 1) := by
+      3 * ((interface.coefficients offset).length - 1) := by
   unfold hornerLength hornerCircuitAt
   rw [Horner.Owned.localLength_eq]
   rfl
@@ -848,7 +848,7 @@ theorem localLength_eq {variableCount : Nat}
     (offset : Nat) :
     localLength (Circuit.ops (circuit interface positive).main offset) =
       (4 * variableCount - 2) +
-        2 * ((interface.coefficients offset).length - 1) := by
+        3 * ((interface.coefficients offset).length - 1) := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq_of_positive interface offset positive,
     hornerLength_eq]
@@ -894,7 +894,7 @@ theorem flatConstraints_length {variableCount : Nat}
     (flatConstraints
       (Circuit.ops (circuit interface positive).main offset)).length =
       (4 * variableCount - 2) +
-        2 * ((interface.coefficients offset).length - 1) := by
+        3 * ((interface.coefficients offset).length - 1) := by
   change (flatConstraints (opsAt interface offset)).length = _
   rw [flatConstraints_opsAt, List.length_append]
   have pointLengthEq := PointEquality.Owned.flatConstraints_length_of_positive

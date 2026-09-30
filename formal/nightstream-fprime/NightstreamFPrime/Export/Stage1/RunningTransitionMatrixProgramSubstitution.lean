@@ -48,7 +48,7 @@ private theorem roundC1Grid_values (program : ApplicationProgram) :
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem piDecRange_values (program : ApplicationProgram) :
-    (piDecRange program).sourceStart = 27620042 ∧
+    (piDecRange program).sourceStart = 27380146 ∧
       (piDecRange program).sourceCount = 49248 := by
   exact ⟨rfl, rfl⟩
 
@@ -272,7 +272,7 @@ private theorem roundC1MappedStart (program : ApplicationProgram) :
 
 private theorem piDecMappedStart (program : ApplicationProgram) :
     Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart =
-      27620042 := by
+      27380146 := by
   exact (piDecRange_values program).1
 
 private theorem freshMappedStart (program : ApplicationProgram) :
@@ -514,17 +514,17 @@ theorem substitution_location_form?
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [piDecTarget, piDecMappedStart program]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (27620042 + index.val) (by omega)
+        (stateRange program) logicalWidth (27380146 + index.val) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
-        (outputRange program) logicalWidth (27620042 + index.val) (by omega)
+        (outputRange program) logicalWidth (27380146 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (27620042 + index.val) (by omega)
+        (freshRange program) logicalWidth (27380146 + index.val) (by omega)
       have c0None := SourceGrid.form?_eq_none_of_after
-        (roundC0Grid program) logicalWidth (27620042 + index.val)
+        (roundC0Grid program) logicalWidth (27380146 + index.val)
         (by rw [c0StrideValue]; omega)
         (by rw [c0StartValue, c0CountValue, c0StrideValue]; omega)
       have c1None := SourceGrid.form?_eq_none_of_after
-        (roundC1Grid program) logicalWidth (27620042 + index.val)
+        (roundC1Grid program) logicalWidth (27380146 + index.val)
         (by rw [c1StrideValue]; omega)
         (by rw [c1StartValue, c1CountValue, c1StrideValue]; omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,

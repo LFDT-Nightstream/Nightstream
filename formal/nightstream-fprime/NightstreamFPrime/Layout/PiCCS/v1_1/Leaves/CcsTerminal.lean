@@ -305,15 +305,23 @@ private theorem expression_c1_lowerAffine_none
   apply c1_fold_none_of_member _ bitTerm (bitTerm_c1_lowerAffine_none _)
   exact bitTerm_mem relation
 
+/-- The expression is not one product node. -/
+private def NotMul (expression : Expr) : Prop :=
+  ∀ left right, expression ≠ .mul left right
+
 private theorem directConstraint_sub_add_eq_none_of_none
-    (output : Nat) (left right : Expr)
+    (output : Nat) (left right : Expr) (leftNotMul : NotMul left)
     (recipeNone : R1CS.lowerAffine (left + right) = none) :
     R1CS.directConstraint (Expr.var output - (left + right)) = none := by
+  have productNone : R1CS.productSumRecipeRow? output left right = none := by
+    cases left with
+    | mul first second => exact (leftNotMul first second rfl).elim
+    | _ => rfl
   change R1CS.directConstraint
     (.add (.var output) (.mul (.const (-1)) (.add left right))) = none
   cases leftAffine : R1CS.lowerAffine left <;>
     cases rightAffine : R1CS.lowerAffine right <;>
-    simp [R1CS.directConstraint, R1CS.directRecipeRow,
+    simp [R1CS.directConstraint, R1CS.directRecipeRow, productNone,
       R1CS.affineConstraint, R1CS.lowerAffine, leftAffine, rightAffine]
       at recipeNone ⊢
 
@@ -321,44 +329,60 @@ private theorem fold_is_add
     (point : Fin productionShape.matrixCount → KExpr) :
     ∀ (terms : List (Monomial K productionShape.matrixCount))
       (initial : KExpr), terms ≠ [] →
+      NotMul initial.c0 → NotMul initial.c1 →
       ∃ left right,
         terms.foldl
           (fun accumulated monomial =>
             KExpr.add accumulated
               (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
-                monomial point)) initial = KExpr.add left right
-  | [], _, nonempty => (nonempty rfl).elim
-  | monomial :: terms, initial, _ => by
+                monomial point)) initial = KExpr.add left right ∧
+          NotMul left.c0 ∧ NotMul left.c1
+  | [], _, nonempty, _, _ => (nonempty rfl).elim
+  | monomial :: terms, initial, _, initialC0, initialC1 => by
       cases terms with
       | nil =>
           exact ⟨initial,
             NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
-              monomial point, rfl⟩
+              monomial point, rfl, initialC0, initialC1⟩
       | cons next rest =>
           apply fold_is_add point (next :: rest)
             (KExpr.add initial
               (NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluateMonomial
                 monomial point))
-          simp
+          · simp
+          · intro left right equality
+            change Expr.add _ _ = Expr.mul left right at equality
+            cases equality
+          · intro left right equality
+            change Expr.add _ _ = Expr.mul left right at equality
+            cases equality
 
 private theorem expression_is_add
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    ∃ left right, expression relation interface offset = KExpr.add left right := by
+    ∃ left right,
+      expression relation interface offset = KExpr.add left right ∧
+        NotMul left.c0 ∧ NotMul left.c1 := by
   unfold expression
     NightstreamFPrime.Gadgets.Polynomial.Sparse.Owned.expression
     NightstreamFPrime.Gadgets.Polynomial.Sparse.evaluate
   apply fold_is_add
-  change (ConstraintPolynomialLift.liftConstraintPolynomial K.embed
-    ProductionRelation.polynomial).terms ≠ []
-  simp [ConstraintPolynomialLift.liftConstraintPolynomial,
-    ProductionRelation.polynomial,
-    ProductionRelation.SelectivePolynomial.polynomial,
-    ProductionRelation.SelectivePolynomial.terms,
-    ProductionRelation.SelectivePolynomial.baseTerms,
-    ProductionRelation.SelectivePolynomial.baseTermData,
-    ProductionRelation.SelectivePolynomial.Term.toMonomial]
+  · change (ConstraintPolynomialLift.liftConstraintPolynomial K.embed
+      ProductionRelation.polynomial).terms ≠ []
+    simp [ConstraintPolynomialLift.liftConstraintPolynomial,
+      ProductionRelation.polynomial,
+      ProductionRelation.SelectivePolynomial.polynomial,
+      ProductionRelation.SelectivePolynomial.terms,
+      ProductionRelation.SelectivePolynomial.baseTerms,
+      ProductionRelation.SelectivePolynomial.baseTermData,
+      ProductionRelation.SelectivePolynomial.Term.toMonomial]
+  · intro left right equality
+    change Expr.const _ = Expr.mul left right at equality
+    cases equality
+  · intro left right equality
+    change Expr.const _ = Expr.mul left right at equality
+    cases equality
 
 private theorem c0_directConstraint_eq_none
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -366,11 +390,12 @@ private theorem c0_directConstraint_eq_none
     (offset : Nat) :
     R1CS.directConstraint
       (Expr.var offset - (expression relation interface offset).c0) = none := by
-  rcases expression_is_add relation interface offset with ⟨left, right, equals⟩
+  rcases expression_is_add relation interface offset with
+    ⟨left, right, equals, leftC0, _leftC1⟩
   have recipeNone := expression_c0_lowerAffine_none relation interface offset
   rw [equals] at recipeNone
   rw [equals]
-  apply directConstraint_sub_add_eq_none_of_none
+  apply directConstraint_sub_add_eq_none_of_none _ _ _ leftC0
   simpa [KExpr.add] using recipeNone
 
 private theorem c1_directConstraint_eq_none
@@ -380,11 +405,12 @@ private theorem c1_directConstraint_eq_none
     R1CS.directConstraint
       (Expr.var (offset + 1) - (expression relation interface offset).c1) =
         none := by
-  rcases expression_is_add relation interface offset with ⟨left, right, equals⟩
+  rcases expression_is_add relation interface offset with
+    ⟨left, right, equals, _leftC0, leftC1⟩
   have recipeNone := expression_c1_lowerAffine_none relation interface offset
   rw [equals] at recipeNone
   rw [equals]
-  apply directConstraint_sub_add_eq_none_of_none
+  apply directConstraint_sub_add_eq_none_of_none _ _ _ leftC1
   simpa [KExpr.add] using recipeNone
 
 @[simp] private theorem mulCount_sub (left right : Expr) :

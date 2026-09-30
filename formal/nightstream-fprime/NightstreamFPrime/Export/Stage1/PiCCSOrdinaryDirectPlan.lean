@@ -95,7 +95,7 @@ theorem sourceSupport (location : Location) :
       exact proofLogicalSource_support index
   | fresh index =>
       have bound := index.isLt
-      change index.val < 303653 at bound
+      change index.val < 23748 at bound
       apply PiCCSOrdinarySourceSupport.fresh_source
       · change PiCCSStarts.initialClaimFreshStart ≤
           PiCCSArithmetic.initialClaimFreshStart + index.val
@@ -707,7 +707,7 @@ private theorem programRow_support
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 384221) :
+    (index : Fin 144325) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -774,7 +774,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 384221) :
+    (index : Fin 144325) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 384221) :
+    (geometry : Geometry program logicalWidth) (index : Fin 144325) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -840,7 +840,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 384221 := by
+    (plan relation geometry).rowCount = 144325 := by
   rfl
 
 /-- The compiled matrix plan depends only on the relation shape. Matrix

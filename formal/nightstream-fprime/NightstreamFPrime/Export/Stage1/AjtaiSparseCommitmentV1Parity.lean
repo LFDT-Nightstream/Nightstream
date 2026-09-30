@@ -54,7 +54,7 @@ theorem assignment_coordinate (column : Fin shape.carrierWidth) :
       (⟨27, by decide⟩ : Fin ringDegree),
     CommitmentSparse.singleBlock_monomial_coordinate (shape := shape) lastBlock
       (⟨53, by decide⟩ : Fin ringDegree)]
-  have width : shape.carrierWidth = 156413754 := Poseidon2HashChainV1Setup.carrierWidth_eq
+  have width : shape.carrierWidth = 146577978 := Poseidon2HashChainV1Setup.carrierWidth_eq
   simp only [Fin.ext_iff, Phi81CarrierLayout.carrierColumn, Phi81ColumnLayout.flatIndex,
     firstBlock, middleBlock, lastBlock, Poseidon2HashChainV1Setup.messageColumns_eq, width]
   rfl

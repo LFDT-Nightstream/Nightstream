@@ -167,13 +167,51 @@ private theorem terminalExpr_nonAffine
 
 private theorem directConstraint_sub_add_eq_none
     (left first second : Expr)
-    (firstNone : R1CS.lowerAffine first = none) :
+    (firstNone : R1CS.lowerAffine first = none)
+    (secondNone : R1CS.lowerAffine second = none) :
     R1CS.directConstraint (left - (first + second)) = none := by
   change R1CS.directConstraint
     (.add left (.mul (.const (-1)) (.add first second))) = none
   cases left <;>
     simp [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.productSumRecipeRow?_eq_none_of_rest _ _ _ secondNone,
       R1CS.affineConstraint, R1CS.lowerAffine, firstNone]
+
+private theorem lowerAffine_add_eq_none_of_left (left right : Expr)
+    (leftNone : R1CS.lowerAffine left = none) :
+    R1CS.lowerAffine (left + right) = none := by
+  change R1CS.lowerAffine (.add left right) = none
+  simp [R1CS.lowerAffine, leftNone]
+
+private theorem nonconstant_of_mulCount_ne_zero {expression : Expr}
+    (count : R1CS.mulCount expression ≠ 0) : Nonconstant expression := by
+  intro value equality
+  subst equality
+  simp [R1CS.mulCount] at count
+
+/-- The part of the terminal expression after `E_K` is not affine. -/
+private theorem terminalTail_nonAffine
+    (interface :
+      NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
+    (offset : Nat) (shapes : TerminalInputShapes interface offset) :
+    R1CS.lowerAffine
+        (KExpr.mul
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.gammaMatrixOutput
+            interface offset) (interface.eval_A offset)).c0 = none ∧
+      R1CS.lowerAffine
+        (KExpr.mul
+          (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.gammaMatrixOutput
+            interface offset) (interface.eval_A offset)).c1 = none := by
+  have matrixLinear := matrixPowerOutput_linear interface offset
+  have evalA0 : Nonconstant (interface.eval_A offset).c0 :=
+    nonconstant_of_mulCount_ne_zero (by rw [shapes.eval_A_c0_mulCount]; decide)
+  have evalA1 : Nonconstant (interface.eval_A offset).c1 :=
+    nonconstant_of_mulCount_ne_zero (by rw [shapes.eval_A_c1_mulCount]; decide)
+  constructor
+  · exact lowerAffine_add_eq_none_of_left _ _
+      (lowerAffine_mul_eq_none matrixLinear.c0_nonconstant evalA0)
+  · exact lowerAffine_add_eq_none_of_left _ _
+      (lowerAffine_mul_eq_none matrixLinear.c0_nonconstant evalA1)
 
 private theorem terminal_c0_directConstraint_eq_none
     (interface :
@@ -185,7 +223,9 @@ private theorem terminal_c0_directConstraint_eq_none
           interface offset).c0) = none := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
   apply directConstraint_sub_add_eq_none
-  exact shapes.eval_K_c0_nonAffine
+  · exact shapes.eval_K_c0_nonAffine
+  · exact lowerAffine_add_eq_none_of_left _ _
+      (terminalTail_nonAffine interface offset shapes).1
 
 private theorem terminal_c1_directConstraint_eq_none
     (interface :
@@ -197,7 +237,9 @@ private theorem terminal_c1_directConstraint_eq_none
           interface offset).c1) = none := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
   apply directConstraint_sub_add_eq_none
-  exact shapes.eval_K_c1_nonAffine
+  · exact shapes.eval_K_c1_nonAffine
+  · exact lowerAffine_add_eq_none_of_left _ _
+      (terminalTail_nonAffine interface offset shapes).2
 
 private theorem terminal_c0_freshCount_eq
     (interface :
@@ -327,16 +369,10 @@ private theorem matrixPower_totalFreshCount
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixPowerCircuitAt
         interface offset).main
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixOffset
-          interface offset))) = 6041 := by
+          interface offset))) = 0 := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixPowerCircuitAt
-  calc
-    _ = 7 *
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent -
-          1) :=
-      NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalFreshCount
-        _ _ _ inputs.gamma
-    _ = 6041 := by
-      rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent_eq]
+  exact NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalFreshCount
+    _ _ _ inputs.gamma
 
 private theorem matrixPower_totalRowCount
     (interface :
@@ -346,18 +382,11 @@ private theorem matrixPower_totalRowCount
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixPowerCircuitAt
         interface offset).main
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixOffset
-          interface offset))) = 7769 := by
+          interface offset))) = 2592 := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixPowerCircuitAt
-  calc
-    _ = if NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent =
-          0 then 0 else
-        9 * NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent -
-          7 :=
-      NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalRowCount
-        _ _ _ inputs.gamma
-    _ = 7769 := by
-      rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent_eq]
-      norm_num
+  rw [NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalRowCount
+      _ _ _ inputs.gamma,
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.matrixExponent_eq]
 
 private theorem constraintPower_totalFreshCount
     (interface :
@@ -367,16 +396,10 @@ private theorem constraintPower_totalFreshCount
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintPowerCircuitAt
         interface offset).main
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintOffset
-          interface offset))) = 90713 := by
+          interface offset))) = 0 := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintPowerCircuitAt
-  calc
-    _ = 7 *
-        (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent -
-          1) :=
-      NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalFreshCount
-        _ _ _ inputs.gamma
-    _ = 90713 := by
-      rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent_eq]
+  exact NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalFreshCount
+    _ _ _ inputs.gamma
 
 private theorem constraintPower_totalRowCount
     (interface :
@@ -386,20 +409,11 @@ private theorem constraintPower_totalRowCount
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintPowerCircuitAt
         interface offset).main
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintOffset
-          interface offset))) = 116633 := by
+          interface offset))) = 38880 := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintPowerCircuitAt
-  calc
-    _ = if
-        NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent =
-          0 then 0 else
-        9 *
-            NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent -
-          7 :=
-      NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalRowCount
-        _ _ _ inputs.gamma
-    _ = 116633 := by
-      rw [NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent_eq]
-      norm_num
+  rw [NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalRowCount
+      _ _ _ inputs.gamma,
+    NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.constraintExponent_eq]
 
 def terminalFreshColumnCount
     (interface :
@@ -454,7 +468,7 @@ private theorem core_totalFreshCount
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.circuit interface
         ).main offset)) =
-      97419 + terminalFreshColumnCount interface offset := by
+      665 + terminalFreshColumnCount interface offset := by
   change R1CS.totalFreshCount (flatConstraints
     (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.opsAt
       interface offset)) = _
@@ -472,7 +486,7 @@ private theorem core_totalRowCount
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.circuit interface
         ).main offset)) =
-      125177 + terminalPhysicalRowCount interface offset := by
+      42247 + terminalPhysicalRowCount interface offset := by
   change R1CS.totalRowCount (flatConstraints
     (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.opsAt
       interface offset)) = _
@@ -491,10 +505,10 @@ def footprint
       InputsLinear (Formal.finalIdentityInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.finalIdentityCircuit relation interface) where
   freshColumnCount := fun offset =>
-    97419 + terminalFreshColumnCount
+    665 + terminalFreshColumnCount
       (Formal.finalIdentityInterface relation interface) offset
   physicalRowCount := fun offset =>
-    125177 + terminalPhysicalRowCount
+    42247 + terminalPhysicalRowCount
       (Formal.finalIdentityInterface relation interface) offset
   freshColumnCount_eq := by
     intro offset
@@ -515,7 +529,7 @@ theorem freshColumnCount_eq
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (Formal.finalIdentityCircuit relation interface).main offset)) =
-      97419 + terminalFreshColumnCount
+      665 + terminalFreshColumnCount
         (Formal.finalIdentityInterface relation interface) offset :=
   (footprint relation interface inputs).freshColumnCount_eq offset
 
@@ -527,7 +541,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.finalIdentityCircuit relation interface).main offset)) =
-      125177 + terminalPhysicalRowCount
+      42247 + terminalPhysicalRowCount
         (Formal.finalIdentityInterface relation interface) offset :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
@@ -541,10 +555,10 @@ theorem physicalPrivateColumnCount_eq
         (Formal.finalIdentityCircuit relation interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
         (Formal.finalIdentityCircuit relation interface).main offset)) =
-      125177 + terminalFreshColumnCount
+      42247 + terminalFreshColumnCount
         (Formal.finalIdentityInterface relation interface) offset := by
   have logicalColumns : localLength (Circuit.ops
-      (Formal.finalIdentityCircuit relation interface).main offset) = 27758 := by
+      (Formal.finalIdentityCircuit relation interface).main offset) = 41582 := by
     exact (Formal.finalIdentityCircuit relation interface).privateCount_eq offset
   rw [logicalColumns, freshColumnCount_eq relation interface inputs offset]
   omega
@@ -565,14 +579,14 @@ def plan
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
     (offset : Nat) : R1CS.LoweringPlan where
   constraints := logicalConstraints interface offset
-  firstFresh := offset + 27758
+  firstFresh := offset + 41582
 
 def physicalRows
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
     (offset : Nat) : List R1CS.Row :=
   (R1CS.lowerConstraints (logicalConstraints interface offset)
-    (offset + 27758)).rows
+    (offset + 41582)).rows
 
 def PhysicalHolds
     (interface :
@@ -588,7 +602,7 @@ private theorem logicalConstraints_varsBelow
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Assumptions
         interface offset env) :
     ∀ expression ∈ logicalConstraints interface offset,
-      expression.VarsBelow (offset + 27758) := by
+      expression.VarsBelow (offset + 41582) := by
   have scope :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.flatConstraints_varsBelow
       interface offset env assumptions
@@ -605,7 +619,7 @@ theorem physical_implies_logicalConstraints
     ConstraintsHold env (logicalConstraints interface offset) := by
   unfold PhysicalHolds physicalRows at physical
   exact R1CS.lowerConstraints_sound env
-    (logicalConstraints interface offset) (offset + 27758) physical
+    (logicalConstraints interface offset) (offset + 41582) physical
 
 theorem physical_implies_spec
     (interface :
@@ -637,7 +651,7 @@ theorem physical_complete
         interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
-          (27758 + R1CS.totalFreshCount
+          (41582 + R1CS.totalFreshCount
             (logicalConstraints interface offset)) ∧
         PhysicalHolds interface offset completed := by
   rcases NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.completeness
@@ -645,14 +659,14 @@ theorem physical_complete
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
   have lengthEq : localLength (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.main interface)
-        offset) = 27758 := by
+        offset) = 41582 := by
     change localLength (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.circuit interface
-        ).main offset) = 27758
+        ).main offset) = 41582
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.localLength_eq
       interface offset
   have logicalAgreesFixed :
-      AgreesOutside env logicalEnv offset 27758 := by
+      AgreesOutside env logicalEnv offset 41582 := by
     rw [lengthEq] at logicalAgrees
     exact logicalAgrees
   have logicalAssumptions :
@@ -672,7 +686,7 @@ theorem physical_complete
       ConstraintsHold logicalEnv (logicalConstraints interface offset) := by
     exact logicalRows
   rcases R1CS.lowerConstraints_complete logicalEnv
-      (logicalConstraints interface offset) (offset + 27758) scope logicalHolds
+      (logicalConstraints interface offset) (offset + 41582) scope logicalHolds
       with ⟨completed, physicalAgrees, physicalRowsHold⟩
   refine ⟨completed, logicalAgreesFixed.append physicalAgrees, ?_⟩
   exact physicalRowsHold

@@ -86,7 +86,7 @@ fn spartan_to_source(column: usize, layout: &ReferenceLayout) -> Option<usize> {
         None
     } else if column < 28_411_241 {
         pilot_spartan_to_source(14_722_238 + (column - 28_410_966))
-    } else if column < 27_983_797 {
+    } else if column < 27_743_901 {
         Some(14_722_512 + (column - 28_411_241))
     } else {
         None

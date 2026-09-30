@@ -138,26 +138,26 @@ def fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
     (by rw [retainedApplicationWordCount]; norm_num)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 156413712 := by
+    PerApplicationFixedPoint.logicalWidth application = 146577976 := by
   unfold PerApplicationFixedPoint.logicalWidth
   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      3704022 := by
+      3464126 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageRowCount :
-    (PerApplicationPackage.package application).layout.rowCount = 27848372 := by
+    (PerApplicationPackage.package application).layout.rowCount = 27608476 := by
   rw [PerApplicationPackage.package_rowCount,
     PerApplicationPackage.basePackage_rowCount_eq,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageTotalColumnCount :
     (PerApplicationPackage.package application).layout.totalColumnCount =
-      27991497 := by
+      27751601 := by
   rw [PerApplicationPackage.package_totalColumnCount,
     PerApplicationPackage.basePackage_totalColumnCount_eq,
     addedPrivateColumnCount]

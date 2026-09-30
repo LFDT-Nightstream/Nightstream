@@ -363,7 +363,7 @@ theorem finalRowOffset_eq_add
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     finalRowOffset interface offset =
-      offset + (4432230 + productionShape.cubeVariables *
+      offset + (4471987 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound +
         SumcheckChain.privateCount degreeBound) := by
   unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
@@ -382,7 +382,7 @@ theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    finalRowOffset interface offset = offset + 4581918 := by
+    finalRowOffset interface offset = offset + 4621927 := by
   rw [finalRowOffset_eq_add, degreeEq]
   norm_num [RoundTranscript.perRoundRecipeCount, SumcheckChain.privateCount,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,

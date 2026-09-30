@@ -10,13 +10,13 @@
 use neo_ajtai::rot_step;
 use neo_math::{cf, Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand::{rngs::StdRng, SeedableRng};
 
 /// Test that rot_step_phi_81 matches ring multiplication by X
 /// This directly tests the hand-rolled rotation step against the ring arithmetic
 #[test]
 fn rot_step_phi81_matches_ring_mul_by_x() {
-    let mut rng = ChaCha20Rng::seed_from_u64(1234);
+    let mut rng = StdRng::seed_from_u64(1234);
 
     for _ in 0..50 {
         let a = Rq::random_uniform(&mut rng);

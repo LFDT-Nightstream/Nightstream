@@ -14,13 +14,13 @@ mod test_helpers;
 use neo_ajtai::{commit, setup};
 use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand::{rngs::StdRng, SeedableRng};
 use test_helpers::commit_spec;
 
 #[test]
 fn dense_commit_handles_various_patterns() {
     // Test that the constant-time dense commit handles various input patterns correctly
-    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let mut rng = StdRng::seed_from_u64(42);
     let d = neo_math::D;
     let kappa = 4;
     let m = 8;
@@ -79,7 +79,7 @@ fn sparse_digit_classification_works() {
         .collect::<Vec<_>>();
 
     // Test that both produce valid commitments (the important part)
-    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let mut rng = StdRng::seed_from_u64(42);
     let d = neo_math::D; // Must match ring dimension
     let kappa = 2;
     let m = 1;
@@ -100,7 +100,7 @@ fn constant_time_commit_correctness() {
     // Comprehensive test that the constant-time dense commit gives correct results
     // verified against the reference specification
 
-    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let mut rng = StdRng::seed_from_u64(42);
     let d = neo_math::D;
     let kappa = 2;
     let m = 4;
@@ -144,7 +144,7 @@ fn constant_time_commit_correctness() {
 #[test]
 fn dense_commit_matches_spec_with_mixed_digits() {
     // Test that the constant-time dense commit handles mixed digit patterns correctly
-    let mut rng = ChaCha20Rng::seed_from_u64(7);
+    let mut rng = StdRng::seed_from_u64(7);
     let d = neo_math::D;
     let kappa = 4;
     let m = 8;
@@ -181,7 +181,7 @@ fn dense_commit_matches_spec_with_mixed_digits() {
 #[test]
 fn dense_commit_matches_spec_all_patterns() {
     // Test that constant-time dense commit matches spec for various digit patterns
-    let mut rng = ChaCha20Rng::seed_from_u64(13);
+    let mut rng = StdRng::seed_from_u64(13);
     let d = neo_math::D;
     let kappa = 2;
     let m = 4;
@@ -230,7 +230,7 @@ fn dense_commit_differential_testing() {
     // Differential testing: verify the constant-time dense commit matches spec
     // Tests the optimized implementation against the reference specification
 
-    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let mut rng = StdRng::seed_from_u64(42);
     let d = neo_math::D;
     let kappa = 3;
     let m = 6;
@@ -282,7 +282,7 @@ fn sparsity_invariant_testing() {
     // Tests that the constant-time implementation produces identical results
     // regardless of input sparsity patterns
 
-    let mut rng = ChaCha20Rng::seed_from_u64(123);
+    let mut rng = StdRng::seed_from_u64(123);
     let d = neo_math::D;
     let kappa = 2;
     let m = 4;

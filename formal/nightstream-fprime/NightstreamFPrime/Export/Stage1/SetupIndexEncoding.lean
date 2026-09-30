@@ -9,38 +9,28 @@ namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.AjtaiSetupV1
 
-theorem setup_index_bounds (row : Fin verifierRows) (block : Fin messageColumns)
-    (lane : Fin ringDegree) :
-    row.val < ChaCha20.wordModulus ∧
-      block.val < ChaCha20.wordModulus ^ 2 ∧
-      lane.val < ChaCha20.wordModulus := by
-  have rowLimit : verifierRows < ChaCha20.wordModulus := by
+theorem setup_index_bounds (row : Fin verifierRows) (block : Fin messageColumns) :
+    row.val < 2 ^ 32 ∧ block.val < 2 ^ 64 := by
+  have rowLimit : verifierRows < 2 ^ 32 := by
     rw [verifierRows_eq]
     decide
-  have blockLimit : messageColumns < ChaCha20.wordModulus ^ 2 := by
+  have blockLimit : messageColumns < 2 ^ 64 := by
     rw [messageColumns_eq]
     decide
-  have laneLimit : ringDegree < ChaCha20.wordModulus := by decide
-  exact ⟨Nat.lt_trans row.isLt rowLimit, Nat.lt_trans block.isLt blockLimit,
-    Nat.lt_trans lane.isLt laneLimit⟩
+  exact ⟨Nat.lt_trans row.isLt rowLimit, Nat.lt_trans block.isLt blockLimit⟩
 
-/-- No two distinct production key coordinates use the same initial state. -/
+/-- No two distinct production key elements use the same SHAKE128 input. -/
 theorem production_index_injective
     (leftRow rightRow : Fin verifierRows)
     (leftBlock rightBlock : Fin messageColumns)
-    (leftLane rightLane : Fin ringDegree)
-    (same : ChaCha20.initialState productionSeedBytes
-        leftRow.val leftBlock.val leftLane.val =
-      ChaCha20.initialState productionSeedBytes
-        rightRow.val rightBlock.val rightLane.val) :
-    leftRow = rightRow ∧ leftBlock = rightBlock ∧ leftLane = rightLane := by
-  have leftBounds := setup_index_bounds leftRow leftBlock leftLane
-  have rightBounds := setup_index_bounds rightRow rightBlock rightLane
-  have exactIndices := ChaCha20.initialState_index_injective
-    productionSeedBytes productionSeedBytes
-    leftRow.val leftBlock.val leftLane.val rightRow.val rightBlock.val rightLane.val
-    leftBounds.1 rightBounds.1 leftBounds.2.1 rightBounds.2.1
-    leftBounds.2.2 rightBounds.2.2 same
-  exact ⟨Fin.ext exactIndices.1, Fin.ext exactIndices.2.1, Fin.ext exactIndices.2.2⟩
+    (same : elementInput productionSeedBytes leftRow.val leftBlock.val =
+      elementInput productionSeedBytes rightRow.val rightBlock.val) :
+    leftRow = rightRow ∧ leftBlock = rightBlock := by
+  have leftBounds := setup_index_bounds leftRow leftBlock
+  have rightBounds := setup_index_bounds rightRow rightBlock
+  have exactIndices := elementInput_injective productionSeed productionSeed
+    leftRow.val leftBlock.val rightRow.val rightBlock.val
+    leftBounds.1 rightBounds.1 leftBounds.2 rightBounds.2 same
+  exact ⟨Fin.ext exactIndices.2.1, Fin.ext exactIndices.2.2⟩
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup

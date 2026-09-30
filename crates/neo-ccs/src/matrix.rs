@@ -1,5 +1,6 @@
 use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
+use rayon::prelude::*;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -523,6 +524,41 @@ where
             })),
             identity_hint: false,
         }
+    }
+
+    /// Construct exact `{0, 1, -1}` storage from balanced values stored column
+    /// by column: `(row, column)` is `values[column * rows + row]`, and entries
+    /// past the end of `values` are zero. Columns are packed in parallel.
+    pub fn compact_signed_unit_from_balanced_columns(
+        rows: usize,
+        cols: usize,
+        values: &[i8],
+    ) -> Result<Self, &'static str> {
+        if rows == 0 || rows > u64::BITS as usize {
+            return Err("signed-unit column masks support 1 to 64 rows");
+        }
+        if rows.checked_mul(cols).is_none_or(|len| values.len() > len) {
+            return Err("signed-unit values exceed the matrix");
+        }
+        let (positive, negative): (Vec<u64>, Vec<u64>) = (0..cols)
+            .into_par_iter()
+            .map(|column| {
+                let start = (column * rows).min(values.len());
+                let end = (start + rows).min(values.len());
+                values[start..end]
+                    .iter()
+                    .enumerate()
+                    .try_fold((0u64, 0u64), |(positive, negative), (row, &value)| match value {
+                        0 => Ok((positive, negative)),
+                        1 => Ok((positive | 1 << row, negative)),
+                        -1 => Ok((positive, negative | 1 << row)),
+                        _ => Err("signed-unit value is outside -1, 0, 1"),
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
+        Self::compact_signed_unit_from_column_masks(rows, cols, &positive, &negative)
     }
 
     /// Construct exact `{0, 1, -1}` storage from one positive and negative

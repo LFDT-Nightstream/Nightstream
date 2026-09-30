@@ -13,13 +13,13 @@ mod test_helpers;
 use neo_ajtai::{commit_masked_ct, commit_precomp_ct, setup, verify_open};
 use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand::{rngs::StdRng, SeedableRng};
 use test_helpers::commit_spec;
 
 #[test]
 fn masked_ct_matches_spec_various_patterns() {
     // Test that masked constant-time commit matches specification across various input patterns
-    let mut rng = ChaCha20Rng::seed_from_u64(123);
+    let mut rng = StdRng::seed_from_u64(123);
     let d = neo_math::D;
     let kappa = 3;
     let m = 4;
@@ -81,7 +81,7 @@ fn masked_ct_matches_spec_various_patterns() {
 #[test]
 fn precomp_ct_matches_spec_various_patterns() {
     // Test that precomputed constant-time commit matches specification across various input patterns
-    let mut rng = ChaCha20Rng::seed_from_u64(456);
+    let mut rng = StdRng::seed_from_u64(456);
     let d = neo_math::D;
     let kappa = 2;
     let m = 3;
@@ -144,7 +144,7 @@ fn precomp_ct_matches_spec_various_patterns() {
 #[test]
 fn both_ct_variants_equivalent() {
     // Test that both constant-time variants produce identical results
-    let mut rng = ChaCha20Rng::seed_from_u64(789);
+    let mut rng = StdRng::seed_from_u64(789);
     let d = neo_math::D;
     let kappa = 3;
     let m = 2;
@@ -218,7 +218,7 @@ fn both_ct_variants_equivalent() {
 #[test]
 fn ct_variants_deterministic() {
     // Test that both CT variants are deterministic (same input → same output)
-    let mut rng = ChaCha20Rng::seed_from_u64(999);
+    let mut rng = StdRng::seed_from_u64(999);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;
@@ -256,7 +256,7 @@ fn ct_variants_deterministic() {
 #[test]
 fn ct_variants_binding_property() {
     // Test that different inputs produce different commitments (binding property)
-    let mut rng = ChaCha20Rng::seed_from_u64(1337);
+    let mut rng = StdRng::seed_from_u64(1337);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;

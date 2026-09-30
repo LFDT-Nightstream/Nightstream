@@ -1,0 +1,41 @@
+# Standalone evidence benchmark. It has its own workspace, so it does not
+# change the production crates or the root lockfile.
+[package]
+name = "key-expander-bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+# Keccak through the ARMv8 SHA3 instructions.
+asm = ["sha3/asm"]
+
+[dependencies]
+rayon = "1"
+sha3 = "=0.10.8"
+objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString"] }
+objc2-metal = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "MTLAllocation",
+    "MTLBuffer",
+    "MTLCommandBuffer",
+    "MTLCommandEncoder",
+    "MTLCommandQueue",
+    "MTLComputeCommandEncoder",
+    "MTLComputePipeline",
+    "MTLDevice",
+    "MTLLibrary",
+    "MTLResource",
+    "MTLTypes",
+] }
+
+# Same settings as the production workspace release profile.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+incremental = false

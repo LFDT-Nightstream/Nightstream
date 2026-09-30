@@ -1,0 +1,12 @@
+cpu   ChaCha20: 7.109 s checksum 67dc15fdfa9da524
+cpu   ChaCha20Contiguous: 4.512 s checksum ed23231d9a3cfa4d
+cpu   Shake128: 7.492 s checksum 5e5cdf6800937732
+cpu   Shake256: 8.673 s checksum 17353c7da40a3605
+cpu   ChaCha20: 7.016 s checksum 67dc15fdfa9da524
+cpu   ChaCha20Contiguous: 4.334 s checksum ed23231d9a3cfa4d
+cpu   Shake128: 7.497 s checksum 5e5cdf6800937732
+cpu   Shake256: 8.673 s checksum 17353c7da40a3605
+cpu   ChaCha20: 7.540 s checksum 67dc15fdfa9da524
+cpu   ChaCha20Contiguous: 4.690 s checksum ed23231d9a3cfa4d
+cpu   Shake128: 7.777 s checksum 5e5cdf6800937732
+cpu   Shake256: 8.754 s checksum 17353c7da40a3605

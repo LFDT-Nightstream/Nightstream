@@ -1,4 +1,3 @@
-use super::seeded::{seeded_matrix_column_basis, seeded_work_ranges};
 use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
 use neo_math::{superneo_bar_block, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -178,89 +177,10 @@ impl SuperneoEvalCache {
             }
         }
         #[cfg(feature = "perf-timers")]
-        let explicit_elapsed = total_start.elapsed();
-        self.add_seeded_weighted_rows(&mut out[..n_eff], mat_coeffs, identity_projection);
-        #[cfg(feature = "perf-timers")]
         eprintln!(
-            "SuperneoEvalCache::eval_weighted_rows_from_projection: explicit {:.2?} seeded {:.2?} total {:.2?}",
-            explicit_elapsed,
-            total_start.elapsed() - explicit_elapsed,
-            total_start.elapsed(),
+            "SuperneoEvalCache::eval_weighted_rows_from_projection: {:.2?}",
+            total_start.elapsed()
         );
-    }
-
-    fn add_seeded_weighted_rows(&self, out: &mut [K], mat_coeffs: &[K], identity_projection: &[K]) {
-        let plain_basis = seeded_matrix_column_basis(false);
-        let transformed_basis = seeded_matrix_column_basis(true);
-
-        for (matrix, &matrix_coeff) in self.mats.iter().zip(mat_coeffs) {
-            if matrix_coeff == K::ZERO {
-                continue;
-            }
-            for block in &matrix.seeded_phi81_blocks {
-                let column_basis = if block.has_superneo_transformed_columns() {
-                    &transformed_basis
-                } else {
-                    &plain_basis
-                };
-                for output in 0..block.kappa() {
-                    let row_start = block.row_start() + output * D;
-                    if row_start >= out.len() {
-                        break;
-                    }
-                    let work = seeded_work_ranges(block, output);
-                    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-                    let contribution = work
-                        .into_par_iter()
-                        .map(|(chunk, local_start, local_end)| {
-                            seeded_weighted_chunk(
-                                block,
-                                output,
-                                chunk,
-                                local_start,
-                                local_end,
-                                column_basis,
-                                identity_projection,
-                                matrix_coeff,
-                            )
-                        })
-                        .reduce(
-                            || [K::ZERO; D],
-                            |mut left, right| {
-                                for coordinate in 0..D {
-                                    left[coordinate] += right[coordinate];
-                                }
-                                left
-                            },
-                        );
-                    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-                    let contribution = work
-                        .into_iter()
-                        .map(|(chunk, local_start, local_end)| {
-                            seeded_weighted_chunk(
-                                block,
-                                output,
-                                chunk,
-                                local_start,
-                                local_end,
-                                column_basis,
-                                identity_projection,
-                                matrix_coeff,
-                            )
-                        })
-                        .fold([K::ZERO; D], |mut left, right| {
-                            for coordinate in 0..D {
-                                left[coordinate] += right[coordinate];
-                            }
-                            left
-                        });
-                    let coordinate_count = core::cmp::min(D, out.len() - row_start);
-                    for coordinate in 0..coordinate_count {
-                        out[row_start + coordinate] += contribution[coordinate];
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -341,12 +261,33 @@ pub(crate) fn fill_combined_projection(
         .collect::<Vec<_>>();
     let bar_re = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
     let bar_im = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
-    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let bar_sum = Rq(std::array::from_fn(|lane| bar_re.0[lane] + bar_im.0[lane]));
+    // K = F[u]/(u^2 - W), so (bar_re + u bar_im)(real + u imag) is
+    // (bar_re real + W bar_im imag) + u (bar_re imag + bar_im real).
+    let generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let w = (generator * generator).as_coeffs()[0];
     let fill = |(block, output): (usize, &mut [K])| {
         let mut real = Rq::zero();
         let mut imaginary = Rq::zero();
         for (source, [coefficient_re, coefficient_im]) in &active {
             if !source.real_nonzero(block) {
+                continue;
+            }
+            if let Some((positive, negative)) = source.signed_unit_masks() {
+                add_signed_units(
+                    &mut real,
+                    &mut imaginary,
+                    positive[block],
+                    *coefficient_re,
+                    *coefficient_im,
+                );
+                add_signed_units(
+                    &mut real,
+                    &mut imaginary,
+                    negative[block],
+                    -*coefficient_re,
+                    -*coefficient_im,
+                );
                 continue;
             }
             for lane in 0..D {
@@ -355,19 +296,32 @@ pub(crate) fn fill_combined_projection(
                 imaginary.0[lane] += value * *coefficient_im;
             }
         }
-        let (rr, ir) = if real.0.iter().any(|value| *value != F::ZERO) {
-            (bar_re.mul(&real), bar_im.mul(&real))
-        } else {
-            (Rq::zero(), Rq::zero())
-        };
-        let (ri, ii) = if imaginary.0.iter().any(|value| *value != F::ZERO) {
-            (bar_re.mul(&imaginary), bar_im.mul(&imaginary))
-        } else {
-            (Rq::zero(), Rq::zero())
+        let has_real = real.0.iter().any(|value| *value != F::ZERO);
+        let has_imaginary = imaginary.0.iter().any(|value| *value != F::ZERO);
+        let (out_re, out_im) = match (has_real, has_imaginary) {
+            (false, false) => (Rq::zero(), Rq::zero()),
+            (true, false) => (bar_re.mul(&real), bar_im.mul(&real)),
+            (false, true) => {
+                let imaginary_part = bar_im.mul(&imaginary);
+                (Rq(imaginary_part.0.map(|value| w * value)), bar_re.mul(&imaginary))
+            }
+            (true, true) => {
+                // Three ring products instead of four.
+                let real_part = bar_re.mul(&real);
+                let imaginary_part = bar_im.mul(&imaginary);
+                let sum = bar_sum.mul(&Rq(std::array::from_fn(|lane| real.0[lane] + imaginary.0[lane])));
+                (
+                    Rq(std::array::from_fn(|lane| {
+                        real_part.0[lane] + w * imaginary_part.0[lane]
+                    })),
+                    Rq(std::array::from_fn(|lane| {
+                        sum.0[lane] - real_part.0[lane] - imaginary_part.0[lane]
+                    })),
+                )
+            }
         };
         for (lane, value) in output.iter_mut().enumerate() {
-            *value = K::from_coeffs([rr.0[lane], ir.0[lane]])
-                + extension_generator * K::from_coeffs([ri.0[lane], ii.0[lane]]);
+            *value = K::from_coeffs([out_re.0[lane], out_im.0[lane]]);
         }
     };
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -376,36 +330,13 @@ pub(crate) fn fill_combined_projection(
     output.chunks_mut(D).enumerate().for_each(fill);
 }
 
-fn seeded_weighted_chunk(
-    block: &neo_ccs::SeededPhi81LinearBlock,
-    output: usize,
-    chunk: usize,
-    local_start: usize,
-    local_end: usize,
-    column_basis: &[Rq; D],
-    identity_projection: &[K],
-    matrix_coeff: K,
-) -> [K; D] {
-    let mut out = [K::ZERO; D];
-    block.for_each_original_chunk_range_column_rotation::<F, _>(
-        output,
-        chunk,
-        local_start,
-        local_end,
-        |column, rotation| {
-            let blk = column / D;
-            let contribution =
-                matrix_coeff * projected_linear_form(&column_basis[column % D], blk, identity_projection);
-            if contribution == K::ZERO {
-                return;
-            }
-            for coordinate in 0..D {
-                let coefficient = rotation[coordinate];
-                if coefficient != F::ZERO {
-                    out[coordinate] += contribution.scale_base(coefficient);
-                }
-            }
-        },
-    );
-    out
+/// Add `(coefficient_re, coefficient_im)` on every lane set in `mask`.
+#[inline]
+fn add_signed_units(real: &mut Rq, imaginary: &mut Rq, mut mask: u64, coefficient_re: F, coefficient_im: F) {
+    while mask != 0 {
+        let lane = mask.trailing_zeros() as usize;
+        real.0[lane] += coefficient_re;
+        imaginary.0[lane] += coefficient_im;
+        mask &= mask - 1;
+    }
 }

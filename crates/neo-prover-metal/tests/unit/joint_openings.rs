@@ -290,9 +290,10 @@ fn span_census_stops_before_it_exceeds_its_budget() {
         .unwrap()
         .unwrap();
     assert_eq!(full.spans[0].len(), 2);
-    let needed = full.census_bytes;
-    assert!(needed > 0 && full.metadata_bytes > needed);
-    // One byte less stops the census; the exact size builds the same layout.
+    assert!(full.census_bytes > 0 && full.metadata_bytes > full.census_bytes);
+    // The active-block bitmap stays live beside the census. One byte less
+    // than both stops the census; the exact size builds the same layout.
+    let needed = full.census_bytes + blocks;
     assert!(OpeningLayout::measure(matrices, blocks, true, needed - 1)
         .unwrap()
         .is_none());
@@ -301,6 +302,6 @@ fn span_census_stops_before_it_exceeds_its_budget() {
         .unwrap();
     assert_eq!(
         (exact.census_bytes, exact.metadata_bytes),
-        (needed, full.metadata_bytes)
+        (full.census_bytes, full.metadata_bytes)
     );
 }

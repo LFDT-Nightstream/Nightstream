@@ -9,6 +9,11 @@
 //! One event block contains exactly eight words. Templates are static per
 //! function reference; slots bind Wasm values, effectful runtime inputs,
 //! constants, or static linear-memory accesses.
+//! Memory pointers may vary at runtime, but access counts, widths, and offsets
+//! are fixed by the template. Runtime-sized strings and lists are not supported,
+//! including initializing their contents through export-entry memory writes.
+//! Supporting these types requires addressing initialization, result data, and
+//! canonical post-return cleanup together.
 
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
 use crate::ir::{
@@ -182,6 +187,12 @@ impl EventBlock {
 /// may mix transcript-bound and advice events; in either case, the
 /// `ResultElem { limb: Lo }` slot pushes the host result onto the operand
 /// stack.
+///
+/// Import results are witness values. The proof binds them to the operand stack
+/// and any absorbing event, but does not validate the host operation itself.
+/// Committing a result does not prove it was correctly computed. For a host tail
+/// call returning directly to the host, no subsequent guest computation checks
+/// the result; the event can still commit to the call's guest-computed arguments.
 ///
 /// SLOT-ORDER RULES (validated here, deliberately not in-circuit): the
 /// result push lands in argument 0's stack cell, so every

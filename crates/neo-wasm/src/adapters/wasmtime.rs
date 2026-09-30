@@ -16,6 +16,7 @@ use wasmtime::{
 
 mod decode;
 mod entry_inputs;
+mod host_tail;
 mod import_inputs;
 mod memory_address;
 mod memory_inputs;
@@ -38,7 +39,7 @@ pub struct WasmtimeTraceStep {
     pub step: u64,
     pub function: String,
     pub function_index: Option<u32>,
-    /// Zero-based operator index across the module's defined functions.
+    /// Dense logical instruction index in the parsed proof program.
     pub pc: Option<u32>,
     /// Human-readable opcode label from wasmparser's Debug format, for display only.
     pub opcode: Option<String>,
@@ -290,6 +291,15 @@ pub fn traces_from_wasmtime_wasm_bytes(wasm_bytes: &[u8], export: &str) -> Resul
 
 /// Capture a component containing exactly one embedded core module.
 /// For multi-module components, select core bytes with [`WasmtimeTraceRegistry::register_module`].
+/// Canonical post-return cleanup is not implemented and is rejected even without
+/// host tail calls. No binding configuration enables it: the proof machinery to
+/// bind cleanup arguments to the preceding result is still missing. Core-module
+/// registration alone cannot enforce this restriction because it lacks component metadata.
+///
+/// Direct host tails returning to the host support only unobserved terminal advice:
+/// result slots must appear only in advice blocks and the export exit must not read
+/// its output. Import arguments may be absorbed. Runtime execution keeps its
+/// actual results; normalization chooses zero as the proof result.
 pub fn collect_wasmtime_component_run(
     component_bytes: &[u8],
     bindings: &HostEventBindings,
@@ -399,7 +409,8 @@ where
 
 fn default_component_result_value(ty: ComponentType) -> Result<ComponentVal, WasmBuildError> {
     match ty {
-        ComponentType::Bool => Ok(ComponentVal::Bool(false)),
+        // Wasmtime overwrites result slots; their initial variant is immaterial.
+        ComponentType::Own(_) | ComponentType::Bool => Ok(ComponentVal::Bool(false)),
         ComponentType::S8 => Ok(ComponentVal::S8(0)),
         ComponentType::U8 => Ok(ComponentVal::U8(0)),
         ComponentType::S16 => Ok(ComponentVal::S16(0)),
@@ -433,6 +444,7 @@ fn component_val_to_string(val: &ComponentVal) -> Result<String, WasmBuildError>
         ComponentVal::Float64(v) => v.to_string(),
         ComponentVal::Char(v) => v.to_string(),
         ComponentVal::String(v) => v.clone(),
+        ComponentVal::Resource(resource) if resource.owned() => "own<resource>".into(),
         other => {
             return Err(WasmBuildError::Unsupported(format!(
                 "component trace helper does not yet support result formatting for {other:?}"
@@ -458,11 +470,6 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             }
 
             let frames = store.debug_exit_frames().collect::<Vec<FrameHandle>>();
-            // Only the innermost frame is executing this step. Outer frames can
-            // belong to a different core instance in cross-instance calls.
-            let Some(frame) = frames.first() else {
-                return;
-            };
             if store.data().wasm_trace_registry().error.is_some() {
                 return;
             }
@@ -470,12 +477,18 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
                 // These notifications arrive before the current activation unwinds.
                 // Wasmtime does not report every native trap; unexplained
                 // continuation mismatches still fail instead of being discarded.
+                // A terminal host tail may already have removed the last guest frame.
                 store
                     .data_mut()
                     .wasm_trace_registry_mut()
                     .discard_unwound_imports(frames.len());
                 return;
             }
+            // Only the innermost frame is executing this step. Outer frames can
+            // belong to a different core instance in cross-instance calls.
+            let Some(frame) = frames.first() else {
+                return;
+            };
             if let Err(error) = registry::capture_step(frame, frames.len(), &mut store) {
                 store.data_mut().wasm_trace_registry_mut().error = Some(error);
             }

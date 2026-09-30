@@ -301,6 +301,47 @@ where
     Ok((out, Z_mix))
 }
 
+/// Input checks shared by the borrowed-matrix Π_RLC prover entry points.
+#[allow(clippy::too_many_arguments)]
+fn validate_rlc_refs(
+    label: &str,
+    mode: &FoldingMode,
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    Zs: &[&Mat<F>],
+    ell_d: usize,
+) -> Result<(), PiCcsError> {
+    ensure_superneo_width(s)?;
+    if me_inputs.is_empty() {
+        return Err(PiCcsError::InvalidInput(format!("{label}: empty inputs")));
+    }
+    if rhos.len() != me_inputs.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: |rhos| mismatch (expected {}, got {})",
+            me_inputs.len(),
+            rhos.len()
+        )));
+    }
+    if Zs.len() != me_inputs.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: |Zs| mismatch (expected {}, got {})",
+            me_inputs.len(),
+            Zs.len()
+        )));
+    }
+    validate_ce_claims_shape(&format!("{label}: me_inputs"), s, me_inputs)?;
+    validate_selected_reduction_claims(mode, &format!("{label}: selected inputs"), s, me_inputs)?;
+    validate_rlc_batch_compatibility(label, params, me_inputs)?;
+    checked_superneo_d_pad(&format!("{label} ell_d"), ell_d)?;
+    let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
+    for (idx, z) in Zs.iter().enumerate() {
+        crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("{label}: Zs[{idx}]"))?;
+    }
+    Ok(())
+}
+
 /// Borrowed-matrix variant of [`rlc_with_commit`].
 ///
 /// The optimized path keeps witness matrices borrowed all the way through Π_RLC so callers do not
@@ -319,33 +360,8 @@ pub fn rlc_with_commit_refs<Comb>(
 where
     Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
-    ensure_superneo_width(s)?;
-    if me_inputs.is_empty() {
-        return Err(PiCcsError::InvalidInput("rlc_with_commit_refs: empty inputs".into()));
-    }
-    if rhos.len() != me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_with_commit_refs: |rhos| mismatch (expected {}, got {})",
-            me_inputs.len(),
-            rhos.len()
-        )));
-    }
-    if Zs.len() != me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_with_commit_refs: |Zs| mismatch (expected {}, got {})",
-            me_inputs.len(),
-            Zs.len()
-        )));
-    }
+    validate_rlc_refs("rlc_with_commit_refs", &mode, s, params, rhos, me_inputs, Zs, ell_d)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    validate_ce_claims_shape("rlc_with_commit_refs: me_inputs", s, me_inputs)?;
-    validate_selected_reduction_claims(&mode, "rlc_with_commit_refs: selected inputs", s, me_inputs)?;
-    validate_rlc_batch_compatibility("rlc_with_commit_refs", params, me_inputs)?;
-    checked_superneo_d_pad("rlc_with_commit_refs ell_d", ell_d)?;
-    let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
-    for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit_refs: Zs[{idx}]"))?;
-    }
 
     let (out, Z_mix) = match mode {
         FoldingMode::Optimized => crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(

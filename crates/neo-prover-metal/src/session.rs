@@ -24,6 +24,7 @@ use crate::{
 mod joint;
 mod masks;
 mod production_commitment;
+mod rlc;
 pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
@@ -92,6 +93,8 @@ pub struct MetalSession {
     dec_geometric_span_weights: Pipeline,
     dec_add_geometric_span_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
+    rlc_witness_mix_signed_masks: Pipeline,
+    dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
@@ -174,6 +177,8 @@ impl MetalSession {
         let dec_geometric_span_weights = pipeline(&device, &library, "dec_geometric_span_weights")?;
         let dec_add_geometric_span_forms = pipeline(&device, &library, "dec_add_geometric_span_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
+        let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
+        let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
@@ -216,6 +221,8 @@ impl MetalSession {
             dec_geometric_span_weights,
             dec_add_geometric_span_forms,
             dec_bar_ring_forms_in_place,
+            rlc_witness_mix_signed_masks,
+            dec_split_base2_masks,
             dec_sparse_ring_partials,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,

@@ -62,6 +62,25 @@ pub(crate) fn prove_refs(
         Proof { combined },
     ))
 }
+/// PiRLC with an accelerator-owned parent witness. `mix_witnesses` returns
+/// the accelerator's form of `Σ ρ_i·Z_i`; the public claim is canonical.
+#[cfg(feature = "metal")]
+pub(crate) fn prove_refs_resident<R>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_witnesses: impl Fn(&[Mat<F>], &[&Mat<F>]) -> R,
+) -> Result<(CeClaim, R, Proof), Error> {
+    validate_input_shape(claims, witnesses)?;
+    validate_inputs_before_rho(s, claims)?;
+    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let (combined, resident) = engine::prove_pi_rlc_refs_resident(pp, s, &rhos, claims, witnesses, mix, mix_witnesses)?;
+    validate_combined_claim(s, claims, &combined)?;
+    Ok((combined.clone(), resident, Proof { combined }))
+}
 pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,

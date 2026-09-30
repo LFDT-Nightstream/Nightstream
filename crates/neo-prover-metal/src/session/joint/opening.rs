@@ -92,13 +92,14 @@ struct OpeningLayout {
 }
 
 impl OpeningLayout {
-    /// Size the opening metadata of one window. The span census allocates at
-    /// most `census_bytes` host bytes; `None` means it needs more.
+    /// Size the opening metadata of one window. The active-block bitmap and
+    /// the span census allocate at most `host_bytes` host bytes together;
+    /// `None` means they need more.
     fn measure(
         matrices: &[SuperneoMatrixCache],
         blocks: usize,
         include_pad: bool,
-        census_bytes: usize,
+        host_bytes: usize,
     ) -> Result<Option<Self>, MetalError> {
         let pad = if include_pad { blocks } else { 0 };
         let mut layout = Self {
@@ -107,6 +108,10 @@ impl OpeningLayout {
             max_blocks: pad,
             max_chunks: pad.div_ceil(CHUNK_BLOCKS),
             ..Self::default()
+        };
+        // The bitmap stays live beside the census, so it is reserved first.
+        let Some(census_bytes) = host_bytes.checked_sub(blocks * size_of::<bool>()) else {
+            return Ok(None);
         };
         let budget = spans::CensusBudget::new(census_bytes);
         let census: Option<Vec<_>> = matrices
@@ -313,13 +318,14 @@ impl MetalSession {
                     requested_end = next_row + smaller_window(count, count_peak, plan.workspace_bytes)?;
                     continue;
                 }
-                // The census is host memory beside the window. It stops before
-                // it exceeds the workspace, and then the window shrinks.
-                let census_bytes = plan
+                // The bitmap and the census are host memory beside the window.
+                // They stop before they exceed the workspace; then the window
+                // shrinks.
+                let host_bytes = plan
                     .workspace_bytes
                     .saturating_sub(window.workspace_peak_bytes);
                 let Some(layout) =
-                    OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad, census_bytes)?
+                    OpeningLayout::measure(window.cache.matrix_caches(), plan.blocks, include_pad, host_bytes)?
                 else {
                     requested_end =
                         next_row + smaller_window(count, plan.workspace_bytes.saturating_add(1), plan.workspace_bytes)?;

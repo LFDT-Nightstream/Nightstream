@@ -1,6 +1,6 @@
-{"benchmark":"poseidon2_hash_chain_v1","event":"package_compile_started","output":"/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up--claude-worktrees-pr-126-review-675ed0/d0abe35f-12fb-41ba-89ad-cdf0785ced5f/scratchpad/bench-horner/app.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2}
+{"benchmark":"poseidon2_hash_chain_v1","event":"package_compile_started","output":"/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up--claude-worktrees-pr-126-review-675ed0/d0abe35f-12fb-41ba-89ad-cdf0785ced5f/scratchpad/bench-stageb/app.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2}
 {"event":"phase_started","phase":"compile","step":null}
-{"event":"phase_finished","phase":"compile","seconds":16.593704833,"step":null}
+{"event":"phase_finished","phase":"compile","seconds":12.804899083,"step":null}
 {"event":"phase_started","phase":"save","step":null}
-{"event":"phase_finished","phase":"save","seconds":0.106403458,"step":null}
-{"circuit_identity":[926411462252927318,5033397904116481982,7352846627371421748,12411361882353394672],"event":"package_compile_finished","output":"/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up--claude-worktrees-pr-126-review-675ed0/d0abe35f-12fb-41ba-89ad-cdf0785ced5f/scratchpad/bench-horner/app.nsc","saved":true,"schema":2,"seconds":16.700214416}
+{"event":"phase_finished","phase":"save","seconds":0.098241292,"step":null}
+{"circuit_identity":[2441237571630748690,11493012538563357378,7440387007046246470,5401368983676244264],"event":"package_compile_finished","output":"/private/tmp/claude-501/-Users-nicarq-starstream-develop-nightstream-clean-up--claude-worktrees-pr-126-review-675ed0/d0abe35f-12fb-41ba-89ad-cdf0785ced5f/scratchpad/bench-stageb/app.nsc","saved":true,"schema":2,"seconds":12.903229042}

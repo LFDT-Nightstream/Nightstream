@@ -1,8 +1,8 @@
 use neo_math::ring::test_reduce_mod_phi_81;
 use neo_math::{Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
+use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
 
 fn make_rq<F>(mut f: F) -> Rq
 where
@@ -71,7 +71,7 @@ fn adversarial_cases() -> Vec<Rq> {
 
 #[test]
 fn rq_mul_matches_reference_randomized() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x9e37_79b9_7f4a_7c15);
+    let mut rng = StdRng::seed_from_u64(0x9e37_79b9_7f4a_7c15);
     for _ in 0..256 {
         let lhs = Rq::random_uniform(&mut rng);
         let rhs = Rq::random_uniform(&mut rng);

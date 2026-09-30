@@ -11,7 +11,14 @@ pub(crate) fn matrix_workspace(source: &dyn MatrixRows, rows: Range<usize>) -> u
     let (upload, staging) = super::super::matrix_window::upload_size(window.cache().matrix_caches()).unwrap();
     let descriptors = source.shape().matrices * size_of::<super::super::MetalCompactMatrix>();
     let uploaded = window.storage_bytes() + upload + staging + descriptors;
-    let opening = OpeningLayout::measure(window.cache().matrix_caches(), source.shape().columns / D, true).unwrap();
+    let opening = OpeningLayout::measure(
+        window.cache().matrix_caches(),
+        source.shape().columns / D,
+        true,
+        usize::MAX,
+    )
+    .unwrap()
+    .unwrap();
     window.workspace_peak_bytes().max(uploaded) + opening.metadata_bytes
 }
 
@@ -101,7 +108,9 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
         before,
         "a plan must not upload matrix rows"
     );
-    let layout = OpeningLayout::measure(cache.matrix_caches(), 2, true).unwrap();
+    let layout = OpeningLayout::measure(cache.matrix_caches(), 2, true, usize::MAX)
+        .unwrap()
+        .unwrap();
     let opening = session
         .prepare_joint_opening_plan(cache.matrix_caches(), 2 * D, 0, true, &layout)
         .unwrap();
@@ -201,7 +210,9 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
     let plan = session
         .prepare_joint_matrix_plan(&source, workspace)
         .unwrap();
-    let layout = OpeningLayout::measure(compact.matrix_caches(), columns.div_ceil(D), true).unwrap();
+    let layout = OpeningLayout::measure(compact.matrix_caches(), columns.div_ceil(D), true, usize::MAX)
+        .unwrap()
+        .unwrap();
     let opening = session
         .prepare_joint_opening_plan(compact.matrix_caches(), columns.div_ceil(D) * D, 0, true, &layout)
         .unwrap();
@@ -248,4 +259,48 @@ fn geometric_openings_group_spans_and_dispatch_each_layer_once() {
         assert_eq!(windowed.eval_k, expected.eval_k);
         assert_eq!(windowed.eval_a, expected.eval_a);
     }
+}
+
+#[test]
+fn span_census_stops_before_it_exceeds_its_budget() {
+    // 41-coordinate runs; every third row also has a one-coordinate run at
+    // the same start, which needs a second layer.
+    let (rows, columns) = (D, 32 * D);
+    let mut builder = SuperneoEvalCacheBuilder::new(rows, columns, 2).unwrap();
+    for row in 0..rows {
+        let start = (row * 41) % (columns - 41);
+        let mut runs = vec![GeometricRowRun::new(
+            row,
+            start,
+            41,
+            F::from_u64(row as u64 + 1),
+            F::from_u64(3),
+        )];
+        if row % 3 == 0 {
+            runs.insert(0, GeometricRowRun::new(row, start, 1, F::from_u64(5), F::ONE));
+        }
+        builder
+            .push_row_with_runs(0, row, Vec::new(), runs)
+            .unwrap();
+        builder.push_row(1, row, [(row, F::ONE)]).unwrap();
+    }
+    let cache = builder.finish().unwrap();
+    let (matrices, blocks) = (cache.matrix_caches(), columns / D);
+    let full = OpeningLayout::measure(matrices, blocks, true, usize::MAX)
+        .unwrap()
+        .unwrap();
+    assert_eq!(full.spans[0].len(), 2);
+    let needed = full.census_bytes;
+    assert!(needed > 0 && full.metadata_bytes > needed);
+    // One byte less stops the census; the exact size builds the same layout.
+    assert!(OpeningLayout::measure(matrices, blocks, true, needed - 1)
+        .unwrap()
+        .is_none());
+    let exact = OpeningLayout::measure(matrices, blocks, true, needed)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (exact.census_bytes, exact.metadata_bytes),
+        (needed, full.metadata_bytes)
+    );
 }

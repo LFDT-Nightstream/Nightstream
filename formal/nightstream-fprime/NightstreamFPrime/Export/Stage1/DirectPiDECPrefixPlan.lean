@@ -156,13 +156,13 @@ def transitionPlan
 @[simp] theorem pilotPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotPlan geometry).rowCount = 2321800 := by
+    (pilotPlan geometry).rowCount = 2124200 := by
   simp [pilotPlan, DirectPrefixPlan.pilotPlan]
 
 @[simp] theorem piCcsPoseidonPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPlan geometry).rowCount = 729984 := by
+    (piCcsPoseidonPlan geometry).rowCount = 669152 := by
   simp [piCcsPoseidonPlan, DirectPrefixPlan.piCcsPlan]
 
 @[simp] theorem piCcsEndpointPlan_rowCount
@@ -186,13 +186,13 @@ def transitionPlan
 @[simp] theorem samplerPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPlan geometry).rowCount = 3196 := by
+    (samplerPlan geometry).rowCount = 2924 := by
   simp [samplerPlan, DirectPrefixPlan.samplerPlan]
 
 @[simp] theorem piRlcPlan_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPlan geometry).rowCount = 1779084 := by
+    (piRlcPlan geometry).rowCount = 104652 := by
   simp [piRlcPlan, DirectPrefixPlan.piRlcPlan]
 
 private theorem piCcsPoseidonRowCount_le
@@ -213,7 +213,7 @@ def piCcsPoseidonPrefix
 @[simp] theorem piCcsPoseidonPrefix_rowCount
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsPoseidonPrefix geometry).rowCount = 3051784 := by
+    (piCcsPoseidonPrefix geometry).rowCount = 2793352 := by
   simp [piCcsPoseidonPrefix]
 
 private theorem piCcsCoreRowCount_le
@@ -243,7 +243,7 @@ def piCcsCorePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCorePlan relation geometry).rowCount = 3863453 := by
+    (piCcsCorePlan relation geometry).rowCount = 3605021 := by
   simp [piCcsCorePlan, piCcsOrdinaryPlan]
 
 private theorem pilotOrdinaryPrefixRowCount_le
@@ -272,7 +272,7 @@ def pilotOrdinaryPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 3864783 := by
+    (pilotOrdinaryPrefixPlan relation geometry).rowCount = 3606351 := by
   simp [pilotOrdinaryPrefixPlan]
 
 private theorem pilotBindingPrefixRowCount_le
@@ -301,7 +301,7 @@ def pilotBindingPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (pilotBindingPrefixPlan relation geometry).rowCount = 3864791 := by
+    (pilotBindingPrefixPlan relation geometry).rowCount = 3606359 := by
   simp [pilotBindingPrefixPlan]
 
 private theorem piCcsCompleteRowCount_le
@@ -330,7 +330,7 @@ def piCcsCompletePlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piCcsCompletePlan relation geometry).rowCount = 3864823 := by
+    (piCcsCompletePlan relation geometry).rowCount = 3606391 := by
   simp [piCcsCompletePlan]
 
 private theorem samplerPrefixRowCount_le
@@ -357,7 +357,7 @@ def samplerPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (samplerPrefixPlan relation geometry).rowCount = 3868019 := by
+    (samplerPrefixPlan relation geometry).rowCount = 3609315 := by
   simp [samplerPrefixPlan]
 
 private theorem piRlcPrefixRowCount_le
@@ -384,7 +384,7 @@ def piRlcPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piRlcPrefixPlan relation geometry).rowCount = 5647103 := by
+    (piRlcPrefixPlan relation geometry).rowCount = 3713967 := by
   simp [piRlcPrefixPlan]
 
 private theorem piDecPrefixRowCount_le
@@ -414,7 +414,7 @@ def piDecPrefixPlan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (piDecPrefixPlan relation geometry).rowCount = 5672591 := by
+    (piDecPrefixPlan relation geometry).rowCount = 3739455 := by
   simp [piDecPrefixPlan, piDecPlan, Layout.PiDEC.v1_1.exactRowCount_value]
 
 private theorem totalRowCount_le
@@ -443,7 +443,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth) :
-    (plan relation geometry).rowCount = 6018086 := by
+    (plan relation geometry).rowCount = 4084950 := by
   simp [plan, transitionPlan]
 
 /-- The complete ordered prefix depends on the verified relation shape, but
@@ -527,7 +527,7 @@ structure Encodes
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   running : DirectRunningPrefixPlan.Encodes (piCcsPayload geometry) (piRlcValues geometry) (runningGeometry geometry) assignment
     base groupValue
   pilotOrdinary : PilotOrdinaryDirectPlan.Encodes
@@ -542,7 +542,7 @@ structure Semantics
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   prior : DirectPrefixPlan.Semantics (piCcsPayload geometry) (poseidonGeometry geometry) assignment base
     groupValue
   pilot : Lifecycle.Pilot.SpecHolds PilotProduction.interface
@@ -573,7 +573,7 @@ theorem rowsZero_implies_semantics
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
@@ -655,7 +655,7 @@ theorem rowsZero_implies_piCcsSpecHolds
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
@@ -723,7 +723,7 @@ theorem rowsZero_implies_piCcsPhaseHolds
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (rowsZero : (plan relation geometry).RowsZero assignment) :
@@ -747,7 +747,7 @@ theorem rowsZero_implies_piDecPhaseHolds
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment (PiDECRetainedGeometry.oneColumn geometry) = 1)
     (encodes : Encodes geometry assignment base groupValue)
     (assumptions : Lifecycle.PiDEC.v1_1.Formal.Assumptions relation

@@ -14,6 +14,10 @@ seed. The generated public verifier-owned seed is:
 fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702
 ```
 
+On 2026-09-29, [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md)
+superseded the ChaCha20 expander rules below. The rank, seed and wide
+reduction stay in force.
+
 ## Problem
 
 The prior main commitment rank was `κ = 18`. At the concrete

@@ -597,8 +597,8 @@ def writePerApplicationAssignmentTransport
       (Stage1.PerApplicationAssignmentBlocks.canonical program))
   comma handle
   writeValue handle
-    (Stage1.PerApplicationAssignmentTransport.Phi81GroupRecipe.format.encode
-      (Stage1.PerApplicationAssignmentTransport.phi81GroupRecipe program))
+    (Stage1.PerApplicationAssignmentTransport.Phi81QuotientRecipe.format.encode
+      (Stage1.PerApplicationAssignmentTransport.phi81QuotientRecipe program))
   comma handle
   writeValue handle
     (Stage1.PerApplicationAssignmentPlan.BlockKind.format.encode

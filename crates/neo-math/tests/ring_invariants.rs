@@ -5,13 +5,13 @@ use neo_math::ring::{rot_apply_vec, test_reduce_mod_phi_81};
 use neo_math::{cf, cf_inv, Fq, Rq, SAction, D};
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::Matrix;
-use rand_chacha::rand_core::RngCore;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand::RngCore;
+use rand::{rngs::StdRng, SeedableRng};
 
 /// Test the fundamental ring/S-action isomorphism: cf(a*b) == rot(a)·cf(b)
 #[test]
 fn ring_s_action_isomorphism() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     for _ in 0..20 {
         // Generate random ring elements
@@ -34,7 +34,7 @@ fn ring_s_action_isomorphism() {
 /// Test power-of-X property: cf(a * X^j) equals column j of rot(a)
 #[test]
 fn power_of_x_columns() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     for _ in 0..10 {
         let a = Rq::random_uniform(&mut rng);
@@ -96,7 +96,7 @@ fn monomial_multiplication_regression() {
 /// Test cyclotomic polynomial relation: X^54 ≡ -X^27 - 1 (mod Φ_81)
 #[test]
 fn cyclotomic_phi_81_relation() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     // Test the fundamental cyclotomic relation for random polynomials
     for _ in 0..10 {
@@ -145,7 +145,7 @@ fn cyclotomic_phi_81_relation() {
 /// Test that sparse bit multiplication is consistent with dense multiplication
 #[test]
 fn sparse_vs_dense_multiplication() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     for _ in 0..10 {
         let a = Rq::random_small(&mut rng, 100);
@@ -180,7 +180,7 @@ fn sparse_vs_dense_multiplication() {
 /// Test ring arithmetic properties: associativity, distributivity, etc.
 #[test]
 fn ring_arithmetic_properties() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     for _ in 0..10 {
         let a = Rq::random_uniform(&mut rng);
@@ -212,7 +212,7 @@ fn ring_arithmetic_properties() {
 /// Test infinity norm properties
 #[test]
 fn infinity_norm_properties() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     // Test that zero has norm 0
     assert_eq!(Rq::zero().norm_inf(), 0);
@@ -244,7 +244,7 @@ fn infinity_norm_properties() {
 /// Test that rotation step agrees with ring multiply by X
 #[test]
 fn rotation_step_vs_ring_multiply() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0x5eed_u64);
+    let mut rng = StdRng::seed_from_u64(0x5eed_u64);
 
     for _ in 0..10 {
         let a = Rq::random_uniform(&mut rng);

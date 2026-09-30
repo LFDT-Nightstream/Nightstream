@@ -179,19 +179,56 @@ pub fn superneo_bar_matrix() -> &'static [[Fq; D]; D] {
     M.get_or_init(build_superneo_bar_matrix)
 }
 
+/// One row of `superneo_bar_matrix` as signed column indices.
+struct BarRow {
+    len: usize,
+    terms: [(usize, bool); 2],
+}
+
+/// Signed sparse form of `superneo_bar_matrix`. Every entry is 0 or ±1 and
+/// each row has at most two nonzero entries, so applying it needs no field
+/// multiplication. The dense matrix remains the definition.
+fn superneo_bar_rows() -> &'static [BarRow; D] {
+    static ROWS: OnceLock<[BarRow; D]> = OnceLock::new();
+    ROWS.get_or_init(|| {
+        let m = superneo_bar_matrix();
+        let neg_one = Fq::ZERO - Fq::ONE;
+        std::array::from_fn(|row| {
+            let mut out = BarRow {
+                len: 0,
+                terms: [(0, false); 2],
+            };
+            for (column, &entry) in m[row].iter().enumerate() {
+                if entry == Fq::ZERO {
+                    continue;
+                }
+                assert!(entry == Fq::ONE || entry == neg_one, "SuperNeo bar entry is not ±1");
+                assert!(out.len < 2, "SuperNeo bar row has more than two entries");
+                out.terms[out.len] = (column, entry == neg_one);
+                out.len += 1;
+            }
+            out
+        })
+    })
+}
+
 /// Apply the SuperNeo `bar` transform to one `d`-coefficient block.
 #[inline]
 pub fn superneo_bar_block(v: [Fq; D]) -> [Fq; D] {
-    let m = superneo_bar_matrix();
-    let mut out = [Fq::ZERO; D];
-    for row in 0..D {
-        let mut acc = Fq::ZERO;
-        for col in 0..D {
-            acc += m[row][col] * v[col];
-        }
-        out[row] = acc;
-    }
-    out
+    let rows = superneo_bar_rows();
+    std::array::from_fn(|row| {
+        let row = &rows[row];
+        row.terms[..row.len].iter().fold(
+            Fq::ZERO,
+            |acc, &(column, negative)| {
+                if negative {
+                    acc - v[column]
+                } else {
+                    acc + v[column]
+                }
+            },
+        )
+    })
 }
 
 /// Apply the SuperNeo `bar` transform block-wise over a field vector.

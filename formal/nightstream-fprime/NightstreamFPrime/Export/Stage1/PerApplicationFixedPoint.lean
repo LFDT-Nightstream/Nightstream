@@ -50,7 +50,7 @@ def fitsTwoPow28OfApplicationBounds
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
       240024211)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 638056) :
+      ApplicationRetainedBlocks.localCount application ≤ 2312488) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
@@ -112,7 +112,7 @@ application. -/
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      6056897 + (PerApplicationPackage.applicationPlan application).rowCount +
+      4123761 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
@@ -142,7 +142,7 @@ theorem rowsZero_implies_semantics
     (fits : FitsTwoPow28 application)
     (assignment : Assignment F (logicalWidth application))
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (ApplicationRetainedGeometry.oneColumn (geometry application)) = 1)
     (encodes : DirectApplicationPrefixPlan.Encodes (geometry application)

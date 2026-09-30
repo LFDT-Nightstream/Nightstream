@@ -499,7 +499,7 @@ theorem sourceForm_eval
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment
         program base groupValue))
@@ -601,7 +601,7 @@ theorem rowsZero_implies_endpointValue
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -739,7 +739,7 @@ theorem rowsZero_implies_endpointState
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -766,7 +766,7 @@ private theorem endpointState_eq_finalEval
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -797,7 +797,7 @@ private theorem statementEndpoint_eq_finalEval
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -827,7 +827,7 @@ private theorem challengeEndpoint_eq_finalEval
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -857,7 +857,7 @@ private theorem roundEndpoint_eq_finalEval
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -889,7 +889,7 @@ theorem outputEndpoint_eq_finalEval
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiCCSOrdinaryRetainedGeometry.oneColumn ordinaryGeometry) = 1)
     (encoding : PiCCSOrdinaryRetainedGeometry.Encodes ordinaryGeometry
@@ -914,7 +914,7 @@ theorem outputEndpoint_eq_finalEval
 
 def transcriptEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Env :=
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Env :=
   PiCCSTranscriptReadout.env <|
     PerApplicationPackage.baseEnv program <| SourceCompiler.sourceEnv <|
       PiRLCRetainedPreservation.sourceAssignment program base groupValue
@@ -922,7 +922,7 @@ def transcriptEnv (program : Lifecycle.Stage1.Application.Program)
 theorem transcriptEnv_eq_transitionEnv_of_lt
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (column : Nat) (bound : column < Spartan.spartanColumnCount) :
     transcriptEnv program base groupValue column =
       RunningTransitionDirectPlan.transitionEnv program base column := by

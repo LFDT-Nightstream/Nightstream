@@ -23,7 +23,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) :
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) :
     Fin (PiRLCRetainedGeometry.sourceWidth program) → F :=
   PiRLCRetainedPreservation.sourceAssignment program base groupValue
 
@@ -32,7 +32,7 @@ structure Encoding {program : Lifecycle.Stage1.Application.Program}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F) : Prop where
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F) : Prop where
   priorInput : (PiRLCPoseidonGeometry.priorInputBlock program).EncodesAt
     (PiRLCPoseidonGeometry.priorInputStart program)
     (PiRLCPoseidonGeometry.priorInputFits geometry) assignment
@@ -57,7 +57,7 @@ the same final per-application package value as the transition environment. -/
 private theorem sourceAssignment_privatePhysical
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (source : Fin (PiRLCRetainedGeometry.sourceWidth program))
     (column : Nat)
     (sourceEq : source.val = column)
@@ -137,7 +137,7 @@ theorem priorInputForm_eval
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : Encoding geometry assignment base groupValue)
     (index : Fin Data.priorChain.inputLength) :
     ((PiRLCPoseidonGeometry.priorInputBlock program).form
@@ -162,7 +162,7 @@ theorem outputInputForm_eval
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encoding : Encoding geometry assignment base groupValue)
     (index : Fin Data.outputChain.inputLength) :
     ((PiRLCPoseidonGeometry.outputInputBlock program).form

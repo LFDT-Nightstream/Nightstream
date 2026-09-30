@@ -1,0 +1,416 @@
+{
+  "scope": "Phi81 quotient and Poseidon row reductions with the PR124 sampler. Research and the optional assignment shortcut were removed after review.",
+  "base_commit": "fe9d3b4f0809cfc88a114ad263f0b328bee84385",
+  "profile": {
+    "b": 2,
+    "k_rho": 16,
+    "B": 65536
+  },
+  "layout": {
+    "logical_coordinates": 173939080,
+    "padded_coordinates": 173939130,
+    "active_rows": 4131470,
+    "commitment_columns": 3221095
+  },
+  "identity": {
+    "structural": [
+      2253267552441453727,
+      11370881524423941812,
+      14491634234905938076,
+      6458789060549508091
+    ],
+    "package": [
+      834611548268204826,
+      16768735974255129723,
+      5956912216876698944,
+      7819309785886854188
+    ],
+    "verification_key": [
+      11460023234349802452,
+      13434071231741618125,
+      16944777616280627971,
+      10352016432192349959
+    ]
+  },
+  "matrix_density": {
+    "base_total": 2304743568,
+    "base_source": "User-provided independent review of d563417cd; not remeasured in this update.",
+    "head_by_slot": [
+      229698543,
+      4026818,
+      331153940,
+      74687607,
+      833793968,
+      1496768506,
+      0,
+      104652,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "head_total": 2970234034,
+    "head_source": "Complete independent matrix comparison recorded below.",
+    "cube_variables": 28,
+    "sumcheck_domain": 268435456
+  },
+  "caps": {
+    "native_seconds": 300,
+    "lean_seconds": 1500,
+    "native_rss_bytes": 17179869184,
+    "authority": "AGENTS.md; formal/nightstream-fprime/AGENTS.md; NIGHTSTREAM_CRATE_GOAL.md"
+  },
+  "artifact_validation": {
+    "source_commit": "d563417cd666b67c06ac15b6f43c38375c156da0",
+    "scope": "These checks apply to the same canonical package. Native runs used the then-present shortcut; this update checks the restored full execution path separately.",
+    "independent_candidate_checks": {
+      "primitive.log": [
+        "primitive_support_coordinates=3",
+        "primitive_commitment_coefficients=1188",
+        "candidate_primitive_conformance=passed elapsed=28.786621ms"
+      ],
+      "physical.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 24.507947447s",
+        "candidate_physical_matrix_nonzeros=[92399722, 37983630, 28077586]",
+        "candidate_physical_conformance=passed elapsed=30.105052106s"
+      ],
+      "logical.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 21.247606698s",
+        "independent_final_logical_matrix_nonzeros=[229698543, 4026818, 331153940, 74687607, 833793968, 1496768506, 0, 104652, 0, 0, 0, 0, 0, 0]",
+        "candidate_logical_conformance=passed elapsed=39.078643057s"
+      ],
+      "matrix-mutations.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 20.772499324s",
+        "matrix block-order mutation: changed expanded row 0, selected identity rejected",
+        "in-range matrix-column mutation: changed expanded row 2778904, selected identity rejected",
+        "canonical nonzero matrix-coefficient mutation: changed expanded row 2778904, selected identity rejected",
+        "matrix block-order, in-range column, and canonical coefficient mutations rejected",
+        "candidate_mutations_conformance=passed elapsed=75.239900825s"
+      ],
+      "assignment.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 20.628771439s",
+        "complete_logical_assignment_checks=Evaluation { active_rows: 4131470, relation_terms: 74, carrier_padding_columns: 50, assignment_block_mutations: 26, matrix_slot_mutations: 13, zero_slot_mutation_rejected: true, public_digest_bit_mutations: 256, public_digest_word_mutations: 4 } elapsed=61.37393511s",
+        "derived_recipe_mutation=Phi81 rejected_row=3648126 elapsed=87.561618067s",
+        "derived_recipe_mutation=ChallengeWords rejected_row=3611544 elapsed=114.343640129s",
+        "derived_recipe_mutation=OutputDigest rejected_row=3606347 elapsed=198.444688179s",
+        "candidate_assignment_conformance=passed elapsed=219.675431321s"
+      ],
+      "base-assignment.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 21.850767191s",
+        "caller fixture and package checks: 1.812726617s",
+        "caller physical witness and caller layout: 2.822456831s",
+        "caller independent physical rows: 28275820, elapsed 3.548046824s",
+        "caller production logical transport and bounds: 4.34225647s",
+        "caller all logical coordinates compared; 50 alignment zeros: 5.00796163s",
+        "caller complete logical row program decoded: 5.460753747s",
+        "caller all 4131470 logical rows and zero padding checked: 61.47890516s",
+        "candidate_base_conformance=passed elapsed=83.591004155s"
+      ],
+      "detached-recheck.log": [
+        "candidate_structural_identity=[2253267552441453727, 11370881524423941812, 14491634234905938076, 6458789060549508091]",
+        "candidate_package_identity=[834611548268204826, 16768735974255129723, 5956912216876698944, 7819309785886854188]",
+        "candidate_verifier_context=[1146852294351392598, 13171563534090336097, 4646611922572112977, 4793675006485982595]",
+        "candidate_verification_key_digest=[11460023234349802452, 13434071231741618125, 16944777616280627971, 10352016432192349959]",
+        "candidate metadata and binding: 20.738012044s",
+        "detached application assignment prepared: 3.347473092s",
+        "detached application rejected at canonical row 4131457: 54.898317399s",
+        "candidate_detached_conformance=passed elapsed=75.690910961s"
+      ]
+    },
+    "native_phases": [
+      {
+        "phase": "base",
+        "outcome": "passed",
+        "elapsed_seconds": 38.825690507888794,
+        "maximum_resident_bytes": 6233317376
+      },
+      {
+        "phase": "sources",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 35.32319760322571,
+        "maximum_resident_bytes": 6103629824
+      },
+      {
+        "phase": "ccs",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 93.38841864396818,
+        "maximum_resident_bytes": 8967524352
+      },
+      {
+        "phase": "rlc",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 27.72213577805087,
+        "maximum_resident_bytes": 6170660864
+      },
+      {
+        "phase": "split",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 56.4282026370056,
+        "maximum_resident_bytes": 6223122432
+      },
+      {
+        "phase": "openings",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 138.42562151898164,
+        "maximum_resident_bytes": 9035235328
+      },
+      {
+        "phase": "nifs",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 77.89924907684326,
+        "maximum_resident_bytes": 6223261696
+      },
+      {
+        "phase": "successor",
+        "step": 1,
+        "outcome": "passed",
+        "elapsed_seconds": 63.28450231999159,
+        "maximum_resident_bytes": 6103306240
+      },
+      {
+        "phase": "sources",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 58.129387597960886,
+        "maximum_resident_bytes": 6103908352
+      },
+      {
+        "phase": "ccs",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 136.69991529698018,
+        "maximum_resident_bytes": 9887068160
+      },
+      {
+        "phase": "rlc",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 29.572798252105713,
+        "maximum_resident_bytes": 6170701824
+      },
+      {
+        "phase": "split",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 60.980658769607544,
+        "maximum_resident_bytes": 6309306368
+      },
+      {
+        "phase": "openings",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 123.0936064440175,
+        "maximum_resident_bytes": 9036480512
+      },
+      {
+        "phase": "nifs",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 70.93196225166321,
+        "maximum_resident_bytes": 6309126144
+      },
+      {
+        "phase": "successor",
+        "step": 2,
+        "outcome": "passed",
+        "elapsed_seconds": 66.01850891113281,
+        "maximum_resident_bytes": 6104145920
+      },
+      {
+        "phase": "terminal",
+        "step": 3,
+        "outcome": "passed",
+        "elapsed_seconds": 146.0655374880298,
+        "maximum_resident_bytes": 9485217792
+      },
+      {
+        "phase": "mutation",
+        "step": 3,
+        "outcome": "passed",
+        "elapsed_seconds": 37.2754111289978,
+        "maximum_resident_bytes": 6171172864
+      },
+      {
+        "phase": "reject",
+        "step": 3,
+        "outcome": "passed",
+        "elapsed_seconds": 147.91105437802617,
+        "maximum_resident_bytes": 9484840960
+      },
+      {
+        "phase": "opening-k-prepare",
+        "outcome": "passed",
+        "elapsed_seconds": 64.67995034198975,
+        "maximum_resident_bytes": 6102138880
+      },
+      {
+        "phase": "opening-k",
+        "outcome": "passed",
+        "elapsed_seconds": 145.497199784033,
+        "maximum_resident_bytes": 9507061760
+      },
+      {
+        "phase": "opening-a-prepare",
+        "outcome": "passed",
+        "elapsed_seconds": 75.93752551078796,
+        "maximum_resident_bytes": 6102417408
+      },
+      {
+        "phase": "opening-a",
+        "outcome": "passed",
+        "elapsed_seconds": 147.07016794005176,
+        "maximum_resident_bytes": 9507844096
+      }
+    ],
+    "lean_folds": [
+      {
+        "step": 1,
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 227351560,
+        "independent_proof_generation": false,
+        "native_D_rejection_cases": 55,
+        "lean_rejections": {
+          "decoder": 10,
+          "public_check": 34,
+          "pi_ccs": 1,
+          "internal": 2
+        }
+      },
+      {
+        "step": 2,
+        "outcome": "passed",
+        "caller": {
+          "private_words": 177326,
+          "public_words": 278,
+          "complete_caller_word_equality_checked": true,
+          "all_seven_result_fields_checked": true
+        },
+        "physical_bytes": 227351560,
+        "independent_proof_generation": false,
+        "native_D_rejection_cases": 55,
+        "lean_rejections": {
+          "decoder": 10,
+          "public_check": 34,
+          "pi_ccs": 1,
+          "internal": 2
+        }
+      }
+    ],
+    "golden_archive": {
+      "entries": 19,
+      "complete_source_byte_comparison": "passed",
+      "contains_private_witness_matrices": false
+    }
+  },
+  "review_update": {
+    "scope": "Full witness execution restored; obsolete research and lane decoder removed; norm replay count derived; quotient tests included in CI.",
+    "python_ci_tests": {
+      "outcome": "passed",
+      "tests": 109
+    },
+    "manifest_regression": {
+      "before": "failed: current complete manifest rejected",
+      "after": "passed: current manifest accepted and truncated source rejected"
+    },
+    "lean_build": {
+      "outcome": "passed",
+      "jobs": 4202,
+      "elapsed_seconds": 52
+    },
+    "lean_axioms": {
+      "outcome": "passed",
+      "jobs": 4343,
+      "elapsed_seconds": 60,
+      "allowed_axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ]
+    },
+    "canonical_package": {
+      "outcome": "byte-identical to checked artifact",
+      "emitter_seconds": 39
+    },
+    "rust_tests": {
+      "nightstream": [
+        "test result: ok. 28 passed; 0 failed; 10 ignored; 0 measured; 0 filtered out; finished in 78.80s",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 43.41s",
+        "test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "quotient": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.04s"
+      ],
+      "assignment": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 228.83s"
+      ]
+    },
+    "full_witness_successors": [
+      {
+        "step": 1,
+        "outcome": "passed",
+        "compared_complete_files": [
+          "fold-1/caller-inputs.json",
+          "fold-1/physical.bin",
+          "step-2/envelope.json",
+          "step-2/fresh-claim.json",
+          "step-2/fresh-witness.json"
+        ],
+        "elapsed_seconds": 59.4785590171814,
+        "maximum_resident_bytes": 6233911296
+      },
+      {
+        "step": 2,
+        "outcome": "passed",
+        "compared_complete_files": [
+          "fold-2/caller-inputs.json",
+          "fold-2/physical.bin",
+          "step-3/envelope.json",
+          "step-3/fresh-claim.json",
+          "step-3/fresh-witness.json"
+        ],
+        "elapsed_seconds": 65.52938055992126,
+        "maximum_resident_bytes": 6234218496
+      }
+    ],
+    "full_witness_successors_scope": "Reused the previously checked native NIFS messages; rebuilt both successors with full execution. The first new successor supplies the second statement. Every compared output byte matches the earlier checked data."
+  }
+}

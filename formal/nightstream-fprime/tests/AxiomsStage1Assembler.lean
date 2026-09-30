@@ -370,9 +370,6 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.indices_length
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.index?_eq_getElem?
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Ordinary.Block.row?_eq_compileRow
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Family.descriptor?_encode
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.descriptorFrom?_head
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.descriptorFrom?_tail
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.loadFin?_of_some
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Pin.Block.ofSemantic_rowCount
@@ -505,11 +502,7 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.block_rowCount
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.matrixProgram_rowCount
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_source
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_block
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_lane
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_cell
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_invocation
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.descriptor?_wireDescriptor
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.challengeSlot_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.block_oneColumn?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.challenge_form?
@@ -518,9 +511,11 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.input_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.inputState?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.group_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.groupOutput?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.quotientState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.outputState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.priorState?
+#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.ringDescriptor?_wireRingDescriptor
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.output_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_lane_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.wireDescriptor_privateCount
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.previousInvocation_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram.prior_form?_of_ne

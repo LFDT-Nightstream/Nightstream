@@ -34,7 +34,7 @@ theorem semantics_imply_piRlcPhaseHolds
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment
@@ -86,7 +86,7 @@ theorem rowsZero_implies_piRlcPhaseHolds
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (one : assignment
       (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry) = 1)
     (encodes : DirectPiRLCSamplerCompletePrefixPlan.Encodes geometry assignment

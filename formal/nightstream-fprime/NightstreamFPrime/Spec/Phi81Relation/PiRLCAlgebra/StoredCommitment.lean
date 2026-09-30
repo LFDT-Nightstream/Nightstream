@@ -35,14 +35,18 @@ private theorem zero_value : (zero ()).value.get = ringFZero := by
 private theorem zero_work_le : (zero ()).work ≤ zeroWork :=
   Nat.add_le_add_right (build_work_le _ 1 (fun _ => Nat.le_refl 1)) 2
 
+/-- One SHAKE128 call gives the 216 lanes of the key block; each of the 54
+coefficients reads its four lanes. -/
 private def keyBlock {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) : Result StoredRing :=
-  let result := build (AjtaiSetupV1.Work.coefficient setup row block)
-  ⟨result.value, result.work + 2⟩
+  let lanes := AjtaiSetupV1.Work.elementLanes setup row block
+  let result := build (AjtaiSetupV1.Work.laneCoefficient lanes.value)
+  ⟨result.value, lanes.work + result.work + 2⟩
 
 private def keyBlockWork : Nat :=
-  ringDegree + 1 + ringDegree * (AjtaiSetupV1.Work.coefficientWork + 2) + 1 + 2
+  AjtaiSetupV1.Work.elementLanesWork +
+    (ringDegree + 1 + ringDegree * (AjtaiSetupV1.Work.laneCoefficientWork + 2) + 1) + 2
 
 private theorem keyBlock_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
@@ -51,15 +55,21 @@ private theorem keyBlock_value {verifierRows messageColumns : Nat}
   change _root_.NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic.view (build _).value = _
   rw [build_value]
   funext lane
-  exact AjtaiSetupV1.Work.coefficient_value setup row block lane
+  rw [AjtaiSetupV1.Work.elementLanes_value]
+  exact AjtaiSetupV1.Work.laneCoefficient_value setup row block lane
 
 private theorem keyBlock_work_le {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
     (rowRange : row.val < 2 ^ 32) (blockRange : block.val < 2 ^ 64) :
-    (keyBlock setup row block).work ≤ keyBlockWork :=
-  Nat.add_le_add_right (build_work_le _ _
-    (fun lane => AjtaiSetupV1.Work.coefficient_work_le setup row block lane rowRange blockRange)) 2
+    (keyBlock setup row block).work ≤ keyBlockWork := by
+  have lanes := AjtaiSetupV1.Work.elementLanes_work_le setup row block rowRange blockRange
+  have built := build_work_le
+    (AjtaiSetupV1.Work.laneCoefficient (AjtaiSetupV1.Work.elementLanes setup row block).value) _
+    (fun lane => AjtaiSetupV1.Work.laneCoefficient_work_le _ lane)
+  dsimp only [keyBlock]
+  unfold keyBlockWork
+  omega
 
 /-- The existing shape completes its logical width to whole Phi81 blocks.
 Two index reads, multiply/add, the Fin constructor, vector projection,

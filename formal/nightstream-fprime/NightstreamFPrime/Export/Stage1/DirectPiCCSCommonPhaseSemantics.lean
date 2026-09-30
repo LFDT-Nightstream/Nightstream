@@ -31,7 +31,7 @@ theorem semantics_imply_piCcsSpecHolds
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue) :
     Lifecycle.PiCCS.v1_1.Formal.SpecHolds relation
@@ -101,7 +101,7 @@ theorem semantics_imply_piCcsPhaseHolds
       logicalWidth)
     (assignment : Assignment F logicalWidth)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
-    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 33 → F)
+    (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (semantics : DirectPiRLCSamplerCompletePrefixPlan.Semantics relation
       geometry assignment base groupValue) :
     Lifecycle.PiCCS.v1_1.Formal.PhaseHolds relation ajtai

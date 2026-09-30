@@ -22,9 +22,9 @@ const PILOT_PUBLIC_WORDS: usize = 274;
 // PerApplicationMatrixProgram orders pilotPoseidon before PiCCS, then
 // pilotOrdinary and pilotDigestBinding after the PiCCS core. These are the
 // complete pilot-owned ranges in that one final matrix program.
-const PILOT_LOGICAL_RANGES: [(usize, usize); 3] = [(0, 2_321_800), (3_863_453, 3_864_783), (3_864_783, 3_864_791)];
+const PILOT_LOGICAL_RANGES: [(usize, usize); 3] = [(0, 2_124_200), (3_605_021, 3_606_351), (3_606_351, 3_606_359)];
 const PILOT_BLOCK_ENDS: [usize; 7] = [
-    1_160_900, 2_321_800, 3_036_576, 3_051_784, 3_863_453, 3_864_783, 3_864_791,
+    1_062_100, 2_124_200, 2_778_144, 2_793_352, 3_605_021, 3_606_351, 3_606_359,
 ];
 const PILOT_BLOCK_OPCODES: [usize; 7] = [2, 2, 2, 1, 0, 0, 1];
 const PILOT_LOGICAL_FAMILIES: [(&str, usize, usize); 4] = [

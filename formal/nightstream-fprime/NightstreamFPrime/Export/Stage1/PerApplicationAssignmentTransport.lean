@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 /-!
 Owns the sealed executable transport for the final 14-matrix assignment.
 The 26 retained block plans supply their source values. Compact recipes
-derive the Phi81 group totals and the four constrained output-digest words.
+derive the Phi81 quotient coefficients and the four constrained output-digest words.
 
 Every expression variable is renamed to its final physical package column.
 The package does not carry expanded low-norm coordinates or assignment values.
@@ -47,68 +47,48 @@ def Phi81FamilyShape.format : Format Phi81FamilyShape where
     cases shape
     rfl
 
-/-- Compact executable recipe for all 52,326 by 33 Phi81 group values.
-The scalar fields protocol-bind the fixed three-convolution Phi81 reduction;
-the block fields name its retained inputs and outputs. -/
-structure Phi81GroupRecipe where
+/-- Exact quotient recipe for the 52,326 retained Phi81 coefficients.
+The final coefficient of each ring quotient is zero. -/
+structure Phi81QuotientRecipe where
   ringDegree : Nat
   middleDegree : Nat
   foldOffset : Nat
-  twiceCutoff : Nat
-  rawConvolutionCount : Nat
-  rawTermCount : Nat
-  groupWidth : Nat
-  groupCount : Nat
+  quotientCount : Nat
   familyShapes : List Phi81FamilyShape
   challengeBlock : BlockKind
   challengeSlotBase : Nat
   challengeSourceStride : Nat
   challengeShift : Nat
   valueSources : List AffineRuns.Run
-  groupOutputBlock : BlockKind
+  quotientOutputBlock : BlockKind
 deriving Repr, DecidableEq
 
-def Phi81GroupRecipe.format : Format Phi81GroupRecipe where
+def Phi81QuotientRecipe.format : Format Phi81QuotientRecipe where
   encode := fun recipe => .array [
     .atom recipe.ringDegree,
     .atom recipe.middleDegree,
     .atom recipe.foldOffset,
-    .atom recipe.twiceCutoff,
-    .atom recipe.rawConvolutionCount,
-    .atom recipe.rawTermCount,
-    .atom recipe.groupWidth,
-    .atom recipe.groupCount,
+    .atom recipe.quotientCount,
     (Codec.list Phi81FamilyShape.format).encode recipe.familyShapes,
     BlockKind.format.encode recipe.challengeBlock,
     .atom recipe.challengeSlotBase,
     .atom recipe.challengeSourceStride,
     .atom recipe.challengeShift,
     AffineRuns.format.encode recipe.valueSources,
-    BlockKind.format.encode recipe.groupOutputBlock]
+    BlockKind.format.encode recipe.quotientOutputBlock]
   decode
     | .array [.atom ringDegree, .atom middleDegree, .atom foldOffset,
-        .atom twiceCutoff, .atom rawConvolutionCount, .atom rawTermCount,
-        .atom groupWidth, .atom groupCount, familyShapes, challengeBlock,
+        .atom quotientCount, familyShapes, challengeBlock,
         .atom challengeSlotBase, .atom challengeSourceStride,
-        .atom challengeShift, valueSources, groupOutputBlock] => do
+        .atom challengeShift, valueSources, quotientOutputBlock] => do
       pure {
-        ringDegree,
-        middleDegree,
-        foldOffset,
-        twiceCutoff,
-        rawConvolutionCount,
-        rawTermCount,
-        groupWidth,
-        groupCount,
-        familyShapes :=
-          ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
+        ringDegree, middleDegree, foldOffset, quotientCount,
+        familyShapes := ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
         challengeBlock := ← BlockKind.format.decode challengeBlock,
-        challengeSlotBase,
-        challengeSourceStride,
-        challengeShift,
+        challengeSlotBase, challengeSourceStride, challengeShift,
         valueSources := ← AffineRuns.format.decode valueSources,
-        groupOutputBlock := ← BlockKind.format.decode groupOutputBlock }
-    | _ => .error "invalid Phi81 assignment group recipe"
+        quotientOutputBlock := ← BlockKind.format.decode quotientOutputBlock }
+    | _ => .error "invalid Phi81 assignment quotient recipe"
   decode_encode := by
     intro recipe
     cases recipe
@@ -153,22 +133,18 @@ theorem phi81ValueSources_at (program : Program)
 
 /-- The complete generic Phi81 recipe. No per-invocation expressions are
 materialized. -/
-def phi81GroupRecipe (program : Program) : Phi81GroupRecipe where
+def phi81QuotientRecipe (program : Program) : Phi81QuotientRecipe where
   ringDegree := 54
   middleDegree := 27
   foldOffset := 81
-  twiceCutoff := 106
-  rawConvolutionCount := 3
-  rawTermCount := 162
-  groupWidth := 5
-  groupCount := 33
+  quotientCount := 54
   familyShapes := phi81FamilyShapes
   challengeBlock := .challengeWords
   challengeSlotBase := 0
   challengeSourceStride := 54
   challengeShift := 2
   valueSources := phi81ValueSources program
-  groupOutputBlock := .productGroup
+  quotientOutputBlock := .productGroup
 
 def physicalExpr (program : Program) (expression : Expr) : Expr :=
   CompactRows.renameExpr (PerApplicationPackage.shiftColumn program) <|
@@ -196,7 +172,7 @@ def schema : Nat := 3
 /-- Complete package-carried transport plan. -/
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
-  phi81 : Phi81GroupRecipe
+  phi81 : Phi81QuotientRecipe
   outputDigestBlock : BlockKind
   outputDigestExpressions : List Expr
 deriving Repr, DecidableEq
@@ -205,7 +181,7 @@ def Plan.format : Format Plan where
   encode := fun plan => .array [
     .atom schema,
     PerApplicationAssignmentBlocks.format.encode plan.blocks,
-    Phi81GroupRecipe.format.encode plan.phi81,
+    Phi81QuotientRecipe.format.encode plan.phi81,
     BlockKind.format.encode plan.outputDigestBlock,
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
@@ -214,7 +190,7 @@ def Plan.format : Format Plan where
         outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,
-        phi81 := ← Phi81GroupRecipe.format.decode phi81,
+        phi81 := ← Phi81QuotientRecipe.format.decode phi81,
         outputDigestBlock := ← BlockKind.format.decode outputDigestBlock,
         outputDigestExpressions :=
           ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
@@ -224,14 +200,14 @@ def Plan.format : Format Plan where
     intro plan
     cases plan
     simp only [schema, PerApplicationAssignmentBlocks.format.decode_encode,
-      Phi81GroupRecipe.format.decode_encode,
+      Phi81QuotientRecipe.format.decode_encode,
       BlockKind.format.decode_encode,
       (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode_encode]
     rfl
 
 def canonical (program : Program) : Plan where
   blocks := PerApplicationAssignmentBlocks.canonical program
-  phi81 := phi81GroupRecipe program
+  phi81 := phi81QuotientRecipe program
   outputDigestBlock := .pilotOutputDigest
   outputDigestExpressions := outputDigestExpressions program
 

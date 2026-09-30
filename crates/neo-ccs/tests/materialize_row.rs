@@ -3,10 +3,9 @@
 //! | Case | Components | Oracle |
 //! |---|---|---|
 //! | identity/CSC | direct stored terms | `CcsMatrix::add_mul_into` |
-//! | compact overlap | CSC + seeded Phi81 + geometric run | field-summed row action |
-//! | transformed seeded block | SuperNeo bar-transformed columns | matrix action |
+//! | compact overlap | CSC + geometric run | field-summed row action |
 
-use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun, SeededPhi81LinearBlock};
+use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
@@ -21,16 +20,6 @@ fn assert_row_action(matrix: &CcsMatrix<F>, row: usize, assignments: &[Vec<F>]) 
             sum + coefficient * assignment[column]
         });
         assert_eq!(row_action, image[row]);
-    }
-}
-
-fn seeded_block(transformed: bool) -> SeededPhi81LinearBlock {
-    let block = SeededPhi81LinearBlock::new_with_word_width(0, vec![0], 1, 1, 1, 1, vec![vec![[0xa5; 32]]])
-        .expect("tiny seeded block");
-    if transformed {
-        block.with_superneo_transformed_columns()
-    } else {
-        block
     }
 }
 
@@ -58,28 +47,24 @@ fn materialized_rows_match_identity_and_csc_actions() {
 }
 
 #[test]
-fn compact_row_sums_csc_seeded_and_geometric_overlaps() {
-    let block = seeded_block(false);
-    let seeded_only: CcsMatrix<F> =
-        CcsMatrix::csc_with_seeded_phi81(CscMat::from_triplets(vec![], D, D), vec![block.clone()])
-            .expect("seeded matrix");
-    let (overlap_column, seeded_coefficient) = seeded_only
-        .materialize_row(0)
-        .expect("seeded row")
-        .into_iter()
-        .next()
-        .expect("nonzero seeded row");
+fn compact_row_sums_csc_and_geometric_overlaps() {
+    // The run has coefficients 7, 35, 175 in columns 5, 6, 7. The CSC terms
+    // change column 5 to 3 and cancel column 6.
     let csc = CscMat::from_triplets(
-        vec![(0, overlap_column, -seeded_coefficient), (0, D - 1, F::from_u64(11))],
+        vec![
+            (0, 5, -F::from_u64(4)),
+            (0, 6, -F::from_u64(35)),
+            (0, D - 1, F::from_u64(11)),
+        ],
         D,
         D,
     );
-    let geometric = GeometricRowRun::new(0, overlap_column, 1, F::from_u64(3), F::from_u64(5));
-    let compact = CcsMatrix::csc_with_compact_rows(csc, vec![block], vec![geometric]).expect("compact matrix");
+    let geometric = GeometricRowRun::new(0, 5, 3, F::from_u64(7), F::from_u64(5));
+    let compact = CcsMatrix::csc_with_geometric_runs(csc, vec![geometric]).expect("compact matrix");
     let terms = compact.materialize_row(0).expect("compact row");
     assert_eq!(
-        terms.iter().find(|(column, _)| *column == overlap_column),
-        Some(&(overlap_column, F::from_u64(3)))
+        terms,
+        vec![(5, F::from_u64(3)), (7, F::from_u64(175)), (D - 1, F::from_u64(11))]
     );
     assert_row_action(
         &compact,
@@ -87,23 +72,6 @@ fn compact_row_sums_csc_seeded_and_geometric_overlaps() {
         &[
             vec![F::ONE; D],
             (0..D).map(|value| F::from_u64(value as u64 + 1)).collect(),
-        ],
-    );
-}
-
-#[test]
-fn transformed_seeded_row_matches_matrix_action() {
-    let transformed: CcsMatrix<F> =
-        CcsMatrix::csc_with_seeded_phi81(CscMat::from_triplets(vec![], D, D), vec![seeded_block(true)])
-            .expect("transformed seeded matrix");
-    assert_row_action(
-        &transformed,
-        0,
-        &[
-            vec![F::ONE; D],
-            (0..D)
-                .map(|value| F::from_u64((value * 7 + 3) as u64))
-                .collect(),
         ],
     );
 }

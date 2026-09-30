@@ -39,17 +39,6 @@ pub fn build_joint_dims(
             "PaddedRowIdentity requires at least one fresh source".into(),
         ));
     }
-    if structure
-        .matrices
-        .iter()
-        .flat_map(|matrix| matrix.seeded_phi81_blocks())
-        .any(|block| block.has_superneo_transformed_columns())
-    {
-        return Err(PiCcsError::InvalidInput(
-            "PaddedRowIdentity requires original, untransformed CCS matrices".into(),
-        ));
-    }
-
     let zero = vec![F::ZERO; structure.t()];
     if structure.f.eval(&zero) != F::ZERO {
         return Err(PiCcsError::InvalidInput(

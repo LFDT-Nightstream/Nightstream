@@ -93,11 +93,11 @@ private theorem cached_columns_eq {columns : Nat}
   simp only [columnValue, dif_pos column.isLt]
 
 /-- Share each requested block and each complete K column read across both
-scalar projections and all 94 numeric rows of the same invocation. -/
+scalar projections and all 86 numeric rows of the same invocation. -/
 def invocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree) (interface : PoseidonSboxPlan.Interface columns) :
-    Vector (Vector K Spec.ProductionRelation.matrixCount) 94 :=
+    Vector (Vector K Spec.ProductionRelation.matrixCount) 86 :=
   let blockCache := prepareCache (interfaceKeys interface) blocks
   let read : Fin columns → K :=
     PiCCSCarriedRead.read basis (cachedRead blockCache blocks)
@@ -222,18 +222,18 @@ theorem row?_eq (program : MatrixProgram.Program) {columns : Nat}
 /-- Retain the original optional forms for all rows of one product
 invocation. The interface is loaded by the caller only once. -/
 private def productInvocationRows {columns : Nat}
-    (interface : ProductSumPlan.Interface columns) :
-    Vector (Option (RowForms columns)) 34 :=
+    (interface : Phi81ProductPlan.Interface columns) :
+    Vector (Option (RowForms columns)) 108 :=
   Vector.ofFn fun row =>
     (PiDECProductRow.row? interface row.val).map ProductSumPlan.Row.meaningfulForm
 
 /-- Share complete carried blocks and K column reads across the existing
-34-row product invocation. Each row keeps its original optional result. -/
+108-row product invocation. Each row keeps its original optional result. -/
 def productInvocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree)
-    (interface : ProductSumPlan.Interface columns) :
-    Vector (Option (Vector K Spec.ProductionRelation.matrixCount)) 34 :=
+    (interface : Phi81ProductPlan.Interface columns) :
+    Vector (Option (Vector K Spec.ProductionRelation.matrixCount)) 108 :=
   let rows := productInvocationRows interface
   let keys := rows.toList.flatMap fun selected =>
     match selected with
@@ -258,7 +258,7 @@ are preserved, without a cache-support or interface-validity premise. -/
 theorem productInvocation_value {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (blocks : Nat → Vector K ringDegree)
-    (interface : ProductSumPlan.Interface columns) (row : Fin 34) :
+    (interface : Phi81ProductPlan.Interface columns) (row : Fin 108) :
     (productInvocation basis blocks interface).get row =
       (PiDECProductRow.row? interface row.val).map (fun selected =>
         Vector.ofFn fun port : Fin Spec.ProductionRelation.matrixCount =>

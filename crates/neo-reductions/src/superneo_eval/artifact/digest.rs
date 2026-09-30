@@ -67,7 +67,6 @@ fn digest_leaf(leaf: &DigestLeaf<'_>) -> [F; DIGEST_LEN] {
             state.u64(coefficients.len() as u64);
             absorb_offset_meta(&mut state, &value.geometric_row_offsets);
             state.u64(value.geometric_runs.len() as u64);
-            state.u64(value.seeded_phi81_blocks.len() as u64);
         }
         DigestLeaf::U32 {
             matrix,
@@ -125,28 +124,6 @@ fn digest_leaf(leaf: &DigestLeaf<'_>) -> [F; DIGEST_LEN] {
             for value in *values {
                 for &word in value {
                     state.u64(word);
-                }
-            }
-        }
-        DigestLeaf::Seeded { matrix, block, value } => {
-            state.u64(8);
-            state.u64(*matrix as u64);
-            state.u64(*block as u64);
-            state.u64(value.row_start() as u64);
-            state.u64(value.word_width() as u64);
-            state.u64(value.kappa() as u64);
-            state.u64(value.message_cols() as u64);
-            state.u64(value.chunk_size() as u64);
-            state.u64(value.has_superneo_transformed_columns() as u64);
-            state.u64(value.word_starts().len() as u64);
-            for &start in value.word_starts() {
-                state.u64(start as u64);
-            }
-            state.u64(value.chunk_seeds_by_row().len() as u64);
-            for seeds in value.chunk_seeds_by_row() {
-                state.u64(seeds.len() as u64);
-                for seed in seeds {
-                    state.bytes(seed);
                 }
             }
         }

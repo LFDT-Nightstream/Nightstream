@@ -49,9 +49,9 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert_eq!(package.total_column_count(), 28_418_945);
     assert_eq!(package.private_input_count(), 177_326);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 6_064_606);
+    assert_eq!(relation.row_count(), 4_131_470);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 242_590_792);
+    assert_eq!(relation.column_count(), 173_939_080);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),
@@ -356,7 +356,7 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
     load_poseidon2_hash_chain_v1_package(&bytes).expect("current complete package");
     let mut value: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(value[4][0], json!(3));
-    let challenge_block = value[4][2][9].as_u64().unwrap() as usize;
+    let challenge_block = value[4][2][5].as_u64().unwrap() as usize;
     let first_word = value[4][1][challenge_block][4][0][0].as_u64().unwrap();
     let batches = value[1][10].as_array_mut().unwrap();
     let index = batches

@@ -283,9 +283,9 @@ theorem inputProgram_state?
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 86)) :
     (block geometry).row? logicalWidth global.val =
-      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiRLCSamplerPoseidonPlan.interface geometry) decoded.1 decoded.2) := by
@@ -302,9 +302,9 @@ theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 94)) :
+    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 86)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 94 :=
+      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 86 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiRLCSamplerPoseidonPlan.interface geometry) decoded.1 decoded.2) := by
@@ -312,7 +312,7 @@ theorem matrixProgram_row?
       (MatrixProgram.Block.poseidon (block geometry)).rowCount := by
     change global.val < (block geometry).rowCount
     rw [show (block geometry).rowCount =
-        PiRLCSamplerPoseidonPlan.invocationCount * 94 by
+        PiRLCSamplerPoseidonPlan.invocationCount * 86 by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)

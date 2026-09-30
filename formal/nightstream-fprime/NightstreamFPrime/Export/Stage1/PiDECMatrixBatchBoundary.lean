@@ -48,12 +48,12 @@ theorem row?_kernel_value (program : MatrixProgram.Program) {columns : Nat}
       exact congrArg some
         (PiDECEvaluationBlockSupport.kernel_eq_evalSparse _ children child output).symm
 
-/-- Load one existing interface and compute all 94 port records once.
+/-- Load one existing interface and compute all 86 port records once.
 Every stored row equals the original numeric block row at the existing
 Fin product index, including rejection of the invocation interface. -/
 theorem storedInvocation_row (block : Poseidon.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
-    (invocation : Fin block.invocationCount) (row : Fin 94) :
+    (invocation : Fin block.invocationCount) (row : Fin 86) :
     ((PiDECPoseidonNumericBlock.loadInvocation? block columns invocation).map
       (PiDECPoseidonNumericRows.stored read)).map
         (fun rows => Vector.ofFn (rows.get row).get) =

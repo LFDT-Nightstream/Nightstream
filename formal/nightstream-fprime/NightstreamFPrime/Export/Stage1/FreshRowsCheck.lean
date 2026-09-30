@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
 /-! Check the scalar production polynomial on every active canonical row.
-The Poseidon path stores one invocation's existing 94 numeric rows. The
+The Poseidon path stores one invocation's existing 86 numeric rows. The
 source-row cache is fixed by the canonical package theorem. -/
 
 set_option autoImplicit false
@@ -53,8 +53,8 @@ def checkRow : Option (Vector F matrixCount) → Bool
   | some interface =>
       let values := PiDECPoseidonNumericRows.stored read interface
       allFrom (fun row =>
-        if bound : row < 94 then checkValues ((values.get ⟨row, bound⟩).get)
-        else false) 0 94
+        if bound : row < 86 then checkValues ((values.get ⟨row, bound⟩).get)
+        else false) 0 86
 
 @[specialize] def checkBlock (block : MatrixProgram.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F) : Bool :=
@@ -74,7 +74,7 @@ def checkProgram (program : MatrixProgram.Program) {columns : Nat}
 
 
 /-- Poseidon work stays invocation-local, so one unit builds the same existing
-94-row table. Other block kinds use their existing scalar rows as units. -/
+86-row table. Other block kinds use their existing scalar rows as units. -/
 def checkBlockUnits : MatrixProgram.Block → Nat
   | .poseidon block => block.invocationCount
   | other => other.rowCount
@@ -230,7 +230,7 @@ private theorem ofFn_get {count : Nat} (values : Fin count → F) :
 
 private theorem checkInvocation_sound (block : Poseidon.Block) {columns : Nat}
     (read : Fin columns → F) (invocation : Fin block.invocationCount)
-    (checked : checkInvocation block read invocation = true) (row : Fin 94) :
+    (checked : checkInvocation block read invocation = true) (row : Fin 86) :
     checkRow ((PiDECPoseidonNumericBlock.row? block read
       (Fin.encodeProd (invocation, row)).val).map
         (fun values => Vector.ofFn values.get)) = true := by
@@ -240,11 +240,11 @@ private theorem checkInvocation_sound (block : Poseidon.Block) {columns : Nat}
       cases checked
   | some interface =>
       have allRows : allFrom (fun index =>
-          if bound : index < 94 then checkValues
+          if bound : index < 86 then checkValues
             (((PiDECPoseidonNumericRows.stored read interface).get ⟨index, bound⟩).get)
-          else false) 0 94 = true := by
+          else false) 0 86 = true := by
         simpa only [checkInvocation, loaded] using checked
-      have rowChecked := allFrom_sound _ 0 94 allRows row.val (by omega) (by
+      have rowChecked := allFrom_sound _ 0 86 allRows row.val (by omega) (by
         simpa using row.isLt)
       simpa only [PiDECPoseidonNumericBlock.row?,
         PiDECPoseidonNumericBlock.loadRow?_encodeProd, loaded,
@@ -265,7 +265,7 @@ theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
   | pin block =>
       exact allFrom_sound _ 0 _ checked row (by omega) (by simpa using bounded)
   | poseidon block =>
-      let index : Fin (block.invocationCount * 94) := ⟨row, bounded⟩
+      let index : Fin (block.invocationCount * 86) := ⟨row, bounded⟩
       let pair := Fin.decodeProd index
       have invocationChecked := allFrom_sound _ 0 block.invocationCount checked
         pair.1.val (by omega) (by simpa using pair.1.isLt)

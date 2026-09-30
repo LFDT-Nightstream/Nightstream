@@ -4,12 +4,12 @@ use neo_math::ring::{cf_inv, Rq as RqEl};
 use neo_math::s_action::SAction;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
+use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
 
 fn sample_Z(d: usize, m: usize, b: u32) -> Vec<Fq> {
     // random digits in {0,1} (b=2) to exercise pay-per-bit path
-    let mut rng = ChaCha20Rng::seed_from_u64(7);
+    let mut rng = StdRng::seed_from_u64(7);
     (0..d * m)
         .map(|_| if rng.next_u64() & 1 == 1 { Fq::ONE } else { Fq::ZERO })
         .collect()
@@ -20,7 +20,7 @@ fn s_module_homomorphism() {
     let d = 54usize;
     let m = 64usize;
     let kappa = 8usize;
-    let mut rng = ChaCha20Rng::seed_from_u64(1);
+    let mut rng = StdRng::seed_from_u64(1);
     let pp = setup(&mut rng, d, kappa, m).expect("Setup should succeed");
     let Z1 = sample_Z(d, m, 2);
     let Z2 = sample_Z(d, m, 2);

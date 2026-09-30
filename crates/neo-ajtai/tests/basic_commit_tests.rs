@@ -9,13 +9,13 @@ mod test_helpers;
 use neo_ajtai::{commit, commit_masked_ct, commit_precomp_ct, setup, verify_open};
 use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand::{rngs::StdRng, SeedableRng};
 use test_helpers::{compute_single_ajtai_row, rows_for_coords};
 
 #[test]
 fn commit_and_verify_basic_patterns() {
     // Test basic commit/verify cycle with various input patterns
-    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let mut rng = StdRng::seed_from_u64(42);
     let d = neo_math::D;
     let kappa = 3;
     let m = 4;
@@ -64,7 +64,7 @@ fn commit_and_verify_basic_patterns() {
 #[test]
 fn commit_deterministic() {
     // Test that commit is deterministic - same input produces same output
-    let mut rng = ChaCha20Rng::seed_from_u64(123);
+    let mut rng = StdRng::seed_from_u64(123);
     let d = neo_math::D;
     let kappa = 2;
     let m = 3;
@@ -91,7 +91,7 @@ fn commit_deterministic() {
 #[test]
 fn verify_rejects_wrong_opening() {
     // Test that verification properly rejects incorrect openings
-    let mut rng = ChaCha20Rng::seed_from_u64(456);
+    let mut rng = StdRng::seed_from_u64(456);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;
@@ -124,7 +124,7 @@ fn verify_rejects_wrong_opening() {
 #[test]
 fn different_inputs_produce_different_commitments() {
     // Test that different inputs produce different commitments (binding property)
-    let mut rng = ChaCha20Rng::seed_from_u64(789);
+    let mut rng = StdRng::seed_from_u64(789);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;
@@ -169,7 +169,7 @@ fn different_inputs_produce_different_commitments() {
 #[test]
 fn try_commit_error_handling() {
     // Test that try_commit properly handles dimension mismatches
-    let mut rng = ChaCha20Rng::seed_from_u64(999);
+    let mut rng = StdRng::seed_from_u64(999);
     let d = neo_math::D;
     let kappa = 2;
     let m = 3;
@@ -199,7 +199,7 @@ fn try_commit_error_handling() {
 #[test]
 fn constant_time_variants_basic_functionality() {
     // Test that the constant-time variants work correctly without needing spec comparison
-    let mut rng = ChaCha20Rng::seed_from_u64(2023);
+    let mut rng = StdRng::seed_from_u64(2023);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;

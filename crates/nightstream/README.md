@@ -273,21 +273,22 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
-At `ecdc04b01`, these commands measured the complete lifecycle without
+At `72b1f4027`, these commands measured the complete lifecycle without
 Instruments. Each engine ran once on an Apple M5 Max:
 
 | Phase | Optimized | Metal |
 | --- | ---: | ---: |
-| package load | 1.17 s | 1.19 s |
-| base step | 7.72 s | 2.14 s |
-| fold, step 2 | 26.37 s | 9.89 s |
-| fold, step 3 | 34.63 s | 13.31 s |
-| terminal verification | 22.61 s | 5.93 s |
-| **total** | **92.50 s** | **32.45 s** |
-| peak RSS | 10.60 GB | 11.15 GB |
+| package load | 1.12 s | 1.26 s |
+| base step | 7.62 s | 2.22 s |
+| fold, step 2 | 25.00 s | 9.91 s |
+| fold, step 3 | 33.60 s | 13.18 s |
+| terminal verification | 20.66 s | 5.41 s |
+| **total** | **88.00 s** | **31.98 s** |
+| peak RSS | 10.80 GB | 11.29 GB |
 
-Metal is **2.85×** faster, below the 5× target. The Metal openings now add
-each geometric span's references once; the previous record (`b1b29c38a`)
+Metal is **2.75×** faster, below the 5× target. Single runs vary by up to
+2 s. Five alternating Metal runs on one package give medians of 32.66 s at
+`1fb3de4e0` and 31.09 s at `72b1f4027`. The previous record (`b1b29c38a`)
 was 36.28 s on Metal and 91.31 s on the CPU engine. Both engines are faster than
 the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
 CPU engine improved more. Both RSS peaks are below 16 GB. Each time is one

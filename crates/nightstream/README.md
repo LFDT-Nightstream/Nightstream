@@ -233,10 +233,11 @@ memory target is at most 16 GB for either engine on every supported circuit; 8 G
 the future mobile target. The owner has accepted approximately 16 GB for this
 pass, using RSS, and deferred further memory tuning. Storage is bounded across
 supported native circuit shapes; a universal process-RSS guarantee remains
-unproven because runtime and driver residency also contribute. The final guarded
-image measures **5.9332×** under matched Time Profiler runs over loading, proving
+unproven because runtime and driver residency also contribute. An earlier image
+measured **5.9332×** under matched Time Profiler runs over loading, proving
 and terminal verification. Both engines use the same caller-selected package,
-inputs and final state. The raw CPU/Metal ratio remains unmeasured. Inputs are
+inputs and final state. The current source does not meet the 5× target; see the
+current measurements below. Inputs are
 fixed and included in the first record. The step count
 includes the base step: `--steps 1` performs no active fold, while `--steps 3`
 covers the base and two active folds. PaperExact remains a small-input parity
@@ -272,6 +273,25 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
+At `f87a21e52`, these commands measured the complete lifecycle without
+Instruments. Each engine ran once on an Apple M5 Max:
+
+| Phase | Optimized | Metal |
+| --- | ---: | ---: |
+| package load | 1.68 s | 1.73 s |
+| base step | 8.21 s | 2.36 s |
+| fold, step 2 | 28.28 s | 13.64 s |
+| fold, step 3 | 38.88 s | 19.14 s |
+| terminal verification | 23.66 s | 8.01 s |
+| **total** | **100.71 s** | **44.87 s** |
+| peak RSS | 12.52 GB | 13.96 GB |
+
+Metal is **2.24×** faster, below the 5× target. Both engines are faster than
+the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
+CPU engine improved more. Both RSS peaks are below 16 GB. Other work was running
+on the machine, so each time is one sample. See
+[the run records](tests/evidence/poseidon2-benchmark-20260930).
+
 Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
 verifier component and binds the resulting application and circuit identity.
@@ -302,7 +322,8 @@ apply only to their recorded source and package.
 
 See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
 full reference comparisons, terminal checks, measured costs, and scope limits.
-The original migration checks passed. The final prepared-package comparison
-meets the 5× speed target and both measured RSS peaks stay below the accepted
-16 GiB guard. A universal RSS guarantee and a universal Rust refinement proof
-remain unproven.
+The original migration checks passed. The earlier prepared-package comparison
+met the 5× speed target. The current source measures 2.24×, because the CPU
+engine is now much faster; see [the benchmark](#poseidon2-benchmark). Both
+current RSS peaks stay below the accepted 16 GiB guard. A universal RSS guarantee
+and a universal Rust refinement proof remain unproven.

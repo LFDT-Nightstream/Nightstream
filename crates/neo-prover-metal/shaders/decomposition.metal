@@ -1,5 +1,8 @@
 // Pi_DEC writes fourteen child masks per parent scan. The first group also checks
-// that every centered coefficient fits in the fixed base-2 child count.
+// that every centered coefficient fits in the fixed base-2 child count. For
+// base two the balanced digits of a value are the bits of its magnitude with
+// its sign. Child masks are planar: the positive columns, then the negative
+// columns, of each child.
 constant ushort DEC_SPLIT_CHILDREN_PER_THREAD = 14;
 
 kernel void dec_split_base2_masks(
@@ -13,9 +16,6 @@ kernel void dec_split_base2_masks(
     ulong cols = shape[3];
     ulong first_child = (index / cols) * DEC_SPLIT_CHILDREN_PER_THREAD;
     ulong column = index % cols;
-    if (first_child >= child_count) {
-        return;
-    }
 
     ulong positive[DEC_SPLIT_CHILDREN_PER_THREAD];
     ulong negative[DEC_SPLIT_CHILDREN_PER_THREAD];
@@ -42,15 +42,19 @@ kernel void dec_split_base2_masks(
         }
     }
 
+    // Lanes in the first lane's child group share one atomic per child. A
+    // SIMD group that crosses into the next group records those lanes alone.
+    bool first_group = index / cols == simd_broadcast_first(index) / cols;
     for (ushort local = 0; local < DEC_SPLIT_CHILDREN_PER_THREAD; ++local) {
         ulong child = first_child + local;
+        uint nonzero = (positive[local] | negative[local]) != 0 ? 1u : 0u;
         if (child < child_count) {
-            ulong mask_index = child * cols + column;
-            masks[2 * mask_index] = positive[local];
-            masks[2 * mask_index + 1] = negative[local];
-            if ((positive[local] | negative[local]) != 0) {
-                atomic_fetch_or_explicit(&child_nonzero[child], 1u, memory_order_relaxed);
-            }
+            masks[2 * child * cols + column] = positive[local];
+            masks[(2 * child + 1) * cols + column] = negative[local];
+        }
+        uint shared = simd_or(first_group ? nonzero : 0u);
+        if (child < child_count && (simd_is_first() ? shared : (first_group ? 0u : nonzero)) != 0) {
+            atomic_fetch_or_explicit(&child_nonzero[child], 1u, memory_order_relaxed);
         }
     }
 }

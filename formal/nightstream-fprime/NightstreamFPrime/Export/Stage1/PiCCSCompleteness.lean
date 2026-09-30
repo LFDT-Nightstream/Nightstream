@@ -1077,7 +1077,7 @@ theorem ccsFreshCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
-      (PiCCSArithmetic.ccsConstraints logicalWidth publicFits) = 20792 := by
+      (PiCCSArithmetic.ccsConstraints logicalWidth publicFits) = 0 := by
   unfold PiCCSArithmetic.ccsConstraints PiCCSArithmetic.mainConstraints
   rw [PiCCSArithmetic.ccsLogicalStart_matches logicalWidth publicFits]
   rw [← Formal.ccsCircuit_main_eq_rowMain relation
@@ -1148,7 +1148,7 @@ theorem packetConstraints_totalFreshCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (packetConstraints logicalWidth publicFits) =
-      23748 := by
+      2956 := by
   unfold packetConstraints
   rw [R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
@@ -1164,7 +1164,7 @@ theorem emittedConstraints_totalFreshCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (emittedConstraints logicalWidth publicFits) =
-      23748 := by
+      2956 := by
   rw [emittedConstraints, R1CS.totalFreshCount_append,
     statementBindingFreshCount_eq relation,
     packetConstraints_totalFreshCount relation]
@@ -1332,7 +1332,7 @@ theorem complete_arithmeticRows
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
       (emittedConstraints logicalWidth publicFits)) :
     ∃ completed,
-      AgreesOutside env completed PiCCSInvocations.invocationCeiling 23748 ∧
+      AgreesOutside env completed PiCCSInvocations.invocationCeiling 2956 ∧
         R1CS.RowsHold completed
           ((PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
             Rows.CompiledRow.toR1CS) := by
@@ -1344,7 +1344,7 @@ theorem complete_arithmeticRows
   have totalFresh := emittedConstraints_totalFreshCount relation
   have sourceAgreesFixed : AgreesOutside
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) source
-      PiCCSArithmetic.initialClaimFreshStart 23748 := by
+      PiCCSArithmetic.initialClaimFreshStart 2956 := by
     rw [totalFresh] at sourceAgrees
     exact sourceAgrees
   have mappedStart :
@@ -1366,25 +1366,25 @@ theorem complete_arithmeticRows
     norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
   have targetEndPrivate :
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-          PiCCSArithmetic.initialClaimFreshStart + 23748 ≤
+          PiCCSArithmetic.initialClaimFreshStart + 2956 ≤
         NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
     rw [mappedStart, PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
     norm_num
   let completed :=
     NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
-      PiCCSArithmetic.initialClaimFreshStart 23748
+      PiCCSArithmetic.initialClaimFreshStart 2956
   refine ⟨completed, ?_, ?_⟩
   · rw [← mappedStart]
     exact
       NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
-        env source PiCCSArithmetic.initialClaimFreshStart 23748
+        env source PiCCSArithmetic.initialClaimFreshStart 2956
   · rw [arithmeticRows_toR1CS_eq relation]
     exact
       NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
         (R1CS.lowerConstraints (emittedConstraints logicalWidth publicFits)
           PiCCSArithmetic.initialClaimFreshStart).rows env source
-        PiCCSArithmetic.initialClaimFreshStart 23748 startLocal
+        PiCCSArithmetic.initialClaimFreshStart 2956 startLocal
         targetEndPrivate sourceAgreesFixed sourceRows
 
 end NightstreamFPrime.Export.Stage1.PiCCSCompleteness

@@ -514,6 +514,67 @@ private theorem directRecipeRow_row_varsSatisfy (output : Nat)
                     LinearCombination.VarsSatisfy.ofVar output allowed
                       outputAllowed⟩
 
+private theorem rankOneConstraint_row_varsSatisfy (expression : Expr)
+    (allowed : Nat → Prop) (scope : expression.VarsSatisfy allowed)
+    (result : DirectConstraintResult expression)
+    (found : rankOneConstraint expression = some result) :
+    result.row.VarsSatisfy allowed := by
+  match expression, scope, result, found with
+  | .add constant (.mul (.const coefficient) (.mul left right)), scope, result,
+      found =>
+      by_cases coefficientEquals : coefficient = -1
+      · rw [rankOneConstraint, dif_pos coefficientEquals] at found
+        cases constantEq : lowerAffine constant with
+        | none => simp [constantEq] at found
+        | some loweredConstant =>
+            cases leftEq : lowerAffine left with
+            | none => simp [constantEq, leftEq] at found
+            | some loweredLeft =>
+                cases rightEq : lowerAffine right with
+                | none => simp [constantEq, leftEq, rightEq] at found
+                | some loweredRight =>
+                    simp only [constantEq, leftEq, rightEq,
+                      Option.some.injEq] at found
+                    subst result
+                    exact ⟨lowerAffine_varsSatisfy left allowed scope.2.2.1
+                        loweredLeft leftEq,
+                      lowerAffine_varsSatisfy right allowed scope.2.2.2
+                        loweredRight rightEq,
+                      lowerAffine_varsSatisfy constant allowed scope.1
+                        loweredConstant constantEq⟩
+      · rw [rankOneConstraint, dif_neg coefficientEquals] at found
+        cases found
+  | .var _, _, _, found => cases found
+  | .const _, _, _, found => cases found
+  | .mul _ _, _, _, found => cases found
+  | .add _ (.var _), _, _, found => cases found
+  | .add _ (.const _), _, _, found => cases found
+  | .add _ (.add _ _), _, _, found => cases found
+  | .add _ (.mul (.var _) _), _, _, found => cases found
+  | .add _ (.mul (.add _ _) _), _, _, found => cases found
+  | .add _ (.mul (.mul _ _) _), _, _, found => cases found
+  | .add _ (.mul (.const _) (.var _)), _, _, found => cases found
+  | .add _ (.mul (.const _) (.const _)), _, _, found => cases found
+  | .add _ (.mul (.const _) (.add _ _)), _, _, found => cases found
+
+private theorem affineOrRankOne_row_varsSatisfy (expression : Expr)
+    (allowed : Nat → Prop) (scope : expression.VarsSatisfy allowed)
+    (result : DirectConstraintResult expression)
+    (found : affineOrRankOneConstraint expression = some result) :
+    result.row.VarsSatisfy allowed := by
+  unfold affineOrRankOneConstraint at found
+  cases affineEq : affineConstraint expression with
+  | some lowered =>
+      rw [affineEq] at found
+      simp only [Option.some.injEq] at found
+      subst result
+      exact affineConstraint_row_varsSatisfy expression allowed scope lowered
+        affineEq
+  | none =>
+      rw [affineEq] at found
+      exact rankOneConstraint_row_varsSatisfy expression allowed scope result
+        found
+
 private theorem directConstraint_row_varsSatisfy (expression : Expr)
     (allowed : Nat → Prop) (scope : expression.VarsSatisfy allowed)
     (result : DirectConstraintResult expression)
@@ -521,13 +582,13 @@ private theorem directConstraint_row_varsSatisfy (expression : Expr)
     result.row.VarsSatisfy allowed := by
   cases expression with
   | var index =>
-      exact affineConstraint_row_varsSatisfy (.var index) allowed scope result
+      exact affineOrRankOne_row_varsSatisfy (.var index) allowed scope result
         found
   | const value =>
-      exact affineConstraint_row_varsSatisfy (.const value) allowed scope result
+      exact affineOrRankOne_row_varsSatisfy (.const value) allowed scope result
         found
   | mul left right =>
-      exact affineConstraint_row_varsSatisfy (.mul left right) allowed scope
+      exact affineOrRankOne_row_varsSatisfy (.mul left right) allowed scope
         result found
   | add left right =>
       cases left with
@@ -556,35 +617,35 @@ private theorem directConstraint_row_varsSatisfy (expression : Expr)
                       (.add (.var output) (.mul (.const coefficient) recipe))
                       allowed scope result found
               | var index =>
-                  exact affineConstraint_row_varsSatisfy
+                  exact affineOrRankOne_row_varsSatisfy
                     (.add (.var output) (.mul (.var index) recipe)) allowed
                     scope result found
               | add first second =>
-                  exact affineConstraint_row_varsSatisfy
+                  exact affineOrRankOne_row_varsSatisfy
                     (.add (.var output) (.mul (.add first second) recipe))
                     allowed scope result found
               | mul first second =>
-                  exact affineConstraint_row_varsSatisfy
+                  exact affineOrRankOne_row_varsSatisfy
                     (.add (.var output) (.mul (.mul first second) recipe))
                     allowed scope result found
           | var index =>
-              exact affineConstraint_row_varsSatisfy
+              exact affineOrRankOne_row_varsSatisfy
                 (.add (.var output) (.var index)) allowed scope result found
           | const value =>
-              exact affineConstraint_row_varsSatisfy
+              exact affineOrRankOne_row_varsSatisfy
                 (.add (.var output) (.const value)) allowed scope result found
           | add first second =>
-              exact affineConstraint_row_varsSatisfy
+              exact affineOrRankOne_row_varsSatisfy
                 (.add (.var output) (.add first second)) allowed scope result
                 found
       | const value =>
-          exact affineConstraint_row_varsSatisfy
+          exact affineOrRankOne_row_varsSatisfy
             (.add (.const value) right) allowed scope result found
       | add first second =>
-          exact affineConstraint_row_varsSatisfy
+          exact affineOrRankOne_row_varsSatisfy
             (.add (.add first second) right) allowed scope result found
       | mul first second =>
-          exact affineConstraint_row_varsSatisfy
+          exact affineOrRankOne_row_varsSatisfy
             (.add (.mul first second) right) allowed scope result found
 
 theorem lowerConstraint_rows_varsSatisfy (expression : Expr) (start : Nat)

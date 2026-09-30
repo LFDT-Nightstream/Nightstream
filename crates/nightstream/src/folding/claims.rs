@@ -37,11 +37,12 @@ impl RunningInstance {
         if m_in > s.m || m_in % D != 0 {
             return Err("canonical zero public input shape");
         }
-        let ell =
-            s.n.max(neo_reductions::common::superneo_carrier_width(s.m))
-                .next_power_of_two()
-                .max(2)
-                .trailing_zeros() as usize;
+        let ell = s
+            .domain_rows()
+            .max(neo_reductions::common::superneo_carrier_width(s.m))
+            .next_power_of_two()
+            .max(2)
+            .trailing_zeros() as usize;
         let claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
             X: Mat::virtual_constant(D, superneo_public_x_cols(m_in), F::ZERO),

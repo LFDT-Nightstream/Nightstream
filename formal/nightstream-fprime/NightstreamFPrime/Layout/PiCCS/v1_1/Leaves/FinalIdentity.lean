@@ -175,7 +175,8 @@ private theorem directConstraint_sub_add_eq_none
   cases left <;>
     simp [R1CS.directConstraint, R1CS.directRecipeRow,
       R1CS.productSumRecipeRow?_eq_none_of_rest _ _ _ secondNone,
-      R1CS.affineConstraint, R1CS.lowerAffine, firstNone]
+      R1CS.affineOrRankOneConstraint, R1CS.affineConstraint,
+      R1CS.rankOneConstraint, R1CS.lowerAffine, firstNone]
 
 private theorem lowerAffine_add_eq_none_of_left (left right : Expr)
     (leftNone : R1CS.lowerAffine left = none) :

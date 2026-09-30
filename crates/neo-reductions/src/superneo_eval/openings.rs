@@ -35,7 +35,7 @@ impl SuperneoEvalCache {
             .ok_or_else(|| PiCcsError::InvalidInput("opening cache shape is inconsistent".into()))?;
         let variables = (usize::BITS - rows.max(width).saturating_sub(1).leading_zeros()) as usize;
         if width % D != 0
-            || point.len() != variables
+            || point.len() < variables
             || witnesses
                 .iter()
                 .any(|witness| witness.block_len() != width / D || !witness.imag_all_zero)

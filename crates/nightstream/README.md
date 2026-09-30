@@ -298,10 +298,10 @@ verifier component and binds the resulting application and circuit identity.
 
 Each `Circuit` uses the production commitment-key prefix required by its
 application. Private input words plus generated local words must be at most
-**2,634,105**. The logical width is
-`146,262,276 + 41 × (private_words + local_words)`, and the maximum key supports
+**2,950,283**. The logical width is
+`133,298,978 + 41 × (private_words + local_words)`, and the maximum key supports
 254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
-uses 2,714,407 columns; this smaller prefix is not the application capacity limit.
+uses 2,474,346 columns; this smaller prefix is not the application capacity limit.
 The exported row and domain checks also apply. See the
 [capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 

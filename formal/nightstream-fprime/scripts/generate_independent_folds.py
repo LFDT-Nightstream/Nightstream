@@ -21,7 +21,7 @@ from check_lean_fold import Check, compare_caller, compare_source, package_pin
 from project_replay_sources import BLOCKS, LOGICAL, read, require
 from lean_graph.policy import CAPS
 
-ROWS, CARRIER = 3464126, BLOCKS * 54
+ROWS, CARRIER = 3147948, BLOCKS * 54
 TOOLCHAIN = "nightstream-lean-4.32.2-3019a32c"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 

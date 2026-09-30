@@ -94,56 +94,10 @@ private theorem constraints_affine
     · exact contextAssertions_affine _ _ inputs.outputState
         inputs.expectedContext expression outputContextMember
 
-private theorem directConstraint_ne_none_of_affine (expression : Expr)
-    (affine : R1CS.IsAffine expression) :
-    R1CS.directConstraint expression ≠ none := by
-  rcases affine with ⟨lowered, loweredEq⟩
-  cases expression with
-  | var index =>
-      simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-  | const value =>
-      simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-  | mul left right =>
-      simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-  | add left right =>
-      cases left with
-      | var output =>
-          cases right with
-          | mul factor recipe =>
-              cases factor with
-              | const coefficient =>
-                  by_cases coefficientEq : coefficient = -1
-                  · cases recipeEq : R1CS.directRecipeRow output recipe <;>
-                      simp [R1CS.directConstraint, coefficientEq, recipeEq,
-                        R1CS.affineConstraint, loweredEq]
-                  · simp [R1CS.directConstraint, coefficientEq,
-                      R1CS.affineConstraint, loweredEq]
-              | var index =>
-                  simp [R1CS.directConstraint, R1CS.affineConstraint,
-                    loweredEq]
-              | add first second =>
-                  simp [R1CS.directConstraint, R1CS.affineConstraint,
-                    loweredEq]
-              | mul first second =>
-                  simp [R1CS.directConstraint, R1CS.affineConstraint,
-                    loweredEq]
-          | var index =>
-              simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-          | const value =>
-              simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-          | add first second =>
-              simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-      | const value =>
-          simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-      | add first second =>
-          simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-      | mul first second =>
-          simp [R1CS.directConstraint, R1CS.affineConstraint, loweredEq]
-
 private theorem constraintFreshCount_eq_zero_of_affine (expression : Expr)
     (affine : R1CS.IsAffine expression) :
     R1CS.constraintFreshCount expression = 0 := by
-  have notNone := directConstraint_ne_none_of_affine expression affine
+  have notNone := R1CS.directConstraint_ne_none_of_affine expression affine
   unfold R1CS.constraintFreshCount
   cases equal : R1CS.directConstraint expression with
   | none => exact False.elim (notNone equal)
@@ -152,7 +106,7 @@ private theorem constraintFreshCount_eq_zero_of_affine (expression : Expr)
 private theorem constraintRowCount_eq_one_of_affine (expression : Expr)
     (affine : R1CS.IsAffine expression) :
     R1CS.constraintRowCount expression = 1 := by
-  have notNone := directConstraint_ne_none_of_affine expression affine
+  have notNone := R1CS.directConstraint_ne_none_of_affine expression affine
   unfold R1CS.constraintRowCount
   cases equal : R1CS.directConstraint expression with
   | none => exact False.elim (notNone equal)

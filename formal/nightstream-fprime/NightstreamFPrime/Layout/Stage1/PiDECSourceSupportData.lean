@@ -64,22 +64,22 @@ def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ Spartan.sourceToSpartan source = column
 
 @[simp] theorem parentCommitmentStart_eq :
-    parentCommitmentStart = 19471890 := by
+    parentCommitmentStart = 19451848 := by
   rfl
 
 @[simp] theorem parentPublicInputStart_eq :
-    parentPublicInputStart = 19477398 := by
+    parentPublicInputStart = 19457356 := by
   rfl
 
-@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 19479396 := by
+@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 19459354 := by
   rfl
 
-@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 19503696 := by
+@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 19483654 := by
   rfl
 
 @[simp] theorem parentStarts_eq :
     [parentCommitmentStart, parentPublicInputStart, parentEvalKStart,
-      parentEvalAStart] = [19471890, 19477398, 19479396, 19503696] := by
+      parentEvalAStart] = [19451848, 19457356, 19459354, 19483654] := by
   simp
 
 theorem parentCommitment (column : Nat)

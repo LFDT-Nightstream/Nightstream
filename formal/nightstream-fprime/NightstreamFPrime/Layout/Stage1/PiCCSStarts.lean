@@ -45,7 +45,7 @@ def sumcheckRowStart : Nat := initialClaimRowStart + 38877
 def evalKRowStart : Nat := sumcheckRowStart + 812
 def evalARowStart : Nat := evalKRowStart + 3364
 def ccsRowStart : Nat := evalARowStart + 37060
-def normRowStart : Nat := ccsRowStart + 20794
+def normRowStart : Nat := ccsRowStart + 752
 def finalIdentityRowStart : Nat := normRowStart + 800
 def outputBindingRowStart : Nat := finalIdentityRowStart + 42458
 
@@ -66,7 +66,7 @@ def sumcheckLogicalStart : Nat := initialClaimLogicalStart + 38877
 def evalKLogicalStart : Nat := sumcheckLogicalStart + 756
 def evalALogicalStart : Nat := evalKLogicalStart + 2699
 def ccsLogicalStart : Nat := evalALogicalStart + 36395
-def normLogicalStart : Nat := ccsLogicalStart + 2
+def normLogicalStart : Nat := ccsLogicalStart + 752
 def finalIdentityLogicalStart : Nat := normLogicalStart + 48
 def outputBindingWitnessStart : Nat := finalIdentityLogicalStart + 41582
 
@@ -84,7 +84,7 @@ theorem roundTranscriptWitnessStart_eq :
   rw [challengeWitnessStart_eq]
 
 theorem outputBindingWitnessStart_eq :
-    outputBindingWitnessStart = 15297219 := by
+    outputBindingWitnessStart = 15297969 := by
   unfold outputBindingWitnessStart finalIdentityLogicalStart
     normLogicalStart ccsLogicalStart evalALogicalStart evalKLogicalStart
     sumcheckLogicalStart initialClaimLogicalStart
@@ -107,7 +107,7 @@ theorem outputBindingWitnessStart_matches
 
 /-- Generic R1CS multiplication columns begin after all PiCCS logical
 variables. -/
-def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 4621927
+def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 4622677
 
 theorem logicalFreshBase_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -129,7 +129,7 @@ def sumcheckFreshStart : Nat := initialClaimFreshStart
 def evalKFreshStart : Nat := sumcheckFreshStart
 def evalAFreshStart : Nat := evalKFreshStart + 665
 def ccsFreshStart : Nat := evalAFreshStart + 665
-def normFreshStart : Nat := ccsFreshStart + 20792
+def normFreshStart : Nat := ccsFreshStart
 def finalIdentityFreshStart : Nat := normFreshStart + 752
 def outputBindingFreshStart : Nat := finalIdentityFreshStart + 665 + 209
 

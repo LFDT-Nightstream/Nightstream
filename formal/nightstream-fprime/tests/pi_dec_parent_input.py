@@ -8,7 +8,7 @@ from threading import Thread
 
 
 # The selected setup and field; these are existing production dimensions.
-BLOCKS = 2_714_407
+BLOCKS = 2_474_346
 MODULUS = 2**64 - 2**32 + 1
 LANES = 54
 
@@ -51,7 +51,7 @@ def check_zero_output(output, first, last, point=None):
     values = json.loads(output.read_text())
     assert isinstance(values, list) and len(values) == 6, "complete matrix range"
     assert all(type(word) is int for word in values[:4]), "numeric range identity"
-    assert values[:4] == [1, 3_464_126, first, last], "selected range identity"
+    assert values[:4] == [1, 3_147_948, first, last], "selected range identity"
     assert isinstance(values[4], list) and len(values[4]) == 28, "complete C-derived point"
     for pair in values[4]:
         assert isinstance(pair, list) and len(pair) == 2, "complete point coefficient"
@@ -222,7 +222,7 @@ def check_batches(binary, ccs, directory):
         ("invalid_block", 19, 0, 1, "invalid selected matrix block"),
         ("empty_range", 0, 0, 0, "invalid selected matrix row range"),
         ("reversed_range", 0, 1, 0, "invalid selected matrix row range"),
-        ("past_range", 0, 0, 3_464_126, "invalid selected matrix row range"),
+        ("past_range", 0, 0, 3_147_948, "invalid selected matrix row range"),
         ("poseidon_start", 0, 1, 86, "Poseidon range must contain complete 86-row invocations"),
         ("poseidon_end", 0, 0, 1, "Poseidon range must contain complete 86-row invocations"),
         ("phi81_start", 10, 1, 108, "Phi81 range must contain complete 108-row invocations"),
@@ -286,7 +286,7 @@ def main():
     check_case(binary, ccs, directory, "reversed_invocation_range", [stream()],
                "invalid selected matrix row range", first=1, last=0)
     check_case(binary, ccs, directory, "past_invocation_range", [stream()],
-               "invalid selected matrix row range", last=3_464_126)
+               "invalid selected matrix row range", last=3_147_948)
     check_case(binary, ccs, directory, "incomplete_poseidon_invocation", [stream()],
                "Poseidon range must contain complete 86-row invocations", last=1)
     check_batches(binary, ccs, directory)

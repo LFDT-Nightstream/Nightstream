@@ -363,7 +363,7 @@ theorem finalRowOffset_eq_add
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     finalRowOffset interface offset =
-      offset + (4471987 + productionShape.cubeVariables *
+      offset + (4472737 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound +
         SumcheckChain.privateCount degreeBound) := by
   unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
@@ -374,7 +374,7 @@ theorem finalRowOffset_eq_add
     EvalKTerminal.privateCount, InitialClaim.privateCount]
   omega
 
-/-- The production degree-nine PiCCS endpoint advances by exactly 4,581,918
+/-- The production degree-nine PiCCS endpoint advances by exactly 4,622,677
 private variables. -/
 theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
     {logicalWidth degreeBound : Nat}
@@ -382,7 +382,7 @@ theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    finalRowOffset interface offset = offset + 4621927 := by
+    finalRowOffset interface offset = offset + 4622677 := by
   rw [finalRowOffset_eq_add, degreeEq]
   norm_num [RoundTranscript.perRoundRecipeCount, SumcheckChain.privateCount,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,

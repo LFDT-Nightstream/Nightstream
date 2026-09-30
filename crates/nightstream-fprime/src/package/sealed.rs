@@ -231,7 +231,7 @@ impl LoadedPerApplicationPackage {
     }
 
     /// Build the CCS dimensions and polynomial. Matrix rows stay in the
-    /// decoded program.
+    /// decoded program. The joint domain is the relation's declared cube.
     pub fn ccs_structure_header(&self) -> Result<CcsStructure<Goldilocks>, PackageError> {
         let relation = self.ccs_relation();
         let terms = relation
@@ -260,6 +260,7 @@ impl LoadedPerApplicationPackage {
             relation.matrix_sources().len(),
             polynomial,
         )
+        .and_then(|header| header.with_domain_variables(relation.cube_variables()))
         .map_err(|_| PackageError::Invalid("logical CCS relation header"))?;
         if (structure.max_degree() as usize).checked_add(1) != Some(relation.degree_bound()) {
             return Err(PackageError::Invalid("CCS polynomial strict degree bound"));

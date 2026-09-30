@@ -48,7 +48,7 @@ pub fn build_joint_dims(
 
     build_joint_dims_for_shape(
         params,
-        structure.n,
+        structure.domain_rows(),
         structure.m,
         structure.t(),
         structure.max_degree(),

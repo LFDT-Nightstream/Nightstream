@@ -212,11 +212,12 @@ fn validate_v1_1_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> 
 fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let ell_n =
-        s.n.max(assignment_width)
-            .next_power_of_two()
-            .max(2)
-            .trailing_zeros() as usize;
+    let ell_n = s
+        .domain_rows()
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
 
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match the joint row point"));

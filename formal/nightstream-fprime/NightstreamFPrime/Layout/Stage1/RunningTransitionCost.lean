@@ -22,11 +22,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def logicalColumnCount : Nat :=
   phaseOffset + RunningTransition.exactPrivateCount
 
-/-- One binding constraint, one mux per running word, and one base-state
-constraint per state word determine the fresh-column count. -/
-def exactFreshCount : Nat :=
-  3 + RunningTransition.exactWordCount * 6 +
-    RunningTransition.stateWordCount * 4
+/-- Every running-transition constraint is one rank-one row, so the
+transition allocates no fresh column. -/
+def exactFreshCount : Nat := 0
 
 /-- The running transition ends after its logical and R1CS fresh columns. -/
 def physicalEnd : Nat := logicalColumnCount + exactFreshCount
@@ -232,207 +230,64 @@ theorem logicalConstraints_eq
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     logicalConstraints logicalWidth publicFits =
-      RunningTransition.constraints (interface logicalWidth publicFits)
-        phaseOffset := by
+      RunningTransition.flagConstraint (interface logicalWidth publicFits)
+          phaseOffset ::
+        RunningTransition.constraints (interface logicalWidth publicFits)
+          phaseOffset := by
   exact RunningTransition.flatConstraints_operations _ _
 
-private theorem binding_directConstraint_eq_none
+private theorem runningWord_affine {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (linear : RunningMulFree running) (index : RunningTransition.WordIndex) :
+    R1CS.IsAffine
+      (RunningTransition.runningWord running index - Expr.const
+        (RunningTransition.defaultWord
+          (logicalWidth := logicalWidth) (publicFits := publicFits) index)) :=
+  R1CS.IsAffine.add
+    (isAffine_of_mulCount_zero _ (runningWord_mulCount running linear index))
+    (R1CS.IsAffine.const_mul _ (R1CS.isAffine_const _))
+
+private theorem baseFlag_affine
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    R1CS.directConstraint
-      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-        phaseOffset) = none := by
-  rfl
+    R1CS.IsAffine
+      (RunningTransition.baseFlag (interface logicalWidth publicFits)
+        phaseOffset) :=
+  R1CS.IsAffine.add (R1CS.isAffine_const _)
+    (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var _))
 
-private theorem binding_mulCount_eq
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
-    R1CS.mulCount
-      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-        phaseOffset) = 3 := by
-  rfl
-
-private theorem mux_directConstraint_eq_none
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (index : RunningTransition.WordIndex) :
-    R1CS.directConstraint
-      (RunningTransition.muxConstraint (interface logicalWidth publicFits)
-        phaseOffset index) = none := by
-  let flag : Expr := iterationExpr * Expr.var phaseOffset
-  let base : Expr := 1 - flag
-  let recursiveWord : Expr := RunningTransition.runningWord
-    (recursiveRunningExpr logicalWidth publicFits) index
-  let outputWord : Expr := RunningTransition.runningWord
-    (outputRunningExpr logicalWidth publicFits) index
-  let selected : Expr :=
-    base * Expr.const
-        (RunningTransition.defaultWord
-          (logicalWidth := logicalWidth) (publicFits := publicFits) index) +
-      flag * recursiveWord
-  have flagNone : R1CS.lowerAffine flag = none := by
-    rfl
-  have baseNone : R1CS.lowerAffine base = none := by
-    change R1CS.lowerAffine
-      (.add (.const 1) (.mul (.const (-1)) flag)) = none
-    simp only [R1CS.lowerAffine, flagNone]
-  have baseProductNone : R1CS.lowerAffine
-      (base * Expr.const
-        (RunningTransition.defaultWord
-          (logicalWidth := logicalWidth) (publicFits := publicFits) index)) =
-      none := by
-    change R1CS.lowerAffine (.mul base (.const _)) = none
-    rfl
-  have selectedNone : R1CS.lowerAffine selected = none := by
-    change R1CS.lowerAffine
-      (.add
-        (base * Expr.const
-          (RunningTransition.defaultWord
-            (logicalWidth := logicalWidth) (publicFits := publicFits) index))
-        (flag * recursiveWord)) = none
-    simp only [R1CS.lowerAffine, baseProductNone]
-  have wholeNone : R1CS.lowerAffine (selected - outputWord) = none := by
-    change R1CS.lowerAffine
-      (.add selected (.mul (.const (-1)) outputWord)) = none
-    simp only [R1CS.lowerAffine, selectedNone]
-  change R1CS.directConstraint (selected - outputWord) = none
-  calc
-    R1CS.directConstraint (selected - outputWord) =
-        R1CS.affineConstraint (selected - outputWord) := by
-      rfl
-    _ = none := by
-      simp [R1CS.affineConstraint, wholeNone]
-
-private theorem mux_mulCount_eq
+/-- The flag recipe and every assertion are one rank-one row. -/
+private theorem constraintFreshCount_eq_zero
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : RunningTransition.WordIndex) :
-    R1CS.mulCount
-      (RunningTransition.muxConstraint (interface logicalWidth publicFits)
-        phaseOffset index) = 6 := by
-  have recursiveCount := runningWord_mulCount
-    (recursiveRunningExpr logicalWidth publicFits) (recursiveMulFree relation) index
-  have outputCount := runningWord_mulCount
-    (outputRunningExpr logicalWidth publicFits)
-    (outputMulFree logicalWidth publicFits) index
-  change R1CS.mulCount
-    (((1 - (iterationExpr * Expr.var phaseOffset)) * Expr.const _ +
-        (iterationExpr * Expr.var phaseOffset) *
-          RunningTransition.runningWord
-            (recursiveRunningExpr logicalWidth publicFits) index) -
-      RunningTransition.runningWord
-        (outputRunningExpr logicalWidth publicFits) index) = 6
-  norm_num [R1CS.mulCount, iterationExpr, recursiveCount, outputCount]
-
-private theorem binding_freshCount_eq
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
-    R1CS.constraintFreshCount
-      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-        phaseOffset) = 3 := by
-  rw [R1CS.constraintFreshCount, binding_directConstraint_eq_none,
-    binding_mulCount_eq]
-
-private theorem mux_freshCount_eq
-    {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : RunningTransition.WordIndex) :
-    R1CS.constraintFreshCount
-      (RunningTransition.muxConstraint (interface logicalWidth publicFits)
-        phaseOffset index) = 6 := by
-  rw [R1CS.constraintFreshCount, mux_directConstraint_eq_none,
-    mux_mulCount_eq relation index]
-
-private theorem baseState_directConstraint_eq_none
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (index : RunningTransition.StateIndex) :
-    R1CS.directConstraint
-      (RunningTransition.baseStateConstraint
-        (interface logicalWidth publicFits) phaseOffset index) = none := by
-  rfl
-
-private theorem baseState_mulCount_eq
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (index : RunningTransition.StateIndex) :
-    R1CS.mulCount
-      (RunningTransition.baseStateConstraint
-        (interface logicalWidth publicFits) phaseOffset index) = 4 := by
-  change R1CS.mulCount
-    ((1 - (iterationExpr * Expr.var phaseOffset)) *
-      (initialStateExpr index - currentStateExpr index)) = 4
-  norm_num [R1CS.mulCount, iterationExpr, initialStateExpr, currentStateExpr]
-
-private theorem baseState_freshCount_eq
-    (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
-    (index : RunningTransition.StateIndex) :
-    R1CS.constraintFreshCount
-      (RunningTransition.baseStateConstraint
-        (interface logicalWidth publicFits) phaseOffset index) = 4 := by
-  rw [R1CS.constraintFreshCount,
-    baseState_directConstraint_eq_none,
-    baseState_mulCount_eq]
-
-private theorem listSumOfFn {count : Nat} (values : Fin count → Nat) :
-    (List.ofFn values).sum = ∑ index, values index := by
-  induction count with
-  | zero => rfl
-  | succ count inductionHypothesis =>
-      simp [List.ofFn_succ, Fin.sum_univ_succ, inductionHypothesis]
-
-private theorem totalFreshCount_cons_ofFn {count : Nat}
-    (head : Expr) (tail : Fin count → Expr) (headCost tailCost : Nat)
-    (headCostEq : R1CS.constraintFreshCount head = headCost)
-    (tailCostEq : ∀ index,
-      R1CS.constraintFreshCount (tail index) = tailCost) :
-    R1CS.totalFreshCount (head :: List.ofFn tail) =
-      headCost + count * tailCost := by
-  unfold R1CS.totalFreshCount
-  rw [List.map_cons, List.sum_cons, List.map_ofFn]
-  change R1CS.constraintFreshCount head +
-      (List.ofFn fun index : Fin count =>
-        R1CS.constraintFreshCount (tail index)).sum =
-    headCost + count * tailCost
-  rw [headCostEq, listSumOfFn]
-  have sumEq :
-      (∑ index : Fin count, R1CS.constraintFreshCount (tail index)) =
-        ∑ _index : Fin count, tailCost := by
-    apply Finset.sum_congr rfl
-    intro index _member
-    exact tailCostEq index
-  rw [sumEq, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
-  simp
-
-private theorem totalFreshCount_ofFn {count : Nat}
-    (items : Fin count → Expr) (itemCost : Nat)
-    (costEq : ∀ index, R1CS.constraintFreshCount (items index) = itemCost) :
-    R1CS.totalFreshCount (List.ofFn items) = count * itemCost := by
-  unfold R1CS.totalFreshCount
-  rw [List.map_ofFn]
-  change (List.ofFn (fun index : Fin count =>
-    R1CS.constraintFreshCount (items index))).sum = count * itemCost
-  rw [listSumOfFn]
-  have sumEq :
-      (∑ index : Fin count, R1CS.constraintFreshCount (items index)) =
-        ∑ _index : Fin count, itemCost := by
-    apply Finset.sum_congr rfl
-    intro index _member
-    exact costEq index
-  rw [sumEq, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
-  simp
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
+    ∀ expression ∈ logicalConstraints logicalWidth publicFits,
+      R1CS.constraintFreshCount expression = 0 := by
+  have iterationAffine : R1CS.IsAffine iterationExpr := R1CS.isAffine_var _
+  intro expression member
+  rw [logicalConstraints_eq] at member
+  simp only [RunningTransition.constraints, List.mem_cons,
+    List.mem_append] at member
+  rcases member with rfl | rfl | muxMember | stateMember
+  · exact R1CS.constraintFreshCount_recipe_eq_zero _ _
+      (R1CS.IsDirectRecipe.mul _ iterationAffine (R1CS.isAffine_var _))
+  · exact R1CS.constraintFreshCount_rankOne_eq_zero _ _ _
+      (R1CS.isAffine_const _) iterationAffine
+      (baseFlag_affine logicalWidth publicFits)
+  · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
+    exact R1CS.constraintFreshCount_rankOne_eq_zero _ _ _
+      (runningWord_affine _ (outputMulFree logicalWidth publicFits) index)
+      (R1CS.isAffine_var _)
+      (runningWord_affine _ (recursiveMulFree relation) index)
+  · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
+    exact R1CS.constraintFreshCount_rankOne_eq_zero _ _ _
+      (R1CS.isAffine_const _) (baseFlag_affine logicalWidth publicFits)
+      (R1CS.IsAffine.add (R1CS.isAffine_var _)
+        (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var _)))
 
 /-- Structural lowering uses exactly the fresh columns declared by the footprint. -/
 theorem totalFreshCount_eq_exactFreshCount
@@ -441,50 +296,23 @@ theorem totalFreshCount_eq_exactFreshCount
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
-      exactFreshCount := by
-  rw [logicalConstraints_eq]
-  change R1CS.totalFreshCount
-      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-          phaseOffset ::
-        (List.ofFn (RunningTransition.muxConstraint
-            (interface logicalWidth publicFits) phaseOffset) ++
-          List.ofFn (RunningTransition.baseStateConstraint
-            (interface logicalWidth publicFits) phaseOffset))) = exactFreshCount
-  rw [show
-    RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-          phaseOffset ::
-        (List.ofFn (RunningTransition.muxConstraint
-            (interface logicalWidth publicFits) phaseOffset) ++
-          List.ofFn (RunningTransition.baseStateConstraint
-            (interface logicalWidth publicFits) phaseOffset)) =
-      (RunningTransition.bindingConstraint (interface logicalWidth publicFits)
-          phaseOffset ::
-        List.ofFn (RunningTransition.muxConstraint
-          (interface logicalWidth publicFits) phaseOffset)) ++
-      List.ofFn (RunningTransition.baseStateConstraint
-        (interface logicalWidth publicFits) phaseOffset) by rfl]
-  rw [R1CS.totalFreshCount_append]
-  rw [totalFreshCount_cons_ofFn _ _ 3 6
-      (binding_freshCount_eq logicalWidth publicFits)
-      (mux_freshCount_eq relation),
-    totalFreshCount_ofFn _ 4
-      (baseState_freshCount_eq logicalWidth publicFits)]
-  rfl
+      exactFreshCount :=
+  R1CS.totalFreshCount_eq_zero_of_noFresh _
+    (constraintFreshCount_eq_zero relation)
 
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
-      296137 := by
-  exact totalFreshCount_eq_exactFreshCount relation
+    R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) = 0 :=
+  totalFreshCount_eq_exactFreshCount relation
 
 theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (logicalConstraints logicalWidth publicFits).length = 49358 := by
+    (logicalConstraints logicalWidth publicFits).length = 49359 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
@@ -493,7 +321,7 @@ theorem totalRowCount_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
-      345495 := by
+      49359 := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     totalFreshCount_eq relation, logicalConstraints_length_eq]
 

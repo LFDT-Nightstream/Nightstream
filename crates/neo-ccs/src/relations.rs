@@ -21,6 +21,10 @@ pub struct CcsStructure<F> {
     pub n: usize,
     /// m (cols)
     pub m: usize,
+    /// Joint-domain variables pinned by a verifier key. `None` selects the
+    /// smallest cube that holds `n` rows and the ring-padded carrier.
+    #[serde(default)]
+    pub domain_variables: Option<usize>,
 }
 
 impl<F: Field> CcsStructure<F> {
@@ -62,7 +66,13 @@ impl<F: Field> CcsStructure<F> {
             })
             .collect();
 
-        Ok(Self { matrices, f, n, m })
+        Ok(Self {
+            matrices,
+            f,
+            n,
+            m,
+            domain_variables: None,
+        })
     }
 
     /// Create a CCS structure from sparse matrices (CSC / identity).
@@ -98,7 +108,13 @@ impl<F: Field> CcsStructure<F> {
             });
         }
         validate_polynomial(&f, t)?;
-        Ok(Self { matrices, f, n, m })
+        Ok(Self {
+            matrices,
+            f,
+            n,
+            m,
+            domain_variables: None,
+        })
     }
 
     /// Create a matrix-content-free CCS header for a separately verified
@@ -124,7 +140,36 @@ impl<F: Field> CcsStructure<F> {
             f,
             n,
             m,
+            domain_variables: None,
         })
+    }
+
+    /// Pin the joint domain to `2^variables` rows. The rows and the
+    /// ring-padded carrier must fit in it.
+    pub fn with_domain_variables(mut self, variables: usize) -> Result<Self, RelationError> {
+        self.domain_variables = Some(variables);
+        self.validate_domain()?;
+        Ok(self)
+    }
+
+    /// Rows of the joint domain before power-of-two padding.
+    pub fn domain_rows(&self) -> usize {
+        self.domain_variables
+            .map_or(self.n, |variables| self.n.max(1 << variables))
+    }
+
+    fn validate_domain(&self) -> Result<(), RelationError> {
+        let Some(variables) = self.domain_variables else {
+            return Ok(());
+        };
+        let size = u32::try_from(variables)
+            .ok()
+            .and_then(|shift| 1usize.checked_shl(shift))
+            .ok_or(RelationError::InvalidStructure)?;
+        if self.n > size || self.m.div_ceil(D) * D > size {
+            return Err(RelationError::InvalidStructure);
+        }
+        Ok(())
     }
 
     /// Whether all matrix content is owned by a verifier artifact.
@@ -161,6 +206,7 @@ impl<F: Field> CcsStructure<F> {
                 t: self.matrices.len(),
             });
         }
+        self.validate_domain()?;
         validate_polynomial(&self.f, self.matrices.len())
     }
 
@@ -214,7 +260,10 @@ impl CcsStructure<neo_math::Fq> {
         for mj in &self.matrices {
             out.push(transform_ccs_matrix_superneo(mj, bar)?);
         }
-        CcsStructure::new_sparse(out, self.f.clone())
+        Ok(CcsStructure {
+            domain_variables: self.domain_variables,
+            ..CcsStructure::new_sparse(out, self.f.clone())?
+        })
     }
 }
 
@@ -570,7 +619,7 @@ pub fn build_superneo_ring_forms<
     s: &CcsStructure<F>,
     r: &[K],
 ) -> Result<Vec<Vec<[K; D]>>, CcsError> {
-    let n_pad = s.n.max(s.m.div_ceil(D) * D).next_power_of_two();
+    let n_pad = s.domain_rows().max(s.m.div_ceil(D) * D).next_power_of_two();
     let ell = n_pad.trailing_zeros() as usize;
     if r.len() != ell {
         return Err(CcsError::Len {

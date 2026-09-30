@@ -48,7 +48,7 @@ use digit::{
 };
 pub use equality::EqualityWeights;
 pub use matrix_rows::{CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape};
-pub use matrix_window::MatrixWindow;
+pub use matrix_window::{MatrixWindow, RetainedMatrixWindow};
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;

@@ -13,7 +13,8 @@ use neo_reductions::{
     superneo_eval::{
         build_superneo_eval_cache, check_ccs_relation_zero_cached_with_blocks, eval_real_v1_1_openings_from_rows,
         first_unsatisfied_row_from_rows, CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
-        SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoEvalCache, SuperneoZBlocks,
+        RetainedMatrixWindow, SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoEvalCache,
+        SuperneoZBlocks,
     },
     PiCcsError,
 };
@@ -754,4 +755,75 @@ fn run_event_openings_match_expanded_rows_across_block_and_part_boundaries() {
         .all(|matrix| matrix.iter().any(|value| *value != K::ZERO))));
     let actual = eval_real_v1_1_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
     assert_eq!(actual, expected);
+}
+
+/// A source whose owner keeps its complete window.
+struct KeptRows<'a>(PatternRows, &'a RetainedMatrixWindow);
+
+impl MatrixRows for KeptRows<'_> {
+    fn shape(&self) -> MatrixShape {
+        self.0.shape()
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        self.0.visit_rows(rows, sink)
+    }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        Some(self.1)
+    }
+}
+
+#[test]
+fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
+    let slot = RetainedMatrixWindow::default();
+    let kept = KeptRows(PatternRows::new(5), &slot);
+    let plain = PatternRows::new(5);
+    let visits = || kept.0.visits.lock().unwrap().len();
+
+    let expected = MatrixWindow::load_next(&plain, 0..5, usize::MAX).unwrap();
+    let first = MatrixWindow::load_next(&kept, 0..5, usize::MAX).unwrap();
+    assert_eq!(first.rows(), 0..5);
+    assert_eq!(first.storage_bytes(), expected.storage_bytes());
+    assert_eq!(first.workspace_peak_bytes(), expected.workspace_peak_bytes());
+    let built = visits();
+    assert_ne!(built, 0);
+
+    // A second complete load reads no row and shares the first storage.
+    let second = MatrixWindow::load_next(&kept, 0..5, usize::MAX).unwrap();
+    assert_eq!(visits(), built);
+    assert!(std::ptr::eq(first.cache(), second.cache()));
+    assert_eq!(second.workspace_peak_bytes(), expected.workspace_peak_bytes());
+
+    // The reported peak includes the caller's row payload, as for a new load.
+    let payload = 3 * size_of::<F>();
+    let with_payload = MatrixWindow::load_next_with_payload(&kept, 0..5, usize::MAX, payload).unwrap();
+    assert_eq!(visits(), built);
+    assert_eq!(
+        with_payload.workspace_peak_bytes(),
+        MatrixWindow::load_next_with_payload(&plain, 0..5, usize::MAX, payload)
+            .unwrap()
+            .workspace_peak_bytes()
+    );
+
+    // A workspace below the complete window gives the same prefix as a
+    // source without a slot, and a partial request is not served from it.
+    let budget = expected.workspace_peak_bytes() - 1;
+    let prefix = MatrixWindow::load_next(&kept, 0..5, budget).unwrap();
+    assert_eq!(
+        prefix.rows(),
+        MatrixWindow::load_next(&plain, 0..5, budget)
+            .unwrap()
+            .rows()
+    );
+    assert_ne!(prefix.rows(), 0..5);
+    let partial = MatrixWindow::load_next(&kept, 1..5, usize::MAX).unwrap();
+    assert_eq!(partial.rows(), 1..5);
+    assert!(!std::ptr::eq(partial.cache(), first.cache()));
+
+    // The slot serves one source only.
+    assert!(matches!(
+        MatrixWindow::load_next(&KeptRows(PatternRows::new(4), &slot), 0..4, usize::MAX),
+        Err(PiCcsError::InvalidInput(_))
+    ));
 }

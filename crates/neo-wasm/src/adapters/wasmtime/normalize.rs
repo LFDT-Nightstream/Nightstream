@@ -46,6 +46,10 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 /// growth and normalization of same-instance host reentry are unsupported.
 /// Import templates describe an atomic call: a return snapshot cannot recover
 /// intermediate host writes observed during reentry or through shared memory.
+/// A host tail returning directly to the host lowers to Call plus a synthetic Return.
+/// Its terminal result is unobserved advice chosen as zero, not recovered. This
+/// requires result slots to appear only in advice blocks and an export exit with
+/// no output reads, including output-pointer memory reads. Arguments may be absorbed.
 /// Recovery supplies witness values, not independent evidence of the caller's
 /// intended arguments. Bootstrap checks ensure that the declared initialization
 /// reproduces the captured frame; the relation and memory checks validate the
@@ -118,6 +122,7 @@ struct NormalizedStep {
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     host_call_memory: Option<Result<std::collections::BTreeMap<u32, u8>, String>>,
+    host_tail_advice: bool,
     entry_memory: Option<Result<std::collections::BTreeMap<u32, u8>, String>>,
 }
 
@@ -126,7 +131,10 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         return Ok(None);
     };
 
+    // `host_tail::expand` follows each direct host tail with its synthetic Return.
+    let host_tail_advice = super::host_tail::is_direct_host_tail(row);
     let (opcode, immediate_i32) = match row.opcode_decoded {
+        Some(_) if host_tail_advice => (WasmOpcode::Call, row.immediate_i32),
         Some(op) => (op, row.immediate_i32),
         None => return Ok(None),
     };
@@ -279,6 +287,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
         host_call_memory: row.host_call_memory.clone(),
+        host_tail_advice,
         entry_memory: row.entry_memory.clone(),
     }))
 }

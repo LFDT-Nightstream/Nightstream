@@ -34,9 +34,11 @@ pub struct WasmProgramArtifacts {
     pub(crate) trace: WasmTraceLoweringTables,
 }
 
-/// Static proof-bound program tables. PCs are zero-based operator indices
-/// across defined functions in module order, including structural and
-/// unexecuted operators. Byte offsets belong only to the trace adapter.
+/// Static proof-bound program tables. PCs are dense logical instruction indices
+/// across defined functions, including structural and unexecuted operators.
+/// Direct imported `return_call`s lower to `Call` followed by `Return`; their
+/// extra return PC is derived from the bytes, never from the captured witness.
+/// Byte offsets belong only to the trace adapter; Wasmtime executes unchanged bytes.
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
     /// Whether default linear memory 0 is supplied by the host. Its initial
@@ -158,7 +160,17 @@ pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtif
         let payload = payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse wasm payload: {err}")))?;
         builder.consume_payload(payload)?;
     }
-    builder.finish()
+    let artifacts = builder.finish()?;
+    if artifacts.trace.opcode_map.values().any(|op| {
+        matches!(op.decoded, Some((WasmOpcode::ReturnCall, Some(index)))
+            if index < artifacts.trace.imported_function_count)
+    }) {
+        let import_params: Vec<_> = (1..=artifacts.trace.imported_function_count)
+            .map(|fref| artifacts.trace.function_metas[&fref].param_count)
+            .collect();
+        super::host_tail::validate_lowering(wasm_bytes, &import_params)?;
+    }
+    Ok(artifacts)
 }
 
 pub(crate) fn parse_first_component_core_module_artifacts(
@@ -192,9 +204,24 @@ pub(crate) fn parse_first_component_core_module_artifacts(
 pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmBuildError> {
     let mut module = None;
     for payload in Parser::new(0).parse_all(bytes) {
-        if let Payload::ModuleSection { unchecked_range, .. } =
-            payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component: {err}")))?
-        {
+        let payload = payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component: {err}")))?;
+        if let Payload::ComponentCanonicalSection(section) = &payload {
+            for function in section.clone() {
+                if let wasmparser::CanonicalFunction::Lift { options, .. } = function
+                    .map_err(|err| WasmBuildError::Trace(format!("failed to parse canonical function: {err}")))?
+                {
+                    if options
+                        .iter()
+                        .any(|option| matches!(option, wasmparser::CanonicalOption::PostReturn(_)))
+                    {
+                        return Err(WasmBuildError::Unsupported(
+                            "component post-return is unsupported: cleanup arguments are not bound to the preceding core result".into(),
+                        ));
+                    }
+                }
+            }
+        }
+        if let Payload::ModuleSection { unchecked_range, .. } = payload {
             if module.is_some() {
                 return Err(WasmBuildError::Unsupported(
                     "component collector requires exactly one core module; use WasmtimeTraceRegistry to select modules"
@@ -524,6 +551,15 @@ impl ParsedWasmArtifactsBuilder {
                         .read()
                         .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm operator: {err}")))?;
                     let pc_after = u64::from(self.next_pc);
+                    let host_tail = matches!(operator, wasmparser::Operator::ReturnCall { function_index }
+                        if function_index < self.imported_function_count);
+                    if host_tail {
+                        // Reserve one extra logical PC for the synthetic Return.
+                        self.next_pc = self
+                            .next_pc
+                            .checked_add(1)
+                            .ok_or_else(|| WasmBuildError::Unsupported("wasm instruction PC exceeds u32".into()))?;
+                    }
                     let is_function_end = matches!(&operator, wasmparser::Operator::End) && curr_depth == 0;
                     let decoded = match &operator {
                         wasmparser::Operator::Loop { .. } => {
@@ -554,6 +590,7 @@ impl ParsedWasmArtifactsBuilder {
                     let memory = decode_memory_opcode(&operator);
                     let call_return_pc = match &operator {
                         wasmparser::Operator::Call { .. } | wasmparser::Operator::CallIndirect { .. } => Some(pc_after),
+                        wasmparser::Operator::ReturnCall { .. } if host_tail => Some(pc_after),
                         _ => None,
                     };
                     let (call_indirect_type_index, expected_type_id) = match &operator {
@@ -579,7 +616,7 @@ impl ParsedWasmArtifactsBuilder {
                         };
                         self.program_decode.push(WasmProgramDecodeEntry {
                             pc: pc_before,
-                            opcode_code: u32::from(opcode_code(opcode)),
+                            opcode_code: u32::from(opcode_code(if host_tail { WasmOpcode::Call } else { opcode })),
                             local_index: match opcode {
                                 WasmOpcode::LocalGet | WasmOpcode::LocalSet | WasmOpcode::LocalTee => {
                                     immediate.unwrap_or(0)
@@ -626,6 +663,26 @@ impl ParsedWasmArtifactsBuilder {
                         .push((pc_before, u64::from(pc_edge_kind.as_u32())));
                     self.pc_function_refs
                         .push((pc_before, u64::from(function_ref)));
+                    if host_tail {
+                        self.program_decode.push(WasmProgramDecodeEntry {
+                            pc: pc_after,
+                            opcode_code: u32::from(opcode_code(WasmOpcode::Return)),
+                            local_index: 0,
+                            global_index: 0,
+                            table_id: 0,
+                            memory_offset: 0,
+                            call_indirect_type_index: 0,
+                            call_indirect_expected_type_id: 0,
+                            i32_const_value: 0,
+                            i64_const_value_lo: 0,
+                            i64_const_value_hi: 0,
+                            ref_func_ref: 0,
+                        });
+                        self.pc_edge_kinds
+                            .push((pc_after, u64::from(WasmPcEdgeKind::ReturnLike.as_u32())));
+                        self.pc_function_refs
+                            .push((pc_after, u64::from(function_ref)));
+                    }
                     self.opcode_map.insert(
                         (self.defined_function_index, offset),
                         DecodedOpcode {
@@ -747,7 +804,7 @@ impl ParsedWasmArtifactsBuilder {
                         | wasmparser::Operator::ReturnCall { function_index } => {
                             let function_ref = function_index.saturating_add(1);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
-                            if matches!(operator, wasmparser::Operator::Call { .. }) {
+                            if matches!(operator, wasmparser::Operator::Call { .. }) || host_tail {
                                 self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
                             }
                             if function_ref <= self.imported_function_count {

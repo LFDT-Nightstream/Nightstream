@@ -276,17 +276,21 @@ fn tail_call_exit_memory_uses_the_captured_output_pointer() {
 }
 
 #[test]
-fn return_call_to_an_import_remains_explicitly_unsupported() {
+fn indirect_return_call_to_an_import_remains_explicitly_unsupported() {
     let component = wat::parse_str(
         r#"(component
             (type $identity-type (func (param "x" s32) (result s32)))
             (type $run-type (func (result s32)))
             (import "host-identity" (func $host-identity (type $identity-type)))
             (core module $m
-                (import "" "0" (func $identity (param i32) (result i32)))
+                (type $identity-type (func (param i32) (result i32)))
+                (import "" "0" (func $identity (type $identity-type)))
+                (table 1 funcref)
+                (elem (i32.const 0) $identity)
                 (func (export "run") (result i32)
                     i32.const 7
-                    return_call $identity))
+                    i32.const 0
+                    return_call_indirect (type $identity-type)))
             (core func $lowered-identity (canon lower (func $host-identity)))
             (core instance $host
                 (export "0" (func $lowered-identity)))
@@ -313,5 +317,7 @@ fn return_call_to_an_import_remains_explicitly_unsupported() {
     .expect("component trace");
     let err = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect_err("import tail call must fail explicitly");
     assert!(matches!(err, WasmBuildError::Unsupported(_)));
-    assert!(err.to_string().contains("return_call to a host import"));
+    assert!(err
+        .to_string()
+        .contains("return_call_indirect to a host import"));
 }

@@ -38,8 +38,9 @@ pub(super) fn build_trace(
     initial_comm_chain: CommChainState,
     linear_memory: Option<LinearMemoryImage>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
+    let rows = super::super::host_tail::expand(rows)?;
     let mut supported = Vec::new();
-    for row in rows {
+    for row in rows.iter() {
         if let Some(normalized) = normalize_step(row)? {
             supported.push(normalized);
         }
@@ -490,6 +491,17 @@ pub(super) fn build_trace(
                     current.cycle
                 ))
             })?;
+            if current.host_tail_advice {
+                if call_stack_depth_before != 0 {
+                    return Err(WasmBuildError::Unsupported(
+                        "terminal advice requires a tail call returning directly to the host".into(),
+                    ));
+                }
+                let export = &export_boundary.as_ref().expect("turn setup").template;
+                // All terminal host-tail results use advice, including scalar results.
+                // The enclosing turn determines which export's exit template applies.
+                super::super::host_tail::validate_advice(template, export)?;
+            }
             if template.input_count > 0 && next.is_none_or(|row| Some(u64::from(row.pc)) != current.call_return_pc) {
                 return Err(WasmBuildError::Trace(format!(
                     "import memory recovery at cycle {} requires the caller continuation; \

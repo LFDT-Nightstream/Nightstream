@@ -26,6 +26,13 @@ pub trait WasmTraceSink {
 /// rejected: its missing prefix cannot be recovered. An explicitly registered
 /// module with empty bindings is still traced. Use one registry per store.
 /// Capturing a start function does not establish proof semantics for instantiation.
+/// Core-module registration has no canonical ABI metadata: it cannot identify
+/// post-return cleanup or bind its arguments to a preceding component result.
+/// The component collectors reject post-return; this registry alone does not
+/// validate those component-level relationships.
+/// Embedders must not normalize an instance whose captured rows include a failed
+/// invocation, including a guest callback whose failure the host caught before
+/// returning successfully: those rows remain in the trace and are not flagged.
 #[derive(Debug, Default)]
 pub struct WasmtimeTraceRegistry {
     bindings: BTreeMap<Vec<u8>, HostEventBindings>,
@@ -33,6 +40,9 @@ pub struct WasmtimeTraceRegistry {
     ignored_modules: BTreeSet<Vec<u8>>,
     ignored_instances: BTreeSet<u32>,
     instances: BTreeMap<u32, WasmtimeTraceState>,
+    // Activation depth of the latest host tail, until the next captured row.
+    // An unwind below it means the tail's host call failed.
+    last_host_tail_depth: Option<usize>,
     pub(super) error: Option<WasmBuildError>,
 }
 
@@ -112,6 +122,14 @@ impl WasmtimeTraceRegistry {
     /// An error unwinds the current host-to-guest activation. Outer suspended
     /// calls may still return normally if their host catches this error.
     pub(super) fn discard_unwound_imports(&mut self, activation_depth: usize) {
+        if self
+            .last_host_tail_depth
+            .is_some_and(|depth| activation_depth < depth)
+        {
+            self.error = Some(WasmBuildError::Trace(
+                "terminal host tail did not complete successfully".into(),
+            ));
+        }
         for state in self.instances.values_mut() {
             state
                 .pending_imports
@@ -154,6 +172,13 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     activation_depth: usize,
     store: &mut StoreContextMut<'_, T>,
 ) -> Result<(), WasmBuildError> {
+    // Any later guest row ends failure tracking. A later unwind usually belongs to
+    // that execution; during reentry it may still be the tail's host call, which
+    // is deliberately no longer distinguished.
+    store
+        .data_mut()
+        .wasm_trace_registry_mut()
+        .last_host_tail_depth = None;
     let instance = frame
         .instance(&mut *store)
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect frame instance: {err}")))?;
@@ -223,6 +248,26 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     let tables = state.tables.clone();
     let step = state.next_step;
     let mut row = capture_frame(step, frame, store, &tables)?;
+    if super::host_tail::is_direct_host_tail(&row) {
+        if frame
+            .parent(&mut *store)
+            .map_err(|err| WasmBuildError::Trace(err.to_string()))?
+            .is_some()
+        {
+            return Err(WasmBuildError::Unsupported(
+                "host tail calls currently must return directly to the host".into(),
+            ));
+        }
+        if row
+            .function_ref
+            .and_then(|fref| tables.artifacts.host_event_bindings.imports.get(&fref))
+            .is_some_and(|template| template.input_count != 0)
+        {
+            return Err(WasmBuildError::Unsupported(
+                "host tail calls with declared memory writes are not supported".into(),
+            ));
+        }
+    }
     // Nested activations may execute arbitrary guest code before this host call
     // returns. Only its original activation can supply the output buffer.
     let pending = {
@@ -285,6 +330,9 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
         state.pending_imports.push(pending);
     }
     state.next_step += 1;
+    if super::host_tail::is_direct_host_tail(&row) {
+        registry.last_host_tail_depth = Some(activation_depth);
+    }
     state.steps.push(row);
     Ok(())
 }

@@ -20,8 +20,8 @@ const MAGIC: &[u8; 8] = b"NSFPREP1";
 // The unchanged maximum key permits floor((MAX_CARRIER_WIDTH - fixedWidth)/41)
 // application fields. W=maximum-1, L=1 attains the largest envelope.
 // Derivation: nightstream/tests/evidence/prepared-fixed-source-bound.md.
-const NATIVE_REFERENCE_NODES: usize = 31_971_930;
-const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 173_623_380) / 41;
+const NATIVE_REFERENCE_NODES: usize = 26_009_978;
+const MAX_APPLICATION_FIELDS: usize = (neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH - 156_098_012) / 41;
 const MAX_FIXED_SOURCE_NODES: usize = NATIVE_REFERENCE_NODES - 12 + MAX_APPLICATION_FIELDS + 7;
 // Compact numeric-array JSON needs at most 20 decimal digits and one separator
 // per node; array delimiters fit this bound as well.

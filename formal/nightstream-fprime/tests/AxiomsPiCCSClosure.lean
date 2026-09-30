@@ -298,7 +298,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementBinding.flatConstraints_varsBelow
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.specHolds_of_agree_below
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.output_varsBelow
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.keyChain_implies_spec_and_terminal
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.keyChain_build
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.SumcheckChain.output_eval_of_keyChain
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_1.VerifierView.roundPoint_eq_key
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.roundPoint_offset_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Assumptions.challengeGamma_offset_eq
@@ -358,7 +359,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.finalState_affine
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.assumptions_of_inputsBelow
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementAbsorption.finalState_varsBelow
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain.output_mulCounts
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.SumcheckChain.output_linear
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.inputShapes
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs.physicalFreshColumnCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit.rowCounts_eq_layout

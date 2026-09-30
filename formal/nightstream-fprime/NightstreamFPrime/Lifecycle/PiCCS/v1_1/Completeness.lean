@@ -58,12 +58,14 @@ theorem specHolds_implies_holds
 /-- Exact private symbolic-variable count of the complete PiCCS assembler. -/
 def privateCount (degreeBound : Nat) : Nat :=
   4432230 + productionShape.cubeVariables *
-    RoundTranscript.perRoundRecipeCount degreeBound
+    RoundTranscript.perRoundRecipeCount degreeBound +
+      SumcheckChain.privateCount degreeBound
 
 /-- Exact flattened logical-row count of the complete PiCCS assembler. -/
 def rowCount (degreeBound : Nat) : Nat :=
   4432448 + productionShape.cubeVariables *
-    RoundTranscript.perRoundRecipeCount degreeBound
+    RoundTranscript.perRoundRecipeCount degreeBound +
+      SumcheckChain.privateCount degreeBound
 
 private theorem transcriptPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
@@ -87,13 +89,15 @@ private theorem evaluationPrefix_localLength_eq
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
-    localLength (evaluationPrefixOps interface offset) = 52054 := by
+    localLength (evaluationPrefixOps interface offset) =
+      52054 + SumcheckChain.privateCount degreeBound := by
   simp only [evaluationPrefixOps, localLength, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, childOp_privateCount]
   unfold initialClaimCircuit sumcheckCircuit evalKCircuit
     evalACircuit
-  simp only [FormalCircuit.withConstantFootprint_privateCount]
-  norm_num [EvalKTerminal.privateCount, EvalATerminal.privateCount]
+  simp only [FormalCircuit.withConstantFootprint_privateCount,
+    EvalKTerminal.privateCount, EvalATerminal.privateCount]
+  omega
 
 private theorem terminalPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
@@ -135,13 +139,15 @@ private theorem evaluationPrefix_rowCount_eq
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
-      (evaluationPrefixOps interface offset) = 52110 := by
+      (evaluationPrefixOps interface offset) =
+      52110 + SumcheckChain.privateCount degreeBound := by
   simp only [evaluationPrefixOps, NightstreamFPrime.Circuit.rowCount,
     List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero,
     childOp_rowCount]
   unfold initialClaimCircuit sumcheckCircuit evalKCircuit evalACircuit
-  simp only [FormalCircuit.withConstantFootprint_rowCount]
-  norm_num [EvalKTerminal.privateCount, EvalATerminal.privateCount]
+  simp only [FormalCircuit.withConstantFootprint_rowCount,
+    EvalKTerminal.privateCount, EvalATerminal.privateCount]
+  omega
 
 private theorem terminalPrefix_rowCount_eq
     {logicalWidth degreeBound : Nat}
@@ -207,15 +213,17 @@ theorem flatConstraints_length_eq
   omega
 
 theorem privateCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4581414 := by
+    (degreeEq : degreeBound = 9) : privateCount degreeBound = 4581918 := by
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount,
+    SumcheckChain.privateCount, FixedChain.Owned.privateCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 theorem rowCount_eq_of_degreeBound_eq_nine (degreeBound : Nat)
-    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4581632 := by
+    (degreeEq : degreeBound = 9) : rowCount degreeBound = 4582136 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
+    SumcheckChain.privateCount, FixedChain.Owned.privateCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
 /-- State binding and acceptance of the caller-owned PiCCS data construct

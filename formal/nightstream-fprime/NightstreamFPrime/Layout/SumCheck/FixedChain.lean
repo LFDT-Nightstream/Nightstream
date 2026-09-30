@@ -2,470 +2,214 @@ import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 
 /-!
-Owns physical R1CS cost proofs for the reusable degree-9 SumCheck chain.
-It counts one generic round and composes that result by list induction. It
-does not own transcript challenges, protocol round count, or terminal checks.
+Owns physical R1CS cost proofs for the reusable SumCheck chain with stored
+round evaluations. It counts one generic round and composes that result by
+list induction. It does not own transcript challenges, protocol round count,
+or terminal checks.
 -/
 
 namespace NightstreamFPrime.Layout.SumCheck.FixedChain
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
-open NightstreamFPrime.Gadgets.SumCheck
+open NightstreamFPrime.Gadgets.SumCheck.FixedChain
 open NightstreamFPrime.Layout.Polynomial.Horner
 
-def KExprMulCount (value : KExpr) : Nat :=
-  R1CS.mulCount value.c0 + R1CS.mulCount value.c1
-
-def evaluationCounts : Nat → Nat × Nat
-  | 0 => (0, 0)
-  | count + 1 =>
-      let previous := evaluationCounts count
-      (previous.1 + previous.2 + 3,
-        previous.1 + previous.2 + 2)
-
-theorem evaluateCoefficients_mulCounts
-    (point : KExpr) (coefficients : List KExpr)
-    (pointNoMul : R1CS.mulCount point.c0 = 0 ∧
-      R1CS.mulCount point.c1 = 0)
-    (coefficientsNoMul : ∀ coefficient ∈ coefficients,
-      R1CS.mulCount coefficient.c0 = 0 ∧
-        R1CS.mulCount coefficient.c1 = 0) :
-    R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          point coefficients).c0 = (evaluationCounts coefficients.length).1 ∧
-      R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          point coefficients).c1 = (evaluationCounts coefficients.length).2 := by
-  induction coefficients with
-  | nil => exact ⟨rfl, rfl⟩
-  | cons coefficient coefficients inductionHypothesis =>
-      have headNoMul := coefficientsNoMul coefficient (by simp)
-      have tailNoMul : ∀ current ∈ coefficients,
-          R1CS.mulCount current.c0 = 0 ∧
-            R1CS.mulCount current.c1 = 0 := by
-        intro current member
-        exact coefficientsNoMul current (by simp [member])
-      have tailCounts := inductionHypothesis tailNoMul
-      simp only [NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients,
-        KExpr.add, KExpr.mul, R1CS.mulCount, List.length_cons, evaluationCounts,
-        headNoMul.1, headNoMul.2, pointNoMul.1,
-        pointNoMul.2, tailCounts.1, tailCounts.2]
-      omega
-
-structure RoundLinear
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) : Prop where
+/-- Every coefficient and the challenge of one round are plain wires or sums
+of wires. This is the syntactic boundary for stable round costs. -/
+structure RoundLinear {degree : Nat} (round : Round degree) : Prop where
   coefficient : ∀ index, KExprLinear (round.coefficient index)
   challenge : KExprLinear round.challenge
 
-private theorem roundCoefficients_noMul
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
+private theorem coefficients_linear {degree : Nat} (round : Round degree)
     (linear : RoundLinear round) :
-    ∀ coefficient ∈ round.coefficients,
-      R1CS.mulCount coefficient.c0 = 0 ∧
-        R1CS.mulCount coefficient.c1 = 0 := by
+    ∀ coefficient ∈ round.coefficients, KExprLinear coefficient := by
   intro coefficient member
-  rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients,
-    List.mem_ofFn'] at member
+  rw [Round.coefficients, List.mem_ofFn'] at member
   rcases member with ⟨index, rfl⟩
-  exact ⟨(linear.coefficient index).c0_mulCount,
-    (linear.coefficient index).c1_mulCount⟩
+  exact linear.coefficient index
 
-theorem evaluateRound_mulCounts
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
-    (point : KExpr)
-    (pointNoMul : R1CS.mulCount point.c0 = 0 ∧
-      R1CS.mulCount point.c1 = 0)
-    (linear : RoundLinear round) :
-    R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round point).c0 = 2558 ∧
-      R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round point).c1 = 2557 := by
-  unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-  have counts := evaluateCoefficients_mulCounts point round.coefficients
-    pointNoMul (roundCoefficients_noMul round linear)
-  simpa [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients,
-    evaluationCounts] using counts
+private theorem coefficients_length {degree : Nat} (round : Round degree) :
+    round.coefficients.length = degree + 1 := by
+  simp [Round.coefficients]
 
-theorem evaluateRound_totalMulCount
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
-    (linear : RoundLinear round) :
-    KExprMulCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round round.challenge) = 5115 := by
-  have counts := evaluateRound_mulCounts round round.challenge
-    ⟨linear.challenge.c0_mulCount, linear.challenge.c1_mulCount⟩ linear
-  simp [KExprMulCount, counts.1, counts.2]
+private theorem coefficients_nonempty {degree : Nat} (round : Round degree) :
+    round.coefficients ≠ [] := by
+  intro empty
+  have length := coefficients_length round
+  rw [empty] at length
+  simp at length
 
-/-- A nonempty fixed degree-9 chain exports the evaluation of its last round,
-so its component multiplication counts do not depend on the initial claim or
-the number of earlier rounds. -/
-theorem outputFrom_mulCounts_of_nonempty
-    (current : KExpr)
-    (rounds : List
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
-    (nonempty : rounds ≠ [])
-    (linear : ∀ round ∈ rounds, RoundLinear round) :
-    R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom
-          current rounds).c0 = 2558 ∧
-      R1CS.mulCount
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom
-          current rounds).c1 = 2557 := by
-  induction rounds generalizing current with
-  | nil => exact (nonempty rfl).elim
-  | cons round rounds inductionHypothesis =>
-      cases rounds with
-      | nil =>
-          simp only [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom]
-          exact evaluateRound_mulCounts round round.challenge
-            ⟨(linear round (by simp)).challenge.c0_mulCount,
-              (linear round (by simp)).challenge.c1_mulCount⟩
-            (linear round (by simp))
-      | cons next rest =>
-          rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.outputFrom]
-          apply inductionHypothesis
-          · simp
-          · intro later member
-            exact linear later (by simp [member])
+/-- The stored `p(r)` is a sum of wires for the next round and the terminal
+owner. -/
+theorem roundProgram_output_linear {degree : Nat} (start : Nat)
+    (round : Round degree) (linear : RoundLinear round) :
+    KExprLinear (Owned.roundProgram start round).output :=
+  compile_output_linear start round.challenge round.coefficients
+    (coefficients_nonempty round) (coefficients_linear round linear)
 
-private theorem evaluateCoefficients_one_lowerAffine_none_of_three
-    (first second third : KExpr) (rest : List KExpr) :
-    R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          KExpr.one (first :: second :: third :: rest)).c0 = none ∧
-      R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          KExpr.one (first :: second :: third :: rest)).c1 = none := by
-  simp [
-    NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients,
-    KExpr.add, KExpr.mul, KExpr.one, R1CS.lowerAffine]
+theorem roundProgram_totalFreshCount {degree : Nat} (start : Nat)
+    (round : Round degree) (linear : RoundLinear round) :
+    R1CS.totalFreshCount
+      (recipeConstraints start (Owned.roundProgram start round).recipes) =
+      7 * degree := by
+  rw [Owned.roundProgram, compile_totalFreshCount start round.challenge
+    round.coefficients linear.challenge (coefficients_linear round linear),
+    coefficients_length]
+  rfl
 
-private theorem evaluateCoefficients_zero_lowerAffine_none_of_three
-    (first second third : KExpr) (rest : List KExpr) :
-    R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          KExpr.zero (first :: second :: third :: rest)).c0 = none ∧
-      R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients
-          KExpr.zero (first :: second :: third :: rest)).c1 = none := by
-  simp [
-    NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateCoefficients,
-    KExpr.add, KExpr.mul, KExpr.zero, R1CS.lowerAffine]
-
-private theorem evaluateRound_one_lowerAffine_none
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) :
-    R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round KExpr.one).c0 = none ∧
-      R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round KExpr.one).c1 = none := by
-  generalize coefficientsEq : round.coefficients = coefficients
-  have coefficientsLength : coefficients.length = 10 := by
-    rw [← coefficientsEq]
-    simp [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients]
-  cases coefficients with
-  | nil => simp at coefficientsLength
-  | cons first coefficients =>
-      cases coefficients with
-      | nil => simp at coefficientsLength
-      | cons second coefficients =>
-          cases coefficients with
-          | nil => simp at coefficientsLength
-          | cons third rest =>
-              unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-              rw [coefficientsEq]
-              exact evaluateCoefficients_one_lowerAffine_none_of_three
-                first second third rest
-
-private theorem evaluateRound_zero_lowerAffine_none
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9) :
-    R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round KExpr.zero).c0 = none ∧
-      R1CS.lowerAffine
-        (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-          round KExpr.zero).c1 = none := by
-  generalize coefficientsEq : round.coefficients = coefficients
-  have coefficientsLength : coefficients.length = 10 := by
-    rw [← coefficientsEq]
-    simp [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round.coefficients]
-  cases coefficients with
-  | nil => simp at coefficientsLength
-  | cons first coefficients =>
-      cases coefficients with
-      | nil => simp at coefficientsLength
-      | cons second coefficients =>
-          cases coefficients with
-          | nil => simp at coefficientsLength
-          | cons third rest =>
-              unfold NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-              rw [coefficientsEq]
-              exact evaluateCoefficients_zero_lowerAffine_none_of_three
-                first second third rest
-
-private theorem affineConstraint_sub_add_eq_none
-    (left first second : Expr)
-    (firstNone : R1CS.lowerAffine first = none) :
-    R1CS.affineConstraint (left - (first + second)) = none := by
-  have rightNone :
-      R1CS.lowerAffine (.add first second) = none := by
-    unfold R1CS.lowerAffine
-    rw [firstNone]
-  have negativeNone :
-      R1CS.lowerAffine
-        (.mul (.const (-1)) (.add first second)) = none := by
-    unfold R1CS.lowerAffine
-    rw [rightNone]
-  have wholeNone :
-      R1CS.lowerAffine
-        (.add left (.mul (.const (-1)) (.add first second))) = none := by
-    cases leftResult : R1CS.lowerAffine left with
-    | none =>
-        unfold R1CS.lowerAffine
-        rw [leftResult]
-    | some lowered =>
-        unfold R1CS.lowerAffine
-        rw [leftResult, negativeNone]
-  unfold R1CS.affineConstraint
-  rw [show left - (first + second) =
-    .add left (.mul (.const (-1)) (.add first second)) by rfl]
-  rw [wholeNone]
-
-private theorem directConstraint_sub_add_right_eq_none
-    (left first second : Expr)
-    (firstNone : R1CS.lowerAffine first = none) :
-    R1CS.directConstraint (left - (first + second)) = none := by
-  cases left with
-  | var index =>
-      exact
-        NightstreamFPrime.Layout.Polynomial.Horner.directConstraint_sub_add_eq_none
-          index first second firstNone
-  | const value =>
-      exact affineConstraint_sub_add_eq_none (.const value) first second
-        firstNone
-  | add left right =>
-      exact affineConstraint_sub_add_eq_none (.add left right) first second
-        firstNone
-  | mul left right =>
-      exact affineConstraint_sub_add_eq_none (.mul left right) first second
-        firstNone
-
-private theorem roundRight_mulCounts
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
-    (linear : RoundLinear round) :
-    let right := KExpr.add
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.zero)
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.one)
-    R1CS.mulCount right.c0 = 5116 ∧
-      R1CS.mulCount right.c1 = 5114 := by
-  dsimp only
-  have zeroCounts := evaluateRound_mulCounts round KExpr.zero
-    ⟨rfl, rfl⟩ linear
-  have oneCounts := evaluateRound_mulCounts round KExpr.one
-    ⟨rfl, rfl⟩ linear
-  simp [KExpr.add, R1CS.mulCount, zeroCounts.1, zeroCounts.2,
-    oneCounts.1, oneCounts.2]
-
-private theorem equalityFreshCount
-    (left first second : Expr)
-    (firstNone : R1CS.lowerAffine first = none) :
-    R1CS.constraintFreshCount (left - (first + second)) =
-      R1CS.mulCount left + R1CS.mulCount first +
-        R1CS.mulCount second + 1 := by
-  unfold R1CS.constraintFreshCount
-  rw [directConstraint_sub_add_right_eq_none left first second firstNone]
-  change R1CS.mulCount
-    (.add left (.mul (.const (-1)) (.add first second))) = _
-  simp only [R1CS.mulCount]
-  omega
-
-private theorem equalityRowCount
-    (left first second : Expr)
-    (firstNone : R1CS.lowerAffine first = none) :
-    R1CS.constraintRowCount (left - (first + second)) =
-      R1CS.mulCount left + R1CS.mulCount first +
-        R1CS.mulCount second + 2 := by
-  unfold R1CS.constraintRowCount
-  rw [directConstraint_sub_add_right_eq_none left first second firstNone]
-  change R1CS.mulCount
-    (.add left (.mul (.const (-1)) (.add first second))) + 1 = _
-  simp only [R1CS.mulCount]
-  omega
-
-theorem roundEqualities_totalFreshCount
-    (current : KExpr)
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
-    (linear : RoundLinear round) :
-    let right := KExpr.add
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.zero)
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.one)
-    R1CS.totalFreshCount (KExpr.equalities current right) =
-      KExprMulCount current + 10232 := by
-  dsimp only
-  have firstNone := evaluateRound_zero_lowerAffine_none round
-  have rightCounts := roundRight_mulCounts round linear
-  dsimp only at rightCounts
-  have rightC0 :
-      R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.zero).c0 +
-        R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c0 = 5116 := by
-    simpa [KExpr.add, R1CS.mulCount] using rightCounts.1
-  have rightC1 :
-      R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.zero).c1 +
-        R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c1 = 5114 := by
-    simpa [KExpr.add, R1CS.mulCount] using rightCounts.2
-  simp only [KExpr.equalities, R1CS.totalFreshCount, List.map_cons,
-    List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero, KExpr.add]
-  rw [equalityFreshCount _ _ _ firstNone.1,
-    equalityFreshCount _ _ _ firstNone.2]
-  unfold KExprMulCount
-  omega
-
-theorem roundEqualities_totalRowCount
-    (current : KExpr)
-    (round : NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9)
-    (linear : RoundLinear round) :
-    let right := KExpr.add
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.zero)
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-        round KExpr.one)
-    R1CS.totalRowCount (KExpr.equalities current right) =
-      KExprMulCount current + 10234 := by
-  dsimp only
-  have firstNone := evaluateRound_zero_lowerAffine_none round
-  have rightCounts := roundRight_mulCounts round linear
-  dsimp only at rightCounts
-  have rightC0 :
-      R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.zero).c0 +
-        R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c0 = 5116 := by
-    simpa [KExpr.add, R1CS.mulCount] using rightCounts.1
-  have rightC1 :
-      R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.zero).c1 +
-        R1CS.mulCount
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round KExpr.one).c1 = 5114 := by
-    simpa [KExpr.add, R1CS.mulCount] using rightCounts.2
-  simp only [KExpr.equalities, R1CS.totalRowCount, List.map_cons,
-    List.map_nil, List.sum_cons, List.sum_nil, Nat.add_zero, KExpr.add]
-  rw [equalityRowCount _ _ _ firstNone.1,
-    equalityRowCount _ _ _ firstNone.2]
-  unfold KExprMulCount
-  omega
-
-theorem constraintsFrom_totalFreshCount
-    (current : KExpr)
-    (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
+theorem recipesFrom_totalFreshCount {degree : Nat} (start : Nat)
+    (rounds : List (Round degree))
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalFreshCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
-        current rounds) =
-      match rounds with
-      | [] => 0
-      | _ :: _ => KExprMulCount current + 10232 +
-          (rounds.length - 1) * 15347 := by
-  induction rounds generalizing current with
+      (recipeConstraints start (Owned.recipesFrom start rounds)) =
+      7 * degree * rounds.length := by
+  induction rounds generalizing start with
   | nil => rfl
   | cons round rounds inductionHypothesis =>
-      have headLinear := linear round (by simp)
-      have tailLinear : ∀ later ∈ rounds, RoundLinear later := by
-        intro later member
-        exact linear later (by simp [member])
-      rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom,
+      rw [Owned.recipesFrom, recipeConstraints_append,
         R1CS.totalFreshCount_append,
-        roundEqualities_totalFreshCount current round headLinear,
-        inductionHypothesis
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round round.challenge) tailLinear]
-      cases rounds with
-      | nil => simp
-      | cons later rest =>
-          rw [evaluateRound_totalMulCount round headLinear]
-          simp only [List.length_cons]
-          omega
+        roundProgram_totalFreshCount start round (linear round (by simp)),
+        Owned.roundProgram_recipes_length,
+        inductionHypothesis (start + 2 * degree)
+          (fun later member => linear later (by simp [member]))]
+      simp only [List.length_cons]
+      rw [Nat.mul_succ]
+      omega
 
-theorem constraintsFrom_totalRowCount
-    (current : KExpr)
-    (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
+private theorem sub_affine {left right : Expr}
+    (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right) :
+    R1CS.IsAffine (left - right) :=
+  R1CS.IsAffine.add leftAffine (R1CS.IsAffine.const_mul (-1) rightAffine)
+
+private theorem coefficientSum_affine (coefficients : List KExpr)
+    (linear : ∀ coefficient ∈ coefficients, KExprLinear coefficient) :
+    R1CS.IsAffine (Owned.coefficientSum coefficients).c0 ∧
+      R1CS.IsAffine (Owned.coefficientSum coefficients).c1 := by
+  induction coefficients with
+  | nil => exact ⟨R1CS.isAffine_const 0, R1CS.isAffine_const 0⟩
+  | cons coefficient rest inductionHypothesis =>
+      have head := (linear coefficient (by simp)).isAffine
+      have tail := inductionHypothesis fun current member =>
+        linear current (by simp [member])
+      exact ⟨R1CS.IsAffine.add head.1 tail.1,
+        R1CS.IsAffine.add head.2 tail.2⟩
+
+private theorem boundarySum_affine (coefficients : List KExpr)
+    (linear : ∀ coefficient ∈ coefficients, KExprLinear coefficient) :
+    R1CS.IsAffine (Owned.boundarySum coefficients).c0 ∧
+      R1CS.IsAffine (Owned.boundarySum coefficients).c1 := by
+  cases coefficients with
+  | nil =>
+      exact ⟨R1CS.IsAffine.add (R1CS.isAffine_const 0) (R1CS.isAffine_const 0),
+        R1CS.IsAffine.add (R1CS.isAffine_const 0) (R1CS.isAffine_const 0)⟩
+  | cons coefficient rest =>
+      have head := (linear coefficient (by simp)).isAffine
+      have sum := coefficientSum_affine (coefficient :: rest) linear
+      exact ⟨R1CS.IsAffine.add head.1 sum.1, R1CS.IsAffine.add head.2 sum.2⟩
+
+/-- A round equation reads only wires, so it lowers to one direct row. -/
+theorem roundEqualities_affine {degree : Nat} (current : KExpr)
+    (round : Round degree) (currentLinear : KExprLinear current)
+    (linear : RoundLinear round) :
+    ∀ expression ∈ KExpr.equalities current (Owned.roundBoundary round),
+      R1CS.IsAffine expression := by
+  have current := currentLinear.isAffine
+  have boundary := boundarySum_affine round.coefficients
+    (coefficients_linear round linear)
+  intro expression member
+  simp only [KExpr.equalities, List.mem_cons, List.not_mem_nil,
+    or_false] at member
+  rcases member with rfl | rfl
+  · exact sub_affine current.1 boundary.1
+  · exact sub_affine current.2 boundary.2
+
+theorem equalitiesFrom_affine {degree : Nat} (start : Nat) (current : KExpr)
+    (rounds : List (Round degree)) (currentLinear : KExprLinear current)
     (linear : ∀ round ∈ rounds, RoundLinear round) :
-    R1CS.totalRowCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
-        current rounds) =
-      match rounds with
-      | [] => 0
-      | _ :: _ => KExprMulCount current + 10234 +
-          (rounds.length - 1) * 15349 := by
-  induction rounds generalizing current with
-  | nil => rfl
+    ∀ expression ∈ Owned.equalitiesFrom start current rounds,
+      R1CS.IsAffine expression := by
+  induction rounds generalizing start current with
+  | nil =>
+      intro expression member
+      simp [Owned.equalitiesFrom] at member
   | cons round rounds inductionHypothesis =>
-      have headLinear := linear round (by simp)
-      have tailLinear : ∀ later ∈ rounds, RoundLinear later := by
-        intro later member
-        exact linear later (by simp [member])
-      rw [NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom,
-        R1CS.totalRowCount_append,
-        roundEqualities_totalRowCount current round headLinear,
-        inductionHypothesis
-          (NightstreamFPrime.Gadgets.SumCheck.FixedChain.evaluateRound
-            round round.challenge) tailLinear]
-      cases rounds with
-      | nil => simp
-      | cons later rest =>
-          rw [evaluateRound_totalMulCount round headLinear]
-          simp only [List.length_cons]
-          omega
+      intro expression member
+      rw [Owned.equalitiesFrom] at member
+      rcases List.mem_append.mp member with headMember | tailMember
+      · exact roundEqualities_affine current round currentLinear
+          (linear round (by simp)) expression headMember
+      · exact inductionHypothesis (start + 2 * degree)
+          (Owned.roundProgram start round).output
+          (roundProgram_output_linear start round (linear round (by simp)))
+          (fun later laterMember => linear later (by simp [laterMember]))
+          expression tailMember
 
-theorem constraintsFrom_totalFreshCount_of_nonempty
-    (current : KExpr)
-    (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
-    (nonempty : rounds ≠ [])
+theorem outputFrom_linear {degree : Nat} (start : Nat) (current : KExpr)
+    (rounds : List (Round degree)) (currentLinear : KExprLinear current)
     (linear : ∀ round ∈ rounds, RoundLinear round) :
-    R1CS.totalFreshCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
-        current rounds) =
-      KExprMulCount current + 10232 + (rounds.length - 1) * 15347 := by
-  rw [constraintsFrom_totalFreshCount current rounds linear]
-  cases rounds with
-  | nil => exact False.elim (nonempty rfl)
-  | cons round rounds => rfl
+    KExprLinear (Owned.outputFrom start current rounds) := by
+  induction rounds generalizing start current with
+  | nil => exact currentLinear
+  | cons round rounds inductionHypothesis =>
+      exact inductionHypothesis (start + 2 * degree)
+        (Owned.roundProgram start round).output
+        (roundProgram_output_linear start round (linear round (by simp)))
+        (fun later member => linear later (by simp [member]))
 
-theorem constraintsFrom_totalRowCount_of_nonempty
-    (current : KExpr)
-    (rounds :
-      List (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Round 9))
-    (nonempty : rounds ≠ [])
-    (linear : ∀ round ∈ rounds, RoundLinear round) :
-    R1CS.totalRowCount
-      (NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.constraintsFrom
-        current rounds) =
-      KExprMulCount current + 10234 + (rounds.length - 1) * 15349 := by
-  rw [constraintsFrom_totalRowCount current rounds linear]
-  cases rounds with
-  | nil => exact False.elim (nonempty rfl)
-  | cons round rounds => rfl
+private theorem interfaceRounds_linear {degree roundCount : Nat}
+    (interface : Owned.Interface degree roundCount)
+    (linear : ∀ round, RoundLinear (interface.round round)) :
+    ∀ round ∈ interface.rounds, RoundLinear round := by
+  intro round member
+  rw [Owned.Interface.rounds, List.mem_ofFn'] at member
+  rcases member with ⟨index, rfl⟩
+  exact linear index
+
+/-- Seven lowering cells for each stored extension product; the round
+equations need none. -/
+theorem ownedCircuit_totalFreshCount {degree roundCount : Nat}
+    (interface : Owned.Interface degree roundCount) (offset : Nat)
+    (initialLinear : KExprLinear interface.initial)
+    (linear : ∀ round, RoundLinear (interface.round round)) :
+    R1CS.totalFreshCount (flatConstraints
+      (Circuit.ops (Owned.circuit interface).main offset)) =
+      7 * degree * roundCount := by
+  have equalityFresh : R1CS.totalFreshCount
+      (Owned.assertions interface offset) = 0 :=
+    R1CS.totalFreshCount_eq_zero_of_noFresh _ fun expression member =>
+      R1CS.constraintFreshCount_eq_zero_of_affine expression
+        (equalitiesFrom_affine offset interface.initial interface.rounds
+          initialLinear (interfaceRounds_linear interface linear)
+          expression member)
+  rw [Owned.flatConstraints_eq, R1CS.totalFreshCount_append, equalityFresh,
+    Owned.recipes, recipesFrom_totalFreshCount offset interface.rounds
+      (interfaceRounds_linear interface linear)]
+  simp [Owned.Interface.rounds]
+
+/-- Each stored product costs nine rows, and each round equation two. -/
+theorem ownedCircuit_totalRowCount {degree roundCount : Nat}
+    (interface : Owned.Interface degree roundCount) (offset : Nat)
+    (initialLinear : KExprLinear interface.initial)
+    (linear : ∀ round, RoundLinear (interface.round round)) :
+    R1CS.totalRowCount (flatConstraints
+      (Circuit.ops (Owned.circuit interface).main offset)) =
+      9 * degree * roundCount + 2 * roundCount := by
+  rw [R1CS.totalRowCount_eq_fresh_add_length,
+    ownedCircuit_totalFreshCount interface offset initialLinear linear,
+    Owned.flatConstraints_length, Owned.privateCount]
+  have split : 9 * degree * roundCount =
+      7 * degree * roundCount + 2 * degree * roundCount := by
+    rw [← Nat.add_mul, ← Nat.add_mul]
+  omega
+
+/-- The owned final claim is a sum of wires for the terminal owner. -/
+theorem ownedOutput_linear {degree roundCount : Nat}
+    (interface : Owned.Interface degree roundCount) (offset : Nat)
+    (initialLinear : KExprLinear interface.initial)
+    (linear : ∀ round, RoundLinear (interface.round round)) :
+    KExprLinear (Owned.output interface offset) :=
+  outputFrom_linear offset interface.initial interface.rounds initialLinear
+    (interfaceRounds_linear interface linear)
 
 end NightstreamFPrime.Layout.SumCheck.FixedChain

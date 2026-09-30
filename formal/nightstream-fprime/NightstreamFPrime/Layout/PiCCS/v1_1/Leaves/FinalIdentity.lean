@@ -59,8 +59,7 @@ structure TerminalInputShapes
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
     (offset : Nat) : Prop where
-  terminal_c0_mulCount : R1CS.mulCount (interface.terminal offset).c0 = 2558
-  terminal_c1_mulCount : R1CS.mulCount (interface.terminal offset).c1 = 2557
+  terminal : KExprLinear (interface.terminal offset)
   eval_K_c0_mulCount : R1CS.mulCount (interface.eval_K offset).c0 = 3
   eval_K_c1_mulCount : R1CS.mulCount (interface.eval_K offset).c1 = 2
   eval_K_c0_nonAffine : R1CS.lowerAffine (interface.eval_K offset).c0 = none
@@ -208,7 +207,7 @@ private theorem terminal_c0_freshCount_eq
     R1CS.constraintFreshCount
       ((interface.terminal offset).c0 -
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c0) = 2664 := by
+          interface offset).c0) = 106 := by
   unfold R1CS.constraintFreshCount
   rw [terminal_c0_directConstraint_eq_none interface offset shapes]
   have counts := terminalExpr_mulCounts interface offset inputs shapes
@@ -216,8 +215,8 @@ private theorem terminal_c0_freshCount_eq
     (.add (interface.terminal offset).c0
       (.mul (.const (-1))
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c0)) = 2664
-  simp only [R1CS.mulCount, shapes.terminal_c0_mulCount, counts.1]
+          interface offset).c0)) = 106
+  simp only [R1CS.mulCount, shapes.terminal.c0_mulCount, counts.1]
 
 private theorem terminal_c1_freshCount_eq
     (interface :
@@ -227,7 +226,7 @@ private theorem terminal_c1_freshCount_eq
     R1CS.constraintFreshCount
       ((interface.terminal offset).c1 -
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c1) = 2660 := by
+          interface offset).c1) = 103 := by
   unfold R1CS.constraintFreshCount
   rw [terminal_c1_directConstraint_eq_none interface offset shapes]
   have counts := terminalExpr_mulCounts interface offset inputs shapes
@@ -235,8 +234,8 @@ private theorem terminal_c1_freshCount_eq
     (.add (interface.terminal offset).c1
       (.mul (.const (-1))
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c1)) = 2660
-  simp only [R1CS.mulCount, shapes.terminal_c1_mulCount, counts.2]
+          interface offset).c1)) = 103
+  simp only [R1CS.mulCount, shapes.terminal.c1_mulCount, counts.2]
 
 private theorem terminal_c0_rowCount_eq
     (interface :
@@ -246,7 +245,7 @@ private theorem terminal_c0_rowCount_eq
     R1CS.constraintRowCount
       ((interface.terminal offset).c0 -
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c0) = 2665 := by
+          interface offset).c0) = 107 := by
   unfold R1CS.constraintRowCount
   rw [terminal_c0_directConstraint_eq_none interface offset shapes]
   have counts := terminalExpr_mulCounts interface offset inputs shapes
@@ -254,8 +253,8 @@ private theorem terminal_c0_rowCount_eq
       (.add (interface.terminal offset).c0
         (.mul (.const (-1))
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-            interface offset).c0)) + 1 = 2665
-  simp only [R1CS.mulCount, shapes.terminal_c0_mulCount, counts.1]
+            interface offset).c0)) + 1 = 107
+  simp only [R1CS.mulCount, shapes.terminal.c0_mulCount, counts.1]
 
 private theorem terminal_c1_rowCount_eq
     (interface :
@@ -265,7 +264,7 @@ private theorem terminal_c1_rowCount_eq
     R1CS.constraintRowCount
       ((interface.terminal offset).c1 -
         (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-          interface offset).c1) = 2661 := by
+          interface offset).c1) = 104 := by
   unfold R1CS.constraintRowCount
   rw [terminal_c1_directConstraint_eq_none interface offset shapes]
   have counts := terminalExpr_mulCounts interface offset inputs shapes
@@ -273,8 +272,8 @@ private theorem terminal_c1_rowCount_eq
       (.add (interface.terminal offset).c1
         (.mul (.const (-1))
           (NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalExpr
-            interface offset).c1)) + 1 = 2661
-  simp only [R1CS.mulCount, shapes.terminal_c1_mulCount, counts.2]
+            interface offset).c1)) + 1 = 104
+  simp only [R1CS.mulCount, shapes.terminal.c1_mulCount, counts.2]
 
 private theorem pointInputs
     (interface :
@@ -424,7 +423,7 @@ theorem terminalFreshColumnCount_eq
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (shapes : TerminalInputShapes interface offset) :
-    terminalFreshColumnCount interface offset = 5324 := by
+    terminalFreshColumnCount interface offset = 209 := by
   unfold terminalFreshColumnCount
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalAssertions
     KExpr.equalities R1CS.totalFreshCount
@@ -439,7 +438,7 @@ theorem terminalPhysicalRowCount_eq
       NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (shapes : TerminalInputShapes interface offset) :
-    terminalPhysicalRowCount interface offset = 5326 := by
+    terminalPhysicalRowCount interface offset = 211 := by
   unfold terminalPhysicalRowCount
     NightstreamFPrime.Lifecycle.PiCCS.v1_1.FinalIdentity.terminalAssertions
     KExpr.equalities R1CS.totalRowCount

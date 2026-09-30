@@ -273,24 +273,23 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
-At `6cf648742`, these commands measured the complete lifecycle without
+At `b1b29c38a`, these commands measured the complete lifecycle without
 Instruments. Each engine ran once on an Apple M5 Max:
 
 | Phase | Optimized | Metal |
 | --- | ---: | ---: |
-| package load | 1.47 s | 1.56 s |
-| base step | 8.19 s | 2.29 s |
-| fold, step 2 | 28.30 s | 12.29 s |
-| fold, step 3 | 38.02 s | 16.14 s |
-| terminal verification | 23.58 s | 7.22 s |
-| **total** | **99.56 s** | **39.50 s** |
-| peak RSS | 12.31 GB | 12.90 GB |
+| package load | 1.29 s | 1.28 s |
+| base step | 7.80 s | 2.19 s |
+| fold, step 2 | 26.24 s | 11.34 s |
+| fold, step 3 | 33.93 s | 14.86 s |
+| terminal verification | 22.04 s | 6.61 s |
+| **total** | **91.31 s** | **36.28 s** |
+| peak RSS | 10.98 GB | 11.86 GB |
 
 Metal is **2.52×** faster, below the 5× target. Both engines are faster than
 the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
-CPU engine improved more. Both RSS peaks are below 16 GB. Other work was running
-on the machine, so each time is one sample. See
-[the run records](tests/evidence/poseidon2-benchmark-20260930).
+CPU engine improved more. Both RSS peaks are below 16 GB. Each time is one
+sample. See [the run records](tests/evidence/poseidon2-benchmark-20260930).
 
 Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required

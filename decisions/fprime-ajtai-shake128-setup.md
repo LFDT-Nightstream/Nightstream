@@ -46,6 +46,6 @@ proves.
 
 The reduction from these premises to binding of the expanded key is
 [`SECURITY_ARGUMENT.md`](../docs/reviews/ajtai-key-expander/SECURITY_ARGUMENT.md).
-It is not yet proved in Lean or externally reviewed. Until it is, the
-fixed-matrix premise stays open for the new matrix. The seed-and-domain policy
-questions in that document stay open.
+Lean proves its ideal-model steps (`production_binding_lt_solver`). The
+premises stay external, and no external review has checked the argument. The
+seed-and-domain policy questions in that document stay open.

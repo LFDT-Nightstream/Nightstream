@@ -2,9 +2,10 @@
 
 Status: draft for external review, 2026-09-29. The owner selected SHAKE128
 ([decision](../../../decisions/fprime-ajtai-shake128-setup.md)), and Lean and
-Rust now implement the construction of section 4. The reduction of section 5
-is not yet proved in Lean or reviewed, so the security gap stays open. The
-seed and domain policy (section 6) is still an owner choice.
+Rust now implement the construction of section 4. Lean proves the
+ideal-model steps of section 5 (section 7). Premises P1 and P2 stay external,
+and no external review has checked the argument. The seed and domain policy
+(section 6) is still an owner choice.
 
 ## 1. Purpose
 
@@ -99,15 +100,18 @@ setup input by its fixed 81-byte format and its 69-byte domain prefix.
 
 **Distance between Game 1 and Game 2.** In both games a chunk is a uniform
 preimage of its residue. Only the residue distribution differs: it is uniform
-in Game 2, and it is the reduction of a uniform 256-bit integer in Game 1. The
-distance is at most `p / 2^258 < 2^-194` for each coefficient. The key has
-fewer than `2^33` coefficients, so the total is below `2^-161`.
+in Game 2, and it is the reduction of a uniform 256-bit integer in Game 1.
+With `r = 2^256 mod q = 2^32 - 1`, the residue weights differ by at most
+`2r / 2^256` in total absolute difference. For `N` independent coefficients,
+the probability of any event of the attacker's view changes by at most
+`2Nr / 2^256`. The production key has `N = 3,826,660,860`, so the change is
+below `2^-190`.
 
 **Result.** A collision in Game 2 gives a short kernel vector for `A` through
 the existing Lean reduction. So
 
 ```text
-Adv_binding ≤ Adv_MSIS(uniform) + N² / 2^257 + 2^-161
+Adv_binding ≤ Adv_MSIS(uniform) + N² / 2^257 + 2^-190
 ```
 
 in the classical random-oracle model, with the attacker's work, including any
@@ -144,15 +148,22 @@ The owner must select a global domain or a domain for each package.
    `Spec/AjtaiSetupV1/Shake128.lean` and `Spec/AjtaiSetupV1/IndexEncoding.lean`.
 2. Reuse the existing bias bound for the reduction of uniform 256-bit
    integers (`ReductionBias.wide_frequency_error_le`).
-3. Open. Prove the programming step: for any oracle algorithm, its output
-   distribution with a uniformly random `H` is within the stated distance of
-   its output distribution with the programmed oracle for a uniform `A`. This
-   step must cover the attacker's own oracle queries. A bias bound alone is
-   not enough.
-4. Open. Compose step 3 with the existing collision-to-kernel reduction.
+3. Done. The programming step: `Programming.real_sub_programmed_le` bounds
+   the change of any event of the attacker's complete view, all setup chunks
+   and every other value it reads (`Extra`), when each chunk becomes a uniform
+   preimage of a uniform matrix entry. The per-coordinate bound is
+   `reducedWeight_difference_le`, which reuses step 2; the product bound is
+   `product_difference_le`.
+4. Done. `Programming.binding_le_solver` composes step 3 with
+   `IsCollision.shortKernel`, the existing collision-to-kernel reduction.
+   `production_binding_lt_solver` instantiates it at the production key with
+   an error below `2^-190`, and `productionKey_eq_chunks` shows that the
+   production key is the residue key of its SHAKE128 chunks.
 
-P1 and P2 stay external premises, and the Lean result stays conditional on
-them.
+Not proved in Lean: P1 and P2; that P1 applied to the distinct 81-byte inputs
+gives independent uniform 32-byte chunks (each chunk encodes its bytes
+bijectively); the running time of the simulation; and the indifferentiability
+term `N² / 2^257`. The Lean result stays conditional on P1 and P2.
 
 ## 8. Expander choice
 

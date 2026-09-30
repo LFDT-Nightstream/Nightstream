@@ -1,7 +1,13 @@
 //! Exact local caches for a bounded prefix of requested global rows.
-//! Counting and filling use the same borrowed source; no full-domain cache is built.
+//! Counting and filling use the same borrowed source. A source owner can keep
+//! the complete window between operations; no loader keeps one by itself.
 
-use std::{mem::size_of, ops::ControlFlow, ops::Range};
+use std::{
+    mem::size_of,
+    ops::ControlFlow,
+    ops::Range,
+    sync::{Arc, Mutex},
+};
 
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
@@ -22,9 +28,68 @@ mod chunks;
 /// but excludes the borrowed source, allocator overhead, and device copies.
 pub struct MatrixWindow {
     rows: Range<usize>,
-    cache: SuperneoEvalCache,
+    cache: Arc<SuperneoEvalCache>,
     storage_bytes: usize,
     workspace_peak_bytes: usize,
+}
+
+/// The complete window of one immutable matrix source. The owner of the
+/// source holds this slot, and every loader of the complete row range shares
+/// the one copy. The first complete load fills it.
+#[derive(Default)]
+pub struct RetainedMatrixWindow(Mutex<Option<Retained>>);
+
+struct Retained {
+    shape: MatrixShape,
+    cache: Arc<SuperneoEvalCache>,
+    storage_bytes: usize,
+    /// Construction peak without the caller's row payload.
+    construction_bytes: usize,
+}
+
+impl RetainedMatrixWindow {
+    /// The kept window, when one exists and its recorded construction peak
+    /// plus the caller's payload fits. It reports the same sizes as a new load.
+    fn window(
+        &self,
+        shape: MatrixShape,
+        workspace_bytes: usize,
+        payload_bytes_per_row: usize,
+    ) -> Result<Option<MatrixWindow>, PiCcsError> {
+        let slot = self
+            .0
+            .lock()
+            .map_err(|_| invalid("retained matrix window lock"))?;
+        let Some(kept) = slot.as_ref() else {
+            return Ok(None);
+        };
+        if kept.shape != shape {
+            return Err(invalid("retained matrix window belongs to another source"));
+        }
+        let peak = sum(kept.construction_bytes, product(shape.rows, payload_bytes_per_row)?)?;
+        Ok((peak <= workspace_bytes).then(|| MatrixWindow {
+            rows: 0..shape.rows,
+            cache: Arc::clone(&kept.cache),
+            storage_bytes: kept.storage_bytes,
+            workspace_peak_bytes: peak,
+        }))
+    }
+
+    fn keep(&self, shape: MatrixShape, window: &MatrixWindow, payload_bytes: usize) -> Result<(), PiCcsError> {
+        let mut slot = self
+            .0
+            .lock()
+            .map_err(|_| invalid("retained matrix window lock"))?;
+        if slot.is_none() {
+            *slot = Some(Retained {
+                shape,
+                cache: Arc::clone(&window.cache),
+                storage_bytes: window.storage_bytes,
+                construction_bytes: window.workspace_peak_bytes - payload_bytes,
+            });
+        }
+        Ok(())
+    }
 }
 
 impl MatrixWindow {
@@ -53,6 +118,28 @@ impl MatrixWindow {
     /// Reserve caller-owned row values alongside the matrix window. Storage
     /// reports cache bytes only; peak includes the supplied per-row payload.
     pub fn load_next_with_payload(
+        source: &dyn MatrixRows,
+        requested: Range<usize>,
+        workspace_bytes: usize,
+        payload_bytes_per_row: usize,
+    ) -> Result<Self, PiCcsError> {
+        let shape = source.shape();
+        let retained = source
+            .retained_window()
+            .filter(|_| requested == (0..shape.rows));
+        if let Some(retained) = retained {
+            if let Some(window) = retained.window(shape, workspace_bytes, payload_bytes_per_row)? {
+                return Ok(window);
+            }
+        }
+        let window = Self::build_next(source, requested.clone(), workspace_bytes, payload_bytes_per_row)?;
+        if let Some(retained) = retained.filter(|_| window.rows == requested) {
+            retained.keep(shape, &window, product(shape.rows, payload_bytes_per_row)?)?;
+        }
+        Ok(window)
+    }
+
+    fn build_next(
         source: &dyn MatrixRows,
         requested: Range<usize>,
         workspace_bytes: usize,
@@ -138,7 +225,7 @@ impl MatrixWindow {
         }
         Ok(Self {
             rows,
-            cache,
+            cache: Arc::new(cache),
             storage_bytes,
             workspace_peak_bytes,
         })
@@ -160,7 +247,7 @@ impl MatrixWindow {
         self.workspace_peak_bytes
     }
 
-    pub fn into_cache(self) -> SuperneoEvalCache {
+    pub fn into_cache(self) -> Arc<SuperneoEvalCache> {
         self.cache
     }
 }

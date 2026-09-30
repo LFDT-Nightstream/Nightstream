@@ -101,5 +101,6 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
         application,
         package: Arc::new(package),
         binding,
+        matrix_window: Arc::default(),
     })
 }

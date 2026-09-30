@@ -4,13 +4,13 @@
 use super::PreparedLifecycle;
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
-use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape};
+use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, RetainedMatrixWindow};
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{LoadedPerApplicationPackage, PackageError};
 use p3_field::PrimeCharacteristicRing;
 use std::ops::{ControlFlow, Range};
 
-pub(crate) struct PackageRows<'a>(&'a LoadedPerApplicationPackage);
+pub(crate) struct PackageRows<'a>(&'a LoadedPerApplicationPackage, &'a RetainedMatrixWindow);
 
 impl MatrixRows for PackageRows<'_> {
     fn shape(&self) -> MatrixShape {
@@ -57,11 +57,15 @@ impl MatrixRows for PackageRows<'_> {
             .map_err(|error| PiCcsError::InvalidInput(error.to_string()))?;
         sink_error.map_or(Ok(()), Err)
     }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        Some(self.1)
+    }
 }
 
 impl PreparedLifecycle {
     pub(crate) fn matrix_rows(&self) -> PackageRows<'_> {
-        PackageRows(&self.package)
+        PackageRows(&self.package, &self.matrix_window)
     }
 
     /// Reserve the selected profile's packed witness copies, carried table,

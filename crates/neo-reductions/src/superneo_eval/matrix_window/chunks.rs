@@ -112,7 +112,7 @@ pub(super) fn load_complete(
     drop(fills);
     Ok(Some(MatrixWindow {
         rows: requested,
-        cache,
+        cache: std::sync::Arc::new(cache),
         storage_bytes,
         workspace_peak_bytes,
     }))

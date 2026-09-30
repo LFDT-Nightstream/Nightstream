@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec
 
 def verifierRows : Nat := 22
 
-def messageColumns : Nat := 3221095
+def messageColumns : Nat := 2896551
 
 /-- Exact owner-approved operating-system CSPRNG output, in byte order. -/
 def productionSeedBytes : List Nat :=

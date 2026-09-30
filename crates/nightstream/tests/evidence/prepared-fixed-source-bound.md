@@ -1,21 +1,21 @@
 # Prepared fixed-source bound
 
-The single current verifier has 31,971,918 fixed array/u64 nodes before
+The single current verifier has 26,009,966 fixed array/u64 nodes before
 application metadata. The compiler's exact count is
 
-`N(W,L,R) = 31,971,918 + W + 4*[W>0] + 4*[L>0]`.
+`N(W,L,R) = 26,009,966 + W + 4*[W>0] + 4*[L>0]`.
 
 `W` counts application witness fields and `L` counts generated locals. The
-reference application has `W=4`, `L=7,696`, hence 31,971,930 nodes. Application
+reference application has `W=4`, `L=7,696`, hence 26,009,978 nodes. Application
 rows and recipe payloads are stored separately from this fixed envelope.
 
-The selected manifest has logical width `173,623,380 + 41*(W+L)`. The approved
+The selected manifest has logical width `156,098,012 + 41*(W+L)`. The approved
 maximum key is unchanged at 4,708,530 columns, or 254,260,620 scalar coordinates.
-Thus `W+L <= floor((254,260,620 - 173,623,380)/41) = 1,966,761`. Ring padding does
+Thus `W+L <= floor((254,260,620 - 156,098,012)/41) = 2,394,209`. Ring padding does
 not change that inequality because the maximum capacity is divisible by 54.
 
-The largest variable metadata uses `W=1,966,760`, `L=1`: both nonempty source
-segments add four nodes, giving **33,938,686 nodes**. The compiler regression
+The largest variable metadata uses `W=2,394,208`, `L=1`: both nonempty source
+segments add four nodes, giving **28,404,182 nodes**. The compiler regression
 counts the complete assembled envelope for this case and for `W=L=0`.
 It also checks that one additional field exceeds the maximum key.
 
@@ -27,7 +27,7 @@ Application records are external to this count. Shifted Phi81 runs retain
 their nonoverlapping source ranges.
 
 Compact numeric-array JSON needs at most 21 bytes per node, so the byte
-preflight is **712,712,406 bytes**. The decoder also counts nodes before each
+preflight is **596,487,822 bytes**. The decoder also counts nodes before each
 allocation and retains its normal nesting check. This is a format-derived
 bound, not a process RSS bound or authority for saved package identities.
 

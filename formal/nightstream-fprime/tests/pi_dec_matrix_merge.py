@@ -10,8 +10,8 @@ import time
 
 # Existing selected package sizes: Poseidon2HashChainV1Setup.messageColumns_eq,
 # PerApplicationCanonicalPackage row count, and the fixed protocol dimensions.
-BLOCKS = 3_221_095
-ROWS = 4_131_470
+BLOCKS = 2_896_551
+ROWS = 3_704_022
 POINT_COORDINATES = 28
 CHILDREN = 16
 MATRICES = 14

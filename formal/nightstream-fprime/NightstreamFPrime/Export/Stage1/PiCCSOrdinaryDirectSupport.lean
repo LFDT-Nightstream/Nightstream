@@ -153,6 +153,21 @@ private theorem initial_finish_le :
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
   norm_num
 
+private theorem initial_le_sumcheck :
+    PiCCSArithmetic.initialClaimLogicalStart ≤
+      PiCCSArithmetic.sumcheckLogicalStart :=
+  Nat.le_add_right _ _
+
+private theorem sumcheck_finish_le :
+    PiCCSArithmetic.sumcheckLogicalStart + 504 ≤
+      PiCCSStarts.outputBindingWitnessStart := by
+  rw [PiCCSStarts.outputBindingWitnessStart_eq]
+  unfold PiCCSArithmetic.sumcheckLogicalStart
+    PiCCSStarts.sumcheckLogicalStart
+    PiCCSStarts.initialClaimLogicalStart
+  rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
+  norm_num
+
 private theorem initial_le_evalK :
     PiCCSArithmetic.initialClaimLogicalStart ≤
       PiCCSArithmetic.evalKLogicalStart := by
@@ -373,12 +388,18 @@ theorem emittedConstraints_varsSatisfy
     · simpa [sumcheckInterface, Formal.sumcheckInterface,
         Formal.roundTranscriptRound, RoundTranscript.round,
         RoundTranscript.Message.asRound] using! transcript.roundPoint roundIndex
+  have sumcheckLocal : ∀ index,
+      PiCCSArithmetic.sumcheckLogicalStart ≤ index →
+      index < PiCCSArithmetic.sumcheckLogicalStart +
+        SumcheckChain.privateCount 9 → Source index :=
+    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 504
+      initial_le_sumcheck sumcheck_finish_le
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have sumcheckOutput := SumcheckChain.output_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
-    sumInitialSupport sumRoundSupport
+    sumInitialSupport sumRoundSupport sumcheckLocal
   have evalKLocal : ∀ index,
       PiCCSArithmetic.evalKLogicalStart ≤ index →
       index < PiCCSArithmetic.evalKLogicalStart + localLength
@@ -600,7 +621,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 731605 by
+    rw [show R1CS.totalFreshCount constraints = 303653 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart

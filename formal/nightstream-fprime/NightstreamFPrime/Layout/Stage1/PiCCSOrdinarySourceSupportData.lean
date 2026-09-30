@@ -46,7 +46,7 @@ def ordinaryLogicalCount : Nat :=
   rw [transcriptOutputCount, transcriptInvocationCount_eq]
   norm_num [NightstreamFPrime.Spec.Poseidon2.width]
 
-@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 79846 := by
+@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 80350 := by
   unfold ordinaryLogicalCount PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.outputBindingWitnessStart_eq,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
@@ -142,7 +142,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 28097016 at phaseValue
+  change PiDECInputs.phaseOffset = 27669568 at phaseValue
   have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -188,7 +188,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 28097016 := by
+            _ ≤ 27669568 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

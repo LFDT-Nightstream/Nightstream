@@ -64,7 +64,7 @@ def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     Lifecycle.cubeVariables
 
 def directStructuralRowCount (program : Program) : Nat :=
-  4123761 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
+  3696313 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
 
 theorem directStructuralRowCount_eq
     (program : Program) (fits : FitsTwoPow28 program) :
@@ -75,7 +75,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  173623380 +
+  156098012 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :

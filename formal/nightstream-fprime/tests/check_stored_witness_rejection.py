@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 
 P = 18446744069414584321
-CARRIER_BYTES = 54 * 3221095
+CARRIER_BYTES = 54 * 2896551
 
 def require(condition, message):
     if not condition:
@@ -106,11 +106,11 @@ def main():
         output, "output already exists", True)
     rows = [[0] * 54 for _ in range(22)]
     for name, data, reason in [
-        ("merge-gap", [1, 3221095, 1, 3221095, rows], "gap, overlap or invalid endpoint"),
-        ("merge-incomplete", [1, 3221095, 0, 1, rows], "do not cover the complete carrier"),
-        ("merge-row-count", [1, 3221095, 0, 3221095, rows[:-1]], "wrong key-row count"),
-        ("merge-lane-count", [1, 3221095, 0, 3221095, [row[:-1] for row in rows]], "wrong size"),
-        ("merge-noncanonical", [1, 3221095, 0, 3221095, [[P] + row[1:] for row in rows]], "noncanonical"),
+        ("merge-gap", [1, 2896551, 1, 2896551, rows], "gap, overlap or invalid endpoint"),
+        ("merge-incomplete", [1, 2896551, 0, 1, rows], "do not cover the complete carrier"),
+        ("merge-row-count", [1, 2896551, 0, 2896551, rows[:-1]], "wrong key-row count"),
+        ("merge-lane-count", [1, 2896551, 0, 2896551, [row[:-1] for row in rows]], "wrong size"),
+        ("merge-noncanonical", [1, 2896551, 0, 2896551, [[P] + row[1:] for row in rows]], "noncanonical"),
     ]:
         source, output = directory / (name + "-input.json"), directory / (name + ".json")
         source.write_text(json.dumps(data, separators=(",", ":")))

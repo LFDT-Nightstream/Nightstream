@@ -221,6 +221,7 @@ private theorem directConstraintRecipeEqNone
           challenge value lane)))) = none
   cases priorAffine : R1CS.lowerAffine prior <;>
     simp [R1CS.directConstraint, R1CS.directRecipeRow,
+      R1CS.productSumRecipeRow?_eq_none_of_rest _ _ _ notAffine,
       R1CS.affineConstraint, R1CS.lowerAffine, priorAffine, notAffine]
 
 theorem constraintFreshCountEqLane

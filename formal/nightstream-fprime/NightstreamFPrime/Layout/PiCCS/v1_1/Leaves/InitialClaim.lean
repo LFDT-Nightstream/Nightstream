@@ -146,16 +146,12 @@ private theorem program_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount
       (recipeConstraints offset (program interface offset).recipes) =
-        90713 := by
-  calc
-    _ = 7 * ((coefficientExprs interface offset).length - 1) := by
-      simpa only [program, ownedInterface,
-        NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program] using
-        compile_totalFreshCount offset (interface.gamma offset)
-          (coefficientExprs interface offset) inputs.gamma
-          (coefficientExprs_linear interface offset inputs)
-    _ = 90713 := by
-      rw [coefficientExprs_length]
+        0 := by
+  simpa only [program, ownedInterface,
+    NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program] using
+    compile_totalFreshCount offset (interface.gamma offset)
+      (coefficientExprs interface offset) inputs.gamma
+      (coefficientExprs_linear interface offset inputs)
 
 private theorem program_totalRowCount
     (interface :
@@ -163,15 +159,15 @@ private theorem program_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount
       (recipeConstraints offset (program interface offset).recipes) =
-        116631 := by
+        38877 := by
   calc
-    _ = 9 * ((coefficientExprs interface offset).length - 1) := by
+    _ = 3 * ((coefficientExprs interface offset).length - 1) := by
       simpa only [program, ownedInterface,
         NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program] using
         compile_totalRowCount offset (interface.gamma offset)
           (coefficientExprs interface offset) inputs.gamma
           (coefficientExprs_linear interface offset inputs)
-    _ = 116631 := by
+    _ = 38877 := by
       rw [coefficientExprs_length]
 
 /-- Exact parent-facing physical footprint for the complete 12,960-term
@@ -181,8 +177,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.initialClaimInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.initialClaimCircuit interface) where
-  freshColumnCount := fun _ => 90713
-  physicalRowCount := fun _ => 116631
+  freshColumnCount := fun _ => 0
+  physicalRowCount := fun _ => 38877
   freshColumnCount_eq := by
     intro offset
     unfold Formal.initialClaimCircuit
@@ -202,7 +198,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.initialClaimInterface interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.initialClaimCircuit interface).main offset)) = 90713 :=
+      (Formal.initialClaimCircuit interface).main offset)) = 0 :=
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -211,7 +207,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.initialClaimInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.initialClaimCircuit interface).main offset)) = 116631 :=
+      (Formal.initialClaimCircuit interface).main offset)) = 38877 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -222,10 +218,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.initialClaimCircuit interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.initialClaimCircuit interface).main offset)) = 116631 := by
+        (Formal.initialClaimCircuit interface).main offset)) = 38877 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.initialClaimCircuit interface).main
-        offset) = 25918 := by
+        offset) = 38877 := by
     unfold Formal.initialClaimCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_1.InitialClaim.localLength_eq

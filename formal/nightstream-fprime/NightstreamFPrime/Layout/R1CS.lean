@@ -1,9 +1,11 @@
 import NightstreamFPrime.Circuit.Basic
 
 /-!
-Owns the physical R1CS lowering of logical circuit expressions. Every
-multiplication allocates one fresh physical variable and one row. Every
-logical zero assertion adds one final row. The proof is structural in the
+Owns the physical R1CS lowering of logical circuit expressions. A recipe that
+is affine, one product of affine expressions, or such a product plus an affine
+expression is one row. In the general lowering, every multiplication allocates
+one fresh physical variable and one row, and every logical zero assertion
+adds one final row. The proof is structural in the
 expression syntax and does not evaluate an emitted artifact in the kernel.
 -/
 
@@ -305,8 +307,59 @@ def quadraticRecipeRow (output : Nat) (left right : Expr)
     simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env] using
       equation.symm
 
-/-- Compile an affine or one-rank quadratic recipe directly against its
-already allocated logical witness variable. -/
+/-- The rank-one row `left · right = output − rest` for the recipe
+`left * right + rest` with affine parts. -/
+def productSumRecipeRow (output : Nat) (left right rest : Expr)
+    (loweredLeft : AffineResult left) (loweredRight : AffineResult right)
+    (loweredRest : AffineResult rest) :
+    RecipeRowResult output (.add (.mul left right) rest) where
+  row := ⟨loweredLeft.combination, loweredRight.combination,
+    LinearCombination.add (LinearCombination.ofVar output)
+      (LinearCombination.scale (-1) loweredRest.combination)⟩
+  sound := by
+    intro env holds
+    have equation : left.eval env * right.eval env =
+        env output + -1 * rest.eval env := by
+      simpa [Row.Holds, loweredLeft.sound env, loweredRight.sound env,
+        loweredRest.sound env] using holds
+    rw [Expr.eval_sub, Expr.eval_var, Expr.eval_add, Expr.eval_mul, equation,
+      neg_one_mul, neg_add_cancel_right, sub_self]
+  complete := by
+    intro env constraint
+    have equation : env output =
+        left.eval env * right.eval env + rest.eval env :=
+      sub_eq_zero.mp (by
+        simpa only [Expr.eval_sub, Expr.eval_var, Expr.eval_add,
+          Expr.eval_mul] using! constraint)
+    simp only [Row.Holds, LinearCombination.eval_add,
+      LinearCombination.eval_ofVar, LinearCombination.eval_scale,
+      loweredLeft.sound env, loweredRight.sound env, loweredRest.sound env]
+    rw [equation, neg_one_mul, add_neg_cancel_right]
+
+/-- Recognize `left * right + rest` with affine parts. -/
+def productSumRecipeRow? (output : Nat) :
+    (product rest : Expr) →
+      Option (RecipeRowResult output (.add product rest))
+  | .mul left right, rest =>
+      match lowerAffine left, lowerAffine right, lowerAffine rest with
+      | some loweredLeft, some loweredRight, some loweredRest =>
+          some (productSumRecipeRow output left right rest
+            loweredLeft loweredRight loweredRest)
+      | _, _, _ => none
+  | _, _ => none
+
+theorem productSumRecipeRow?_eq_none_of_rest (output : Nat)
+    (product rest : Expr) (restNone : lowerAffine rest = none) :
+    productSumRecipeRow? output product rest = none := by
+  cases product with
+  | mul left right =>
+      cases lowerAffine left <;> cases lowerAffine right <;>
+        simp [productSumRecipeRow?, restNone]
+  | _ => rfl
+
+/-- Compile an affine recipe, one rank-one product of affine expressions, or
+one such product plus an affine expression directly against its already
+allocated logical witness variable. -/
 def directRecipeRow (output : Nat) (recipe : Expr) :
     Option (RecipeRowResult output recipe) :=
   match lowerAffine recipe with
@@ -319,9 +372,11 @@ def directRecipeRow (output : Nat) (recipe : Expr) :
               some (quadraticRecipeRow output left right
                 loweredLeft loweredRight)
           | _, _ => none
+      | .add product rest => productSumRecipeRow? output product rest
       | _ => none
 
-/-- One recipe is affine or one rank-one product of affine expressions. -/
+/-- One recipe has a one-row lowering: it is affine, one rank-one product of
+affine expressions, or such a product plus an affine expression. -/
 def IsDirectRecipe (output : Nat) (recipe : Expr) : Prop :=
   ∃ lowered, directRecipeRow output recipe = some lowered
 
@@ -341,6 +396,21 @@ theorem IsDirectRecipe.mul (output : Nat) {left right : Expr}
         leftEquals, rightEquals]
   | some lowered =>
       simp [IsDirectRecipe, directRecipeRow, productEquals]
+
+theorem IsDirectRecipe.mul_add (output : Nat) {left right rest : Expr}
+    (leftAffine : IsAffine left) (rightAffine : IsAffine right)
+    (restAffine : IsAffine rest) :
+    IsDirectRecipe output (left * right + rest) := by
+  rcases leftAffine with ⟨loweredLeft, leftEquals⟩
+  rcases rightAffine with ⟨loweredRight, rightEquals⟩
+  rcases restAffine with ⟨loweredRest, restEquals⟩
+  change IsDirectRecipe output (.add (.mul left right) rest)
+  cases sumEquals : lowerAffine (.add (.mul left right) rest) with
+  | none =>
+      simp [IsDirectRecipe, directRecipeRow, sumEquals, productSumRecipeRow?,
+        leftEquals, rightEquals, restEquals]
+  | some lowered =>
+      simp [IsDirectRecipe, directRecipeRow, sumEquals]
 
 /-- Every recipe in a batch has a one-row lowering at its exact output
 offset. -/

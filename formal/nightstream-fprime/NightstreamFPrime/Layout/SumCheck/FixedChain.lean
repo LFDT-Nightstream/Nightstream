@@ -52,18 +52,15 @@ theorem roundProgram_totalFreshCount {degree : Nat} (start : Nat)
     (round : Round degree) (linear : RoundLinear round) :
     R1CS.totalFreshCount
       (recipeConstraints start (Owned.roundProgram start round).recipes) =
-      7 * degree := by
+      0 := by
   rw [Owned.roundProgram, compile_totalFreshCount start round.challenge
-    round.coefficients linear.challenge (coefficients_linear round linear),
-    coefficients_length]
-  rfl
+    round.coefficients linear.challenge (coefficients_linear round linear)]
 
 theorem recipesFrom_totalFreshCount {degree : Nat} (start : Nat)
     (rounds : List (Round degree))
     (linear : ∀ round ∈ rounds, RoundLinear round) :
     R1CS.totalFreshCount
-      (recipeConstraints start (Owned.recipesFrom start rounds)) =
-      7 * degree * rounds.length := by
+      (recipeConstraints start (Owned.recipesFrom start rounds)) = 0 := by
   induction rounds generalizing start with
   | nil => rfl
   | cons round rounds inductionHypothesis =>
@@ -71,11 +68,8 @@ theorem recipesFrom_totalFreshCount {degree : Nat} (start : Nat)
         R1CS.totalFreshCount_append,
         roundProgram_totalFreshCount start round (linear round (by simp)),
         Owned.roundProgram_recipes_length,
-        inductionHypothesis (start + 2 * degree)
+        inductionHypothesis (start + 3 * degree)
           (fun later member => linear later (by simp [member]))]
-      simp only [List.length_cons]
-      rw [Nat.mul_succ]
-      omega
 
 private theorem sub_affine {left right : Expr}
     (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right) :
@@ -139,7 +133,7 @@ theorem equalitiesFrom_affine {degree : Nat} (start : Nat) (current : KExpr)
       rcases List.mem_append.mp member with headMember | tailMember
       · exact roundEqualities_affine current round currentLinear
           (linear round (by simp)) expression headMember
-      · exact inductionHypothesis (start + 2 * degree)
+      · exact inductionHypothesis (start + 3 * degree)
           (Owned.roundProgram start round).output
           (roundProgram_output_linear start round (linear round (by simp)))
           (fun later laterMember => linear later (by simp [laterMember]))
@@ -152,7 +146,7 @@ theorem outputFrom_linear {degree : Nat} (start : Nat) (current : KExpr)
   induction rounds generalizing start current with
   | nil => exact currentLinear
   | cons round rounds inductionHypothesis =>
-      exact inductionHypothesis (start + 2 * degree)
+      exact inductionHypothesis (start + 3 * degree)
         (Owned.roundProgram start round).output
         (roundProgram_output_linear start round (linear round (by simp)))
         (fun later member => linear later (by simp [member]))
@@ -166,15 +160,13 @@ private theorem interfaceRounds_linear {degree roundCount : Nat}
   rcases member with ⟨index, rfl⟩
   exact linear index
 
-/-- Seven lowering cells for each stored extension product; the round
-equations need none. -/
+/-- The stored products and the round equations need no lowering cell. -/
 theorem ownedCircuit_totalFreshCount {degree roundCount : Nat}
     (interface : Owned.Interface degree roundCount) (offset : Nat)
     (initialLinear : KExprLinear interface.initial)
     (linear : ∀ round, RoundLinear (interface.round round)) :
     R1CS.totalFreshCount (flatConstraints
-      (Circuit.ops (Owned.circuit interface).main offset)) =
-      7 * degree * roundCount := by
+      (Circuit.ops (Owned.circuit interface).main offset)) = 0 := by
   have equalityFresh : R1CS.totalFreshCount
       (Owned.assertions interface offset) = 0 :=
     R1CS.totalFreshCount_eq_zero_of_noFresh _ fun expression member =>
@@ -185,22 +177,18 @@ theorem ownedCircuit_totalFreshCount {degree roundCount : Nat}
   rw [Owned.flatConstraints_eq, R1CS.totalFreshCount_append, equalityFresh,
     Owned.recipes, recipesFrom_totalFreshCount offset interface.rounds
       (interfaceRounds_linear interface linear)]
-  simp [Owned.Interface.rounds]
 
-/-- Each stored product costs nine rows, and each round equation two. -/
+/-- Each stored product costs three rows, and each round equation two. -/
 theorem ownedCircuit_totalRowCount {degree roundCount : Nat}
     (interface : Owned.Interface degree roundCount) (offset : Nat)
     (initialLinear : KExprLinear interface.initial)
     (linear : ∀ round, RoundLinear (interface.round round)) :
     R1CS.totalRowCount (flatConstraints
       (Circuit.ops (Owned.circuit interface).main offset)) =
-      9 * degree * roundCount + 2 * roundCount := by
+      3 * degree * roundCount + 2 * roundCount := by
   rw [R1CS.totalRowCount_eq_fresh_add_length,
     ownedCircuit_totalFreshCount interface offset initialLinear linear,
     Owned.flatConstraints_length, Owned.privateCount]
-  have split : 9 * degree * roundCount =
-      7 * degree * roundCount + 2 * degree * roundCount := by
-    rw [← Nat.add_mul, ← Nat.add_mul]
   omega
 
 /-- The owned final claim is a sum of wires for the terminal owner. -/

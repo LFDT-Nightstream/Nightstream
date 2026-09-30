@@ -437,6 +437,42 @@ private theorem affineConstraint_row_varsSatisfy (expression : Expr)
         change term ∈ ([] : List (Nat × F)) at member
         simp at member
 
+private theorem productSumRecipeRow_row_varsSatisfy (output : Nat)
+    (allowed : Nat → Prop) (product rest : Expr)
+    (outputAllowed : allowed output)
+    (scope : (Expr.add product rest).VarsSatisfy allowed)
+    (result : RecipeRowResult output (.add product rest))
+    (found : productSumRecipeRow? output product rest = some result) :
+    result.row.VarsSatisfy allowed := by
+  cases product with
+  | var index => simp [productSumRecipeRow?] at found
+  | const value => simp [productSumRecipeRow?] at found
+  | add left right => simp [productSumRecipeRow?] at found
+  | mul left right =>
+      cases leftEq : lowerAffine left with
+      | none => simp [productSumRecipeRow?, leftEq] at found
+      | some loweredLeft =>
+          cases rightEq : lowerAffine right with
+          | none => simp [productSumRecipeRow?, leftEq, rightEq] at found
+          | some loweredRight =>
+              cases restEq : lowerAffine rest with
+              | none =>
+                  simp [productSumRecipeRow?, leftEq, rightEq, restEq] at found
+              | some loweredRest =>
+                  simp only [productSumRecipeRow?, leftEq, rightEq, restEq,
+                    Option.some.injEq] at found
+                  subst result
+                  exact ⟨lowerAffine_varsSatisfy left allowed scope.1.1
+                      loweredLeft leftEq,
+                    lowerAffine_varsSatisfy right allowed scope.1.2
+                      loweredRight rightEq,
+                    LinearCombination.VarsSatisfy.add _ _ allowed
+                      (LinearCombination.VarsSatisfy.ofVar output allowed
+                        outputAllowed)
+                      (LinearCombination.VarsSatisfy.scale (-1) _ allowed
+                        (lowerAffine_varsSatisfy rest allowed scope.2
+                          loweredRest restEq))⟩
+
 private theorem directRecipeRow_row_varsSatisfy (output : Nat)
     (allowed : Nat → Prop) (recipe : Expr) (outputAllowed : allowed output)
     (scope : recipe.VarsSatisfy allowed)
@@ -456,7 +492,10 @@ private theorem directRecipeRow_row_varsSatisfy (output : Nat)
       cases recipe with
       | var index => simp [directRecipeRow, affineEq] at found
       | const value => simp [directRecipeRow, affineEq] at found
-      | add left right => simp [directRecipeRow, affineEq] at found
+      | add left right =>
+          simp only [directRecipeRow, affineEq] at found
+          exact productSumRecipeRow_row_varsSatisfy output allowed left right
+            outputAllowed scope result found
       | mul left right =>
           cases leftEq : lowerAffine left with
           | none => simp [directRecipeRow, affineEq, leftEq] at found

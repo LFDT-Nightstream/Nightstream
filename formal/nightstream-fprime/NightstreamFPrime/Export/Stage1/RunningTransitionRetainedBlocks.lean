@@ -29,7 +29,7 @@ private theorem target_lt_basePackage (source : Nat)
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      27983797 :=
+      27743901 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -60,7 +60,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 11 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 28 + index.val < 27983796
+      change 28 + index.val < 27743900
       omega)
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -72,7 +72,7 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 49393 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 49663 + index.val < 27983796
+      change 49663 + index.val < 27743900
       omega)
 
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -84,7 +84,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 49248 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
         Spartan.sourceColumnCount_eq]
-      change 27620320 + index.val < 27983796
+      change 27380424 + index.val < 27743900
       omega)
 
 def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -

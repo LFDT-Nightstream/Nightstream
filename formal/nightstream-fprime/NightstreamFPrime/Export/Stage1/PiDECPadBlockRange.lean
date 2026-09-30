@@ -224,9 +224,9 @@ theorem complete_eq_accumulate
     rw [PiDECEvaluationBatch.accumulate]
     exact congrArg (fun n : Nat =>
       ((PiDECEvaluationBatch.range 0 n point rows).get child).toRing) equal.symm
-  have widthPin : selectedShape.carrierWidth = 156413754 :=
+  have widthPin : selectedShape.carrierWidth = 146577978 :=
     Poseidon2HashChainV1Setup.carrierWidth_eq
-  have blockPin : blockCount = 2896551 := Poseidon2HashChainV1Setup.messageColumns_eq
+  have blockPin : blockCount = 2714407 := Poseidon2HashChainV1Setup.messageColumns_eq
   have covered : selectedShape.carrierWidth = blockCount * ringDegree := by
     rw [widthPin, blockPin]
     decide

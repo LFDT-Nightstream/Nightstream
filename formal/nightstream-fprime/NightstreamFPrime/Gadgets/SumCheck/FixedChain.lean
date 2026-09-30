@@ -528,7 +528,7 @@ def roundProgram {degree : Nat} (start : Nat) (round : Round degree) :
 
 theorem roundProgram_recipes_length {degree : Nat} (start : Nat)
     (round : Round degree) :
-    (roundProgram start round).recipes.length = 2 * degree := by
+    (roundProgram start round).recipes.length = 3 * degree := by
   rw [roundProgram, Horner.compile_recipes_length]
   simp [Round.coefficients]
 
@@ -547,14 +547,14 @@ def recipesFrom {degree : Nat} (start : Nat) : List (Round degree) → List Expr
   | [] => []
   | round :: rounds =>
       (roundProgram start round).recipes ++
-        recipesFrom (start + 2 * degree) rounds
+        recipesFrom (start + 3 * degree) rounds
 
 /-- The final stored claim; an empty chain returns its input claim. -/
 def outputFrom {degree : Nat} (start : Nat) :
     KExpr → List (Round degree) → KExpr
   | current, [] => current
   | _, round :: rounds =>
-      outputFrom (start + 2 * degree) (roundProgram start round).output rounds
+      outputFrom (start + 3 * degree) (roundProgram start round).output rounds
 
 /-- The round equations `claim_i = p_i(0) + p_i(1)`. -/
 def equalitiesFrom {degree : Nat} (start : Nat) :
@@ -562,12 +562,12 @@ def equalitiesFrom {degree : Nat} (start : Nat) :
   | _, [] => []
   | current, round :: rounds =>
       KExpr.equalities current (roundBoundary round) ++
-        equalitiesFrom (start + 2 * degree)
+        equalitiesFrom (start + 3 * degree)
           (roundProgram start round).output rounds
 
 theorem recipesFrom_length {degree : Nat} (start : Nat)
     (rounds : List (Round degree)) :
-    (recipesFrom start rounds).length = 2 * degree * rounds.length := by
+    (recipesFrom start rounds).length = 3 * degree * rounds.length := by
   induction rounds generalizing start with
   | nil => rfl
   | cons round rounds inductionHypothesis =>
@@ -586,21 +586,6 @@ theorem equalitiesFrom_length {degree : Nat} (start : Nat) (current : KExpr)
         List.length_cons, List.length_nil, inductionHypothesis]
       omega
 
-private theorem recipesCausal_concat (start : Nat) (first second : List Expr)
-    (firstCausal : RecipesCausal start first)
-    (secondCausal : RecipesCausal (start + first.length) second) :
-    RecipesCausal start (first ++ second) := by
-  induction first generalizing start with
-  | nil => simpa using secondCausal
-  | cons recipe rest inductionHypothesis =>
-      refine ⟨firstCausal.1, inductionHypothesis (start + 1) firstCausal.2 ?_⟩
-      have shifted : start + 1 + rest.length =
-          start + (recipe :: rest).length := by
-        simp only [List.length_cons]
-        omega
-      rw [shifted]
-      exact secondCausal
-
 theorem recipesFrom_causal {degree : Nat} (start : Nat)
     (rounds : List (Round degree))
     (roundsBelow : ∀ round ∈ rounds, round.VarsBelow start) :
@@ -612,17 +597,17 @@ theorem recipesFrom_causal {degree : Nat} (start : Nat)
       have headCausal : RecipesCausal start (roundProgram start round).recipes :=
         Horner.compile_causal start round.challenge round.coefficients
           roundBelow.2 (Round.coefficients_below round start roundBelow)
-      have tailCausal := inductionHypothesis (start + 2 * degree)
+      have tailCausal := inductionHypothesis (start + 3 * degree)
         (fun later member =>
           later.varsBelow_mono (roundsBelow later (by simp [member]))
             (by omega))
-      apply recipesCausal_concat start _ _ headCausal
+      apply Horner.recipesCausal_concat start _ _ headCausal
       rw [roundProgram_recipes_length]
       exact tailCausal
 
 private theorem roundProgram_output_below {degree : Nat} (start : Nat)
     (round : Round degree) (roundBelow : round.VarsBelow start) :
-    (roundProgram start round).output.VarsBelow (start + 2 * degree) := by
+    (roundProgram start round).output.VarsBelow (start + 3 * degree) := by
   have below := (Horner.compile_causal_and_output_below start round.challenge
     round.coefficients roundBelow.2
     (Round.coefficients_below round start roundBelow)).2
@@ -634,18 +619,18 @@ theorem outputFrom_varsBelow {degree : Nat} (start : Nat) (current : KExpr)
     (currentBelow : current.VarsBelow start)
     (roundsBelow : ∀ round ∈ rounds, round.VarsBelow start) :
     (outputFrom start current rounds).VarsBelow
-      (start + 2 * degree * rounds.length) := by
+      (start + 3 * degree * rounds.length) := by
   induction rounds generalizing start current with
   | nil => simpa [outputFrom] using currentBelow
   | cons round rounds inductionHypothesis =>
-      have step := inductionHypothesis (start + 2 * degree)
+      have step := inductionHypothesis (start + 3 * degree)
         (roundProgram start round).output
         (roundProgram_output_below start round (roundsBelow round (by simp)))
         (fun later member =>
           later.varsBelow_mono (roundsBelow later (by simp [member]))
             (by omega))
-      have boundEq : start + 2 * degree + 2 * degree * rounds.length =
-          start + 2 * degree * (round :: rounds).length := by
+      have boundEq : start + 3 * degree + 3 * degree * rounds.length =
+          start + 3 * degree * (round :: rounds).length := by
         simp only [List.length_cons]
         rw [Nat.mul_succ]
         omega
@@ -657,15 +642,15 @@ theorem equalitiesFrom_varsBelow {degree : Nat} (start : Nat) (current : KExpr)
     (currentBelow : current.VarsBelow start)
     (roundsBelow : ∀ round ∈ rounds, round.VarsBelow start) :
     ∀ expression ∈ equalitiesFrom start current rounds,
-      expression.VarsBelow (start + 2 * degree * rounds.length) := by
+      expression.VarsBelow (start + 3 * degree * rounds.length) := by
   induction rounds generalizing start current with
   | nil =>
       intro expression member
       simp [equalitiesFrom] at member
   | cons round rounds inductionHypothesis =>
       intro expression member
-      have boundEq : start + 2 * degree + 2 * degree * rounds.length =
-          start + 2 * degree * (round :: rounds).length := by
+      have boundEq : start + 3 * degree + 3 * degree * rounds.length =
+          start + 3 * degree * (round :: rounds).length := by
         simp only [List.length_cons]
         rw [Nat.mul_succ]
         omega
@@ -678,7 +663,7 @@ theorem equalitiesFrom_varsBelow {degree : Nat} (start : Nat) (current : KExpr)
             (Round.coefficients_below round start roundBelow))
           expression headMember
         exact Expr.VarsBelow.mono expression headBelow (by omega)
-      · have step := inductionHypothesis (start + 2 * degree)
+      · have step := inductionHypothesis (start + 3 * degree)
           (roundProgram start round).output
           (roundProgram_output_below start round roundBelow)
           (fun later laterMember =>
@@ -716,7 +701,7 @@ theorem chain_of_rows {degree : Nat} (env : Env) (start : Nat)
       have headEq := (KExpr.equalities_hold_iff env current
         (roundBoundary round)).mp equalitySplit.1
       have outputEq := roundProgram_output_eval env start round recipeSplit.1
-      have tail := inductionHypothesis (start + 2 * degree)
+      have tail := inductionHypothesis (start + 3 * degree)
         (roundProgram start round).output recipeSplit.2 equalitySplit.2
       simp only [List.map_cons,
         NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.Chain, outputFrom]
@@ -752,7 +737,7 @@ theorem rows_of_chain {degree : Nat} (env : Env) (start : Nat)
       simp only [List.map_cons,
         NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.Chain] at chain
       have outputEq := roundProgram_output_eval env start round recipeSplit.1
-      have tail := inductionHypothesis (start + 2 * degree)
+      have tail := inductionHypothesis (start + 3 * degree)
         (roundProgram start round).output recipeSplit.2
         (by rw [outputEq]; exact chain.2)
       refine ⟨?_, by simpa [outputFrom] using tail.2⟩
@@ -785,7 +770,7 @@ private theorem Interface.rounds_below {degree roundCount : Nat}
   exact below.2 index
 
 /-- Number of stored base-field values: two for each Horner product. -/
-def privateCount (degree roundCount : Nat) : Nat := 2 * degree * roundCount
+def privateCount (degree roundCount : Nat) : Nat := 3 * degree * roundCount
 
 def recipes {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat) : List Expr :=

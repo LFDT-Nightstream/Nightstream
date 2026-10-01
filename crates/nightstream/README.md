@@ -206,7 +206,7 @@ profile an exact copy of SuperNeo Appendix B.2.
 The application tests use saved Lean exports and execution results. They compare
 all application rows and witness values, then run the stored base and recursive
 inputs through the Rust circuit. Computed outputs must match the stored Lean
-outputs, and the witnesses must satisfy all 7,700 exported application rows.
+outputs, and the witnesses must satisfy all 5,484 exported application rows.
 A changed output must fail those constraints. These tests run by default and
 need no Lean installation or artifact generation.
 
@@ -297,10 +297,10 @@ verifier component and binds the resulting application and circuit identity.
 
 Each `Circuit` uses the production commitment-key prefix required by its
 application. Private input words plus generated local words must be at most
-**2,950,283**. The logical width is
-`133,298,978 + 41 × (private_words + local_words)`, and the maximum key supports
+**4,092,249**. The logical width is
+`86,478,372 + 41 × (private_words + local_words)`, and the maximum key supports
 254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
-uses 2,474,346 columns; this smaller prefix is not the application capacity limit.
+uses 1,605,616 columns; this smaller prefix is not the application capacity limit.
 The exported row and domain checks also apply. See the
 [capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 

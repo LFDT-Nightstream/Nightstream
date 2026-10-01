@@ -4,7 +4,7 @@ from the existing Lean Poseidon2 and Phi81 matrix definitions. Rust loads these
 formulas as data. No Lean command runs during a Cargo build or protocol execution.
 
 The Nightstream Goldilocks profile has `b = 2`, `k_rho = 16`, and `B = 65536`.
-The library contains one eight-word Poseidon2 permutation with 86 rows, its
+The library contains one sixteen-word Poseidon2 permutation with 150 rows, its
 external linear layer, and 108 Phi81 evaluation variants with one row each.
 The Phi81 rows check the complete ring product with its quotient polynomial.
 

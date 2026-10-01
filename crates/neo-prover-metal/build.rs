@@ -78,7 +78,10 @@ fn write_poseidon2_constants(path: &Path) {
     // shader-side copy of protocol data.
     let constants = neo_ccs::crypto::poseidon2_goldilocks::round_constants();
     let mut words = Vec::with_capacity(
-        constants.initial.len() * 8 + constants.internal.len() + constants.terminal.len() * 8 + constants.diag.len(),
+        constants.initial.len() * neo_ccs::crypto::poseidon2_goldilocks::WIDTH
+            + constants.internal.len()
+            + constants.terminal.len() * neo_ccs::crypto::poseidon2_goldilocks::WIDTH
+            + constants.diag.len(),
     );
     words.extend(constants.initial.into_iter().flatten());
     words.extend(constants.internal);

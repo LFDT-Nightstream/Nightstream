@@ -54,7 +54,7 @@ fn affine_constant(coefficient: u64) -> Value {
 }
 
 fn encoded_program() -> Value {
-    let one_column = 5_999;
+    let one_column = 9_999;
     let ordinary = json!([0, [[0, [[0, 1]]], one_column, [[[0, 3, [0, 3, 0], 0]], []], [0]]]);
     let pin = json!([1, [one_column, [[[90, 7]]]]]);
     let multiplication = json!([
@@ -67,18 +67,18 @@ fn encoded_program() -> Value {
             affine_constant(30)
         ]
     ]);
-    let poseidon = json!([2, [1, one_column, [2, 86, 100], []]]);
+    let poseidon = json!([2, [1, one_column, [2, 150, 100], []]]);
     let phi81 = json!([
         3,
         [
             [[1, 1, 1]],
             one_column,
-            [0, 54, 4_000],
+            [0, 54, 7_000],
             0,
             54,
-            [[[0, 54, [0, 54, 4_054], 0]], []],
-            [0, 54, 4_108],
-            [0, 54, 4_162]
+            [[[0, 54, [0, 54, 7_054], 0]], []],
+            [0, 54, 7_108],
+            [0, 54, 7_162]
         ]
     ]);
     json!([ordinary, pin, multiplication, poseidon, phi81])
@@ -114,7 +114,7 @@ fn source_row(index: usize) -> Result<SourceRow, PackageError> {
 }
 
 fn entries(program: &MatrixProgram, row: usize, matrix: usize) -> Vec<(usize, u64)> {
-    program.row(6_000, row, &source_row).expect("matrix row")[matrix]
+    program.row(10_000, row, &source_row).expect("matrix row")[matrix]
         .entries()
         .iter()
         .map(|entry| (entry.column, entry.coefficient.as_canonical_u64()))
@@ -153,25 +153,25 @@ fn projection_program(projection: Value) -> MatrixProgram {
 fn every_lean_matrix_opcode_decodes_exact_rows() {
     let program = MatrixProgram::decode(&encoded_program()).expect("matrix program");
     program.validate(1).expect("source schedule");
-    assert_eq!(program.row_count().expect("row count"), 197);
+    assert_eq!(program.row_count().expect("row count"), 261);
 
-    assert_eq!(entries(&program, 0, 1), vec![(5_999, 1)]);
-    assert_eq!(entries(&program, 0, 2), vec![(0, 3), (5_999, 2)]);
+    assert_eq!(entries(&program, 0, 1), vec![(9_999, 1)]);
+    assert_eq!(entries(&program, 0, 2), vec![(0, 3), (9_999, 2)]);
     assert_eq!(entries(&program, 0, 3), vec![(1, 4)]);
-    assert_eq!(entries(&program, 0, 4), vec![(2, 6), (5_999, 5)]);
+    assert_eq!(entries(&program, 0, 4), vec![(2, 6), (9_999, 5)]);
 
-    assert_eq!(entries(&program, 1, 1), vec![(5_999, 1)]);
+    assert_eq!(entries(&program, 1, 1), vec![(9_999, 1)]);
     assert_eq!(entries(&program, 1, 4), vec![(90, 7)]);
 
-    assert_eq!(entries(&program, 2, 2), vec![(5_999, 5)]);
-    assert_eq!(entries(&program, 2, 3), vec![(5_999, 6)]);
-    assert_eq!(entries(&program, 2, 4), vec![(5_999, 30)]);
+    assert_eq!(entries(&program, 2, 2), vec![(9_999, 5)]);
+    assert_eq!(entries(&program, 2, 3), vec![(9_999, 6)]);
+    assert_eq!(entries(&program, 2, 4), vec![(9_999, 30)]);
 
     let poseidon_row = 3;
-    assert_eq!(entries(&program, poseidon_row, 1), vec![(5_999, 1)]);
+    assert_eq!(entries(&program, poseidon_row, 1), vec![(9_999, 1)]);
     assert_eq!(
         entries(&program, poseidon_row, 5),
-        vec![(5_999, FIRST_POSEIDON_CONSTANT)]
+        vec![(9_999, FIRST_POSEIDON_CONSTANT)]
     );
     let first_output = entries(&program, poseidon_row, 4);
     assert_eq!(first_output.len(), 41);
@@ -180,23 +180,23 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     assert_eq!(entries(&program, poseidon_row + 32, 4)[0].0, 100 + 32 * 41);
     assert_eq!(entries(&program, poseidon_row + 54, 4)[0].0, 100 + 54 * 41);
 
-    assert_eq!(entries(&program, poseidon_row + 85, 4)[0].0, 100 + 85 * 41);
+    assert_eq!(entries(&program, poseidon_row + 149, 4)[0].0, 100 + 149 * 41);
 
-    let phi_row = poseidon_row + 86;
+    let phi_row = poseidon_row + 150;
     assert_eq!(
         entries(&program, phi_row, 0),
-        vec![(4_000, 1), (5_999, GOLDILOCKS_MODULUS - 2)]
+        vec![(7_000, 1), (9_999, GOLDILOCKS_MODULUS - 2)]
     );
-    assert_eq!(entries(&program, phi_row, 2), vec![(4_054, 1)]);
-    assert_eq!(entries(&program, phi_row, 4), vec![(4_108, 1), (4_162, 1)]);
-    assert_eq!(entries(&program, phi_row, 7), vec![(5_999, 1)]);
+    assert_eq!(entries(&program, phi_row, 2), vec![(7_054, 1)]);
+    assert_eq!(entries(&program, phi_row, 4), vec![(7_108, 1), (7_162, 1)]);
+    assert_eq!(entries(&program, phi_row, 7), vec![(9_999, 1)]);
 
     let phi_at_one = entries(&program, phi_row + 1, 4);
     assert_eq!(phi_at_one.len(), 108);
-    assert_eq!(phi_at_one[0], (4_108, 1));
-    assert_eq!(phi_at_one[53], (4_108 + 53, 1));
-    assert_eq!(phi_at_one[54], (4_162, 3));
-    assert_eq!(phi_at_one[107], (4_162 + 53, 3));
+    assert_eq!(phi_at_one[0], (7_108, 1));
+    assert_eq!(phi_at_one[53], (7_108 + 53, 1));
+    assert_eq!(phi_at_one[54], (7_162, 3));
+    assert_eq!(phi_at_one[107], (7_162 + 53, 3));
 
     assert_eq!(MEANINGFUL_PORTS, 13);
 }
@@ -210,11 +210,11 @@ fn linear_poseidon_visitor_matches_every_random_access_row() {
     };
     let row_count = block.row_count().expect("Poseidon2 row count");
     let expected = (0..row_count)
-        .map(|row| block.row(6_000, row).expect("random-access row"))
+        .map(|row| block.row(10_000, row).expect("random-access row"))
         .collect::<Vec<_>>();
     let mut visited = Vec::new();
     let flow = block
-        .visit_rows_until(6_000, 0, row_count, |row| {
+        .visit_rows_until(10_000, 0, row_count, |row| {
             visited.push(owned_row(row));
             Ok(ControlFlow::Continue(()))
         })
@@ -235,7 +235,7 @@ fn malformed_matrix_programs_fail_closed() {
     ));
 
     let wrong_kind =
-        MatrixProgram::decode(&json!([[2, [1, 5_999, [0, 86, 100], []]]])).expect("wire-valid Poseidon block");
+        MatrixProgram::decode(&json!([[2, [1, 5_999, [0, 150, 100], []]]])).expect("wire-valid Poseidon block");
     assert!(matches!(
         wrong_kind.row(6_000, 0, &source_row),
         Err(PackageError::Invalid("Poseidon2 retained kind"))

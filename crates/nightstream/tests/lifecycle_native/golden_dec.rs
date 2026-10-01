@@ -20,7 +20,7 @@ fn result_value(
     structure: &CcsStructure<F>,
     parent: &CeClaim,
     children: &[CeClaim],
-    state: [F; 8],
+    state: [F; 16],
 ) -> Value {
     let proof = pi_dec::Proof {
         children: children.to_vec(),

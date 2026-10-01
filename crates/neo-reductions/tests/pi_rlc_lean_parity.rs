@@ -26,18 +26,18 @@ struct Boundary {
 
 #[derive(Deserialize)]
 struct Transcript {
-    initial: [u64; 8],
+    initial: [u64; 16],
     steps: Vec<Step>,
-    r#final: [u64; 8],
+    r#final: [u64; 16],
 }
 
 #[derive(Deserialize)]
 struct Step {
     source: u64,
-    entered: [u64; 8],
+    entered: [u64; 16],
     draw: [u64; 4],
     coefficients: Vec<i8>,
-    outgoing: [u64; 8],
+    outgoing: [u64; 16],
 }
 
 fn field(word: u64) -> F {

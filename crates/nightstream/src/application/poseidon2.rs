@@ -2,7 +2,7 @@
 //! The round schedule follows Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
 //! It consumes no exported application constraints or witness recipes.
 
-use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, round_constants, Poseidon2RoundConstants};
+use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, round_constants, Poseidon2RoundConstants, RATE, WIDTH};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -32,7 +32,7 @@ pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError>
     preimage.extend(builder.input_state().map(Affine::from));
     preimage.extend(builder.private_inputs().iter().copied().map(Affine::from));
     let mut state = std::array::from_fn(|_| scalar(0));
-    for block in preimage.chunks(4) {
+    for block in preimage.chunks(RATE) {
         for (lane, value) in state.iter_mut().enumerate() {
             *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
         }
@@ -54,7 +54,7 @@ fn sbox(builder: &mut ApplicationBuilder, value: Affine) -> Result<Affine, Appli
     Ok(builder.multiply(sixth.into(), value)?.into())
 }
 
-fn mat4(state: &[Affine; 8], base: usize, lane: usize) -> Affine {
+fn mat4(state: &[Affine; WIDTH], base: usize, lane: usize) -> Affine {
     let coefficients = match lane {
         0 => [2, 3, 1, 1],
         1 => [1, 2, 3, 1],
@@ -75,12 +75,16 @@ fn mat4(state: &[Affine; 8], base: usize, lane: usize) -> Affine {
         .expect("four matrix terms")
 }
 
-fn external(builder: &mut ApplicationBuilder, state: &[Affine; 8]) -> Result<[Affine; 8], ApplicationError> {
+/// `M₄` on the lane's block plus the sum of all blocks at the same position.
+/// Sums start from zero like Lean's `foldl (· + ·) 0`; recipe shape is identity input.
+fn external(builder: &mut ApplicationBuilder, state: &[Affine; WIDTH]) -> Result<[Affine; WIDTH], ApplicationError> {
     let mut output = std::array::from_fn(|_| scalar(0));
     for (lane, value) in output.iter_mut().enumerate() {
-        let block = mat4(state, if lane < 4 { 0 } else { 4 }, lane % 4);
+        let column = (0..WIDTH / 4)
+            .map(|block| mat4(state, 4 * block, lane % 4))
+            .fold(scalar(0), |sum, term| sum + term);
         *value = builder
-            .affine(block + mat4(state, 0, lane % 4) + mat4(state, 4, lane % 4))?
+            .affine(mat4(state, 4 * (lane / 4), lane % 4) + column)?
             .into();
     }
     Ok(output)
@@ -88,8 +92,8 @@ fn external(builder: &mut ApplicationBuilder, state: &[Affine; 8]) -> Result<[Af
 
 fn full_round(
     builder: &mut ApplicationBuilder,
-    state: &mut [Affine; 8],
-    constants: &[u64; 8],
+    state: &mut [Affine; WIDTH],
+    constants: &[u64; WIDTH],
 ) -> Result<(), ApplicationError> {
     for (value, constant) in state.iter_mut().zip(constants) {
         *value = sbox(builder, value.clone() + scalar(*constant))?;
@@ -100,9 +104,9 @@ fn full_round(
 
 fn permutation(
     builder: &mut ApplicationBuilder,
-    state: [Affine; 8],
+    state: [Affine; WIDTH],
     constants: &Poseidon2RoundConstants,
-) -> Result<[Affine; 8], ApplicationError> {
+) -> Result<[Affine; WIDTH], ApplicationError> {
     let mut state = external(builder, &state)?;
     for round in &constants.initial {
         full_round(builder, &mut state, round)?;
@@ -112,10 +116,9 @@ fn permutation(
         let sum = state
             .iter()
             .cloned()
-            .reduce(|sum, value| sum + value)
-            .expect("eight state lanes");
+            .fold(scalar(0), |sum, value| sum + value);
         let prior = state.clone();
-        for lane in 0..8 {
+        for lane in 0..WIDTH {
             state[lane] = builder
                 .affine(prior[lane].clone() * Goldilocks::from_u64(constants.diag[lane]) + sum.clone())?
                 .into();

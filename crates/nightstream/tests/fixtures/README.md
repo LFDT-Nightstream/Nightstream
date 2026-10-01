@@ -5,7 +5,7 @@ Lean installation. Saved fold fixtures require a separate fresh conformance run.
 `poseidon2-application-reference.json` is the exact application plan at index
 3 of `formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json`.
 It contains the four input state columns, four private message columns, four
-output state columns, all 7,700 application rows, and all 7,696 arithmetic
+output state columns, all 5,484 application rows, and all 5,480 arithmetic
 witness recipes. These dimensions belong to the selected application.
 
 `poseidon2-application-execution.json` contains `[prior_state, message, output]`

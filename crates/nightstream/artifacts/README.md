@@ -33,15 +33,15 @@ The repository toolchain remains `leanprover/lean4:v4.32.2`. A compatible local
 compiler can be selected with `elan run TOOLCHAIN`. All artifacts use
 `b = 2`, `k_rho = 16`, and `B = 65536`.
 
-The reference application has four witness words, 7,696 local words, and 7,700
+The reference application has four witness words, 5,480 local words, and 5,484
 rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
 for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current selected application has 133,614,678 logical coordinates and
-133,614,684 padded coordinates, using 2,474,346 columns of the unchanged fixed
+The current selected application has 86,703,216 logical coordinates and
+86,703,264 padded coordinates, using 1,605,616 columns of the unchanged fixed
 key. The approved maximum is 4,708,530 columns. With logical width
-`133298978 + 41 * (witness_words + local_words)`, that maximum permits 2,950,283
+`86478372 + 41 * (witness_words + local_words)`, that maximum permits 4,092,249
 application witness and local fields together. Source rows, source columns,
 and the padded carrier must also fit the declared domain.
 

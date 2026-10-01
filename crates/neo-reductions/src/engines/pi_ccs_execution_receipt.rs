@@ -5,6 +5,7 @@
 //! not claim universal correctness of the Rust prover or verifier.
 
 use neo_ajtai::Commitment as Cmt;
+use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
@@ -40,8 +41,8 @@ pub struct PiCcsCanonicalStatement {
     /// Poseidon2 matrix-artifact identifier. An independent checker must
     /// compare this value with its verifier-owned expected identifier.
     pub relation_id: [u64; 4],
-    /// Exact width-8 transcript state before the PiCCS public input.
-    pub transcript_state: [u64; 8],
+    /// Exact sixteen-lane transcript state before the PiCCS public input.
+    pub transcript_state: [u64; WIDTH],
     pub transcript_absorbed: usize,
     /// Every v1_1 transcript absorption in exact execution order. Framed
     /// blocks include their length word.

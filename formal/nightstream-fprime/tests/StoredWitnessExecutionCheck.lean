@@ -29,7 +29,7 @@ private def run (mode callerPath : String) (output : System.FilePath) : IO UInt3
   let recipes ← IO.wait (Task.spawn fun _ => PilotData.canonicalRecipes ())
   let invocation : Package.PermutationInvocation := {
     phase := 0, rowStart := 0, witnessStart := 8
-    inputs := List.ofFn fun lane : Fin 8 =>
+    inputs := List.ofFn fun lane : Fin 16 =>
       { constant := 0, terms := [⟨lane.val, 1⟩] } }
   let started ← IO.monoNanosNow
   let values ← IO.wait (Task.spawn fun _ =>

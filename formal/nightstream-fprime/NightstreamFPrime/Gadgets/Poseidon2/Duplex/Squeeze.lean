@@ -47,20 +47,20 @@ theorem compile_sample_eq (start : Nat) (state : EState) :
       ⟨state 0, (firstPermutation start state).output 0⟩ := rfl
 
 theorem compile_output_apply (start : Nat) (state : EState)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (compile start state).output lane =
       (secondPermutation start state).output lane := rfl
 
 theorem first_recipes_length (start : Nat) (state : EState) :
-    (firstPermutation start state).recipes.length = 592 :=
+    (firstPermutation start state).recipes.length = 1096 :=
   Permutation.compile_schedule_recipe_count start state
 
 theorem second_recipes_length (start : Nat) (state : EState) :
-    (secondPermutation start state).recipes.length = 592 :=
+    (secondPermutation start state).recipes.length = 1096 :=
   Permutation.compile_schedule_recipe_count _ _
 
 theorem compile_recipes_length (start : Nat) (state : EState) :
-    (compile start state).recipes.length = 1184 := by
+    (compile start state).recipes.length = 2192 := by
   rw [compile_recipes_eq, List.length_append, first_recipes_length,
     second_recipes_length]
 
@@ -139,7 +139,7 @@ theorem compile_causal (start : Nat) (state : EState)
     secondCausal
 
 theorem compile_output_below (start : Nat) (state : EState)
-    (stateBelow : ∀ lane, (state lane).VarsBelow start) (lane : Fin 8) :
+    (stateBelow : ∀ lane, (state lane).VarsBelow start) (lane : Fin 16) :
     ((compile start state).output lane).VarsBelow
       (start + (compile start state).recipes.length) := by
   have firstOutputBelow : ∀ current,
@@ -149,12 +149,12 @@ theorem compile_output_below (start : Nat) (state : EState)
     exact Permutation.compile_output_varsBelow start state
       Permutation.schedule stateBelow current
   have secondOutputBelow := Permutation.compile_output_varsBelow
-    (start + 592) (firstPermutation start state).output
+    (start + 1096) (firstPermutation start state).output
     Permutation.schedule (by
       intro current
       simpa only [first_recipes_length] using firstOutputBelow current) lane
   have secondLength := Permutation.compile_schedule_recipe_count
-    (start + 592) (firstPermutation start state).output
+    (start + 1096) (firstPermutation start state).output
   change ((secondPermutation start state).output lane).VarsBelow _
   rw [compile_recipes_length]
   unfold secondPermutation
@@ -172,7 +172,7 @@ theorem compile_sample_below (start : Nat) (state : EState)
   · rw [compile_sample_eq, compile_recipes_length]
     exact Expr.VarsBelow.mono _ (stateBelow 0) (by omega)
   · have firstOutput := Permutation.compile_output_varsBelow start state
-      Permutation.schedule stateBelow (0 : Fin 8)
+      Permutation.schedule stateBelow (0 : Fin 16)
     rw [compile_sample_eq, compile_recipes_length]
     rw [first_recipes_length] at firstOutput
     exact Expr.VarsBelow.mono _ firstOutput (by omega)

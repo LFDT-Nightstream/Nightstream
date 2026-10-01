@@ -109,7 +109,7 @@ fn metal_goldilocks_and_extension_arithmetic_match_cpu() {
         assert_eq!(actual, expected);
     }
 
-    let inputs = [0, 1, 3, 4, 5, 8, 9, 17, 64]
+    let inputs = [0, 1, 11, 12, 13, 24, 25, 64]
         .into_iter()
         .map(|len| (0..len).map(|_| rng.random::<u64>()).collect::<Vec<_>>())
         .collect::<Vec<_>>();

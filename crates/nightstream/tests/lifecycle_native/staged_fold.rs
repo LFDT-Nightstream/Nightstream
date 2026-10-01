@@ -29,7 +29,7 @@ pub(super) struct SavedParent {
     sumcheck: pi_ccs::SumcheckProof,
     ccs_outputs: Vec<CeClaim>,
     pub(super) rlc_parent: CeClaim,
-    transcript_state: [F; 8],
+    transcript_state: [F; 16],
     transcript_absorbed: usize,
 }
 #[derive(Serialize, Deserialize)]
@@ -48,7 +48,7 @@ struct SavedChildOpening {
     parent: CeClaim,
     commitment: Commitment,
     opening: V1_1Evaluations<K>,
-    transcript_state: [F; 8],
+    transcript_state: [F; 16],
     transcript_absorbed: usize,
 }
 #[derive(Serialize, Deserialize)]

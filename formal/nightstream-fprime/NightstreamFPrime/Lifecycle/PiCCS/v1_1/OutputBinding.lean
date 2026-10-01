@@ -266,7 +266,7 @@ def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
 private theorem inputChunks_length (input : List Expr) :
-    (Hash.inputChunks input).length = (input.length + 3) / 4 := by
+    (Hash.inputChunks input).length = (input.length + 11) / 12 := by
   unfold Hash.inputChunks
   rw [List.length_map, List.length_range]
   rfl
@@ -275,17 +275,17 @@ private theorem blockExpr_length (words : List Expr) :
     (StatementAbsorption.blockExpr words).length = words.length + 1 := by
   simp [StatementAbsorption.blockExpr]
 
-/-- One 27,541-word length-prefixed block uses 6,886 Poseidon2 chunks and
-4,076,512 private recipe variables. -/
+/-- One 27,541-word length-prefixed block uses 2,296 Poseidon2 chunks and
+2,516,416 private recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 4076512 := by
+    recipeCount interface offset = 2516416 := by
   unfold recipeCount actions StatementAbsorption.absorbBlock
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
   rw [inputChunks_length, blockExpr_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 4076512 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2516416 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -303,12 +303,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 /-- One row per recipe and no final-state row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      4076512 := by
+      2516416 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 4076512 := by
+      ((duplexInterface interface).actions offset) = 2516416 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
   simp [duplexInterface, actions, StatementAbsorption.absorbBlock,

@@ -61,7 +61,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
   have statementStrict : statementWitnessStart < challengeWitnessStart := by
     calc
       statementWitnessStart < statementWitnessStart +
-          invocationCount (statementActions logicalWidth publicFits) * 592 := by
+          invocationCount (statementActions logicalWidth publicFits) * 1096 := by
         rw [statementInvocationCount_eq]
         omega
       _ = challengeWitnessStart :=
@@ -69,7 +69,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
   have challengeStrict : challengeWitnessStart < roundWitnessStart := by
     calc
       challengeWitnessStart < challengeWitnessStart +
-          invocationCount (challengeActions logicalWidth publicFits) * 592 := by
+          invocationCount (challengeActions logicalWidth publicFits) * 1096 := by
         rw [challengeInvocationCount_eq]
         omega
       _ = roundWitnessStart :=
@@ -77,7 +77,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
   have roundStrict : roundWitnessStart < outputWitnessStart := by
     calc
       roundWitnessStart < roundWitnessStart +
-          invocationCount (roundActions logicalWidth publicFits) * 592 := by
+          invocationCount (roundActions logicalWidth publicFits) * 1096 := by
         rw [roundInvocationCount_eq]
         omega
       _ < outputWitnessStart :=
@@ -86,7 +86,7 @@ theorem invocations_scheduleWithin (logicalWidth : Nat)
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
       outputWitnessStart < outputWitnessStart +
-          invocationCount (outputActions logicalWidth publicFits) * 592 := by
+          invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]
         omega
       _ = NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=

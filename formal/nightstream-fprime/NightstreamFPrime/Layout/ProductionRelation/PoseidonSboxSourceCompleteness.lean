@@ -56,7 +56,7 @@ private theorem full_equations
     (state : State logicalWidth) (sourceState : Permutation.EState)
     (inputEq : SparseLayer.evalState assignment state =
       Layer.evalState env sourceState)
-    (outputs : ∀ lane : Fin 8,
+    (outputs : ∀ lane : Fin 16,
       (fullOutput interface nextSbox lane).eval assignment =
         (Permutation.fullSboxState start constants round sourceState lane).eval env)
     (trace : (Permutation.compileSboxes start
@@ -67,7 +67,7 @@ private theorem full_equations
       forms.output.eval assignment = Layer.sboxF (forms.input.eval assignment) := by
   intro forms member
   obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp member
-  change (fullOutput interface nextSbox lane).eval assignment = _
+  dsimp only
   rw [outputs]
   have sourceEq := mapped_sbox_value env _ _ trace lane.val
   change (Permutation.fullSboxState start constants round sourceState lane).eval env = _
@@ -125,12 +125,12 @@ private theorem step_equations
           { selector := selector interface
             input := partialInput interface round state
             output := partialOutput interface nextSbox } := by
-        simpa [compileStep, partialRows] using member
+        simpa only [compileStep, partialRows, List.mem_singleton] using member
       subst forms
       have outputEq := outputs 0 (by
         simp [PoseidonStepTrace.sboxProgram, PoseidonStepTrace.sboxInputs])
       have sourceEq := mapped_sbox_value env _ _ trace 0
-      change (partialOutput interface nextSbox).eval assignment = _
+      dsimp only
       rw [partialOutput, ← Nat.add_zero nextSbox, outputEq, sourceEq]
       apply congrArg Layer.sboxF
       rw [partialInput, SparseLayer.eval_addConstant assignment interface.oneColumn one]

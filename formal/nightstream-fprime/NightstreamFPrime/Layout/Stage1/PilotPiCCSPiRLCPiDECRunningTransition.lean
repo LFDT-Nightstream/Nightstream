@@ -23,7 +23,7 @@ variable {logicalWidth : Nat}
 def transitionOffset : Nat :=
   RunningTransitionInputs.phaseOffset
 
-theorem transitionOffset_eq : transitionOffset = 27427720 := by
+theorem transitionOffset_eq : transitionOffset = 20253040 := by
   rfl
 
 def physicalRows
@@ -60,18 +60,18 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 27284593 := by
+    physicalRowCount relation = 20109913 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change PilotPiCCSPiRLCPiDEC.physicalRowCount relation +
-    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 27284593
+    RunningTransitionLayout.physicalRowCount logicalWidth publicFits = 20109913
   rw [PilotPiCCSPiRLCPiDEC.physicalRowCount_eq relation,
     RunningTransitionLayout.physicalRowCount_eq relation]
   rfl
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 27427722 := by
+    physicalColumnCount relation = 20253042 := by
   unfold physicalColumnCount
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq relation,
     RunningTransitionLayout.physicalColumnCount_eq relation]
@@ -80,7 +80,7 @@ theorem physicalColumnCount_eq
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 27427722 := by
+    jointDomain relation = 20253042 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num

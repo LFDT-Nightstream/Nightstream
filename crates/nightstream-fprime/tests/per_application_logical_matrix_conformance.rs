@@ -70,12 +70,12 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 3_147_948;
-const EXPECTED_LOGICAL_COLUMNS: usize = 133_614_678;
+const EXPECTED_ACTIVE_ROWS: usize = 1_992_940;
+const EXPECTED_LOGICAL_COLUMNS: usize = 86_703_216;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
-const EXPECTED_PHYSICAL_ROWS: usize = 27_292_298;
-const EXPECTED_PHYSICAL_COLUMNS: usize = 27_435_423;
+const EXPECTED_PHYSICAL_ROWS: usize = 20_115_402;
+const EXPECTED_PHYSICAL_COLUMNS: usize = 20_258_527;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
 const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 108;
@@ -111,7 +111,7 @@ fn canonical_pin_entry(package: &mut Value) -> &mut Vec<Value> {
         .and_then(Value::as_array_mut)
         .and_then(|pin| pin.get_mut(1))
         .and_then(Value::as_array_mut)
-        .and_then(|rows| rows.get_mut(760))
+        .and_then(|rows| rows.get_mut(258))
         .and_then(Value::as_array_mut)
         .and_then(|row| {
             row.iter_mut().find(|entry| {
@@ -221,7 +221,7 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
     let first_row = original
         .row(0, &artifact.sources)
         .expect("original first row");
-    let pin_ordinal = original.block_ends().nth(2).expect("start of fourth block") + 760;
+    let pin_ordinal = original.block_ends().nth(2).expect("start of fourth block") + 258;
     let pin_row = original
         .row(pin_ordinal, &artifact.sources)
         .expect("original selected pin row");

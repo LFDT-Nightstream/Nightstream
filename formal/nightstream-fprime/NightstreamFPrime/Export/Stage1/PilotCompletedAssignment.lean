@@ -100,19 +100,19 @@ private theorem form_value
 
 private theorem lifted_chainOutput (chain : HashChain) (target : Env)
     (privateStart : Spartan.pilotInputPrivateColumnCount ≤ chain.witnessStart)
-    (privateEnd : chain.witnessStart + (chain.absorbCount + 1) * 592 ≤ Spartan.pilotPrivateColumnCount)
-    (lane : Fin 8) :
+    (privateEnd : chain.witnessStart + (chain.absorbCount + 1) * 1096 ≤ Spartan.pilotPrivateColumnCount)
+    (lane : Fin 16) :
     Pilot.chainOutputState chain chain.absorbCount
       (fun column => target (Spartan.liftPilotColumn column)) lane =
       target (invocationLocalStart (PilotData.circuitPackage ()) (Data.liftPilotChain chain)
-        chain.absorbCount + 584 + lane.val) := by
+        chain.absorbCount + 1080 + lane.val) := by
   change target (Spartan.liftPilotColumn
-      (chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val)) =
-    target (Spartan.liftPilotColumn chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val)
+      (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)) =
+    target (Spartan.liftPilotColumn chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)
   apply congrArg target
   have laneBound := lane.isLt
   have mapped := Spartan.liftPilotColumn_add_of_private chain.witnessStart
-    (chain.absorbCount * 592 + 584 + lane.val) privateStart (by omega)
+    (chain.absorbCount * 1096 + 1080 + lane.val) privateStart (by omega)
   simpa only [Nat.add_assoc] using mapped
 
 private theorem ordinary_rows
@@ -154,7 +154,7 @@ private theorem prior_binding
     (fun selected => form_value application relation target suffix rows raw baseEq (.priorDigest selected)) lane
   have lifted := lifted_chainOutput PilotData.priorChain target
     (by decide : Spartan.pilotInputPrivateColumnCount ≤ PilotData.priorChain.witnessStart)
-    (by decide : PilotData.priorChain.witnessStart + (PilotData.priorChain.absorbCount + 1) * 592 ≤
+    (by decide : PilotData.priorChain.witnessStart + (PilotData.priorChain.absorbCount + 1) * 1096 ≤
       Spartan.pilotPrivateColumnCount) (PilotDigestBindingPlan.digestLane lane)
   have retained := congrFun
     (PilotPoseidonCompleteness.prior_output application target suffix raw baseEq hashes.1
@@ -187,7 +187,7 @@ private theorem output_binding
     (fun selected => form_value application relation target suffix rows raw baseEq (.outputState selected)) lane
   have lifted := lifted_chainOutput PilotData.outputChain target
     (by decide : Spartan.pilotInputPrivateColumnCount ≤ PilotData.outputChain.witnessStart)
-    (by decide : PilotData.outputChain.witnessStart + (PilotData.outputChain.absorbCount + 1) * 592 ≤
+    (by decide : PilotData.outputChain.witnessStart + (PilotData.outputChain.absorbCount + 1) * 1096 ≤
       Spartan.pilotPrivateColumnCount) (PilotDigestBindingPlan.digestLane lane)
   have retained := congrFun
     (PilotPoseidonCompleteness.output_output application target suffix raw baseEq hashes.2

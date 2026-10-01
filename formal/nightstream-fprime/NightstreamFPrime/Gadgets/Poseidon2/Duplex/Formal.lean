@@ -26,11 +26,11 @@ inductive ValueAction where
   | squeezeK (expected : K)
 
 /-- Exact symbolic recipe cost of one duplex action. Each absorb chunk runs
-one 592-recipe Poseidon2 permutation. A quadratic-extension squeeze runs two
+one 1096-recipe Poseidon2 permutation. A quadratic-extension squeeze runs two
 such permutations. -/
 def Action.recipeCount : Action → Nat
-  | .absorb input => (Hash.inputChunks input).length * 592
-  | .squeezeK _ => 1184
+  | .absorb input => (Hash.inputChunks input).length * 1096
+  | .squeezeK _ => 2192
 
 /-- Exact symbolic recipe cost of a complete duplex action trace. -/
 def recipeCount (actions : List Action) : Nat :=
@@ -134,13 +134,13 @@ structure AbsorbWiring where
 def compileAbsorbWiring : Nat → EState → List (List Expr) → AbsorbWiring
   | start, state, [] => ⟨start, state⟩
   | start, _state, _block :: blocks =>
-      compileAbsorbWiring (start + 592)
+      compileAbsorbWiring (start + 1096)
         (Permutation.scheduleOutput start) blocks
 
 theorem compileAbsorbWiring_next (start : Nat) (state : EState)
     (blocks : List (List Expr)) :
     (compileAbsorbWiring start state blocks).next =
-      start + blocks.length * 592 := by
+      start + blocks.length * 1096 := by
   induction blocks generalizing start state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -173,8 +173,8 @@ def compileWiring : Nat → EState → List Action → Wiring
       ⟨tail.next, tail.samples, tail.output⟩
   | start, state, .squeezeK _expected :: actions =>
       let first := Permutation.scheduleOutput start
-      let tail := compileWiring (start + 1184)
-        (Permutation.scheduleOutput (start + 592)) actions
+      let tail := compileWiring (start + 2192)
+        (Permutation.scheduleOutput (start + 1096)) actions
       ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
 
 theorem compileWiring_next (start : Nat) (state : EState)
@@ -202,13 +202,13 @@ theorem wiringSample_eq_squeeze (start : Nat) (state : EState) :
   congr 1
 
 theorem wiringOutput_eq_squeeze (start : Nat) (state : EState) :
-    Permutation.scheduleOutput (start + 592) =
+    Permutation.scheduleOutput (start + 1096) =
       (Squeeze.compile start state).output := by
   funext lane
   rw [Squeeze.compile_output_apply]
   unfold Squeeze.secondPermutation
   rw [Squeeze.first_recipes_length]
-  exact congrFun (Permutation.scheduleOutput_eq_compile (start + 592)
+  exact congrFun (Permutation.scheduleOutput_eq_compile (start + 1096)
     (Squeeze.firstPermutation start state).output) lane
 
 /-- Wiring projection agrees with the full compiler on every externally used
@@ -246,18 +246,18 @@ theorem compileWiring_matches (start : Nat) (state : EState)
           let squeezed := Squeeze.compile start state
           change
             (⟨state 0, Permutation.scheduleOutput start 0⟩ : KExpr) ::
-                  (compileWiring (start + 1184)
-                    (Permutation.scheduleOutput (start + 592))
+                  (compileWiring (start + 2192)
+                    (Permutation.scheduleOutput (start + 1096))
                     actions).samples =
                 squeezed.sample ::
                   (compile (start + squeezed.recipes.length)
                     squeezed.output actions).samples ∧
-              (compileWiring (start + 1184)
-                    (Permutation.scheduleOutput (start + 592))
+              (compileWiring (start + 2192)
+                    (Permutation.scheduleOutput (start + 1096))
                     actions).output =
                 (compile (start + squeezed.recipes.length)
                   squeezed.output actions).output
-          have tailMatches := inductionHypothesis (start + 1184)
+          have tailMatches := inductionHypothesis (start + 2192)
             squeezed.output
           constructor
           · rw [wiringSample_eq_squeeze start state,
@@ -274,7 +274,7 @@ def compileAbsorbWiringLazy : Nat → (Unit → EState) →
     List (List Expr) → AbsorbWiring
   | start, delayed, [] => ⟨start, delayed ()⟩
   | start, _delayed, _block :: blocks =>
-      compileAbsorbWiringLazy (start + 592)
+      compileAbsorbWiringLazy (start + 1096)
         (fun _ => Permutation.scheduleOutput start) blocks
 
 theorem compileAbsorbWiringLazy_eq (start : Nat)
@@ -301,8 +301,8 @@ def compileWiringLazy : Nat → (Unit → EState) → List Action → Wiring
   | start, delayed, .squeezeK _expected :: actions =>
       let state := delayed ()
       let first := Permutation.scheduleOutput start
-      let tail := compileWiringLazy (start + 1184)
-        (fun _ => Permutation.scheduleOutput (start + 592)) actions
+      let tail := compileWiringLazy (start + 2192)
+        (fun _ => Permutation.scheduleOutput (start + 1096)) actions
       ⟨tail.next, ⟨state 0, first 0⟩ :: tail.samples, tail.output⟩
 
 theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
@@ -328,9 +328,9 @@ theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
       | squeezeK expected =>
           simp only [compileWiringLazy, compileWiring]
           rw [stateEq]
-          rw [inductionHypothesis (start + 1184)
-            (fun _ => Permutation.scheduleOutput (start + 592))
-            (Permutation.scheduleOutput (start + 592)) rfl]
+          rw [inductionHypothesis (start + 2192)
+            (fun _ => Permutation.scheduleOutput (start + 1096))
+            (Permutation.scheduleOutput (start + 1096)) rfl]
 
 /-- Samples are exposed in action order. Absorptions add no sample and every
 quadratic squeeze adds exactly one. -/
@@ -676,7 +676,7 @@ def stateEqualities (left right : EState) : List Expr :=
   List.ofFn fun lane => left lane - right lane
 
 @[simp] theorem stateEqualities_length (left right : EState) :
-    (stateEqualities left right).length = 8 := by
+    (stateEqualities left right).length = 16 := by
   simp [stateEqualities]
 
 theorem stateEqualities_hold_iff (env : Env) (left right : EState) :
@@ -735,7 +735,7 @@ def allAssertions (interface : Interface) (offset : Nat) : List Expr :=
 
 theorem allAssertions_length (interface : Interface) (offset : Nat) :
     (allAssertions interface offset).length =
-      assertionCount (interface.actions offset) + 8 := by
+      assertionCount (interface.actions offset) + 16 := by
   unfold allAssertions
   rw [List.length_append, compile_assertions_length, stateEqualities_length]
 
@@ -806,7 +806,7 @@ theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
 /-- Exact number of parent-visible operations without unfolding a schedule. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
     (opsAt interface offset).length =
-      1 + (assertionCount (interface.actions offset) + 8) := by
+      1 + (assertionCount (interface.actions offset) + 16) := by
   unfold opsAt
   rw [List.length_cons, List.length_map, allAssertions_length]
   omega
@@ -815,7 +815,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (opsAt interface offset)).length =
       recipeCount (interface.actions offset) +
-        (assertionCount (interface.actions offset) + 8) := by
+        (assertionCount (interface.actions offset) + 16) := by
   rw [flatConstraints_opsAt, List.length_append, recipeConstraints_length,
     allAssertions_length, compile_recipes_length]
 

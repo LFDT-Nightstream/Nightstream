@@ -56,16 +56,16 @@ theorem applicationRowCount_eq
 
 def rowRange (program : Lifecycle.Stage1.Application.Program) :
     RowOwner → Interval
-  | .priorStateHash => ⟨0, 7312526⟩
-  | .outputHash => ⟨7312526, 7311204⟩
-  | .piCcs => ⟨14623730, 4625851⟩
-  | .piRlc => ⟨19249581, 7960165⟩
-  | .piDec => ⟨27209746, 25488⟩
-  | .runningTransition => ⟨27235234, 49359⟩
+  | .priorStateHash => ⟨0, 4514654⟩
+  | .outputHash => ⟨4514654, 4513332⟩
+  | .piCcs => ⟨9027986, 3029779⟩
+  | .piRlc => ⟨12057765, 7977301⟩
+  | .piDec => ⟨20035066, 25488⟩
+  | .runningTransition => ⟨20060554, 49359⟩
   | .application =>
-      ⟨27284593, applicationRowCount program⟩
+      ⟨20109913, applicationRowCount program⟩
   | .nextPreimage =>
-      ⟨27284593 + applicationRowCount program, 5⟩
+      ⟨20109913 + applicationRowCount program, 5⟩
 
 theorem rowRanges_adjacent
     (program : Lifecycle.Stage1.Application.Program) :
@@ -102,20 +102,20 @@ theorem rowRanges_finish
     (program : Lifecycle.Stage1.Application.Program) :
     (rowRange program .nextPreimage).finish =
       Lowering.physicalRowCount relation program := by
-  change 27284593 + applicationRowCount program + 5 =
+  change 20109913 + applicationRowCount program + 5 =
     Lowering.physicalRowCount relation program
   rw [Lowering.physicalRowCount_eq]
   rw [applicationRowCount_eq]
 
 def rowOwnerAt (program : Lifecycle.Stage1.Application.Program)
     (row : Nat) : RowOwner :=
-  if row < 7312526 then .priorStateHash
-  else if row < 14623730 then .outputHash
-  else if row < 19249581 then .piCcs
-  else if row < 27209746 then .piRlc
-  else if row < 27235234 then .piDec
-  else if row < 27284593 then .runningTransition
-  else if row < 27284593 + applicationRowCount program then
+  if row < 4514654 then .priorStateHash
+  else if row < 9027986 then .outputHash
+  else if row < 12057765 then .piCcs
+  else if row < 20035066 then .piRlc
+  else if row < 20060554 then .piDec
+  else if row < 20109913 then .runningTransition
+  else if row < 20109913 + applicationRowCount program then
     .application
   else .nextPreimage
 
@@ -129,28 +129,28 @@ theorem selectedRow_in_range
     (bound : row < Lowering.physicalRowCount relation program) :
     (rowRange program (rowOwnerAt program row)).Contains row := by
   rw [Lowering.physicalRowCount_eq, applicationRowCount_eq] at bound
-  by_cases h1 : row < 7312526
+  by_cases h1 : row < 4514654
   · simp [rowOwnerAt, h1, rowRange, Interval.Contains, Interval.finish]
-  by_cases h2 : row < 14623730
+  by_cases h2 : row < 9027986
   · simp [rowOwnerAt, h1, h2, rowRange, Interval.Contains, Interval.finish]
     omega
-  by_cases h3 : row < 19249581
+  by_cases h3 : row < 12057765
   · simp [rowOwnerAt, h1, h2, h3, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h4 : row < 27209746
+  by_cases h4 : row < 20035066
   · simp [rowOwnerAt, h1, h2, h3, h4, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h5 : row < 27235234
+  by_cases h5 : row < 20060554
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h6 : row < 27284593
+  by_cases h6 : row < 20109913
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, h6, rowRange,
       Interval.Contains, Interval.finish]
     omega
-  by_cases h7 : row < 27284593 + applicationRowCount program
+  by_cases h7 : row < 20109913 + applicationRowCount program
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, h6, h7, rowRange,
       Interval.Contains, Interval.finish]
     omega

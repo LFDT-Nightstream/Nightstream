@@ -3,8 +3,8 @@
 //! Round constants come from `neo-ccs`; the Metal shaders contain no
 //! transcript constants of their own.
 
-pub const WIDTH: usize = 8;
-pub const RATE: usize = 4;
+pub const WIDTH: usize = 16;
+pub const RATE: usize = 12;
 pub const DIGEST_LEN: usize = 4;
 pub const EXTERNAL_HALF_ROUNDS: usize = 4;
 pub const INTERNAL_ROUNDS: usize = 22;

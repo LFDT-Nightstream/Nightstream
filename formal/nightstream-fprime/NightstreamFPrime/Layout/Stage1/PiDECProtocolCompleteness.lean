@@ -304,7 +304,7 @@ private theorem rValues_eq_of_agree
       (PiRLCInputs.phaseOffset + PiRLC.v1_1.Formal.logicalPrivateCount) after before _ agrees
     apply Expr.VarsBelow.mono _ (PiRLC.v1_1.SamplerChain.outputChallenge_below _ _ _)
     rw [PiRLC.v1_1.SamplerChain.counts.1]
-    exact Nat.add_le_add_left (by decide : 55403 ≤ 107729) PiRLCInputs.phaseOffset
+    exact Nat.add_le_add_left (by decide : 72539 ≤ 124865) PiRLCInputs.phaseOffset
   · have pointEq : PiRLC.v1_1.InputBinding.evalPoint (interface.point PiRLCInputs.phaseOffset) before =
         PiRLC.v1_1.InputBinding.evalPoint (interface.point (PiRLCInputs.phaseOffset + 0)) after := by
       apply point_ext

@@ -38,20 +38,20 @@ private theorem physicalInvocation_data (index : InvocationIndex) :
 /-- Every family endpoint is the output column of its actual last C
 permutation. This includes the post-ordinary output-absorption family. -/
 theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount) :
-    (physicalInvocation (endpointInvocation family)).witnessStart + 584 + lane.val =
+    (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
       Spartan.sourceToSpartan (endpointColumn family lane) := by
   let index := endpointInvocation family
-  let sourceStart := if index.val < 718 then
-      PiCCSInputs.phaseOffset + index.val * 592
-    else PiCCSInvocations.outputWitnessStart + (index.val - 718) * 592
+  let sourceStart := if index.val < 355 then
+      PiCCSInputs.phaseOffset + index.val * 1096
+    else PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096
   have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
     rw [physicalInvocation_data]
-    by_cases beforeOutput : index.val < 718
-    · rw [show sourceStart = PiCCSInputs.phaseOffset + index.val * 592 from if_pos beforeOutput]
+    by_cases beforeOutput : index.val < 355
+    · rw [show sourceStart = PiCCSInputs.phaseOffset + index.val * 1096 from if_pos beforeOutput]
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
-    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 718) * 592 from if_neg beforeOutput]
+    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096 from if_neg beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
-      · change 718 ≤ index.val
+      · change 355 ≤ index.val
         exact Nat.le_of_not_gt beforeOutput
       · simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
           (show index.val < PiCCSPoseidonPlan.invocationCount from index.isLt)
@@ -59,12 +59,12 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     unfold sourceStart
     split
     · rw [PiCCSInputs.phaseOffset_eq]
-      change 14751804 ≤ 14751804 + index.val * 592
+      change 9156060 ≤ 9156060 + index.val * 1096
       omega
     · rw [PiCCSInvocations.outputWitnessStart, PiCCSStarts.outputBindingWitnessStart_eq]
-      change 14751804 ≤ 15297969 + (index.val - 718) * 592
+      change 9156060 ≤ 9666249 + (index.val - 355) * 1096
       omega
-  have endpointEq : sourceStart + 584 + lane.val = endpointColumn family lane := by
+  have endpointEq : sourceStart + 1080 + lane.val = endpointColumn family lane := by
     unfold sourceStart index endpointInvocation endpointColumn endpointStart
       PiCCSInvocations.challengeWitnessStart PiCCSInvocations.roundWitnessStart
       PiCCSInvocations.outputWitnessStart PiCCSStarts.logicalFreshBase
@@ -76,10 +76,10 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
         PiCCSStarts.challengeWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq,
         PiCCSStarts.outputBindingWitnessStart_eq]
   calc
-    (physicalInvocation (endpointInvocation family)).witnessStart + 584 + lane.val =
-        Spartan.sourceToSpartan sourceStart + (584 + lane.val) := by rw [startEq]; omega
-    _ = Spartan.sourceToSpartan (sourceStart + (584 + lane.val)) :=
-      (Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart (584 + lane.val) sourceLocal).symm
+    (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
+        Spartan.sourceToSpartan sourceStart + (1080 + lane.val) := by rw [startEq]; omega
+    _ = Spartan.sourceToSpartan (sourceStart + (1080 + lane.val)) :=
+      (Spartan.sourceToSpartan_add_of_piCcsLocal sourceStart (1080 + lane.val) sourceLocal).symm
     _ = Spartan.sourceToSpartan (endpointColumn family lane) :=
       congrArg Spartan.sourceToSpartan (by omega)
 

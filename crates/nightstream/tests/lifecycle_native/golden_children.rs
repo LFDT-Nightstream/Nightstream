@@ -90,7 +90,7 @@ pub(super) fn check(
     assert_eq!(children[0], lean[5][6], "all children use the checked PiCCS point");
     assert_eq!(children[1].as_array().unwrap().len(), DIGITS);
     assert_eq!(children[2].as_array().unwrap().len(), DIGITS);
-    let state: [u64; 8] = serde_json::from_value(lean[5][14].clone()).expect("PiCCS outgoing state");
+    let state: [u64; 16] = serde_json::from_value(lean[5][14].clone()).expect("PiCCS outgoing state");
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state.map(field), 0);
     let sampled = kernels::sample_rho_n(&mut transcript, &Params::production(), 17).expect("wide sampler");
     let mut expected_commitment = vec![F::ZERO; COMMITMENT];

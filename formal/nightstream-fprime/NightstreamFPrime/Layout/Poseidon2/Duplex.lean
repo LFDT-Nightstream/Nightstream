@@ -49,14 +49,14 @@ private theorem compileAbsorptions_output_fresh_of_nonempty
   | cons block blocks inductionHypothesis =>
       cases blocks with
       | nil =>
-          refine ⟨start + 584, ?_⟩
+          refine ⟨start + 1080, ?_⟩
           simp [Hash.compileAbsorptions, compile_schedule_output_eq]
       | cons next rest =>
           change StateFresh
-            (Hash.compileAbsorptions (start + 592)
+            (Hash.compileAbsorptions (start + 1096)
               (Permutation.compile start (Hash.absorbE state block)
                 Permutation.schedule).output (next :: rest)).output
-          exact inductionHypothesis (start + 592)
+          exact inductionHypothesis (start + 1096)
             (Permutation.compile start (Hash.absorbE state block)
               Permutation.schedule).output (by simp)
 
@@ -72,7 +72,7 @@ theorem compileAbsorptions_output_fresh
 
 theorem squeeze_output_fresh (start : Nat) (state : Layer.EState) :
     StateFresh (Squeeze.compile start state).output := by
-  refine ⟨start + 1176, ?_⟩
+  refine ⟨start + 2176, ?_⟩
   funext lane
   rw [Squeeze.compile_output_apply]
   unfold Squeeze.secondPermutation

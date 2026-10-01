@@ -4,9 +4,9 @@
 //! The actual implementation lives in other crates but MUST import these constants.
 //!
 //! ## Configuration
-//! - WIDTH = 8 (total state size, recommended parameter)
+//! - WIDTH = 16 (total state size)
 //! - CAPACITY = 4 (security parameter: 4 × 64 = 256 bits)
-//! - RATE = 4 (absorption rate: WIDTH - CAPACITY)
+//! - RATE = 12 (absorption rate: WIDTH - CAPACITY)
 //! - DIGEST_LEN = 4 (output size: 4 × 64 ≈ 256 bits)
 //!
 //! ## Security Properties
@@ -22,11 +22,12 @@
 //! - Plonky3 implementation: p3_goldilocks
 //! - Security analysis: Based on Poseidon targeting 128-bit security
 
-/// Poseidon2 state width (recommended parameter)
+/// Poseidon2 state width
 ///
 /// Total number of field elements in the permutation state.
-/// Must equal CAPACITY + RATE = 4 + 4 = 8.
-pub const WIDTH: usize = 8;
+/// Must equal CAPACITY + RATE = 4 + 12 = 16. Plonky3 checks the 128-bit
+/// round numbers (8 full, 22 partial) for this width over Goldilocks.
+pub const WIDTH: usize = 16;
 
 /// Capacity of the sponge construction (security parameter)
 ///
@@ -37,9 +38,9 @@ pub const CAPACITY: usize = 4;
 /// Rate of absorption (elements absorbed per permutation)
 ///
 /// Number of field elements that can be absorbed in each sponge round.
-/// Must equal WIDTH - CAPACITY = 8 - 4 = 4.
-/// Each permutation absorbs ~256 bits of input.
-pub const RATE: usize = 4;
+/// Must equal WIDTH - CAPACITY = 16 - 4 = 12.
+/// Each permutation absorbs ~768 bits of input.
+pub const RATE: usize = 12;
 
 /// Length of output digest (field elements)
 ///

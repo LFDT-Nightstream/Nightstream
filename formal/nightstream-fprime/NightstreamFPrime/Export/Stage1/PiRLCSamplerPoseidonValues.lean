@@ -49,7 +49,7 @@ private theorem physicalInvocation_mem
   rw [List.getElem_append_right]
   · exact List.getElem_mem _
   · rw [PiCCSInvocations.invocations_length]
-    change 7604 ≤ 7604 + current.val
+    change 2651 ≤ 2651 + current.val
     omega
 
 private theorem physicalInvocation_witnessStart
@@ -106,11 +106,11 @@ private theorem schedule_source_val (application : Lifecycle.Stage1.Application.
         (LaterPoseidonRetainedBlocks.samplerFits application)⟩
   have parentSlot_eq : parentSlot = Fin.encodeProd (laterIndex current, row) := by
     apply Fin.ext
-    change 7604 * PoseidonRetainedSlots.rows.length +
-      (PoseidonRetainedSlots.rows.length * current.val + row.val) =
-      PoseidonRetainedSlots.rows.length * (7604 + current.val) + row.val
-    simp only [Nat.mul_add,
-      Nat.mul_comm PoseidonRetainedSlots.rows.length 7604, Nat.add_assoc]
+    simp only [parentSlot, selected, PoseidonRetainedFamily.slot_val,
+      Fin.encodeProd, Fin.coe_mkDivMod, PoseidonRetainedSlots.rows_length,
+      LaterPoseidonRetainedBlocks.piCcsSlotCount,
+      LaterPoseidonRetainedBlocks.piCcsInvocationCount, laterIndex]
+    omega
   have sourceEq := liftedSlice_source_val PoseidonRetainedBlock.laterBlock
     (PiRLCRetainedGeometry.poseidonSourceFits application)
     LaterPoseidonRetainedBlocks.piCcsSlotCount LaterPoseidonRetainedBlocks.samplerSlotCount
@@ -176,17 +176,17 @@ theorem outputValue_of_packets
       (RunningTransitionDirectPlan.packageEnv application base))
     (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) :
     PiRLCSamplerPoseidonPreservation.outputValue geometry assignment current =
-      fun lane : Fin 8 => RunningTransitionDirectPlan.packageEnv application base
-        ((physicalInvocation current).witnessStart + 584 + lane.val) := by
+      fun lane : Fin 16 => RunningTransitionDirectPlan.packageEnv application base
+        ((physicalInvocation current).witnessStart + 1080 + lane.val) := by
   rw [PiRLCSamplerPoseidonPreservation.outputValue_sourceAssignment geometry assignment
     (PiRLCRetainedPreservation.sourceAssignment application base groupValue) encoding]
-  have sourceEq : (fun lane : Fin 8 =>
+  have sourceEq : (fun lane : Fin 16 =>
       PiRLCSamplerPoseidonPreservation.sourceAssignment application
         (PiRLCRetainedPreservation.sourceAssignment application base groupValue)
         ((PiRLCSamplerPoseidonPlan.schedule application).block.source
           (PoseidonRetainedFamily.slot (PiRLCSamplerPoseidonPlan.schedule application)
             current (PoseidonRetainedSlots.finalRow lane)))) =
-      fun lane : Fin 8 => RunningTransitionDirectPlan.packageEnv application base
+      fun lane : Fin 16 => RunningTransitionDirectPlan.packageEnv application base
         ((physicalInvocation current).witnessStart +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val) := by
     funext lane

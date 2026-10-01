@@ -9,12 +9,11 @@ use serde_json::Value;
 use super::poseidon_input::Program as InputProgram;
 use super::{
     checked_add, checked_mul, exact_array, owned_row, template, usize_atom, Form, PackageError, RetainedBlock,
-    RetainedKind, RowForms, RowView,
+    RetainedKind, RowForms, RowView, POSEIDON_WIDTH,
 };
 
-const ROWS_PER_INVOCATION: usize = 86;
-const SBOX_ROWS_PER_INVOCATION: usize = 86;
-const WIDTH: usize = 8;
+const ROWS_PER_INVOCATION: usize = 150;
+const SBOX_ROWS_PER_INVOCATION: usize = 150;
 
 #[derive(Clone, Debug)]
 pub(super) struct Block {
@@ -113,7 +112,7 @@ impl Block {
     }
 
     fn invocation_inputs(&self, logical_width: usize, invocation: usize) -> Result<Vec<Form>, PackageError> {
-        let mut inputs = Vec::with_capacity(1 + WIDTH + SBOX_ROWS_PER_INVOCATION);
+        let mut inputs = Vec::with_capacity(1 + POSEIDON_WIDTH + SBOX_ROWS_PER_INVOCATION);
         inputs.push(Form::singleton(self.one_column, Goldilocks::ONE));
         inputs.extend(
             self.input

@@ -61,7 +61,7 @@ theorem sourceCount_eq : sourceCount = 17 := by
   rw [sourceCount, productionShape_sourceCount]
   rfl
 
-theorem counts : logicalPrivateCount = 55403 ∧ logicalRowCount = 32623 := by
+theorem counts : logicalPrivateCount = 72539 ∧ logicalRowCount = 49759 := by
   rw [logicalPrivateCount, logicalRowCount, sourceCount_eq, Sampler.counts.1, Sampler.counts.2]
   decide
 

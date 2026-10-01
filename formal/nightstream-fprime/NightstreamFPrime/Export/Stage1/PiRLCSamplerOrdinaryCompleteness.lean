@@ -28,7 +28,7 @@ open PerApplicationAssignmentTransportExecution
 private theorem poseidonOutputColumn (source : Fin sourceCount) (lane : Fin 4) :
     (PiRLCSamplerPoseidonValues.physicalInvocation
       (PiRLCSamplerOrdinaryDirectPlan.Location.poseidonInvocation source)).witnessStart +
-        584 + (Sampler.rateLane lane).val =
+        1080 + (Sampler.rateLane lane).val =
       Spartan.sourceToSpartan (PiRLCSamplerOrdinaryDirectSource.poseidonSource source.val lane) := by
   rw [PiRLCSamplerPoseidonValues.physicalInvocation_witnessStart_sampler]
   have decoded : PermutationPlan.samplerWitnessStartAt
@@ -48,7 +48,7 @@ private theorem poseidonOutputColumn (source : Fin sourceCount) (lane : Fin 4) :
     omega
   simpa only [PiRLCSamplerOrdinaryDirectSource.poseidonSource, Nat.add_assoc] using
     (Spartan.sourceToSpartan_add_of_piCcsLocal
-      (PiRLCStarts.samplerSourceLogicalStart source.val) (584 + lane.val) localStart).symm
+      (PiRLCStarts.samplerSourceLogicalStart source.val) (1080 + lane.val) localStart).symm
 
 section Sources
 

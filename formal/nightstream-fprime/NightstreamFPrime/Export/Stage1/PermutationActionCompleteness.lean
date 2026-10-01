@@ -39,7 +39,7 @@ private theorem compileBlocks_complete_of_sourceConstraints
       have separated := Formal.splitRecipeRows (Spartan.pullback env) witnessStart
         (Permutation.compile witnessStart (Hash.absorbE state block)
           Permutation.schedule).recipes
-        (Hash.compileAbsorptions (witnessStart + 592)
+        (Hash.compileAbsorptions (witnessStart + 1096)
           (Permutation.compile witnessStart (Hash.absorbE state block)
             Permutation.schedule).output rest).recipes rows
       have headRows : ConstraintsHold (Spartan.pullback env)
@@ -47,8 +47,8 @@ private theorem compileBlocks_complete_of_sourceConstraints
             (Permutation.compile witnessStart (Hash.absorbE state block)
               Permutation.schedule).recipes) := separated.1
       have tailRows : ConstraintsHold (Spartan.pullback env)
-          (recipeConstraints (witnessStart + 592)
-            (Hash.compileAbsorptions (witnessStart + 592)
+          (recipeConstraints (witnessStart + 1096)
+            (Hash.compileAbsorptions (witnessStart + 1096)
               (permutationOutput witnessStart) rest).recipes) := by
         rw [permutationOutput_eq_compile]
         simpa only [Permutation.compile_schedule_recipe_count] using separated.2
@@ -58,7 +58,7 @@ private theorem compileBlocks_complete_of_sourceConstraints
       · exact invocation_complete_of_sourceConstraints phase rowStart witnessStart
           (Hash.absorbE state block) env witnessLocal
           (Poseidon2.absorbE_affine state block stateAffine blockAffine) headRows
-      · exact induction (rowStart + 592) (witnessStart + 592)
+      · exact induction (rowStart + 1096) (witnessStart + 1096)
           (permutationOutput witnessStart) (by omega)
           (permutationOutput_affine witnessStart) restAffine tailRows current member
 
@@ -128,15 +128,15 @@ theorem compileActions_complete_of_sourceConstraints
               (recipeConstraints witnessStart
                 (Permutation.compile witnessStart state Permutation.schedule).recipes) := splitSqueeze.1
           have secondRows : ConstraintsHold (Spartan.pullback env)
-              (recipeConstraints (witnessStart + 592)
-                (Permutation.compile (witnessStart + 592)
+              (recipeConstraints (witnessStart + 1096)
+                (Permutation.compile (witnessStart + 1096)
                   (permutationOutput witnessStart) Permutation.schedule).recipes) := by
             rw [permutationOutput_eq_compile]
             simpa only [Squeeze.secondPermutation, Squeeze.first_recipes_length] using splitSqueeze.2
           have tailRows : ConstraintsHold (Spartan.pullback env)
-              (recipeConstraints (witnessStart + 1184)
-                (Formal.compile (witnessStart + 1184)
-                  (permutationOutput (witnessStart + 592)) actions).recipes) := by
+              (recipeConstraints (witnessStart + 2192)
+                (Formal.compile (witnessStart + 2192)
+                  (permutationOutput (witnessStart + 1096)) actions).recipes) := by
             rw [squeezeOutput_eq_compile]
             simpa only [squeezed, Squeeze.compile_recipes_length] using separated.2
           intro current member
@@ -144,11 +144,11 @@ theorem compileActions_complete_of_sourceConstraints
           rcases member with rfl | rfl | member
           · exact invocation_complete_of_sourceConstraints phase rowStart witnessStart state env
               witnessLocal stateAffine firstRows
-          · exact invocation_complete_of_sourceConstraints phase (rowStart + 592) (witnessStart + 592)
+          · exact invocation_complete_of_sourceConstraints phase (rowStart + 1096) (witnessStart + 1096)
               (permutationOutput witnessStart) env (by omega)
               (permutationOutput_affine witnessStart) secondRows
-          · exact induction (rowStart + 1184) (witnessStart + 1184)
-              (permutationOutput (witnessStart + 592)) (by omega)
-              (permutationOutput_affine (witnessStart + 592)) tailAffine tailRows current member
+          · exact induction (rowStart + 2192) (witnessStart + 2192)
+              (permutationOutput (witnessStart + 1096)) (by omega)
+              (permutationOutput_affine (witnessStart + 1096)) tailAffine tailRows current member
 
 end NightstreamFPrime.Export.Stage1.PermutationCompilerTransport

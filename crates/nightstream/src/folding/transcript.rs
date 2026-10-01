@@ -1,15 +1,16 @@
 //! The selected native transcript position, with the existing session label.
+use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript as _};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Poseidon2TranscriptSnapshot {
-    state: [F; 8],
+    state: [F; WIDTH],
     absorbed: usize,
 }
 #[cfg(test)]
 impl Poseidon2TranscriptSnapshot {
-    pub(crate) fn state(&self) -> [F; 8] {
+    pub(crate) fn state(&self) -> [F; WIDTH] {
         self.state
     }
     pub(crate) fn absorbed(&self) -> usize {

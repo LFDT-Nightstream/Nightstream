@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
-def piCcsInvocationCount : Nat := 7604
+def piCcsInvocationCount : Nat := 2651
 def samplerInvocationCount : Nat := 34
 
 def piCcsSlotCount : Nat :=
@@ -33,7 +33,7 @@ theorem totalSlotCount_eq
     piCcsSlotCount + samplerSlotCount =
       (PiRLCRetainedGeometry.laterPoseidonBlock program).slotCount := by
   rw [PiRLCRetainedGeometry.laterPoseidonBlock_slotCount]
-  rfl
+  simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length]
 
 def piCcsFits (program : Lifecycle.Stage1.Application.Program) :
     0 + piCcsSlotCount ≤
@@ -64,27 +64,27 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem piCcsBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).slotCount = 653944 := by
+    (piCcsBlock program).slotCount = 397650 := by
   calc
     (piCcsBlock program).slotCount = piCcsSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 653944 := by rfl
+    _ = 397650 := by simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length]
 
 @[simp] theorem samplerBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (samplerBlock program).slotCount = 2924 := by
+    (samplerBlock program).slotCount = 5100 := by
   calc
     (samplerBlock program).slotCount = samplerSlotCount :=
       LowNormBlock.Block.slice_slotCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         piCcsSlotCount samplerSlotCount (samplerFits program)
-    _ = 2924 := by rfl
+    _ = 5100 := by simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length]
 
 @[simp] theorem piCcsBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piCcsBlock program).coordinateCount = 26811704 := by
+    (piCcsBlock program).coordinateCount = 16303650 := by
   calc
     (piCcsBlock program).coordinateCount =
         piCcsSlotCount *
@@ -92,13 +92,13 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
       LowNormBlock.Block.slice_coordinateCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         0 piCcsSlotCount (piCcsFits program)
-    _ = 26811704 := by
+    _ = 16303650 := by
       rw [PiRLCRetainedGeometry.laterPoseidonBlock_kind]
-      rfl
+      simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length, LowNormSlot.Kind.width, BalancedTernary.width]
 
 @[simp] theorem samplerBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (samplerBlock program).coordinateCount = 119884 := by
+    (samplerBlock program).coordinateCount = 209100 := by
   calc
     (samplerBlock program).coordinateCount =
         samplerSlotCount *
@@ -106,14 +106,14 @@ def samplerStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
       LowNormBlock.Block.slice_coordinateCount
         (PiRLCRetainedGeometry.laterPoseidonBlock program)
         piCcsSlotCount samplerSlotCount (samplerFits program)
-    _ = 119884 := by
+    _ = 209100 := by
       rw [PiRLCRetainedGeometry.laterPoseidonBlock_kind]
-      rfl
+      simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length, LowNormSlot.Kind.width, BalancedTernary.width]
 
 @[simp] theorem samplerStart_eq
     (program : Lifecycle.Stage1.Application.Program) :
     samplerStart program =
-      PiRLCRetainedGeometry.laterPoseidonStart program + 26811704 := by
+      PiRLCRetainedGeometry.laterPoseidonStart program + 16303650 := by
   unfold samplerStart piCcsStart
   rw [piCcsBlock_coordinateCount]
 
@@ -169,7 +169,7 @@ theorem samplerStart_eq_indexed
         piCcsSlotCount *
           (PiRLCRetainedGeometry.laterPoseidonBlock program).kind.width := by
   rw [samplerStart_eq, PiRLCRetainedGeometry.laterPoseidonBlock_kind]
-  rfl
+  simp [piCcsSlotCount, samplerSlotCount, piCcsInvocationCount, samplerInvocationCount, PoseidonRetainedSlots.rows_length, LowNormSlot.Kind.width, BalancedTernary.width]
 
 /-- A parent later-Poseidon encoding restricts to the exact sampler suffix. -/
 theorem samplerBlock_encodesAt

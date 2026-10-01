@@ -149,7 +149,7 @@ def compilePlan? : Option (List StepPlan) :=
 branch is unreachable. -/
 def plan : List StepPlan := compilePlan?.getD []
 
-/-- Every one of the fixed template's 334 expression pairs passes exact
+/-- Every one of the fixed template's 646 expression pairs passes exact
 bounded compilation. -/
 theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
@@ -163,15 +163,15 @@ theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
 
 @[simp] theorem sboxRowCount_eq :
-    (plan.map fun step => step.sboxes.length).sum = 86 := by
+    (plan.map fun step => step.sboxes.length).sum = 150 := by
   rfl
 
 @[simp] theorem outputRowCount_eq :
-    (plan.map fun step => step.outputs.length).sum = 248 := by
+    (plan.map fun step => step.outputs.length).sum = 496 := by
   rfl
 
 @[simp] theorem directRowCount_eq :
-    (plan.map fun step => step.sboxes.length + step.outputs.length).sum = 334 := by
+    (plan.map fun step => step.sboxes.length + step.outputs.length).sum = 646 := by
   rfl
 
 private theorem map_eq_map_of_forall_mem {α β : Type}

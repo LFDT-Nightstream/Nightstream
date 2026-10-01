@@ -165,7 +165,7 @@ theorem completeness (interface : Interface) (coordinate : Nat)
     specification
 
 private theorem recipeCount_eq (coordinate : Nat) :
-    Formal.recipeCount (actions coordinate) = 592 := by
+    Formal.recipeCount (actions coordinate) = 1096 := by
   norm_num [actions, constantWords, frameWords, Formal.recipeCount,
     Formal.Action.recipeCount, Hash.inputChunks, Poseidon2.rate]
 
@@ -176,10 +176,10 @@ private theorem assertionCount_eq (coordinate : Nat) :
 /-- Exact private allocation: one Poseidon2 permutation. -/
 theorem localLength_eq (interface : Interface) (coordinate offset : Nat) :
     localLength
-      (Circuit.ops (circuit interface coordinate).main offset) = 592 := by
+      (Circuit.ops (circuit interface coordinate).main offset) = 1096 := by
   rw [circuit_ops, Formal.Owned.opsAt_localLength]
   change (Formal.compile offset (interface.initialState offset)
-    (actions coordinate)).recipes.length = 592
+    (actions coordinate)).recipes.length = 1096
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq coordinate
 
@@ -190,14 +190,14 @@ theorem operations_length (interface : Interface) (coordinate offset : Nat) :
   change 1 + Formal.assertionCount (actions coordinate) = 1
   rw [assertionCount_eq]
 
-/-- Exact logical rows: one row for each of the 592 recipes. -/
+/-- Exact logical rows: one row for each of the 1096 recipes. -/
 theorem flatConstraints_length (interface : Interface)
     (coordinate offset : Nat) :
     (flatConstraints
-      (Circuit.ops (circuit interface coordinate).main offset)).length = 592 := by
+      (Circuit.ops (circuit interface coordinate).main offset)).length = 1096 := by
   rw [circuit_ops, Formal.Owned.flatConstraints_length]
   change Formal.recipeCount (actions coordinate) +
-    Formal.assertionCount (actions coordinate) = 592
+    Formal.assertionCount (actions coordinate) = 1096
   rw [recipeCount_eq, assertionCount_eq]
 
 /-- The owned outgoing state lies inside the exact private interval. -/

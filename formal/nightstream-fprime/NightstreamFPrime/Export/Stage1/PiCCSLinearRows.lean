@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 
 /-! Evaluate existing matrix rows on aggregated extension-field reads. The
 numeric interpreter runs once per scalar component. A stored Poseidon
-invocation shares both evaluations across its existing 86 rows. -/
+invocation shares both evaluations across its existing 150 rows. -/
 
 set_option autoImplicit false
 
@@ -59,7 +59,7 @@ theorem row?_value (program : MatrixProgram.Program) {columns : Nat}
 invocation. The returned arrays preserve the canonical port and row order. -/
 def invocation {columns : Nat} (read : Fin columns → K)
     (interface : PoseidonSboxPlan.Interface columns) :
-    Vector (Vector K matrixCount) 86 :=
+    Vector (Vector K matrixCount) 150 :=
   let first := PiDECPoseidonNumericRows.stored (fun column => (read column).c0) interface
   let second := PiDECPoseidonNumericRows.stored (fun column => (read column).c1) interface
   Vector.ofFn fun row => Vector.ofFn fun port =>
@@ -68,7 +68,7 @@ def invocation {columns : Nat} (read : Fin columns → K)
 /-- Every stored invocation port is the same sparse row evaluated on the
 aggregated read, including the constant column. -/
 theorem invocation_value {columns : Nat} (read : Fin columns → K)
-    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 86)
+    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 150)
     (port : Fin matrixCount) :
     ((invocation read interface).get row).get port =
       PiCCSSparseEvaluation.evaluateK
@@ -79,12 +79,12 @@ theorem invocation_value {columns : Nat} (read : Fin columns → K)
   rfl
 
 /-- Reusing the stored invocation preserves both extension components of
-all 86 rows and 14 ports, at the original Fin product encoding. -/
+all 150 rows and 14 ports, at the original Fin product encoding. -/
 theorem invocation_loaded_value (block : Poseidon.Block) {columns : Nat}
     (invocationIndex : Fin block.invocationCount)
     (interface : PoseidonSboxPlan.Interface columns)
     (loaded : PiDECPoseidonNumericBlock.loadInvocation? block columns invocationIndex = some interface)
-    (read : Fin columns → K) (row : Fin 86) (port : Fin matrixCount) :
+    (read : Fin columns → K) (row : Fin 150) (port : Fin matrixCount) :
     some (((invocation read interface).get row).get port) =
       (block.row? columns (Fin.encodeProd (invocationIndex, row)).val).map (fun forms =>
         PiCCSSparseEvaluation.evaluateK

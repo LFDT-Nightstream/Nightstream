@@ -225,7 +225,7 @@ private theorem serializeRunning_point_getD_c1
 
 /-- End of the completed pilot source-column interval and start of the
 verifier-owned expected-context words. -/
-def expectedContextStart : Nat := 14722512
+def expectedContextStart : Nat := 9126768
 
 def expectedContextWords : Nat := 4
 
@@ -238,13 +238,13 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 14722512 := by
+theorem expectedContextStart_eq : expectedContextStart = 9126768 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 14722516 := by
+theorem proofInputStart_eq : proofInputStart = 9126772 := by
   rfl
 
 /-- Fixed serialized running-state positions inside the prior preimage. -/
@@ -310,7 +310,7 @@ theorem outputEvaluationWords_eq :
 theorem proofInputColumnCount_eq : proofInputColumnCount = 29288 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 14751804 := by
+theorem phaseOffset_eq : phaseOffset = 9156060 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=

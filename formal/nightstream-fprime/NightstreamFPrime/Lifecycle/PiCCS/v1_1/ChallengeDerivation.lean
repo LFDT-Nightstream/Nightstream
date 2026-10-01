@@ -922,7 +922,7 @@ theorem actions_length (interface : Interface) (offset : Nat) :
 private theorem labelActions_recipeCount
     (label : FiatShamir.ChallengeLabel productionShape)
     (expected : KExpr) :
-    Formal.recipeCount (labelActions label expected) = 1776 := by
+    Formal.recipeCount (labelActions label expected) = 3288 := by
   cases label <;>
     norm_num [labelActions, constantWords, Formal.recipeCount,
       Formal.Action.recipeCount, Hash.inputChunks,
@@ -932,7 +932,7 @@ private theorem labelledActions_recipeCount
     (labels : List (FiatShamir.ChallengeLabel productionShape))
     (samples : List KExpr) (sameLength : samples.length = labels.length) :
     Formal.recipeCount (labelledActions labels samples) =
-      labels.length * 1776 := by
+      labels.length * 3288 := by
   induction labels generalizing samples with
   | nil =>
       have : samples = [] := List.eq_nil_of_length_eq_zero sameLength
@@ -953,9 +953,9 @@ def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
 /-- Exact private symbolic footprint: 29 labelled squeezes and their label
-absorptions compile to 51,504 recipe variables. -/
+absorptions compile to 95,352 recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 51504 := by
+    recipeCount interface offset = 95352 := by
   unfold recipeCount
   rw [actions_eq_labelled]
   rw [labelledActions_recipeCount]
@@ -964,15 +964,15 @@ theorem recipeCount_eq (interface : Interface) (offset : Nat) :
       challengeLabels_length.symm
 
 @[simp] theorem program_recipes_length (interface : Interface) (offset : Nat) :
-    (program interface offset).recipes.length = 51504 := by
+    (program interface offset).recipes.length = 95352 := by
   change (Formal.compile offset (interface.initialState offset)
-    (actions interface offset)).recipes.length = 51504
+    (actions interface offset)).recipes.length = 95352
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
 /-- Layout may allocate exactly this private interval and no boundary copy. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 51504 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 95352 := by
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
 /-- One owned witness operation and no sample or final-state copy operation. -/
@@ -984,7 +984,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 /-- One row per causal recipe and no boundary-copy row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      51504 := by
+      95352 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
 

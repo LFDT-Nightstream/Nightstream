@@ -17,7 +17,7 @@ use objc2_metal::{
 };
 
 use crate::{
-    GoldilocksMulVariant, GoldilocksOps, KWords, MetalActivity, MetalDeviceInfo, MetalError, MetalRunStats,
+    poseidon2, GoldilocksMulVariant, GoldilocksOps, KWords, MetalActivity, MetalDeviceInfo, MetalError, MetalRunStats,
     PoseidonDigest, PoseidonHashVariant, PoseidonState,
 };
 
@@ -397,8 +397,12 @@ impl MetalSession {
         self.finish(&command)?;
         let output = self.read_buffer::<u64>(&states_buffer, words.len());
         Ok(output
-            .chunks_exact(8)
-            .map(|words| words.try_into().expect("chunks_exact has width 8"))
+            .chunks_exact(poseidon2::WIDTH)
+            .map(|words| {
+                words
+                    .try_into()
+                    .expect("chunks_exact has the Poseidon2 width")
+            })
             .collect())
     }
 
@@ -434,7 +438,7 @@ impl MetalSession {
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         let (pipeline, threads) = match variant {
             PoseidonHashVariant::Scalar => (&self.poseidon2_hash, inputs.len()),
-            PoseidonHashVariant::SimdGroup => (&self.poseidon2_hash_simd, inputs.len() * 8),
+            PoseidonHashVariant::SimdGroup => (&self.poseidon2_hash_simd, inputs.len() * poseidon2::WIDTH),
         };
         encoder.setComputePipelineState(pipeline);
         unsafe {
@@ -495,7 +499,7 @@ impl MetalSession {
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         let (pipeline, threads) = match variant {
             PoseidonHashVariant::Scalar => (&self.poseidon2_hash_uniform, plan.hashes),
-            PoseidonHashVariant::SimdGroup => (&self.poseidon2_hash_uniform_simd, plan.hashes * 8),
+            PoseidonHashVariant::SimdGroup => (&self.poseidon2_hash_uniform_simd, plan.hashes * poseidon2::WIDTH),
         };
         encoder.setComputePipelineState(pipeline);
         unsafe {

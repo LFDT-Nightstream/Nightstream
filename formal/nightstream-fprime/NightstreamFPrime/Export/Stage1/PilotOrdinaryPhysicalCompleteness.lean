@@ -67,9 +67,9 @@ private theorem priorRows_of_physical (target : Env)
 
 private theorem outputState_pilotColumn (lane : Fin 4) :
     PilotSpartan.sourceToSpartan (PilotOrdinaryDirectPlan.Location.outputState lane).sourceColumn =
-      PilotData.outputChain.witnessStart + PilotData.outputChain.absorbCount * 592 + 584 + lane.val := by
+      PilotData.outputChain.witnessStart + PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val := by
   change PilotSpartan.sourceToSpartan
-      (PilotProduction.lifecycleOutputOffset + PilotValues.absorbCount * 592 + 584 + lane.val) = _
+      (PilotProduction.lifecycleOutputOffset + PilotValues.absorbCount * 1096 + 1080 + lane.val) = _
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
   rfl
 
@@ -96,7 +96,7 @@ private theorem outputDigest_value_of_physical (target : Env)
     (rows : NightstreamFPrime.Layout.Pilot.PhysicalHolds PilotProduction.interface
       PilotProduction.witnessOffset (Spartan.pullback target)) (lane : Fin 4) :
     target (Spartan.liftPilotColumn
-      (PilotData.outputChain.witnessStart + PilotData.outputChain.absorbCount * 592 + 584 + lane.val)) =
+      (PilotData.outputChain.witnessStart + PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val)) =
     target (Spartan.liftPilotColumn (PilotData.outputChain.digestStart + lane.val)) := by
   have logical := R1CS.lowerConstraints_sound (Spartan.pullback target)
     (NightstreamFPrime.Layout.Pilot.logicalConstraints PilotProduction.interface PilotProduction.witnessOffset)

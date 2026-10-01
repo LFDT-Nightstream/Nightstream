@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.TranscriptAbsorption
 Owns the physical lowering of one Π_RLC scalar-domain entry.
 
 The lifecycle leaf absorbs `[4, coordinate]` with one Poseidon2 permutation.
-All 592 recipes lower directly, so this owner adds no lowering column and no
+All 1096 recipes lower directly, so this owner adds no lowering column and no
 boundary-copy row. Physical and logical satisfaction are proved in both
 directions through the generic R1CS lowering boundary.
 -/
@@ -100,7 +100,7 @@ def footprint (interface : Leaf.Interface) (coordinate : Nat)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Leaf.circuit interface coordinate) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 592
+  physicalRowCount := fun _ => 1096
   freshColumnCount_eq := by
     intro offset
     rw [flatConstraints_eq]
@@ -113,7 +113,7 @@ def footprint (interface : Leaf.Interface) (coordinate : Nat)
     · have logical := Leaf.localLength_eq interface coordinate offset
       change localLength
         (Formal.Owned.opsAt
-          (Leaf.ownedInterface interface coordinate) offset) = 592 at logical
+          (Leaf.ownedInterface interface coordinate) offset) = 1096 at logical
       rw [Formal.Owned.opsAt_localLength] at logical
       exact logical
     · exact recipesDirect interface coordinate offset (inputs offset)
@@ -129,7 +129,7 @@ theorem physicalRowCount_eq (interface : Leaf.Interface)
     (coordinate : Nat) (inputs : ∀ offset, InputsAffine interface offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints
-      (Circuit.ops (Leaf.circuit interface coordinate).main offset)) = 592 :=
+      (Circuit.ops (Leaf.circuit interface coordinate).main offset)) = 1096 :=
   (footprint interface coordinate inputs).physicalRowCount_eq offset
 
 def loweringPlan (interface : Leaf.Interface) (coordinate offset firstFresh : Nat) :

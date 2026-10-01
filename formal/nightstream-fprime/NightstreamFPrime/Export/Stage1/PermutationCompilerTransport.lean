@@ -107,7 +107,7 @@ private theorem fullStepRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftState rightState : Permutation.EState)
     (stateEq : Layer.evalState leftEnv leftState =
       Layer.evalState rightEnv rightState)
-    (localsEq : ∀ index, index < 40 →
+    (localsEq : ∀ index, index < 80 →
       leftEnv (leftStart + index) = rightEnv (rightStart + index)) :
     (let leftSboxes := Permutation.compileSboxes leftStart
         (Permutation.fullInputs rows round leftState)
@@ -164,7 +164,7 @@ private theorem partialStepRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftState rightState : Permutation.EState)
     (stateEq : Layer.evalState leftEnv leftState =
       Layer.evalState rightEnv rightState)
-    (localsEq : ∀ index, index < 12 →
+    (localsEq : ∀ index, index < 20 →
       leftEnv (leftStart + index) = rightEnv (rightStart + index)) :
     (let leftSboxes := Permutation.compileSboxes leftStart
         [Permutation.partialInput round leftState]
@@ -184,7 +184,7 @@ private theorem partialStepRecipes_eval_eq (leftEnv rightEnv : Env)
           (Expr.eval rightEnv) := by
     simp only [List.map_singleton, List.cons.injEq]
     constructor
-    · have laneEq := congrFun stateEq (0 : Fin 8)
+    · have laneEq := congrFun stateEq (0 : Fin 16)
       change (leftState 0).eval leftEnv =
         (rightState 0).eval rightEnv at laneEq
       change (leftState 0).eval leftEnv + _ =
@@ -294,7 +294,7 @@ theorem compileRecipes_eval_eq (leftEnv rightEnv : Env)
         | initialFullRound round =>
             simpa [Permutation.stepOutput, Permutation.freshState,
               Layer.evalState, Nat.add_assoc] using
-              localsEq (32 + lane.val) (by
+              localsEq (64 + lane.val) (by
                 simp only [Permutation.scheduleSize, List.map_cons,
                   List.sum_cons, Permutation.stepSize]
                 omega)
@@ -308,7 +308,7 @@ theorem compileRecipes_eval_eq (leftEnv rightEnv : Env)
         | terminalFullRound round =>
             simpa [Permutation.stepOutput, Permutation.freshState,
               Layer.evalState, Nat.add_assoc] using
-              localsEq (32 + lane.val) (by
+              localsEq (64 + lane.val) (by
                 simp only [Permutation.scheduleSize, List.map_cons,
                   List.sum_cons, Permutation.stepSize]
                 omega)
@@ -399,7 +399,7 @@ theorem invocation_complete_of_sourceConstraints
   unfold PilotData.canonicalConstraints PilotData.canonicalRecipes
   apply compileConstraintsHold_of_transport
     (NightstreamFPrime.Export.Pilot.canonicalInvocationEnv current env)
-    (Spartan.pullback env) 8 witnessStart PilotData.canonicalState state
+    (Spartan.pullback env) 16 witnessStart PilotData.canonicalState state
     Permutation.schedule
   · funext lane
     change NightstreamFPrime.Export.Pilot.canonicalInvocationEnv current env
@@ -408,11 +408,11 @@ theorem invocation_complete_of_sourceConstraints
     rw [NightstreamFPrime.Export.Pilot.canonicalInvocationEnv_input]
     have selected : invocationInputCombination current lane.val =
         inputCombination (state lane) := by
-      change (List.ofFn (fun selected : Fin 8 =>
+      change (List.ofFn (fun selected : Fin 16 =>
         inputCombination (state selected))).getD lane.val
           zeroSparseCombination = inputCombination (state lane)
       exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
-        (fun selected : Fin 8 => inputCombination (state selected)) lane
+        (fun selected : Fin 16 => inputCombination (state selected)) lane
         zeroSparseCombination
     rw [selected]
     exact inputCombination_eval (stateAffine lane) env

@@ -102,7 +102,7 @@ theorem piCcsFinalValue_eq_outputLast
     PiCCSPoseidonPreservation.outputValue
   rfl
 
-/-- The 32 exact PiCCS endpoint rows connect the retained final Poseidon2
+/-- The 64 exact PiCCS endpoint rows connect the retained final Poseidon2
 state to the lifecycle output-binding state under the complete sampler
 environment. -/
 theorem endpointRows_imply_piCcsFinalState
@@ -239,8 +239,8 @@ theorem retainedStateExpr_sourceFinal
         source.val (PiRLCStarts.samplerSourceLogicalStart source.val) := by
   funext lane
   change Expr.var (PiRLCStarts.samplerLogicalStart + source.val * Sampler.logicalPrivateCount +
-      584 + 1 * 2613 + lane.val) = Expr.var
-    (Sampler.advanceOffset (PiRLCStarts.samplerSourceLogicalStart source.val) + 584 + lane.val)
+      1080 + 1 * 3117 + lane.val) = Expr.var
+    (Sampler.advanceOffset (PiRLCStarts.samplerSourceLogicalStart source.val) + 1080 + lane.val)
   apply congrArg Expr.var
   simp only [Sampler.advanceOffset, Sampler.rangeOffset,
     NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.privateCount_eq,

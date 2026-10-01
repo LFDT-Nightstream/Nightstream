@@ -52,7 +52,7 @@ theorem challengeInvocationCount_eq :
     Data.logicalWidth Data.publicFits)
 
 theorem roundInvocationCount_eq :
-    Invocations.invocationCount roundActions = 252 := by
+    Invocations.invocationCount roundActions = 140 := by
   have same := Invocations.invocationCount_eq_of_shapes roundActions
     (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits) (by
       unfold roundActions
@@ -61,7 +61,7 @@ theorem roundInvocationCount_eq :
   exact same.trans (PiCCSInvocations.roundInvocationCount_eq
     Data.logicalWidth Data.publicFits)
 
-def statementKindAt : Fin 379 → PoseidonActionSchedule.Kind :=
+def statementKindAt : Fin 128 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt statementActions <|
     Fin.cast (PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -70,11 +70,11 @@ def challengeKindAt : Fin 87 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt challengeActions <|
     Fin.cast challengeInvocationCount_eq.symm index
 
-def roundKindAt : Fin 252 → PoseidonActionSchedule.Kind :=
+def roundKindAt : Fin 140 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt roundActions <|
     Fin.cast roundInvocationCount_eq.symm index
 
-def outputKindAt : Fin 6886 → PoseidonActionSchedule.Kind :=
+def outputKindAt : Fin 2296 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt outputActions <|
     Fin.cast (PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -125,14 +125,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 7604
+def invocationCount : Nat := 2651
 
-@[simp] theorem invocationCount_eq : invocationCount = 7604 := by
+@[simp] theorem invocationCount_eq : invocationCount = 2651 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 30416 := by
+@[simp] theorem payloadCount_eq : payloadCount = 31812 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 

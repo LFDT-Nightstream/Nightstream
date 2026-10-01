@@ -26,7 +26,7 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 type Output = CeClaim<Commitment, F, K>;
 
 fn transcript() -> Poseidon2Transcript {
-    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 8], 0)
+    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; neo_ccs::crypto::poseidon2_goldilocks::WIDTH], 0)
 }
 
 struct Case {

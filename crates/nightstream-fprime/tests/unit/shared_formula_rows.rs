@@ -30,12 +30,12 @@ fn equal_row(actual: &RowForms, expected: &reference::RowForms, ordinal: usize) 
 
 #[test]
 fn shared_poseidon_templates_match_every_reference_row() {
-    let logical_width = 12_000;
-    let external_input = json!([[[0, 1, 0, 8], [2, [2, 8, 11_000], 0, 0]]]);
+    let logical_width = 20_000;
+    let external_input = json!([[[0, 1, 0, 16], [2, [2, 16, 19_000], 0, 0]]]);
     let blocks = [
-        json!([1, 0, [2, 86, 100], []]),
-        json!([3, 0, [2, 3 * 86, 100], affine_fixture::program()]),
-        json!([1, 0, [2, 86, 100], external_input]),
+        json!([1, 0, [2, 150, 100], []]),
+        json!([3, 0, [2, 3 * 150, 100], affine_fixture::program()]),
+        json!([1, 0, [2, 150, 100], external_input]),
     ];
     for encoded in blocks {
         let actual = poseidon::Block::decode(&encoded).unwrap();
@@ -214,11 +214,11 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
 
 #[test]
 fn shared_external_template_matches_reference_and_preserves_zero_forms() {
-    let zero = vec![Form::default(); 8];
+    let zero = vec![Form::default(); 16];
     assert_eq!(external_layer(&zero, 0).unwrap(), zero);
-    let logical_width = 8 * RetainedKind::Field.width();
-    let retained = RetainedBlock::decode(&json!([2, 8, 0])).unwrap();
-    let state: Vec<_> = (0..8)
+    let logical_width = 16 * RetainedKind::Field.width();
+    let retained = RetainedBlock::decode(&json!([2, 16, 0])).unwrap();
+    let state: Vec<_> = (0..16)
         .map(|lane| {
             retained
                 .form(logical_width, lane)
@@ -243,7 +243,7 @@ fn shared_external_template_matches_reference_and_preserves_zero_forms() {
         .collect();
     let actual = external_layer(&state, logical_width).unwrap();
     let expected = reference::external_layer(&input).unwrap();
-    for lane in 0..8 {
+    for lane in 0..16 {
         assert!(actual[lane]
             .terms()
             .iter()
@@ -362,8 +362,8 @@ fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
 
 #[test]
 fn template_visitors_stop_before_invalid_later_invocations() {
-    let logical_width = 12_000;
-    let poseidon = json!([2, [2, 0, [2, 2 * 86, 100], [[[1, 1, 0, 1], [0, [0, 0, 0], 0, 0, 0]]]]]);
+    let logical_width = 20_000;
+    let poseidon = json!([2, [2, 0, [2, 2 * 150, 100], [[[1, 1, 0, 1], [0, [0, 0, 0], 0, 0, 0]]]]]);
     let phi81 = json!([
         3,
         [
@@ -377,7 +377,7 @@ fn template_visitors_stop_before_invalid_later_invocations() {
             [0, 54, 182]
         ]
     ]);
-    for (encoded, invalid_row) in [(poseidon, 86), (phi81, 108)] {
+    for (encoded, invalid_row) in [(poseidon, 150), (phi81, 108)] {
         let program = MatrixProgram::decode(&json!([encoded])).unwrap();
         let source = |_| panic!("template rows do not read ordinary source rows");
         let expected = program.row(logical_width, 0, &source).unwrap();
@@ -421,8 +421,8 @@ fn shared_templates_preserve_empty_invocation_ranges() {
 #[test]
 fn shared_poseidon_templates_reject_malformed_input_programs() {
     for (name, program) in affine_fixture::malformed() {
-        let encoded = json!([3, 0, [2, 3 * 86, 100], program]);
-        let result = poseidon::Block::decode(&encoded).and_then(|block| block.row(12_000, 0));
+        let encoded = json!([3, 0, [2, 3 * 150, 100], program]);
+        let result = poseidon::Block::decode(&encoded).and_then(|block| block.row(20_000, 0));
         assert!(result.is_err(), "accepted malformed Poseidon input: {name}");
     }
 }

@@ -25,7 +25,7 @@ private theorem compileBlocks_rowNext
     (phase rowStart witnessStart : Nat) (state : EState)
     (blocks : List (List Expr)) :
     (compileBlocks phase rowStart witnessStart state blocks).rowNext =
-      rowStart + blocks.length * 592 := by
+      rowStart + blocks.length * 1096 := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -39,7 +39,7 @@ private theorem compileBlocks_last_or_initial
     (blocks : List (List Expr)) :
     (compileBlocks phase rowStart witnessStart state blocks).state =
       if blocks.length = 0 then state
-      else permutationOutput (witnessStart + (blocks.length - 1) * 592) := by
+      else permutationOutput (witnessStart + (blocks.length - 1) * 1096) := by
   by_cases empty : blocks = []
   · subst blocks
     rfl
@@ -52,11 +52,11 @@ private theorem compileBlocks_last_or_initial
 private theorem previous_shift
     (initial headState : EState) (witnessStart headCount index : Nat)
     (head : headState = if headCount = 0 then initial
-      else permutationOutput (witnessStart + (headCount - 1) * 592)) :
+      else permutationOutput (witnessStart + (headCount - 1) * 1096)) :
     (if index = 0 then headState
-      else permutationOutput (witnessStart + headCount * 592 + (index - 1) * 592)) =
+      else permutationOutput (witnessStart + headCount * 1096 + (index - 1) * 1096)) =
     (if headCount + index = 0 then initial
-      else permutationOutput (witnessStart + (headCount + index - 1) * 592)) := by
+      else permutationOutput (witnessStart + (headCount + index - 1) * 1096)) := by
   by_cases first : index = 0
   · subst index
     simpa using head
@@ -69,41 +69,41 @@ private theorem compileBlocks_at
     (blocks : List (List Expr)) (index : Nat) :
     (compileBlocks phase rowStart witnessStart state blocks).invocations[index]? =
       (blocks[index]?).map (fun block =>
-        invocation phase (rowStart + index * 592) (witnessStart + index * 592)
+        invocation phase (rowStart + index * 1096) (witnessStart + index * 1096)
           (Hash.absorbE
             (if index = 0 then state
-              else permutationOutput (witnessStart + (index - 1) * 592)) block)) := by
+              else permutationOutput (witnessStart + (index - 1) * 1096)) block)) := by
   induction blocks generalizing rowStart witnessStart state index with
   | nil => simp only [compileBlocks, List.getElem?_nil, Option.map_none]
   | cons block blocks inductionHypothesis =>
       cases index with
       | zero => simp [compileBlocks]
       | succ index =>
-          have rowEq : rowStart + 592 + index * 592 = rowStart + (index + 1) * 592 := by omega
-          have witnessEq : witnessStart + 592 + index * 592 =
-              witnessStart + (index + 1) * 592 := by omega
+          have rowEq : rowStart + 1096 + index * 1096 = rowStart + (index + 1) * 1096 := by omega
+          have witnessEq : witnessStart + 1096 + index * 1096 =
+              witnessStart + (index + 1) * 1096 := by omega
           have previousEq :
               (if index = 0 then permutationOutput witnessStart
-                else permutationOutput (witnessStart + 592 + (index - 1) * 592)) =
-              permutationOutput (witnessStart + index * 592) := by
+                else permutationOutput (witnessStart + 1096 + (index - 1) * 1096)) =
+              permutationOutput (witnessStart + index * 1096) := by
             by_cases first : index = 0
             · subst index
               simp
             · rw [if_neg first]
-              have address : witnessStart + 592 + (index - 1) * 592 =
-                  witnessStart + index * 592 := by
+              have address : witnessStart + 1096 + (index - 1) * 1096 =
+                  witnessStart + index * 1096 := by
                 obtain ⟨prior, rfl⟩ := Nat.exists_eq_succ_of_ne_zero first
                 simpa only [Nat.succ_sub_one, Nat.succ_mul, Nat.add_assoc] using
-                  (Nat.add_right_comm witnessStart 592 (prior * 592))
+                  (Nat.add_right_comm witnessStart 1096 (prior * 1096))
               exact congrArg permutationOutput address
-          change (compileBlocks phase (rowStart + 592) (witnessStart + 592)
+          change (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
               (permutationOutput witnessStart) blocks).invocations[index]? =
             (blocks[index]?).map (fun current =>
-              invocation phase (rowStart + (index + 1) * 592)
-                (witnessStart + (index + 1) * 592)
+              invocation phase (rowStart + (index + 1) * 1096)
+                (witnessStart + (index + 1) * 1096)
                 (Hash.absorbE
                   (if index + 1 = 0 then state
-                    else permutationOutput (witnessStart + (index + 1 - 1) * 592)) current))
+                    else permutationOutput (witnessStart + (index + 1 - 1) * 1096)) current))
           rw [inductionHypothesis]
           simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero, if_false,
             Nat.add_sub_cancel]
@@ -113,9 +113,9 @@ private theorem compileActions_at
     (actions : List Action) (index : Nat) :
     (compileActions phase rowStart witnessStart state actions).invocations[index]? =
       ((PoseidonActionSchedule.kinds actions)[index]?).map (fun kind =>
-        invocation phase (rowStart + index * 592) (witnessStart + index * 592)
+        invocation phase (rowStart + index * 1096) (witnessStart + index * 1096)
           (let previous := if index = 0 then state
-            else permutationOutput (witnessStart + (index - 1) * 592)
+            else permutationOutput (witnessStart + (index - 1) * 1096)
            match kind with
            | .absorb block => Hash.absorbE previous block
            | .squeezeFirst _ | .squeezeSecond => previous)) := by
@@ -142,9 +142,9 @@ private theorem compileActions_at
             rw [List.getElem?_append_right (by simpa only [headLength] using Nat.le_of_not_gt inHead),
               List.getElem?_append_right (by simpa only [List.length_map] using Nat.le_of_not_gt inHead),
               headLength, List.length_map, inductionHypothesis]
-            have rowNext : absorbed.rowNext = rowStart + blocks.length * 592 :=
+            have rowNext : absorbed.rowNext = rowStart + blocks.length * 1096 :=
               compileBlocks_rowNext phase rowStart witnessStart state blocks
-            have witnessNext : absorbed.witnessNext = witnessStart + blocks.length * 592 :=
+            have witnessNext : absorbed.witnessNext = witnessStart + blocks.length * 1096 :=
               compileBlocks_witnessNext phase rowStart witnessStart state blocks
             rw [rowNext, witnessNext]
             have indexEq : blocks.length + (index - blocks.length) = index := by omega
@@ -152,10 +152,10 @@ private theorem compileActions_at
               (index - blocks.length)
               (compileBlocks_last_or_initial phase rowStart witnessStart state blocks)
             rw [indexEq] at previousEq
-            have rowEq : rowStart + blocks.length * 592 + (index - blocks.length) * 592 =
-                rowStart + index * 592 := by omega
-            have witnessEq : witnessStart + blocks.length * 592 + (index - blocks.length) * 592 =
-                witnessStart + index * 592 := by omega
+            have rowEq : rowStart + blocks.length * 1096 + (index - blocks.length) * 1096 =
+                rowStart + index * 1096 := by omega
+            have witnessEq : witnessStart + blocks.length * 1096 + (index - blocks.length) * 1096 =
+                witnessStart + index * 1096 := by omega
             simp only [rowEq, witnessEq, previousEq]
       | squeezeK expected =>
           cases index with
@@ -167,19 +167,19 @@ private theorem compileActions_at
                   PoseidonActionSchedule.actionKinds]
               | succ index =>
                   have previousEq :
-                      (if index = 0 then permutationOutput (witnessStart + 592)
-                        else permutationOutput (witnessStart + 1184 + (index - 1) * 592)) =
-                      permutationOutput (witnessStart + (index + 1) * 592) := by
+                      (if index = 0 then permutationOutput (witnessStart + 1096)
+                        else permutationOutput (witnessStart + 2192 + (index - 1) * 1096)) =
+                      permutationOutput (witnessStart + (index + 1) * 1096) := by
                     by_cases first : index = 0
                     · subst index
                       simp
                     · rw [if_neg first]
                       apply congrArg permutationOutput
                       omega
-                  have rowEq : rowStart + 1184 + index * 592 =
-                      rowStart + (index + 1 + 1) * 592 := by omega
-                  have witnessEq : witnessStart + 1184 + index * 592 =
-                      witnessStart + (index + 1 + 1) * 592 := by omega
+                  have rowEq : rowStart + 2192 + index * 1096 =
+                      rowStart + (index + 1 + 1) * 1096 := by omega
+                  have witnessEq : witnessStart + 2192 + index * 1096 =
+                      witnessStart + (index + 1 + 1) * 1096 := by omega
                   simp only [compileActions, PoseidonActionSchedule.kinds,
                     List.flatMap_cons, PoseidonActionSchedule.actionKinds,
                     List.cons_append, List.nil_append, List.getElem?_cons_succ]
@@ -192,9 +192,9 @@ private theorem compiled_invocation
     (actions : List Action) (index : Fin (invocationCount actions)) :
     (compileActions phase rowStart witnessStart state actions).invocations.get
         (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm index) =
-      invocation phase (rowStart + index.val * 592) (witnessStart + index.val * 592)
+      invocation phase (rowStart + index.val * 1096) (witnessStart + index.val * 1096)
         (let previous := if index.val = 0 then state
-          else permutationOutput (witnessStart + (index.val - 1) * 592)
+          else permutationOutput (witnessStart + (index.val - 1) * 1096)
          match PoseidonActionSchedule.kindAt actions index with
          | .absorb block => Hash.absorbE previous block
          | .squeezeFirst _ | .squeezeSecond => previous) := by
@@ -231,11 +231,11 @@ private theorem selectedBlock_affine
       simp [PoseidonActionSchedule.actionKinds] at kindMember
 
 private theorem invocation_input
-    (phase rowStart witnessStart : Nat) (state : EState) (lane : Fin 8) :
+    (phase rowStart witnessStart : Nat) (state : EState) (lane : Fin 16) :
     invocationInputCombination (invocation phase rowStart witnessStart state) lane.val =
       inputCombination (state lane) := by
   exact Lifecycle.PriorStateHash.ofFn_getD
-    (fun current : Fin 8 => inputCombination (state current)) lane zeroSparseCombination
+    (fun current : Fin 16 => inputCombination (state current)) lane zeroSparseCombination
 
 /-- Each actual indexed invocation reads the preceding stored output. An
 absorb adds its actual payload lane; both squeeze permutations use that
@@ -247,12 +247,12 @@ theorem compileActions_input_eval
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
     (stateAffine : Poseidon2.StateAffine state)
     (actionsAffine : ActionsInvocationInputsAffine actions)
-    (index : Fin (invocationCount actions)) (lane : Fin 8) :
+    (index : Fin (invocationCount actions)) (lane : Fin 16) :
     let trace := compileActions phase rowStart witnessStart state actions
     let selectedInvocation := fun current : Fin (invocationCount actions) => trace.invocations.get
       (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm current)
-    let outputs := fun current => List.ofFn fun coordinate : Fin 8 =>
-      target ((selectedInvocation current).witnessStart + 584 + coordinate.val)
+    let outputs := fun current => List.ofFn fun coordinate : Fin 16 =>
+      target ((selectedInvocation current).witnessStart + 1080 + coordinate.val)
     let previous := PoseidonActionSemantics.previousState
       (List.ofFn (Layer.evalState (Spartan.pullback target) state)) outputs index
     (invocationInputCombination (selectedInvocation index) lane.val).toR1CS.eval target =
@@ -262,7 +262,7 @@ theorem compileActions_input_eval
       | .squeezeFirst _ | .squeezeSecond => previous.getD lane.val 0 := by
   intro trace selectedInvocation outputs previous
   let previousExpr : EState := if index.val = 0 then state
-    else permutationOutput (witnessStart + (index.val - 1) * 592)
+    else permutationOutput (witnessStart + (index.val - 1) * 1096)
   have previousAffine : Poseidon2.StateAffine previousExpr := by
     unfold previousExpr
     split
@@ -278,20 +278,20 @@ theorem compileActions_input_eval
         have bounded := index.isLt
         omega⟩
       have position : (selectedInvocation priorIndex).witnessStart =
-          Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 592) :=
+          Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 1096) :=
         congrArg PermutationInvocation.witnessStart
           (compiled_invocation phase rowStart witnessStart state actions priorIndex)
-      have startLocal : Spartan.piCcsPhaseOffset ≤ witnessStart + (index.val - 1) * 592 := by omega
+      have startLocal : Spartan.piCcsPhaseOffset ≤ witnessStart + (index.val - 1) * 1096 := by omega
       calc
-        previous.getD lane.val 0 = target ((selectedInvocation priorIndex).witnessStart + 584 + lane.val) := by
+        previous.getD lane.val 0 = target ((selectedInvocation priorIndex).witnessStart + 1080 + lane.val) := by
           simp only [previous, PoseidonActionSemantics.previousState, dif_neg first, outputs]
           exact Lifecycle.PriorStateHash.ofFn_getD _ lane (0 : F)
-        _ = target (Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 592) + 584 + lane.val) :=
-          congrArg (fun start => target (start + 584 + lane.val)) position
-        _ = target (Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 592 + 584 + lane.val)) := by
+        _ = target (Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 1096) + 1080 + lane.val) :=
+          congrArg (fun start => target (start + 1080 + lane.val)) position
+        _ = target (Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 1096 + 1080 + lane.val)) := by
           apply congrArg target
           have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
-            (witnessStart + (index.val - 1) * 592) (584 + lane.val) startLocal
+            (witnessStart + (index.val - 1) * 1096) (1080 + lane.val) startLocal
           simpa only [Nat.add_assoc] using mapped.symm
         _ = (previousExpr lane).eval (Spartan.pullback target) := by
           simp only [previousExpr, if_neg first, permutationOutput,
@@ -320,22 +320,22 @@ private theorem stored_output_lane
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) (target : Env)
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (index : Fin (invocationCount actions)) (lane : Fin 8) :
+    (index : Fin (invocationCount actions)) (lane : Fin 16) :
     let selected := (compileActions phase rowStart witnessStart state actions).invocations.get
       (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm index)
-    (List.ofFn fun coordinate : Fin 8 =>
-      target (selected.witnessStart + 584 + coordinate.val)).getD lane.val 0 =
-      (permutationOutput (witnessStart + index.val * 592) lane).eval (Spartan.pullback target) := by
+    (List.ofFn fun coordinate : Fin 16 =>
+      target (selected.witnessStart + 1080 + coordinate.val)).getD lane.val 0 =
+      (permutationOutput (witnessStart + index.val * 1096) lane).eval (Spartan.pullback target) := by
   intro selected
-  have position : selected.witnessStart = Spartan.sourceToSpartan (witnessStart + index.val * 592) :=
+  have position : selected.witnessStart = Spartan.sourceToSpartan (witnessStart + index.val * 1096) :=
     congrArg PermutationInvocation.witnessStart
       (compiled_invocation phase rowStart witnessStart state actions index)
   rw [Lifecycle.PriorStateHash.ofFn_getD, position]
-  change target (Spartan.sourceToSpartan (witnessStart + index.val * 592) + 584 + lane.val) =
-    target (Spartan.sourceToSpartan (witnessStart + index.val * 592 + 584 + lane.val))
+  change target (Spartan.sourceToSpartan (witnessStart + index.val * 1096) + 1080 + lane.val) =
+    target (Spartan.sourceToSpartan (witnessStart + index.val * 1096 + 1080 + lane.val))
   apply congrArg target
   have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
-    (witnessStart + index.val * 592) (584 + lane.val) (by omega)
+    (witnessStart + index.val * 1096) (1080 + lane.val) (by omega)
   simpa only [Nat.add_assoc] using mapped.symm
 
 private theorem compiled_expected_at
@@ -345,8 +345,8 @@ private theorem compiled_expected_at
     (found : (PoseidonActionSchedule.kinds actions)[index]? = some (.squeezeFirst expected)) :
     expected.eval env =
       ⟨((if index = 0 then state
-          else permutationOutput (witnessStart + (index - 1) * 592)) 0).eval env,
-        (permutationOutput (witnessStart + index * 592) 0).eval env⟩ := by
+          else permutationOutput (witnessStart + (index - 1) * 1096)) 0).eval env,
+        (permutationOutput (witnessStart + index * 1096) 0).eval env⟩ := by
   induction actions generalizing witnessStart state index expected with
   | nil => simp [PoseidonActionSchedule.kinds] at found
   | cons action actions inductionHypothesis =>
@@ -363,19 +363,19 @@ private theorem compiled_expected_at
               (by simpa only [List.length_map] using Nat.le_of_not_gt inHead), List.length_map] at found
             let absorbed := compileBlocks 0 0 witnessStart state blocks
             have tailAssertions : ConstraintsHold env
-                (Formal.compile (witnessStart + blocks.length * 592) absorbed.state actions).assertions := by
+                (Formal.compile (witnessStart + blocks.length * 1096) absorbed.state actions).assertions := by
               rw [show absorbed.state = (Hash.compileAbsorptions witnessStart state blocks).output from
                 compileBlocks_state_eq 0 0 witnessStart state blocks]
               simpa only [Formal.compile, Hash.compileAbsorptions_recipes_length] using assertions
-            have tail := inductionHypothesis (witnessStart + blocks.length * 592) absorbed.state
+            have tail := inductionHypothesis (witnessStart + blocks.length * 1096) absorbed.state
               tailAssertions (index - blocks.length) expected found
             have indexEq : blocks.length + (index - blocks.length) = index := by omega
             have previousEq := previous_shift state absorbed.state witnessStart blocks.length
               (index - blocks.length)
               (compileBlocks_last_or_initial 0 0 witnessStart state blocks)
             rw [indexEq] at previousEq
-            have witnessEq : witnessStart + blocks.length * 592 + (index - blocks.length) * 592 =
-                witnessStart + index * 592 := by omega
+            have witnessEq : witnessStart + blocks.length * 1096 + (index - blocks.length) * 1096 =
+                witnessStart + index * 1096 := by omega
             simpa only [previousEq, witnessEq] using tail
       | squeezeK headExpected =>
           let squeezed := Squeeze.compile witnessStart state
@@ -404,24 +404,24 @@ private theorem compiled_expected_at
                       some (.squeezeFirst expected) := by
                     simpa [PoseidonActionSchedule.kinds, PoseidonActionSchedule.actionKinds] using found
                   have tailAssertions : ConstraintsHold env
-                      (Formal.compile (witnessStart + 1184)
-                        (permutationOutput (witnessStart + 592)) actions).assertions := by
+                      (Formal.compile (witnessStart + 2192)
+                        (permutationOutput (witnessStart + 1096)) actions).assertions := by
                     simpa only [squeezed, Squeeze.compile_recipes_length,
                       ← squeezeOutput_eq_compile] using parts.2
-                  have tail := inductionHypothesis (witnessStart + 1184)
-                    (permutationOutput (witnessStart + 592)) tailAssertions index expected tailFound
+                  have tail := inductionHypothesis (witnessStart + 2192)
+                    (permutationOutput (witnessStart + 1096)) tailAssertions index expected tailFound
                   have previousEq :
-                      (if index = 0 then permutationOutput (witnessStart + 592)
-                        else permutationOutput (witnessStart + 1184 + (index - 1) * 592)) =
-                      permutationOutput (witnessStart + (index + 1) * 592) := by
+                      (if index = 0 then permutationOutput (witnessStart + 1096)
+                        else permutationOutput (witnessStart + 2192 + (index - 1) * 1096)) =
+                      permutationOutput (witnessStart + (index + 1) * 1096) := by
                     by_cases first : index = 0
                     · subst index
                       simp
                     · rw [if_neg first]
                       apply congrArg permutationOutput
                       omega
-                  have witnessEq : witnessStart + 1184 + index * 592 =
-                      witnessStart + (index + 1 + 1) * 592 := by omega
+                  have witnessEq : witnessStart + 2192 + index * 1096 =
+                      witnessStart + (index + 1 + 1) * 1096 := by omega
                   simpa only [previousEq, witnessEq, Nat.succ_ne_zero, if_false,
                     Nat.add_sub_cancel] using tail
 
@@ -440,8 +440,8 @@ theorem compileActions_expected_eval
     let trace := compileActions phase rowStart witnessStart state actions
     let selectedInvocation := fun current : Fin (invocationCount actions) => trace.invocations.get
       (Fin.cast (compileActions_invocations_length phase rowStart witnessStart state actions).symm current)
-    let outputs := fun current => List.ofFn fun coordinate : Fin 8 =>
-      target ((selectedInvocation current).witnessStart + 584 + coordinate.val)
+    let outputs := fun current => List.ofFn fun coordinate : Fin 16 =>
+      target ((selectedInvocation current).witnessStart + 1080 + coordinate.val)
     let previous := PoseidonActionSemantics.previousState
       (List.ofFn (Layer.evalState (Spartan.pullback target) state)) outputs index
     expected.eval (Spartan.pullback target) = ⟨previous.getD 0 0, (outputs index).getD 0 0⟩ := by
@@ -453,15 +453,15 @@ theorem compileActions_expected_eval
   have expectedEq := compiled_expected_at witnessStart state actions (Spartan.pullback target)
     assertions index.val expected selectedKind
   have currentValue : (outputs index).getD 0 0 =
-      (permutationOutput (witnessStart + index.val * 592) 0).eval (Spartan.pullback target) :=
+      (permutationOutput (witnessStart + index.val * 1096) 0).eval (Spartan.pullback target) :=
     stored_output_lane phase rowStart witnessStart state actions target witnessLocal index 0
   have previousValue : previous.getD 0 0 =
       ((if index.val = 0 then state
-        else permutationOutput (witnessStart + (index.val - 1) * 592)) 0).eval
+        else permutationOutput (witnessStart + (index.val - 1) * 1096)) 0).eval
           (Spartan.pullback target) := by
     by_cases first : index.val = 0
     · simp only [previous, PoseidonActionSemantics.previousState, dif_pos first, if_pos first]
-      exact Lifecycle.PriorStateHash.ofFn_getD _ (0 : Fin 8) (0 : F)
+      exact Lifecycle.PriorStateHash.ofFn_getD _ (0 : Fin 16) (0 : F)
     · let priorIndex : Fin (invocationCount actions) := ⟨index.val - 1, by
         have bounded := index.isLt
         omega⟩

@@ -257,7 +257,7 @@ fn validate_profile(raw: RawProfile) -> Result<()> {
 
 fn validate_poseidon(raw: RawPoseidon) -> Result<()> {
     let RawPoseidon(width, rate, digest, initial, partial, terminal, recipes, output) = raw;
-    if (width, rate, digest, initial, partial, terminal, recipes, output) != (8, 4, 4, 4, 22, 4, 592, 584) {
+    if (width, rate, digest, initial, partial, terminal, recipes, output) != (16, 12, 4, 4, 22, 4, 1096, 1080) {
         return Err("unexpected independent Poseidon2 schedule".into());
     }
     Ok(())

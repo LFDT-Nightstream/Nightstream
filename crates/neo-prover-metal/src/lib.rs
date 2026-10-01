@@ -40,8 +40,8 @@ pub struct KWords {
     pub c1: u64,
 }
 
-/// Canonical Goldilocks words for one width-eight Poseidon2 state.
-pub type PoseidonState = [u64; 8];
+/// Canonical Goldilocks words for one width-sixteen Poseidon2 state.
+pub type PoseidonState = [u64; poseidon2::WIDTH];
 /// Canonical Goldilocks words for one four-element Poseidon2 digest.
 pub type PoseidonDigest = [u64; 4];
 
@@ -59,7 +59,7 @@ pub enum GoldilocksMulVariant {
 pub enum PoseidonHashVariant {
     /// One Metal thread owns an entire permutation.
     Scalar,
-    /// One eight-lane SIMD tile owns an entire permutation.
+    /// One sixteen-lane SIMD tile owns an entire permutation.
     SimdGroup,
 }
 

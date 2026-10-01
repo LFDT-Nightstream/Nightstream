@@ -23,27 +23,27 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 private theorem samplerLogicalStart_eq :
-    PiRLCStarts.samplerLogicalStart = 19377437 := by
+    PiRLCStarts.samplerLogicalStart = 12185621 := by
   rfl
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 19432840 := by
+    PiRLCStarts.commitmentLogicalStart = 12258160 := by
   rfl
 
 private theorem phaseFreshStart_eq :
-    PiRLCStarts.phaseFreshStart = 19485166 := by
+    PiRLCStarts.phaseFreshStart = 12310486 := by
   exact PiRLCStarts.phaseFreshStart_eq
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 19453036 := by
+    PiRLCStarts.publicInputLogicalStart = 12278356 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 19457626 := by
+    PiRLCStarts.evalKLogicalStart = 12282946 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 19459462 := by
+    PiRLCStarts.evalALogicalStart = 12284782 := by
   rfl
 
 private theorem commitmentValue_beforeTranscript
@@ -340,7 +340,7 @@ private theorem stateLocation_beforeProductInterval
   have laneBound := location.lane.isLt
   change location.source.val < 17 at sourceBound
   change location.step.val < 2 at stepBound
-  change location.lane.val < 8 at laneBound
+  change location.lane.val < 16 at laneBound
   rw [commitmentLogicalStart_eq]
   simp [PiRLCSamplerRetainedCustody.StateLocation.sourceColumn,
     PiRLCSamplerRetainedCustody.stateOutputOffset,
@@ -408,7 +408,7 @@ private theorem samplerLogicalStart_lt_baseConstant :
     PiRLCStarts.samplerLogicalStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27427444 := by
+      20252764 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [samplerLogicalStart_eq, constant]
   norm_num
@@ -417,7 +417,7 @@ private theorem phaseFreshStart_lt_baseConstant :
     PiRLCStarts.phaseFreshStart <
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27427444 := by
+      20252764 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [phaseFreshStart_eq, constant]
   norm_num

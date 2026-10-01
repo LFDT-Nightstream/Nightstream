@@ -52,7 +52,7 @@ impl SourceRange {
 #[derive(Clone, Copy, Debug)]
 enum GridMode {
     Direct,
-    External8,
+    External16,
 }
 
 #[derive(Clone, Debug)]
@@ -75,7 +75,7 @@ impl SourceGrid {
         let fields = exact_array(value, 11, "matrix source grid")?;
         let mode = match word(&fields[7], "source grid mode")? {
             0 => GridMode::Direct,
-            1 => GridMode::External8,
+            1 => GridMode::External16,
             _ => return Err("unknown source grid mode".into()),
         };
         let grid = Self {
@@ -109,10 +109,10 @@ impl SourceGrid {
         )?;
         let used_slots = match grid.mode {
             GridMode::Direct => grid.run_count,
-            GridMode::External8 => 8,
+            GridMode::External16 => 16,
         };
         if checked_add(final_slot_base, used_slots, "source grid slot bound")? > grid.retained.slot_count
-            || matches!(grid.mode, GridMode::External8) && grid.run_count > 8
+            || matches!(grid.mode, GridMode::External16) && grid.run_count > 16
         {
             return Err("invalid source-grid retained mapping".into());
         }
@@ -146,7 +146,7 @@ impl SourceGrid {
             GridMode::Direct => self
                 .retained
                 .form(logical_width, checked_add(slot_base, run, "source grid direct slot")?)?,
-            GridMode::External8 => self.retained.external_form(logical_width, slot_base, run)?,
+            GridMode::External16 => self.retained.external_form(logical_width, slot_base, run)?,
         };
         Ok(Some(form))
     }

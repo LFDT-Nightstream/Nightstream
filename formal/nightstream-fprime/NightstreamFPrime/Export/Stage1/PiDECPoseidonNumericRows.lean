@@ -20,9 +20,9 @@ open PiDECPoseidonNumericStep
 
 private def nextIndex (next : Nat) : Permutation.Step → Nat
   | .initialLayer => next
-  | .initialFullRound _ => next + 8
+  | .initialFullRound _ => next + 16
   | .partialRound _ => next + 1
-  | .terminalFullRound _ => next + 8
+  | .terminalFullRound _ => next + 16
 
 private theorem nextIndex_value {columns : Nat}
     (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
@@ -45,7 +45,7 @@ private theorem stateStep_eq {columns : Nat} (read : Fin columns → F)
 numeric state. Every emitted value comes from the original sparse reads. -/
 def rowsFrom {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    Nat → Vector F 8 → List Permutation.Step → List PortValues
+    Nat → Vector F 16 → List Permutation.Step → List PortValues
   | _, _, [] => []
   | next, state, step :: rest =>
       rowsStep read interface next state step ++
@@ -71,7 +71,7 @@ theorem rowsFrom_value {columns : Nat} (read : Fin columns → F)
 its retained reads between row construction and the next linear state. -/
 @[specialize] def rowsWithState {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    Nat → Vector F 8 → List Permutation.Step → List PortValues × Vector F 8
+    Nat → Vector F 16 → List Permutation.Step → List PortValues × Vector F 16
   | _, state, [] => ([], state)
   | next, state, step :: rest =>
       let current := stepValues read interface next state step
@@ -80,7 +80,7 @@ its retained reads between row construction and the next linear state. -/
 
 private theorem rowsWithState_rows {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
-    (state : Vector F 8) (steps : List Permutation.Step) :
+    (state : Vector F 16) (steps : List Permutation.Step) :
     (rowsWithState read interface next state steps).1 =
       rowsFrom read interface next state steps := by
   induction steps generalizing next state with
@@ -125,18 +125,18 @@ private theorem values_eq_rows {columns : Nat} (read : Fin columns → F)
 /-- The numeric result has exactly the row count of the canonical template. -/
 theorem values_length {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    (values read interface).length = 86 := by
+    (values read interface).length = 150 := by
   rw [values_eq_rows, List.length_map, PoseidonRetainedRows.rows_length]
 
 /-- Store the complete invocation result for constant-time indexed reads. -/
 @[inline] def stored {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 86 :=
+    (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 150 :=
   ⟨(values read interface).toArray, by simp only [List.size_toArray, values_length]⟩
 
 /-- Every computed port equals the original row's sparse evaluation. This
 includes the empty ports and requires no valid-row or selector assumption. -/
 theorem stored_value {columns : Nat} (read : Fin columns → F)
-    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 86)
+    (interface : PoseidonSboxPlan.Interface columns) (row : Fin 150)
     (port : Fin matrixCount) :
     ((stored read interface).get row).get port =
       (((PoseidonRetainedRows.rows interface).get

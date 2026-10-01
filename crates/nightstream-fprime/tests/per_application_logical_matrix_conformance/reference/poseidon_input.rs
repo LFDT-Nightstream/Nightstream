@@ -252,9 +252,9 @@ impl Program {
         })
     }
 
-    pub fn state(&self, logical_width: usize, one_column: usize, invocation: usize) -> Result<[Form; 8]> {
-        let mut state: [Form; 8] = std::array::from_fn(|_| Form::default());
-        for lane in 0..8 {
+    pub fn state(&self, logical_width: usize, one_column: usize, invocation: usize) -> Result<[Form; 16]> {
+        let mut state: [Form; 16] = std::array::from_fn(|_| Form::default());
+        for lane in 0..16 {
             let mut form = Form::default();
             for rule in &self.rules {
                 if let Some((invocation, lane)) = rule.region.offsets(invocation, lane) {

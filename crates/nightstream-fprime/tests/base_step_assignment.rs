@@ -41,8 +41,8 @@ struct Expected(
     [u64; 4],
     Vec<u64>,
     [[u64; 2]; 28],
-    [u64; 8],
-    [u64; 8],
+    [u64; 16],
+    [u64; 16],
     Vec<u64>,
 );
 
@@ -158,7 +158,7 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!((outer, inner, logical_public), (6, 8, PUBLIC_WORDS));
     assert_eq!(
         (layout.0, layout.1, layout.2, layout.3, layout.4),
-        (27_292_298, 27_435_144, 27_435_144, PUBLIC_INPUTS, 27_435_423)
+        (20_115_402, 20_258_248, 20_258_248, PUBLIC_INPUTS, 20_258_527)
     );
     assert_eq!(assignment.private_values().len(), layout.1);
     assert_eq!(assignment.public_values(), public);
@@ -386,8 +386,8 @@ fn checked_caller_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -
         (package.private_input_count(), package.public_input_count()),
         (private.len(), public.len())
     );
-    assert_eq!(package.total_column_count(), 27_435_423);
-    assert_eq!(package.physical_row_count(), 27_292_298);
+    assert_eq!(package.total_column_count(), 20_258_527);
+    assert_eq!(package.physical_row_count(), 20_115_402);
     assert_eq!(package.row_count(), logical_reference::evaluation::ACTIVE_ROWS);
     assert_eq!(
         package.logical_column_count(),

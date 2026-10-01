@@ -65,10 +65,10 @@ impl Poseidon2Transcript {
         value
     }
 
-    /// Return the current rate lanes, then apply one permutation.
+    /// Return the first four lanes, then apply one permutation.
     /// This is the exact fixed-window digest step used by the Lean PiRLC
     /// sampler. It does not add a query tag or change the absorb schedule.
-    pub fn squeeze_digest_v1_1(&mut self) -> [F; p2::RATE] {
+    pub fn squeeze_digest_v1_1(&mut self) -> [F; p2::DIGEST_LEN] {
         assert_eq!(self.absorbed, 0, "v1_1 transcript cannot inherit an absorb cursor");
         let digest = std::array::from_fn(|lane| F::from_u64(self.st[lane].as_canonical_u64()));
         self.permute();

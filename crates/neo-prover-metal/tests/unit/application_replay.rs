@@ -184,7 +184,7 @@ fn extension(real: usize, imaginary: usize) -> K {
 struct PhaseResult {
     proof_bytes: Vec<u8>,
     trace: ProtocolTrace,
-    transcript_state: [F; 8],
+    transcript_state: [F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
     transcript_cursor: usize,
     openings: Vec<V1_1Evaluations<K>>,
 }

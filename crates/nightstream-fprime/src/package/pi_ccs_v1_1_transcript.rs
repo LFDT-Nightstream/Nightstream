@@ -10,7 +10,7 @@ use p3_goldilocks::Goldilocks;
 
 use super::{canonical_field, PackageError, PI_CCS_V1_1_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
-const WIDTH: usize = 8;
+const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_1_ROUND_COUNT;
 const RUNNING_SOURCES: usize = 16;
 const SOURCE_COUNT: usize = 17;

@@ -397,10 +397,10 @@ impl RetainedBlock {
     }
 
     pub fn external_form(&self, logical_width: usize, slot_base: usize, lane: usize) -> Result<Form> {
-        if lane >= 8 {
+        if lane >= 16 {
             return Err("retained external lane is out of range".into());
         }
-        let state = (0..8)
+        let state = (0..16)
             .map(|selected| self.form(logical_width, checked_add(slot_base, selected, "external slot")?))
             .collect::<Result<Vec<_>>>()?;
         Ok(external_layer(&state)?[lane].clone())
@@ -421,11 +421,11 @@ fn radix_weights() -> &'static [Field; 41] {
 }
 
 pub fn external_layer(state: &[Form]) -> Result<Vec<Form>> {
-    if state.len() != 8 {
-        return Err("external layer requires eight forms".into());
+    if state.len() != 16 {
+        return Err("external layer requires sixteen forms".into());
     }
-    let mut blocks = Vec::with_capacity(8);
-    for base in [0usize, 4] {
+    let mut blocks = Vec::with_capacity(16);
+    for base in [0usize, 4, 8, 12] {
         for lane in 0..4 {
             let coefficients = match lane {
                 0 => [2, 3, 1, 1],
@@ -440,12 +440,13 @@ pub fn external_layer(state: &[Form]) -> Result<Vec<Form>> {
             blocks.push(form);
         }
     }
-    Ok((0..8)
+    Ok((0..16)
         .map(|lane| {
-            blocks[lane]
-                .clone()
-                .append(blocks[lane % 4].clone())
-                .append(blocks[lane % 4 + 4].clone())
+            [0usize, 4, 8, 12]
+                .into_iter()
+                .fold(blocks[lane].clone(), |sum, base| {
+                    sum.append(blocks[base + lane % 4].clone())
+                })
         })
         .collect())
 }

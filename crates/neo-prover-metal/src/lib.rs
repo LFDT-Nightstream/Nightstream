@@ -59,7 +59,7 @@ pub enum GoldilocksMulVariant {
 pub enum PoseidonHashVariant {
     /// One Metal thread owns an entire permutation.
     Scalar,
-    /// One eight-lane SIMD tile owns an entire permutation.
+    /// One sixteen-lane SIMD tile owns an entire permutation.
     SimdGroup,
 }
 

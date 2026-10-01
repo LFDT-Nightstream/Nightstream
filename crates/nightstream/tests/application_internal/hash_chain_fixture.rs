@@ -20,7 +20,7 @@ pub(crate) fn two_link_hash_chain() -> Result<ApplicationCircuit, ApplicationErr
         preimage.extend(current);
         preimage.extend(message.iter().cloned());
         let mut state = std::array::from_fn(|_| scalar(0));
-        for block in preimage.chunks(4) {
+        for block in preimage.chunks(RATE) {
             for (lane, value) in state.iter_mut().enumerate() {
                 *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
             }

@@ -85,6 +85,30 @@ fn signed_digit_masks_use_exact_radix_four_plane_order() {
 }
 
 #[test]
+fn signed_digit_masks_of_signed_unit_storage_match_dense_storage() {
+    let cols = 3;
+    let values: Vec<F> = (0..D * cols)
+        .map(|index| match (index * 7) % 3 {
+            0 => F::ONE,
+            1 => F::ZERO - F::ONE,
+            _ => F::ZERO,
+        })
+        .collect();
+    let signed = SuperneoZBlocks::from_witness_mat(&Mat::compact_signed_unit(D, cols, values.clone()), D * cols)
+        .expect("signed-unit blocks");
+    assert!(signed.signed_unit_masks().is_some());
+    let z: Vec<K> = (0..cols)
+        .flat_map(|block| (0..D).map(move |lane| (lane, block)))
+        .map(|(lane, block)| K::from(values[lane * cols + block]))
+        .collect();
+    let dense = SuperneoZBlocks::from_z(&z);
+    assert!(dense.signed_unit_masks().is_none());
+    for base in [2, 4] {
+        assert_eq!(signed.signed_digit_masks(base), dense.signed_digit_masks(base));
+    }
+}
+
+#[test]
 fn signed_digit_masks_reject_coefficients_outside_the_radix_alphabet() {
     let radix_four_out_of_range = SuperneoZBlocks::from_z(&[K::from(F::from_u64(4))]);
     let radix_two_out_of_range = SuperneoZBlocks::from_z(&[K::from(F::from_u64(2))]);

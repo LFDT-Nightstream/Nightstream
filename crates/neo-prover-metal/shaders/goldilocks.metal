@@ -1011,6 +1011,8 @@ inline void accumulate_signed_mask_rhos(
 }
 
 // Pi_RLC consumes either signed masks, dense planes, or a resident mask tail.
+// Signed masks are planar: the positive columns, then the negative columns,
+// of each input.
 kernel void rlc_witness_mix_signed_masks(
     device const char *rhos [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],
@@ -1025,12 +1027,12 @@ kernel void rlc_witness_mix_signed_masks(
     WideProduct negative = WideProduct{0, 0};
     for (ulong input = 0; input < input_count; ++input) {
         ulong rho_base = input * RING_DEGREE * RING_DEGREE + row * RING_DEGREE;
-        ulong mask_base = 2 * (input * cols + column);
+        ulong mask_base = 2 * input * cols + column;
         accumulate_signed_mask_rhos(
             rhos,
             rho_base,
             masks[mask_base],
-            masks[mask_base + 1],
+            masks[mask_base + cols],
             positive,
             negative);
     }

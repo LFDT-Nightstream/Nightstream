@@ -177,12 +177,13 @@ impl MetalSession {
         fresh: &Mat<F>,
     ) -> Result<neo_reductions::superneo_eval::TerminalEvaluations, MetalError> {
         let variables = (usize::BITS
-            - plan
-                .rows
+            - structure
+                .domain_rows()
+                .max(plan.rows)
                 .max(plan.blocks * D)
                 .saturating_sub(1)
                 .leading_zeros()) as usize;
-        if witnesses.is_empty() || point.len() < variables {
+        if witnesses.is_empty() || point.len() != variables {
             return Err(MetalError::Shape("terminal running opening shape"));
         }
         let terminal = self.prepare_terminal_row_check(plan, structure, fresh)?;
@@ -379,7 +380,7 @@ impl MetalSession {
             .ok_or(MetalError::Shape("carried matrix metadata size overflow"))?;
         let mut next_row = 0;
         while next_row < rows {
-            let window = self.load_matrix_window(plan, next_row..rows, reserved)?;
+            let window = self.load_matrix_window(plan, next_row..rows, reserved, true)?;
             let local_rows = window.rows.end - window.rows.start;
             let command = self.command_buffer("nightstream.pi_ccs.joint.carried.rows")?;
             let mut matrix_shapes = Vec::with_capacity(plan.matrix_count);

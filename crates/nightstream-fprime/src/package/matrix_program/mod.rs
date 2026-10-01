@@ -11,6 +11,9 @@ use std::ops::ControlFlow;
 
 use super::{PackageError, GOLDILOCKS_MODULUS};
 
+/// Poseidon2 lanes in every compact template and external-layer form.
+const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+
 mod affine;
 mod form;
 use form::Form;
@@ -151,11 +154,11 @@ impl RetainedBlock {
         slot_base: usize,
         lane: usize,
     ) -> Result<Form, PackageError> {
-        if lane >= 8 {
+        if lane >= POSEIDON_WIDTH {
             return Err(PackageError::Invalid("retained external lane"));
         }
-        let mut state = Vec::with_capacity(8);
-        for selected in 0..8 {
+        let mut state = Vec::with_capacity(POSEIDON_WIDTH);
+        for selected in 0..POSEIDON_WIDTH {
             state.push(self.form(
                 logical_width,
                 checked_add(slot_base, selected, "retained external slot")?,
@@ -202,7 +205,7 @@ impl SourceRange {
 #[derive(Clone, Copy, Debug)]
 enum SourceGridMode {
     Direct,
-    External8,
+    External16,
 }
 
 #[derive(Clone, Debug)]
@@ -225,7 +228,7 @@ impl SourceGrid {
         let fields = exact_array(value, 11, "matrix source grid")?;
         let mode = match usize_atom(&fields[7], "matrix source grid mode")? {
             0 => SourceGridMode::Direct,
-            1 => SourceGridMode::External8,
+            1 => SourceGridMode::External16,
             _ => return Err(PackageError::Invalid("matrix source grid mode")),
         };
         Ok(Self {
@@ -271,7 +274,7 @@ impl SourceGrid {
             SourceGridMode::Direct => self
                 .retained
                 .form(logical_width, checked_add(slot_base, offset, "source grid slot")?)?,
-            SourceGridMode::External8 => self
+            SourceGridMode::External16 => self
                 .retained
                 .external_form(logical_width, slot_base, offset)?,
         };
@@ -953,7 +956,7 @@ impl MatrixProgram {
 }
 
 pub(super) fn external_layer(state: &[Form], logical_width: usize) -> Result<Vec<Form>, PackageError> {
-    if state.len() != 8 {
+    if state.len() != POSEIDON_WIDTH {
         return Err(PackageError::Invalid("matrix Poseidon2 state"));
     }
     template::outputs("poseidon2-external-v1", state, logical_width)

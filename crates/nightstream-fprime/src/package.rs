@@ -575,8 +575,9 @@ impl LoadedPackage {
                 + lane]
         };
         if invocation < chain.absorb_count {
-            let input_offset = invocation * 4 + lane;
-            let absorbed = if lane < 4 && input_offset < chain.input_length {
+            let rate = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+            let input_offset = invocation * rate + lane;
+            let absorbed = if lane < rate && input_offset < chain.input_length {
                 assignment[chain.input_start + input_offset]
             } else {
                 Goldilocks::ZERO
@@ -895,7 +896,7 @@ fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
 
 fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
     let RawPoseidonSchedule(width, rate, digest, initial, partial, terminal, recipes, output_start) = raw;
-    if (width, rate, digest, initial, partial, terminal, recipes, output_start) != (8, 4, 4, 4, 22, 4, 592, 584) {
+    if (width, rate, digest, initial, partial, terminal, recipes, output_start) != (16, 12, 4, 4, 22, 4, 1096, 1080) {
         return Err(PackageError::Invalid("Poseidon2 schedule"));
     }
     Ok(())
@@ -1021,7 +1022,7 @@ fn validate_permutation(raw: RawPermutationTemplate) -> Result<PermutationTempla
     let input_count = word_to_usize(input_count, "template input count")?;
     let local_column_count = word_to_usize(local_count, "template local count")?;
     let output_local_start = word_to_usize(output_start, "template output start")?;
-    if (input_count, local_column_count, output_local_start) != (8, 592, 584) || rows.len() != local_column_count {
+    if (input_count, local_column_count, output_local_start) != (16, 1096, 1080) || rows.len() != local_column_count {
         return Err(PackageError::Invalid("permutation template shape"));
     }
 
@@ -1128,11 +1129,12 @@ fn validate_chain(
         digest_start: word_to_usize(digest_start, "chain digest start")?,
     };
 
+    let rate = neo_ccs::crypto::poseidon2_goldilocks::RATE;
     let expected_absorbs = chain
         .input_length
-        .checked_add(3)
+        .checked_add(rate - 1)
         .ok_or(PackageError::Invalid("hash input length overflow"))?
-        / 4;
+        / rate;
     let expected_witness = chain
         .absorb_count
         .checked_add(1)

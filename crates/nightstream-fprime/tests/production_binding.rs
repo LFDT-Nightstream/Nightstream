@@ -276,7 +276,7 @@ fn production_binding_matches_independent_lean_framing() {
     assert_eq!(independent.components[3].as_slice(), context.commitment_key_words());
     assert_eq!(
         independent.components.each_ref().map(|words| words.len()),
-        [5_120, 1_922_828, 5_184, 73]
+        [5_120, 2_171_564, 5_184, 73]
     );
     assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
     assert_eq!(binding.verification_key_words().len(), 126);

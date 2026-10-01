@@ -18,7 +18,7 @@ def main():
     directory.mkdir()
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
-    header = [1, 54, 17, 2474346]
+    header = [1, 54, 17, 1605616]
     cases = {
         "zero": [],
         "last-source": [[0, [[16, 2 ** 54 - 1, 0]]]],
@@ -34,7 +34,7 @@ def main():
 
     def run(name, source, reference=False, error=None):
         outputs = [directory / (name + f"-{block}.json") for block in (0, 10, 5)]
-        groups = [str(outputs[0]), "0", "0", "86",
+        groups = [str(outputs[0]), "0", "0", "150",
                   str(outputs[1]), "10", "0", "108",
                   str(outputs[2]), "5", "0", "1330"]
         command = ["bash", str(validator), "lean-executable", str(executable),

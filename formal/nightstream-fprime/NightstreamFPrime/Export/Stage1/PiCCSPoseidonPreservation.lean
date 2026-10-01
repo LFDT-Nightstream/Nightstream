@@ -132,7 +132,7 @@ theorem payloadLaneValue_squeezeFirst_zero
     (expected : NightstreamFPrime.Circuit.Quadratic.KExpr)
     (found : PiCCSActionPayloadBlock.kindAt invocation =
       .squeezeFirst expected) :
-    payloadLaneValue program prefixAssignment invocation (0 : Fin 8) =
+    payloadLaneValue program prefixAssignment invocation (0 : Fin 16) =
       expected.c0.eval
         (PiCCSActionPayloadBlock.packageEnv program prefixAssignment) := by
   unfold payloadLaneValue PiCCSActionPayloadBlock.payloadValue
@@ -151,7 +151,7 @@ theorem payloadLaneValue_squeezeFirst_one
     (expected : NightstreamFPrime.Circuit.Quadratic.KExpr)
     (found : PiCCSActionPayloadBlock.kindAt invocation =
       .squeezeFirst expected) :
-    payloadLaneValue program prefixAssignment invocation (1 : Fin 8) =
+    payloadLaneValue program prefixAssignment invocation (1 : Fin 16) =
       expected.c1.eval
         (PiCCSActionPayloadBlock.packageEnv program prefixAssignment) := by
   unfold payloadLaneValue PiCCSActionPayloadBlock.payloadValue
@@ -306,7 +306,7 @@ theorem previousState_eq_previousValue
   by_cases first : current.val = 0
   · rw [dif_pos first, dif_pos first]
     unfold Spec.Poseidon2.zeroState
-    change List.replicate 8 0 = List.ofFn (fun _ : Fin 8 => (0 : F))
+    change List.replicate 16 0 = List.ofFn (fun _ : Fin 16 => (0 : F))
     norm_num [List.ofFn_succ]
     rfl
   · rw [dif_neg first, dif_neg first]

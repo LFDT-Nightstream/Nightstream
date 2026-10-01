@@ -23,10 +23,10 @@ variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
 private theorem output_not_source (lane : Fin laneCount) :
     ¬ PiCCSOrdinarySourceSupport.Source
       (endpointColumn outputFamily lane) := by
-  have laneBound : lane.val < 8 := lane.isLt
+  have laneBound : lane.val < 16 := lane.isLt
   intro support
   change PiCCSOrdinarySourceSupport.Source
-    (PiCCSStarts.logicalFreshBase - 8 + lane.val) at support
+    (PiCCSStarts.logicalFreshBase - 16 + lane.val) at support
   unfold PiCCSStarts.logicalFreshBase at support
   rw [PiCCSInputs.phaseOffset_eq] at support
   rcases support with (external | transcript | ordinary) | fresh
@@ -40,10 +40,10 @@ private theorem output_not_source (lane : Fin laneCount) :
       PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq] at external
     omega
   · rcases transcript with ⟨invocation, outputLane, equality⟩
-    have invocationBound : invocation.val < 718 := by
+    have invocationBound : invocation.val < 355 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using invocation.isLt
-    have outputLaneBound : outputLane.val < 8 := outputLane.isLt
+    have outputLaneBound : outputLane.val < 16 := outputLane.isLt
     rw [PiCCSInputs.phaseOffset_eq] at equality
     omega
   · unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
@@ -81,13 +81,13 @@ private theorem decoded_output
   have inverse := Spartan.spartanToSource_sourceToSpartan
     (endpointColumn outputFamily lane) (endpointColumn_lt_source outputFamily lane)
   have inside : PiCCSOrdinarySourceSupport.InRange
-      PiCCSOrdinaryRetainedBlocks.outputEndpointStart 8
+      PiCCSOrdinaryRetainedBlocks.outputEndpointStart 16
         (endpointColumn outputFamily lane) := by
     change PiCCSOrdinaryRetainedBlocks.outputEndpointStart ≤
         PiCCSOrdinaryRetainedBlocks.outputEndpointStart + lane.val ∧
       PiCCSOrdinaryRetainedBlocks.outputEndpointStart + lane.val <
-        PiCCSOrdinaryRetainedBlocks.outputEndpointStart + 8
-    have bound : lane.val < 8 := lane.isLt
+        PiCCSOrdinaryRetainedBlocks.outputEndpointStart + 16
+    have bound : lane.val < 16 := lane.isLt
     omega
   have sameIndex : PiCCSOrdinaryDirectPlan.rangeIndex inside = lane := by
     apply Fin.ext
@@ -127,7 +127,7 @@ theorem sourceForm_eval
     simpa only [PiCCSTranscriptEndpointPlan.sourceForm, dif_neg output,
       Spartan.pullback] using mapped.symm
 
-/-- The existing 32 endpoint rows force all four direct states to equal
+/-- The existing 64 endpoint rows force all four direct states to equal
 the lifecycle values decoded from the same arbitrary assignment. -/
 theorem rowsZero_implies_endpointStates
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

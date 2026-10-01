@@ -164,10 +164,10 @@ pub(super) fn export(
     fresh: &CcsClaim,
     running: &RunningInstance,
     proof: &NifsProof,
-    verified_state: [F; 8],
+    verified_state: [F; 16],
     verified_absorbed: usize,
 ) {
-    let mut ccs_transcript = Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 8], 0);
+    let mut ccs_transcript = Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 16], 0);
     let (accepted, trace) = optimized_verify_with_trace(
         &mut ccs_transcript,
         params(package).inner(),

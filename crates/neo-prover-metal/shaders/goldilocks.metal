@@ -8,8 +8,8 @@ using namespace metal;
 constant ulong GOLDILOCKS_MODULUS = 0xffffffff00000001ul;
 constant ulong GOLDILOCKS_EPSILON = 0xfffffffful;
 constant ulong LIMB_MASK = 0xfffffffful;
-constant uint POSEIDON_WIDTH = 8;
-constant uint POSEIDON_RATE = 4;
+constant uint POSEIDON_WIDTH = 16;
+constant uint POSEIDON_RATE = 12;
 constant uint POSEIDON_DIGEST = 4;
 constant uint POSEIDON_EXTERNAL_HALF_ROUNDS = 4;
 constant uint POSEIDON_INTERNAL_ROUNDS = 22;
@@ -141,6 +141,14 @@ struct PoseidonState {
     ulong s5;
     ulong s6;
     ulong s7;
+    ulong s8;
+    ulong s9;
+    ulong s10;
+    ulong s11;
+    ulong s12;
+    ulong s13;
+    ulong s14;
+    ulong s15;
 };
 
 inline ulong4 poseidon_mat4(ulong x0, ulong x1, ulong x2, ulong x3) {
@@ -159,11 +167,13 @@ inline ulong4 poseidon_mat4(ulong x0, ulong x1, ulong x2, ulong x3) {
 inline PoseidonState poseidon_mds_light(PoseidonState state) {
     ulong4 a = poseidon_mat4(state.s0, state.s1, state.s2, state.s3);
     ulong4 b = poseidon_mat4(state.s4, state.s5, state.s6, state.s7);
+    ulong4 c = poseidon_mat4(state.s8, state.s9, state.s10, state.s11);
+    ulong4 d = poseidon_mat4(state.s12, state.s13, state.s14, state.s15);
     ulong4 mixed = ulong4(
-        gl_add(a.x, b.x),
-        gl_add(a.y, b.y),
-        gl_add(a.z, b.z),
-        gl_add(a.w, b.w));
+        gl_add(gl_add(a.x, b.x), gl_add(c.x, d.x)),
+        gl_add(gl_add(a.y, b.y), gl_add(c.y, d.y)),
+        gl_add(gl_add(a.z, b.z), gl_add(c.z, d.z)),
+        gl_add(gl_add(a.w, b.w), gl_add(c.w, d.w)));
     return PoseidonState{
         gl_add(a.x, mixed.x),
         gl_add(a.y, mixed.y),
@@ -172,7 +182,15 @@ inline PoseidonState poseidon_mds_light(PoseidonState state) {
         gl_add(b.x, mixed.x),
         gl_add(b.y, mixed.y),
         gl_add(b.z, mixed.z),
-        gl_add(b.w, mixed.w)};
+        gl_add(b.w, mixed.w),
+        gl_add(c.x, mixed.x),
+        gl_add(c.y, mixed.y),
+        gl_add(c.z, mixed.z),
+        gl_add(c.w, mixed.w),
+        gl_add(d.x, mixed.x),
+        gl_add(d.y, mixed.y),
+        gl_add(d.z, mixed.z),
+        gl_add(d.w, mixed.w)};
 }
 
 inline PoseidonState poseidon_external_round(
@@ -187,6 +205,14 @@ inline PoseidonState poseidon_external_round(
     state.s5 = gl_sbox(gl_add(state.s5, round_constants[base + 5]));
     state.s6 = gl_sbox(gl_add(state.s6, round_constants[base + 6]));
     state.s7 = gl_sbox(gl_add(state.s7, round_constants[base + 7]));
+    state.s8 = gl_sbox(gl_add(state.s8, round_constants[base + 8]));
+    state.s9 = gl_sbox(gl_add(state.s9, round_constants[base + 9]));
+    state.s10 = gl_sbox(gl_add(state.s10, round_constants[base + 10]));
+    state.s11 = gl_sbox(gl_add(state.s11, round_constants[base + 11]));
+    state.s12 = gl_sbox(gl_add(state.s12, round_constants[base + 12]));
+    state.s13 = gl_sbox(gl_add(state.s13, round_constants[base + 13]));
+    state.s14 = gl_sbox(gl_add(state.s14, round_constants[base + 14]));
+    state.s15 = gl_sbox(gl_add(state.s15, round_constants[base + 15]));
     return poseidon_mds_light(state);
 }
 
@@ -197,8 +223,11 @@ inline PoseidonState poseidon_permute(PoseidonState state, constant const ulong 
     }
     for (uint round = 0; round < POSEIDON_INTERNAL_ROUNDS; ++round) {
         state.s0 = gl_sbox(gl_add(state.s0, round_constants[POSEIDON_RC_INTERNAL + round]));
-        ulong sum = gl_add(gl_add(gl_add(state.s0, state.s1), gl_add(state.s2, state.s3)),
-                           gl_add(gl_add(state.s4, state.s5), gl_add(state.s6, state.s7)));
+        ulong sum = gl_add(
+            gl_add(gl_add(gl_add(state.s0, state.s1), gl_add(state.s2, state.s3)),
+                   gl_add(gl_add(state.s4, state.s5), gl_add(state.s6, state.s7))),
+            gl_add(gl_add(gl_add(state.s8, state.s9), gl_add(state.s10, state.s11)),
+                   gl_add(gl_add(state.s12, state.s13), gl_add(state.s14, state.s15))));
         state = PoseidonState{
             gl_add(gl_mul(state.s0, round_constants[POSEIDON_RC_DIAG]), sum),
             gl_add(gl_mul(state.s1, round_constants[POSEIDON_RC_DIAG + 1]), sum),
@@ -207,7 +236,15 @@ inline PoseidonState poseidon_permute(PoseidonState state, constant const ulong 
             gl_add(gl_mul(state.s4, round_constants[POSEIDON_RC_DIAG + 4]), sum),
             gl_add(gl_mul(state.s5, round_constants[POSEIDON_RC_DIAG + 5]), sum),
             gl_add(gl_mul(state.s6, round_constants[POSEIDON_RC_DIAG + 6]), sum),
-            gl_add(gl_mul(state.s7, round_constants[POSEIDON_RC_DIAG + 7]), sum)};
+            gl_add(gl_mul(state.s7, round_constants[POSEIDON_RC_DIAG + 7]), sum),
+            gl_add(gl_mul(state.s8, round_constants[POSEIDON_RC_DIAG + 8]), sum),
+            gl_add(gl_mul(state.s9, round_constants[POSEIDON_RC_DIAG + 9]), sum),
+            gl_add(gl_mul(state.s10, round_constants[POSEIDON_RC_DIAG + 10]), sum),
+            gl_add(gl_mul(state.s11, round_constants[POSEIDON_RC_DIAG + 11]), sum),
+            gl_add(gl_mul(state.s12, round_constants[POSEIDON_RC_DIAG + 12]), sum),
+            gl_add(gl_mul(state.s13, round_constants[POSEIDON_RC_DIAG + 13]), sum),
+            gl_add(gl_mul(state.s14, round_constants[POSEIDON_RC_DIAG + 14]), sum),
+            gl_add(gl_mul(state.s15, round_constants[POSEIDON_RC_DIAG + 15]), sum)};
     }
     for (uint round = 0; round < POSEIDON_EXTERNAL_HALF_ROUNDS; ++round) {
         state = poseidon_external_round(
@@ -231,11 +268,11 @@ inline ulong poseidon_shuffle_xor(ulong value, ushort mask) {
 }
 
 inline ulong poseidon_mds_light_simd(ulong state, ushort lane, ushort tile_base) {
-    ushort half_base = lane & 4;
-    ulong x0 = poseidon_tile_shuffle(state, tile_base, half_base);
-    ulong x1 = poseidon_tile_shuffle(state, tile_base, half_base + 1);
-    ulong x2 = poseidon_tile_shuffle(state, tile_base, half_base + 2);
-    ulong x3 = poseidon_tile_shuffle(state, tile_base, half_base + 3);
+    ushort block_base = lane & 12;
+    ulong x0 = poseidon_tile_shuffle(state, tile_base, block_base);
+    ulong x1 = poseidon_tile_shuffle(state, tile_base, block_base + 1);
+    ulong x2 = poseidon_tile_shuffle(state, tile_base, block_base + 2);
+    ulong x3 = poseidon_tile_shuffle(state, tile_base, block_base + 3);
     ulong t01 = gl_add(x0, x1);
     ulong t23 = gl_add(x2, x3);
     ulong t0123 = gl_add(t01, t23);
@@ -248,8 +285,9 @@ inline ulong poseidon_mds_light_simd(ulong state, ushort lane, ushort tile_base)
         case 2: local = gl_add(t01233, t23); break;
         default: local = gl_add(gl_add(t01233, x0), x0); break;
     }
-    ulong paired = poseidon_tile_shuffle(local, tile_base, lane ^ 4);
-    return gl_add(gl_add(local, local), paired);
+    ulong column = gl_add(local, poseidon_shuffle_xor(local, 4));
+    column = gl_add(column, poseidon_shuffle_xor(column, 8));
+    return gl_add(local, column);
 }
 
 inline ulong poseidon_permute_simd(
@@ -270,6 +308,7 @@ inline ulong poseidon_permute_simd(
         sum = gl_add(sum, poseidon_shuffle_xor(sum, 1));
         sum = gl_add(sum, poseidon_shuffle_xor(sum, 2));
         sum = gl_add(sum, poseidon_shuffle_xor(sum, 4));
+        sum = gl_add(sum, poseidon_shuffle_xor(sum, 8));
         state = gl_add(gl_mul(state, round_constants[POSEIDON_RC_DIAG + lane]), sum);
     }
     for (uint round = 0; round < POSEIDON_EXTERNAL_HALF_ROUNDS; ++round) {
@@ -290,7 +329,15 @@ inline PoseidonState poseidon_load(device const ulong *words, uint base) {
         gl_from_word(words[base + 4]),
         gl_from_word(words[base + 5]),
         gl_from_word(words[base + 6]),
-        gl_from_word(words[base + 7])};
+        gl_from_word(words[base + 7]),
+        gl_from_word(words[base + 8]),
+        gl_from_word(words[base + 9]),
+        gl_from_word(words[base + 10]),
+        gl_from_word(words[base + 11]),
+        gl_from_word(words[base + 12]),
+        gl_from_word(words[base + 13]),
+        gl_from_word(words[base + 14]),
+        gl_from_word(words[base + 15])};
 }
 
 inline void poseidon_store(device ulong *words, uint base, PoseidonState state) {
@@ -302,15 +349,31 @@ inline void poseidon_store(device ulong *words, uint base, PoseidonState state) 
     words[base + 5] = state.s5;
     words[base + 6] = state.s6;
     words[base + 7] = state.s7;
+    words[base + 8] = state.s8;
+    words[base + 9] = state.s9;
+    words[base + 10] = state.s10;
+    words[base + 11] = state.s11;
+    words[base + 12] = state.s12;
+    words[base + 13] = state.s13;
+    words[base + 14] = state.s14;
+    words[base + 15] = state.s15;
 }
 
-// Device transcript state mirrors eight sponge words plus a rate cursor.
+// Device transcript state mirrors sixteen sponge words plus a rate cursor.
 inline void transcript_set(thread PoseidonState &state, uint lane, ulong value) {
     switch (lane) {
         case 0: state.s0 = value; break;
         case 1: state.s1 = value; break;
         case 2: state.s2 = value; break;
-        default: state.s3 = value; break;
+        case 3: state.s3 = value; break;
+        case 4: state.s4 = value; break;
+        case 5: state.s5 = value; break;
+        case 6: state.s6 = value; break;
+        case 7: state.s7 = value; break;
+        case 8: state.s8 = value; break;
+        case 9: state.s9 = value; break;
+        case 10: state.s10 = value; break;
+        default: state.s11 = value; break;
     }
 }
 
@@ -413,7 +476,7 @@ kernel void poseidon2_hash_fields(
     device ulong *output [[buffer(3)]],
     constant const ulong *round_constants [[buffer(4)]],
     uint index [[thread_position_in_grid]]) {
-    PoseidonState state = PoseidonState{0, 0, 0, 0, 0, 0, 0, 0};
+    PoseidonState state = PoseidonState{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     ulong offset = offsets[index];
     ulong length = lengths[index];
     for (ulong position = 0; position < length; position += POSEIDON_RATE) {
@@ -422,6 +485,14 @@ kernel void poseidon2_hash_fields(
         if (take > 1) state.s1 = gl_add(state.s1, gl_from_word(fields[offset + position + 1]));
         if (take > 2) state.s2 = gl_add(state.s2, gl_from_word(fields[offset + position + 2]));
         if (take > 3) state.s3 = gl_add(state.s3, gl_from_word(fields[offset + position + 3]));
+        if (take > 4) state.s4 = gl_add(state.s4, gl_from_word(fields[offset + position + 4]));
+        if (take > 5) state.s5 = gl_add(state.s5, gl_from_word(fields[offset + position + 5]));
+        if (take > 6) state.s6 = gl_add(state.s6, gl_from_word(fields[offset + position + 6]));
+        if (take > 7) state.s7 = gl_add(state.s7, gl_from_word(fields[offset + position + 7]));
+        if (take > 8) state.s8 = gl_add(state.s8, gl_from_word(fields[offset + position + 8]));
+        if (take > 9) state.s9 = gl_add(state.s9, gl_from_word(fields[offset + position + 9]));
+        if (take > 10) state.s10 = gl_add(state.s10, gl_from_word(fields[offset + position + 10]));
+        if (take > 11) state.s11 = gl_add(state.s11, gl_from_word(fields[offset + position + 11]));
         state = poseidon_permute(state, round_constants);
     }
     state.s0 = gl_add(state.s0, 1);
@@ -441,7 +512,7 @@ kernel void poseidon2_hash_fields_simd(
     constant const ulong *round_constants [[buffer(4)]],
     uint thread_index [[thread_position_in_grid]],
     ushort simd_lane [[thread_index_in_simdgroup]]) {
-    ushort lane = thread_index & 7;
+    ushort lane = thread_index & 15;
     ushort tile_base = simd_lane - lane;
     uint hash_index = thread_index / POSEIDON_WIDTH;
     ulong offset = offsets[hash_index];
@@ -469,7 +540,7 @@ kernel void poseidon2_hash_uniform(
     constant const ulong *round_constants [[buffer(2)]],
     device const ulong *shape [[buffer(3)]],
     uint index [[thread_position_in_grid]]) {
-    PoseidonState state = PoseidonState{0, 0, 0, 0, 0, 0, 0, 0};
+    PoseidonState state = PoseidonState{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     ulong length = shape[0];
     ulong offset = index * length;
     for (ulong position = 0; position < length; position += POSEIDON_RATE) {
@@ -478,6 +549,14 @@ kernel void poseidon2_hash_uniform(
         if (take > 1) state.s1 = gl_add(state.s1, gl_from_word(fields[offset + position + 1]));
         if (take > 2) state.s2 = gl_add(state.s2, gl_from_word(fields[offset + position + 2]));
         if (take > 3) state.s3 = gl_add(state.s3, gl_from_word(fields[offset + position + 3]));
+        if (take > 4) state.s4 = gl_add(state.s4, gl_from_word(fields[offset + position + 4]));
+        if (take > 5) state.s5 = gl_add(state.s5, gl_from_word(fields[offset + position + 5]));
+        if (take > 6) state.s6 = gl_add(state.s6, gl_from_word(fields[offset + position + 6]));
+        if (take > 7) state.s7 = gl_add(state.s7, gl_from_word(fields[offset + position + 7]));
+        if (take > 8) state.s8 = gl_add(state.s8, gl_from_word(fields[offset + position + 8]));
+        if (take > 9) state.s9 = gl_add(state.s9, gl_from_word(fields[offset + position + 9]));
+        if (take > 10) state.s10 = gl_add(state.s10, gl_from_word(fields[offset + position + 10]));
+        if (take > 11) state.s11 = gl_add(state.s11, gl_from_word(fields[offset + position + 11]));
         state = poseidon_permute(state, round_constants);
     }
     state.s0 = gl_add(state.s0, 1);
@@ -496,7 +575,7 @@ kernel void poseidon2_hash_uniform_simd(
     device const ulong *shape [[buffer(3)]],
     uint thread_index [[thread_position_in_grid]],
     ushort simd_lane [[thread_index_in_simdgroup]]) {
-    ushort lane = thread_index & 7;
+    ushort lane = thread_index & 15;
     ushort tile_base = simd_lane - lane;
     uint hash_index = thread_index / POSEIDON_WIDTH;
     ulong length = shape[0];

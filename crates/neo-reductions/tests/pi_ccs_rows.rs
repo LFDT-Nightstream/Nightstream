@@ -8,7 +8,7 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 fn transcript() -> Poseidon2Transcript {
-    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 8], 0)
+    Poseidon2Transcript::from_state_and_absorbed([F::ZERO; 16], 0)
 }
 
 fn direct_pad(values: &[F], point: &[K]) -> Vec<K> {

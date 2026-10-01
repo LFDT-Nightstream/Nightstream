@@ -118,7 +118,7 @@ def circuit (interface : Application.Interface messageWordCount) :
 
 theorem inputChunks_length
     (interface : Application.Interface messageWordCount) (offset : Nat) :
-    (Hash.inputChunks (inputExpressions interface offset)).length = 12 := by
+    (Hash.inputChunks (inputExpressions interface offset)).length = 4 := by
   unfold Hash.inputChunks
   rw [List.length_map, List.length_range, inputExpressions_length]
   norm_num [Poseidon2.rate]
@@ -126,26 +126,26 @@ theorem inputChunks_length
 theorem compile_recipes_length
     (interface : Application.Interface messageWordCount) (offset : Nat) :
     (Hash.compile offset (inputExpressions interface offset)).recipes.length =
-      7696 := by
+      5480 := by
   rw [Hash.compile_recipes_length, inputChunks_length]
 
 theorem circuit_localLength
     (interface : Application.Interface messageWordCount) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 7696 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 5480 := by
   change localLength (Circuit.ops (Formal.main (hashInterface interface)) offset) =
-    7696
+    5480
   rw [Formal.main_ops, Formal.opsAt_localLength]
   exact compile_recipes_length interface offset
 
 theorem circuit_rowCount
     (interface : Application.Interface messageWordCount) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      7700 := by
+      5484 := by
   change (flatConstraints (Circuit.ops
-    (Formal.main (hashInterface interface)) offset)).length = 7700
+    (Formal.main (hashInterface interface)) offset)).length = 5484
   rw [Formal.flatConstraints_length_eq]
   change (Hash.compile offset
-    (inputExpressions interface offset)).recipes.length + 4 = 7700
+    (inputExpressions interface offset)).recipes.length + 4 = 5484
   rw [compile_recipes_length]
 
 private theorem eval_inputExpressions
@@ -254,14 +254,14 @@ theorem program_localLength
     (interface : Application.Interface program.witnessWordCount)
     (offset : Nat) :
     localLength (Circuit.ops (program.circuit interface).main offset) =
-      7696 := by
+      5480 := by
   exact circuit_localLength interface offset
 
 theorem program_rowCount
     (interface : Application.Interface program.witnessWordCount)
     (offset : Nat) :
     (flatConstraints (Circuit.ops (program.circuit interface).main offset)).length =
-      7700 := by
+      5484 := by
   exact circuit_rowCount interface offset
 
 end NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1

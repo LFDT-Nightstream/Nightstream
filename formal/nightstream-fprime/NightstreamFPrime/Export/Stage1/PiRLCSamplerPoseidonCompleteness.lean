@@ -66,9 +66,9 @@ private theorem invocation_input (phase rowStart start : Nat) (state : Layer.ESt
   have selected : invocationInputCombination
       (Invocations.invocation phase rowStart start state) lane.val =
       Invocations.inputCombination (state lane) := by
-    change (List.ofFn (fun current : Fin 8 => Invocations.inputCombination (state current))).getD
+    change (List.ofFn (fun current : Fin 16 => Invocations.inputCombination (state current))).getD
       lane.val zeroSparseCombination = _
-    exact PriorStateHash.ofFn_getD (fun current : Fin 8 =>
+    exact PriorStateHash.ofFn_getD (fun current : Fin 16 =>
       Invocations.inputCombination (state current)) lane zeroSparseCombination
   rw [selected]
   exact Invocations.inputCombination_eval (affine lane) env
@@ -122,18 +122,18 @@ private theorem output_state
   have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
     (if step.val = 0 then PiRLCStarts.samplerSourceLogicalStart source.val
      else PiRLCStarts.advanceLogicalStart source.val)
-    (584 + lane.val) (sourceStart_local source.val step.val)
+    (1080 + lane.val) (sourceStart_local source.val step.val)
   by_cases first : step.val = 0
   · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_pos,
       PiRLCSamplerInvocations.sourceLogicalStart] at mapped ⊢
     change _ = RunningTransitionDirectPlan.packageEnv application base
-      (Spartan.sourceToSpartan (PiRLCStarts.samplerSourceLogicalStart source.val + 584 + lane.val))
+      (Spartan.sourceToSpartan (PiRLCStarts.samplerSourceLogicalStart source.val + 1080 + lane.val))
     apply congrArg (RunningTransitionDirectPlan.packageEnv application base)
     simpa only [Nat.add_assoc] using mapped.symm
   · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_false] at mapped ⊢
     change _ = RunningTransitionDirectPlan.packageEnv application base
       (Spartan.sourceToSpartan
-        (PiRLCStarts.advanceLogicalStart source.val + 584 + lane.val))
+        (PiRLCStarts.advanceLogicalStart source.val + 1080 + lane.val))
     apply congrArg (RunningTransitionDirectPlan.packageEnv application base)
     simpa only [Nat.add_assoc] using mapped.symm
 
@@ -186,7 +186,7 @@ private theorem sboxes_of_invocation
       ((PiRLCSamplerPoseidonValues.physicalInvocation current).witnessStart +
         (PoseidonRetainedSlots.localOutput row).val) =
     Pilot.canonicalInvocationEnv actual (RunningTransitionDirectPlan.packageEnv application base)
-      (8 + (PoseidonRetainedSlots.localOutput row).val)
+      (16 + (PoseidonRetainedSlots.localOutput row).val)
   rw [Pilot.canonicalInvocationEnv_local, witness]
 
 end Values

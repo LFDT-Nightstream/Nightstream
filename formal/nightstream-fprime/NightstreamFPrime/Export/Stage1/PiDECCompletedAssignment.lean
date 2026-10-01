@@ -51,7 +51,7 @@ private theorem copied_source
   obtain ⟨source, support, rfl⟩ := supported
   have bounded := PiDECSourceSupport.source_lt_sourceColumnCount support
   have afterTranscript : PiCCSInputs.phaseOffset +
-      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤ source := by
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤ source := by
     apply Nat.le_trans _ (PiDECSourceSupport.parentStart_le_source support)
     rw [PiCCSInputs.phaseOffset_eq, PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq,
       PiDECSourceSupport.parentCommitmentStart_eq]

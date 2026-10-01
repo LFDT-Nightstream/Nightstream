@@ -57,33 +57,34 @@ theorem blockE_affine (state : Layer.EState) (stateAffine : StateAffine state)
     (index : Nat) : R1CS.IsAffine (Layer.blockE state index) :=
   mat4E_affine state stateAffine _ _
 
+theorem affine_foldl_add (values : List Expr) (initial : Expr)
+    (initialAffine : R1CS.IsAffine initial)
+    (valuesAffine : ∀ value ∈ values, R1CS.IsAffine value) :
+    R1CS.IsAffine (values.foldl (· + ·) initial) := by
+  induction values generalizing initial with
+  | nil => exact initialAffine
+  | cons value values inductionHypothesis =>
+      exact inductionHypothesis (initial + value)
+        (R1CS.IsAffine.add initialAffine (valuesAffine value (by simp)))
+        (fun current member => valuesAffine current (by simp [member]))
+
 theorem externalE_affine (state : Layer.EState)
     (stateAffine : StateAffine state) : StateAffine (Layer.externalE state) := by
   intro lane
-  exact R1CS.IsAffine.add
-    (R1CS.IsAffine.add
-      (blockE_affine state stateAffine lane.val)
-      (blockE_affine state stateAffine (lane.val % 4)))
-    (blockE_affine state stateAffine (lane.val % 4 + 4))
+  refine R1CS.IsAffine.add (blockE_affine state stateAffine lane.val) ?_
+  apply affine_foldl_add _ _ (R1CS.isAffine_const _)
+  intro value member
+  simp only [List.mem_map] at member
+  rcases member with ⟨block, _, rfl⟩
+  exact blockE_affine state stateAffine _
 
 theorem sumE_affine (state : Layer.EState) (stateAffine : StateAffine state) :
     R1CS.IsAffine (Layer.sumE state) := by
-  unfold Layer.sumE
-  exact R1CS.IsAffine.add
-    (R1CS.IsAffine.add
-      (R1CS.IsAffine.add
-        (R1CS.IsAffine.add
-          (R1CS.IsAffine.add
-            (R1CS.IsAffine.add
-              (R1CS.IsAffine.add
-                (getE_affine state stateAffine 0)
-                (getE_affine state stateAffine 1))
-              (getE_affine state stateAffine 2))
-            (getE_affine state stateAffine 3))
-          (getE_affine state stateAffine 4))
-        (getE_affine state stateAffine 5))
-      (getE_affine state stateAffine 6))
-    (getE_affine state stateAffine 7)
+  apply affine_foldl_add _ _ (R1CS.isAffine_const _)
+  intro value member
+  simp only [List.mem_map] at member
+  rcases member with ⟨index, _, rfl⟩
+  exact getE_affine state stateAffine index
 
 theorem internalE_affine (state : Layer.EState)
     (stateAffine : StateAffine state) : StateAffine (Layer.internalE state) := by
@@ -264,10 +265,10 @@ theorem compile_schedule_output_affine (start : Nat) (state : Layer.EState)
   compile_output_affine start state Permutation.schedule stateAffine
 
 /-- The fixed schedule's final layer owns the eight variables beginning at
-`start + 584`. This reduction is fixed-size and independent of hash length. -/
+`start + 1080`. This reduction is fixed-size and independent of hash length. -/
 theorem compile_schedule_output_eq (start : Nat) (state : Layer.EState) :
     (Permutation.compile start state Permutation.schedule).output =
-      Permutation.freshState (start + 584) := by
+      Permutation.freshState (start + 1080) := by
   rfl
 
 def ListAffine (values : List Expr) : Prop :=
@@ -328,7 +329,7 @@ theorem compileAbsorptions_direct (start : Nat) (state : Layer.EState)
         (Hash.absorbE state block) absorbedAffine
       have headOutputAffine := compile_schedule_output_affine start
         (Hash.absorbE state block) absorbedAffine
-      have tailDirect := ih (start + 592)
+      have tailDirect := ih (start + 1096)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output headOutputAffine restAffine
       unfold Hash.compileAbsorptions
@@ -350,7 +351,7 @@ theorem compileAbsorptions_output_affine (start : Nat) (state : Layer.EState)
       have absorbedAffine := absorbE_affine state block stateAffine blockAffine
       have headOutputAffine := compile_schedule_output_affine start
         (Hash.absorbE state block) absorbedAffine
-      have tailOutputAffine := ih (start + 592)
+      have tailOutputAffine := ih (start + 1096)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output headOutputAffine restAffine
       simpa [Hash.compileAbsorptions] using tailOutputAffine
@@ -377,7 +378,7 @@ theorem hash_compile_direct (start : Nat) (input : List Expr)
 theorem hash_compile_output_eq (start : Nat) (input : List Expr) :
     (Hash.compile start input).output =
       Permutation.freshState
-        (start + (Hash.inputChunks input).length * 592 + 584) := by
+        (start + (Hash.inputChunks input).length * 1096 + 1080) := by
   unfold Hash.compile
   dsimp only
   rw [compile_schedule_output_eq,
@@ -394,7 +395,7 @@ theorem hash_recipeConstraints_rowCount (start : Nat) (input : List Expr)
     (inputAffine : ListAffine input) :
     R1CS.totalRowCount
       (recipeConstraints start (Hash.compile start input).recipes) =
-        (Hash.inputChunks input).length * 592 + 592 := by
+        (Hash.inputChunks input).length * 1096 + 1096 := by
   rw [R1CS.recipeConstraints_totalRowCount start _
     (hash_compile_direct start input inputAffine)]
   exact Hash.compile_recipes_length start input
@@ -459,7 +460,7 @@ theorem hashConstraints_freshCount (interface : Formal.Interface)
 theorem hashConstraints_rowCount (interface : Formal.Interface)
     (offset : Nat) (affine : HashInterfaceAffine interface offset) :
     R1CS.totalRowCount (hashConstraints interface offset) =
-      (Hash.inputChunks (interface.input offset)).length * 592 + 596 := by
+      (Hash.inputChunks (interface.input offset)).length * 1096 + 1100 := by
   rw [R1CS.totalRowCount_eq_length_of_rowsOne _
     (hashConstraints_rowsOne interface offset affine)]
   unfold hashConstraints

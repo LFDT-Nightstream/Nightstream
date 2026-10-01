@@ -79,12 +79,12 @@ private def executeEvent (pilot : CircuitPackage) (templates : Array CompactRowT
         phase := chain.phase
         rowStart := chain.rowStart + ordinal * pilot.poseidon.recipesPerPermutation
         witnessStart := invocationLocalStart pilot chain ordinal
-        inputs := List.ofFn fun lane : Fin 8 =>
+        inputs := List.ofFn fun lane : Fin 16 =>
           Rows.sparseCombination (invocationInput pilot chain ordinal lane.val) }
-      requireWrite values invocation.witnessStart 592
+      requireWrite values invocation.witnessStart 1096
       return StoredPermutationExecution.execute invocation values
   | .permutation invocation =>
-      requireWrite values invocation.witnessStart 592
+      requireWrite values invocation.witnessStart 1096
       return StoredPermutationExecution.execute invocation values
   | .compact target invocation => compact templates target invocation values
   | .batch batch =>

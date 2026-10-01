@@ -206,7 +206,7 @@ profile an exact copy of SuperNeo Appendix B.2.
 The application tests use saved Lean exports and execution results. They compare
 all application rows and witness values, then run the stored base and recursive
 inputs through the Rust circuit. Computed outputs must match the stored Lean
-outputs, and the witnesses must satisfy all 7,700 exported application rows.
+outputs, and the witnesses must satisfy all 5,484 exported application rows.
 A changed output must fail those constraints. These tests run by default and
 need no Lean installation or artifact generation.
 
@@ -273,27 +273,28 @@ can exceed this cap. A longer invocation requires explicit approval for that
 specific run. `--foreground` keeps the timeout process alive to reap the killed
 benchmark, so the process timer can retain its resource usage.
 
-At `53f96498f`, these commands measured the complete lifecycle without
-Instruments. Each engine ran once on an Apple M5 Max:
+At `3cc867401`, with the width-16 Poseidon2, these commands measured the
+complete lifecycle without Instruments on an Apple M5 Max. The CPU column is
+one run. The Metal column is the median of five runs:
 
 | Phase | Optimized | Metal |
 | --- | ---: | ---: |
-| package load | 1.16 s | 1.20 s |
-| base step | 7.62 s | 2.11 s |
-| fold, step 2 | 26.01 s | 8.99 s |
-| fold, step 3 | 33.33 s | 11.58 s |
-| terminal verification | 21.41 s | 5.05 s |
-| **total** | **89.53 s** | **28.93 s** |
-| peak RSS | 11.15 GB | 11.18 GB |
+| package load | 1.09 s | 1.13 s |
+| base step | 4.66 s | 1.38 s |
+| fold, step 2 | 15.48 s | 6.23 s |
+| fold, step 3 | 19.76 s | 7.63 s |
+| terminal verification | 12.88 s | 3.27 s |
+| **total** | **53.87 s** | **19.64 s** |
+| peak RSS | 8.36 GB | 9.43 GB |
 
-Metal is **3.09×** faster, below the 5× target. Single runs vary by up to
-2 s. Five alternating Metal runs on one package give medians of 30.75 s at
-`ac3762c70` and 29.57 s at `53f96498f`, where PiRLC mixes and splits its
-witness on Metal. The record before these Metal changes (`b1b29c38a`) was
-36.28 s on Metal and 91.31 s on the CPU engine. Both engines are faster than
-the earlier image (CPU 1,262.10 s and Metal 212.72 s under Time Profiler); the
-CPU engine improved more. Both RSS peaks are below 16 GB. Each time is one
-sample. See [the run records](tests/evidence/poseidon2-benchmark-20260930).
+Metal is **2.74×** faster than the CPU engine, below the 5× target. In the same
+session, the width-8 base `3cca62f59` took 85.97 s on the CPU engine (one run)
+and 29.00 s on Metal (median of five runs, alternating with the width-16 runs).
+The width-16 relation has 35% fewer coordinates, so the CPU engine is 37%
+faster and Metal is 32% faster. Single Metal runs vary by up to 1 s. Both
+engines are faster than the earlier image (CPU 1,262.10 s and Metal 212.72 s
+under Time Profiler). Both RSS peaks are below 16 GB. See
+[the run records](tests/evidence/poseidon2-benchmark-20260930).
 
 Applications use four Goldilocks state words, private inputs, affine operations,
 multiplication, and equality constraints. The assembler keeps every required
@@ -301,10 +302,10 @@ verifier component and binds the resulting application and circuit identity.
 
 Each `Circuit` uses the production commitment-key prefix required by its
 application. Private input words plus generated local words must be at most
-**2,950,283**. The logical width is
-`133,298,978 + 41 × (private_words + local_words)`, and the maximum key supports
+**4,092,249**. The logical width is
+`86,478,372 + 41 × (private_words + local_words)`, and the maximum key supports
 254,260,620 scalar coordinates (4,708,530 ring columns). The reference application
-uses 2,474,346 columns; this smaller prefix is not the application capacity limit.
+uses 1,605,616 columns; this smaller prefix is not the application capacity limit.
 The exported row and domain checks also apply. See the
 [capacity derivation](tests/evidence/prepared-fixed-source-bound.md).
 

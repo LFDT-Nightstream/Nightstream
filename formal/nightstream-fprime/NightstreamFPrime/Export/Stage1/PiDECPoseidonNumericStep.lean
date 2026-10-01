@@ -25,13 +25,13 @@ private theorem materialize_get (state : Layer.FState) :
 
 /-- Materialize the eight input values without constructing new row forms. -/
 @[specialize] def stateValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
-    (state : PoseidonSboxPlan.State logicalWidth) : Vector F 8 :=
+    (state : PoseidonSboxPlan.State logicalWidth) : Vector F 16 :=
   Vector.ofFn fun lane => (state lane).evalSparse read
 
 private theorem stateValues_get {logicalWidth : Nat} (read : Fin logicalWidth → F)
-    (state : PoseidonSboxPlan.State logicalWidth) (lane : Fin 8) :
+    (state : PoseidonSboxPlan.State logicalWidth) (lane : Fin 16) :
     (stateValues read state).get lane = (state lane).evalSparse read := by
-  change (Vector.ofFn (fun selected : Fin 8 => (state selected).evalSparse read))[lane.val] = _
+  change (Vector.ofFn (fun selected : Fin 16 => (state selected).evalSparse read))[lane.val] = _
   rw [Vector.getElem_ofFn]
 
 theorem stateValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
@@ -48,8 +48,8 @@ existing zero result outside the retained S-box domain. -/
   (PoseidonSboxPlan.sboxOutputAt interface index).evalSparse read
 
 private def fullState {logicalWidth : Nat} (read : Fin logicalWidth → F)
-    (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat) : Vector F 8 :=
-  let outputs := Vector.ofFn fun lane : Fin 8 =>
+    (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat) : Vector F 16 :=
+  let outputs := Vector.ofFn fun lane : Fin 16 =>
     retainedValue read interface (nextSbox + lane.val)
   Vector.ofFn (Layer.externalF outputs.get)
 
@@ -71,9 +71,9 @@ private theorem fullState_value {logicalWidth : Nat} (read : Fin logicalWidth �
 
 private def partialState {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
-    (state : Vector F 8) : Vector F 8 :=
+    (state : Vector F 16) : Vector F 16 :=
   let output := retainedValue read interface nextSbox
-  let replaced := Vector.ofFn fun lane : Fin 8 =>
+  let replaced := Vector.ofFn fun lane : Fin 16 =>
     if lane.val = 0 then output else state.get lane
   Vector.ofFn (Layer.internalF replaced.get)
 
@@ -101,7 +101,7 @@ private theorem partialState_value {logicalWidth : Nat} (read : Fin logicalWidth
 substitution, then store all eight fields before another step can read them. -/
 def stateStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
-    (state : Vector F 8) : Permutation.Step → Vector F 8
+    (state : Vector F 16) : Permutation.Step → Vector F 16
   | .initialLayer => Vector.ofFn (Layer.externalF state.get)
   | .initialFullRound _ => fullState read interface nextSbox
   | .partialRound _ => partialState read interface nextSbox state
@@ -160,9 +160,9 @@ private theorem addConstant_value {logicalWidth : Nat}
 private def fullRowValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
-    (state : Vector F 8) : List PortValues :=
+    (state : Vector F 16) : List PortValues :=
   let selector := read interface.oneColumn
-  List.ofFn fun lane : Fin 8 =>
+  List.ofFn fun lane : Fin 16 =>
     RowSemantics.sbox selector
       (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
       (retainedValue read interface (nextSbox + lane.val))
@@ -186,7 +186,7 @@ private theorem fullRowValues_value {logicalWidth : Nat}
 Round constants multiply the selected one-column read; it need not equal one. -/
 def rowsStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
-    (state : Vector F 8) : Permutation.Step → List PortValues
+    (state : Vector F 16) : Permutation.Step → List PortValues
   | .initialLayer => []
   | .initialFullRound round =>
       fullRowValues read interface Spec.Poseidon2.initialConstants round nextSbox state
@@ -224,11 +224,11 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
 @[specialize] private def fullStepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth)
     (constants : List (List Nat)) (round nextSbox : Nat)
-    (state : Vector F 8) : List PortValues × Vector F 8 :=
+    (state : Vector F 16) : List PortValues × Vector F 16 :=
   let selector := read interface.oneColumn
-  let outputs := Vector.ofFn fun lane : Fin 8 =>
+  let outputs := Vector.ofFn fun lane : Fin 16 =>
     retainedValue read interface (nextSbox + lane.val)
-  (List.ofFn fun lane : Fin 8 =>
+  (List.ofFn fun lane : Fin 16 =>
       RowSemantics.sbox selector
         (state.get lane + Spec.Poseidon2.constantAt constants round lane.val * selector)
         (outputs.get lane),
@@ -236,7 +236,7 @@ theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
 
 private theorem fullStepValues_value {logicalWidth : Nat}
     (read : Fin logicalWidth → F) (interface : PoseidonSboxPlan.Interface logicalWidth)
-    (constants : List (List Nat)) (round nextSbox : Nat) (state : Vector F 8) :
+    (constants : List (List Nat)) (round nextSbox : Nat) (state : Vector F 16) :
     fullStepValues read interface constants round nextSbox state =
       (fullRowValues read interface constants round nextSbox state,
         fullState read interface nextSbox) := by
@@ -248,14 +248,14 @@ private theorem fullStepValues_value {logicalWidth : Nat}
 row values and the stored next state. Missing retained indices still read zero. -/
 @[specialize] def stepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
-    (state : Vector F 8) : Permutation.Step → List PortValues × Vector F 8
+    (state : Vector F 16) : Permutation.Step → List PortValues × Vector F 16
   | .initialLayer => ([], Vector.ofFn (Layer.externalF state.get))
   | .initialFullRound round =>
       fullStepValues read interface Spec.Poseidon2.initialConstants round nextSbox state
   | .partialRound round =>
       let selector := read interface.oneColumn
       let output := retainedValue read interface nextSbox
-      let replaced := Vector.ofFn fun lane : Fin 8 =>
+      let replaced := Vector.ofFn fun lane : Fin 16 =>
         if lane.val = 0 then output else state.get lane
       ([RowSemantics.sbox selector
           (state.get 0 + Spec.Poseidon2.ofNat
@@ -269,7 +269,7 @@ row values and the stored next state. Missing retained indices still read zero. 
 index. No selector or row-satisfaction assumption is required. -/
 theorem stepValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
-    (state : Vector F 8) (step : Permutation.Step) :
+    (state : Vector F 16) (step : Permutation.Step) :
     stepValues read interface nextSbox state step =
       (rowsStep read interface nextSbox state step,
         stateStep read interface nextSbox state step) := by

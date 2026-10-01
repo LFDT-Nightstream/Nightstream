@@ -174,16 +174,16 @@ private theorem compileAbsorbWiring_output_shift
           (compileAbsorbWiring (start + delta) (state delta initial)
               (rightBlock :: rightRest)).output =
               Permutation.scheduleOutput
-                (start + delta + rightRest.length * 592) :=
+                (start + delta + rightRest.length * 1096) :=
             compileAbsorbWiring_output_cons _ _ _ _
           _ = Permutation.scheduleOutput
-              (start + leftRest.length * 592 + delta) := by
+              (start + leftRest.length * 1096 + delta) := by
             congr 1
             rw [← restLength]
             omega
           _ = state delta
               (Permutation.scheduleOutput
-                (start + leftRest.length * 592)) :=
+                (start + leftRest.length * 1096)) :=
             (state_scheduleOutput delta _).symm
           _ = state delta
               (compileAbsorbWiring start initial
@@ -234,24 +234,24 @@ theorem compileWiring_shift_of_sameShape
           exact tailResult
   | squeeze leftExpected rightExpected leftTail rightTail tail
       inductionHypothesis =>
-          have tailResult := inductionHypothesis (start + 1184)
-            (Permutation.scheduleOutput (start + 592))
+          have tailResult := inductionHypothesis (start + 2192)
+            (Permutation.scheduleOutput (start + 1096))
           change
             (⟨state delta initial 0,
                 Permutation.scheduleOutput (start + delta) 0⟩ : KExpr) ::
-                  (compileWiring (start + delta + 1184)
-                    (Permutation.scheduleOutput (start + delta + 592))
+                  (compileWiring (start + delta + 2192)
+                    (Permutation.scheduleOutput (start + delta + 1096))
                     rightTail).samples =
                 ((⟨initial 0, Permutation.scheduleOutput start 0⟩ : KExpr) ::
-                  (compileWiring (start + 1184)
-                    (Permutation.scheduleOutput (start + 592))
+                  (compileWiring (start + 2192)
+                    (Permutation.scheduleOutput (start + 1096))
                     leftTail).samples).map (quadratic delta) ∧
-              (compileWiring (start + delta + 1184)
-                  (Permutation.scheduleOutput (start + delta + 592))
+              (compileWiring (start + delta + 2192)
+                  (Permutation.scheduleOutput (start + delta + 1096))
                   rightTail).output =
                 state delta
-                  (compileWiring (start + 1184)
-                    (Permutation.scheduleOutput (start + 592))
+                  (compileWiring (start + 2192)
+                    (Permutation.scheduleOutput (start + 1096))
                     leftTail).output
           have firstEq :
               (⟨state delta initial 0,
@@ -261,8 +261,8 @@ theorem compileWiring_shift_of_sameShape
             exact congrArg₂ KExpr.mk rfl
               (congrFun (state_scheduleOutput delta start).symm 0)
           have firstStateEq :
-              Permutation.scheduleOutput (start + delta + 592) =
-                state delta (Permutation.scheduleOutput (start + 592)) := by
+              Permutation.scheduleOutput (start + delta + 1096) =
+                state delta (Permutation.scheduleOutput (start + 1096)) := by
             rw [state_scheduleOutput]
             congr 1
             omega

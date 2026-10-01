@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 27427723 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 20253043 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -443,14 +443,14 @@ theorem transitionEnv_of_outside
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (column : Nat) (bound : column < Spartan.SourceColumnCount)
     (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         column) :
     transitionEnv program base (Spartan.sourceToSpartan column) =
       packageEnv program base (Spartan.sourceToSpartan column) := by
   apply transitionEnv_of_notTranscript program base column bound
   rintro ⟨invocation, lane, same⟩
   have invocationBound := invocation.isLt
-  have laneBound : lane.val < 8 := lane.isLt
+  have laneBound : lane.val < 16 := lane.isLt
   rcases outside with before | after <;> omega
 
 
@@ -489,12 +489,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.state index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 11 := index.isLt
-      have invocationBound : invocation.val < 718 := by
+      have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
-      have laneBound : lane.val < 8 := lane.isLt
+      have laneBound : lane.val < 16 := lane.isLt
       have address : 28 + index.val =
-          14751804 + invocation.val * 592 + 584 + lane.val := by
+          9156060 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -510,12 +510,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 49393 := index.isLt
-      have invocationBound : invocation.val < 718 := by
+      have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
-      have laneBound : lane.val < 8 := lane.isLt
+      have laneBound : lane.val < 16 := lane.isLt
       have address : 49663 + index.val =
-          14751804 + invocation.val * 592 + 584 + lane.val := by
+          9156060 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -531,12 +531,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 49248 := index.isLt
-      have invocationBound : invocation.val < 718 := by
+      have invocationBound : invocation.val < 355 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
-      have laneBound : lane.val < 8 := lane.isLt
-      have address : 27360382 + index.val =
-          14751804 + invocation.val * 592 + 584 + lane.val := by
+      have laneBound : lane.val < 16 := lane.isLt
+      have address : 20185702 + index.val =
+          9156060 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -552,10 +552,10 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_outside program base _ (Location.fresh index).sourceColumn_lt
       apply Or.inr
       change PiCCSInputs.phaseOffset +
-          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         RunningTransitionInputs.phaseOffset + index.val
       exact Nat.le_trans (show PiCCSInputs.phaseOffset +
-          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
             PiDECInputs.phaseOffset by decide)
         (Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
           (Nat.le_add_right _ _))

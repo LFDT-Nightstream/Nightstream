@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 
 /-!
 Prepare one Poseidon invocation for all Phi81 output reads, then weight its
-86 global rows. The stored table contains the existing PortValues records;
+150 global rows. The stored table contains the existing PortValues records;
 the sum reads that table without repeating numeric invocation evaluation.
 This computes one child's fourteen matrix contributions.
 -/
@@ -23,16 +23,16 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
 /-- Materialize all 54 complete numeric invocations once. Each invocation
-stores its 86 retained nonlinear port records. -/
+stores its 150 retained nonlinear port records. -/
 @[specialize] def prepare {columns : Nat} (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
-    Vector (Vector PortValues 86) ringDegree :=
+    Vector (Vector PortValues 150) ringDegree :=
   Vector.ofFn fun output => PiDECPoseidonNumericRows.stored (read output) interface
 
 /-- Every prepared cell is the corresponding original sparse evaluation. -/
 theorem prepare_value {columns : Nat} (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (output : Fin ringDegree)
-    (rowIndex : Fin 86) (matrix : Fin matrixCount) :
+    (rowIndex : Fin 150) (matrix : Fin matrixCount) :
     (((prepare read interface).get output).get rowIndex).get matrix =
       (((PoseidonRetainedRows.rows interface).get
         ⟨rowIndex.val, by rw [PoseidonRetainedRows.rows_length]; exact rowIndex.isLt⟩).portForm matrix).evalSparse (read output) := by
@@ -41,23 +41,23 @@ theorem prepare_value {columns : Nat} (read : Fin ringDegree → Fin columns →
   rw [Vector.getElem_ofFn]
   exact PiDECPoseidonNumericRows.stored_value (read output) interface rowIndex matrix
 
-private def row (prepared : Vector (Vector PortValues 86) ringDegree)
+private def row (prepared : Vector (Vector PortValues 150) ringDegree)
     (start index : Nat) : Vector StoredRing matrixCount :=
   if start ≤ index then
-    if bounded : index - start < 86 then
+    if bounded : index - start < 150 then
       Vector.ofFn fun matrix => Vector.ofFn fun output =>
         ((prepared.get output).get ⟨index - start, bounded⟩).get matrix
     else Vector.replicate matrixCount (Vector.replicate ringDegree 0)
   else Vector.replicate matrixCount (Vector.replicate ringDegree 0)
 
-private theorem row_value (prepared : Vector (Vector PortValues 86) ringDegree)
+private theorem row_value (prepared : Vector (Vector PortValues 150) ringDegree)
     (start index : Nat) (matrix : Fin matrixCount) (output : Fin ringDegree) :
     ((row prepared start (start + index)).get matrix).get output =
-      if bounded : index < 86 then ((prepared.get output).get ⟨index, bounded⟩).get matrix
+      if bounded : index < 150 then ((prepared.get output).get ⟨index, bounded⟩).get matrix
       else 0 := by
   have lower : start ≤ start + index := by omega
   rw [row, if_pos lower, Nat.add_sub_cancel_left]
-  by_cases bounded : index < 86
+  by_cases bounded : index < 150
   · rw [dif_pos bounded, dif_pos bounded]
     change ((Vector.ofFn (fun port : Fin matrixCount =>
       Vector.ofFn (fun lane : Fin ringDegree =>
@@ -68,28 +68,28 @@ private theorem row_value (prepared : Vector (Vector PortValues 86) ringDegree)
       (Vector.replicate ringDegree (0 : F)))[matrix.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- Weight the 86 global rows from the prepared table. All fourteen matrices
+/-- Weight the 150 global rows from the prepared table. All fourteen matrices
 share each computed point weight through the existing batch range loop. -/
 def sum {arity : Nat} (start : Nat) (point : CubePoint K arity)
-    (prepared : Vector (Vector PortValues 86) ringDegree) :
+    (prepared : Vector (Vector PortValues 150) ringDegree) :
     Vector MaterializedRingK matrixCount :=
-  PiDECEvaluationBatch.range start 86 point (row prepared start)
+  PiDECEvaluationBatch.range start 150 point (row prepared start)
 
 theorem sum_value {arity : Nat} (start : Nat) (point : CubePoint K arity)
-    (prepared : Vector (Vector PortValues 86) ringDegree)
+    (prepared : Vector (Vector PortValues 150) ringDegree)
     (matrix : Fin matrixCount) (output : Fin ringDegree) :
     ((sum start point prepared).get matrix).toRing output =
-      NumericCompletionSum.numericSum extensionOps 86 (fun index =>
+      NumericCompletionSum.numericSum extensionOps 150 (fun index =>
         extensionOps.mul (PiDECEvaluationWeights.weight point (start + index))
-          (K.embed (if bounded : index < 86 then
+          (K.embed (if bounded : index < 150 then
             ((prepared.get output).get ⟨index, bounded⟩).get matrix
           else 0))) := by
   rw [sum, PiDECEvaluationBatch.range_value]
-  apply congrArg (NumericCompletionSum.numericSum extensionOps 86)
+  apply congrArg (NumericCompletionSum.numericSum extensionOps 150)
   funext index
   rw [row_value]
 
-/-- Every matrix/output coefficient is the original 86-row weighted sparse
+/-- Every matrix/output coefficient is the original 150-row weighted sparse
 evaluation for the supplied read family and interface. No row-validity,
 constant-column, norm or expected-value premise is required. -/
 theorem sum_prepare_value {columns arity : Nat}
@@ -98,16 +98,16 @@ theorem sum_prepare_value {columns arity : Nat}
     (start : Nat) (point : CubePoint K arity)
     (matrix : Fin matrixCount) (output : Fin ringDegree) :
     ((sum start point (prepare read interface)).get matrix).toRing output =
-      NumericCompletionSum.numericSum extensionOps 86 (fun index =>
+      NumericCompletionSum.numericSum extensionOps 150 (fun index =>
         extensionOps.mul (PiDECEvaluationWeights.weight point (start + index))
-          (K.embed (if bounded : index < 86 then
+          (K.embed (if bounded : index < 150 then
             (((PoseidonRetainedRows.rows interface).get
               ⟨index, by rw [PoseidonRetainedRows.rows_length]; exact bounded⟩).portForm matrix).evalSparse (read output)
           else 0))) := by
   rw [sum_value]
-  apply congrArg (NumericCompletionSum.numericSum extensionOps 86)
+  apply congrArg (NumericCompletionSum.numericSum extensionOps 150)
   funext index
-  by_cases bounded : index < 86
+  by_cases bounded : index < 150
   · simp only [dif_pos bounded, prepare_value]
   · simp only [dif_neg bounded]
 

@@ -265,11 +265,12 @@ fn invocation_input(
                 });
             }
             if ordinal < chain.absorb_count {
+                let rate = neo_ccs::crypto::poseidon2_goldilocks::RATE;
                 let input_offset = ordinal
-                    .checked_mul(4)
+                    .checked_mul(rate)
                     .and_then(|offset| offset.checked_add(lane))
                     .ok_or(PackageError::Invalid("matrix source hash input"))?;
-                if lane < 4 && input_offset < chain.input_length {
+                if lane < rate && input_offset < chain.input_length {
                     combination.terms.push(Entry {
                         column: chain.input_start + input_offset,
                         coefficient: Goldilocks::ONE,

@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.NativePoseidon2RoundCore
 /-!
 Owns native Poseidon2 constants, the exact 4/22/4 schedule, and the streaming
 sponge. Fixed-width Goldilocks arithmetic and round operations belong to
-`NativePoseidon2RoundCore`.
+`NativeGoldilocks` and `NativePoseidon2RoundCore`.
 -/
 
 namespace NightstreamFPrime.Export.NativePoseidon2
@@ -14,62 +14,70 @@ open Fin.CommRing
 
 namespace State64
 
-@[inline] private def constantState (x0 x1 x2 x3 x4 x5 x6 x7 : UInt64)
-    (canonical :
-      x0.toNat < goldilocksModulus ∧ x1.toNat < goldilocksModulus ∧
-      x2.toNat < goldilocksModulus ∧ x3.toNat < goldilocksModulus ∧
-      x4.toNat < goldilocksModulus ∧ x5.toNat < goldilocksModulus ∧
-      x6.toNat < goldilocksModulus ∧ x7.toNat < goldilocksModulus) : State64 :=
-  ⟨x0, x1, x2, x3, x4, x5, x6, x7, canonical⟩
+private def initialConstant0 : State64 :=
+  ⟨15504881536434223753, 2212164856944708396, 1885257220781225929, 17531637481572944510,
+    16769640728293682348, 445908668462176974, 1308472042479836079, 17465001500823438575,
+    1922033642430128704, 2657514617275794404, 17238706657248448792, 7348277157222259646,
+    10777112892842897939, 1771261721914735482, 9409693344407549465, 16619731096074499912, by decide⟩
+private def initialConstant1 : State64 :=
+  ⟨1922036059108268922, 2681686362645798986, 12432722052283819565, 2826979200512189741,
+    5080805286413226676, 16827966425431695029, 9196241087337510154, 2350771591198563053,
+    2989012136977041732, 4359939046747977080, 16089932437481530267, 6601984573273403484,
+    13005272261058756234, 17128237926164276121, 8240789415616872849, 8676316357341090631, by decide⟩
+private def initialConstant2 : State64 :=
+  ⟨16452552554259143025, 17874550554210084887, 3031715677034868367, 18215520516675091549,
+    18186005068527139405, 11138995707668647102, 15098195648006184282, 2025927025270509469,
+    9957669227203243937, 11554336633716867616, 9729067570563846225, 4239770196713589268,
+    4390607796152185292, 17647511975646925721, 7671337049037340193, 4209452938403606590, by decide⟩
+private def initialConstant3 : State64 :=
+  ⟨6593973666654839090, 8390781086037206386, 7324343054784993307, 17780748563735894140,
+    15974082699116886783, 13213371256836887512, 7312926934405385057, 10393853239698468203,
+    2710107888698774842, 2801523468128575786, 15894340394120906162, 13510783799941644149,
+    7917164295139071913, 13839801071899888959, 6672989303670154677, 4519956214037211385, by decide⟩
 
-private def initialConstant0 : State64 := constantState
-  15504881536434223753 2212164856944708396 1885257220781225929 17531637481572944510
-  16769640728293682348 445908668462176974 1308472042479836079 17465001500823438575 (by decide)
-private def initialConstant1 : State64 := constantState
-  1922033642430128704 2657514617275794404 17238706657248448792 7348277157222259646
-  10777112892842897939 1771261721914735482 9409693344407549465 16619731096074499912 (by decide)
-private def initialConstant2 : State64 := constantState
-  1922036059108268922 2681686362645798986 12432722052283819565 2826979200512189741
-  5080805286413226676 16827966425431695029 9196241087337510154 2350771591198563053 (by decide)
-private def initialConstant3 : State64 := constantState
-  2989012136977041732 4359939046747977080 16089932437481530267 6601984573273403484
-  13005272261058756234 17128237926164276121 8240789415616872849 8676316357341090631 (by decide)
+private def partialConstant00 : UInt64 := 3785078240232899765
+private def partialConstant01 : UInt64 := 13753534232687663059
+private def partialConstant02 : UInt64 := 15164579152346391244
+private def partialConstant03 : UInt64 := 7188840087678967607
+private def partialConstant04 : UInt64 := 14466302407008998516
+private def partialConstant05 : UInt64 := 13002203018489042439
+private def partialConstant06 : UInt64 := 6216879054540921071
+private def partialConstant07 : UInt64 := 8639253411382064186
+private def partialConstant08 : UInt64 := 4983986534873630152
+private def partialConstant09 : UInt64 := 2915380551046574730
+private def partialConstant10 : UInt64 := 7837744426713061492
+private def partialConstant11 : UInt64 := 10524728973359902812
+private def partialConstant12 : UInt64 := 9778451922853050075
+private def partialConstant13 : UInt64 := 13310295482970625397
+private def partialConstant14 : UInt64 := 10551647698332907197
+private def partialConstant15 : UInt64 := 8509293821221348719
+private def partialConstant16 : UInt64 := 4319821126274335035
+private def partialConstant17 : UInt64 := 1417436523646501240
+private def partialConstant18 : UInt64 := 447570613036226838
+private def partialConstant19 : UInt64 := 16267896682506996530
+private def partialConstant20 : UInt64 := 14710998805405468930
+private def partialConstant21 : UInt64 := 3269000544927978862
 
-private def partialConstant00 : UInt64 := 7482194551502142718
-private def partialConstant01 : UInt64 := 3471957803411196592
-private def partialConstant02 : UInt64 := 8846669050136897522
-private def partialConstant03 : UInt64 := 4431017908497072775
-private def partialConstant04 : UInt64 := 14382646627736292998
-private def partialConstant05 : UInt64 := 15636596632746594248
-private def partialConstant06 : UInt64 := 14521990061611210983
-private def partialConstant07 : UInt64 := 4351091752509404379
-private def partialConstant08 : UInt64 := 14119848206371842921
-private def partialConstant09 : UInt64 := 528205008764728916
-private def partialConstant10 : UInt64 := 15379406877060454284
-private def partialConstant11 : UInt64 := 13572057177474709483
-private def partialConstant12 : UInt64 := 780214424511389757
-private def partialConstant13 : UInt64 := 10591233664360718633
-private def partialConstant14 : UInt64 := 1849508423779478786
-private def partialConstant15 : UInt64 := 7345390174439848870
-private def partialConstant16 : UInt64 := 14580881241235634775
-private def partialConstant17 : UInt64 := 8777273265976228774
-private def partialConstant18 : UInt64 := 1758781345554053863
-private def partialConstant19 : UInt64 := 9701442189086298420
-private def partialConstant20 : UInt64 := 15685565327448534444
-private def partialConstant21 : UInt64 := 5672331717709479627
-
-private def terminalConstant0 : State64 := constantState
-  16452552554259143025 17874550554210084887 3031715677034868367 18215520516675091549
-  18186005068527139405 11138995707668647102 15098195648006184282 2025927025270509469 (by decide)
-private def terminalConstant1 : State64 := constantState
-  9957669227203243937 11554336633716867616 9729067570563846225 4239770196713589268
-  4390607796152185292 17647511975646925721 7671337049037340193 4209452938403606590 (by decide)
-private def terminalConstant2 : State64 := constantState
-  6593973666654839090 8390781086037206386 7324343054784993307 17780748563735894140
-  15974082699116886783 13213371256836887512 7312926934405385057 10393853239698468203 (by decide)
-private def terminalConstant3 : State64 := constantState
-  2710107888698774842 2801523468128575786 15894340394120906162 13510783799941644149
-  7917164295139071913 13839801071899888959 6672989303670154677 4519956214037211385 (by decide)
+private def terminalConstant0 : State64 :=
+  ⟨7482194551502142718, 3471957803411196592, 8846669050136897522, 4431017908497072775,
+    14382646627736292998, 15636596632746594248, 14521990061611210983, 4351091752509404379,
+    14119848206371842921, 528205008764728916, 15379406877060454284, 13572057177474709483,
+    780214424511389757, 10591233664360718633, 1849508423779478786, 7345390174439848870, by decide⟩
+private def terminalConstant1 : State64 :=
+  ⟨14580881241235634775, 8777273265976228774, 1758781345554053863, 9701442189086298420,
+    15685565327448534444, 5672331717709479627, 7675233227955155107, 8852669876726984824,
+    1218164705289579190, 13224810758441726241, 557024023478380004, 3923346290699247117,
+    4196774554581694822, 16262909137268628555, 6531098975686849205, 538070144030448988, by decide⟩
+private def terminalConstant2 : State64 :=
+  ⟨16157559630818414765, 3330859574359708906, 13312877616183741059, 15699706004066187344,
+    2181468677625794151, 12293285838251430515, 17109377825740910727, 11746958123598489878,
+    7654965179475073269, 15178922343313110770, 14240408894833620294, 4224192993509995210,
+    13093043512401634422, 16636225261759530156, 13489384640167770266, 8105602514957866176, by decide⟩
+private def terminalConstant3 : State64 :=
+  ⟨13910460326211973254, 13010277363854955001, 8570865802160232388, 14830753997593808291,
+    16178721091989175194, 10926358020058189153, 8413180834413067310, 1124528750616792490,
+    16054199595598201491, 729673474029476808, 1545919217216143455, 15484244716222357662,
+    9149791094276206087, 3342519128264714984, 14246551315881547762, 6145097356981870399, by decide⟩
 
 private def FullConstantMatch (constants : State64) (rows : List (List Nat))
     (round : Nat) : Prop :=
@@ -80,22 +88,25 @@ private def FullConstantMatch (constants : State64) (rows : List (List Nat))
   constants.x4.denote = Poseidon2.constantAt rows round 4 ∧
   constants.x5.denote = Poseidon2.constantAt rows round 5 ∧
   constants.x6.denote = Poseidon2.constantAt rows round 6 ∧
-  constants.x7.denote = Poseidon2.constantAt rows round 7
+  constants.x7.denote = Poseidon2.constantAt rows round 7 ∧
+  constants.x8.denote = Poseidon2.constantAt rows round 8 ∧
+  constants.x9.denote = Poseidon2.constantAt rows round 9 ∧
+  constants.x10.denote = Poseidon2.constantAt rows round 10 ∧
+  constants.x11.denote = Poseidon2.constantAt rows round 11 ∧
+  constants.x12.denote = Poseidon2.constantAt rows round 12 ∧
+  constants.x13.denote = Poseidon2.constantAt rows round 13 ∧
+  constants.x14.denote = Poseidon2.constantAt rows round 14 ∧
+  constants.x15.denote = Poseidon2.constantAt rows round 15
 
 private theorem fullRound64_denote_at (rows : List (List Nat)) (round : Nat)
     (constants state : State64)
     (constantMatch : FullConstantMatch constants rows round) :
     (fullRound64 state constants).denote = Poseidon2.fullRound rows round state.denote := by
-  rcases constantMatch with ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩
+  rcases constantMatch with ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15⟩
   rw [fullRound64_denote]
   unfold Poseidon2.fullRound
   apply congrArg Poseidon2.externalLayer
-  apply List.ext_get
-  · simp [Poseidon2.width]
-  · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa using leftLt
-    interval_cases index <;>
-      simp [Poseidon2.width, denote, h0, h1, h2, h3, h4, h5, h6, h7]
+  simp [Poseidon2.width, denote, List.range_succ, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15]
 
 private theorem partialRound64_denote_at (round : Nat) (constant : UInt64)
     (constantCanonical : constant.toNat < goldilocksModulus)
@@ -106,11 +117,7 @@ private theorem partialRound64_denote_at (round : Nat) (constant : UInt64)
   rw [partialRound64_denote constant constantCanonical state, constantMatch]
   unfold Poseidon2.partialRound
   apply congrArg Poseidon2.internalLayer
-  apply List.ext_get
-  · simp [Poseidon2.width, denote]
-  · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa [denote] using leftLt
-    interval_cases index <;> simp [Poseidon2.width, denote]
+  simp [Poseidon2.width, denote, List.range_succ]
 
 private theorem initialRound0_denote (s : State64) :
     (fullRound64 s initialConstant0).denote = Poseidon2.fullRound Poseidon2.initialConstants 0 s.denote :=
@@ -273,7 +280,7 @@ private theorem terminalRounds64_denote (state : State64) :
     terminalRound0_denote]
   rfl
 
-/-- Fixed 4/22/4 Poseidon2 permutation over eight machine-word lanes. -/
+/-- Fixed 4/22/4 Poseidon2 permutation over sixteen machine-word lanes. -/
 @[noinline] def permute64 (state : State64) : State64 :=
   terminalRounds64 (partialRounds64 (initialRounds64 (externalLayer64 state)))
 
@@ -353,150 +360,198 @@ private theorem fastCarry_denote (value : Nat) (bound : value < UInt64.size) :
   rw [Nat.div_eq_of_lt valueBound]
   decide
 
-/-- Absorb one canonical native rate block. -/
-@[inline] def absorbBlock64 (state : State64) (b0 b1 b2 b3 : UInt64)
-    (c0 : b0.toNat < goldilocksModulus) (c1 : b1.toNat < goldilocksModulus)
-    (c2 : b2.toNat < goldilocksModulus) (c3 : b3.toNat < goldilocksModulus) : State64 :=
+private theorem getD_canonical (words : List UInt64)
+    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) (index : Nat) :
+    (words.getD index 0).toNat < goldilocksModulus := by
+  rw [List.getD_eq_getElem?_getD]
+  cases member : words[index]? with
+  | none => decide
+  | some word => exact canonical word (List.mem_of_getElem? member)
+
+private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
+    (Option.map UInt64.denote words[index]?).getD 0 =
+      (words[index]?.getD 0).denote := by
+  cases words[index]? with
+  | none => decide
+  | some word => rfl
+
+/-- Add up to one rate block of canonical words to the sponge lanes and
+permute. Missing words are zero. -/
+@[inline] def absorbWords64 (state : State64) (words : List UInt64)
+    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) : State64 :=
   State64.permute64 {
-    x0 := add64 state.x0 b0
-    x1 := add64 state.x1 b1
-    x2 := add64 state.x2 b2
-    x3 := add64 state.x3 b3
-    x4 := state.x4
-    x5 := state.x5
-    x6 := state.x6
-    x7 := state.x7
-    canonical := ⟨add64_canonical _ _ state.c0 c0,
-      add64_canonical _ _ state.c1 c1, add64_canonical _ _ state.c2 c2,
-      add64_canonical _ _ state.c3 c3, state.c4, state.c5, state.c6, state.c7⟩ }
+    x0 := add64 state.x0 (words.getD 0 0)
+    x1 := add64 state.x1 (words.getD 1 0)
+    x2 := add64 state.x2 (words.getD 2 0)
+    x3 := add64 state.x3 (words.getD 3 0)
+    x4 := add64 state.x4 (words.getD 4 0)
+    x5 := add64 state.x5 (words.getD 5 0)
+    x6 := add64 state.x6 (words.getD 6 0)
+    x7 := add64 state.x7 (words.getD 7 0)
+    x8 := add64 state.x8 (words.getD 8 0)
+    x9 := add64 state.x9 (words.getD 9 0)
+    x10 := add64 state.x10 (words.getD 10 0)
+    x11 := add64 state.x11 (words.getD 11 0)
+    x12 := add64 state.x12 (words.getD 12 0)
+    x13 := add64 state.x13 (words.getD 13 0)
+    x14 := add64 state.x14 (words.getD 14 0)
+    x15 := add64 state.x15 (words.getD 15 0)
+    canonical := ⟨add64_canonical _ _ state.c0 (getD_canonical words canonical 0),
+      add64_canonical _ _ state.c1 (getD_canonical words canonical 1),
+      add64_canonical _ _ state.c2 (getD_canonical words canonical 2),
+      add64_canonical _ _ state.c3 (getD_canonical words canonical 3),
+      add64_canonical _ _ state.c4 (getD_canonical words canonical 4),
+      add64_canonical _ _ state.c5 (getD_canonical words canonical 5),
+      add64_canonical _ _ state.c6 (getD_canonical words canonical 6),
+      add64_canonical _ _ state.c7 (getD_canonical words canonical 7),
+      add64_canonical _ _ state.c8 (getD_canonical words canonical 8),
+      add64_canonical _ _ state.c9 (getD_canonical words canonical 9),
+      add64_canonical _ _ state.c10 (getD_canonical words canonical 10),
+      add64_canonical _ _ state.c11 (getD_canonical words canonical 11),
+      add64_canonical _ _ state.c12 (getD_canonical words canonical 12),
+      add64_canonical _ _ state.c13 (getD_canonical words canonical 13),
+      add64_canonical _ _ state.c14 (getD_canonical words canonical 14),
+      add64_canonical _ _ state.c15 (getD_canonical words canonical 15)⟩ }
 
-@[simp] theorem absorbBlock64_denote (state : State64)
-    (b0 b1 b2 b3 : UInt64) (c0 : b0.toNat < goldilocksModulus)
-    (c1 : b1.toNat < goldilocksModulus) (c2 : b2.toNat < goldilocksModulus)
-    (c3 : b3.toNat < goldilocksModulus) :
-    (absorbBlock64 state b0 b1 b2 b3 c0 c1 c2 c3).denote =
-      Poseidon2.absorbBlock state.denote
-        [b0.denote, b1.denote, b2.denote, b3.denote] := by
-  rw [absorbBlock64, State64.permute64_denote]
+@[simp] theorem absorbWords64_denote (state : State64) (words : List UInt64)
+    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) :
+    (absorbWords64 state words canonical).denote =
+      Poseidon2.absorbBlock state.denote (words.map UInt64.denote) := by
+  rw [absorbWords64, State64.permute64_denote]
   unfold Poseidon2.absorbBlock
-  simp only [State64.denote]
-  rw [add64_denote _ _ state.c0 c0, add64_denote _ _ state.c1 c1,
-    add64_denote _ _ state.c2 c2, add64_denote _ _ state.c3 c3]
   apply congrArg Poseidon2.permute
-  apply List.ext_get
-  · simp [Poseidon2.width]
-  · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa using leftLt
-    interval_cases index <;> simp [Poseidon2.width]
+  simp only [State64.denote]
+  rw [add64_denote _ _ state.c0 (getD_canonical words canonical 0),
+    add64_denote _ _ state.c1 (getD_canonical words canonical 1),
+    add64_denote _ _ state.c2 (getD_canonical words canonical 2),
+    add64_denote _ _ state.c3 (getD_canonical words canonical 3),
+    add64_denote _ _ state.c4 (getD_canonical words canonical 4),
+    add64_denote _ _ state.c5 (getD_canonical words canonical 5),
+    add64_denote _ _ state.c6 (getD_canonical words canonical 6),
+    add64_denote _ _ state.c7 (getD_canonical words canonical 7),
+    add64_denote _ _ state.c8 (getD_canonical words canonical 8),
+    add64_denote _ _ state.c9 (getD_canonical words canonical 9),
+    add64_denote _ _ state.c10 (getD_canonical words canonical 10),
+    add64_denote _ _ state.c11 (getD_canonical words canonical 11),
+    add64_denote _ _ state.c12 (getD_canonical words canonical 12),
+    add64_denote _ _ state.c13 (getD_canonical words canonical 13),
+    add64_denote _ _ state.c14 (getD_canonical words canonical 14),
+    add64_denote _ _ state.c15 (getD_canonical words canonical 15)]
+  simp [Poseidon2.width, List.range_succ, getElem?_getD_denote]
 
-/-- Native streaming sponge and the carried fourth word. -/
+/-- The four canonical machine words of one node. The common `value < 2^64`
+path splits the value into two 32-bit limbs and a zero high limb. -/
+@[inline] def nodeWords64 (node : StreamingIdentity.Node) : List UInt64 :=
+  if node.value < UInt64.size then
+    let word := UInt64.ofNat node.value
+    [ofNat64 node.tag, low64 word, high64 word, 0]
+  else
+    [ofNat64 node.tag, ofNat64 (node.value % Package.limbBase),
+      ofNat64 ((node.value / Package.limbBase) % Package.limbBase),
+      ofNat64 (node.value / (Package.limbBase * Package.limbBase))]
+
+theorem nodeWords64_canonical (node : StreamingIdentity.Node) :
+    ∀ word ∈ nodeWords64 node, word.toNat < goldilocksModulus := by
+  unfold nodeWords64
+  split
+  · simp only [List.mem_cons, List.not_mem_nil, or_false]
+    rintro word (rfl | rfl | rfl | rfl)
+    · exact ofNat64_canonical _
+    · exact Nat.lt_trans (low64_bound _) (by decide)
+    · exact Nat.lt_trans (high64_bound _) (by decide)
+    · decide
+  · simp only [List.mem_cons, List.not_mem_nil, or_false]
+    rintro word (rfl | rfl | rfl | rfl) <;> exact ofNat64_canonical _
+
+@[simp] theorem nodeWords64_length (node : StreamingIdentity.Node) :
+    (nodeWords64 node).length = 4 := by
+  unfold nodeWords64
+  split <;> rfl
+
+theorem nodeWords64_denote (node : StreamingIdentity.Node) :
+    (nodeWords64 node).map UInt64.denote = node.words := by
+  rcases node with ⟨tag, value⟩
+  unfold nodeWords64
+  split <;> rename_i valueBranch
+  · simp [StreamingIdentity.Node.words, fastLow_denote _ valueBranch,
+      fastMid_denote _ valueBranch, fastCarry_denote _ valueBranch]
+  · simp [StreamingIdentity.Node.words]
+
+/-- Native streaming sponge and its pending words. -/
 structure HashState64 where
   sponge : State64
-  carry : UInt64
-  carryCanonical : carry.toNat < goldilocksModulus
+  pending : List UInt64
+  pendingCanonical : ∀ word ∈ pending, word.toNat < goldilocksModulus
 
 def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
   sponge := state.sponge.denote
-  carry := state.carry.denote
+  pending := state.pending.map UInt64.denote
 
 /-- Absorb one canonical streaming node without constructing field values. -/
 @[noinline] def pushNode64 (state : HashState64)
     (node : StreamingIdentity.Node) : HashState64 :=
-  let tag := ofNat64 node.tag
-  if node.value < UInt64.size then
-    let word := UInt64.ofNat node.value
-    { sponge := absorbBlock64 state.sponge state.carry tag (low64 word) (high64 word)
-        state.carryCanonical (ofNat64_canonical _)
-          (Nat.lt_trans (low64_bound _) (by decide))
-          (Nat.lt_trans (high64_bound _) (by decide))
-      carry := 0
-      carryCanonical := by decide }
+  let buffer := state.pending ++ nodeWords64 node
+  have bufferCanonical : ∀ word ∈ buffer, word.toNat < goldilocksModulus := by
+    intro word member
+    rcases List.mem_append.mp member with pending | fresh
+    · exact state.pendingCanonical word pending
+    · exact nodeWords64_canonical node word fresh
+  if Poseidon2.rate ≤ buffer.length then
+    { sponge := absorbWords64 state.sponge (buffer.take Poseidon2.rate)
+        (fun word member => bufferCanonical word (List.mem_of_mem_take member))
+      pending := buffer.drop Poseidon2.rate
+      pendingCanonical := fun word member =>
+        bufferCanonical word (List.mem_of_mem_drop member) }
   else
-    let low := ofNat64 (node.value % Package.limbBase)
-    let mid := ofNat64 ((node.value / Package.limbBase) % Package.limbBase)
-    let high := ofNat64 (node.value / (Package.limbBase * Package.limbBase))
-    { sponge := absorbBlock64 state.sponge state.carry tag low mid
-        state.carryCanonical (ofNat64_canonical _) (ofNat64_canonical _)
-          (ofNat64_canonical _)
-      carry := high
-      carryCanonical := ofNat64_canonical _ }
+    { sponge := state.sponge
+      pending := buffer
+      pendingCanonical := bufferCanonical }
 
 theorem pushNode64_denote (state : HashState64)
     (node : StreamingIdentity.Node) :
     (pushNode64 state node).denote =
       StreamingIdentity.pushNode state.denote node := by
-  rcases node with ⟨tag, value⟩
-  simp only [pushNode64]
-  split <;> rename_i valueBranch
-  · simp [HashState64.denote, StreamingIdentity.pushNode,
-      StreamingIdentity.Node.block, StreamingIdentity.Node.nextCarry,
-      StreamingIdentity.Node.words, fastLow_denote _ valueBranch,
-      fastMid_denote _ valueBranch, fastCarry_denote _ valueBranch]
-  · simp [HashState64.denote, StreamingIdentity.pushNode,
-      StreamingIdentity.Node.block, StreamingIdentity.Node.nextCarry,
-      StreamingIdentity.Node.words]
+  have words := StreamingIdentity.Node.words_length node
+  by_cases full : Poseidon2.rate ≤ state.pending.length + 4
+  · simp [pushNode64, StreamingIdentity.pushNode, HashState64.denote, full,
+      List.map_take, List.map_drop, nodeWords64_denote, words]
+  · simp [pushNode64, StreamingIdentity.pushNode, HashState64.denote, full,
+      nodeWords64_denote, words]
 
-/-- Initial seven domain blocks and the carried twenty-ninth domain word. -/
-private def domainBlock0 (s : State64) := absorbBlock64 s 78 105 103 104
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock1 (s : State64) := absorbBlock64 s 116 115 116 114
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock2 (s : State64) := absorbBlock64 s 101 97 109 47
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock3 (s : State64) := absorbBlock64 s 70 80 114 105
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock4 (s : State64) := absorbBlock64 s 109 101 47 112
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock5 (s : State64) := absorbBlock64 s 97 99 107 97
-  (by decide) (by decide) (by decide) (by decide)
-private def domainBlock6 (s : State64) := absorbBlock64 s 103 101 47 118
-  (by decide) (by decide) (by decide) (by decide)
+private def identityBlock0 : List UInt64 :=
+  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47]
+private def identityBlock1 : List UInt64 :=
+  [70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97]
 
+/-- Two identity-domain blocks; the last five domain words stay pending. -/
 def initialState64 : HashState64 where
-  sponge := domainBlock6 (domainBlock5 (domainBlock4 (domainBlock3
-    (domainBlock2 (domainBlock1 (domainBlock0 State64.zero))))))
-  carry := 50
-  carryCanonical := by decide
+  sponge := absorbWords64 (absorbWords64 State64.zero identityBlock0 (by decide))
+    identityBlock1 (by decide)
+  pending := [103, 101, 47, 118, 50]
+  pendingCanonical := by decide
 
 theorem initialState64_denote :
     initialState64.denote = StreamingIdentity.initialState := by
   simp only [initialState64, HashState64.denote, StreamingIdentity.initialState,
-    StreamingIdentity.HashState.mk.injEq]
+    StreamingIdentity.prefixState, StreamingIdentity.HashState.mk.injEq,
+    absorbWords64_denote]
   constructor
-  · rw [domainBlock6, absorbBlock64_denote, domainBlock5, absorbBlock64_denote,
-      domainBlock4, absorbBlock64_denote, domainBlock3, absorbBlock64_denote,
-      domainBlock2, absorbBlock64_denote, domainBlock1, absorbBlock64_denote,
-      domainBlock0, absorbBlock64_denote]
-    have z : State64.zero.denote = Poseidon2.zeroState := by decide
-    have d0 : [(78 : UInt64).denote, (105 : UInt64).denote,
-        (103 : UInt64).denote, (104 : UInt64).denote] = [(78 : F), 105, 103, 104] := by decide
-    have d1 : [(116 : UInt64).denote, (115 : UInt64).denote,
-        (116 : UInt64).denote, (114 : UInt64).denote] = [(116 : F), 115, 116, 114] := by decide
-    have d2 : [(101 : UInt64).denote, (97 : UInt64).denote,
-        (109 : UInt64).denote, (47 : UInt64).denote] = [(101 : F), 97, 109, 47] := by decide
-    have d3 : [(70 : UInt64).denote, (80 : UInt64).denote,
-        (114 : UInt64).denote, (105 : UInt64).denote] = [(70 : F), 80, 114, 105] := by decide
-    have d4 : [(109 : UInt64).denote, (101 : UInt64).denote,
-        (47 : UInt64).denote, (112 : UInt64).denote] = [(109 : F), 101, 47, 112] := by decide
-    have d5 : [(97 : UInt64).denote, (99 : UInt64).denote,
-        (107 : UInt64).denote, (97 : UInt64).denote] = [(97 : F), 99, 107, 97] := by decide
-    have d6 : [(103 : UInt64).denote, (101 : UInt64).denote,
-        (47 : UInt64).denote, (118 : UInt64).denote] = [(103 : F), 101, 47, 118] := by decide
-    rw [z, d0, d1, d2, d3, d4, d5, d6]
+  · have z : State64.zero.denote = Poseidon2.zeroState := by decide
+    have d0 : identityBlock0.map UInt64.denote =
+        [(78 : F), 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47] := by
+      decide
+    have d1 : identityBlock1.map UInt64.denote =
+        [(70 : F), 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97] := by
+      decide
+    rw [z, d0, d1]
     rfl
   · decide
 
-@[inline] private def pad64 (state : State64) : State64 where
-  x0 := add64 state.x0 1
-  x1 := state.x1
-  x2 := state.x2
-  x3 := state.x3
-  x4 := state.x4
-  x5 := state.x5
-  x6 := state.x6
-  x7 := state.x7
-  canonical := ⟨add64_canonical _ _ state.c0 (by decide), state.c1, state.c2,
-    state.c3, state.c4, state.c5, state.c6, state.c7⟩
+@[inline] private def pad64 (state : State64) : State64 :=
+  { state with
+    x0 := add64 state.x0 1
+    canonical := ⟨add64_canonical _ _ state.c0 (by decide), state.c1, state.c2, state.c3, state.c4, state.c5, state.c6, state.c7,
+      state.c8, state.c9, state.c10, state.c11, state.c12, state.c13, state.c14, state.c15⟩ }
 
 private theorem pad64_denote (state : State64) :
     (pad64 state).denote = (List.range Poseidon2.width).map fun lane =>
@@ -505,12 +560,7 @@ private theorem pad64_denote (state : State64) :
   rw [add64_denote _ _ state.c0 (by decide)]
   have oneDenote : (1 : UInt64).denote = (1 : F) := by decide
   rw [oneDenote]
-  apply List.ext_get
-  · simp [Poseidon2.width]
-  · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa using leftLt
-    interval_cases index <;>
-      simp [Poseidon2.width]
+  simp [Poseidon2.width, List.range_succ]
 
 /-- Four machine words returned by the native squeeze. -/
 structure Digest64 where
@@ -522,35 +572,20 @@ structure Digest64 where
 def Digest64.denote (digest : Digest64) : List F :=
   [digest.x0.denote, digest.x1.denote, digest.x2.denote, digest.x3.denote]
 
-private def absorbCarry64 (state : HashState64) : State64 :=
-  absorbBlock64 state.sponge state.carry 0 0 0 state.carryCanonical
-    (by decide) (by decide) (by decide)
-
-private theorem absorbCarry64_denote (state : HashState64) :
-    (absorbCarry64 state).denote =
-      Poseidon2.absorbBlock state.sponge.denote [state.carry.denote] := by
-  rw [absorbCarry64, absorbBlock64_denote]
-  unfold Poseidon2.absorbBlock
-  apply congrArg Poseidon2.permute
-  apply List.ext_get
-  · simp [Poseidon2.width]
-  · intro index leftLt rightLt
-    have indexLt : index < 8 := by simpa [State64.denote] using! leftLt
-    interval_cases index <;>
-      simp [Poseidon2.width, State64.denote, UInt64.denote, Poseidon2.ofNat]
-
 private def finalState64 (state : HashState64) : State64 :=
-  State64.permute64 (pad64 (absorbCarry64 state))
+  State64.permute64 (pad64
+    (absorbWords64 state.sponge state.pending state.pendingCanonical))
 
 private theorem finalState64_denote (state : HashState64) :
     (finalState64 state).denote =
-      let absorbed := Poseidon2.absorbBlock state.sponge.denote [state.carry.denote]
+      let absorbed := Poseidon2.absorbBlock state.sponge.denote
+        (state.pending.map UInt64.denote)
       Poseidon2.permute ((List.range Poseidon2.width).map fun lane =>
         if lane = 0 then absorbed.getD 0 0 + 1 else absorbed.getD lane 0) := by
   rw [finalState64, State64.permute64_denote, pad64_denote,
-    absorbCarry64_denote]
+    absorbWords64_denote]
 
-/-- Final carry absorption, pad permutation, and four-word squeeze. -/
+/-- Final pending-word absorption, pad permutation, and four-word squeeze. -/
 @[inline] def finalize64 (state : HashState64) : Digest64 :=
   let padded := finalState64 state
   ⟨padded.x0, padded.x1, padded.x2, padded.x3⟩

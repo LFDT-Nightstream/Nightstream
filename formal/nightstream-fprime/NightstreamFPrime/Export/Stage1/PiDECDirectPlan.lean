@@ -352,10 +352,10 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
     | some decoded => decoded.location.form geometry
 
 private theorem Location.sourceColumn_afterTranscript (location : Location) :
-    PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+    PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
       location.sourceColumn := by
   have first : PiCCSInputs.phaseOffset +
-      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         PiDECSourceSupport.parentCommitmentStart := by decide
   exact Nat.le_trans first
     (PiDECSourceSupport.parentStart_le_source location.sourceSupport)

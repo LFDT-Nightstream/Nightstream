@@ -412,7 +412,7 @@ theorem physicalRowCount_eq_of_degreeBound_eq_nine
       InputsAffine (Formal.roundTranscriptInterface interface) offset)
     (offset : Nat) (degreeBound_eq : degreeBound = 9) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.roundTranscriptCircuit interface).main offset)) = 149184 := by
+      (Formal.roundTranscriptCircuit interface).main offset)) = 153440 := by
   rw [physicalRowCount_eq interface inputs offset, degreeBound_eq]
   rfl
 

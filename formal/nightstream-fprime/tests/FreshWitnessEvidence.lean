@@ -29,7 +29,7 @@ def FreshWitnessKernels : Prop :=
       StoredWitnessExecution.asEnv (StoredWitnessExecution.executeHints values start hints) =
         Circuit.executeHints (StoredWitnessExecution.asEnv values) start hints) ∧
   (∀ (invocation : Export.Package.PermutationInvocation) (values : Array F),
-    invocation.witnessStart + 592 ≤ values.size →
+    invocation.witnessStart + 1096 ≤ values.size →
       StoredWitnessExecution.asEnv (StoredPermutationExecution.execute invocation values) =
         Export.Pilot.completePermutationInvocationEnv invocation (StoredWitnessExecution.asEnv values)) ∧
   (∀ (instruction : Export.Package.WitnessInstruction) (values : Array F),

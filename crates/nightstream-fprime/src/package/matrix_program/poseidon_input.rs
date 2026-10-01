@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::{
     array, checked_add, checked_mul, decode_list, exact_array, field_atom, usize_atom, Form, PackageError,
-    RetainedBlock, SourceCombination, SourceSubstitution,
+    RetainedBlock, SourceCombination, SourceSubstitution, POSEIDON_WIDTH,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,8 +288,8 @@ impl Program {
         logical_width: usize,
         one_column: usize,
         invocation: usize,
-    ) -> Result<[Form; 8], PackageError> {
-        let lanes = (0..8)
+    ) -> Result<[Form; POSEIDON_WIDTH], PackageError> {
+        let lanes = (0..POSEIDON_WIDTH)
             .map(|lane| self.form(logical_width, one_column, invocation, lane))
             .collect::<Result<Vec<_>, _>>()?;
         lanes

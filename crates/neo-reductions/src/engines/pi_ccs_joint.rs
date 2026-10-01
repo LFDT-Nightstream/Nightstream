@@ -3,6 +3,7 @@
 //! This module owns dimensions, tags, and audit-trace types. It does not own
 //! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
 
+use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_ccs::CcsStructure;
 use neo_math::{F, K};
 use neo_params::NeoParams;
@@ -159,15 +160,15 @@ pub struct ProtocolTrace {
     pub events: Vec<TraceEvent>,
     pub alpha: Vec<K>,
     pub gamma: K,
-    pub pre_sumcheck_state: [F; 8],
+    pub pre_sumcheck_state: [F; WIDTH],
     pub initial_claim: K,
     pub rounds: Vec<Vec<K>>,
     pub round_challenges: Vec<K>,
-    pub round_states: Vec<[F; 8]>,
+    pub round_states: Vec<[F; WIDTH]>,
     pub round_claims: Vec<K>,
     pub terminal_claim: K,
     pub terminal_components: TerminalComponents,
-    pub outgoing_state: [F; 8],
+    pub outgoing_state: [F; WIDTH],
     pub final_digest: [u8; 32],
 }
 

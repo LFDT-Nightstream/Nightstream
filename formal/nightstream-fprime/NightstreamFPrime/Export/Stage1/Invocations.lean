@@ -79,10 +79,10 @@ theorem inputCombination_termsOutside (expression : Expr)
   · exact Or.inr (by omega)
 
 def invocationInputs (state : EState) : List SparseCombination :=
-  List.ofFn fun lane : Fin 8 => inputCombination (state lane)
+  List.ofFn fun lane : Fin 16 => inputCombination (state lane)
 
 @[simp] theorem invocationInputs_length (state : EState) :
-    (invocationInputs state).length = 8 := by
+    (invocationInputs state).length = 16 := by
   simp [invocationInputs]
 
 def invocation (phase rowStart witnessStart : Nat)
@@ -102,7 +102,7 @@ def invocation (phase rowStart witnessStart : Nat)
 witness interval or belongs to the stable suffix after the complete schedule. -/
 def InvocationInputsOutside (ceiling : Nat)
     (invocation : PermutationInvocation) : Prop :=
-  ∀ lane : Fin 8,
+  ∀ lane : Fin 16,
     ∀ term ∈ (invocationInputCombination invocation lane.val).toR1CS.terms,
       term.1 < invocation.witnessStart ∨ ceiling ≤ term.1
 
@@ -118,21 +118,21 @@ theorem invocation_inputsOutside (phase rowStart witnessStart ceiling : Nat)
   have selected : invocationInputCombination
       (invocation phase rowStart witnessStart state) lane.val =
         inputCombination (state lane) := by
-    change (List.ofFn (fun current : Fin 8 =>
+    change (List.ofFn (fun current : Fin 16 =>
       inputCombination (state current))).getD lane.val
         zeroSparseCombination = inputCombination (state lane)
     exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
-      (fun current : Fin 8 => inputCombination (state current)) lane
+      (fun current : Fin 16 => inputCombination (state current)) lane
       zeroSparseCombination
   rw [selected] at member
   exact inputCombination_termsOutside (state lane) witnessStart ceiling
     witnessLocal ceilingPrivate (stateAffine lane) (stateBelow lane) term member
 
 /-- The fixed production permutation writes its final eight lanes in the last
-eight cells of its 592-cell witness interval. Package tracing needs this state,
-not the 592 internal recipe expressions. -/
+eight cells of its 1096-cell witness interval. Package tracing needs this state,
+not the 1096 internal recipe expressions. -/
 def permutationOutput (witnessStart : Nat) : EState :=
-  Permutation.freshState (witnessStart + 584)
+  Permutation.freshState (witnessStart + 1080)
 
 theorem permutationOutput_affine (witnessStart : Nat) :
     Poseidon2.StateAffine (permutationOutput witnessStart) := by
@@ -141,10 +141,10 @@ theorem permutationOutput_affine (witnessStart : Nat) :
 
 theorem permutationOutput_varsBelow (witnessStart : Nat) :
     ∀ lane, (permutationOutput witnessStart lane).VarsBelow
-      (witnessStart + 592) := by
+      (witnessStart + 1096) := by
   intro lane
   simpa [permutationOutput, Nat.add_assoc] using
-    Permutation.freshState_varsBelow (witnessStart + 584) lane
+    Permutation.freshState_varsBelow (witnessStart + 1080) lane
 
 /-- The compact output slice is exactly the output of the authoritative
 Poseidon2 circuit compiler. -/
@@ -169,27 +169,27 @@ theorem invocation_sound (phase rowStart witnessStart : Nat)
     NightstreamFPrime.Export.Pilot.canonicalPermutationInvocation_sound
       (invocation phase rowStart witnessStart state) env holds
   have outputBoundary :
-      (fun lane : Fin 8 => env
+      (fun lane : Fin 16 => env
         ((invocation phase rowStart witnessStart state).witnessStart +
           (PilotData.circuitPackage ()).permutation.outputLocalStart +
           lane.val)) =
         Layer.evalState (Spartan.pullback env)
           (permutationOutput witnessStart) := by
     funext lane
-    change env (Spartan.sourceToSpartan witnessStart + 584 + lane.val) =
-      env (Spartan.sourceToSpartan (witnessStart + 584 + lane.val))
+    change env (Spartan.sourceToSpartan witnessStart + 1080 + lane.val) =
+      env (Spartan.sourceToSpartan (witnessStart + 1080 + lane.val))
     apply congrArg env
     calc
-      Spartan.sourceToSpartan witnessStart + 584 + lane.val =
-          Spartan.sourceToSpartan witnessStart + (584 + lane.val) := by omega
-      _ = Spartan.sourceToSpartan (witnessStart + (584 + lane.val)) :=
+      Spartan.sourceToSpartan witnessStart + 1080 + lane.val =
+          Spartan.sourceToSpartan witnessStart + (1080 + lane.val) := by omega
+      _ = Spartan.sourceToSpartan (witnessStart + (1080 + lane.val)) :=
         (Spartan.sourceToSpartan_add_of_piCcsLocal witnessStart
-          (584 + lane.val) witnessLocal).symm
-      _ = Spartan.sourceToSpartan (witnessStart + 584 + lane.val) := by
+          (1080 + lane.val) witnessLocal).symm
+      _ = Spartan.sourceToSpartan (witnessStart + 1080 + lane.val) := by
         congr 1
         omega
   have inputBoundary :
-      (fun lane : Fin 8 =>
+      (fun lane : Fin 16 =>
         (invocationInputCombination
           (invocation phase rowStart witnessStart state) lane.val).toR1CS.eval
             env) =
@@ -198,11 +198,11 @@ theorem invocation_sound (phase rowStart witnessStart : Nat)
     have selected : invocationInputCombination
         (invocation phase rowStart witnessStart state) lane.val =
           inputCombination (state lane) := by
-      change (List.ofFn (fun current : Fin 8 =>
+      change (List.ofFn (fun current : Fin 16 =>
         inputCombination (state current))).getD lane.val
           zeroSparseCombination = inputCombination (state lane)
       exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD
-        (fun current : Fin 8 => inputCombination (state current)) lane
+        (fun current : Fin 16 => inputCombination (state current)) lane
         zeroSparseCombination
     rw [selected]
     exact inputCombination_eval (stateAffine lane) env
@@ -222,8 +222,8 @@ def compileBlocks (phase : Nat) : Nat → Nat → EState →
       ⟨rowStart, witnessStart, state, []⟩
   | rowStart, witnessStart, state, block :: blocks =>
       let input := Hash.absorbE state block
-      let tail := compileBlocks phase (rowStart + 592)
-        (witnessStart + 592) (permutationOutput witnessStart) blocks
+      let tail := compileBlocks phase (rowStart + 1096)
+        (witnessStart + 1096) (permutationOutput witnessStart) blocks
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         invocation phase rowStart witnessStart input :: tail.invocations⟩
 
@@ -259,7 +259,7 @@ theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
       have headSound := invocation_sound phase rowStart witnessStart
         (Hash.absorbE state block) env witnessLocal absorbedAffine headHolds
       have tailHolds : ∀ current ∈
-          (compileBlocks phase (rowStart + 592) (witnessStart + 592)
+          (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) blocks).invocations,
           PermutationInvocationHolds (PilotData.circuitPackage ()) current env := by
         intro current member
@@ -268,11 +268,11 @@ theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
           (permutationOutput witnessStart) := by
         intro lane
         simp [permutationOutput, Permutation.freshState]
-      have tailSound := inductionHypothesis (rowStart + 592)
-        (witnessStart + 592) (permutationOutput witnessStart) (by omega)
+      have tailSound := inductionHypothesis (rowStart + 1096)
+        (witnessStart + 1096) (permutationOutput witnessStart) (by omega)
         outputAffine restAffine tailHolds
       change Layer.evalState (Spartan.pullback env)
-          (compileBlocks phase (rowStart + 592) (witnessStart + 592)
+          (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) blocks).state = _
       rw [tailSound, headSound, Hash.eval_absorbE]
       rfl
@@ -289,18 +289,18 @@ def compileActions (phase : Nat) : Nat → Nat → EState →
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         absorbed.invocations ++ tail.invocations⟩
   | rowStart, witnessStart, state, .squeezeK _expected :: actions =>
-      let tail := compileActions phase (rowStart + 1184)
-        (witnessStart + 1184) (permutationOutput (witnessStart + 592)) actions
+      let tail := compileActions phase (rowStart + 2192)
+        (witnessStart + 2192) (permutationOutput (witnessStart + 1096)) actions
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         invocation phase rowStart witnessStart state ::
-        invocation phase (rowStart + 592) (witnessStart + 592)
+        invocation phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) :: tail.invocations⟩
 
 theorem compileBlocks_witnessNext
     (phase rowStart witnessStart : Nat) (state : EState)
     (blocks : List (List Expr)) :
     (compileBlocks phase rowStart witnessStart state blocks).witnessNext =
-      witnessStart + blocks.length * 592 := by
+      witnessStart + blocks.length * 1096 := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -322,14 +322,14 @@ theorem compileBlocks_state_eq
       rw [permutationOutput_eq_compile]
 
 theorem squeezeOutput_eq_compile (witnessStart : Nat) (state : EState) :
-    permutationOutput (witnessStart + 592) =
+    permutationOutput (witnessStart + 1096) =
       (Squeeze.compile witnessStart state).output := by
   funext lane
   rw [Squeeze.compile_output_apply]
   unfold Squeeze.secondPermutation
   rw [Squeeze.first_recipes_length]
   exact congrFun
-    (permutationOutput_eq_compile (witnessStart + 592)
+    (permutationOutput_eq_compile (witnessStart + 1096)
       (Squeeze.firstPermutation witnessStart state).output) lane
 
 /-- Two held compact invocations implement one exact quadratic-extension
@@ -342,13 +342,13 @@ theorem squeeze_sound (phase rowStart witnessStart : Nat)
     (firstHolds : PermutationInvocationHolds (PilotData.circuitPackage ())
       (invocation phase rowStart witnessStart state) env)
     (secondHolds : PermutationInvocationHolds (PilotData.circuitPackage ())
-      (invocation phase (rowStart + 592) (witnessStart + 592)
+      (invocation phase (rowStart + 1096) (witnessStart + 1096)
         (permutationOutput witnessStart)) env) :
     expected.eval (Spartan.pullback env) =
         Squeeze.referenceSample
           (List.ofFn (Layer.evalState (Spartan.pullback env) state)) ∧
       List.ofFn (Layer.evalState (Spartan.pullback env)
-        (permutationOutput (witnessStart + 592))) =
+        (permutationOutput (witnessStart + 1096))) =
         Squeeze.referenceState
           (List.ofFn (Layer.evalState (Spartan.pullback env) state)) := by
   have firstSound := invocation_sound phase rowStart witnessStart state env
@@ -357,8 +357,8 @@ theorem squeeze_sound (phase rowStart witnessStart : Nat)
       (permutationOutput witnessStart) := by
     intro lane
     simp [permutationOutput, Permutation.freshState]
-  have secondSound := invocation_sound phase (rowStart + 592)
-    (witnessStart + 592) (permutationOutput witnessStart) env (by omega)
+  have secondSound := invocation_sound phase (rowStart + 1096)
+    (witnessStart + 1096) (permutationOutput witnessStart) env (by omega)
     firstAffine secondHolds
   have firstList :
       List.ofFn (Layer.evalState (Spartan.pullback env)
@@ -374,7 +374,7 @@ theorem squeeze_sound (phase rowStart witnessStart : Nat)
           Permutation.runReference_schedule]
   have secondList :
       List.ofFn (Layer.evalState (Spartan.pullback env)
-        (permutationOutput (witnessStart + 592))) =
+        (permutationOutput (witnessStart + 1096))) =
         Spec.Poseidon2.permute
           (List.ofFn (Layer.evalState (Spartan.pullback env)
             (permutationOutput witnessStart))) := by
@@ -428,8 +428,8 @@ theorem compileActions_state_eq (phase rowStart witnessStart : Nat)
       | squeezeK expected =>
           let squeezed := Squeeze.compile witnessStart state
           change
-            (compileActions phase (rowStart + 1184) (witnessStart + 1184)
-              (permutationOutput (witnessStart + 592)) actions).state =
+            (compileActions phase (rowStart + 2192) (witnessStart + 2192)
+              (permutationOutput (witnessStart + 1096)) actions).state =
               (Formal.compile (witnessStart + squeezed.recipes.length)
                 squeezed.output actions).output
           rw [Squeeze.compile_recipes_length, squeezeOutput_eq_compile]
@@ -568,34 +568,34 @@ theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
             holds _ (by simp [compileActions])
           have secondHolds : PermutationInvocationHolds
               (PilotData.circuitPackage ())
-              (invocation phase (rowStart + 592) (witnessStart + 592)
+              (invocation phase (rowStart + 1096) (witnessStart + 1096)
                 (permutationOutput witnessStart)) env :=
             holds _ (by simp [compileActions])
           have squeezedSound := squeeze_sound phase rowStart witnessStart
             state expected env witnessLocal stateAffine expectedParts.1
             firstHolds secondHolds
           have outputAffine : Poseidon2.StateAffine
-              (permutationOutput (witnessStart + 592)) := by
+              (permutationOutput (witnessStart + 1096)) := by
             intro lane
             simp [permutationOutput, Permutation.freshState]
-          have outputEq : permutationOutput (witnessStart + 592) =
+          have outputEq : permutationOutput (witnessStart + 1096) =
               squeezed.output := squeezeOutput_eq_compile witnessStart state
           have tailExpected : Formal.expectedSamples actions =
-              (Formal.compile (witnessStart + 1184)
-                (permutationOutput (witnessStart + 592)) actions).samples := by
+              (Formal.compile (witnessStart + 2192)
+                (permutationOutput (witnessStart + 1096)) actions).samples := by
             rw [outputEq, ← Squeeze.compile_recipes_length witnessStart state]
             exact expectedParts.2
           have tailHolds : ∀ current ∈
-              (compileActions phase (rowStart + 1184)
-                (witnessStart + 1184)
-                (permutationOutput (witnessStart + 592)) actions).invocations,
+              (compileActions phase (rowStart + 2192)
+                (witnessStart + 2192)
+                (permutationOutput (witnessStart + 1096)) actions).invocations,
               PermutationInvocationHolds (PilotData.circuitPackage ())
                 current env := by
             intro current member
             exact holds current (by simp [compileActions, member])
-          have tailSound := inductionHypothesis (rowStart + 1184)
-            (witnessStart + 1184)
-            (permutationOutput (witnessStart + 592)) (by omega) outputAffine
+          have tailSound := inductionHypothesis (rowStart + 2192)
+            (witnessStart + 2192)
+            (permutationOutput (witnessStart + 1096)) (by omega) outputAffine
             tailAffine tailExpected tailHolds
           simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
           refine ⟨squeezedSound.1, ?_⟩
@@ -744,12 +744,12 @@ theorem invocationCount_eq_of_shapes (left right : List Action)
   simpa only [compileActions_invocations_length] using lengths
 
 theorem recipeCount_eq_invocationCount_mul (actions : List Action) :
-    Formal.recipeCount actions = invocationCount actions * 592 := by
+    Formal.recipeCount actions = invocationCount actions * 1096 := by
   induction actions with
   | nil => rfl
   | cons action actions inductionHypothesis =>
       change Formal.Action.recipeCount action + Formal.recipeCount actions =
-        (Action.invocationCount action + invocationCount actions) * 592
+        (Action.invocationCount action + invocationCount actions) * 1096
       rw [inductionHypothesis, Nat.add_mul]
       cases action with
       | absorb input =>
@@ -761,7 +761,7 @@ theorem compileActions_witnessNext
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) :
     (compileActions phase rowStart witnessStart state actions).witnessNext =
-      witnessStart + invocationCount actions * 592 := by
+      witnessStart + invocationCount actions * 1096 := by
   induction actions generalizing rowStart witnessStart state with
   | nil => rfl
   | cons action actions inductionHypothesis =>
@@ -785,7 +785,7 @@ theorem compileBlocks_invocation_inputs
     (current : PermutationInvocation)
     (member : current ∈
       (compileBlocks phase rowStart witnessStart state blocks).invocations) :
-    current.inputs.length = 8 := by
+    current.inputs.length = 16 := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => simp [compileBlocks] at member
   | cons block blocks inductionHypothesis =>
@@ -800,7 +800,7 @@ theorem compileActions_invocation_inputs
     (current : PermutationInvocation)
     (member : current ∈
       (compileActions phase rowStart witnessStart state actions).invocations) :
-    current.inputs.length = 8 := by
+    current.inputs.length = 16 := by
   induction actions generalizing rowStart witnessStart state with
   | nil => simp [compileActions] at member
   | cons action actions inductionHypothesis =>
@@ -825,27 +825,27 @@ def ScheduleWithin : Nat → Nat → List PermutationInvocation → Prop
   | _, _, [] => True
   | bound, ceiling, invocation :: rest =>
       bound ≤ invocation.witnessStart ∧
-        invocation.witnessStart + 592 ≤ ceiling ∧
+        invocation.witnessStart + 1096 ≤ ceiling ∧
           InvocationInputsOutside ceiling invocation ∧
             InvocationInputsOutside Spartan.privateColumnCount invocation ∧
-              ScheduleWithin (invocation.witnessStart + 592) ceiling rest
+              ScheduleWithin (invocation.witnessStart + 1096) ceiling rest
 
 theorem ScheduleWithin.cons
     {bound ceiling : Nat} {invocation : PermutationInvocation}
     {rest : List PermutationInvocation}
     (startsAfter : bound ≤ invocation.witnessStart)
-    (endsBefore : invocation.witnessStart + 592 ≤ ceiling)
+    (endsBefore : invocation.witnessStart + 1096 ≤ ceiling)
     (inputs : InvocationInputsOutside ceiling invocation)
     (stableInputs : InvocationInputsOutside Spartan.privateColumnCount
       invocation)
-    (restSchedule : ScheduleWithin (invocation.witnessStart + 592)
+    (restSchedule : ScheduleWithin (invocation.witnessStart + 1096)
       ceiling rest) :
     ScheduleWithin bound ceiling (invocation :: rest) :=
   ⟨startsAfter, endsBefore, inputs, stableInputs, restSchedule⟩
 
 def InvocationsBefore (bound : Nat)
     (invocations : List PermutationInvocation) : Prop :=
-  ∀ invocation ∈ invocations, invocation.witnessStart + 592 ≤ bound
+  ∀ invocation ∈ invocations, invocation.witnessStart + 1096 ≤ bound
 
 theorem InvocationsBefore.mono
     {lower upper : Nat} {invocations : List PermutationInvocation}
@@ -904,7 +904,7 @@ theorem compileBlocks_scheduleWithin
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
     (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
     (endWithin : Spartan.sourceToSpartan
-      (witnessStart + blocks.length * 592) ≤ ceiling)
+      (witnessStart + blocks.length * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (blocksAffine : Poseidon2.BlocksAffine blocks)
@@ -912,7 +912,7 @@ theorem compileBlocks_scheduleWithin
     ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
         (compileBlocks phase rowStart witnessStart state blocks).invocations ∧
       InvocationsBefore (Spartan.sourceToSpartan
-        (witnessStart + blocks.length * 592))
+        (witnessStart + blocks.length * 1096))
         (compileBlocks phase rowStart witnessStart state blocks).invocations := by
   induction blocks generalizing rowStart witnessStart state with
   | nil =>
@@ -947,58 +947,58 @@ theorem compileBlocks_scheduleWithin
         simp [permutationOutput, Permutation.freshState]
       have outputBelow : ∀ lane,
           (permutationOutput witnessStart lane).VarsBelow
-            (witnessStart + 592) := by
+            (witnessStart + 1096) := by
         intro lane
         simpa [permutationOutput, Nat.add_assoc] using
-          Permutation.freshState_varsBelow (witnessStart + 584) lane
-      have sourceEndEq : (witnessStart + 592) + blocks.length * 592 =
-          witnessStart + (block :: blocks).length * 592 := by
+          Permutation.freshState_varsBelow (witnessStart + 1080) lane
+      have sourceEndEq : (witnessStart + 1096) + blocks.length * 1096 =
+          witnessStart + (block :: blocks).length * 1096 := by
         simp
         omega
       have restEndWithin : Spartan.sourceToSpartan
-          ((witnessStart + 592) + blocks.length * 592) ≤ ceiling := by
+          ((witnessStart + 1096) + blocks.length * 1096) ≤ ceiling := by
         rw [sourceEndEq]
         exact endWithin
-      have widenedRestBelow : Hash.BlocksBelow (witnessStart + 592) blocks :=
+      have widenedRestBelow : Hash.BlocksBelow (witnessStart + 1096) blocks :=
         Hash.blocksBelow_mono restBelow (by omega)
-      rcases inductionHypothesis (rowStart := rowStart + 592)
-          (witnessStart := witnessStart + 592)
+      rcases inductionHypothesis (rowStart := rowStart + 1096)
+          (witnessStart := witnessStart + 1096)
           (state := permutationOutput witnessStart) (by omega)
           restEndWithin outputAffine outputBelow restAffine widenedRestBelow with
         ⟨restSchedule, restBefore⟩
       have nextMap := Spartan.sourceToSpartan_add_of_piCcsLocal witnessStart
-        592 witnessLocal
+        1096 witnessLocal
       have finalMap := Spartan.sourceToSpartan_add_of_piCcsLocal
-        (witnessStart + 592) (blocks.length * 592) (by omega)
+        (witnessStart + 1096) (blocks.length * 1096) (by omega)
       have mappedEndEq := congrArg Spartan.sourceToSpartan sourceEndEq
       constructor
       · refine ⟨le_rfl, ?_, headInputs, headStableInputs, ?_⟩
-        · change Spartan.sourceToSpartan witnessStart + 592 ≤ ceiling
+        · change Spartan.sourceToSpartan witnessStart + 1096 ≤ ceiling
           calc
-            _ = Spartan.sourceToSpartan (witnessStart + 592) := nextMap.symm
+            _ = Spartan.sourceToSpartan (witnessStart + 1096) := nextMap.symm
             _ ≤ Spartan.sourceToSpartan
-                ((witnessStart + 592) + blocks.length * 592) := by
+                ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ ≤ ceiling := restEndWithin
         · change ScheduleWithin
-            (Spartan.sourceToSpartan witnessStart + 592) ceiling _
+            (Spartan.sourceToSpartan witnessStart + 1096) ceiling _
           rw [← nextMap]
           exact restSchedule
       · intro current member
         simp only [compileBlocks, List.mem_cons] at member
         rcases member with rfl | member
-        · change Spartan.sourceToSpartan witnessStart + 592 ≤ _
+        · change Spartan.sourceToSpartan witnessStart + 1096 ≤ _
           calc
-            _ = Spartan.sourceToSpartan (witnessStart + 592) := nextMap.symm
+            _ = Spartan.sourceToSpartan (witnessStart + 1096) := nextMap.symm
             _ ≤ Spartan.sourceToSpartan
-                ((witnessStart + 592) + blocks.length * 592) := by
+                ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ = _ := mappedEndEq
         · calc
-            current.witnessStart + 592 ≤ Spartan.sourceToSpartan
-                ((witnessStart + 592) + blocks.length * 592) :=
+            current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
+                ((witnessStart + 1096) + blocks.length * 1096) :=
               restBefore current member
             _ = _ := mappedEndEq
 
@@ -1008,7 +1008,7 @@ theorem compileActions_scheduleWithin
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
     (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
     (endWithin : Spartan.sourceToSpartan
-      (witnessStart + invocationCount actions * 592) ≤ ceiling)
+      (witnessStart + invocationCount actions * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (actionsAffine : ActionsInvocationInputsAffine actions)
@@ -1016,7 +1016,7 @@ theorem compileActions_scheduleWithin
     ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
         (compileActions phase rowStart witnessStart state actions).invocations ∧
       InvocationsBefore (Spartan.sourceToSpartan
-        (witnessStart + invocationCount actions * 592))
+        (witnessStart + invocationCount actions * 1096))
         (compileActions phase rowStart witnessStart state actions).invocations := by
   induction actions generalizing rowStart witnessStart state with
   | nil =>
@@ -1041,23 +1041,23 @@ theorem compileActions_scheduleWithin
           have blocksBelow : Hash.BlocksBelow witnessStart blocks :=
             Hash.inputChunks_below input witnessStart headBelow
           have absorbedWitnessNext : absorbed.witnessNext =
-              witnessStart + blocks.length * 592 := by
+              witnessStart + blocks.length * 1096 := by
             exact compileBlocks_witnessNext phase rowStart witnessStart state
               blocks
           have totalSourceEq : absorbed.witnessNext +
-              invocationCount actions * 592 =
+              invocationCount actions * 1096 =
               witnessStart +
-                invocationCount (.absorb input :: actions) * 592 := by
+                invocationCount (.absorb input :: actions) * 1096 := by
             rw [absorbedWitnessNext]
             simp only [invocationCount, Action.invocationCount,
               List.map_cons, List.sum_cons]
-            change witnessStart + blocks.length * 592 +
-                invocationCount actions * 592 = _
+            change witnessStart + blocks.length * 1096 +
+                invocationCount actions * 1096 = _
             dsimp [blocks]
             unfold invocationCount
             omega
           have tailEndWithin : Spartan.sourceToSpartan
-              (absorbed.witnessNext + invocationCount actions * 592) ≤
+              (absorbed.witnessNext + invocationCount actions * 1096) ≤
                 ceiling := by
             rw [totalSourceEq]
             exact endWithin
@@ -1066,14 +1066,14 @@ theorem compileActions_scheduleWithin
             rw [absorbedWitnessNext]
             omega
           have tailMap := Spartan.sourceToSpartan_add_of_piCcsLocal
-            absorbed.witnessNext (invocationCount actions * 592)
+            absorbed.witnessNext (invocationCount actions * 1096)
             absorbedLocal
           have absorbedEndWithin : Spartan.sourceToSpartan
               absorbed.witnessNext ≤ ceiling := by
             rw [tailMap] at tailEndWithin
             omega
           have blockEndWithin : Spartan.sourceToSpartan
-              (witnessStart + blocks.length * 592) ≤ ceiling := by
+              (witnessStart + blocks.length * 1096) ≤ ceiling := by
             rw [← absorbedWitnessNext]
             exact absorbedEndWithin
           have absorbedStateAffine : Poseidon2.StateAffine absorbed.state := by
@@ -1118,7 +1118,7 @@ theorem compileActions_scheduleWithin
               Spartan.sourceToSpartan absorbed.witnessNext := by
             rw [absorbedWitnessNext]
             have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
-              witnessStart (blocks.length * 592) witnessLocal
+              witnessStart (blocks.length * 1096) witnessLocal
             rw [mapped]
             omega
           have schedule := ScheduleWithin.append blockSchedule blockBefore'
@@ -1128,7 +1128,7 @@ theorem compileActions_scheduleWithin
               (absorbed.invocations ++ tail.invocations) ∧
             InvocationsBefore (Spartan.sourceToSpartan
               (witnessStart +
-                invocationCount (.absorb input :: actions) * 592))
+                invocationCount (.absorb input :: actions) * 1096))
               (absorbed.invocations ++ tail.invocations)
           constructor
           · exact schedule
@@ -1136,46 +1136,46 @@ theorem compileActions_scheduleWithin
             rw [List.mem_append] at member
             rcases member with blockMember | tailMember
             · calc
-                current.witnessStart + 592 ≤
+                current.witnessStart + 1096 ≤
                     Spartan.sourceToSpartan absorbed.witnessNext :=
                   blockBefore' current blockMember
                 _ ≤ Spartan.sourceToSpartan
                     (absorbed.witnessNext +
-                      invocationCount actions * 592) := by
+                      invocationCount actions * 1096) := by
                   rw [tailMap]
                   omega
                 _ = _ := mappedTotalEq
             · calc
-                current.witnessStart + 592 ≤ Spartan.sourceToSpartan
+                current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
                     (absorbed.witnessNext +
-                      invocationCount actions * 592) :=
+                      invocationCount actions * 1096) :=
                   tailBefore current tailMember
                 _ = _ := mappedTotalEq
       | squeezeK expected =>
           let firstInvocation := invocation phase rowStart witnessStart state
-          let secondInvocation := invocation phase (rowStart + 592)
-            (witnessStart + 592) (permutationOutput witnessStart)
-          let tail := compileActions phase (rowStart + 1184)
-            (witnessStart + 1184)
-            (permutationOutput (witnessStart + 592)) actions
-          have totalSourceEq : witnessStart + 1184 +
-              invocationCount actions * 592 =
+          let secondInvocation := invocation phase (rowStart + 1096)
+            (witnessStart + 1096) (permutationOutput witnessStart)
+          let tail := compileActions phase (rowStart + 2192)
+            (witnessStart + 2192)
+            (permutationOutput (witnessStart + 1096)) actions
+          have totalSourceEq : witnessStart + 2192 +
+              invocationCount actions * 1096 =
               witnessStart +
-                invocationCount (.squeezeK expected :: actions) * 592 := by
+                invocationCount (.squeezeK expected :: actions) * 1096 := by
             simp only [invocationCount, Action.invocationCount,
               List.map_cons, List.sum_cons]
             omega
           have tailEndWithin : Spartan.sourceToSpartan
-              (witnessStart + 1184 + invocationCount actions * 592) ≤
+              (witnessStart + 2192 + invocationCount actions * 1096) ≤
                 ceiling := by
             rw [totalSourceEq]
             exact endWithin
           have tailStateAffine := permutationOutput_affine
-            (witnessStart + 592)
+            (witnessStart + 1096)
           have tailStateBelow := permutationOutput_varsBelow
-            (witnessStart + 592)
+            (witnessStart + 1096)
           have widenedTailBelow : ActionsInvocationInputsBelow
-              (witnessStart + 1184) actions := by
+              (witnessStart + 2192) actions := by
             intro shape member
             have below := tailBelow shape member
             cases shape with
@@ -1184,9 +1184,9 @@ theorem compileActions_scheduleWithin
                 intro expression expressionMember
                 exact Expr.VarsBelow.mono expression
                   (below expression expressionMember) (by omega)
-          rcases inductionHypothesis (rowStart := rowStart + 1184)
-              (witnessStart := witnessStart + 1184)
-              (state := permutationOutput (witnessStart + 592)) (by omega)
+          rcases inductionHypothesis (rowStart := rowStart + 2192)
+              (witnessStart := witnessStart + 2192)
+              (state := permutationOutput (witnessStart + 1096)) (by omega)
               tailEndWithin tailStateAffine (by simpa [Nat.add_assoc] using
                 tailStateBelow) tailAffine widenedTailBelow with
             ⟨tailSchedule, tailBefore⟩
@@ -1203,53 +1203,53 @@ theorem compileActions_scheduleWithin
           have secondInputs :
               InvocationInputsOutside ceiling secondInvocation := by
             dsimp [secondInvocation]
-            exact invocation_inputsOutside phase (rowStart + 592)
-              (witnessStart + 592) ceiling (permutationOutput witnessStart)
+            exact invocation_inputsOutside phase (rowStart + 1096)
+              (witnessStart + 1096) ceiling (permutationOutput witnessStart)
               (by omega) ceilingPrivate (permutationOutput_affine witnessStart)
               (permutationOutput_varsBelow witnessStart)
           have secondStableInputs : InvocationInputsOutside
               Spartan.privateColumnCount secondInvocation := by
             dsimp [secondInvocation]
-            exact invocation_inputsOutside phase (rowStart + 592)
-              (witnessStart + 592) Spartan.privateColumnCount
+            exact invocation_inputsOutside phase (rowStart + 1096)
+              (witnessStart + 1096) Spartan.privateColumnCount
               (permutationOutput witnessStart) (by omega) (by exact le_rfl)
               (permutationOutput_affine witnessStart)
               (permutationOutput_varsBelow witnessStart)
           have mapFirst := Spartan.sourceToSpartan_add_of_piCcsLocal
-            witnessStart 592 witnessLocal
+            witnessStart 1096 witnessLocal
           have mapSecond := Spartan.sourceToSpartan_add_of_piCcsLocal
-            (witnessStart + 592) 592 (by omega)
+            (witnessStart + 1096) 1096 (by omega)
           have mapTail := Spartan.sourceToSpartan_add_of_piCcsLocal
-            (witnessStart + 1184) (invocationCount actions * 592) (by omega)
-          have tailStartEq : (witnessStart + 592) + 592 =
-              witnessStart + 1184 := by omega
+            (witnessStart + 2192) (invocationCount actions * 1096) (by omega)
+          have tailStartEq : (witnessStart + 1096) + 1096 =
+              witnessStart + 2192 := by omega
           have mappedTotalEq := congrArg Spartan.sourceToSpartan totalSourceEq
-          have firstEndWithin : Spartan.sourceToSpartan witnessStart + 592 ≤
+          have firstEndWithin : Spartan.sourceToSpartan witnessStart + 1096 ≤
               ceiling := by
             calc
-              _ = Spartan.sourceToSpartan (witnessStart + 592) :=
+              _ = Spartan.sourceToSpartan (witnessStart + 1096) :=
                 mapFirst.symm
-              _ ≤ Spartan.sourceToSpartan (witnessStart + 1184) :=
+              _ ≤ Spartan.sourceToSpartan (witnessStart + 2192) :=
                 Spartan.sourceToSpartan_lt_of_piCcsLocal
-                  (witnessStart + 592) (witnessStart + 1184) (by omega)
+                  (witnessStart + 1096) (witnessStart + 2192) (by omega)
                   (by omega) |>.le
               _ ≤ Spartan.sourceToSpartan
-                  (witnessStart + 1184 +
-                    invocationCount actions * 592) := by
+                  (witnessStart + 2192 +
+                    invocationCount actions * 1096) := by
                 rw [mapTail]
                 omega
               _ ≤ ceiling := tailEndWithin
           have secondEndWithin :
-              Spartan.sourceToSpartan (witnessStart + 592) + 592 ≤
+              Spartan.sourceToSpartan (witnessStart + 1096) + 1096 ≤
                 ceiling := by
             calc
-              _ = Spartan.sourceToSpartan ((witnessStart + 592) + 592) :=
+              _ = Spartan.sourceToSpartan ((witnessStart + 1096) + 1096) :=
                 mapSecond.symm
-              _ = Spartan.sourceToSpartan (witnessStart + 1184) := by
+              _ = Spartan.sourceToSpartan (witnessStart + 2192) := by
                 rw [tailStartEq]
               _ ≤ Spartan.sourceToSpartan
-                  (witnessStart + 1184 +
-                    invocationCount actions * 592) := by
+                  (witnessStart + 2192 +
+                    invocationCount actions * 1096) := by
                 rw [mapTail]
                 omega
               _ ≤ ceiling := tailEndWithin
@@ -1257,68 +1257,68 @@ theorem compileActions_scheduleWithin
               firstInvocation.witnessStart := by
             simp only [firstInvocation, invocation_witnessStart]
             exact le_rfl
-          have firstEnds : firstInvocation.witnessStart + 592 ≤ ceiling := by
+          have firstEnds : firstInvocation.witnessStart + 1096 ≤ ceiling := by
             simpa only [firstInvocation, invocation_witnessStart] using
               firstEndWithin
-          have secondEnds : secondInvocation.witnessStart + 592 ≤
+          have secondEnds : secondInvocation.witnessStart + 1096 ≤
               ceiling := by
             simpa only [secondInvocation, invocation_witnessStart] using
               secondEndWithin
           have secondStarts :
-              firstInvocation.witnessStart + 592 ≤
+              firstInvocation.witnessStart + 1096 ≤
                 secondInvocation.witnessStart := by
             simpa only [firstInvocation, secondInvocation,
               invocation_witnessStart] using
               Nat.le_of_eq mapFirst.symm
           have tailStarts :
-              secondInvocation.witnessStart + 592 =
-                Spartan.sourceToSpartan (witnessStart + 1184) := by
+              secondInvocation.witnessStart + 1096 =
+                Spartan.sourceToSpartan (witnessStart + 2192) := by
             simpa only [secondInvocation, invocation_witnessStart] using
               (calc
-                Spartan.sourceToSpartan (witnessStart + 592) + 592 =
-                    Spartan.sourceToSpartan ((witnessStart + 592) + 592) :=
+                Spartan.sourceToSpartan (witnessStart + 1096) + 1096 =
+                    Spartan.sourceToSpartan ((witnessStart + 1096) + 1096) :=
                   mapSecond.symm
-                _ = Spartan.sourceToSpartan (witnessStart + 1184) := by
+                _ = Spartan.sourceToSpartan (witnessStart + 2192) := by
                   rw [tailStartEq])
           have firstBeforeFinal :
-              firstInvocation.witnessStart + 592 ≤
+              firstInvocation.witnessStart + 1096 ≤
                 Spartan.sourceToSpartan
                   (witnessStart +
-                    invocationCount (.squeezeK expected :: actions) * 592) := by
+                    invocationCount (.squeezeK expected :: actions) * 1096) := by
             simpa only [firstInvocation, invocation_witnessStart] using
               (calc
-                Spartan.sourceToSpartan witnessStart + 592 =
-                    Spartan.sourceToSpartan (witnessStart + 592) :=
+                Spartan.sourceToSpartan witnessStart + 1096 =
+                    Spartan.sourceToSpartan (witnessStart + 1096) :=
                   mapFirst.symm
                 _ ≤ Spartan.sourceToSpartan
-                    (witnessStart + 1184 +
-                      invocationCount actions * 592) := by
+                    (witnessStart + 2192 +
+                      invocationCount actions * 1096) := by
                   rw [mapTail]
                   have localMap :=
                     Spartan.sourceToSpartan_add_of_piCcsLocal
-                      (witnessStart + 592) 592 (by omega)
+                      (witnessStart + 1096) 1096 (by omega)
                   rw [localMap]
                   omega
                 _ = _ := mappedTotalEq)
           have secondBeforeFinal :
-              secondInvocation.witnessStart + 592 ≤
+              secondInvocation.witnessStart + 1096 ≤
                 Spartan.sourceToSpartan
                   (witnessStart +
-                    invocationCount (.squeezeK expected :: actions) * 592) := by
+                    invocationCount (.squeezeK expected :: actions) * 1096) := by
             simpa only [secondInvocation, invocation_witnessStart] using
               (calc
-                Spartan.sourceToSpartan (witnessStart + 592) + 592 ≤
+                Spartan.sourceToSpartan (witnessStart + 1096) + 1096 ≤
                     Spartan.sourceToSpartan
-                      (witnessStart + 1184 +
-                        invocationCount actions * 592) := by
+                      (witnessStart + 2192 +
+                        invocationCount actions * 1096) := by
                   rw [← mapSecond, tailStartEq, mapTail]
                   omega
                 _ = _ := mappedTotalEq)
           have secondSchedule : ScheduleWithin
-              (firstInvocation.witnessStart + 592) ceiling
+              (firstInvocation.witnessStart + 1096) ceiling
               (secondInvocation :: tail.invocations) := by
             have tailScheduleAt : ScheduleWithin
-                (secondInvocation.witnessStart + 592)
+                (secondInvocation.witnessStart + 1096)
                 ceiling tail.invocations := by
               rw [tailStarts]
               exact tailSchedule
@@ -1330,7 +1330,7 @@ theorem compileActions_scheduleWithin
               (firstInvocation :: secondInvocation :: tail.invocations) ∧
             InvocationsBefore (Spartan.sourceToSpartan
               (witnessStart +
-                invocationCount (.squeezeK expected :: actions) * 592))
+                invocationCount (.squeezeK expected :: actions) * 1096))
               (firstInvocation :: secondInvocation :: tail.invocations)
           constructor
           · exact ScheduleWithin.cons (invocation := firstInvocation)
@@ -1344,9 +1344,9 @@ theorem compileActions_scheduleWithin
               · rw [secondMember]
                 exact secondBeforeFinal
               · calc
-                  current.witnessStart + 592 ≤ Spartan.sourceToSpartan
-                      (witnessStart + 1184 +
-                        invocationCount actions * 592) :=
+                  current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
+                      (witnessStart + 2192 +
+                        invocationCount actions * 1096) :=
                     tailBefore current member
                   _ = _ := mappedTotalEq
 
@@ -1357,7 +1357,7 @@ def AgreesOutsideInvocations (before after : Env)
   ∀ index,
     (∀ invocation ∈ invocations,
       index < invocation.witnessStart ∨
-        invocation.witnessStart + 592 ≤ index) →
+        invocation.witnessStart + 1096 ≤ index) →
       after index = before index
 
 /-- Honest execution of an ordered invocation schedule has one completed
@@ -1391,18 +1391,18 @@ theorem completeInvocations
       let headEnv :=
         NightstreamFPrime.Export.Pilot.completePermutationInvocationEnv
           head env
-      rcases inductionHypothesis headEnv (head.witnessStart + 592)
+      rcases inductionHypothesis headEnv (head.witnessStart + 1096)
         restSchedule with
           ⟨completed, restAgrees, restExact, restHolds⟩
-      have restSpan : head.witnessStart + 592 +
-          (ceiling - (head.witnessStart + 592)) = ceiling := by
+      have restSpan : head.witnessStart + 1096 +
+          (ceiling - (head.witnessStart + 1096)) = ceiling := by
         omega
       have headHolds : PermutationInvocationHolds
           (PilotData.circuitPackage ()) head completed := by
         apply
           NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
-            head headEnv completed (head.witnessStart + 592)
-              (ceiling - (head.witnessStart + 592))
+            head headEnv completed (head.witnessStart + 1096)
+              (ceiling - (head.witnessStart + 1096))
         · intro lane term member
           rcases inputsOutside lane term member with before | after
           · exact Or.inl (by omega)
@@ -1419,14 +1419,14 @@ theorem completeInvocations
           rcases outside with before | after
           · exact Or.inl before
           · exact Or.inr (by omega)
-        have outsideRest : index < head.witnessStart + 592 ∨
-            head.witnessStart + 592 +
-                (ceiling - (head.witnessStart + 592)) ≤ index := by
+        have outsideRest : index < head.witnessStart + 1096 ∨
+            head.witnessStart + 1096 +
+                (ceiling - (head.witnessStart + 1096)) ≤ index := by
           rcases location with before | after
           · exact Or.inl (by omega)
           · exact Or.inr (by omega)
         have outsideHead : index < head.witnessStart ∨
-            head.witnessStart + 592 ≤ index := by
+            head.witnessStart + 1096 ≤ index := by
           rcases location with before | after
           · exact Or.inl (by omega)
           · exact Or.inr (by omega)
@@ -1437,7 +1437,7 @@ theorem completeInvocations
         have outsideHead := outsideAll head (by simp)
         have outsideRest : ∀ invocation ∈ rest,
             index < invocation.witnessStart ∨
-              invocation.witnessStart + 592 ≤ index := by
+              invocation.witnessStart + 1096 ≤ index := by
           intro invocation member
           exact outsideAll invocation (by simp [member])
         calc

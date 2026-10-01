@@ -178,8 +178,9 @@ impl CsrBuilder {
                             self.push_term(previous, term.coefficient);
                         }
                         if ordinal < chain.absorb_count {
-                            let input_offset = ordinal * 4 + lane;
-                            if lane < 4 && input_offset < chain.input_length {
+                            let rate = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+                            let input_offset = ordinal * rate + lane;
+                            if lane < rate && input_offset < chain.input_length {
                                 self.push_term(chain.input_start + input_offset, term.coefficient);
                             }
                         } else if lane == 0 {

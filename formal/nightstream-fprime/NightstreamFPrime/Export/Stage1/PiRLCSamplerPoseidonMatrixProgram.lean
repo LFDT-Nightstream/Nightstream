@@ -19,14 +19,14 @@ open NightstreamFPrime.Spec
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def piCcsFinalSlotBase : Nat :=
-  (PiCCSPoseidonPlan.invocationCount - 1) * 86 + 78
+  (PiCCSPoseidonPlan.invocationCount - 1) * 150 + 134
 
-@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 653936 := by
+@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 397634 := by
   norm_num [piCcsFinalSlotBase, PiCCSPoseidonPlan.invocationCount_eq]
 
 def constantAt
-    (index : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 8)) : Option F :=
-  let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 8 :=
+    (index : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 16)) : Option F :=
+  let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 16 :=
     Fin.decodeProd index
   let descriptor := PiRLCSamplerPoseidonPlan.descriptor decoded.1
   if descriptor.2.val = 0 then
@@ -38,20 +38,20 @@ def constants : PoseidonInput.OptionalConstantTable :=
   PoseidonInput.OptionalConstantTable.ofSemantic constantAt
 
 def piCcsPreviousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨0, 1, 0, 8⟩
+  region := ⟨0, 1, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiCCSPoseidonPlan.retainedBlock program)
       (PiCCSPoseidonPlan.retainedStart program)) piCcsFinalSlotBase 0
 
 def samplerPreviousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨1, 33, 0, 8⟩
+  region := ⟨1, 33, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
-      (PiRLCSamplerPoseidonPlan.retainedStart program)) 78 86
+      (PiRLCSamplerPoseidonPlan.retainedStart program)) 134 150
 
 def entryRule : PoseidonInput.Rule where
-  region := ⟨0, 34, 0, 8⟩
-  term := .optionalConstant constants 8
+  region := ⟨0, 34, 0, 16⟩
+  term := .optionalConstant constants 16
 
 def inputProgram (program : Program) : PoseidonInput.Program where
   rules := [piCcsPreviousRule program, samplerPreviousRule program, entryRule]
@@ -71,21 +71,21 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (block geometry).rowCount = 2924 := by
+    (block geometry).rowCount = 5100 := by
   calc
     (block geometry).rowCount =
-        PiRLCSamplerPoseidonPlan.invocationCount * 86 := by
+        PiRLCSamplerPoseidonPlan.invocationCount * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.oneColumn geometry) (inputProgram program)
-    _ = 2924 := by
+    _ = 5100 := by
       norm_num [PiRLCSamplerPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 2924 := by
+    (matrixProgram geometry).rowCount = 5100 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

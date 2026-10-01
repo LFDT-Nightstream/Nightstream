@@ -48,16 +48,16 @@ theorem sourceColumn_lt (location : Location) : location.sourceColumn < Spartan.
 
 end Location
 
-private def logicalIndex (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) / 3259
-private def logicalOffset (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) % 3259
+private def logicalIndex (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) / 4267
+private def logicalOffset (column : Nat) : Nat := (column - PiRLCStarts.samplerLogicalStart) % 4267
 
 private def poseidonCandidate (column : Nat) : Location :=
   .poseidon ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
-    ⟨(logicalOffset column - 584) % 4, Nat.mod_lt _ (by decide)⟩
+    ⟨(logicalOffset column - 1080) % 4, Nat.mod_lt _ (by decide)⟩
 
 private def logicalCandidate (column : Nat) : Location :=
   .logical ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
-    ⟨(logicalOffset column - 1996) % logicalCountPerSource, Nat.mod_lt _ (by decide)⟩
+    ⟨(logicalOffset column - 2500) % logicalCountPerSource, Nat.mod_lt _ (by decide)⟩
 
 private def freshCandidate (column : Nat) : Location :=
   .fresh ⟨((column - PiRLCStarts.samplerFreshStart) / 1548) % sourceCount, Nat.mod_lt _ (by decide)⟩
@@ -65,16 +65,16 @@ private def freshCandidate (column : Nat) : Location :=
 
 private def wordCandidate (column : Nat) : Location :=
   .word ⟨logicalIndex column % sourceCount, Nat.mod_lt _ (by decide)⟩
-    ⟨(logicalOffset column - 3205) % ringDegree, Nat.mod_lt _ (by decide)⟩
+    ⟨(logicalOffset column - 4213) % ringDegree, Nat.mod_lt _ (by decide)⟩
 
 private def exactCandidate (column : Nat) (candidate : Location) : Option Location :=
   if candidate.sourceColumn = column then some candidate else none
 
 def classifySource (column : Nat) : Option Location :=
   if PiRLCStarts.samplerFreshStart ≤ column then exactCandidate column (freshCandidate column)
-  else if 584 ≤ logicalOffset column ∧ logicalOffset column < 588 then
+  else if 1080 ≤ logicalOffset column ∧ logicalOffset column < 1084 then
     exactCandidate column (poseidonCandidate column)
-  else if 1996 ≤ logicalOffset column ∧ logicalOffset column < 2613 then
+  else if 2500 ≤ logicalOffset column ∧ logicalOffset column < 3117 then
     exactCandidate column (logicalCandidate column)
   else exactCandidate column (wordCandidate column)
 
@@ -97,23 +97,23 @@ theorem classifySource_sound {column : Nat} {location : Location}
     · exact exactCandidate_sound found
     · split at found <;> exact exactCandidate_sound found
 
-private theorem scalarIndex (source offset : Nat) (bound : offset < 3259) :
-    logicalIndex (PiRLCStarts.samplerLogicalStart + source * 3259 + offset) = source := by
+private theorem scalarIndex (source offset : Nat) (bound : offset < 4267) :
+    logicalIndex (PiRLCStarts.samplerLogicalStart + source * 4267 + offset) = source := by
   unfold logicalIndex
-  rw [show PiRLCStarts.samplerLogicalStart + source * 3259 + offset -
-      PiRLCStarts.samplerLogicalStart = source * 3259 + offset by omega]
-  rw [Nat.mul_comm source 3259, Nat.mul_add_div (by decide : 0 < 3259),
+  rw [show PiRLCStarts.samplerLogicalStart + source * 4267 + offset -
+      PiRLCStarts.samplerLogicalStart = source * 4267 + offset by omega]
+  rw [Nat.mul_comm source 4267, Nat.mul_add_div (by decide : 0 < 4267),
     Nat.div_eq_of_lt bound, Nat.add_zero]
 
-private theorem scalarOffset (source offset : Nat) (bound : offset < 3259) :
-    logicalOffset (PiRLCStarts.samplerLogicalStart + source * 3259 + offset) = offset := by
+private theorem scalarOffset (source offset : Nat) (bound : offset < 4267) :
+    logicalOffset (PiRLCStarts.samplerLogicalStart + source * 4267 + offset) = offset := by
   unfold logicalOffset
-  rw [show PiRLCStarts.samplerLogicalStart + source * 3259 + offset -
-      PiRLCStarts.samplerLogicalStart = source * 3259 + offset by omega]
+  rw [show PiRLCStarts.samplerLogicalStart + source * 4267 + offset -
+      PiRLCStarts.samplerLogicalStart = source * 4267 + offset by omega]
   exact Nat.mul_add_mod_of_lt bound
 
-private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bound : offset < 3259) :
-    PiRLCStarts.samplerLogicalStart + source.val * 3259 + offset < PiRLCStarts.samplerFreshStart := by
+private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bound : offset < 4267) :
+    PiRLCStarts.samplerLogicalStart + source.val * 4267 + offset < PiRLCStarts.samplerFreshStart := by
   have sourceLt : source.val < 17 := source.isLt
   simp only [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart,
     PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, Formal.logicalPrivateCount_eq]
@@ -121,14 +121,14 @@ private theorem scalarBeforeFresh (source : Fin sourceCount) (offset : Nat) (bou
 
 theorem poseidonColumn (source : Fin sourceCount) (lane : Fin 4) :
     (Location.poseidon source lane).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 3259 + (584 + lane.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (1080 + lane.val) := by
   simp only [Location.sourceColumn, PiRLCSamplerOrdinaryDirectSource.poseidonSource,
     PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset, Sampler.counts.1]
   omega
 
 theorem logicalColumn (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     (Location.logical source position).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 3259 + (1996 + position.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (2500 + position.val) := by
   simp only [Location.sourceColumn, logicalSource, PiRLCSamplerOrdinaryDirectSource.coreStart,
     Gadgets.Sampling.WideReduction.Program.coreOffset, PiRLCStarts.rangeLogicalStart,
     PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset, Sampler.rangeOffset,
@@ -137,21 +137,21 @@ theorem logicalColumn (source : Fin sourceCount) (position : Fin logicalCountPer
 
 theorem wordColumn (source : Fin sourceCount) (position : Fin ringDegree) :
     (Location.word source position).sourceColumn =
-      PiRLCStarts.samplerLogicalStart + source.val * 3259 + (3205 + position.val) := by
+      PiRLCStarts.samplerLogicalStart + source.val * 4267 + (4213 + position.val) := by
   simp only [Location.sourceColumn, PiRLCStarts.challengeWordStart_eq,
     PiRLCStarts.samplerLogicalStart, Formal.samplerOffset]
   omega
 
 theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
     classifySource (Location.poseidon source lane).sourceColumn = some (.poseidon source lane) := by
-  have bound : 584 + lane.val < 3259 := by omega
-  have offset := scalarOffset source.val (584 + lane.val) bound
-  have index := scalarIndex source.val (584 + lane.val) bound
+  have bound : 1080 + lane.val < 4267 := by omega
+  have offset := scalarOffset source.val (1080 + lane.val) bound
+  have index := scalarIndex source.val (1080 + lane.val) bound
   rw [poseidonColumn]
   unfold classifySource
   rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     if_pos (by omega)]
-  have candidate : poseidonCandidate (PiRLCStarts.samplerLogicalStart + source.val * 3259 + (584 + lane.val)) =
+  have candidate : poseidonCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (1080 + lane.val)) =
       .poseidon source lane := by
     unfold poseidonCandidate
     apply congrArg₂ Location.poseidon
@@ -159,7 +159,7 @@ theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
       change logicalIndex _ % sourceCount = source.val
       rw [index, Nat.mod_eq_of_lt source.isLt]
     · apply Fin.ext
-      change (logicalOffset _ - 584) % 4 = lane.val
+      change (logicalOffset _ - 1080) % 4 = lane.val
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt lane.isLt]
   rw [candidate]
   unfold exactCandidate
@@ -168,15 +168,15 @@ theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
 theorem classifySource_logical (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     classifySource (logicalSource source position) = some (.logical source position) := by
   have positionLt : position.val < 617 := position.isLt
-  have bound : 1996 + position.val < 3259 := by omega
-  have offset := scalarOffset source.val (1996 + position.val) bound
-  have index := scalarIndex source.val (1996 + position.val) bound
+  have bound : 2500 + position.val < 4267 := by omega
+  have offset := scalarOffset source.val (2500 + position.val) bound
+  have index := scalarIndex source.val (2500 + position.val) bound
   change classifySource (Location.logical source position).sourceColumn = _
   rw [logicalColumn]
   unfold classifySource
   rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     if_neg (by omega), if_pos (by omega)]
-  have candidate : logicalCandidate (PiRLCStarts.samplerLogicalStart + source.val * 3259 + (1996 + position.val)) =
+  have candidate : logicalCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (2500 + position.val)) =
       .logical source position := by
     unfold logicalCandidate
     apply congrArg₂ Location.logical
@@ -184,7 +184,7 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
       change logicalIndex _ % sourceCount = source.val
       rw [index, Nat.mod_eq_of_lt source.isLt]
     · apply Fin.ext
-      change (logicalOffset _ - 1996) % logicalCountPerSource = position.val
+      change (logicalOffset _ - 2500) % logicalCountPerSource = position.val
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt position.isLt]
   rw [candidate]
   unfold exactCandidate
@@ -193,15 +193,15 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
 theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegree) :
     classifySource (PiRLCStarts.challengeWordStart source.val + position.val) = some (.word source position) := by
   have positionLt : position.val < 54 := position.isLt
-  have bound : 3205 + position.val < 3259 := by omega
-  have offset := scalarOffset source.val (3205 + position.val) bound
-  have index := scalarIndex source.val (3205 + position.val) bound
+  have bound : 4213 + position.val < 4267 := by omega
+  have offset := scalarOffset source.val (4213 + position.val) bound
+  have index := scalarIndex source.val (4213 + position.val) bound
   change classifySource (Location.word source position).sourceColumn = _
   rw [wordColumn]
   unfold classifySource
   rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
     if_neg (by omega), if_neg (by omega)]
-  have candidate : wordCandidate (PiRLCStarts.samplerLogicalStart + source.val * 3259 + (3205 + position.val)) =
+  have candidate : wordCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (4213 + position.val)) =
       .word source position := by
     unfold wordCandidate
     apply congrArg₂ Location.word
@@ -209,7 +209,7 @@ theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegre
       change logicalIndex _ % sourceCount = source.val
       rw [index, Nat.mod_eq_of_lt source.isLt]
     · apply Fin.ext
-      change (logicalOffset _ - 3205) % ringDegree = position.val
+      change (logicalOffset _ - 4213) % ringDegree = position.val
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt position.isLt]
   rw [candidate]
   unfold exactCandidate

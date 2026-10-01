@@ -242,7 +242,7 @@ fn template_terms(
         match term.0 .0 {
             1 => {
                 let witness_start = match invocation {
-                    Invocation::Hash { chain, ordinal } => word(chain.5) + ordinal * 592,
+                    Invocation::Hash { chain, ordinal } => word(chain.5) + ordinal * 1096,
                     Invocation::Explicit(invocation) => word(invocation.2),
                 };
                 add_term(&mut terms, witness_start + lane, term.1);
@@ -250,12 +250,12 @@ fn template_terms(
             0 => match invocation {
                 Invocation::Hash { chain, ordinal } => {
                     if ordinal > 0 {
-                        add_term(&mut terms, word(chain.5) + (ordinal - 1) * 592 + 584 + lane, term.1);
+                        add_term(&mut terms, word(chain.5) + (ordinal - 1) * 1096 + 1080 + lane, term.1);
                     }
                     let absorb_count = word(chain.7);
                     if ordinal < absorb_count {
-                        let input_offset = ordinal * 4 + lane;
-                        if lane < 4 && input_offset < word(chain.4) {
+                        let input_offset = ordinal * 12 + lane;
+                        if lane < 12 && input_offset < word(chain.4) {
                             add_term(&mut terms, word(chain.3) + input_offset, term.1);
                         }
                     } else if lane == 0 {

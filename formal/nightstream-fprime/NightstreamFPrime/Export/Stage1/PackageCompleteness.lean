@@ -570,11 +570,11 @@ theorem pilotAssertionRows_of_piRlcAgreesOutside
   exact beforeHolds
 
 theorem pilotHashInvocationInput_varsBelow
-    (chain : HashChain) (invocation : Nat) (lane : Fin 8) (bound : Nat)
+    (chain : HashChain) (invocation : Nat) (lane : Fin 16) (bound : Nat)
     (invocationBound : invocation ≤ chain.absorbCount)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)
     (witnessBound : chain.witnessStart +
-      (chain.absorbCount + 1) * 592 ≤ bound) :
+      (chain.absorbCount + 1) * 1096 ≤ bound) :
     (invocationInput (PilotData.circuitPackage ()) chain invocation lane.val
       ).VarsBelow bound := by
   have laneBound := lane.isLt
@@ -582,7 +582,7 @@ theorem pilotHashInvocationInput_varsBelow
   · subst invocation
     by_cases absorbing : 0 < chain.absorbCount
     · by_cases inputPresent :
-          lane.val < 4 ∧ lane.val < chain.inputLength
+          lane.val < 12 ∧ lane.val < chain.inputLength
       · have inputBelow : chain.inputStart + lane.val < bound := by
           omega
         simp [invocationInput, PilotData.circuitPackage,
@@ -607,15 +607,15 @@ theorem pilotHashInvocationInput_varsBelow
           absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero]
   · have previousBelow :
-        chain.witnessStart + (invocation - 1) * 592 + 584 + lane.val <
+        chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane.val <
           bound := by
       omega
     by_cases absorbing : invocation < chain.absorbCount
     · by_cases inputPresent :
-          lane.val < 4 ∧
-            invocation * 4 + lane.val < chain.inputLength
+          lane.val < 12 ∧
+            invocation * 12 + lane.val < chain.inputLength
       · have inputBelow :
-            chain.inputStart + (invocation * 4 + lane.val) < bound := by
+            chain.inputStart + (invocation * 12 + lane.val) < bound := by
           omega
         simp [invocationInput, PilotData.circuitPackage,
           PilotData.poseidonSchedule, PilotData.permutationTemplate,
@@ -644,17 +644,17 @@ theorem pilotHashInvocationInput_varsBelow
 
 private theorem pilotCanonicalConstraints_varsBelow :
     ∀ expression ∈ PilotData.canonicalConstraints (),
-      expression.VarsBelow 600 := by
+      expression.VarsBelow 1112 := by
   intro expression member
-  have scope := recipeConstraints_varsBelow_of_causal 8
+  have scope := recipeConstraints_varsBelow_of_causal 16
     (PilotData.canonicalRecipes ())
     (NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_schedule_causal
-      8 PilotData.canonicalState (by
+      16 PilotData.canonicalState (by
         intro lane
         exact lane.isLt)) expression member
-  have recipeLength : (PilotData.canonicalRecipes ()).length = 592 := by
+  have recipeLength : (PilotData.canonicalRecipes ()).length = 1096 := by
     exact NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_schedule_recipe_count
-      8 PilotData.canonicalState
+      16 PilotData.canonicalState
   rw [recipeLength] at scope
   norm_num at scope
   exact scope
@@ -663,7 +663,7 @@ private theorem pilotHashChainHolds_of_agree_below
     (chain : HashChain) (before after : Env) (bound : Nat)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)
     (witnessBound : chain.witnessStart +
-      (chain.absorbCount + 1) * 592 ≤ bound)
+      (chain.absorbCount + 1) * 1096 ≤ bound)
     (agrees : ∀ index, index < bound → after index = before index)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain before) :
     HashChainHolds (PilotData.circuitPackage ()) chain after := by
@@ -672,10 +672,10 @@ private theorem pilotHashChainHolds_of_agree_below
     (PilotData.columnRef column).eval (fun reference =>
       (instantiateColumn (PilotData.circuitPackage ()) chain invocation
         reference).eval current)
-  have mappedAgrees : ∀ column, column < 600 →
+  have mappedAgrees : ∀ column, column < 1112 →
       mapped after column = mapped before column := by
     intro column columnBound
-    by_cases input : column < 8
+    by_cases input : column < 16
     · unfold mapped
       rw [show PilotData.columnRef column = .input column by
         simp [PilotData.columnRef, input]]
@@ -687,7 +687,7 @@ private theorem pilotHashChainHolds_of_agree_below
           ⟨column, input⟩ bound invocationBound inputBound witnessBound)
         agrees
     · unfold mapped
-      rw [show PilotData.columnRef column = .local (column - 8) by
+      rw [show PilotData.columnRef column = .local (column - 16) by
         simp [PilotData.columnRef, input]]
       simp only [ColumnRef.eval, instantiateColumn,
         R1CS.LinearCombination.eval_ofVar]
@@ -703,11 +703,11 @@ private theorem pilotHashChainHolds_of_agree_below
       (PilotData.canonicalConstraints ()) := by
     unfold PilotData.canonicalRows at beforeRows
     exact R1CS.lowerConstraints_sound (mapped before)
-      (PilotData.canonicalConstraints ()) 600 beforeRows
+      (PilotData.canonicalConstraints ()) 1112 beforeRows
   have afterLogical : ConstraintsHold (mapped after)
       (PilotData.canonicalConstraints ()) :=
     constraintsHold_of_agree_below (mapped before) (mapped after)
-      (PilotData.canonicalConstraints ()) 600
+      (PilotData.canonicalConstraints ()) 1112
       pilotCanonicalConstraints_varsBelow mappedAgrees beforeLogical
   apply (NightstreamFPrime.Export.Pilot.canonicalTemplateInvocation_iff chain
     invocation after).mpr
@@ -986,7 +986,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 7982945 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 8000081 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩

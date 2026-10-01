@@ -32,8 +32,8 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PilotOrdinaryRetainedGeometry.oneColumn geometry
 
-def finalSlot (lane : Fin 4) : Fin 592 :=
-  ⟨584 + lane.val, by have bound := lane.isLt; omega⟩
+def finalSlot (lane : Fin 4) : Fin 1096 :=
+  ⟨1080 + lane.val, by have bound := lane.isLt; omega⟩
 
 inductive Location where
   | priorDigest (lane : Fin 4)
@@ -52,7 +52,7 @@ def sourceColumn : Location → Nat
       PriorStateHash.hashEnd PilotProduction.priorInterface
         PilotProduction.witnessOffset + index.val
   | .outputState lane => PilotProduction.lifecycleOutputOffset +
-      PilotValues.absorbCount * 592 + 584 + lane.val
+      PilotValues.absorbCount * 1096 + 1080 + lane.val
   | .canonicalFresh index => PilotValues.logicalColumnCount + index.val
   | .outputDigest lane => PilotProduction.outputDigestStart + lane.val
 
@@ -91,9 +91,9 @@ theorem physicalSupport (location : Location) :
       apply LogicalSource.outputState
       change InRange
         (PilotProduction.lifecycleOutputOffset +
-          PilotValues.absorbCount * 592 + 584) 4
+          PilotValues.absorbCount * 1096 + 1080) 4
         (PilotProduction.lifecycleOutputOffset +
-          PilotValues.absorbCount * 592 + 584 + lane.val)
+          PilotValues.absorbCount * 1096 + 1080 + lane.val)
       unfold InRange
       have bound := lane.isLt
       omega
@@ -211,7 +211,7 @@ def classifySource (source : Nat) : Option (Located source) :=
       rw [Location.sourceColumn, rangeIndex_source canonicalLocal]⟩
   else if outputState : InRange
       (PilotProduction.lifecycleOutputOffset +
-        PilotValues.absorbCount * 592 + 584) 4 source then
+        PilotValues.absorbCount * 1096 + 1080) 4 source then
     some ⟨.outputState (rangeIndex outputState), by
       rw [Location.sourceColumn, rangeIndex_source outputState]⟩
   else if canonicalFresh : InRange PilotValues.logicalColumnCount 788 source then
@@ -344,14 +344,14 @@ theorem sourceAssignment_at
 
 private theorem priorLastWitnessStart_eq :
     PoseidonRetainedBlock.priorWitnessStart
-      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 7438682 := by rfl
+      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 4640306 := by rfl
 
 private theorem outputLastWitnessStart_eq :
     PoseidonRetainedBlock.outputWitnessStart
-      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 14750146 := by rfl
+      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 9153898 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (7409978 + lane.val) = 7439266 + lane.val := by
+    Spartan.liftPilotColumn (4612098 + lane.val) = 4641386 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -360,7 +360,7 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (14721442 + lane.val) = 14750730 + lane.val := by
+    Spartan.liftPilotColumn (9125690 + lane.val) = 9154978 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -385,7 +385,7 @@ private theorem priorFinalColumn_eq (lane : Fin 4) :
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
-  change 7438682 + (584 + lane.val) = 7439266 + lane.val
+  change 4640306 + (1080 + lane.val) = 4641386 + lane.val
   omega
 
 private theorem outputFinalColumn_eq (lane : Fin 4) :
@@ -403,10 +403,10 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
   change _ = Spartan.liftPilotColumn
     (PilotSpartan.sourceToSpartan
       (PilotProduction.lifecycleOutputOffset +
-        PilotValues.absorbCount * 592 + 584 + lane.val))
+        PilotValues.absorbCount * 1096 + 1080 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
     liftOutputStateTarget, outputLastWitnessStart_eq]
-  change 14750146 + (584 + lane.val) = 14750730 + lane.val
+  change 9153898 + (1080 + lane.val) = 9154978 + lane.val
   omega
 
 private theorem priorFinalColumn_bound (lane : Fin 4) :
@@ -416,9 +416,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      27427723 := Package.circuitPackage_layout_values.2.2.2.2
+      20253043 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 7438682 + (584 + lane.val) < 27427723
+  change 4640306 + (1080 + lane.val) < 20253043
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -428,9 +428,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      27427723 := Package.circuitPackage_layout_values.2.2.2.2
+      20253043 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 14750146 + (584 + lane.val) < 27427723
+  change 9153898 + (1080 + lane.val) < 20253043
   omega
 
 private theorem priorLastBlock_source
@@ -615,7 +615,7 @@ theorem outputState_form_eval_chainOutput
   change env
       (PilotSpartan.sourceToSpartan
         (PilotProduction.lifecycleOutputOffset +
-          PilotValues.absorbCount * 592 + 584 + lane.val)) = _
+          PilotValues.absorbCount * 1096 + 1080 + lane.val)) = _
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
   rfl
 

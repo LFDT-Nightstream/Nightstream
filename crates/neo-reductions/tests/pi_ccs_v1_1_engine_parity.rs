@@ -148,7 +148,14 @@ fn prove_mode_and_state(
     running: &[Output],
     running_witnesses: &[Mat<F>],
     log: &AjtaiSModule,
-) -> Result<(Vec<Output>, PiCcsProof, [F; 8]), PiCcsError> {
+) -> Result<
+    (
+        Vec<Output>,
+        PiCcsProof,
+        [F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+    ),
+    PiCcsError,
+> {
     let mut transcript = Poseidon2Transcript::new(label);
     let (outputs, proof) = prove(
         mode,

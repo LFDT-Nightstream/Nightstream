@@ -41,7 +41,7 @@ fn independent_poseidon_assembly_preserves_selected_package_key_and_matrix_rows(
     let mut expected_rows = Vec::new();
     let application_rows = expected.application().row_range();
     // Physical application rows are also checked byte-for-byte by the internal encoding test.
-    assert_eq!(application_rows.len(), 7700);
+    assert_eq!(application_rows.len(), 5484);
     let boundary_rows = actual.next_preimage_row_range().len() + application.output_state().len();
     let rows = actual.row_count() - actual.application().row_range().len() - boundary_rows..actual.row_count();
     expected

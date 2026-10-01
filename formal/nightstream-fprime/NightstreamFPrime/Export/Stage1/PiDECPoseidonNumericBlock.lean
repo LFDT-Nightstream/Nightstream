@@ -50,7 +50,7 @@ def loadInvocation? (block : Poseidon.Block) (columns : Nat)
     Option (PoseidonSboxPlan.Interface columns) :=
   if oneBound : block.oneColumn < columns then
     if block.retained.kind = .field then
-      if slotCountEq : block.retained.slotCount = block.invocationCount * 86 then
+      if slotCountEq : block.retained.slotCount = block.invocationCount * 150 then
         if retainedFits : block.retained.start + block.retained.coordinateCount ≤ columns then
           (block.input.state? columns block.oneColumn invocation.val).map fun input =>
             cachedInterface (block.invocationInterface columns oneBound slotCountEq
@@ -63,9 +63,9 @@ def loadInvocation? (block : Poseidon.Block) (columns : Nat)
 /-- Decode the package ordinal with the existing Fin product convention.
 The result contains only the existing interface and existing local row index. -/
 def loadRow? (block : Poseidon.Block) (columns ordinal : Nat) :
-    Option (PoseidonSboxPlan.Interface columns × Fin 86) :=
+    Option (PoseidonSboxPlan.Interface columns × Fin 150) :=
   if rowBound : ordinal < block.rowCount then
-    let decoded : Fin block.invocationCount × Fin 86 :=
+    let decoded : Fin block.invocationCount × Fin 150 :=
       Fin.decodeProd ⟨ordinal, rowBound⟩
     (loadInvocation? block columns decoded.1).map fun interface => (interface, decoded.2)
   else none
@@ -73,19 +73,19 @@ def loadRow? (block : Poseidon.Block) (columns ordinal : Nat) :
 /-- Every encoded local row uses the same checked invocation interface.
 No division formula or independent ordering convention is introduced. -/
 theorem loadRow?_encodeProd (block : Poseidon.Block) (columns : Nat)
-    (invocation : Fin block.invocationCount) (row : Fin 86) :
+    (invocation : Fin block.invocationCount) (row : Fin 150) :
     loadRow? block columns (Fin.encodeProd (invocation, row)).val =
       (loadInvocation? block columns invocation).map fun interface => (interface, row) := by
   have bounded : (Fin.encodeProd (invocation, row)).val < block.rowCount :=
     (Fin.encodeProd (invocation, row)).isLt
   have encoded :
       (⟨(Fin.encodeProd (invocation, row)).val, bounded⟩ :
-        Fin (block.invocationCount * 86)) = Fin.encodeProd (invocation, row) :=
+        Fin (block.invocationCount * 150)) = Fin.encodeProd (invocation, row) :=
     Fin.ext rfl
   simp only [loadRow?, dif_pos bounded, encoded, Fin.decodeProd_encodeProd]
 
 private def referenceForms {columns : Nat}
-    (loaded : PoseidonSboxPlan.Interface columns × Fin 86) : RowForms columns :=
+    (loaded : PoseidonSboxPlan.Interface columns × Fin 150) : RowForms columns :=
   ((PoseidonRetainedRows.rows loaded.1).get
     ⟨loaded.2.val, by rw [PoseidonRetainedRows.rows_length]; exact loaded.2.isLt⟩).meaningfulForm
 
@@ -100,7 +100,7 @@ private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) 
     split_ifs <;> simp_all only [Option.map_none, Option.map_map]
     all_goals
       cases block.input.state? columns block.oneColumn
-        (Fin.decodeProd (⟨ordinal, rowBound⟩ : Fin (block.invocationCount * 86))).1.val <;> rfl
+        (Fin.decodeProd (⟨ordinal, rowBound⟩ : Fin (block.invocationCount * 150))).1.val <;> rfl
   · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?,
       dif_neg rowBound, Option.map_none]
 

@@ -60,7 +60,7 @@ fn hash_chain() -> HashChain {
         row_start: 0,
         row_count: 3,
         input_start: 20,
-        input_length: 8,
+        input_length: 16,
         witness_start: 100,
         witness_length: 9,
         absorb_count: 2,
@@ -107,7 +107,7 @@ fn hash_template_rows_use_exact_absorb_and_padding_inputs() {
     )
     .expect("middle hash input");
     assert_eq!(middle.constant, Goldilocks::ZERO);
-    assert_eq!(term_words(&middle), vec![(101, 1), (24, 1)]);
+    assert_eq!(term_words(&middle), vec![(101, 1), (32, 1)]);
 
     let padded = invocation_input(
         &permutation,

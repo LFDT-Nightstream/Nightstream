@@ -48,9 +48,9 @@ theorem rowSchedule_index? (ordinal : Nat) :
   rw [IndexSchedule.index?_eq_getElem?, rowSchedule_indices]
 
 private theorem sourceRanges_valid (source minimum limit : Nat) (suffix : List IndexRange)
-    (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart source + 592)
-    (endLe : PiRLCStarts.samplerSourceRowStart source + 3467 ≤ limit)
-    (suffixValid : validIndexRanges limit (PiRLCStarts.samplerSourceRowStart source + 3467) suffix = true) :
+    (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart source + 1096)
+    (endLe : PiRLCStarts.samplerSourceRowStart source + 4475 ≤ limit)
+    (suffixValid : validIndexRanges limit (PiRLCStarts.samplerSourceRowStart source + 4475) suffix = true) :
     validIndexRanges limit minimum (sourceRanges source ++ suffix) = true := by
   simp [sourceRanges, reductionRange, wordRange, validIndexRanges, IndexRange.endExclusive,
     PiRLCStarts.rangeRowStart, PiRLCStarts.challengeWordRowStart, PiRLCStarts.advanceRowStart,
@@ -58,7 +58,7 @@ private theorem sourceRanges_valid (source minimum limit : Nat) (suffix : List I
   all_goals omega
 
 private theorem sourceInterval_valid (start count minimum limit : Nat)
-    (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart start + 592)
+    (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart start + 1096)
     (endLe : PiRLCStarts.samplerSourceRowStart (start + count) ≤ limit) :
     validIndexRanges limit minimum ((List.range' start count).flatMap sourceRanges) = true := by
   induction count generalizing start minimum with
@@ -85,7 +85,7 @@ private theorem samplerEnd_eq :
     PiRLCStarts.samplerSourceRowStart PiRLCSamplerInvocations.sourceCount = PiRLCStarts.commitmentRowStart := by
   unfold PiRLCStarts.samplerSourceRowStart PiRLCStarts.commitmentRowStart
   exact congrArg (PiRLCStarts.samplerRowStart + ·) (by decide :
-    PiRLCSamplerInvocations.sourceCount * 3467 = 58939)
+    PiRLCSamplerInvocations.sourceCount * 4475 = 76075)
 
 theorem rowSchedule_valid : rowSchedule.valid PiRLCStarts.commitmentRowStart = true :=
   @rowSchedule_valid_of_le PiRLCStarts.commitmentRowStart (Nat.le_of_eq samplerEnd_eq)

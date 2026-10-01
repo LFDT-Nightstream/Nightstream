@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
-/-! The 86 nonlinear rows of a retained Poseidon trace. Final outputs are
+/-! The 150 nonlinear rows of a retained Poseidon trace. Final outputs are
 derived from that trace; independent caller output pins remain in SboxPlan. -/
 
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
@@ -14,7 +14,7 @@ def rows {logicalWidth : Nat} (interface : PoseidonSboxPlan.Interface logicalWid
 
 @[simp] theorem rows_length {logicalWidth : Nat}
     (interface : PoseidonSboxPlan.Interface logicalWidth) :
-    (rows interface).length = 86 := by
+    (rows interface).length = 150 := by
   simp [rows]
 
 theorem rowsZero_iff {logicalWidth : Nat}

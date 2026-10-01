@@ -112,7 +112,7 @@ private theorem readout_eq_target
   apply PiCCSTranscriptReadout.env_eq_of_invocations target
   intro index
   let selected : InvocationIndex := ⟨index.val, by
-    have bounded : index.val < 718 := by
+    have bounded : index.val < 355 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
     omega⟩
@@ -159,7 +159,7 @@ theorem outputValue_of_completed
     (index : InvocationIndex) :
     let raw := canonicalRawValues application (PerApplicationSourceAssignment.ofCompleted application target suffix)
     outputValue (PerApplicationCanonicalEncodes.poseidonGeometry application) raw.assignment index =
-      fun lane : Fin 8 => target ((physicalInvocation index).witnessStart + 584 + lane.val) := by
+      fun lane : Fin 16 => target ((physicalInvocation index).witnessStart + 1080 + lane.val) := by
   intro raw
   let geometry := PerApplicationCanonicalEncodes.poseidonGeometry application
   have sboxes := PiCCSPoseidonPlan.retainedBlock_encodesAt geometry raw.assignment raw.retainedSource
@@ -167,16 +167,16 @@ theorem outputValue_of_completed
     (PerApplicationCanonicalEncodes.retainedEncodes raw).laterPoseidon
   change SparseLayer.evalState raw.assignment (PiCCSPoseidonPlan.outputState geometry index) = _
   rw [outputState_baseEnv geometry raw.assignment raw.base raw.groupValue sboxes index]
-  have slots : (fun lane : Fin 8 => PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
+  have slots : (fun lane : Fin 16 => PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
       ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val)) =
-      fun lane : Fin 8 => target
+      fun lane : Fin 16 => target
         ((physicalInvocation index).witnessStart + (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val) := by
     funext lane
     apply PerApplicationSourceAssignment.packageEnv_ofCompleted
     have before := (PiCCSInvocations.invocations_scheduleWithin logicalWidth publicFits relation).2
       (physicalInvocation index) (physicalInvocation_mem index)
     have localBound := (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).isLt
-    change (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val < 592 at localBound
+    change (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val < 1096 at localBound
     rw [PiCCSInvocations.invocationCeiling_eq] at before
     change (physicalInvocation index).witnessStart +
       (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val <

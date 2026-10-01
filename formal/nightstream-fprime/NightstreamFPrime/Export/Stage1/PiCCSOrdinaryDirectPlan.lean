@@ -332,7 +332,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
               PiCCSTranscriptOutputForms.transcriptSource decoded.1 decoded.2 := by
             unfold transcriptOutputSource PiCCSTranscriptOutputForms.transcriptSource
               PiCCSTranscriptOutputForms.transcriptSourceStart
-            change PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val = _
+            change PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val = _
             omega
           rw [sourceEq]
           exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
@@ -384,31 +384,31 @@ def proofInputLocated {column : Nat}
     rw [Location.sourceColumn, proofLogicalSource_proofInput,
       rangeIndex_source inside]⟩
 
-def transcriptColumnStart : Nat := PiCCSInputs.phaseOffset + 584
+def transcriptColumnStart : Nat := PiCCSInputs.phaseOffset + 1080
 
 def transcriptOffset (column : Nat) : Nat := column - transcriptColumnStart
 
 def transcriptInvocationIndex (column : Nat)
-    (bounded : transcriptOffset column / 592 < transcriptInvocationCount) :
+    (bounded : transcriptOffset column / 1096 < transcriptInvocationCount) :
     Fin transcriptInvocationCount :=
-  ⟨transcriptOffset column / 592, bounded⟩
+  ⟨transcriptOffset column / 1096, bounded⟩
 
 def transcriptLaneIndex (column : Nat)
-    (bounded : transcriptOffset column % 592 < Spec.Poseidon2.width) :
+    (bounded : transcriptOffset column % 1096 < Spec.Poseidon2.width) :
     Fin Spec.Poseidon2.width :=
-  ⟨transcriptOffset column % 592, bounded⟩
+  ⟨transcriptOffset column % 1096, bounded⟩
 
 private theorem transcriptDecoded_source_eq (column : Nat)
     (lower : transcriptColumnStart ≤ column)
-    (invocationBound : transcriptOffset column / 592 < transcriptInvocationCount)
-    (laneBound : transcriptOffset column % 592 < Spec.Poseidon2.width) :
+    (invocationBound : transcriptOffset column / 1096 < transcriptInvocationCount)
+    (laneBound : transcriptOffset column % 1096 < Spec.Poseidon2.width) :
     transcriptOutputSource
         (Fin.encodeProd (transcriptInvocationIndex column invocationBound,
           transcriptLaneIndex column laneBound)) =
       column := by
   rw [transcriptOutputSource_encodeProd]
   dsimp only [transcriptInvocationIndex, transcriptLaneIndex]
-  have divmod := Nat.mod_add_div (transcriptOffset column) 592
+  have divmod := Nat.mod_add_div (transcriptOffset column) 1096
   unfold transcriptColumnStart at lower
   unfold transcriptOffset transcriptColumnStart at divmod ⊢
   omega
@@ -420,8 +420,8 @@ structure TranscriptDecoded (column : Nat) where
 def decodeTranscript (column : Nat) : Option (TranscriptDecoded column) :=
   if lower : transcriptColumnStart ≤ column then
     if invocationBound :
-        transcriptOffset column / 592 < transcriptInvocationCount then
-      if laneBound : transcriptOffset column % 592 < Spec.Poseidon2.width then
+        transcriptOffset column / 1096 < transcriptInvocationCount then
+      if laneBound : transcriptOffset column % 1096 < Spec.Poseidon2.width then
         some ⟨Fin.encodeProd
             (transcriptInvocationIndex column invocationBound,
               transcriptLaneIndex column laneBound),
@@ -440,33 +440,33 @@ theorem decodeTranscript_complete {column : Nat}
   have invocationBound := invocation.isLt
   have laneBound := lane.isLt
   have regroup :
-      PiCCSInputs.phaseOffset + invocation.val * 592 + 584 + lane.val =
-        (PiCCSInputs.phaseOffset + 584) +
-          (invocation.val * 592 + lane.val) := by
+      PiCCSInputs.phaseOffset + invocation.val * 1096 + 1080 + lane.val =
+        (PiCCSInputs.phaseOffset + 1080) +
+          (invocation.val * 1096 + lane.val) := by
     omega
   have lower : transcriptColumnStart ≤ column := by
     unfold transcriptColumnStart
     rw [equals, regroup]
     exact Nat.le_add_right _ _
-  have offsetEq : transcriptOffset column = invocation.val * 592 + lane.val := by
+  have offsetEq : transcriptOffset column = invocation.val * 1096 + lane.val := by
     unfold transcriptOffset transcriptColumnStart
     rw [equals, regroup, Nat.add_sub_cancel_left]
-  have laneBound592 : lane.val < 592 := by
-    have laneBound8 := laneBound
-    change lane.val < 8 at laneBound8
+  have laneBoundLocal : lane.val < 1096 := by
+    have laneBoundWidth := laneBound
+    change lane.val < 16 at laneBoundWidth
     omega
-  have quotientEq : transcriptOffset column / 592 = invocation.val := by
+  have quotientEq : transcriptOffset column / 1096 = invocation.val := by
     rw [offsetEq]
     omega
-  have remainderEq : transcriptOffset column % 592 = lane.val := by
+  have remainderEq : transcriptOffset column % 1096 = lane.val := by
     rw [offsetEq]
     omega
   have decodedInvocationBound :
-      transcriptOffset column / 592 < transcriptInvocationCount := by
+      transcriptOffset column / 1096 < transcriptInvocationCount := by
     rw [quotientEq]
     exact invocationBound
   have decodedLaneBound :
-      transcriptOffset column % 592 < Spec.Poseidon2.width := by
+      transcriptOffset column % 1096 < Spec.Poseidon2.width := by
     rw [remainderEq]
     exact laneBound
   unfold decodeTranscript
@@ -644,7 +644,7 @@ def endpointForm {program : Lifecycle.Stage1.Application.Program}
   | none => .empty
   | some source =>
       if inside : PiCCSOrdinarySourceSupport.InRange
-          PiCCSOrdinaryRetainedBlocks.outputEndpointStart 8 source then
+          PiCCSOrdinaryRetainedBlocks.outputEndpointStart 16 source then
         (outputEndpointBlock program).form
           (PiCCSOrdinaryRetainedGeometry.outputEndpointStart program)
           (outputEndpointFits geometry) (rangeIndex inside)

@@ -25,7 +25,7 @@ theorem outputState_eq_of_agree_from (interface : Interface)
       evalState right (outputState interface coordinate offset) := by
   apply congrArg List.ofFn
   funext lane
-  change left (advanceOffset offset + 584 + lane.val) = right (advanceOffset offset + 584 + lane.val)
+  change left (advanceOffset offset + 1080 + lane.val) = right (advanceOffset offset + 1080 + lane.val)
   apply agrees
   unfold advanceOffset rangeOffset
   omega

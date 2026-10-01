@@ -53,7 +53,7 @@ private theorem absorb_zero (state : Poseidon2.State)
       (List.range Poseidon2.width).map (fun index => state.getD index 0) := by
     apply List.map_congr_left
     intro index member
-    have bound : index < 8 := List.mem_range.mp member
+    have bound : index < 16 := List.mem_range.mp member
     interval_cases index <;> simp
   rw [values, ← fixed]
   apply List.ext_getElem
@@ -72,7 +72,7 @@ private theorem absorb_domain (state : Poseidon2.State) (coordinate : Nat) :
   apply congrArg Poseidon2.permute
   apply List.map_congr_left
   intro index member
-  have bound : index < 8 := List.mem_range.mp member
+  have bound : index < 16 := List.mem_range.mp member
   interval_cases index <;> simp [domain, drawWidth]
 
 private theorem enter_length (state : Poseidon2.State) (coordinate : Nat) :

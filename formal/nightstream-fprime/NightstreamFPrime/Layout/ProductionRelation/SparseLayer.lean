@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-abbrev State (logicalWidth : Nat) := Fin 8 → SparseForm logicalWidth
+abbrev State (logicalWidth : Nat) := Fin 16 → SparseForm logicalWidth
 
 private theorem poseidonOfNat_two :
     Spec.Poseidon2.ofNat 2 = (2 : F) := by
@@ -34,7 +34,7 @@ def evalState {logicalWidth : Nat} (assignment : Assignment F logicalWidth)
 
 def get {logicalWidth : Nat} (state : State logicalWidth) (index : Nat) :
     SparseForm logicalWidth :=
-  if bounded : index < 8 then state ⟨index, bounded⟩ else .empty
+  if bounded : index < 16 then state ⟨index, bounded⟩ else .empty
 
 def add {logicalWidth : Nat} :
     SparseForm logicalWidth → SparseForm logicalWidth →
@@ -71,18 +71,24 @@ def mat4 {logicalWidth : Nat} (state : State logicalWidth)
 
 def block {logicalWidth : Nat} (state : State logicalWidth) (index : Nat) :
     SparseForm logicalWidth :=
-  mat4 state (if index < 4 then 0 else 4) (index % 4)
+  mat4 state (4 * (index / 4)) (index % 4)
+
+/-- Left-nested sum of forms, mirroring the field-level `foldl`. -/
+def sumForms {logicalWidth : Nat} (forms : List (SparseForm logicalWidth)) :
+    SparseForm logicalWidth :=
+  forms.foldl add .empty
+
+def column {logicalWidth : Nat} (state : State logicalWidth) (index : Nat) :
+    SparseForm logicalWidth :=
+  sumForms ((List.range 4).map fun b => block state (4 * b + index % 4))
 
 def external {logicalWidth : Nat} (state : State logicalWidth) :
     State logicalWidth :=
-  fun lane => add (add (block state lane.val) (block state (lane.val % 4)))
-    (block state (lane.val % 4 + 4))
+  fun lane => add (block state lane.val) (column state lane.val)
 
 def sum {logicalWidth : Nat} (state : State logicalWidth) :
     SparseForm logicalWidth :=
-  add (add (add (add (add (add (add (get state 0) (get state 1))
-    (get state 2)) (get state 3)) (get state 4)) (get state 5))
-    (get state 6)) (get state 7)
+  sumForms ((List.range 16).map (get state))
 
 def internal {logicalWidth : Nat} (state : State logicalWidth) :
     State logicalWidth :=
@@ -122,22 +128,57 @@ def internal {logicalWidth : Nat} (state : State logicalWidth) :
     simp [mat4, Layer.mat4F, add, scale, poseidonOfNat_two,
       poseidonOfNat_three]
 
+private theorem eval_foldl_add {logicalWidth : Nat}
+    (assignment : Assignment F logicalWidth)
+    (forms : List (SparseForm logicalWidth)) (initial : SparseForm logicalWidth) :
+    (forms.foldl add initial).eval assignment =
+      (forms.map fun form => form.eval assignment).foldl (· + ·)
+        (initial.eval assignment) := by
+  induction forms generalizing initial with
+  | nil => rfl
+  | cons form forms inductionHypothesis =>
+      simp only [List.foldl_cons, List.map_cons]
+      rw [inductionHypothesis]
+      simp [add]
+
+theorem eval_sumForms {logicalWidth : Nat}
+    (assignment : Assignment F logicalWidth)
+    (forms : List (SparseForm logicalWidth)) :
+    (sumForms forms).eval assignment =
+      (forms.map fun form => form.eval assignment).foldl (· + ·) 0 := by
+  unfold sumForms
+  rw [eval_foldl_add]
+  simp
+
+@[simp] theorem eval_block {logicalWidth : Nat}
+    (assignment : Assignment F logicalWidth) (state : State logicalWidth)
+    (index : Nat) :
+    (block state index).eval assignment =
+      Layer.blockF (evalState assignment state) index := by
+  simp [block, Layer.blockF]
+
 @[simp] theorem eval_external {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth) (state : State logicalWidth)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (external state lane).eval assignment =
       Layer.externalF (evalState assignment state) lane := by
-  simp [external, Layer.externalF, block, Layer.blockF, add]
+  simp only [external, Layer.externalF, column, Layer.columnF, add,
+    SparseForm.add_eval, eval_block, eval_sumForms, List.map_map]
+  congr 2
+  apply List.map_congr_left
+  intro block _
+  exact eval_block assignment state _
 
 @[simp] theorem eval_sum {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth) (state : State logicalWidth) :
     (sum state).eval assignment =
       Layer.sumF (evalState assignment state) := by
-  simp [sum, Layer.sumF, add]
+  simp only [sum, Layer.sumF, eval_sumForms, List.map_map]
+  congr 1
 
 @[simp] theorem eval_internal {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth) (state : State logicalWidth)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (internal state lane).eval assignment =
       Layer.internalF (evalState assignment state) lane := by
   simp [internal, Layer.internalF, evalState, add]

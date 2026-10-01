@@ -41,12 +41,12 @@ def oneColumn {program : Lifecycle.Stage1.Application.Program}
   PilotOrdinaryRetainedGeometry.oneColumn geometry
 
 def lastInvocation : Fin PilotPoseidonPlan.invocationCount :=
-  ⟨12349, by
+  ⟨4117, by
     rw [PilotPoseidonPlan.invocationCount_eq]
     omega⟩
 
-def finalSlot (lane : Fin laneCount) : Fin 592 :=
-  ⟨584 + lane.val, by
+def finalSlot (lane : Fin laneCount) : Fin 1096 :=
+  ⟨1080 + lane.val, by
     have laneBound := lane.isLt
     change lane.val < 4 at laneBound
     omega⟩
@@ -63,7 +63,7 @@ def priorRow (lane : Fin laneCount) : Fin rowCount :=
 def outputRow (lane : Fin laneCount) : Fin rowCount :=
   Fin.encodeProd (outputChain, lane)
 
-def digestLane (lane : Fin laneCount) : Fin 8 :=
+def digestLane (lane : Fin laneCount) : Fin 16 :=
   ⟨lane.val, by
     have laneBound := lane.isLt
     change lane.val < 4 at laneBound
@@ -82,7 +82,7 @@ def derivedForm {program : Lifecycle.Stage1.Application.Program}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (row : Fin rowCount) : SparseForm logicalWidth :=
   let decoded := descriptor row
-  let lane : Fin 8 := ⟨decoded.2.val, by
+  let lane : Fin 16 := ⟨decoded.2.val, by
     have laneBound := decoded.2.isLt
     change decoded.2.val < 4 at laneBound
     omega⟩

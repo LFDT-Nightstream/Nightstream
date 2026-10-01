@@ -306,7 +306,7 @@ def publicSegments : List Segment :=
       NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 27284593
+  rowCount := 20109913
   privateColumnCount :=
     NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
   constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
@@ -523,14 +523,14 @@ counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
     (arithmeticRows_length : components.arithmeticRows.length = 237941)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 7638)
+      components.permutationInvocations.length = 2685)
     (templateRows_length :
-      (PilotData.permutationTemplate ()).rows.length = 592)
+      (PilotData.permutationTemplate ()).rows.length = 1096)
     (pilotOrdinaryRows_length :
       (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length = 1330)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 14622400)
+      priorChain.witnessLength + outputChain.witnessLength = 9026656)
     (compactRows_length :
       components.toCircuitPackage.compactRowCount = 7901226) :
     (components.toCircuitPackage.hashChains.map
@@ -559,17 +559,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 27284593 from rfl]
+  rw [show physicalLayout.rowCount = 20109913 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          7638 * 592 +
+          2685 * 1096 +
           components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
           components.toCircuitPackage.assertionRows.length) := by
       omega
-    _ = 14622400 + 7638 * 592 + 7901226 + 239271 := by
+    _ = 9026656 + 2685 * 1096 + 7901226 + 239271 := by
       rw [hashChainRows, compactRows_length, ordinaryFixed]
-    _ = 27284593 := by norm_num
+    _ = 20109913 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())

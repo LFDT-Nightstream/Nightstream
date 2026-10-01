@@ -97,14 +97,14 @@ def freshPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
       PilotProduction.stateHashWords_eq])
 
 def priorLastInvocation : Fin PoseidonRetainedBlock.priorInvocationCount :=
-  ⟨12349, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
+  ⟨4117, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
 
 def outputLastInvocation : Fin PoseidonRetainedBlock.outputInvocationCount :=
-  ⟨12349, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
+  ⟨4117, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
 
 def priorLastBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  packageFieldBlock program 592
+  packageFieldBlock program 1096
     (PoseidonRetainedBlock.priorWitnessStart priorLastInvocation) (by
       exact Nat.le_trans
         (PoseidonRetainedBlock.priorWitnessStart_bound priorLastInvocation)
@@ -112,7 +112,7 @@ def priorLastBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def outputLastBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  packageFieldBlock program 592
+  packageFieldBlock program 1096
     (PoseidonRetainedBlock.outputWitnessStart outputLastInvocation) (by
       exact Nat.le_trans
         (PoseidonRetainedBlock.outputWitnessStart_bound outputLastInvocation)
@@ -146,32 +146,32 @@ def proofLogicalCount : Nat :=
   exact PiCCSOrdinarySourceSupport.proofInputCount_eq
 
 @[simp] theorem transcriptInvocationCount_eq :
-    transcriptInvocationCount = 718 := by
+    transcriptInvocationCount = 355 := by
   exact PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq
 
-@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5744 := by
+@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5680 := by
   exact PiCCSOrdinarySourceSupport.transcriptOutputCount_eq
 
 @[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 121109 := by
   exact PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq
 
-@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 156141 := by
+@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 156077 := by
   norm_num [proofLogicalCount, proofInputCount_eq, transcriptOutputCount_eq,
     ordinaryLogicalCount_eq]
 
 def transcriptOutputSource (index : Fin transcriptOutputCount) : Nat :=
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd index
-  PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val
+  PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val
 
 @[simp] theorem transcriptOutputSource_encodeProd
     (invocation : Fin transcriptInvocationCount)
     (lane : Fin Spec.Poseidon2.width) :
     transcriptOutputSource (Fin.encodeProd (invocation, lane)) =
-      PiCCSInputs.phaseOffset + invocation.val * 592 + 584 + lane.val := by
+      PiCCSInputs.phaseOffset + invocation.val * 1096 + 1080 + lane.val := by
   let decoded : Fin transcriptInvocationCount × Fin Spec.Poseidon2.width :=
     Fin.decodeProd (Fin.encodeProd (invocation, lane))
-  change PiCCSInputs.phaseOffset + decoded.1.val * 592 + 584 + decoded.2.val = _
+  change PiCCSInputs.phaseOffset + decoded.1.val * 1096 + 1080 + decoded.2.val = _
   have decodedEq : decoded = (invocation, lane) := by
     exact Fin.decodeProd_encodeProd (invocation, lane)
   rw [decodedEq]
@@ -216,10 +216,10 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
       apply PiCCSOrdinarySourceSupport.ordinary_logical_source
       unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange
-      have indexBound : index.val < 156141 := by
+      have indexBound : index.val < 156077 := by
         simpa only [proofLogicalCount_eq] using index.isLt
       rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq]
-      have notTranscriptNumeric : ¬index.val < 35032 := by
+      have notTranscriptNumeric : ¬index.val < 34968 := by
         simpa only [proofInputCount_eq, transcriptOutputCount_eq] using
           notTranscript
       simp only [proofInputCount_eq, transcriptOutputCount_eq]
@@ -240,7 +240,7 @@ def proofInputSlot (index : Fin proofInputCount) : Fin proofLogicalCount :=
 def transcriptOutputSlot (index : Fin transcriptOutputCount) :
     Fin proofLogicalCount :=
   ⟨proofInputCount + index.val, by
-    have bound : index.val < 5744 := by
+    have bound : index.val < 5680 := by
       simpa only [transcriptOutputCount_eq] using index.isLt
     rw [proofLogicalCount_eq, proofInputCount_eq]
     omega⟩
@@ -294,14 +294,14 @@ def proofLogicalBlock (program : Lifecycle.Stage1.Application.Program) :
     RunningTransitionRetainedBlocks.packageSourceColumn program
       (proofLogicalSource index) (proofLogicalSource_lt index)
 
-/-- The final eight output-binding variables are the declared post-PiCCS
+/-- The final sixteen output-binding variables are the declared post-PiCCS
 state. They are outside `proofLogicalBlock` and require one exact endpoint
 block for the direct transcript pins. -/
-def outputEndpointStart : Nat := PiCCSStarts.logicalFreshBase - 8
+def outputEndpointStart : Nat := PiCCSStarts.logicalFreshBase - 16
 
 def outputEndpointBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program 8 outputEndpointStart (by
+  sourceFieldBlock program 16 outputEndpointStart (by
     unfold outputEndpointStart PiCCSStarts.logicalFreshBase
     rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
     norm_num)
@@ -326,7 +326,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       (expectedContextBlock program).slotCount +
       (proofLogicalBlock program).slotCount +
       (outputEndpointBlock program).slotCount +
-      (freshBlock program).slotCount = 160563 := by
+      (freshBlock program).slotCount = 161515 := by
   norm_num [freshPublicInputBlock,
     priorLastBlock, outputLastBlock, expectedContextBlock, proofLogicalBlock,
     outputEndpointBlock, freshBlock, packageFieldBlock, sourceFieldBlock,
@@ -348,7 +348,7 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 6583083 := by
+    retainedCoordinateCount program = 6622115 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     freshPublicInputBlock, priorLastBlock,
     outputLastBlock, expectedContextBlock, proofLogicalBlock, freshBlock,

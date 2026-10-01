@@ -49,7 +49,7 @@ theorem sourceColumnCount_matches
 
 theorem sourceRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows relation).length = 27284593 := by
+    (sourceRows relation).length = 20109913 := by
   exact PilotPiCCSPiRLCPiDECRunningTransition.physicalRowCount_eq relation
 
 theorem sourceRowCount_bounds

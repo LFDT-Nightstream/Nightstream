@@ -211,8 +211,8 @@ private theorem pilotIndexRanges_nodup :
   refine ⟨List.nodup_range', List.nodup_range', ?_⟩
   intro first firstMember second secondMember equal
   rw [List.mem_range'_1] at firstMember secondMember
-  change 7311200 ≤ first ∧ first < 7312526 at firstMember
-  change 14623726 ≤ second ∧ second < 14623730 at secondMember
+  change 4513328 ≤ first ∧ first < 4514654 at firstMember
+  change 9027982 ≤ second ∧ second < 9027986 at secondMember
   omega
 
 theorem pilotRows_rowIndices_nodup :
@@ -220,7 +220,7 @@ theorem pilotRows_rowIndices_nodup :
   exact pilotRows_rowIndices_perm.nodup_iff.mpr pilotIndexRanges_nodup
 
 private theorem piCcsRowStart_eq :
-    PiCCSArithmetic.statementBindingRowStart = 14623730 := by
+    PiCCSArithmetic.statementBindingRowStart = 9027986 := by
   unfold PiCCSArithmetic.statementBindingRowStart
     PiCCSStarts.statementBindingRowStart PiCCSStarts.rowBase
   exact PilotProduction.physicalRowCountValue_eq
@@ -236,10 +236,10 @@ theorem pilotRows_rowIndex_lt (row : Rows.CompiledRow)
   rw [List.mem_append] at rangesMember
   rcases rangesMember with prior | digest
   · rw [List.mem_range'_1] at prior
-    change 7311200 ≤ row.rowIndex ∧ row.rowIndex < 7312526 at prior
+    change 4513328 ≤ row.rowIndex ∧ row.rowIndex < 4514654 at prior
     omega
   · rw [List.mem_range'_1] at digest
-    change 14623726 ≤ row.rowIndex ∧ row.rowIndex < 14623730 at digest
+    change 9027982 ≤ row.rowIndex ∧ row.rowIndex < 9027986 at digest
     omega
 
 private theorem piDecRowCount_sum : PiDEC.v1_1.exactRowCount =
@@ -365,7 +365,7 @@ private theorem arithmeticIndexRanges_nodup :
   intro piCcs piCcsMember later laterMember equal
   have piCcsBounds := PiCCSOrdinaryMatrixProgram.rowIndexReference_bounds
     piCcs piCcsMember
-  have piRlcStart : PiRLCStarts.phaseRowStart = 19249581 := rfl
+  have piRlcStart : PiRLCStarts.phaseRowStart = 12057765 := rfl
   rw [piRlcStart] at piCcsBounds
   rw [List.mem_append] at laterMember
   rcases laterMember with samplerMember | laterMember
@@ -377,12 +377,12 @@ private theorem arithmeticIndexRanges_nodup :
   · rw [List.mem_append] at laterMember
     rcases laterMember with piDecMember | runningMember
     · have piDecBounds := piDecIndex_bounds later piDecMember
-      have piDecStart : PiDECStarts.phaseRowStart = 27209746 := rfl
+      have piDecStart : PiDECStarts.phaseRowStart = 20035066 := rfl
       rw [piDecStart] at piDecBounds
       omega
     · have runningLower := runningIndex_lower later runningMember
       have runningStart :
-          RunningTransitionArithmetic.rowStart = 27235234 := rfl
+          RunningTransitionArithmetic.rowStart = 20060554 := rfl
       rw [runningStart] at runningLower
       omega
 
@@ -414,22 +414,22 @@ theorem arithmeticRows_rowIndex_ge (index : Nat)
     · have lower :=
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).1
-      have phaseStart : PiRLCStarts.phaseRowStart = 19249581 := rfl
+      have phaseStart : PiRLCStarts.phaseRowStart = 12057765 := rfl
       rw [phaseStart] at lower
       omega
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have lower := (piDecIndex_bounds index piDecMember).1
-        have phaseStart : PiDECStarts.phaseRowStart = 27209746 := rfl
+        have phaseStart : PiDECStarts.phaseRowStart = 20035066 := rfl
         rw [phaseStart] at lower
         omega
       · have lower := runningIndex_lower index runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 27235234 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 20060554 := rfl
         rw [phaseStart] at lower
         omega
 
 private theorem baseRowCount_eq :
-    PerApplicationPackage.basePackage.layout.rowCount = 27284593 := by
+    PerApplicationPackage.basePackage.layout.rowCount = 20109913 := by
   unfold PerApplicationPackage.basePackage
   exact Package.circuitPackage_layout_values.1
 
@@ -449,7 +449,7 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
   rcases normalized with piCcsMember | member
   · have upper := (PiCCSOrdinaryMatrixProgram.rowIndexReference_bounds
       index piCcsMember).2
-    have phaseStart : PiRLCStarts.phaseRowStart = 19249581 := rfl
+    have phaseStart : PiRLCStarts.phaseRowStart = 12057765 := rfl
     rw [phaseStart] at upper
     omega
   · rw [List.mem_append] at member
@@ -458,17 +458,17 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).2
       change index < PiDECStarts.phaseRowStart at upper
-      have phaseStart : PiDECStarts.phaseRowStart = 27209746 := rfl
+      have phaseStart : PiDECStarts.phaseRowStart = 20035066 := rfl
       rw [phaseStart] at upper
       omega
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have upper := (piDecIndex_bounds index piDecMember).2
-        have phaseStart : RunningTransitionArithmetic.rowStart = 27235234 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 20060554 := rfl
         rw [phaseStart] at upper
         omega
       · have bounds := List.mem_range'_1.mp runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 27235234 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 20060554 := rfl
         rw [phaseStart] at bounds
         omega
 

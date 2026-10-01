@@ -109,7 +109,7 @@ private theorem pointWord_eq_piCcs
   have before : PiCCSTranscriptOutputForms.pointSource coordinate component <
       PiRLCInputs.phaseOffset := by
     have bound : (PiCCSTranscriptOutputForms.pointInvocation coordinate component).val <
-        718 := by
+        355 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using
         (PiCCSTranscriptOutputForms.pointInvocation coordinate component).isLt
     rw [PiCCSTranscriptOutputForms.pointSource_eq_transcriptSource]

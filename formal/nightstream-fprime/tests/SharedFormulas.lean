@@ -45,10 +45,10 @@ private def expanded (width : Nat) (variant : Variant) :
     pure (WireForm.ofSemantic form)
   pure (rows, outputs)
 
-private def referencePoseidonInterface : PoseidonSboxPlan.Interface 95 :=
+private def referencePoseidonInterface : PoseidonSboxPlan.Interface 167 :=
   let outputs := fun slot : Fin PoseidonRetainedSlots.rows.length =>
-    SparseForm.singleton ⟨9 + slot.val, by
-      have bound : slot.val < 86 := by
+    SparseForm.singleton ⟨17 + slot.val, by
+      have bound : slot.val < 150 := by
         simpa only [PoseidonRetainedSlots.rows_length] using slot.isLt
       omega⟩ 1
   { oneColumn := 0
@@ -56,7 +56,7 @@ private def referencePoseidonInterface : PoseidonSboxPlan.Interface 95 :=
       ⟨1 + lane.val, by have bound := lane.isLt; omega⟩ 1
     sboxOutput := outputs
     output := SparseLayer.external fun lane => outputs
-      ⟨78 + lane.val, by
+      ⟨134 + lane.val, by
         have bound := lane.isLt
         rw [PoseidonRetainedSlots.rows_length]
         omega⟩ }
@@ -71,7 +71,7 @@ private def referencePoseidon (_ : Unit) : List (List WireForm) × List WireForm
   for step in Permutation.schedule do
     let result := PoseidonSboxPlan.compileStep interface nextSbox state step
     nextSbox := result.nextSbox
-    let stateValues : Vector (SparseForm 95) 8 :=
+    let stateValues : Vector (SparseForm 167) 16 :=
       Vector.ofFn fun lane => normalized (result.state lane)
     state := stateValues.get
     rows := rows ++ result.rows.map (fun row => normalizedRow row.meaningfulForm)
@@ -83,14 +83,14 @@ private def ensure (condition : Bool) (message : String) : Except String Unit :=
 def check : IO Unit := do
   let checks : Except String Unit := do
     let poseidon := poseidonVariant ()
-    ensure (poseidon.rows.length == 86) "Poseidon2 row footprint changed"
-    ensure ((← expanded 95 poseidon) == referencePoseidon ())
+    ensure (poseidon.rows.length == 150) "Poseidon2 row footprint changed"
+    ensure ((← expanded 167 poseidon) == referencePoseidon ())
       "Poseidon2 template differs from the existing step formulas"
     let external := externalVariant ()
-    let input : SparseLayer.State 8 := fun lane => SparseForm.singleton lane 1
+    let input : SparseLayer.State 16 := fun lane => SparseForm.singleton lane 1
     let expected := List.ofFn fun lane =>
       WireForm.ofSemantic (normalized (SparseLayer.external input lane))
-    ensure ((← expanded 8 external) == ([], expected))
+    ensure ((← expanded 16 external) == ([], expected))
       "external-layer template differs from its Lean owner"
     let variant := phi81Variant 0
     variant.validate 271

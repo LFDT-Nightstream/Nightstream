@@ -130,7 +130,7 @@ theorem chainOutputState_lift
     (chain : HashChain) (env : Env)
     (lower : NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount
       ≤ chain.witnessStart)
-    (upper : chain.witnessStart + chain.absorbCount * 592 + 584 + 7 <
+    (upper : chain.witnessStart + chain.absorbCount * 1096 + 1080 + 15 <
       NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount) :
     NightstreamFPrime.Export.Pilot.chainOutputState chain chain.absorbCount
         (pilotEnv env) =
@@ -140,28 +140,28 @@ theorem chainOutputState_lift
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     invocationLocalStart pilotEnv Data.liftPilotChain
   change env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
-      (chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val)) =
+      (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)) =
     env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
-      chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val)
+      chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)
   have offsetBound : chain.witnessStart +
-      (chain.absorbCount * 592 + 584 + lane.val) <
+      (chain.absorbCount * 1096 + 1080 + lane.val) <
         NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount := by
     have laneBound := lane.isLt
     omega
   have columnEq :=
     NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn_add_of_private
-      chain.witnessStart (chain.absorbCount * 592 + 584 + lane.val)
+      chain.witnessStart (chain.absorbCount * 1096 + 1080 + lane.val)
       lower offsetBound
   have normalized :
       NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
-          (chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val) =
+          (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val) =
         NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
-            chain.witnessStart + chain.absorbCount * 592 + 584 + lane.val := by
+            chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val := by
     simpa [Nat.add_assoc] using columnEq
   exact congrArg env normalized
 
 theorem circuitPackage_template_rows :
-    (Data.circuitPackage ()).permutation.rows.length = 592 := by
+    (Data.circuitPackage ()).permutation.rows.length = 1096 := by
   rw [Data.circuitPackage_permutation]
   exact NightstreamFPrime.Export.Pilot.templateRows_length
 
@@ -171,7 +171,7 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 7638 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 2685 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
@@ -184,16 +184,16 @@ theorem proofInputStart_eq : Data.proofInputStart = 98786 := by
 theorem witnessStart_eq : Data.witnessStart = 128074 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 27232030 := by
+theorem witnessLength_eq : Data.witnessLength = 20057350 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 27284593 ∧
-      layout.privateColumnCount = 27427444 ∧
-      layout.constantColumn = 27427444 ∧
+    layout.rowCount = 20109913 ∧
+      layout.privateColumnCount = 20252764 ∧
+      layout.constantColumn = 20252764 ∧
       layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 27427723 := by
+      layout.totalColumnCount = 20253043 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -1193,8 +1193,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      14622400 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 14622400
+      9026656 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 9026656
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,

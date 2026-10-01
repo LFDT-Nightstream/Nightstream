@@ -63,7 +63,7 @@ theorem totalFreshCount_eq (interface : Owned.Interface) (offset : Nat)
 
 theorem totalRowCount_eq (interface : Owned.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 592 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 1096 := by
   unfold logicalConstraints
   rw [Owned.flatConstraints_operations]
   rw [R1CS.recipeConstraints_totalRowCount]
@@ -75,19 +75,19 @@ def footprint (interface : Owned.Interface)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Owned.circuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 592
+  physicalRowCount := fun _ => 1096
   freshColumnCount_eq := by
     intro offset
     change R1CS.totalFreshCount (logicalConstraints interface offset) = 0
     exact totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := by
     intro offset
-    change R1CS.totalRowCount (logicalConstraints interface offset) = 592
+    change R1CS.totalRowCount (logicalConstraints interface offset) = 1096
     exact totalRowCount_eq interface offset (inputs offset)
 
 def plan (interface : Owned.Interface) (offset : Nat) : R1CS.LoweringPlan where
   constraints := logicalConstraints interface offset
-  firstFresh := offset + 592
+  firstFresh := offset + 1096
 
 def PhysicalHolds (interface : Owned.Interface) (offset : Nat)
     (env : Env) : Prop :=
@@ -107,7 +107,7 @@ theorem physical_complete (interface : Owned.Interface) (offset : Nat)
     (assumptions : Owned.Assumptions interface offset env)
     (specification : Owned.SpecHolds interface offset env) :
     ∃ completed,
-      AgreesOutside env completed offset 592 ∧
+      AgreesOutside env completed offset 1096 ∧
       PhysicalHolds interface offset completed := by
   rcases Owned.completeness interface env offset assumptions specification with
     ⟨completed, agrees, logical⟩

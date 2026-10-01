@@ -95,7 +95,7 @@ def piCcsEndpoint
 @[simp] theorem piCcsEndpoint_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth) :
-    (piCcsEndpoint geometry).rowCount = 32 := by
+    (piCcsEndpoint geometry).rowCount = 64 := by
   simp [piCcsEndpoint, PiCCSTranscriptEndpointPlan.rowCount,
     PiCCSTranscriptEndpointPlan.familyCount,
     PiCCSTranscriptEndpointPlan.laneCount, Spec.Poseidon2.width]
@@ -120,7 +120,7 @@ def piCcsEndpointProgram
 @[simp] theorem piCcsEndpointProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth) :
-    (piCcsEndpointProgram geometry).rowCount = 32 := by
+    (piCcsEndpointProgram geometry).rowCount = 64 := by
   rw [show piCcsEndpointProgram geometry = MatrixProgram.Program.mk
       [.pin (piCcsEndpoint geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

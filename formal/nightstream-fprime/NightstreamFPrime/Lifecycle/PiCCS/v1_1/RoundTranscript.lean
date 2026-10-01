@@ -853,7 +853,7 @@ theorem actions_length {degreeBound : Nat}
   rfl
 
 def perRoundRecipeCount (degreeBound : Nat) : Nat :=
-  (((2 * degreeBound + 7) / 4) + 3) * 592
+  (((2 * degreeBound + 15) / 12) + 3) * 1096
 
 private theorem serializeKExprs_length (values : List KExpr) :
     (serializeKExprs values).length = 2 * values.length := by
@@ -870,15 +870,15 @@ private theorem serializeRoundExpr_length {degreeBound : Nat}
   simp
 
 private theorem inputChunks_length (input : List Expr) :
-    (Hash.inputChunks input).length = (input.length + 3) / 4 := by
+    (Hash.inputChunks input).length = (input.length + 11) / 12 := by
   unfold Hash.inputChunks
   rw [List.length_map, List.length_range]
   rfl
 
 private theorem absorb_recipeCount (input : List Expr) :
     Formal.Action.recipeCount (.absorb input) =
-      ((input.length + 3) / 4) * 592 := by
-  change (Hash.inputChunks input).length * 592 = _
+      ((input.length + 11) / 12) * 1096 := by
+  change (Hash.inputChunks input).length * 1096 = _
   rw [inputChunks_length]
 
 private theorem constantWords_length (words : List F) :
@@ -903,7 +903,7 @@ private theorem messageAbsorb_recipeCount {degreeBound : Nat}
     Formal.Action.recipeCount (.absorb (blockExpr
       (Expr.const (NightstreamFPrime.Lifecycle.natWord roundIndex.val) ::
         serializeRoundExpr round))) =
-      ((2 * degreeBound + 7) / 4) * 592 := by
+      ((2 * degreeBound + 15) / 12) * 1096 := by
   rw [absorb_recipeCount, blockExpr_length,
     roundPayload_length roundIndex round]
 
@@ -911,7 +911,7 @@ private theorem labelAbsorb_recipeCount
     (roundIndex : Fin productionShape.cubeVariables) :
     Formal.Action.recipeCount (.absorb (constantWords
       (NightstreamFPrime.Lifecycle.Transcript.labelWord
-        (.sumcheck roundIndex)))) = 592 := by
+        (.sumcheck roundIndex)))) = 1096 := by
   rw [absorb_recipeCount, constantWords_length]
   simp [NightstreamFPrime.Lifecycle.Transcript.labelWord]
 

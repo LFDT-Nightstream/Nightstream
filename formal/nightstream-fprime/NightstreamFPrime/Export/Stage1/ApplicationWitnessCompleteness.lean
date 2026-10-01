@@ -103,7 +103,7 @@ private theorem stateValues_loaded (env : Env) (witness : AppWitness) :
 private theorem source_end : ApplicationDirectSource.sourceWidth application =
     Spartan.privateColumnCount + PerApplicationPackage.addedPrivateColumnCount application := by
   rw [Poseidon2HashChainV1Package.sourceWidth, Poseidon2HashChainV1Package.addedPrivateColumnCount]
-  change Spartan.privateColumnCount + 4 + 7696 = Spartan.privateColumnCount + 7700
+  change Spartan.privateColumnCount + 4 + 5480 = Spartan.privateColumnCount + 5484
   omega
 
 private theorem source_bound : ApplicationDirectSource.sourceWidth application ≤

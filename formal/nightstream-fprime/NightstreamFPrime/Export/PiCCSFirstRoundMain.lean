@@ -78,8 +78,8 @@ private def images (program : MatrixProgram.Program)
 
 private structure CachedInvocation where
   firstRow : Nat
-  fresh : Vector Spec.ProductionRelation.RowSemantics.PortValues 86
-  carried : Vector (Vector K Spec.ProductionRelation.matrixCount) 86
+  fresh : Vector Spec.ProductionRelation.RowSemantics.PortValues 150
+  carried : Vector (Vector K Spec.ProductionRelation.matrixCount) 150
 
 private def invocationCache? (program : MatrixProgram.Program)
     (assignments : Sources) (matrixBasis : FixedArray (Vector K ringDegree) ringDegree)
@@ -109,11 +109,11 @@ private def cachedImages (program : MatrixProgram.Program)
     IO (Option CachedInvocation × (ProtocolPolynomial.OutputMessage K productionShape × K × K)) := do
   let index := NumericBooleanDomain.index vertex
   let reusable := cached.filter fun value =>
-    value.firstRow ≤ index && index < value.firstRow + 86
+    value.firstRow ≤ index && index < value.firstRow + 150
   let ready := reusable.orElse fun _ => invocationCache? program assignments matrixBasis blocks index
   if let some value := ready then
-    if within : value.firstRow ≤ index ∧ index < value.firstRow + 86 then
-      let row : Fin 86 := ⟨index - value.firstRow, by omega⟩
+    if within : value.firstRow ≤ index ∧ index < value.firstRow + 150 then
+      let row : Fin 150 := ⟨index - value.firstRow, by omega⟩
       let fresh := Vector.ofFn fun port => ((value.fresh.get row).get port)
       return (ready, PiCCSAggregatedImages.fromRows layout assignments padBasis blocks powers
         vertex fresh (value.carried.get row))
@@ -249,14 +249,14 @@ private def replayNorm (publicPath sourcePath outputPath : System.FilePath)
 
 private def freshRows (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row) (assignments : Sources)
-    (cached : Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 86))
+    (cached : Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 150))
     (vertex : BooleanVertex cubeVariables) :
-    IO (Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 86) ×
+    IO (Option (Nat × Vector Spec.ProductionRelation.RowSemantics.PortValues 150) ×
       Vector F Spec.ProductionRelation.matrixCount) := do
   let index := NumericBooleanDomain.index vertex
   if let some (firstRow, values) := cached then
-    if within : firstRow ≤ index ∧ index < firstRow + 86 then
-      let row : Fin 86 := ⟨index - firstRow, by omega⟩
+    if within : firstRow ≤ index ∧ index < firstRow + 150 then
+      let row : Fin 150 := ⟨index - firstRow, by omega⟩
       return (cached, Vector.ofFn ((values.get row).get))
   let read := PiCCSSourceImages.plainRead (assignments (freshSourceIndex ⟨0, by decide⟩))
   let mut firstRow := 0

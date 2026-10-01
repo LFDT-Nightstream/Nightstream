@@ -700,22 +700,22 @@ private theorem traceHolds_absorbBlocks_iff
       rfl
 
 private theorem inputChunks_length (input : List Expr) :
-    (Hash.inputChunks input).length = (input.length + 3) / 4 := by
+    (Hash.inputChunks input).length = (input.length + 11) / 12 := by
   unfold Hash.inputChunks
   rw [List.length_map, List.length_range]
   rfl
 
 private theorem absorb_recipeCount (input : List Expr) :
     Formal.Action.recipeCount (.absorb input) =
-      ((input.length + 3) / 4) * 592 := by
-  change (Hash.inputChunks input).length * 592 = _
+      ((input.length + 11) / 12) * 1096 := by
+  change (Hash.inputChunks input).length * 1096 = _
   rw [inputChunks_length]
 
 @[simp] private theorem domain_recipeCount :
     Formal.Action.recipeCount
         (.absorb (constantWords
           NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)) =
-      6512 := by
+      4384 := by
   rw [absorb_recipeCount, constantWords_length]
   rw [NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag_length]
 
@@ -724,7 +724,7 @@ private theorem absorb_recipeCount (input : List Expr) :
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.Action.recipeCount
-        (absorbBlock (priorDigestExpr interface offset)) = 1184 := by
+        (absorbBlock (priorDigestExpr interface offset)) = 1096 := by
   unfold absorbBlock priorDigestExpr
   rw [absorb_recipeCount, blockExpr_length]
   simp
@@ -732,7 +732,7 @@ private theorem absorb_recipeCount (input : List Expr) :
 @[simp] private theorem point_recipeCount
     (point : Fin productionShape.cubeVariables → KExpr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializePointExpr point)) = 8880 := by
+        (absorbBlock (serializePointExpr point)) = 5480 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializePointExpr_length]
 
@@ -740,7 +740,7 @@ private theorem absorb_recipeCount (input : List Expr) :
     (commitment : Fin productionProfile.commitmentWidth →
       Fin ringDegree → Expr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializeCommitmentExpr commitment)) = 176416 := by
+        (absorbBlock (serializeCommitmentExpr commitment)) = 109600 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializeCommitmentExpr_length]
 
@@ -749,13 +749,13 @@ private theorem absorb_recipeCount (input : List Expr) :
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializePublicInputExpr input)) = 40256 := by
+        (absorbBlock (serializePublicInputExpr input)) = 25208 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializePublicInputExpr_length]
 
 @[simp] private theorem evaluation_recipeCount (evaluation : EvaluationExpr) :
     Formal.Action.recipeCount
-        (absorbBlock (serializeEvaluationExpr evaluation)) = 240352 := by
+        (absorbBlock (serializeEvaluationExpr evaluation)) = 149056 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length, serializeEvaluationExpr_length]
 
@@ -764,7 +764,7 @@ private theorem absorb_recipeCount (input : List Expr) :
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.Action.recipeCount
-        (absorbBlock (verifierClaimWords interface offset)) = 3836752 := by
+        (absorbBlock (verifierClaimWords interface offset)) = 2368456 := by
   unfold absorbBlock
   rw [absorb_recipeCount, blockExpr_length,
     verifierClaimWords_length]
@@ -778,7 +778,7 @@ private theorem runningGroup_recipeCount {logicalWidth : Nat}
       [absorbBlock (serializeCommitmentExpr (running.commitment index)),
         absorbBlock (serializePublicInputExpr (running.publicInput index)),
         absorbBlock (serializeEvaluationExpr (running.evaluation index))] =
-      457024 := by
+      283864 := by
   simp [Formal.recipeCount]
 
 private theorem freshGroup_recipeCount {logicalWidth : Nat}
@@ -789,20 +789,20 @@ private theorem freshGroup_recipeCount {logicalWidth : Nat}
     Formal.recipeCount
       [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
         absorbBlock (serializePublicInputExpr (fresh.publicInput index))] =
-      216672 := by
+      134808 := by
   simp [Formal.recipeCount]
 
 private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 224368 := by
+    Formal.recipeCount (publicInputActions interface offset) = 140288 := by
   let fresh := interface.fresh offset
   have freshCost : Formal.recipeCount
       ((List.finRange productionShape.freshCount).flatMap fun index =>
         [absorbBlock (serializeCommitmentExpr (fresh.commitment index)),
           absorbBlock (serializePublicInputExpr (fresh.publicInput index))]) =
-      productionShape.freshCount * 216672 := by
+      productionShape.freshCount * 134808 := by
     apply Formal.recipeCount_flatMap_constant
     intro index _
     exact freshGroup_recipeCount fresh index
@@ -817,7 +817,7 @@ private theorem verifierInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (verifierInputActions interface offset) = 3845632 := by
+    Formal.recipeCount (verifierInputActions interface offset) = 2373936 := by
   rw [verifierInputActions_eq]
   simp [Formal.recipeCount]
 
@@ -1124,21 +1124,21 @@ def recipeCount {logicalWidth : Nat}
   Formal.recipeCount (actions interface offset)
 
 /-- The fixed profile compiles the digest-only statement prefix to exactly
-224,368 private recipe variables. -/
+140,288 private recipe variables. -/
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 224368 := by
+    recipeCount interface offset = 140288 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 224368 := by
+    (program interface offset).recipes.length = 140288 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 224368
+    (actions interface offset)).recipes.length = 140288
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -1147,7 +1147,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 224368 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 140288 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -1166,7 +1166,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      224368 := by
+      140288 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 
@@ -1197,7 +1197,7 @@ private theorem eval_zeroE_eq_initialState (env : Env) :
       NightstreamFPrime.Lifecycle.Transcript.initialState := by
   unfold evalState NightstreamFPrime.Lifecycle.Transcript.initialState
     NightstreamFPrime.Spec.Poseidon2.zeroState
-  change List.ofFn (fun _ : Fin 8 => (0 : F)) = List.replicate 8 0
+  change List.ofFn (fun _ : Fin 16 => (0 : F)) = List.replicate 16 0
   norm_num [List.ofFn_succ]
   rfl
 

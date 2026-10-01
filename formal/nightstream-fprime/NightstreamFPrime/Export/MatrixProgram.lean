@@ -77,10 +77,10 @@ def SourceRange.format : Format SourceRange where
 def SourceGridMode.format : Format SourceGridMode where
   encode
     | .direct => .atom 0
-    | .external8 => .atom 1
+    | .external16 => .atom 1
   decode
     | .atom 0 => .ok .direct
-    | .atom 1 => .ok .external8
+    | .atom 1 => .ok .external16
     | _ => .error "invalid matrix source grid mode"
   decode_encode := by
     intro mode

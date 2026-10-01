@@ -24,7 +24,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-private theorem canonical_input (value : ColumnRef → F) (lane : Fin 8) :
+private theorem canonical_input (value : ColumnRef → F) (lane : Fin 16) :
     Pilot.canonicalTemplateEnv value lane.val = value (.input lane.val) := by
   unfold Pilot.canonicalTemplateEnv
   rw [show PilotData.columnRef lane.val = .input lane.val by
@@ -32,9 +32,9 @@ private theorem canonical_input (value : ColumnRef → F) (lane : Fin 8) :
   rfl
 
 private theorem canonical_local (value : ColumnRef → F) (index : Nat) :
-    Pilot.canonicalTemplateEnv value (8 + index) = value (.local index) := by
+    Pilot.canonicalTemplateEnv value (16 + index) = value (.local index) := by
   unfold Pilot.canonicalTemplateEnv
-  rw [show PilotData.columnRef (8 + index) = .local index by simp [PilotData.columnRef]]
+  rw [show PilotData.columnRef (16 + index) = .local index by simp [PilotData.columnRef]]
   rfl
 
 private theorem chunk_word (input : List Expr) (invocation lane : Nat)
@@ -67,36 +67,36 @@ private theorem chain_input
     (count : (Hash.inputChunks input).length = chain.absorbCount)
     (inputValues : ∀ index, index < input.length →
       (input.getD index 0).eval source = target (chain.inputStart + index))
-    (localValues : ∀ index, index < (chain.absorbCount + 1) * 592 →
+    (localValues : ∀ index, index < (chain.absorbCount + 1) * 1096 →
       target (chain.witnessStart + index) = source (start + index))
-    (invocation : Nat) (bound : invocation ≤ chain.absorbCount) (lane : Fin 8) :
+    (invocation : Nat) (bound : invocation ≤ chain.absorbCount) (lane : Fin 16) :
     (invocationInput (PilotData.circuitPackage ()) chain invocation lane.val).eval target =
       ((if invocation < (Hash.inputChunks input).length then
           Hash.absorbE
             (if invocation = 0 then Hash.zeroE else
-              Permutation.freshState (start + (invocation - 1) * 592 + 584))
+              Permutation.freshState (start + (invocation - 1) * 1096 + 1080))
             ((Hash.inputChunks input).getD invocation [])
         else Hash.padE
           (if invocation = 0 then Hash.zeroE else
-            Permutation.freshState (start + (invocation - 1) * 592 + 584))) lane).eval source := by
-  have localCount : (PilotData.circuitPackage ()).permutation.localColumnCount = 592 := rfl
-  have outputStart : (PilotData.circuitPackage ()).permutation.outputLocalStart = 584 := rfl
+            Permutation.freshState (start + (invocation - 1) * 1096 + 1080))) lane).eval source := by
+  have localCount : (PilotData.circuitPackage ()).permutation.localColumnCount = 1096 := rfl
+  have outputStart : (PilotData.circuitPackage ()).permutation.outputLocalStart = 1080 := rfl
   have rate : (PilotData.circuitPackage ()).poseidon.rate = Poseidon2.rate := rfl
   have previous :
       (if invocation = 0 then R1CS.LinearCombination.zero else
         R1CS.LinearCombination.ofVar
-          (chain.witnessStart + (invocation - 1) * 592 + 584 + lane.val)).eval target =
+          (chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane.val)).eval target =
       ((if invocation = 0 then Hash.zeroE else
-        Permutation.freshState (start + (invocation - 1) * 592 + 584)) lane).eval source := by
+        Permutation.freshState (start + (invocation - 1) * 1096 + 1080)) lane).eval source := by
     by_cases first : invocation = 0
     · simp [first, Hash.zeroE, R1CS.LinearCombination.eval_zero, Expr.eval]
-    · have localBound : (invocation - 1) * 592 + 584 + lane.val <
-          (chain.absorbCount + 1) * 592 := by
+    · have localBound : (invocation - 1) * 1096 + 1080 + lane.val <
+          (chain.absorbCount + 1) * 1096 := by
         have laneBound := lane.isLt
         omega
       simpa only [if_neg first, R1CS.LinearCombination.eval_ofVar,
         Permutation.freshState, Expr.eval_var, Nat.add_assoc] using
-        localValues ((invocation - 1) * 592 + 584 + lane.val) localBound
+        localValues ((invocation - 1) * 1096 + 1080 + lane.val) localBound
   by_cases absorbing : invocation < chain.absorbCount
   · have sourceBound : invocation < (Hash.inputChunks input).length := by simpa only [count] using absorbing
     have word := chunk_word input invocation lane.val sourceBound
@@ -131,7 +131,7 @@ private theorem hashChain_of_sourceRows
     (count : (Hash.inputChunks input).length = chain.absorbCount)
     (inputValues : ∀ index, index < input.length →
       (input.getD index 0).eval source = target (chain.inputStart + index))
-    (localValues : ∀ index, index < (chain.absorbCount + 1) * 592 →
+    (localValues : ∀ index, index < (chain.absorbCount + 1) * 1096 →
       target (chain.witnessStart + index) = source (start + index))
     (rows : ConstraintsHold source (recipeConstraints start (Hash.compile start input).recipes)) :
     HashChainHolds (PilotData.circuitPackage ()) chain target := by
@@ -142,28 +142,28 @@ private theorem hashChain_of_sourceRows
   unfold PilotData.canonicalRows
   apply R1CS.lowerConstraints_complete_of_noFresh
   · apply R1CS.recipeConstraints_noFresh
-    exact NightstreamFPrime.Layout.Poseidon2.compile_schedule_direct 8 PilotData.canonicalState Pilot.canonicalState_affine
-  · change ConstraintsHold _ (recipeConstraints 8
-      (Permutation.compile 8 PilotData.canonicalState Permutation.schedule).recipes)
+    exact NightstreamFPrime.Layout.Poseidon2.compile_schedule_direct 16 PilotData.canonicalState Pilot.canonicalState_affine
+  · change ConstraintsHold _ (recipeConstraints 16
+      (Permutation.compile 16 PilotData.canonicalState Permutation.schedule).recipes)
     refine PermutationCompilerTransport.compileConstraintsHold_of_transport _ source
-      8 (start + invocation * 592) PilotData.canonicalState _ Permutation.schedule ?_ ?_ sourceRows
+      16 (start + invocation * 1096) PilotData.canonicalState _ Permutation.schedule ?_ ?_ sourceRows
     · funext lane
       change Pilot.canonicalTemplateEnv _ lane.val = _
       rw [canonical_input]
       exact chain_input chain target source start input inputLength count
         inputValues localValues invocation bound lane
     · intro index indexBound
-      change Pilot.canonicalTemplateEnv _ (8 + index) = _
+      change Pilot.canonicalTemplateEnv _ (16 + index) = _
       rw [canonical_local, instantiateColumn, R1CS.LinearCombination.eval_ofVar]
-      change target (chain.witnessStart + invocation * 592 + index) =
-        source (start + invocation * 592 + index)
-      have scheduleWidth : Permutation.scheduleSize Permutation.schedule = 592 :=
-        (Permutation.compile_recipes_length 8 PilotData.canonicalState
+      change target (chain.witnessStart + invocation * 1096 + index) =
+        source (start + invocation * 1096 + index)
+      have scheduleWidth : Permutation.scheduleSize Permutation.schedule = 1096 :=
+        (Permutation.compile_recipes_length 16 PilotData.canonicalState
           Permutation.schedule).symm.trans
-            (Permutation.compile_schedule_recipe_count 8 PilotData.canonicalState)
-      have width : index < 592 := by
+            (Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState)
+      have width : index < 1096 := by
         simpa only [scheduleWidth] using indexBound
-      simpa only [Nat.add_assoc] using localValues (invocation * 592 + index) (by omega)
+      simpa only [Nat.add_assoc] using localValues (invocation * 1096 + index) (by omega)
 
 private theorem prior_input_map (index : Fin PilotProduction.stateHashWords) :
     Spartan.sourceToSpartan (PilotProduction.priorPreimageStart + index.val) =
@@ -171,7 +171,7 @@ private theorem prior_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 49393 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (0 + index.val) = Spartan.liftPilotColumn 0 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 14722512; omega)]
+  rw [if_pos (by change 0 + index.val < 9126768; omega)]
   unfold PilotSpartan.sourceToSpartan
   rw [if_pos (by change 0 + index.val < 49393; omega)]
   exact Spartan.liftPilotColumn_add_of_input 0 index.val (by
@@ -184,7 +184,7 @@ private theorem output_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 49393 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (49663 + index.val) = Spartan.liftPilotColumn 49393 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 49663 + index.val < 14722512; omega)]
+  rw [if_pos (by change 49663 + index.val < 9126768; omega)]
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by change ¬49663 + index.val < 49393; omega)]
   rw [if_neg (by change ¬49663 + index.val < 49663; omega)]
@@ -211,10 +211,10 @@ private theorem local_values (chain : HashChain) (start : Nat)
     (startEq : chain.witnessStart = PilotSpartan.witnessPrivateStart +
       (start - PilotProduction.witnessOffset))
     (afterInputs : PilotProduction.witnessOffset ≤ start)
-    (sourceEnd : start + (chain.absorbCount + 1) * 592 ≤ Spartan.pilotSourceColumnCount)
+    (sourceEnd : start + (chain.absorbCount + 1) * 1096 ≤ Spartan.pilotSourceColumnCount)
     (privateStart : Spartan.pilotInputPrivateColumnCount ≤ chain.witnessStart)
-    (privateEnd : chain.witnessStart + (chain.absorbCount + 1) * 592 ≤ Spartan.pilotPrivateColumnCount)
-    (target : Env) (index : Nat) (bound : index < (chain.absorbCount + 1) * 592) :
+    (privateEnd : chain.witnessStart + (chain.absorbCount + 1) * 1096 ≤ Spartan.pilotPrivateColumnCount)
+    (target : Env) (index : Nat) (bound : index < (chain.absorbCount + 1) * 1096) :
     target ((Data.liftPilotChain chain).witnessStart + index) =
       Spartan.pullback target (start + index) := by
   change target (Spartan.liftPilotColumn chain.witnessStart + index) =
@@ -226,7 +226,7 @@ private theorem local_values (chain : HashChain) (start : Nat)
   simpa only [startEq, Nat.add_assoc] using lifted.symm
 
 private theorem prior_local_values (target : Env) (index : Nat)
-    (bound : index < (Data.priorChain.absorbCount + 1) * 592) :
+    (bound : index < (Data.priorChain.absorbCount + 1) * 1096) :
     target (Data.priorChain.witnessStart + index) =
       Spartan.pullback target (PilotProduction.witnessOffset + index) := by
   apply local_values PilotData.priorChain PilotProduction.witnessOffset
@@ -235,30 +235,30 @@ private theorem prior_local_values (target : Env) (index : Nat)
     rfl
   · exact Nat.le_refl _
   · rw [PilotProduction.witnessOffset_eq]
-    change 99060 + (12349 + 1) * 592 ≤ 14722512
+    change 99060 + (4117 + 1) * 1096 ≤ 9126768
     norm_num
   · change 98786 ≤ 98786
     exact Nat.le_refl _
-  · change 98786 + (12349 + 1) * 592 ≤ 14722238
+  · change 98786 + (4117 + 1) * 1096 ≤ 9126494
     norm_num
 
 private theorem output_local_values (target : Env) (index : Nat)
-    (bound : index < (Data.outputChain.absorbCount + 1) * 592) :
+    (bound : index < (Data.outputChain.absorbCount + 1) * 1096) :
     target (Data.outputChain.witnessStart + index) =
       Spartan.pullback target (PilotProduction.lifecycleOutputOffset + index) := by
   apply local_values PilotData.outputChain PilotProduction.lifecycleOutputOffset
     (target := target) (index := index) (bound := bound)
   · rw [PilotProduction.lifecycleOutputOffset_eq, PilotProduction.witnessOffset_eq]
-    change 7410250 = 98786 + (7410524 - 99060)
+    change 4612378 = 98786 + (4612652 - 99060)
     norm_num
   · rw [PilotProduction.lifecycleOutputOffset_eq, PilotProduction.witnessOffset_eq]
     norm_num
   · rw [PilotProduction.lifecycleOutputOffset_eq]
-    change 7410524 + (12349 + 1) * 592 ≤ 14722512
+    change 4612652 + (4117 + 1) * 1096 ≤ 9126768
     norm_num
-  · change 98786 ≤ 7410250
+  · change 98786 ≤ 4612378
     norm_num
-  · change 7410250 + (12349 + 1) * 592 ≤ 14722238
+  · change 4612378 + (4117 + 1) * 1096 ≤ 9126494
     norm_num
 
 private theorem variable_word (env : Env) (start count index : Nat)

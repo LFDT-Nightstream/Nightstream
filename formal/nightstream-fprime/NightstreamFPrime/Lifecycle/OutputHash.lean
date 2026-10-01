@@ -46,7 +46,7 @@ def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
   (Hash.compile offset (interface.preimage offset)).recipes.length
 
 def hashLength (interface : Interface) (offset : Nat) : Nat :=
-  (Hash.inputChunks (interface.preimage offset)).length * 592 + 592
+  (Hash.inputChunks (interface.preimage offset)).length * 1096 + 1096
 
 theorem compiledHashLength_eq_hashLength (interface : Interface)
     (offset : Nat) :

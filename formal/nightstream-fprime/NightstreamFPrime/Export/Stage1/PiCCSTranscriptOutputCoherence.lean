@@ -28,7 +28,7 @@ for every indexed PiCCS invocation, without enumerating the invocation list. -/
 theorem packageRows_imply_finalLayer (env : Env)
     (rows : PoseidonRetainedBlock.basePackage.RowsHold env)
     (index : InvocationIndex) :
-    (fun lane : Fin 8 => env ((physicalInvocation index).witnessStart + 584 + lane.val)) =
+    (fun lane : Fin 16 => env ((physicalInvocation index).witnessStart + 1080 + lane.val)) =
       Layer.externalF (fun lane => env
         ((physicalInvocation index).witnessStart +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val)) := by
@@ -48,9 +48,9 @@ theorem canonicalOutput_of_packageRows {application : Program}
     PiCCSPoseidonPreservation.outputValue
         (PerApplicationCanonicalEncodes.poseidonGeometry application)
         raw.assignment index =
-      fun lane : Fin 8 =>
+      fun lane : Fin 16 =>
         PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
-          ((physicalInvocation index).witnessStart + 584 + lane.val) := by
+          ((physicalInvocation index).witnessStart + 1080 + lane.val) := by
   let geometry := PerApplicationCanonicalEncodes.poseidonGeometry application
   have sboxes := PiCCSPoseidonPlan.retainedBlock_encodesAt geometry
     raw.assignment raw.retainedSource
@@ -70,13 +70,13 @@ theorem transcriptForm_of_packageRows {application : Program}
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (rows : (PerApplicationPackage.package application).RowsHold
       (SourceCompiler.sourceEnv raw.base))
-    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 8) :
+    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 16) :
     (PiCCSTranscriptOutputForms.transcriptForm
         (PerApplicationCanonicalEncodes.poseidonGeometry application) index lane).eval
         raw.assignment =
       PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
         ((physicalInvocation (PiCCSTranscriptOutputForms.invocation index)).witnessStart +
-          584 + lane.val) := by
+          1080 + lane.val) := by
   exact congrFun (canonicalOutput_of_packageRows raw rows
     (PiCCSTranscriptOutputForms.invocation index)) lane
 
@@ -92,25 +92,25 @@ theorem pointForm_of_packageRows {application : Program}
       PerApplicationPackage.baseEnv application (SourceCompiler.sourceEnv raw.base)
         ((physicalInvocation (PiCCSTranscriptOutputForms.invocation
           (PiCCSTranscriptOutputForms.pointInvocation coordinate component))).witnessStart +
-          584) := by
+          1080) := by
   simpa only [Nat.add_zero] using! transcriptForm_of_packageRows raw rows
-    (PiCCSTranscriptOutputForms.pointInvocation coordinate component) (0 : Fin 8)
+    (PiCCSTranscriptOutputForms.pointInvocation coordinate component) (0 : Fin 16)
 
 /-- The selected physical invocation and the ordinary transcript source
 grid name the same output column. This is an address equality only. -/
 theorem physicalTranscript_source
-    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 8) :
+    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 16) :
     (physicalInvocation (PiCCSTranscriptOutputForms.invocation index)).witnessStart +
-        584 + lane.val =
+        1080 + lane.val =
       Layout.Stage1.Spartan.sourceToSpartan
         (PiCCSTranscriptOutputForms.transcriptSource index lane) := by
-  have bound : index.val < 718 := by
+  have bound : index.val < 355 := by
     simpa only [Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
       rw [PoseidonRetainedBlock.data_permutationInvocations_length]
-      change index.val < 7638
+      change index.val < 2685
       omega⟩
   have same : physicalInvocation (PiCCSTranscriptOutputForms.invocation index) =
       (Data.permutationInvocations ()).get selected := by
@@ -122,7 +122,7 @@ theorem physicalTranscript_source
     have leftBound : index.val <
         PoseidonRetainedBlock.basePackage.permutationInvocations.length := by
       rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
-      change index.val < 7638
+      change index.val < 2685
       omega
     rw [List.getElem?_eq_getElem leftBound,
       List.getElem?_eq_getElem selected.isLt] at listEq
@@ -130,9 +130,9 @@ theorem physicalTranscript_source
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript
     selected bound]
   change Layout.Stage1.Spartan.sourceToSpartan
-      (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 592) + 584 + lane.val = _
+      (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 1096) + 1080 + lane.val = _
   have shifted := Layout.Stage1.Spartan.sourceToSpartan_add_of_piCcsLocal
-    (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 592) (584 + lane.val) (by
+    (Layout.Stage1.PiCCSInputs.phaseOffset + index.val * 1096) (1080 + lane.val) (by
       norm_num [Layout.Stage1.PiCCSInputs.phaseOffset_eq,
         Layout.Stage1.Spartan.piCcsPhaseOffset])
   rw [Nat.add_assoc, ← shifted]
@@ -147,7 +147,7 @@ theorem transcriptForm_source_of_packageRows {application : Program}
     (raw : PerApplicationCanonicalAssignment.RawValues application)
     (rows : (PerApplicationPackage.package application).RowsHold
       (SourceCompiler.sourceEnv raw.base))
-    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 8) :
+    (index : PiCCSTranscriptOutputForms.TranscriptIndex) (lane : Fin 16) :
     (PiCCSTranscriptOutputForms.transcriptForm
         (PerApplicationCanonicalEncodes.poseidonGeometry application) index lane).eval
         raw.assignment =

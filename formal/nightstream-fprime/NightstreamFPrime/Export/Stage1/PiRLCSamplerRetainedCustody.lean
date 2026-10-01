@@ -30,7 +30,7 @@ theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
     PoseidonRetainedBlock.laterWitnessStart
-        ⟨7604 + current.val, by
+        ⟨2651 + current.val, by
           rw [PoseidonRetainedBlock.laterInvocationCount_eq]
           have currentLt := current.isLt
           norm_num [PiRLCSamplerInvocations.sourceCount,
@@ -44,10 +44,10 @@ theorem laterWitnessStart_sampler
   rw [List.getElem_append_right]
   · have prefixLength :
         (PiCCSInvocations.invocations Data.logicalWidth
-          Data.publicFits).length = 7604 :=
+          Data.publicFits).length = 2651 :=
       PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits
     have offsetEq :
-        7604 + current.val -
+        2651 + current.val -
             (PiCCSInvocations.invocations Data.logicalWidth
               Data.publicFits).length = current.val := by
       rw [prefixLength]
@@ -100,7 +100,7 @@ theorem laterWitnessStart_sampler
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)).length :=
-      ⟨7604 + current.val -
+      ⟨2651 + current.val -
           (PiCCSInvocations.invocations Data.logicalWidth
             Data.publicFits).length,
         by omega⟩
@@ -141,8 +141,8 @@ theorem resolvedForm_of_source
     | some selected => selected.form geometry) = location.form geometry
   rw [found]
 
-def stateOutputOffset : Nat := 584
-def stateStepStride : Nat := 2613
+def stateOutputOffset : Nat := 1080
+def stateStepStride : Nat := 3117
 
 /-- One of the two complete eight-lane permutation outputs owned by each
 scalar sampler: domain entry and transcript advance. -/
@@ -480,7 +480,7 @@ private theorem ordinaryMissing (location : StateLocation)
     PiRLCSamplerOrdinaryDirectPlan.classifySource location.sourceColumn = none := by
   have sourceLt : location.source.val < 17 := location.source.isLt
   have stepLt : location.step.val < 2 := location.step.isLt
-  have laneLt : location.lane.val < 8 := location.lane.isLt
+  have laneLt : location.lane.val < 16 := location.lane.isLt
   have stepCases : location.step.val = 0 ∨ location.step.val = 1 := by omega
   cases found : PiRLCSamplerOrdinaryDirectPlan.classifySource location.sourceColumn with
   | none => rfl
@@ -627,13 +627,13 @@ theorem baseEnv_eq_transitionEnv
     (column : Nat)
     (bound : column < PiRLCProductPlan.basePackage.layout.constantColumn)
     (outside : column < PiCCSInputs.phaseOffset ∨
-      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 592 ≤
+      PiCCSInputs.phaseOffset + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         column) :
     PiRLCProductPlan.baseEnv program base column =
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 27427444 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 20252764 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

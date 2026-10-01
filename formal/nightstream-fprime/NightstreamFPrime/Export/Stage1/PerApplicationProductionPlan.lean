@@ -139,13 +139,13 @@ def BlockKind.plan (application : ProgramApplication)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 2124200
-  | .piCcsPoseidon => 669152
+  | .pilotPoseidon => 1235400
+  | .piCcsPoseidon => 402952
   | .piCcsOrdinary => 124283
   | .pilotOrdinary => 1330
   | .pilotDigestBinding => 8
-  | .piCcsEndpoint => 32
-  | .samplerPoseidon => 2924
+  | .piCcsEndpoint => 64
+  | .samplerPoseidon => 5100
   | .samplerOrdinary => 38811
   | .piRlc => 104652
   | .piDec => 25488

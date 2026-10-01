@@ -31,19 +31,19 @@ open PerApplicationAssignmentTransportExecution
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-private theorem challenge_initial_column (lane : Fin 8) :
+private theorem challenge_initial_column (lane : Fin 16) :
     (challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart lane =
       Expr.var (endpointColumn statementFamily lane) := by
   exact (congrFun (challengeInitialState_eq_statementFinalState Data.logicalWidth Data.publicFits) lane).trans
     (statementFinalState_endpoint_of_shape Data.logicalWidth Data.publicFits lane)
 
-private theorem round_initial_column (lane : Fin 8) :
+private theorem round_initial_column (lane : Fin 16) :
     (roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart lane =
       Expr.var (endpointColumn challengeFamily lane) := by
   exact (congrFun (roundInitialState_eq_challengeFinalState_of_shape Data.logicalWidth Data.publicFits) lane).trans
     (challengeFinalState_endpoint_of_shape Data.logicalWidth Data.publicFits lane)
 
-private theorem output_initial_column (lane : Fin 8) :
+private theorem output_initial_column (lane : Fin 16) :
     (outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart lane =
       Expr.var (endpointColumn roundFamily lane) := by
   exact (congrFun (outputInitialState_eq_roundFinalState_of_shape Data.logicalWidth Data.publicFits) lane).trans

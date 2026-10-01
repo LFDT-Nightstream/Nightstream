@@ -2,8 +2,8 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
 
 /-!
 Owns the compact fixed-schedule ledger for one production Poseidon2 template.
-The template has eight caller inputs, 592 local source columns, 31 schedule
-steps, and 334 direct selective rows.
+The template has sixteen caller inputs, 1096 local source columns, 31 schedule
+steps, and 646 direct selective rows.
 
 This module is constant-size. Package invocation count is not evaluated here.
 -/
@@ -16,8 +16,8 @@ open NightstreamFPrime.Gadgets.Poseidon2
 abbrev Step := Permutation.Step
 abbrev EState := Permutation.EState
 
-def inputCount : Nat := 8
-def localColumnCount : Nat := 592
+def inputCount : Nat := 16
+def localColumnCount : Nat := 1096
 def sourceColumnCount : Nat := inputCount + localColumnCount
 
 def canonicalState : EState := fun lane => Expr.var lane.val
@@ -44,7 +44,7 @@ def finalStart : Nat → List Step → Nat
   | start, step :: rest =>
       finalStart (start + Permutation.stepSize step) rest
 
-@[simp] theorem sourceColumnCount_eq : sourceColumnCount = 600 := by
+@[simp] theorem sourceColumnCount_eq : sourceColumnCount = 1112 := by
   rfl
 
 @[simp] theorem records_length : records.length = 31 := by
@@ -54,14 +54,14 @@ def finalStart : Nat → List Step → Nat
     finalStart inputCount Permutation.schedule = sourceColumnCount := by
   rfl
 
-/-- Every invocation replaces the 592 source recipe rows by exactly 334
+/-- Every invocation replaces the 1096 source recipe rows by exactly 646
 direct selective rows. -/
 @[simp] theorem directRowCount_eq :
     (records.map fun record =>
-      PoseidonStepTrace.directRowCount record.step).sum = 334 := by
+      PoseidonStepTrace.directRowCount record.step).sum = 646 := by
   rfl
 
-@[simp] theorem removedRowCount_eq : localColumnCount - 334 = 258 := by
+@[simp] theorem removedRowCount_eq : localColumnCount - 646 = 450 := by
   rfl
 
 /-- Exact composition of one scanned schedule. Only the retained boundary

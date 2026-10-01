@@ -74,7 +74,7 @@ theorem rows_toR1CS :
 
 theorem rows_length :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length =
-      58939 := by
+      76075 := by
   rw [rows, PiCCSArithmetic.compilePacket_length,
     constraints_eq_samplerChain]
   exact

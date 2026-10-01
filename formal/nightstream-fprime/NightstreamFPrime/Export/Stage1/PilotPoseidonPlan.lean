@@ -22,7 +22,7 @@ open PiRLCPoseidonGeometry
 
 def invocationCount : Nat := PoseidonRetainedBlock.priorInvocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 12350 := by
+@[simp] theorem invocationCount_eq : invocationCount = 4118 := by
   exact PoseidonRetainedBlock.priorInvocationCount_eq
 
 def priorSchedule (program : Lifecycle.Stage1.Application.Program) :
@@ -134,7 +134,7 @@ def outputInterface {program : Lifecycle.Stage1.Application.Program}
     (PiRLCRetainedGeometry.outputPoseidonFits (prefixGeometry geometry))
     (oneColumn geometry) (outputInputState geometry)
 
-theorem familyRowCount_le : invocationCount * 86 ≤
+theorem familyRowCount_le : invocationCount * 150 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -166,7 +166,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 2124200 := by
+    (plan geometry).rowCount = 1235400 := by
   simp [plan, priorPlan, outputPlan, invocationCount_eq]
 
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}

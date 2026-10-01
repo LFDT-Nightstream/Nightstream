@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseLayer
 
 /-!
 Owns the compact direct selective plan for one Poseidon2 permutation. The
-plan retains and constrains only the 86 S-box outputs. All linear layers are
+plan retains and constrains only the 150 S-box outputs. All linear layers are
 computed as sparse forms. Eight final pin rows bind the computed output to
 the caller-owned output forms.
 
@@ -43,7 +43,7 @@ def selector {logicalWidth : Nat} (interface : Interface logicalWidth) :
 
 def fullInput {logicalWidth : Nat} (interface : Interface logicalWidth)
     (constants : List (List Nat)) (round : Nat) (state : State logicalWidth)
-    (lane : Fin 8) : SparseForm logicalWidth :=
+    (lane : Fin 16) : SparseForm logicalWidth :=
   SparseLayer.addConstant interface.oneColumn (state lane)
     (Spec.Poseidon2.constantAt constants round lane.val)
 
@@ -100,7 +100,7 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
     (one : assignment interface.oneColumn = 1)
     (rowsZero : SboxRowsZero assignment
       (fullRows interface constants round nextSbox state))
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (fullOutput interface nextSbox lane).eval assignment =
       Layer.sboxF ((fullInput interface constants round state lane).eval
         assignment) := by
@@ -115,8 +115,10 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
   have preserves : forms.Preserves assignment
       ((fullInput interface constants round state lane).eval assignment)
       ((fullOutput interface nextSbox lane).eval assignment) := by
-    refine ⟨?_, rfl, rfl⟩
-    simp [forms, selector, one]
+    refine ⟨?_, ?_, ?_⟩
+    · simp [forms, selector, one]
+    · dsimp only [forms]
+    · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
     preserves).mp zero
   rw [seventhPower_eq_sboxF] at semantic
@@ -140,8 +142,10 @@ theorem partialRowsZero_output {logicalWidth : Nat}
   have preserves : forms.Preserves assignment
       ((partialInput interface round state).eval assignment)
       ((partialOutput interface nextSbox).eval assignment) := by
-    refine ⟨?_, rfl, rfl⟩
-    simp [forms, selector, one]
+    refine ⟨?_, ?_, ?_⟩
+    · simp [forms, selector, one]
+    · dsimp only [forms]
+    · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
     preserves).mp zero
   rw [seventhPower_eq_sboxF] at semantic
@@ -162,7 +166,7 @@ def compileStep {logicalWidth : Nat} (interface : Interface logicalWidth)
         rows := [] }
   | .initialFullRound round =>
       let outputs := fullOutput interface nextSbox
-      { nextSbox := nextSbox + 8
+      { nextSbox := nextSbox + 16
         state := SparseLayer.external outputs
         rows := fullRows interface Spec.Poseidon2.initialConstants round
           nextSbox state }
@@ -172,7 +176,7 @@ def compileStep {logicalWidth : Nat} (interface : Interface logicalWidth)
         rows := partialRows interface round nextSbox state }
   | .terminalFullRound round =>
       let outputs := fullOutput interface nextSbox
-      { nextSbox := nextSbox + 8
+      { nextSbox := nextSbox + 16
         state := SparseLayer.external outputs
         rows := fullRows interface Spec.Poseidon2.terminalConstants round
           nextSbox state }
@@ -316,11 +320,11 @@ def trace {logicalWidth : Nat} (interface : Interface logicalWidth) :
   compile interface 0 interface.input Permutation.schedule
 
 /-- Constant-time final state of the fixed production trace. The last
-terminal full round owns S-box outputs 78 through 85 and the final external
+terminal full round owns S-box outputs 134 through 149 and the final external
 linear layer. -/
 def directOutput {logicalWidth : Nat} (interface : Interface logicalWidth) :
     State logicalWidth :=
-  SparseLayer.external (fullOutput interface 78)
+  SparseLayer.external (fullOutput interface 134)
 
 /-- The closed-form output is definitionally the output of the canonical
 fixed schedule. -/
@@ -330,7 +334,7 @@ fixed schedule. -/
   rfl
 
 def outputDifference {logicalWidth : Nat}
-    (interface : Interface logicalWidth) (lane : Fin 8) :
+    (interface : Interface logicalWidth) (lane : Fin 16) :
     SparseForm logicalWidth :=
   SparseForm.add (interface.output lane)
     (SparseForm.scale (-1) ((trace interface).state lane))
@@ -351,7 +355,7 @@ theorem outputRowsZero_lane {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)
     (one : assignment interface.oneColumn = 1)
     (rowsZero : PinRowsZero assignment (outputRows interface))
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (interface.output lane).eval assignment =
       ((trace interface).state lane).eval assignment := by
   let forms : PinRow.Forms logicalWidth :=
@@ -608,22 +612,22 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
 
 @[simp] theorem trace_nextSbox {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (trace interface).nextSbox = 86 := by
+    (trace interface).nextSbox = 150 := by
   rfl
 
 @[simp] theorem trace_rows_length {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (trace interface).rows.length = 86 := by
+    (trace interface).rows.length = 150 := by
   rfl
 
 @[simp] theorem outputRows_length {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (outputRows interface).length = 8 := by
+    (outputRows interface).length = 16 := by
   simp [outputRows]
 
 @[simp] theorem rows_length {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (rows interface).length = 94 := by
+    (rows interface).length = 166 := by
   simp [rows]
 
 /-- Exact 14-matrix template plan. Slot 13 remains zero through the common
@@ -638,7 +642,7 @@ def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
 
 @[simp] theorem plan_rowCount {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (plan interface).rowCount = 94 := by
+    (plan interface).rowCount = 166 := by
   simp [plan]
 
 theorem plan_rowImage_at {logicalWidth : Nat}

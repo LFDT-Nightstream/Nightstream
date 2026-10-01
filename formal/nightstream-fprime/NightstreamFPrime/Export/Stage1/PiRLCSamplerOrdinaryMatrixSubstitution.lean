@@ -18,24 +18,24 @@ open PiRLCSamplerOrdinaryDirectPlan (Location)
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def frameSourceStart : Nat := Spartan.sourceToSpartan PiRLCStarts.samplerLogicalStart
-def poseidonSourceStart : Nat := frameSourceStart + 584
-def logicalSourceStart : Nat := frameSourceStart + 1996
-def wordSourceStart : Nat := frameSourceStart + 3205
+def poseidonSourceStart : Nat := frameSourceStart + 1080
+def logicalSourceStart : Nat := frameSourceStart + 2500
+def wordSourceStart : Nat := frameSourceStart + 4213
 def freshSourceStart : Nat := Spartan.sourceToSpartan PiRLCStarts.samplerFreshStart
 
 def poseidonGrid (program : Program) : SourceGrid :=
   SourceGrid.externalOfSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
     (PiRLCSamplerPoseidonPlan.retainedStart program)
-    poseidonSourceStart 17 3259 1 3259 4 78 172 0
+    poseidonSourceStart 17 4267 1 4267 4 134 300 0
 
 def logicalGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (logicalBlock program) (logicalStart program)
-    logicalSourceStart 17 3259 1 3259 617 0 617 0
+    logicalSourceStart 17 4267 1 4267 617 0 617 0
 
 def wordGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (PiRLCRetainedGeometry.challengeBlock program)
     (PiRLCRetainedGeometry.challengeStart program)
-    wordSourceStart 17 3259 1 3259 54 0 54 0
+    wordSourceStart 17 4267 1 4267 54 0 54 0
 
 def freshGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (freshBlock program) (freshStart program)
@@ -55,29 +55,29 @@ private theorem samplerFresh_after_piCcs : Spartan.piCcsPhaseOffset ≤ PiRLCSta
   norm_num [Spartan.piCcsPhaseOffset]
 
 private theorem scalarTarget (source offset : Nat) :
-    Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + source * 3259 + offset) =
-      frameSourceStart + source * 3259 + offset := by
+    Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + source * 4267 + offset) =
+      frameSourceStart + source * 4267 + offset := by
   rw [Nat.add_assoc, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
   unfold frameSourceStart
   omega
 
 theorem poseidonTarget (source : Fin sourceCount) (lane : Fin 4) :
     Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn =
-      poseidonSourceStart + source.val * 3259 + lane.val := by
+      poseidonSourceStart + source.val * 4267 + lane.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn, scalarTarget]
   unfold poseidonSourceStart
   omega
 
 theorem logicalTarget (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     Spartan.sourceToSpartan (Location.logical source position).sourceColumn =
-      logicalSourceStart + source.val * 3259 + position.val := by
+      logicalSourceStart + source.val * 4267 + position.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn, scalarTarget]
   unfold logicalSourceStart
   omega
 
 theorem wordTarget (source : Fin sourceCount) (position : Fin ringDegree) :
     Spartan.sourceToSpartan (Location.word source position).sourceColumn =
-      wordSourceStart + source.val * 3259 + position.val := by
+      wordSourceStart + source.val * 4267 + position.val := by
   rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn, scalarTarget]
   unfold wordSourceStart
   omega
@@ -98,7 +98,7 @@ theorem logicalGrid_form? {program : Program} {logicalWidth : Nat}
   have sourceLt : source.val < 17 := source.isLt
   have positionLt : position.val < 617 := position.isLt
   have direct := SourceGrid.form?_ofSemantic (logicalBlock program) (logicalStart program)
-    logicalSourceStart 17 3259 1 3259 617 0 617 0 (logicalFits geometry)
+    logicalSourceStart 17 4267 1 4267 617 0 617 0 (logicalFits geometry)
     (by decide) (by decide) source ⟨0, by decide⟩ position (by omega) (by omega)
     (by rw [logicalBlock_slotCount]; omega)
   simp only [Nat.zero_add, Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at direct
@@ -138,7 +138,7 @@ theorem wordGrid_form? {program : Program} {logicalWidth : Nat}
   have slotCount : (PiRLCRetainedGeometry.challengeBlock program).slotCount = 918 := rfl
   have direct := SourceGrid.form?_ofSemantic (PiRLCRetainedGeometry.challengeBlock program)
     (PiRLCRetainedGeometry.challengeStart program)
-    wordSourceStart 17 3259 1 3259 54 0 54 0
+    wordSourceStart 17 4267 1 4267 54 0 54 0
     (PiRLCRetainedGeometry.challengeFits (piRlcGeometry geometry))
     (by decide) (by decide) source ⟨0, by decide⟩ position (by omega) (by omega)
     (by rw [slotCount]; omega)
@@ -160,16 +160,16 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
   have laneLt := lane.isLt
   have direct := SourceGrid.form?_externalOfSemantic
     (PiRLCSamplerPoseidonPlan.retainedBlock program) (PiRLCSamplerPoseidonPlan.retainedStart program)
-    poseidonSourceStart 17 3259 1 3259 4 78 172 0
+    poseidonSourceStart 17 4267 1 4267 4 134 300 0
     (PiRLCSamplerPoseidonPlan.retainedFits (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry))
     (by decide) (by decide) source ⟨0, by decide⟩ lane (by omega) (by omega) (by omega)
     (by intro selected; have selectedLt := selected.isLt
         rw [PiRLCSamplerPoseidonPlan.retainedBlock_slotCount]; omega)
   simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at direct
-  have outputEq : SparseLayer.external (fun selected : Fin 8 =>
+  have outputEq : SparseLayer.external (fun selected : Fin 16 =>
       (PiRLCSamplerPoseidonPlan.retainedBlock program).form (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.retainedFits (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry))
-        ⟨78 + source.val * 172 + selected.val, by
+        ⟨134 + source.val * 300 + selected.val, by
           have selectedLt := selected.isLt
           rw [PiRLCSamplerPoseidonPlan.retainedBlock_slotCount]; omega⟩)
       ⟨lane.val, by omega⟩ = (Location.poseidon source lane).form geometry := by
@@ -181,26 +181,27 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
       (PiRLCSamplerPoseidonPlan.retainedStart program)
       (PiRLCSamplerPoseidonPlan.retainedFits (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)))
     apply Fin.ext
-    simp [Location.poseidonInvocation, PiRLCSamplerPoseidonPlan.invocation,
-      PoseidonRetainedFamily.slot, Fin.encodeProd, PoseidonRetainedSlots.finalRow_val,
-      Sampler.rateLane, PiRLCSamplerPoseidonPlan.invocationsPerSource]
+    simp only [PoseidonRetainedFamily.slot_val, PoseidonRetainedSlots.rows_length,
+      PoseidonRetainedSlots.finalRow_val, Location.poseidonInvocation,
+      PiRLCSamplerPoseidonPlan.invocation, Fin.coe_mkDivMod, Fin.encodeProd,
+      PiRLCSamplerPoseidonPlan.invocationsPerSource]
     omega
   rw [outputEq] at direct
   exact direct
 
 private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : Nat)
     (origin : grid.sourceStart = frameSourceStart + start)
-    (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 3259 ∧
-      grid.minorCount = 1 ∧ grid.minorSourceStride = 3259)
-    (endBound : start + grid.runCount ≤ 3259)
-    (source : Fin sourceCount) (offsetBound : offset < 3259)
+    (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 4267 ∧
+      grid.minorCount = 1 ∧ grid.minorSourceStride = 4267)
+    (endBound : start + grid.runCount ≤ 4267)
+    (source : Fin sourceCount) (offsetBound : offset < 4267)
     (outside : offset < start ∨ start + grid.runCount ≤ offset) :
-    grid.form? logicalWidth (frameSourceStart + source.val * 3259 + offset) = none := by
+    grid.form? logicalWidth (frameSourceStart + source.val * 4267 + offset) = none := by
   have sourceLt : source.val < 17 := source.isLt
   have gap (major : Fin grid.majorCount) (distance : Nat)
-      (distanceBound : distance < 3259) (afterRun : grid.runCount ≤ distance) :
+      (distanceBound : distance < 4267) (afterRun : grid.runCount ≤ distance) :
       grid.form? logicalWidth
-        (grid.sourceStart + major.val * 3259 + distance) = none := by
+        (grid.sourceStart + major.val * 4267 + distance) = none := by
     have checked := SourceGrid.form?_eq_none_at_gap grid logicalWidth major
       ⟨0, by rw [shape.2.2.1]; decide⟩ distance
       (by rw [shape.2.1]; decide) (by rw [shape.2.2.2]; decide)
@@ -213,9 +214,9 @@ private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : 
       rw [origin, first]
       omega
     · let previous : Fin grid.majorCount := ⟨source.val - 1, by rw [shape.1]; omega⟩
-      have checked := gap previous (3259 + offset - start) (by omega) (by omega)
-      have address : grid.sourceStart + previous.val * 3259 + (3259 + offset - start) =
-          frameSourceStart + source.val * 3259 + offset := by
+      have checked := gap previous (4267 + offset - start) (by omega) (by omega)
+      have address : grid.sourceStart + previous.val * 4267 + (4267 + offset - start) =
+          frameSourceStart + source.val * 4267 + offset := by
         rw [origin]
         dsimp only [previous]
         omega
@@ -223,32 +224,32 @@ private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : 
       exact checked
   · let major : Fin grid.majorCount := ⟨source.val, by rw [shape.1]; exact sourceLt⟩
     have checked := gap major (offset - start) (by omega) (by omega)
-    have address : grid.sourceStart + major.val * 3259 + (offset - start) =
-        frameSourceStart + source.val * 3259 + offset := by
+    have address : grid.sourceStart + major.val * 4267 + (offset - start) =
+        frameSourceStart + source.val * 4267 + offset := by
       rw [origin]
       dsimp only [major]
       omega
     rw [address] at checked
     exact checked
 
-private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 107729 := by
-  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 107729) = _
+private theorem freshSourceStart_eq : freshSourceStart = frameSourceStart + 124865 := by
+  change Spartan.sourceToSpartan (PiRLCStarts.samplerLogicalStart + 124865) = _
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerLogical_after_piCcs]
   rfl
 
 private theorem freshGrid_none_scalar (program : Program) (logicalWidth offset : Nat)
-    (source : Fin sourceCount) (offsetBound : offset < 3259) :
-    (freshGrid program).form? logicalWidth (frameSourceStart + source.val * 3259 + offset) = none := by
+    (source : Fin sourceCount) (offsetBound : offset < 4267) :
+    (freshGrid program).form? logicalWidth (frameSourceStart + source.val * 4267 + offset) = none := by
   apply SourceGrid.form?_eq_none_of_before
-  change frameSourceStart + source.val * 3259 + offset < freshSourceStart
+  change frameSourceStart + source.val * 4267 + offset < freshSourceStart
   rw [freshSourceStart_eq]
   have sourceLt : source.val < 17 := source.isLt
   omega
 
 private theorem frameGrid_none_fresh (grid : SourceGrid) (logicalWidth start : Nat)
     (origin : grid.sourceStart = frameSourceStart + start)
-    (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 3259)
-    (startBound : start ≤ 3259) (source : Fin sourceCount) (position : Fin freshCountPerSource) :
+    (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 4267)
+    (startBound : start ≤ 4267) (source : Fin sourceCount) (position : Fin freshCountPerSource) :
     grid.form? logicalWidth (freshSourceStart + source.val * 1548 + position.val) = none := by
   apply SourceGrid.form?_eq_none_of_after
   · rw [shape.2]
@@ -266,7 +267,7 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
   | poseidon source lane =>
       have valueBound : lane.val < 4 := lane.isLt
       have address : Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn =
-          frameSourceStart + source.val * 3259 + (584 + lane.val) := by
+          frameSourceStart + source.val * 4267 + (1080 + lane.val) := by
         rw [poseidonTarget]
         unfold poseidonSourceStart
         omega
@@ -274,22 +275,22 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
       have missLogical : (logicalGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 1996 (584 + lane.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 2613 ≤ 3259; decide) source (by omega) (by left; change 584 + lane.val < 1996; omega)
+        exact frameGrid_none _ logicalWidth 2500 (1080 + lane.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3117 ≤ 4267; decide) source (by omega) (by left; change 1080 + lane.val < 2500; omega)
       have missWord : (wordGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 3205 (584 + lane.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3259 ≤ 3259; decide) source (by omega) (by left; change 584 + lane.val < 3205; omega)
+        exact frameGrid_none _ logicalWidth 4213 (1080 + lane.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; change 1080 + lane.val < 4213; omega)
       have missFresh : (freshGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.poseidon source lane).sourceColumn) = none := by
         rw [address]
-        exact freshGrid_none_scalar program logicalWidth (584 + lane.val) source (by omega)
+        exact freshGrid_none_scalar program logicalWidth (1080 + lane.val) source (by omega)
       simp [substitution, SourceSubstitution.form?, hit, missLogical, missWord, missFresh]
   | logical source position =>
       have valueBound : position.val < 617 := position.isLt
       have address : Spartan.sourceToSpartan (Location.logical source position).sourceColumn =
-          frameSourceStart + source.val * 3259 + (1996 + position.val) := by
+          frameSourceStart + source.val * 4267 + (2500 + position.val) := by
         rw [logicalTarget]
         unfold logicalSourceStart
         omega
@@ -297,22 +298,22 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
       have missPoseidon : (poseidonGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 584 (1996 + position.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 588 ≤ 3259; decide) source (by omega) (by right; change 584 + 4 ≤ 1996 + position.val; omega)
+        exact frameGrid_none _ logicalWidth 1080 (2500 + position.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 1084 ≤ 4267; decide) source (by omega) (by right; change 1080 + 4 ≤ 2500 + position.val; omega)
       have missWord : (wordGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 3205 (1996 + position.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3259 ≤ 3259; decide) source (by omega) (by left; change 1996 + position.val < 3205; omega)
+        exact frameGrid_none _ logicalWidth 4213 (2500 + position.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 4267 ≤ 4267; decide) source (by omega) (by left; change 2500 + position.val < 4213; omega)
       have missFresh : (freshGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.logical source position).sourceColumn) = none := by
         rw [address]
-        exact freshGrid_none_scalar program logicalWidth (1996 + position.val) source (by omega)
+        exact freshGrid_none_scalar program logicalWidth (2500 + position.val) source (by omega)
       simp [substitution, SourceSubstitution.form?, hit, missPoseidon, missWord, missFresh]
   | word source position =>
       have valueBound : position.val < 54 := position.isLt
       have address : Spartan.sourceToSpartan (Location.word source position).sourceColumn =
-          frameSourceStart + source.val * 3259 + (3205 + position.val) := by
+          frameSourceStart + source.val * 4267 + (4213 + position.val) := by
         rw [wordTarget]
         unfold wordSourceStart
         omega
@@ -320,34 +321,34 @@ theorem substitution_location_form? {program : Program} {logicalWidth : Nat}
       have missPoseidon : (poseidonGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.word source position).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 584 (3205 + position.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 588 ≤ 3259; decide) source (by omega) (by right; change 584 + 4 ≤ 3205 + position.val; omega)
+        exact frameGrid_none _ logicalWidth 1080 (4213 + position.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 1084 ≤ 4267; decide) source (by omega) (by right; change 1080 + 4 ≤ 4213 + position.val; omega)
       have missLogical : (logicalGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.word source position).sourceColumn) = none := by
         rw [address]
-        exact frameGrid_none _ logicalWidth 1996 (3205 + position.val)
-          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 2613 ≤ 3259; decide) source (by omega) (by right; change 1996 + 617 ≤ 3205 + position.val; omega)
+        exact frameGrid_none _ logicalWidth 2500 (4213 + position.val)
+          rfl ⟨rfl, rfl, rfl, rfl⟩ (by change 3117 ≤ 4267; decide) source (by omega) (by right; change 2500 + 617 ≤ 4213 + position.val; omega)
       have missFresh : (freshGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.word source position).sourceColumn) = none := by
         rw [address]
-        exact freshGrid_none_scalar program logicalWidth (3205 + position.val) source (by omega)
+        exact freshGrid_none_scalar program logicalWidth (4213 + position.val) source (by omega)
       simp [substitution, SourceSubstitution.form?, hit, missPoseidon, missLogical, missFresh]
   | fresh source position =>
       have hit := freshGrid_form? geometry source position
       have missPoseidon : (poseidonGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.fresh source position).sourceColumn) = none := by
         rw [freshTarget]
-        exact frameGrid_none_fresh _ logicalWidth 584 rfl ⟨rfl, rfl⟩
+        exact frameGrid_none_fresh _ logicalWidth 1080 rfl ⟨rfl, rfl⟩
           (by decide) source position
       have missLogical : (logicalGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.fresh source position).sourceColumn) = none := by
         rw [freshTarget]
-        exact frameGrid_none_fresh _ logicalWidth 1996 rfl ⟨rfl, rfl⟩
+        exact frameGrid_none_fresh _ logicalWidth 2500 rfl ⟨rfl, rfl⟩
           (by decide) source position
       have missWord : (wordGrid program).form? logicalWidth
           (Spartan.sourceToSpartan (Location.fresh source position).sourceColumn) = none := by
         rw [freshTarget]
-        exact frameGrid_none_fresh _ logicalWidth 3205 rfl ⟨rfl, rfl⟩
+        exact frameGrid_none_fresh _ logicalWidth 4213 rfl ⟨rfl, rfl⟩
           (by decide) source position
       simp [substitution, SourceSubstitution.form?, hit, missPoseidon, missLogical, missWord]
 

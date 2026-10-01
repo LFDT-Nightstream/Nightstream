@@ -32,7 +32,7 @@ private def templateEnv (chain : HashChain) (invocation : Nat) (target : Env) : 
     (instantiateColumn (PilotData.circuitPackage ()) chain invocation reference).eval target)
 
 private theorem templateEnv_input (chain : HashChain) (invocation : Nat)
-    (target : Env) (lane : Fin 8) :
+    (target : Env) (lane : Fin 16) :
     templateEnv chain invocation target lane.val =
       (invocationInput (PilotData.circuitPackage ()) chain invocation lane.val).eval target := by
   unfold templateEnv
@@ -42,10 +42,10 @@ private theorem templateEnv_input (chain : HashChain) (invocation : Nat)
 
 private theorem templateEnv_local (chain : HashChain) (invocation : Nat)
     (target : Env) (index : Nat) :
-    templateEnv chain invocation target (8 + index) =
+    templateEnv chain invocation target (16 + index) =
       target (invocationLocalStart (PilotData.circuitPackage ()) chain invocation + index) := by
   unfold templateEnv
-  rw [show PilotData.columnRef (8 + index) = .local index by simp [PilotData.columnRef]]
+  rw [show PilotData.columnRef (16 + index) = .local index by simp [PilotData.columnRef]]
   simp [ColumnRef.eval, instantiateColumn]
 
 private theorem template_constraints (chain : HashChain) (invocation : Nat)
@@ -59,13 +59,13 @@ private theorem template_constraints (chain : HashChain) (invocation : Nat)
     exact member
   have physical := (Pilot.canonicalTemplateInvocation_iff chain invocation target).mp pilotRows
   exact R1CS.lowerConstraints_sound (templateEnv chain invocation target)
-    (PilotData.canonicalConstraints ()) 600 physical
+    (PilotData.canonicalConstraints ()) 1112 physical
 
 private theorem template_finalLayer (chain : HashChain) (invocation : Nat)
     (target : Env)
     (rows : TemplateInvocationHolds (Data.circuitPackage ()) chain invocation target) :
-    (fun lane : Fin 8 => target
-      (invocationLocalStart (PilotData.circuitPackage ()) chain invocation + 584 + lane.val)) =
+    (fun lane : Fin 16 => target
+      (invocationLocalStart (PilotData.circuitPackage ()) chain invocation + 1080 + lane.val)) =
       Layer.externalF (fun lane => target
         (invocationLocalStart (PilotData.circuitPackage ()) chain invocation +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val)) := by
@@ -73,14 +73,14 @@ private theorem template_finalLayer (chain : HashChain) (invocation : Nat)
     (templateEnv chain invocation target) (template_constraints chain invocation target rows)
   have outputEq : Layer.evalState (templateEnv chain invocation target)
       (Permutation.scheduleOutput PoseidonScheduleTrace.inputCount) =
-      fun lane : Fin 8 => target
-        (invocationLocalStart (PilotData.circuitPackage ()) chain invocation + 584 + lane.val) := by
+      fun lane : Fin 16 => target
+        (invocationLocalStart (PilotData.circuitPackage ()) chain invocation + 1080 + lane.val) := by
     funext lane
-    change templateEnv chain invocation target (592 + lane.val) = _
-    rw [show 592 + lane.val = 8 + (584 + lane.val) by omega, templateEnv_local]
+    change templateEnv chain invocation target (1096 + lane.val) = _
+    rw [show 1096 + lane.val = 16 + (1080 + lane.val) by omega, templateEnv_local]
     congr 1
     omega
-  have boxesEq : (fun lane : Fin 8 => templateEnv chain invocation target
+  have boxesEq : (fun lane : Fin 16 => templateEnv chain invocation target
       (PoseidonRetainedSlots.rows.get (PoseidonRetainedSlots.finalRow lane)).step.output.val) =
       fun lane => target
         (invocationLocalStart (PilotData.circuitPackage ()) chain invocation +
@@ -289,9 +289,9 @@ theorem prior_output
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState raw.assignment
       ((PilotPoseidonPlan.priorInterface pilotGeometry).output invocation) =
-      fun lane : Fin 8 => target
+      fun lane : Fin 16 => target
         (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain invocation.val +
-          584 + lane.val) := by
+          1080 + lane.val) := by
   have equations := template_finalLayer Data.priorChain invocation.val target
     (hashRows invocation.val (Nat.le_of_lt_succ invocation.isLt))
   rw [equations]
@@ -314,9 +314,9 @@ theorem output_output
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
     SparseLayer.evalState raw.assignment
       ((PilotPoseidonPlan.outputInterface pilotGeometry).output invocation) =
-      fun lane : Fin 8 => target
+      fun lane : Fin 16 => target
         (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain invocation.val +
-          584 + lane.val) := by
+          1080 + lane.val) := by
   have equations := template_finalLayer Data.outputChain invocation.val target
     (hashRows invocation.val (Nat.le_of_lt_succ invocation.isLt))
   rw [equations]
@@ -340,13 +340,13 @@ private theorem previous_eval {sourceWidth count logicalWidth : Nat}
     (assignment : Assignment F logicalWidth) (chain : HashChain) (sourceTarget : Env)
     (outputs : ∀ invocation : Fin count,
       SparseLayer.evalState assignment (PoseidonRetainedFamily.outputState schedule start fits invocation) =
-        fun lane : Fin 8 => sourceTarget
-          (invocationLocalStart (PilotData.circuitPackage ()) chain invocation.val + 584 + lane.val))
-    (invocation : Fin count) (lane : Fin 8) :
+        fun lane : Fin 16 => sourceTarget
+          (invocationLocalStart (PilotData.circuitPackage ()) chain invocation.val + 1080 + lane.val))
+    (invocation : Fin count) (lane : Fin 16) :
     (PilotPoseidonPlan.previousOutput schedule start fits invocation lane).eval assignment =
       if invocation.val = 0 then 0 else sourceTarget
         (invocationLocalStart (PilotData.circuitPackage ()) chain (invocation.val - 1) +
-          584 + lane.val) := by
+          1080 + lane.val) := by
   by_cases first : invocation.val = 0
   · simp [PilotPoseidonPlan.previousOutput, first]
   · simp only [PilotPoseidonPlan.previousOutput, dif_neg first, if_neg first]
@@ -374,17 +374,17 @@ private theorem prior_input
     if lane.val < Poseidon2.rate ∧ invocation.val * Poseidon2.rate + lane.val < Data.priorChain.inputLength then
       R1CS.LinearCombination.add
         (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-          (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 584 + lane.val))
+          (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 1080 + lane.val))
         (R1CS.LinearCombination.ofVar (Data.priorChain.inputStart + (invocation.val * Poseidon2.rate + lane.val)))
     else
       (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-        (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 584 + lane.val))
+        (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 1080 + lane.val))
     else if lane.val = 0 then R1CS.LinearCombination.add
       (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-        (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 584 + lane.val))
+        (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 1080 + lane.val))
       R1CS.LinearCombination.one
     else (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-      (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 584 + lane.val))).eval target
+      (invocationLocalStart (PilotData.circuitPackage ()) Data.priorChain (invocation.val - 1) + 1080 + lane.val))).eval target
   split_ifs <;> simp_all only [and_true, true_and, and_false, false_and, not_true_eq_false,
     ite_true, ite_false, dite_true, dite_false,
     SparseForm.add_eval, SparseForm.singleton_eval, one,
@@ -415,17 +415,17 @@ private theorem output_input
     if lane.val < Poseidon2.rate ∧ invocation.val * Poseidon2.rate + lane.val < Data.outputChain.inputLength then
       R1CS.LinearCombination.add
         (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-          (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 584 + lane.val))
+          (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 1080 + lane.val))
         (R1CS.LinearCombination.ofVar (Data.outputChain.inputStart + (invocation.val * Poseidon2.rate + lane.val)))
     else
       (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-        (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 584 + lane.val))
+        (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 1080 + lane.val))
     else if lane.val = 0 then R1CS.LinearCombination.add
       (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-        (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 584 + lane.val))
+        (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 1080 + lane.val))
       R1CS.LinearCombination.one
     else (if invocation.val = 0 then R1CS.LinearCombination.zero else R1CS.LinearCombination.ofVar
-      (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 584 + lane.val))).eval target
+      (invocationLocalStart (PilotData.circuitPackage ()) Data.outputChain (invocation.val - 1) + 1080 + lane.val))).eval target
   split_ifs <;> simp_all only [and_true, true_and, and_false, false_and, not_true_eq_false,
     ite_true, ite_false, dite_true, dite_false,
     SparseForm.add_eval, SparseForm.singleton_eval, one,

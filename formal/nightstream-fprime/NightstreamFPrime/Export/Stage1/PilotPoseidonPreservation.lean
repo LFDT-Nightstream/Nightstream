@@ -46,9 +46,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      27427444 := Package.circuitPackage_layout_values.2.2.1
+      20252764 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      27427723 := Package.circuitPackage_layout_values.2.2.2.2
+      20253043 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -63,7 +63,7 @@ private theorem sourceAssignment_privatePhysical
     (sourceEq : source.val = column)
     (privateBound : column <
       PiRLCProductPlan.basePackage.layout.constantColumn)
-    (beforeTranscript : column < PiCCSTranscriptReadout.phaseStart + 584) :
+    (beforeTranscript : column < PiCCSTranscriptReadout.phaseStart + 1080) :
     sourceAssignment program base groupValue source =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have totalBound : column <
@@ -150,7 +150,7 @@ theorem priorInputForm_eval
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
       have bound : index.val < 49393 := index.isLt
-      change 0 + index.val < PiCCSTranscriptReadout.phaseStart + 584
+      change 0 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
       rw [PiCCSTranscriptReadout.phaseStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
@@ -175,7 +175,7 @@ theorem outputInputForm_eval
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
       have bound : index.val < 49393 := index.isLt
-      change 49393 + index.val < PiCCSTranscriptReadout.phaseStart + 584
+      change 49393 + index.val < PiCCSTranscriptReadout.phaseStart + 1080
       rw [PiCCSTranscriptReadout.phaseStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
@@ -736,27 +736,27 @@ theorem directDigest_eq_hash
 theorem priorInvocationCount_eq :
     PilotData.priorChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 12349 + 1 = 12350
+  change 4117 + 1 = 4118
   decide
 
 theorem outputInvocationCount_eq :
     PilotData.outputChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 12349 + 1 = 12350
+  change 4117 + 1 = 4118
   decide
 
 private theorem priorChunkCount_eq :
     PilotData.priorChain.absorbCount =
       (PilotData.priorChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 12349 = (49393 + 4 - 1) / 4
+  change 4117 = (49393 + 12 - 1) / 12
   decide
 
 private theorem outputChunkCount_eq :
     PilotData.outputChain.absorbCount =
       (PilotData.outputChain.inputLength + Spec.Poseidon2.rate - 1) /
         Spec.Poseidon2.rate := by
-  change 12349 = (49393 + 4 - 1) / 4
+  change 4117 = (49393 + 12 - 1) / 12
   decide
 
 structure HashFacts {program : Lifecycle.Stage1.Application.Program}

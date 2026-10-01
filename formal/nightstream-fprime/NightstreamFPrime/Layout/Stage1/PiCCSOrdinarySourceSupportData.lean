@@ -24,7 +24,7 @@ def proofInputCount : Nat :=
 /-- Statement, challenge, and round-transcript permutations before the first
 ordinary PiCCS child. -/
 def transcriptInvocationCount : Nat :=
-  (PiCCSStarts.initialClaimLogicalStart - PiCCSInputs.phaseOffset) / 592
+  (PiCCSStarts.initialClaimLogicalStart - PiCCSInputs.phaseOffset) / 1096
 
 def transcriptOutputCount : Nat :=
   transcriptInvocationCount * NightstreamFPrime.Spec.Poseidon2.width
@@ -38,11 +38,11 @@ def ordinaryLogicalCount : Nat :=
     PiCCSInputs.proofInputStart_eq]
 
 @[simp] theorem transcriptInvocationCount_eq :
-    transcriptInvocationCount = 718 := by
+    transcriptInvocationCount = 355 := by
   unfold transcriptInvocationCount PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.roundTranscriptWitnessStart_eq, PiCCSInputs.phaseOffset_eq]
 
-@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5744 := by
+@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 5680 := by
   rw [transcriptOutputCount, transcriptInvocationCount_eq]
   norm_num [NightstreamFPrime.Spec.Poseidon2.width]
 
@@ -67,7 +67,7 @@ permutation. Intermediate permutation recipes are not included. -/
 def TranscriptOutput (column : Nat) : Prop :=
   ∃ (invocation : Fin transcriptInvocationCount)
       (lane : Fin NightstreamFPrime.Spec.Poseidon2.width),
-    column = PiCCSInputs.phaseOffset + invocation.val * 592 + 584 + lane.val
+    column = PiCCSInputs.phaseOffset + invocation.val * 1096 + 1080 + lane.val
 
 def OrdinaryLogical (column : Nat) : Prop :=
   InRange PiCCSStarts.initialClaimLogicalStart ordinaryLogicalCount column
@@ -142,7 +142,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < Spartan.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 27409630 at phaseValue
+  change PiDECInputs.phaseOffset = 20234950 at phaseValue
   have sourceLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -173,9 +173,9 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
           norm_num)
     · rcases transcriptOrOrdinary with transcript | ordinary
       · rcases transcript with ⟨invocation, lane, rfl⟩
-        have invocationBound : invocation.val < 718 := by
+        have invocationBound : invocation.val < 355 := by
           simpa only [transcriptInvocationCount_eq] using invocation.isLt
-        have laneBound : lane.val < 8 := by
+        have laneBound : lane.val < 16 := by
           simpa only [NightstreamFPrime.Spec.Poseidon2.width] using lane.isLt
         rw [PiCCSInputs.phaseOffset_eq]
         omega
@@ -188,7 +188,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 27409630 := by
+            _ ≤ 20234950 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

@@ -142,17 +142,19 @@ theorem RetainedBlock.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     LowNormBlock.Block.coordinateCount] using fits)]
   rfl
 
-private def fixedState8 {Alpha : Type}
-    (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 : Alpha) : Fin 8 → Alpha :=
+private def fixedState16 {Alpha : Type}
+    (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15 : Alpha) :
+    Fin 16 → Alpha :=
   fun lane =>
-    [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7].get
+    [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7,
+      lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15].get
       ⟨lane.val, by simpa using lane.isLt⟩
 
-/-- Reconstruct one Poseidon2 external-layer output from eight consecutive
+/-- Reconstruct one Poseidon2 external-layer output from sixteen consecutive
 retained final-round S-box slots. -/
 def RetainedBlock.externalForm? (block : RetainedBlock)
     (logicalWidth slotBase lane : Nat) : Option (SparseForm logicalWidth) := do
-  if laneBound : lane < 8 then do
+  if laneBound : lane < 16 then do
     let lane0 ← block.form? logicalWidth (slotBase + 0)
     let lane1 ← block.form? logicalWidth (slotBase + 1)
     let lane2 ← block.form? logicalWidth (slotBase + 2)
@@ -161,8 +163,16 @@ def RetainedBlock.externalForm? (block : RetainedBlock)
     let lane5 ← block.form? logicalWidth (slotBase + 5)
     let lane6 ← block.form? logicalWidth (slotBase + 6)
     let lane7 ← block.form? logicalWidth (slotBase + 7)
+    let lane8 ← block.form? logicalWidth (slotBase + 8)
+    let lane9 ← block.form? logicalWidth (slotBase + 9)
+    let lane10 ← block.form? logicalWidth (slotBase + 10)
+    let lane11 ← block.form? logicalWidth (slotBase + 11)
+    let lane12 ← block.form? logicalWidth (slotBase + 12)
+    let lane13 ← block.form? logicalWidth (slotBase + 13)
+    let lane14 ← block.form? logicalWidth (slotBase + 14)
+    let lane15 ← block.form? logicalWidth (slotBase + 15)
     pure (SparseLayer.external
-      (fixedState8 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7)
+      (fixedState16 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15)
       ⟨lane, laneBound⟩)
   else
     none
@@ -174,67 +184,23 @@ theorem RetainedBlock.externalForm?_ofSemantic
     (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
     (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
     (slotBase : Nat)
-    (slotBound : ∀ lane : Fin 8, slotBase + lane.val < block.slotCount)
-    (lane : Fin 8) :
+    (slotBound : ∀ lane : Fin 16, slotBase + lane.val < block.slotCount)
+    (lane : Fin 16) :
     (RetainedBlock.ofSemantic block retainedStart).externalForm?
         logicalWidth slotBase lane.val =
-      some (SparseLayer.external (fun selected : Fin 8 =>
+      some (SparseLayer.external (fun selected : Fin 16 =>
         block.form retainedStart fits
           ⟨slotBase + selected.val, slotBound selected⟩) lane) := by
-  let sourceSlot (selected : Fin 8) : Fin block.slotCount :=
-    ⟨slotBase + selected.val, slotBound selected⟩
+  have laneEq : ∀ selected (bound : selected < 16),
+      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
+          (slotBase + selected) =
+        some (block.form retainedStart fits
+          ⟨slotBase + selected, slotBound ⟨selected, bound⟩⟩) :=
+    fun selected bound => RetainedBlock.form?_ofSemantic block retainedStart
+      fits ⟨slotBase + selected, slotBound ⟨selected, bound⟩⟩
   unfold externalForm?
   rw [dif_pos lane.isLt]
-  have lane0_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 0) =
-        some (block.form retainedStart fits (sourceSlot 0)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 0)
-  have lane1_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 1) =
-        some (block.form retainedStart fits (sourceSlot 1)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 1)
-  have lane2_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 2) =
-        some (block.form retainedStart fits (sourceSlot 2)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 2)
-  have lane3_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 3) =
-        some (block.form retainedStart fits (sourceSlot 3)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 3)
-  have lane4_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 4) =
-        some (block.form retainedStart fits (sourceSlot 4)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 4)
-  have lane5_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 5) =
-        some (block.form retainedStart fits (sourceSlot 5)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 5)
-  have lane6_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 6) =
-        some (block.form retainedStart fits (sourceSlot 6)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 6)
-  have lane7_eq :
-      (RetainedBlock.ofSemantic block retainedStart).form? logicalWidth
-          (slotBase + 7) =
-        some (block.form retainedStart fits (sourceSlot 7)) := by
-    simpa [sourceSlot] using
-      RetainedBlock.form?_ofSemantic block retainedStart fits (sourceSlot 7)
-  rw [lane0_eq, lane1_eq, lane2_eq, lane3_eq, lane4_eq, lane5_eq,
-    lane6_eq, lane7_eq]
+  rw [laneEq 0 (by decide), laneEq 1 (by decide), laneEq 2 (by decide), laneEq 3 (by decide), laneEq 4 (by decide), laneEq 5 (by decide), laneEq 6 (by decide), laneEq 7 (by decide), laneEq 8 (by decide), laneEq 9 (by decide), laneEq 10 (by decide), laneEq 11 (by decide), laneEq 12 (by decide), laneEq 13 (by decide), laneEq 14 (by decide), laneEq 15 (by decide)]
   apply congrArg some
   apply congrArg (fun state => SparseLayer.external state lane)
   funext selected
@@ -310,7 +276,7 @@ theorem SourceRange.form?_ofSemantic {sourceWidth logicalWidth : Nat}
 
 inductive SourceGridMode where
   | direct
-  | external8
+  | external16
 deriving Repr, DecidableEq
 
 /-- One exact two-level affine family of contiguous source runs. This keeps
@@ -349,7 +315,7 @@ def SourceGrid.form? (grid : SourceGrid) (logicalWidth source : Nat) :
               match grid.mode with
               | .direct =>
                   grid.retained.form? logicalWidth (slotBase + offset)
-              | .external8 =>
+              | .external16 =>
                   grid.retained.externalForm? logicalWidth slotBase offset
             else none
           else none
@@ -383,7 +349,7 @@ def SourceGrid.externalOfSemantic {sourceWidth : Nat}
   { ofSemantic block retainedStart sourceStart majorCount majorSourceStride
       minorCount minorSourceStride runCount slotStart majorSlotStride
       minorSlotStride with
-    mode := .external8 }
+    mode := .external16 }
 
 private theorem stride_div (outer offset stride : Nat)
     (positive : 0 < stride) (offsetBound : offset < stride) :
@@ -526,7 +492,7 @@ theorem SourceGrid.form?_ofSemantic {sourceWidth logicalWidth : Nat}
       minor.val * minorSlotStride + offset.val, slotBound⟩
 
 /-- A valid external grid coordinate reconstructs the exact Poseidon2
-external-layer sparse form over eight consecutive retained slots. -/
+external-layer sparse form over sixteen consecutive retained slots. -/
 theorem SourceGrid.form?_externalOfSemantic
     {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
@@ -541,8 +507,8 @@ theorem SourceGrid.form?_externalOfSemantic
     (minorCellBound : minor.val * minorSourceStride + offset.val <
       majorSourceStride)
     (offsetBound : offset.val < minorSourceStride)
-    (laneBound : offset.val < 8)
-    (slotBound : ∀ lane : Fin 8,
+    (laneBound : offset.val < 16)
+    (slotBound : ∀ lane : Fin 16,
       slotStart + major.val * majorSlotStride +
         minor.val * minorSlotStride + lane.val < block.slotCount) :
     (externalOfSemantic block retainedStart sourceStart majorCount
@@ -550,7 +516,7 @@ theorem SourceGrid.form?_externalOfSemantic
       majorSlotStride minorSlotStride).form? logicalWidth
         (sourceStart + major.val * majorSourceStride +
           minor.val * minorSourceStride + offset.val) =
-      some (SparseLayer.external (fun lane : Fin 8 =>
+      some (SparseLayer.external (fun lane : Fin 16 =>
         block.form retainedStart fits
           ⟨slotStart + major.val * majorSlotStride +
             minor.val * minorSlotStride + lane.val, slotBound lane⟩)

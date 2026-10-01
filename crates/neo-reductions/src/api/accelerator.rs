@@ -57,40 +57,19 @@ where
 {
     #[cfg(feature = "perf-timers")]
     let total_started = std::time::Instant::now();
-    ensure_superneo_width(s)?;
-    if me_inputs.is_empty() {
-        return Err(PiCcsError::InvalidInput(
-            "rlc_with_commit_refs_and_witness_mix: empty inputs".into(),
-        ));
-    }
-    if rhos.len() != me_inputs.len() || witnesses.len() != me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(
-            "rlc_with_commit_refs_and_witness_mix: input count mismatch".into(),
-        ));
-    }
+    validate_rlc_refs(
+        "rlc_with_commit_refs_and_witness_mix",
+        &mode,
+        s,
+        params,
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d,
+    )?;
     #[cfg(feature = "perf-timers")]
-    let shape_started = std::time::Instant::now();
-    validate_ce_claims_shape("rlc_with_commit_refs_and_witness_mix: me_inputs", s, me_inputs)?;
-    let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
-    #[cfg(feature = "perf-timers")]
-    let shape_elapsed = shape_started.elapsed();
-    #[cfg(feature = "perf-timers")]
-    let rho_started = std::time::Instant::now();
+    let validation_elapsed = total_started.elapsed();
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    #[cfg(feature = "perf-timers")]
-    let rho_elapsed = rho_started.elapsed();
-    #[cfg(feature = "perf-timers")]
-    let range_started = std::time::Instant::now();
-    for (idx, witness) in witnesses.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_range(
-            params,
-            witness,
-            s.m,
-            &format!("rlc_with_commit_refs_and_witness_mix: witnesses[{idx}]"),
-        )?;
-    }
-    #[cfg(feature = "perf-timers")]
-    let range_elapsed = range_started.elapsed();
 
     match mode {
         FoldingMode::Optimized => {
@@ -113,10 +92,8 @@ where
             out.c = mix_commits(&rho_mats, &commitments);
             #[cfg(feature = "perf-timers")]
             eprintln!(
-                "[pi-rlc/resident] shape={:.3}ms rho={:.3}ms range={:.3}ms witness_mix={:.3}ms claim_mix={:.3}ms commitment={:.3}ms total={:.3}ms inputs={} cols={}",
-                shape_elapsed.as_secs_f64() * 1_000.0,
-                rho_elapsed.as_secs_f64() * 1_000.0,
-                range_elapsed.as_secs_f64() * 1_000.0,
+                "[pi-rlc/resident] validation={:.3}ms witness_mix={:.3}ms claim_mix={:.3}ms commitment={:.3}ms total={:.3}ms inputs={} cols={}",
+                validation_elapsed.as_secs_f64() * 1_000.0,
                 witness_mix_elapsed.as_secs_f64() * 1_000.0,
                 claim_mix_elapsed.as_secs_f64() * 1_000.0,
                 commitment_started.elapsed().as_secs_f64() * 1_000.0,

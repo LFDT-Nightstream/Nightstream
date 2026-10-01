@@ -3,6 +3,7 @@
 use neo_math::D;
 use neo_reductions::superneo_eval::{SuperneoCompactRowOffsets, SuperneoMatrixCache};
 
+use super::spans::{self, SpanLayer};
 use crate::MetalError;
 
 const DENSE: u32 = 1 << 31;
@@ -19,6 +20,7 @@ pub(super) struct BlockTranspose {
 impl BlockTranspose {
     pub fn new(
         matrix: &SuperneoMatrixCache,
+        layers: &[SpanLayer],
         rows: usize,
         columns: usize,
         pattern_base: u32,
@@ -32,17 +34,7 @@ impl BlockTranspose {
             .compact_device_parts()
             .ok_or(MetalError::Shape("opening needs compact rows"))?;
         let mut active = vec![false; blocks];
-        let mut invalid = false;
-        matrix.for_each_compact_geometric_run(|_, _, start, len, _, _| {
-            if let Some(end) = start.checked_add(len).filter(|&end| end <= columns) {
-                active[start / D..end.div_ceil(D)].fill(true);
-            } else {
-                invalid = true;
-            }
-        });
-        if invalid {
-            return Err(MetalError::Shape("geometric opening range is invalid"));
-        }
+        spans::mark_blocks(layers, &mut active);
         if identity {
             active[..rows.min(columns).div_ceil(D)].fill(true);
             return Ok(Self {

@@ -67,6 +67,36 @@ where
     .map_err(Into::into)
 }
 
+/// PiRLC whose witness mix belongs to an accelerator. The claim algebra,
+/// the commitment mix, and every input check stay canonical.
+#[cfg(feature = "metal")]
+pub fn prove_pi_rlc_refs_resident<MR, MW, R>(
+    pp: &Params,
+    s: &Structure,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_rhos_commits: MR,
+    mix_witnesses: MW,
+) -> Result<(CeClaim, R), Error>
+where
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> R,
+{
+    nr::rlc_with_commit_refs_and_resident_witness(
+        FoldingMode::Optimized,
+        s,
+        pp.inner(),
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d(),
+        mix_rhos_commits,
+        mix_witnesses,
+    )
+    .map_err(Into::into)
+}
+
 pub fn verify_pi_rlc<MR>(
     pp: &Params,
     s: &Structure,

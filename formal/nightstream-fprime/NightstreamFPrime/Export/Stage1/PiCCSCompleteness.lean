@@ -34,7 +34,7 @@ theorem roundEnd_eq_initialClaimLogicalStart
       Phi81CarrierLayout.carrierWidth logicalWidth) :
     PiCCSInvocations.roundWitnessStart +
         Invocations.invocationCount
-          (PiCCSInvocations.roundActions logicalWidth publicFits) * 592 =
+          (PiCCSInvocations.roundActions logicalWidth publicFits) * 1096 =
       PiCCSArithmetic.initialClaimLogicalStart := by
   rw [PiCCSInvocations.roundInvocationCount_eq]
   unfold PiCCSInvocations.roundWitnessStart
@@ -77,7 +77,7 @@ private theorem preOutput_schedule
           PiCCSInvocations.statementWitnessStart +
             Invocations.invocationCount
               (PiCCSInvocations.statementActions logicalWidth publicFits) *
-                592 := by
+                1096 := by
           rw [PiCCSInvocations.statementInvocationCount_eq]
           omega
       _ = PiCCSInvocations.challengeWitnessStart :=
@@ -89,7 +89,7 @@ private theorem preOutput_schedule
           PiCCSInvocations.challengeWitnessStart +
             Invocations.invocationCount
               (PiCCSInvocations.challengeActions logicalWidth publicFits) *
-                592 := by
+                1096 := by
           rw [PiCCSInvocations.challengeInvocationCount_eq]
           omega
       _ = PiCCSInvocations.roundWitnessStart :=
@@ -148,7 +148,7 @@ theorem preOutput_invocationsBeforeArithmetic
           PiCCSInvocations.challengeWitnessStart +
             Invocations.invocationCount
               (PiCCSInvocations.challengeActions logicalWidth publicFits) *
-                592 := by
+                1096 := by
           rw [PiCCSInvocations.challengeInvocationCount_eq]
           omega
       _ = PiCCSInvocations.roundWitnessStart :=
@@ -663,7 +663,7 @@ theorem preOutputHolds_after_output
     rcases inputs lane term termMember with inputBefore | inputAfter
     · exact Or.inl (lt_of_lt_of_le inputBefore (by
         calc
-          invocation.witnessStart ≤ invocation.witnessStart + 592 := by omega
+          invocation.witnessStart ≤ invocation.witnessStart + 1096 := by omega
           _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
               PiCCSArithmetic.initialClaimLogicalStart := beforeArithmetic
           _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
@@ -674,7 +674,7 @@ theorem preOutputHolds_after_output
   · intro index below
     apply Or.inl
     calc
-      invocation.witnessStart + index < invocation.witnessStart + 592 := by
+      invocation.witnessStart + index < invocation.witnessStart + 1096 := by
         omega
       _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
           PiCCSInvocations.outputWitnessStart :=

@@ -65,7 +65,7 @@ impl Poseidon2Transcript {
         value
     }
 
-    /// Return the current four rate lanes, then apply one permutation.
+    /// Return the current rate lanes, then apply one permutation.
     /// This is the exact fixed-window digest step used by the Lean PiRLC
     /// sampler. It does not add a query tag or change the absorb schedule.
     pub fn squeeze_digest_v1_1(&mut self) -> [F; p2::RATE] {
@@ -81,7 +81,7 @@ impl Poseidon2Transcript {
     }
 
     /// Non-mutating four-lane compression for legacy receipt fields. The
-    /// authoritative v1.1 handoff remains the complete eight-lane state.
+    /// authoritative v1.1 handoff remains the complete sixteen-lane state.
     pub fn state_prefix_v1_1(&self) -> [u8; 32] {
         let mut output = [0u8; 32];
         for lane in 0..4 {
@@ -128,12 +128,8 @@ impl Poseidon2Transcript {
 
         // 2. Process full chunks
         while len - src_idx >= p2::RATE {
-            // Manually unroll for p2::RATE = 4
-            // We use assignment (overwrite) to match absorb_elem behavior
-            self.st[0] = inputs[src_idx];
-            self.st[1] = inputs[src_idx + 1];
-            self.st[2] = inputs[src_idx + 2];
-            self.st[3] = inputs[src_idx + 3];
+            // Overwrite the rate lanes to match absorb_elem behavior.
+            self.st[..p2::RATE].copy_from_slice(&inputs[src_idx..src_idx + p2::RATE]);
 
             self.permute();
             src_idx += p2::RATE;

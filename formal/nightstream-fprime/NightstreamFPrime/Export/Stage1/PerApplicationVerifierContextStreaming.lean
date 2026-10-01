@@ -48,47 +48,26 @@ theorem applicationAuthorityWordCount_eq (plan : ApplicationPackage.Plan) :
     _ = (ApplicationPackage.authorityWords plan).length := by
       rfl
 
-@[inline] private def absorbNatBlock64 (state : NativePoseidon2.State64)
-    (b0 b1 b2 b3 : Nat) : NativePoseidon2.State64 :=
-  NativePoseidon2.absorbBlock64 state
-    (NativePoseidon2.ofNat64 b0) (NativePoseidon2.ofNat64 b1)
-    (NativePoseidon2.ofNat64 b2) (NativePoseidon2.ofNat64 b3)
-    (NativePoseidon2.ofNat64_canonical _)
-    (NativePoseidon2.ofNat64_canonical _)
-    (NativePoseidon2.ofNat64_canonical _)
-    (NativePoseidon2.ofNat64_canonical _)
-
-private theorem absorbNatBlock64_denote (state : NativePoseidon2.State64)
-    (b0 b1 b2 b3 : Nat) :
-    (absorbNatBlock64 state b0 b1 b2 b3).denote =
-      Poseidon2.absorbBlock state.denote
-        [Poseidon2.ofNat b0, Poseidon2.ofNat b1,
-          Poseidon2.ofNat b2, Poseidon2.ofNat b3] := by
-  simp [absorbNatBlock64]
-
-/-- Eight aligned native blocks for `VerifierContext.componentDomain`. The
-framed authority length is retained as the next sponge word. -/
+/-- Two aligned native blocks for `VerifierContext.componentDomain`. The last
+seven domain words, the component, and the framed authority length stay
+pending. -/
 def componentInitialState64 (component wordCount : Nat) :
-    NativePoseidon2.HashState64 :=
-  let state := absorbNatBlock64 NativePoseidon2.State64.zero 78 105 103 104
-  let state := absorbNatBlock64 state 116 115 116 114
-  let state := absorbNatBlock64 state 101 97 109 47
-  let state := absorbNatBlock64 state 70 80 114 105
-  let state := absorbNatBlock64 state 109 101 47 99
-  let state := absorbNatBlock64 state 111 110 116 101
-  let state := absorbNatBlock64 state 120 116 47 118
-  let state := absorbNatBlock64 state 49 95 49 component
-  {
-    sponge := state
-    carry := NativePoseidon2.ofNat64 wordCount
-    carryCanonical := NativePoseidon2.ofNat64_canonical _
-  }
+    NativePoseidon2.HashState64 where
+  sponge := NativePoseidon2.absorbWords64
+    (NativePoseidon2.absorbWords64 NativePoseidon2.State64.zero
+      [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47] (by decide))
+    [70, 80, 114, 105, 109, 101, 47, 99, 111, 110, 116, 101] (by decide)
+  pending := [120, 116, 47, 118, 49, 95, 49, NativePoseidon2.ofNat64 component,
+    NativePoseidon2.ofNat64 wordCount]
+  pendingCanonical := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false]
+    rintro word (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
+    all_goals first | decide | exact NativePoseidon2.ofNat64_canonical _
 
 def componentInitialState (component wordCount : Nat) :
-    StreamingIdentity.HashState where
-  sponge := Poseidon2.absorbBlocksFast 8 Poseidon2.zeroState
-    (VerifierContext.componentDomain component)
-  carry := Poseidon2.ofNat wordCount
+    StreamingIdentity.HashState :=
+  StreamingIdentity.prefixState 2
+    (VerifierContext.componentDomain component ++ [Poseidon2.ofNat wordCount])
 
 theorem componentInitialState64_denote (component wordCount : Nat) :
     (componentInitialState64 component wordCount).denote =
@@ -96,13 +75,22 @@ theorem componentInitialState64_denote (component wordCount : Nat) :
   have zeroDenote : NativePoseidon2.State64.zero.denote =
       Poseidon2.zeroState := by
     decide
+  have block0 : ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47] :
+      List UInt64).map UInt64.denote =
+        [(78 : F), 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47] := by
+    decide
+  have block1 : ([70, 80, 114, 105, 109, 101, 47, 99, 111, 110, 116, 101] :
+      List UInt64).map UInt64.denote =
+        [(70 : F), 80, 114, 105, 109, 101, 47, 99, 111, 110, 116, 101] := by
+    decide
   simp only [componentInitialState64, NativePoseidon2.HashState64.denote,
-    componentInitialState, absorbNatBlock64_denote,
-    NativePoseidon2.ofNat64_denote, StreamingIdentity.HashState.mk.injEq]
+    componentInitialState, StreamingIdentity.prefixState,
+    NativePoseidon2.absorbWords64_denote, StreamingIdentity.HashState.mk.injEq]
   constructor
-  · rw [zeroDenote]
+  · rw [zeroDenote, block0, block1]
     rfl
-  · trivial
+  · simp only [List.map_cons, List.map_nil, NativePoseidon2.ofNat64_denote]
+    simp [VerifierContext.componentDomain, Poseidon2.rate, UInt64.denote]
 
 def applicationComponentState64 (plan : ApplicationPackage.Plan) :
     NativePoseidon2.HashState64 :=
@@ -134,41 +122,16 @@ private def applicationComponentInput (plan : ApplicationPackage.Plan) : List F 
   VerifierContext.componentDomain 2 ++
     VerifierContext.framed (ApplicationPackage.authorityWords plan)
 
-private theorem applicationComponentBlockCount
-    (plan : ApplicationPackage.Plan) :
-    ((applicationComponentInput plan).length + Poseidon2.rate - 1) /
-        Poseidon2.rate =
-      (StreamingIdentity.nodes
-        (ApplicationPackage.Plan.format.encode plan)).length + 9 := by
-  rw [applicationComponentInput, List.length_append,
-    VerifierContext.componentDomain_length]
-  simp only [VerifierContext.framed, List.length_cons]
-  unfold ApplicationPackage.authorityWords
-  rw [← StreamingIdentity.canonicalWords_eq_valuePreimage,
-    StreamingIdentity.canonicalWords_length]
-  norm_num [Poseidon2.rate]
-  omega
-
-private theorem applicationComponentAbsorbFirstEight
-    (plan : ApplicationPackage.Plan) :
-    Poseidon2.absorbBlocksFast 8 Poseidon2.zeroState
-        (applicationComponentInput plan) =
-      (componentInitialState 2 (applicationAuthorityWordCount plan)).sponge := by
-  simp [applicationComponentInput, componentInitialState,
-    VerifierContext.componentDomain, VerifierContext.framed,
-    Poseidon2.absorbBlocksFast, Poseidon2.rate]
-
-private theorem applicationComponentDropFirstEight
-    (plan : ApplicationPackage.Plan) :
-    (applicationComponentInput plan).drop (8 * Poseidon2.rate) =
-      (componentInitialState 2 (applicationAuthorityWordCount plan)).carry ::
+private theorem applicationComponentInput_eq (plan : ApplicationPackage.Plan) :
+    applicationComponentInput plan =
+      (VerifierContext.componentDomain 2 ++
+          [Poseidon2.ofNat (applicationAuthorityWordCount plan)]) ++
         StreamingIdentity.canonicalWords
           (ApplicationPackage.Plan.format.encode plan) := by
   rw [applicationComponentInput, applicationAuthorityWordCount_eq,
     ApplicationPackage.authorityWords,
     ← StreamingIdentity.canonicalWords_eq_valuePreimage]
-  simp [componentInitialState, VerifierContext.componentDomain,
-    VerifierContext.framed, Poseidon2.rate]
+  simp [VerifierContext.framed]
 
 private theorem applicationComponentStreamedAbsorbed
     (plan : ApplicationPackage.Plan) :
@@ -177,46 +140,14 @@ private theorem applicationComponentStreamedAbsorbed
           Poseidon2.rate)
         Poseidon2.zeroState (applicationComponentInput plan) =
       Poseidon2.absorbBlock (applicationComponentState plan).sponge
-        [(applicationComponentState plan).carry] := by
-  rw [applicationComponentBlockCount]
-  let value := ApplicationPackage.Plan.format.encode plan
-  let initial := componentInitialState 2 (applicationAuthorityWordCount plan)
-  calc
-    Poseidon2.absorbBlocksFast
-        ((StreamingIdentity.nodes value).length + 9)
-        Poseidon2.zeroState (applicationComponentInput plan) =
-      Poseidon2.absorbBlocksFast
-        (8 + ((StreamingIdentity.nodes value).length + 1))
-        Poseidon2.zeroState (applicationComponentInput plan) := by
-          congr 1
-          omega
-    _ = Poseidon2.absorbBlocksFast
-        ((StreamingIdentity.nodes value).length + 1)
-        (Poseidon2.absorbBlocksFast 8 Poseidon2.zeroState
-          (applicationComponentInput plan))
-        ((applicationComponentInput plan).drop (8 * Poseidon2.rate)) := by
-          rw [StreamingIdentity.absorbBlocksFast_add]
-    _ = Poseidon2.absorbBlocksFast
-        ((StreamingIdentity.nodes value).length + 1) initial.sponge
-        (initial.carry :: StreamingIdentity.canonicalWords value) := by
-          rw [applicationComponentAbsorbFirstEight,
-            applicationComponentDropFirstEight]
-    _ = Poseidon2.absorbBlock
-        (StreamingIdentity.processNodes initial
-          (StreamingIdentity.nodes value)).sponge
-        [(StreamingIdentity.processNodes initial
-          (StreamingIdentity.nodes value)).carry] := by
-          exact StreamingIdentity.processNodes_finalAbsorb initial
-            (StreamingIdentity.nodes value)
-    _ = Poseidon2.absorbBlock
-        (StreamingIdentity.processValue value initial).sponge
-        [(StreamingIdentity.processValue value initial).carry] := by
-          rw [StreamingIdentity.processValue_eq_processNodes]
-    _ = Poseidon2.absorbBlock (applicationComponentState plan).sponge
-        [(applicationComponentState plan).carry] := by
-          unfold applicationComponentState
-          rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
-          rfl
+        (applicationComponentState plan).pending := by
+  rw [applicationComponentInput_eq,
+    StreamingIdentity.prefixStreamed_eq 2 _ _
+      (by simp [Poseidon2.rate]) (by simp [Poseidon2.rate])
+      (by simp [Poseidon2.rate])]
+  unfold applicationComponentState
+  rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
+  rfl
 
 /-- Allocation-bounded executable application component digest. -/
 @[inline] def applicationComponentDigestDirect

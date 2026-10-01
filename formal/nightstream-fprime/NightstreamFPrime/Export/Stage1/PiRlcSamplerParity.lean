@@ -36,9 +36,9 @@ def fixture : Lean.Json :=
   let boundaries := [0, 1, scalarCount - 1, scalarCount, scalarCount + 1,
     goldilocksModulus - 1, goldilocksModulus, goldilocksModulus + 1,
     drawCount - scalarCount, drawCount - 2, drawCount - 1]
-  let states := [List.replicate 8 (Poseidon2.ofNat 0),
-    (List.range 8).map Poseidon2.ofNat,
-    List.replicate 8 (Poseidon2.ofNat (goldilocksModulus - 1))]
+  let states := [List.replicate 16 (Poseidon2.ofNat 0),
+    (List.range 16).map Poseidon2.ofNat,
+    List.replicate 16 (Poseidon2.ofNat (goldilocksModulus - 1))]
   Lean.Json.mkObj [
     ("schema", Lean.toJson (1 : Nat)),
     ("modulus", Lean.toJson goldilocksModulus),

@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 /-!
 Owns the retained-block adapter for one indexed Poseidon2 family. A schedule
 maps invocation-major S-box rows to one low-norm block and derives each final
-output state directly from rows 78 through 85.
+output state directly from rows 134 through 149.
 
 This module does not select a concrete Stage 1 schedule or source columns.
 -/
@@ -26,6 +26,16 @@ def slot {sourceWidth invocationCount : Nat}
     (row : Fin PoseidonRetainedSlots.rows.length) :
     Fin schedule.block.slotCount :=
   Fin.cast schedule.slotCount_eq.symm (Fin.encodeProd (invocation, row))
+
+/-- Invocation-major slot index. Callers rewrite `rows.length` with
+`PoseidonRetainedSlots.rows_length` instead of unfolding the template. -/
+theorem slot_val {sourceWidth invocationCount : Nat}
+    (schedule : Schedule sourceWidth invocationCount)
+    (invocation : Fin invocationCount)
+    (row : Fin PoseidonRetainedSlots.rows.length) :
+    (slot schedule invocation row).val =
+      PoseidonRetainedSlots.rows.length * invocation.val + row.val := by
+  rfl
 
 def form {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : Schedule sourceWidth invocationCount)
@@ -139,7 +149,7 @@ theorem trace_state_eq_outputState
   funext lane
   unfold PoseidonSboxPlan.fullOutput PoseidonSboxPlan.sboxOutputAt
     invocationInterface
-  have bounded : 78 + lane.val < PoseidonRetainedSlots.rows.length :=
+  have bounded : 134 + lane.val < PoseidonRetainedSlots.rows.length :=
     (PoseidonRetainedSlots.finalRow lane).isLt
   rw [dif_pos bounded]
   apply congrArg (form schedule start fits invocation)

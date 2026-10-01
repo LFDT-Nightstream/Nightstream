@@ -45,15 +45,15 @@ private def wireState {width : Nat} (state : SparseLayer.State width) :
     List WireForm :=
   List.ofFn fun lane => WireForm.ofSemantic (state lane)
 
-private def poseidonInputs : Nat := 1 + 8 + PoseidonRetainedSlots.rows.length
+private def poseidonInputs : Nat := 1 + 16 + PoseidonRetainedSlots.rows.length
 
 private def poseidonWidth : Nat :=
-  poseidonInputs + 8 * Permutation.schedule.length
+  poseidonInputs + 16 * Permutation.schedule.length
 
 private def poseidonInterface : PoseidonSboxPlan.Interface poseidonWidth :=
   let sboxOutput := fun slot : Fin PoseidonRetainedSlots.rows.length =>
     SparseForm.singleton
-      ⟨9 + slot.val, by
+      ⟨17 + slot.val, by
         have bound := slot.isLt
         simp only [poseidonWidth, poseidonInputs]
         omega⟩ 1
@@ -65,7 +65,7 @@ private def poseidonInterface : PoseidonSboxPlan.Interface poseidonWidth :=
         omega⟩ 1
     sboxOutput
     output := SparseLayer.external fun lane => sboxOutput
-      ⟨78 + lane.val, by
+      ⟨134 + lane.val, by
         have bound := lane.isLt
         rw [PoseidonRetainedSlots.rows_length]
         omega⟩ }
@@ -73,7 +73,7 @@ private def poseidonInterface : PoseidonSboxPlan.Interface poseidonWidth :=
 private def registerState (step : Fin Permutation.schedule.length) :
     SparseLayer.State poseidonWidth :=
   fun lane => SparseForm.singleton
-    ⟨poseidonInputs + 8 * step.val + lane.val, by
+    ⟨poseidonInputs + 16 * step.val + lane.val, by
       have stepBound := step.isLt
       have laneBound := lane.isLt
       unfold poseidonWidth
@@ -105,14 +105,14 @@ def poseidonVariant (_ : Unit) : Variant :=
     exportPoseidonStep initial
   { linearForms := compiled.linearForms
     rows := compiled.rows
-    outputRegisters := (List.range 8).map fun lane =>
-      poseidonInputs + 8 * (Permutation.schedule.length - 1) + lane }
+    outputRegisters := (List.range 16).map fun lane =>
+      poseidonInputs + 16 * (Permutation.schedule.length - 1) + lane }
 
 def poseidonComponent (_ : Unit) : Component where
   id := "poseidon2-permutation-v1"
   inputCount := poseidonInputs
-  ports := [⟨"one", "constant", 0, 1⟩, ⟨"input", "input", 1, 8⟩,
-    ⟨"sbox_output", "witness", 9, PoseidonRetainedSlots.rows.length⟩]
+  ports := [⟨"one", "constant", 0, 1⟩, ⟨"input", "input", 1, 16⟩,
+    ⟨"sbox_output", "witness", 17, PoseidonRetainedSlots.rows.length⟩]
   variantCount := 1
   variant := fun _ => poseidonVariant ()
   definitions := [
@@ -125,15 +125,15 @@ def poseidonComponent (_ : Unit) : Component where
     "NightstreamFPrime.Layout.MatrixProgram.Poseidon.Block.rowWithInput?_ofSemantic"]
 
 def externalVariant (_ : Unit) : Variant :=
-  let input : SparseLayer.State 8 := fun lane => SparseForm.singleton lane 1
+  let input : SparseLayer.State 16 := fun lane => SparseForm.singleton lane 1
   { linearForms := wireState (SparseLayer.external input)
     rows := []
-    outputRegisters := (List.range 8).map (8 + ·) }
+    outputRegisters := (List.range 16).map (16 + ·) }
 
 def externalComponent (_ : Unit) : Component where
   id := "poseidon2-external-v1"
-  inputCount := 8
-  ports := [⟨"input", "input", 0, 8⟩]
+  inputCount := 16
+  ports := [⟨"input", "input", 0, 16⟩]
   variantCount := 1
   variant := fun _ => externalVariant ()
   definitions := ["NightstreamFPrime.Layout.ProductionRelation.SparseLayer.external"]

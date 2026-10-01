@@ -263,7 +263,7 @@ private theorem entryPermutationState_affine (source : Nat) :
   · exact entryWords_affine source
 
 /-- One selected scalar-entry child constructs its sole compact Poseidon2
-invocation, including the exact 592 internal witness rows. -/
+invocation, including the exact 1096 internal witness rows. -/
 theorem remappedPacket_implies_entryPermutations (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :

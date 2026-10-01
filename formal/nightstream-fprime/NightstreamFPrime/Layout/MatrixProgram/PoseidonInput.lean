@@ -359,13 +359,13 @@ theorem Term.external_form?_ofSemantic
     (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
     (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
     (oneColumn slotBase invocationStride invocationOffset : Nat)
-    (slotBound : ∀ lane : Fin 8,
+    (slotBound : ∀ lane : Fin 16,
       slotBase + invocationOffset * invocationStride + lane.val <
         block.slotCount)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (Term.external (RetainedBlock.ofSemantic block retainedStart) slotBase
       invocationStride).form? logicalWidth oneColumn invocationOffset lane.val =
-      some (SparseLayer.external (fun selected : Fin 8 =>
+      some (SparseLayer.external (fun selected : Fin 16 =>
         block.form retainedStart fits
           ⟨slotBase + invocationOffset * invocationStride + selected.val,
             slotBound selected⟩) lane) := by
@@ -437,18 +437,18 @@ theorem Rule.constant_form?
 theorem Rule.external_form?_ofSemantic
     {sourceWidth logicalWidth : Nat}
     (region : Region) (invocationOffset : Fin region.invocationCount)
-    (laneOffset : Fin region.laneCount) (laneBound : laneOffset.val < 8)
+    (laneOffset : Fin region.laneCount) (laneBound : laneOffset.val < 16)
     (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
     (fits : retainedStart + block.coordinateCount ≤ logicalWidth)
     (oneColumn slotBase invocationStride : Nat)
-    (slotBound : ∀ lane : Fin 8,
+    (slotBound : ∀ lane : Fin 16,
       slotBase + invocationOffset.val * invocationStride + lane.val <
         block.slotCount) :
     (Rule.mk region (.external (RetainedBlock.ofSemantic block retainedStart)
       slotBase invocationStride)).form? logicalWidth oneColumn
         (region.invocationStart + invocationOffset.val)
         (region.laneStart + laneOffset.val) =
-      some (some (SparseLayer.external (fun selected : Fin 8 =>
+      some (some (SparseLayer.external (fun selected : Fin 16 =>
         block.form retainedStart fits
           ⟨slotBase + invocationOffset.val * invocationStride + selected.val,
             slotBound selected⟩) ⟨laneOffset.val, laneBound⟩)) := by
@@ -667,11 +667,13 @@ theorem Program.form?_eq_some_empty_of_allOutside
   exact applyRules?_of_allOutside oneColumn invocation lane program.rules
     .empty outside
 
-/-- Decode all eight input lanes exactly once. -/
-private def fixedState8 {Alpha : Type}
-    (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 : Alpha) : Fin 8 → Alpha :=
+/-- Decode all sixteen input lanes exactly once. -/
+private def fixedState16 {Alpha : Type}
+    (lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15 : Alpha) :
+    Fin 16 → Alpha :=
   fun lane =>
-    [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7].get
+    [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7,
+      lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15].get
       ⟨lane.val, by simpa using lane.isLt⟩
 
 def Program.state? (program : Program) (logicalWidth oneColumn invocation : Nat) :
@@ -684,7 +686,15 @@ def Program.state? (program : Program) (logicalWidth oneColumn invocation : Nat)
   let lane5 ← program.form? logicalWidth oneColumn invocation 5
   let lane6 ← program.form? logicalWidth oneColumn invocation 6
   let lane7 ← program.form? logicalWidth oneColumn invocation 7
-  pure (fixedState8 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7)
+  let lane8 ← program.form? logicalWidth oneColumn invocation 8
+  let lane9 ← program.form? logicalWidth oneColumn invocation 9
+  let lane10 ← program.form? logicalWidth oneColumn invocation 10
+  let lane11 ← program.form? logicalWidth oneColumn invocation 11
+  let lane12 ← program.form? logicalWidth oneColumn invocation 12
+  let lane13 ← program.form? logicalWidth oneColumn invocation 13
+  let lane14 ← program.form? logicalWidth oneColumn invocation 14
+  let lane15 ← program.form? logicalWidth oneColumn invocation 15
+  pure (fixedState16 lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7 lane8 lane9 lane10 lane11 lane12 lane13 lane14 lane15)
 
 /-- Exact lane decoding gives the exact semantic input state. -/
 theorem Program.state?_eq_some
@@ -697,10 +707,18 @@ theorem Program.state?_eq_some
     (lane4 : program.form? logicalWidth oneColumn invocation 4 = some (state 4))
     (lane5 : program.form? logicalWidth oneColumn invocation 5 = some (state 5))
     (lane6 : program.form? logicalWidth oneColumn invocation 6 = some (state 6))
-    (lane7 : program.form? logicalWidth oneColumn invocation 7 = some (state 7)) :
+    (lane7 : program.form? logicalWidth oneColumn invocation 7 = some (state 7))
+    (lane8 : program.form? logicalWidth oneColumn invocation 8 = some (state 8))
+    (lane9 : program.form? logicalWidth oneColumn invocation 9 = some (state 9))
+    (lane10 : program.form? logicalWidth oneColumn invocation 10 = some (state 10))
+    (lane11 : program.form? logicalWidth oneColumn invocation 11 = some (state 11))
+    (lane12 : program.form? logicalWidth oneColumn invocation 12 = some (state 12))
+    (lane13 : program.form? logicalWidth oneColumn invocation 13 = some (state 13))
+    (lane14 : program.form? logicalWidth oneColumn invocation 14 = some (state 14))
+    (lane15 : program.form? logicalWidth oneColumn invocation 15 = some (state 15)) :
     program.state? logicalWidth oneColumn invocation = some state := by
   unfold Program.state?
-  rw [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7]
+  rw [lane0, lane1, lane2, lane3, lane4, lane5, lane6, lane7, lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15]
   apply congrArg some
   funext lane
   fin_cases lane <;> rfl

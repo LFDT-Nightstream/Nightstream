@@ -99,7 +99,7 @@ def compileAbsorptions (start : Nat) (state : EState) :
   | block :: rest =>
       let permutation := Permutation.compile start (absorbE state block)
         Permutation.schedule
-      let tail := compileAbsorptions (start + 592) permutation.output rest
+      let tail := compileAbsorptions (start + 1096) permutation.output rest
       ⟨permutation.recipes ++ tail.recipes, tail.output⟩
 
 /-- Tail-recursive executable form of `compileAbsorptions`. The kernel keeps
@@ -113,7 +113,7 @@ where
     | output, current, block :: rest, recipesRev =>
         let permutation := Permutation.compile output
           (absorbE current block) Permutation.schedule
-        go (output + 592) permutation.output rest
+        go (output + 1096) permutation.output rest
           (permutation.recipes.reverse ++ recipesRev)
 
 private theorem compileAbsorptionsTR_go_eq (start : Nat) (state : EState)
@@ -172,7 +172,7 @@ theorem inputChunks_below (input : List Expr) (bound : Nat)
 theorem absorbE_varsBelow (state : EState) (block : List Expr) {bound : Nat}
     (hstate : ∀ lane, (state lane).VarsBelow bound)
     (hblock : ∀ expression ∈ block, expression.VarsBelow bound)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (absorbE state block lane).VarsBelow bound := by
   simp only [absorbE, Expr.VarsBelow]
   constructor
@@ -183,7 +183,7 @@ theorem absorbE_varsBelow (state : EState) (block : List Expr) {bound : Nat}
     · simp [List.getD, hin, Expr.VarsBelow]
 
 theorem padE_varsBelow (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (padE state lane).VarsBelow bound := by
   by_cases hzero : lane.val = 0
   · simp [padE, hzero, Expr.VarsBelow, hstate]
@@ -192,7 +192,7 @@ theorem padE_varsBelow (state : EState) {bound : Nat}
 @[simp] theorem compileAbsorptions_recipes_length (start : Nat)
     (state : EState) (blocks : List (List Expr)) :
     (compileAbsorptions start state blocks).recipes.length =
-      blocks.length * 592 := by
+      blocks.length * 1096 := by
   induction blocks generalizing start state with
   | nil => rfl
   | cons block rest ih =>
@@ -202,7 +202,7 @@ theorem padE_varsBelow (state : EState) {bound : Nat}
 
 @[simp] theorem compile_recipes_length (start : Nat) (input : List Expr) :
     (compile start input).recipes.length =
-      (inputChunks input).length * 592 + 592 := by
+      (inputChunks input).length * 1096 + 1096 := by
   unfold compile
   dsimp only
   rw [List.length_append, compileAbsorptions_recipes_length,
@@ -227,13 +227,13 @@ theorem compileAbsorptions_causal (start : Nat) (state : EState)
         (absorbE state block) habsorb
       have houtput : ∀ lane,
           ((Permutation.compile start (absorbE state block)
-            Permutation.schedule).output lane).VarsBelow (start + 592) := by
+            Permutation.schedule).output lane).VarsBelow (start + 1096) := by
         intro lane
         have outputBound := Permutation.compile_output_varsBelow start
           (absorbE state block) Permutation.schedule habsorb lane
         rw [Permutation.compile_schedule_recipe_count] at outputBound
         exact outputBound
-      have htail := ih (start + 592)
+      have htail := ih (start + 1096)
         (Permutation.compile start (absorbE state block)
           Permutation.schedule).output houtput
         (blocksBelow_mono hrest (by omega))
@@ -244,7 +244,7 @@ theorem compileAbsorptions_causal (start : Nat) (state : EState)
 theorem compileAbsorptions_output_varsBelow (start : Nat) (state : EState)
     (blocks : List (List Expr))
     (hstate : ∀ lane, (state lane).VarsBelow start)
-    (hblocks : BlocksBelow start blocks) (lane : Fin 8) :
+    (hblocks : BlocksBelow start blocks) (lane : Fin 16) :
     ((compileAbsorptions start state blocks).output lane).VarsBelow
       (start + (compileAbsorptions start state blocks).recipes.length) := by
   induction blocks generalizing start state with
@@ -259,13 +259,13 @@ theorem compileAbsorptions_output_varsBelow (start : Nat) (state : EState)
         absorbE_varsBelow state block hstate hblock
       have houtput : ∀ current,
           ((Permutation.compile start (absorbE state block)
-            Permutation.schedule).output current).VarsBelow (start + 592) := by
+            Permutation.schedule).output current).VarsBelow (start + 1096) := by
         intro current
         have outputBound := Permutation.compile_output_varsBelow start
           (absorbE state block) Permutation.schedule habsorb current
         rw [Permutation.compile_schedule_recipe_count] at outputBound
         exact outputBound
-      have tail := ih (start + 592)
+      have tail := ih (start + 1096)
         (Permutation.compile start (absorbE state block)
           Permutation.schedule).output houtput
         (blocksBelow_mono hrest (by omega))
@@ -287,15 +287,15 @@ theorem compileAbsorptions_sound (env : Env) (start : Nat) (state : EState)
         Permutation.schedule
       have splitRows :
           ConstraintsHold env (recipeConstraints start permutation.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 592)
-            (compileAbsorptions (start + 592) permutation.output rest).recipes) := by
+          ConstraintsHold env (recipeConstraints (start + 1096)
+            (compileAbsorptions (start + 1096) permutation.output rest).recipes) := by
         rw [compileAbsorptions, Permutation.recipeConstraints_append] at hrows
         have separated :=
           (Permutation.constraintsHold_append env _ _).mp hrows
         simpa [permutation] using! separated
       have headSound := Permutation.compile_sound env start
         (absorbE state block) Permutation.schedule splitRows.1
-      have tailSound := ih (start + 592) permutation.output splitRows.2
+      have tailSound := ih (start + 1096) permutation.output splitRows.2
       simpa [compileAbsorptions, absorbManyF, permutation, headSound] using
         tailSound
 
@@ -322,7 +322,7 @@ theorem compile_causal (start : Nat) (input : List Expr)
 exact recipe interval allocated by `compile`. -/
 theorem compile_output_varsBelow (start : Nat) (input : List Expr)
     (hinput : ∀ expression ∈ input, expression.VarsBelow start)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     ((compile start input).output lane).VarsBelow
       (start + (compile start input).recipes.length) := by
   let blocks := inputChunks input
@@ -347,16 +347,11 @@ theorem compile_output_varsBelow (start : Nat) (input : List Expr)
     simp only [List.length_append,
       Permutation.compile_schedule_recipe_count] <;> omega
 
-private theorem ofFn_state {Alpha : Type} (state : Fin 8 → Alpha) :
-    List.ofFn state =
-      [state 0, state 1, state 2, state 3, state 4, state 5, state 6, state 7] := by
-  simp [List.ofFn_succ]
-
 theorem absorbF_input_eq_reference (state : FState) (block : List F) :
     List.ofFn (absorbF state block) =
       (List.range Spec.Poseidon2.width).map fun index =>
         (List.ofFn state).getD index 0 + block.getD index 0 := by
-  rw [ofFn_state (absorbF state block), ofFn_state state]
+  rw [Layer.ofFn_state (absorbF state block), Layer.ofFn_state state]
   simp [absorbF, Spec.Poseidon2.width, List.range_succ]
 
 theorem absorbStepF_eq_reference (state : FState) (block : List F) :
@@ -396,13 +391,13 @@ theorem padF_input_eq_reference (state : FState) :
       (List.range Spec.Poseidon2.width).map fun index =>
         if index = 0 then (List.ofFn state).getD 0 0 + 1
         else (List.ofFn state).getD index 0 := by
-  rw [ofFn_state (padF state), ofFn_state state]
+  rw [Layer.ofFn_state (padF state), Layer.ofFn_state state]
   simp [padF, Spec.Poseidon2.width, List.range_succ]
 
 theorem digestF_eq_take (state : FState) :
     List.ofFn (digestF state) =
       (List.ofFn state).take Spec.Poseidon2.digestLen := by
-  rw [ofFn_state state]
+  rw [Layer.ofFn_state state]
   simp [digestF, Spec.Poseidon2.digestLen, List.ofFn_succ]
 
 theorem hashF_eq_reference (input : List F) :

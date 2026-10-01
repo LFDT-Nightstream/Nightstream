@@ -182,7 +182,7 @@ theorem finalIdentityCircuit_main_eq_rowMain
 
 /-- Relation-free executable start of the initial-claim child. -/
 def initialClaimRowOffset (degreeBound offset : Nat) : Nat :=
-  offset + 224368 + 51504 +
+  offset + 140288 + 95352 +
     productionShape.cubeVariables *
       RoundTranscript.perRoundRecipeCount degreeBound
 
@@ -340,7 +340,7 @@ def finalRowOffset
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
-  outputBindingRowOffset interface offset + 4076512
+  outputBindingRowOffset interface offset + 2516416
 
 theorem finalOffset_eq_finalRowOffset
     {logicalWidth degreeBound : Nat}
@@ -363,7 +363,7 @@ theorem finalRowOffset_eq_add
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     finalRowOffset interface offset =
-      offset + (4472737 + productionShape.cubeVariables *
+      offset + (2872409 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound +
         SumcheckChain.privateCount degreeBound) := by
   unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
@@ -374,7 +374,7 @@ theorem finalRowOffset_eq_add
     EvalKTerminal.privateCount, InitialClaim.privateCount]
   omega
 
-/-- The production degree-nine PiCCS endpoint advances by exactly 4,622,677
+/-- The production degree-nine PiCCS endpoint advances by exactly 3,026,605
 private variables. -/
 theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
     {logicalWidth degreeBound : Nat}
@@ -382,7 +382,7 @@ theorem finalRowOffset_eq_add_of_degreeBound_eq_nine
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 9) :
-    finalRowOffset interface offset = offset + 4622677 := by
+    finalRowOffset interface offset = offset + 3026605 := by
   rw [finalRowOffset_eq_add, degreeEq]
   norm_num [RoundTranscript.perRoundRecipeCount, SumcheckChain.privateCount,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,

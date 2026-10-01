@@ -82,7 +82,7 @@ theorem bindingForm_squeezeFirst_zero
     (found : PiCCSActionPayloadBlock.kindAt invocation =
       .squeezeFirst expected) :
     bindingForm payload geometry invocation (0 : Fin 2) =
-      SparseForm.add (payloadForm payload invocation (0 : Fin 8))
+      SparseForm.add (payloadForm payload invocation (0 : Fin 16))
         (SparseForm.scale (-1) (previousOutput geometry invocation 0)) := by
   unfold bindingForm bindingActual
   rw [found]
@@ -97,7 +97,7 @@ theorem bindingForm_squeezeFirst_one
     (found : PiCCSActionPayloadBlock.kindAt invocation =
       .squeezeFirst expected) :
     bindingForm payload geometry invocation (1 : Fin 2) =
-      SparseForm.add (payloadForm payload invocation (1 : Fin 8))
+      SparseForm.add (payloadForm payload invocation (1 : Fin 16))
         (SparseForm.scale (-1) (outputState geometry invocation 0)) := by
   unfold bindingForm bindingActual
   rw [found]
@@ -119,7 +119,7 @@ theorem bindingRowCount_le : bindingRowCount ≤
   rw [bindingRowCount, invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
-theorem familyRowCount_le : invocationCount * 86 ≤
+theorem familyRowCount_le : invocationCount * 150 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -141,7 +141,7 @@ theorem combinedRowCount_le {program : Lifecycle.Stage1.Application.Program}
     (geometry : Geometry program logicalWidth) :
     (sboxPlan payload geometry).rowCount + (bindingPlan payload geometry).rowCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
-  change invocationCount * 86 + bindingRowCount ≤ _
+  change invocationCount * 150 + bindingRowCount ≤ _
   rw [bindingRowCount, invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
@@ -156,8 +156,8 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 669152 := by
-  change invocationCount * 86 + bindingRowCount = 669152
+    (plan payload geometry).rowCount = 402952 := by
+  change invocationCount * 150 + bindingRowCount = 402952
   rw [bindingRowCount, invocationCount_eq]
 
 theorem bindingRowsZero_iff

@@ -16,17 +16,20 @@ namespace NightstreamFPrime.Gadgets.Poseidon2.Layer
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-abbrev EState := Fin 8 → Expr
-abbrev FState := Fin 8 → F
+/-- Lane states use the literal width so that `omega` and `decide` see it. -/
+abbrev EState := Fin 16 → Expr
+abbrev FState := Fin 16 → F
+
+theorem width_eq : Spec.Poseidon2.width = 16 := rfl
 
 def evalState (env : Env) (state : EState) : FState :=
   fun lane => (state lane).eval env
 
 def getE (state : EState) (index : Nat) : Expr :=
-  if h : index < 8 then state ⟨index, h⟩ else 0
+  if h : index < 16 then state ⟨index, h⟩ else 0
 
 def getF (state : FState) (index : Nat) : F :=
-  if h : index < 8 then state ⟨index, h⟩ else 0
+  if h : index < 16 then state ⟨index, h⟩ else 0
 
 def sboxE (value : Expr) : Expr :=
   let square := value * value
@@ -58,27 +61,33 @@ def mat4F (state : FState) (base lane : Nat) : F :=
   | _ => 3 * getF state base + getF state (base + 1) +
       getF state (base + 2) + 2 * getF state (base + 3)
 
+/-- `M₄` applied to the four-lane block that contains `index`. -/
 def blockE (state : EState) (index : Nat) : Expr :=
-  mat4E state (if index < 4 then 0 else 4) (index % 4)
+  mat4E state (4 * (index / 4)) (index % 4)
 
 def blockF (state : FState) (index : Nat) : F :=
-  mat4F state (if index < 4 then 0 else 4) (index % 4)
+  mat4F state (4 * (index / 4)) (index % 4)
+
+/-- Sum over all blocks of the block lanes congruent to `index` mod 4. -/
+def columnE (state : EState) (index : Nat) : Expr :=
+  ((List.range 4).map fun block =>
+    blockE state (4 * block + index % 4)).foldl (· + ·) 0
+
+def columnF (state : FState) (index : Nat) : F :=
+  ((List.range 4).map fun block =>
+    blockF state (4 * block + index % 4)).foldl (· + ·) 0
 
 def externalE (state : EState) : EState :=
-  fun lane => blockE state lane.val + blockE state (lane.val % 4) +
-    blockE state (lane.val % 4 + 4)
+  fun lane => blockE state lane.val + columnE state lane.val
 
 def externalF (state : FState) : FState :=
-  fun lane => blockF state lane.val + blockF state (lane.val % 4) +
-    blockF state (lane.val % 4 + 4)
+  fun lane => blockF state lane.val + columnF state lane.val
 
 def sumE (state : EState) : Expr :=
-  getE state 0 + getE state 1 + getE state 2 + getE state 3 +
-    getE state 4 + getE state 5 + getE state 6 + getE state 7
+  ((List.range 16).map (getE state)).foldl (· + ·) 0
 
 def sumF (state : FState) : F :=
-  getF state 0 + getF state 1 + getF state 2 + getF state 3 +
-    getF state 4 + getF state 5 + getF state 6 + getF state 7
+  ((List.range 16).map (getF state)).foldl (· + ·) 0
 
 def internalE (state : EState) : EState :=
   fun lane => Expr.const (Spec.Poseidon2.ofNat
@@ -123,24 +132,48 @@ def partialF (round : Nat) (state : FState) : FState :=
 @[simp] theorem eval_mat4E (env : Env) (state : EState) (base lane : Nat) :
     (mat4E state base lane).eval env = mat4F (evalState env state) base lane := by
   rcases lane with _ | _ | _ | lane <;>
-    simp [mat4E, mat4F, Expr.eval_add, Expr.eval_mul]
+    simp [mat4E, mat4F]
+
+private theorem eval_foldl_add (env : Env) (values : List Expr) (initial : Expr) :
+    (values.foldl (· + ·) initial).eval env =
+      (values.map (Expr.eval env)).foldl (· + ·) (initial.eval env) := by
+  induction values generalizing initial with
+  | nil => rfl
+  | cons value values inductionHypothesis =>
+      simp only [List.foldl_cons, List.map_cons]
+      rw [inductionHypothesis]
+      rfl
+
+@[simp] theorem eval_blockE (env : Env) (state : EState) (index : Nat) :
+    (blockE state index).eval env = blockF (evalState env state) index := by
+  simp [blockE, blockF]
+
+@[simp] theorem eval_columnE (env : Env) (state : EState) (index : Nat) :
+    (columnE state index).eval env = columnF (evalState env state) index := by
+  unfold columnE columnF
+  rw [eval_foldl_add, List.map_map]
+  simp only [Function.comp_def, eval_blockE]
+  rfl
 
 @[simp] theorem eval_externalE (env : Env) (state : EState)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (externalE state lane).eval env = externalF (evalState env state) lane := by
-  simp [externalE, externalF, blockE, blockF]
+  simp [externalE, externalF]
 
 @[simp] theorem eval_sumE (env : Env) (state : EState) :
     (sumE state).eval env = sumF (evalState env state) := by
-  simp [sumE, sumF]
+  unfold sumE sumF
+  rw [eval_foldl_add, List.map_map]
+  simp only [Function.comp_def, eval_getE]
+  rfl
 
 @[simp] theorem eval_internalE (env : Env) (state : EState)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (internalE state lane).eval env = internalF (evalState env state) lane := by
   simp [internalE, internalF, evalState]
 
 @[simp] theorem eval_fullE (env : Env) (rows : List (List Nat)) (round : Nat)
-    (state : EState) (lane : Fin 8) :
+    (state : EState) (lane : Fin 16) :
     (fullE rows round state lane).eval env = fullF rows round (evalState env state) lane := by
   unfold fullE fullF
   rw [eval_externalE]
@@ -149,7 +182,7 @@ def partialF (round : Nat) (state : FState) : FState :=
   simp [evalState]
 
 @[simp] theorem eval_partialE (env : Env) (round : Nat) (state : EState)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     (partialE round state lane).eval env = partialF round (evalState env state) lane := by
   unfold partialE partialF
   rw [eval_internalE]
@@ -159,15 +192,17 @@ def partialF (round : Nat) (state : FState) : FState :=
   · simp [evalState, hzero]
   · simp [evalState, hzero]
 
-private theorem ofFn_state {α : Type} (state : Fin 8 → α) :
+theorem ofFn_state {α : Type} (state : Fin 16 → α) :
     List.ofFn state =
-      [state 0, state 1, state 2, state 3, state 4, state 5, state 6, state 7] := by
-  simp [Spec.Poseidon2.width, List.ofFn_succ]
+      [state 0, state 1, state 2, state 3, state 4, state 5, state 6, state 7,
+        state 8, state 9, state 10, state 11, state 12, state 13, state 14,
+        state 15] := by
+  simp [List.ofFn_succ]
 
 theorem externalF_eq_reference (state : FState) :
     List.ofFn (externalF state) = Spec.Poseidon2.externalLayer (List.ofFn state) := by
   rw [ofFn_state (externalF state), ofFn_state state]
-  simp [externalF, blockF, mat4F, getF, Spec.Poseidon2.externalLayer,
+  simp [externalF, blockF, columnF, mat4F, getF, Spec.Poseidon2.externalLayer,
     Spec.Poseidon2.mat4, Spec.Poseidon2.width, List.range_succ]
 
 theorem internalF_eq_reference (state : FState) :

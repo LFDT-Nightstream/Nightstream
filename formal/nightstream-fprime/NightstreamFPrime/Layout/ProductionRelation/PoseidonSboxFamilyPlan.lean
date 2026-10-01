@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
 /-!
-Owns an invocation-major family of fixed 86-row Poseidon2 plans. One shared
+Owns an invocation-major family of fixed 150-row Poseidon2 plans. One shared
 constant-one column and one indexed set of input, retained S-box, and output
 forms produce one actual 14-matrix plan.
 
@@ -49,14 +49,14 @@ theorem invocation_output_eq_trace {logicalWidth invocationCount : Nat}
   apply congrArg SparseLayer.external
   funext lane
   unfold PoseidonSboxPlan.fullOutput PoseidonSboxPlan.sboxOutputAt
-  have bounded : 78 + lane.val < PoseidonRetainedSlots.rows.length :=
+  have bounded : 134 + lane.val < PoseidonRetainedSlots.rows.length :=
     (PoseidonRetainedSlots.finalRow lane).isLt
   rw [dif_pos bounded]
   rfl
 
 def rowAt {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 86) :
+    (invocation : Fin invocationCount) (row : Fin 150) :
     PoseidonSboxPlan.Row logicalWidth :=
   (PoseidonRetainedRows.rows (invocationInterface interface invocation)).get
     ⟨row.val, by
@@ -65,7 +65,7 @@ def rowAt {logicalWidth invocationCount : Nat}
 
 def rowForms {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 86)
+    (invocation : Fin invocationCount) (row : Fin 150)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     SparseForm logicalWidth :=
   (rowAt interface invocation row).meaningfulForm port
@@ -73,27 +73,27 @@ def rowForms {logicalWidth invocationCount : Nat}
 /-- Exact invocation-major family plan. -/
 def plan {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.indexed (rowForms interface) rowCount_le
 
 @[simp] theorem plan_rowCount {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
-    (plan interface rowCount_le).rowCount = invocationCount * 86 := by
+    (plan interface rowCount_le).rowCount = invocationCount * 150 := by
   rfl
 
 theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 86) :
+    (invocation : Fin invocationCount) (row : Fin 150) :
     (plan interface rowCount_le).rowImage assignment
         ((plan interface rowCount_le).rowLayout.toVertex
-          (ProductionRelation.Plan.indexedRow invocationCount 86
+          (ProductionRelation.Plan.indexedRow invocationCount 150
             invocation row)) =
       (rowAt interface invocation row).portImages assignment := by
   rw [ProductionRelation.Plan.rowImage_toVertex]
@@ -107,7 +107,7 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
       simp only [ProductionRelation.Plan.portForm,
         PoseidonSboxPlan.Row.portForm, found]
       rw [show (plan interface rowCount_le).forms
-            (ProductionRelation.Plan.indexedRow invocationCount 86
+            (ProductionRelation.Plan.indexedRow invocationCount 150
               invocation row) meaningful =
           rowForms interface invocation row meaningful by
         exact ProductionRelation.Plan.indexed_forms
@@ -116,14 +116,14 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
 
 theorem plan_residual_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 86) :
+    (invocation : Fin invocationCount) (row : Fin 150) :
     evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         ((plan interface rowCount_le).rowImage assignment
           ((plan interface rowCount_le).rowLayout.toVertex
-            (ProductionRelation.Plan.indexedRow invocationCount 86
+            (ProductionRelation.Plan.indexedRow invocationCount 150
               invocation row))) =
       (rowAt interface invocation row).residual assignment := by
   rw [plan_rowImage_at]
@@ -131,7 +131,7 @@ theorem plan_residual_at {logicalWidth invocationCount : Nat}
 
 theorem rowAt_mem {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 86) :
+    (invocation : Fin invocationCount) (row : Fin 150) :
     rowAt interface invocation row ∈
       PoseidonRetainedRows.rows (invocationInterface interface invocation) := by
   unfold rowAt
@@ -141,7 +141,7 @@ theorem rowAt_mem {logicalWidth invocationCount : Nat}
 vanishes. -/
 theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth) :
     (plan interface rowCount_le).RowsZero assignment ↔
@@ -153,7 +153,7 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
       (invocation_output_eq_trace interface invocation)).mpr
     intro localRow member
     rcases List.mem_iff_get.mp member with ⟨index, rfl⟩
-    let row : Fin 86 := ⟨index.val, by
+    let row : Fin 150 := ⟨index.val, by
       exact Nat.lt_of_lt_of_eq index.isLt
         (PoseidonRetainedRows.rows_length _)⟩
     have rowEqual :
@@ -165,11 +165,11 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     rw [← rowEqual]
     rw [← plan_residual_at interface rowCount_le assignment invocation row]
     exact rowsZero
-      (ProductionRelation.Plan.indexedRow invocationCount 86 invocation row)
+      (ProductionRelation.Plan.indexedRow invocationCount 150 invocation row)
   · intro children globalRow
-    let decoded : Fin invocationCount × Fin 86 := Fin.decodeProd globalRow
+    let decoded : Fin invocationCount × Fin 150 := Fin.decodeProd globalRow
     have encodedEqual :
-        ProductionRelation.Plan.indexedRow invocationCount 86
+        ProductionRelation.Plan.indexedRow invocationCount 150
           decoded.1 decoded.2 = globalRow := by
       unfold ProductionRelation.Plan.indexedRow decoded
       exact Fin.encodeProd_decodeProd globalRow
@@ -183,7 +183,7 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
 indexed invocation. -/
 theorem planRowsZero_implies_permute {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
     (one : assignment interface.oneColumn = 1)
@@ -202,7 +202,7 @@ theorem planRowsZero_implies_permute {logicalWidth invocationCount : Nat}
 /-- Exact child equations make every row of the family plan vanish. -/
 theorem equations_imply_planRowsZero {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 86 ≤
+    (rowCount_le : invocationCount * 150 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
     (one : assignment interface.oneColumn = 1)

@@ -115,15 +115,15 @@ theorem directBindingInterface_eq_bindingInterface
     (Fin.decodeProd row).1 (Fin.decodeProd row).2
 
 def previousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨1, 7603, 0, 8⟩
+  region := ⟨1, 2650, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiCCSPoseidonPlan.retainedBlock program)
-      (PiCCSPoseidonPlan.retainedStart program)) 78 86
+      (PiCCSPoseidonPlan.retainedStart program)) 134 150
 
 def payloadRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨0, 7604, 0, 4⟩
+  region := ⟨0, 2651, 0, 12⟩
   term := .taggedAffine (PiCCSPayloadMatrix.table ())
-    (PiCCSOrdinaryMatrixProgram.substitution program) tags .absorb 4
+    (PiCCSOrdinaryMatrixProgram.substitution program) tags .absorb 12
 
 def inputProgram (program : Program) : PoseidonInput.Program where
   rules := [previousRule program, payloadRule program]
@@ -165,40 +165,40 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem poseidonBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (poseidonBlock geometry).rowCount = 653944 := by
+    (poseidonBlock geometry).rowCount = 397650 := by
   calc
     (poseidonBlock geometry).rowCount =
-        PiCCSPoseidonPlan.invocationCount * 86 := by
+        PiCCSPoseidonPlan.invocationCount * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiCCSPoseidonPlan.schedule program)
         (PiCCSPoseidonPlan.retainedStart program)
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
-    _ = 653944 := by
+    _ = 397650 := by
       norm_num [PiCCSPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem bindingBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (bindingBlock geometry).rowCount = 15208 := by
+    (bindingBlock geometry).rowCount = 5302 := by
   calc
     (bindingBlock geometry).rowCount = PiCCSPoseidonPlan.bindingRowCount := by
       exact Pin.Block.ofSemantic_rowCount
         (PiCCSPoseidonPlan.bindingInterface (PiCCSPayloadWiring.form geometry)
       (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-    _ = 15208 := by
+    _ = 5302 := by
       norm_num [PiCCSPoseidonPlan.bindingRowCount,
         PiCCSPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 669152 := by
+    (matrixProgram geometry).rowCount = 402952 := by
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.poseidon (poseidonBlock geometry), .pin (bindingBlock geometry)] by
     rfl]
   rw [MatrixProgram.Program.two_rowCount]
   change (poseidonBlock geometry).rowCount +
-    (bindingBlock geometry).rowCount = 669152
+    (bindingBlock geometry).rowCount = 402952
   rw [poseidonBlock_rowCount, bindingBlock_rowCount]
 
 end NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram

@@ -35,7 +35,7 @@ private theorem location_not_input (location : PilotOrdinaryDirectPlan.Location)
   intro same
   cases location with
   | priorDigest lane =>
-      change 7410252 + lane.val = source at same
+      change 4612372 + lane.val = source at same
       omega
   | priorPublic index =>
       have bound := index.isLt
@@ -49,10 +49,10 @@ private theorem location_not_input (location : PilotOrdinaryDirectPlan.Location)
         PilotProduction.witnessOffset_eq] at same
       omega
   | outputState lane =>
-      change 14721716 + lane.val = source at same
+      change 9125964 + lane.val = source at same
       omega
   | canonicalFresh index =>
-      change 14721724 + index.val = source at same
+      change 9125980 + index.val = source at same
       omega
   | outputDigest lane =>
       change 99056 + lane.val = source at same
@@ -78,7 +78,7 @@ private theorem prior_classify_none (index : Fin Data.priorChain.inputLength) :
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
     PilotSpartan.spartanToSource_sourceToSpartan index.val (by
-      change index.val < 14722512
+      change index.val < 9126768
       omega)]
   simp only [classifySource_none_of_input index.val (Or.inl bound)]
 
@@ -96,7 +96,7 @@ private theorem output_classify_none (index : Fin Data.outputChain.inputLength) 
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
     PilotSpartan.spartanToSource_sourceToSpartan (49663 + index.val) (by
-      change 49663 + index.val < 14722512
+      change 49663 + index.val < 9126768
       omega)]
   simp only [classifySource_none_of_input (49663 + index.val) (Or.inr (by omega))]
 

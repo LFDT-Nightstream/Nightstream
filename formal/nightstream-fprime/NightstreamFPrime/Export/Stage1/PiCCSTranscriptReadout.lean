@@ -23,12 +23,12 @@ abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
 def phaseStart : Nat := Spartan.sourceToSpartan PiCCSInputs.phaseOffset
 
-theorem phaseStart_eq : phaseStart = 14751526 := by
+theorem phaseStart_eq : phaseStart = 9155782 := by
   unfold phaseStart
   rw [PiCCSInputs.phaseOffset_eq]
   rfl
 
-theorem sboxColumn_lt_spartanColumnCount (index : Index) (lane : Fin 8) :
+theorem sboxColumn_lt_spartanColumnCount (index : Index) (lane : Fin 16) :
     PermutationOutput.Readout.sboxColumn phaseStart index lane <
       Spartan.spartanColumnCount := by
   apply Nat.lt_of_lt_of_le (PermutationOutput.Readout.sboxColumn_lt_end phaseStart index lane)
@@ -40,18 +40,18 @@ def env (source : Env) : Env :=
   PermutationOutput.Readout.env phaseStart
     PiCCSOrdinarySourceSupport.transcriptInvocationCount source
 
-def sourceColumn (index : Index) (lane : Fin 8) : Nat :=
-  PiCCSInputs.phaseOffset + index.val * 592 + 584 + lane.val
+def sourceColumn (index : Index) (lane : Fin 16) : Nat :=
+  PiCCSInputs.phaseOffset + index.val * 1096 + 1080 + lane.val
 
-theorem sourceColumn_target (index : Index) (lane : Fin 8) :
+theorem sourceColumn_target (index : Index) (lane : Fin 16) :
     Spartan.sourceToSpartan (sourceColumn index lane) =
       PermutationOutput.Readout.outputColumn phaseStart index lane := by
   unfold sourceColumn PermutationOutput.Readout.outputColumn
     PermutationOutput.Readout.witnessStart phaseStart
-  have combined : PiCCSInputs.phaseOffset + index.val * 592 + 584 + lane.val =
-      PiCCSInputs.phaseOffset + (index.val * 592 + 584 + lane.val) := by omega
+  have combined : PiCCSInputs.phaseOffset + index.val * 1096 + 1080 + lane.val =
+      PiCCSInputs.phaseOffset + (index.val * 1096 + 1080 + lane.val) := by omega
   rw [combined, Spartan.sourceToSpartan_add_of_piCcsLocal
-    PiCCSInputs.phaseOffset (index.val * 592 + 584 + lane.val) (by
+    PiCCSInputs.phaseOffset (index.val * 1096 + 1080 + lane.val) (by
       norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])]
   omega
 
@@ -82,7 +82,7 @@ theorem env_source_of_notTranscript (source : Env) (column : Nat)
 private def physicalIndex (index : Index) :
     Fin PoseidonRetainedBlock.basePackage.permutationInvocations.length :=
   ⟨index.val, by
-    have bound : index.val < 718 := by
+    have bound : index.val < 355 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
@@ -94,7 +94,7 @@ def invocation (index : Index) : PermutationInvocation :=
 theorem invocation_witnessStart (index : Index) :
     (invocation index).witnessStart =
       PermutationOutput.Readout.witnessStart phaseStart index := by
-  have bound : index.val < 718 := by
+  have bound : index.val < 355 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
@@ -121,7 +121,7 @@ theorem invocation_witnessStart (index : Index) :
     Option.some.inj listEq
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript selected bound]
   exact Spartan.sourceToSpartan_add_of_piCcsLocal PiCCSInputs.phaseOffset
-    (index.val * 592) (by
+    (index.val * 1096) (by
       norm_num [PiCCSInputs.phaseOffset_eq, Spartan.piCcsPhaseOffset])
 
 /-- The actual transcript permutation rows force their stored outputs to

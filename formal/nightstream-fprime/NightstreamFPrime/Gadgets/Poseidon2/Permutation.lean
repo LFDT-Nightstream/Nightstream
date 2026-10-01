@@ -2,7 +2,7 @@ import NightstreamFPrime.Gadgets.Poseidon2.Layer
 
 /-!
 Owns the logical Poseidon2 permutation schedule. The builder emits one
-straight-line recipe for each of eight lanes at every layer. Its proofs connect
+straight-line recipe for each of the sixteen lanes at every layer. Its proofs connect
 the recipe rows to the executable reference permutation and show that the
 canonical witness program is causal. Physical rows and columns belong to
 `Layout/`.
@@ -97,25 +97,46 @@ theorem varsBelow_mat4E (state : EState) {bound : Nat}
   rcases lane with _ | _ | _ | lane <;>
     simp [Layer.mat4E, Expr.VarsBelow, varsBelow_getE state hstate]
 
+theorem varsBelow_foldl_add {bound : Nat} (values : List Expr) (initial : Expr)
+    (hinitial : initial.VarsBelow bound)
+    (hvalues : ∀ value ∈ values, value.VarsBelow bound) :
+    (values.foldl (· + ·) initial).VarsBelow bound := by
+  induction values generalizing initial with
+  | nil => exact hinitial
+  | cons value values inductionHypothesis =>
+      exact inductionHypothesis (initial + value)
+        ⟨hinitial, hvalues value (by simp)⟩
+        (fun current member => hvalues current (by simp [member]))
+
 theorem varsBelow_externalE (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (Layer.externalE state lane).VarsBelow bound := by
-  simp [Layer.externalE, Layer.blockE, Expr.VarsBelow,
-    varsBelow_mat4E state hstate]
+  refine ⟨varsBelow_mat4E state hstate _ _, ?_⟩
+  apply varsBelow_foldl_add
+  · trivial
+  intro value member
+  simp only [List.mem_map] at member
+  rcases member with ⟨block, _, rfl⟩
+  exact varsBelow_mat4E state hstate _ _
 
 theorem varsBelow_sumE (state : EState) {bound : Nat}
     (hstate : ∀ lane, (state lane).VarsBelow bound) :
     (Layer.sumE state).VarsBelow bound := by
-  simp [Layer.sumE, Expr.VarsBelow, varsBelow_getE state hstate]
+  apply varsBelow_foldl_add
+  · trivial
+  intro value member
+  simp only [List.mem_map] at member
+  rcases member with ⟨index, _, rfl⟩
+  exact varsBelow_getE state hstate index
 
 theorem varsBelow_internalE (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (Layer.internalE state lane).VarsBelow bound := by
   simp [Layer.internalE, Expr.VarsBelow, hstate, varsBelow_sumE state hstate]
 
 theorem varsBelow_fullE (rows : List (List Nat)) (round : Nat)
     (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (Layer.fullE rows round state lane).VarsBelow bound := by
   apply varsBelow_externalE
   intro index
@@ -123,7 +144,7 @@ theorem varsBelow_fullE (rows : List (List Nat)) (round : Nat)
   simp [Expr.VarsBelow, hstate]
 
 theorem varsBelow_partialE (round : Nat) (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (Layer.partialE round state lane).VarsBelow bound := by
   apply varsBelow_internalE
   intro index
@@ -132,7 +153,7 @@ theorem varsBelow_partialE (round : Nat) (state : EState) {bound : Nat}
   · simp [hzero, hstate]
 
 theorem applyE_varsBelow (step : Step) (state : EState) {bound : Nat}
-    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
     (applyE step state lane).VarsBelow bound := by
   cases step with
   | initialLayer => exact varsBelow_externalE state hstate lane
@@ -142,12 +163,12 @@ theorem applyE_varsBelow (step : Step) (state : EState) {bound : Nat}
   | terminalFullRound round =>
       exact varsBelow_fullE Spec.Poseidon2.terminalConstants round state hstate lane
 
-/-- Variables allocated for one eight-lane state. -/
+/-- Variables allocated for one sixteen-lane state. -/
 def freshState (start : Nat) : EState :=
   fun lane => Expr.var (start + lane.val)
 
-theorem freshState_varsBelow (start : Nat) (lane : Fin 8) :
-    (freshState start lane).VarsBelow (start + 8) := by
+theorem freshState_varsBelow (start : Nat) (lane : Fin 16) :
+    (freshState start lane).VarsBelow (start + 16) := by
   simpa [freshState, Expr.VarsBelow] using
     Nat.add_lt_add_left lane.isLt start
 
@@ -344,10 +365,11 @@ def partialSboxState (start : Nat) (round : Nat) (state : EState) : EState :=
     (compileSboxes start [partialInput round state]).outputs.getD 0 0
   else state lane
 
+/-- Cells of one step: the layer outputs, plus four cells for each S-box. -/
 def stepSize : Step → Nat
-  | .initialLayer => 8
-  | .initialFullRound _ | .terminalFullRound _ => 40
-  | .partialRound _ => 12
+  | .initialLayer => 16
+  | .initialFullRound _ | .terminalFullRound _ => 80
+  | .partialRound _ => 20
 
 def stepRecipes (start : Nat) : Step → EState → List Expr
   | .initialLayer, state => List.ofFn (Layer.externalE state)
@@ -370,12 +392,13 @@ def stepRecipes (start : Nat) : Step → EState → List Expr
 
 def stepOutput (start : Nat) : Step → EState
   | .initialLayer => freshState start
-  | .initialFullRound _ | .terminalFullRound _ => freshState (start + 32)
+  | .initialFullRound _ | .terminalFullRound _ =>
+      freshState (start + 64)
   | .partialRound _ => freshState (start + 4)
 
 @[simp] theorem stepRecipes_length (start : Nat) (step : Step) (state : EState) :
     (stepRecipes start step state).length = stepSize step := by
-  cases step <;> simp [stepRecipes, stepSize, fullInputs]
+  cases step <;> simp [stepRecipes, stepSize, fullInputs] <;> omega
 
 def compile (start : Nat) (state : EState) : List Step → Program
   | [] => ⟨[], state⟩
@@ -386,8 +409,8 @@ def compile (start : Nat) (state : EState) : List Step → Program
       ⟨recipes ++ tail.recipes, tail.output⟩
 
 /-- Executable projection of the fixed production schedule's output lanes.
-The complete compiler still owns and checks all 592 internal recipes. -/
-def scheduleOutput (start : Nat) : EState := freshState (start + 584)
+The complete compiler still owns and checks all 1,096 internal recipes. -/
+def scheduleOutput (start : Nat) : EState := freshState (start + 1080)
 
 theorem scheduleOutput_eq_compile (start : Nat) (state : EState) :
     scheduleOutput start = (compile start state schedule).output := by
@@ -409,10 +432,11 @@ theorem stateRows_sound (env : Env) (start : Nat) (recipes : EState)
     (rows : ConstraintsHold env
       (recipeConstraints start (List.ofFn recipes))) :
     Layer.evalState env (freshState start) = Layer.evalState env recipes := by
-  have rowMember (lane : Fin 8) :
+  have rowMember (lane : Fin 16) :
       Expr.var (start + lane.val) - recipes lane ∈
         recipeConstraints start (List.ofFn recipes) := by
-    fin_cases lane <;> simp [recipeConstraints, List.ofFn_succ]
+    fin_cases lane <;>
+      simp [recipeConstraints, List.ofFn_succ, Spec.Poseidon2.width]
   funext lane
   have equation := rows _ (rowMember lane)
   change env (start + lane.val) = (recipes lane).eval env
@@ -431,7 +455,8 @@ theorem fullSboxState_sound (env : Env) (start : Nat)
   funext lane
   have selected := congrArg (fun values : List F => values.getD lane.val 0) all
   fin_cases lane <;>
-    simpa [fullSboxState, fullInputs, Layer.evalState, List.ofFn_succ] using selected
+    simpa [fullSboxState, fullInputs, Layer.evalState, List.ofFn_succ,
+      Spec.Poseidon2.width] using selected
 
 theorem partialSboxState_sound (env : Env) (start round : Nat) (state : EState)
     (sboxRows : ConstraintsHold env (recipeConstraints start
@@ -538,7 +563,7 @@ theorem compile_causal (start : Nat) (state : EState) (steps : List Step)
 
 theorem compile_output_varsBelow (start : Nat) (state : EState)
     (steps : List Step)
-    (hstate : ∀ lane, (state lane).VarsBelow start) (lane : Fin 8) :
+    (hstate : ∀ lane, (state lane).VarsBelow start) (lane : Fin 16) :
     ((compile start state steps).output lane).VarsBelow
       (start + (compile start state steps).recipes.length) := by
   induction steps generalizing start state with
@@ -573,19 +598,19 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       let sboxes := compileSboxes start inputs
       have splitRows :
           ConstraintsHold env (recipeConstraints start sboxes.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 32)
+          ConstraintsHold env (recipeConstraints (start + 64)
             (List.ofFn (Layer.externalE (fullSboxState start
               Spec.Poseidon2.initialConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
         have separated := (constraintsHold_append env _ _).mp rows
-        simpa [inputs, sboxes] using! separated
+        simpa [inputs, sboxes, fullInputs, Nat.mul_comm] using! separated
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.initialConstants round state splitRows.1
       calc
-        Layer.evalState env (freshState (start + 32)) =
+        Layer.evalState env (freshState (start + 64)) =
             Layer.evalState env (Layer.externalE (fullSboxState start
               Spec.Poseidon2.initialConstants round state)) :=
-          stateRows_sound env (start + 32) _ splitRows.2
+          stateRows_sound env (start + 64) _ splitRows.2
         _ = Layer.externalF (Layer.evalState env (fullSboxState start
               Spec.Poseidon2.initialConstants round state)) := by
           funext lane
@@ -600,19 +625,19 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       let sboxes := compileSboxes start inputs
       have splitRows :
           ConstraintsHold env (recipeConstraints start sboxes.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 32)
+          ConstraintsHold env (recipeConstraints (start + 64)
             (List.ofFn (Layer.externalE (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
         have separated := (constraintsHold_append env _ _).mp rows
-        simpa [inputs, sboxes] using! separated
+        simpa [inputs, sboxes, fullInputs, Nat.mul_comm] using! separated
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.terminalConstants round state splitRows.1
       calc
-        Layer.evalState env (freshState (start + 32)) =
+        Layer.evalState env (freshState (start + 64)) =
             Layer.evalState env (Layer.externalE (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)) :=
-          stateRows_sound env (start + 32) _ splitRows.2
+          stateRows_sound env (start + 64) _ splitRows.2
         _ = Layer.externalF (Layer.evalState env (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)) := by
           funext lane
@@ -763,9 +788,9 @@ theorem compile_schedule_causal (start : Nat) (state : EState)
     RecipesCausal start (compile start state schedule).recipes :=
   compile_causal start state schedule hstate
 
-/-- The staged logical permutation owns 592 shared-intermediate recipes. -/
+/-- The staged logical permutation owns 1,096 shared-intermediate recipes. -/
 theorem compile_schedule_recipe_count (start : Nat) (state : EState) :
-    (compile start state schedule).recipes.length = 592 := by
+    (compile start state schedule).recipes.length = 1096 := by
   rw [compile_recipes_length]
   rfl
 

@@ -56,13 +56,13 @@ def priorOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rootOffset program
 
 def outputHashOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  priorOffset program + 7311464
+  priorOffset program + 4513592
 
 def piCcsOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  outputHashOffset program + 7311200
+  outputHashOffset program + 4513328
 
 def piRlcOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  piCcsOffset program + 4622677
+  piCcsOffset program + 3026605
 
 def piDecOffset (program : Lifecycle.Stage1.Application.Program) : Nat :=
   piRlcOffset program + PiRLC.v1_1.Formal.logicalPrivateCount
@@ -300,9 +300,9 @@ private theorem priorPrivateCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.priorChild relation program (interface relation program)
-      ).privateCount (priorOffset program) = 7311464 := by
+      ).privateCount (priorOffset program) = 4513592 := by
   change Lifecycle.PriorStateHash.logicalPrivateCount
-    PilotProduction.priorInterface (priorOffset program) = 7311464
+    PilotProduction.priorInterface (priorOffset program) = 4513592
   unfold Lifecycle.PriorStateHash.logicalPrivateCount
   rw [Lifecycle.PriorStateHash.hashLength_eq,
     PilotProduction.priorInterface_preimage_apply,
@@ -336,9 +336,9 @@ private theorem outputHashPrivateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
     (Lifecycle.Stage1.outputHashChild relation program
       (interface relation program)).privateCount (outputHashOffset program) =
-      7311200 := by
+      4513328 := by
   change Lifecycle.OutputHash.hashLength PilotProduction.outputInterface
-    (outputHashOffset program) = 7311200
+    (outputHashOffset program) = 4513328
   unfold Lifecycle.OutputHash.hashLength
   rw [PilotProduction.outputInterface_preimage_apply,
     PilotProduction.outputPreimage_chunkCount]
@@ -361,9 +361,9 @@ private theorem piCcsPrivateCount_eq
     (template : Proof (ProductionKey.degreeBound relation)) :
     (Lifecycle.Stage1.piCcsChild relation ajtai program
       (interface relation program) template).privateCount (piCcsOffset program) =
-      4622677 := by
+      3026605 := by
   change Lifecycle.PiCCS.v1_1.Formal.privateCount
-    (ProductionKey.degreeBound relation) = 4622677
+    (ProductionKey.degreeBound relation) = 3026605
   exact Lifecycle.PiCCS.v1_1.Formal.privateCount_eq_of_degreeBound_eq_nine
     _ (ProductionKey.degreeBound_eq relation)
 

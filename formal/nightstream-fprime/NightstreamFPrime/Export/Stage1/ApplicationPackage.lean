@@ -112,7 +112,7 @@ theorem Plan.encode_injective : Function.Injective Plan.format.encode := by
 
 /-- Fixed production Poseidon2 template size. Application permutations use
 the same canonical template as the complete Stage 1 package. -/
-def permutationRowCount : Nat := 592
+def permutationRowCount : Nat := 1096
 
 /-- Exact expanded application row count under the canonical package rules. -/
 def Plan.expandedRowCount (plan : Plan) : Nat :=

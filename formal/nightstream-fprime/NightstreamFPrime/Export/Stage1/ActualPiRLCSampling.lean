@@ -60,8 +60,8 @@ private theorem range_inputs (source : Fin sourceCount) :
       (PiRLCStarts.rangeLogicalStart source.val) := by
   intro lane
   rw [PiRLCSamplerOrdinaryDirectSource.rangeSource_eq_var]
-  change PiRLCStarts.samplerSourceLogicalStart source.val + 584 + lane.val <
-    PiRLCStarts.samplerSourceLogicalStart source.val + 592
+  change PiRLCStarts.samplerSourceLogicalStart source.val + 1080 + lane.val <
+    PiRLCStarts.samplerSourceLogicalStart source.val + 1096
   rw [Nat.add_assoc]
   exact Nat.add_lt_add_left (by have bound : lane.val < 4 := lane.isLt; omega) _
 

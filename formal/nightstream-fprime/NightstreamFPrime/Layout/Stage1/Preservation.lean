@@ -91,13 +91,13 @@ private theorem compactEnv_shiftedPiCcsLocal
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (index : Nat)
     (support : SupportRange.Extend (fun _ => False)
-      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 4622677) index) :
+      PilotPiCCS.piCcsOffset (PilotPiCCS.piCcsOffset + 3026605) index) :
     CompactPullback.compactEnv program env (index + piCcsDelta program) =
       sourceEnv program env index := by
   rcases support with impossible | ⟨lower, upper⟩
   · contradiction
   · let relative := index - PilotPiCCS.piCcsOffset
-    have relativeLt : relative < 4622677 := by
+    have relativeLt : relative < 3026605 := by
       dsimp only [relative]
       omega
     have sourceIndex : PilotPiCCS.piCcsOffset + relative = index := by
@@ -479,7 +479,7 @@ private theorem compactPiCcsOutputSupport
         (PilotPiCCS.interface (publicFits := publicFits))
         PilotPiCCS.piCcsOffset)
       (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-        (PilotPiCCS.piCcsOffset + 4622677)) := by
+        (PilotPiCCS.piCcsOffset + 3026605)) := by
   intro lane
   unfold Lifecycle.PiCCS.v1_1.Formal.outputBindingFinalState
   rw [congrFun (PiCCSTranscriptRelocation.outputFinalState_direct
@@ -513,7 +513,7 @@ private theorem compactPiCcsOutputSupport
       relation (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset] at finish
     have laneBound := lane.isLt
-    change lane.val < 8 at laneBound
+    change lane.val < 16 at laneBound
     omega
 
 private theorem compactPiCcsOutgoingState_eq
@@ -544,7 +544,7 @@ private theorem compactPiCcsOutgoingState_eq
       (PilotPiCCS.interface (publicFits := publicFits))
       PilotPiCCS.piCcsOffset)
     (SupportRange.Extend (fun _ => False) PilotPiCCS.piCcsOffset
-      (PilotPiCCS.piCcsOffset + 4622677))
+      (PilotPiCCS.piCcsOffset + 3026605))
     (sourceEnv program env) (CompactPullback.compactEnv program env)
     (compactPiCcsOutputSupport relation)
     (compactEnv_shiftedPiCcsLocal program env) lane).symm
@@ -706,7 +706,7 @@ private theorem compactPilotOutputCanonical
   · intro index bounded
     apply CompactPullback.compactEnv_source
     rw [← PilotProduction.lifecycleOutputOffset_matches] at bounded
-    change index < 7410524 at bounded
+    change index < 4612652 at bounded
     rw [Spartan.sourceColumnCount_eq]
     omega
   · exact specification
@@ -904,7 +904,7 @@ private theorem compactPiRlcOutputStateSupport
     Permutation.freshState, Expr.VarsSatisfy]
   apply Or.inr
   have sourceBound : source.val < 17 := source.isLt
-  have laneBound : lane.val < 8 := lane.isLt
+  have laneBound : lane.val < 16 := lane.isLt
   simp only [Lifecycle.PiRLC.v1_1.SamplerChain.sourceOffset,
     Lifecycle.PiRLC.v1_1.Sampler.counts.1,
     Lifecycle.PiRLC.v1_1.Sampler.advanceOffset,

@@ -61,7 +61,7 @@ theorem compile_output_below (start : Nat) (state : EState)
     (input : List Expr)
     (stateBelow : ∀ lane, (state lane).VarsBelow start)
     (inputBelow : ∀ expression ∈ input, expression.VarsBelow start)
-    (lane : Fin 8) :
+    (lane : Fin 16) :
     ((Hash.compileAbsorptions start state
       (Hash.inputChunks input)).output lane).VarsBelow
         (start + (Hash.compileAbsorptions start state

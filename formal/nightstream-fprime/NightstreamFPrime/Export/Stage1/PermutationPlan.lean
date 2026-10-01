@@ -202,20 +202,20 @@ private def sequentialWitnessStarts : Nat → Nat → List Nat
   | _witnessStart, 0 => []
   | witnessStart, count + 1 =>
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan witnessStart ::
-        sequentialWitnessStarts (witnessStart + 592) count
+        sequentialWitnessStarts (witnessStart + 1096) count
 
 private theorem sequentialWitnessStarts_add
     (witnessStart left right : Nat) :
     sequentialWitnessStarts witnessStart (left + right) =
       sequentialWitnessStarts witnessStart left ++
-        sequentialWitnessStarts (witnessStart + left * 592) right := by
+        sequentialWitnessStarts (witnessStart + left * 1096) right := by
   induction left generalizing witnessStart with
   | zero => simp [sequentialWitnessStarts]
   | succ left inductionHypothesis =>
       simp only [Nat.succ_add, sequentialWitnessStarts, List.cons_append]
       rw [inductionHypothesis]
-      rw [show witnessStart + 592 + left * 592 =
-        witnessStart + Nat.succ left * 592 by omega]
+      rw [show witnessStart + 1096 + left * 1096 =
+        witnessStart + Nat.succ left * 1096 by omega]
 
 private theorem sequentialWitnessStarts_length (witnessStart count : Nat) :
     (sequentialWitnessStarts witnessStart count).length = count := by
@@ -228,7 +228,7 @@ private theorem sequentialWitnessStarts_getD
     (witnessStart count index : Nat) (bound : index < count) :
     (sequentialWitnessStarts witnessStart count).getD index 0 =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (witnessStart + index * 592) := by
+        (witnessStart + index * 1096) := by
   induction count generalizing witnessStart index with
   | zero => omega
   | succ count inductionHypothesis =>
@@ -236,7 +236,7 @@ private theorem sequentialWitnessStarts_getD
       | zero => simp [sequentialWitnessStarts]
       | succ index =>
           rw [sequentialWitnessStarts, List.getD_cons_succ,
-            inductionHypothesis (witnessStart + 592) index (by omega)]
+            inductionHypothesis (witnessStart + 1096) index (by omega)]
           apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
           omega
 
@@ -253,8 +253,8 @@ private theorem compileBlocks_witnessStarts
         Invocations.invocation_witnessStart, List.length_cons,
         sequentialWitnessStarts]
       rw [inductionHypothesis
-        (rowStart := rowStart + 592)
-        (witnessStart := witnessStart + 592)
+        (rowStart := rowStart + 1096)
+        (witnessStart := witnessStart + 1096)
         (state := Invocations.permutationOutput witnessStart)]
 
 private theorem compileActions_witnessStarts
@@ -412,10 +412,10 @@ theorem piCcsBlocks_expand :
 
 /-- Lightweight exact witness-start schedule for all four PiCCS packets. -/
 def piCcsWitnessStarts (_unit : Unit) : List Nat :=
-  sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 379 ++
+  sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 128 ++
     sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 87 ++
-    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 252 ++
-    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 6886
+    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 140 ++
+    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 2296
 
 theorem piCcsWitnessStarts_materializes :
     piCcsWitnessStarts () =
@@ -432,29 +432,29 @@ theorem piCcsWitnessStarts_materializes :
 
 private theorem piCcsWitnessStarts_transcriptPrefix :
     piCcsWitnessStarts () =
-      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 718 ++
-        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 6886 := by
-  have challengeStart : PiCCSInvocations.statementWitnessStart + 379 * 592 =
+      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 355 ++
+        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 2296 := by
+  have challengeStart : PiCCSInvocations.statementWitnessStart + 128 * 1096 =
       PiCCSInvocations.challengeWitnessStart := by
     simp only [PiCCSInvocations.statementWitnessStart,
       PiCCSInvocations.challengeWitnessStart,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
   have roundStart : PiCCSInvocations.statementWitnessStart +
-      (379 + 87) * 592 = PiCCSInvocations.roundWitnessStart := by
+      (128 + 87) * 1096 = PiCCSInvocations.roundWitnessStart := by
     simp only [PiCCSInvocations.statementWitnessStart,
       PiCCSInvocations.roundWitnessStart,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
   unfold piCcsWitnessStarts
   rw [← challengeStart,
-    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart 379 87]
+    ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart 128 87]
   rw [← roundStart,
     ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart
-      (379 + 87) 252]
+      (128 + 87) 140]
 
 private theorem piCcsWitnessStarts_length :
-    (piCcsWitnessStarts ()).length = 7604 := by
+    (piCcsWitnessStarts ()).length = 2651 := by
   rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
     sequentialWitnessStarts_length, sequentialWitnessStarts_length]
 
@@ -727,11 +727,11 @@ theorem canonicalWitnessStarts_materializes :
     piCcsWitnessStarts_materializes, samplerWitnessStartAt_materializes]
 
 private theorem canonicalWitnessStarts_transcript_getD
-    (index : Nat) (bound : index < 718) :
+    (index : Nat) (bound : index < 355) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
-          index * 592) := by
+          index * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
     omega)]
@@ -741,17 +741,17 @@ private theorem canonicalWitnessStarts_transcript_getD
   simpa only [PiCCSInvocations.statementWitnessStart,
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart] using
       sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
-        718 index bound
+        355 index bound
 
 /-- The selected pre-ordinary PiCCS invocation has its exact affine source
 address. The proof uses the structural schedule and does not expand it. -/
 theorem canonicalInvocation_witnessStart_of_transcript
     (index : Fin (Data.permutationInvocations ()).length)
-    (bound : index.val < 718) :
+    (bound : index.val < 355) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset +
-          index.val * 592) := by
+          index.val * 1096) := by
   have selected := canonicalWitnessStarts_transcript_getD index.val bound
   rw [canonicalWitnessStarts_materializes] at selected
   have mappedBound : index.val <
@@ -762,10 +762,10 @@ theorem canonicalInvocation_witnessStart_of_transcript
   simpa only [List.getElem_map, List.get_eq_getElem] using selected
 
 private theorem canonicalWitnessStarts_output_getD
-    (index : Nat) (afterTranscript : 718 ≤ index) (bound : index < 7604) :
+    (index : Nat) (afterTranscript : 355 ≤ index) (bound : index < 2651) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (PiCCSInvocations.outputWitnessStart + (index - 718) * 592) := by
+        (PiCCSInvocations.outputWitnessStart + (index - 355) * 1096) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
     exact bound)]
@@ -774,16 +774,16 @@ private theorem canonicalWitnessStarts_output_getD
     exact afterTranscript)]
   rw [sequentialWitnessStarts_length]
   exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
-    6886 (index - 718) (by omega)
+    2296 (index - 355) (by omega)
 
 /-- A selected post-ordinary C invocation has the source address owned by
 the output-absorption schedule. No invocation list is evaluated. -/
 theorem canonicalInvocation_witnessStart_of_output
     (index : Fin (Data.permutationInvocations ()).length)
-    (afterTranscript : 718 ≤ index.val) (bound : index.val < 7604) :
+    (afterTranscript : 355 ≤ index.val) (bound : index.val < 2651) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-        (PiCCSInvocations.outputWitnessStart + (index.val - 718) * 592) := by
+        (PiCCSInvocations.outputWitnessStart + (index.val - 355) * 1096) := by
   have selected := canonicalWitnessStarts_output_getD index.val afterTranscript bound
   rw [canonicalWitnessStarts_materializes] at selected
   have mappedBound : index.val <

@@ -233,7 +233,7 @@ def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 224368
+  interface.baseOffset + 140288
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -274,7 +274,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 224368 + 51504
+  interface.baseOffset + 140288 + 95352
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -603,7 +603,7 @@ def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementAbsorption.circuit (statementAbsorptionInterface interface))
-    224368 224368
+    140288 140288
     (StatementAbsorption.localLength_eq (statementAbsorptionInterface interface))
     (StatementAbsorption.flatConstraints_length
       (statementAbsorptionInterface interface))
@@ -616,7 +616,7 @@ def challengeCircuit {logicalWidth degreeBound : Nat}
   let childInterface :=
     challengeInterface (atOffset interface parentOffset) parentOffset
   FormalCircuit.withConstantFootprint
-    (ChallengeDerivation.circuit childInterface) 51504 51504
+    (ChallengeDerivation.circuit childInterface) 95352 95352
     (ChallengeDerivation.localLength_eq childInterface)
     (ChallengeDerivation.flatConstraints_length childInterface)
 
@@ -712,7 +712,7 @@ def outputBindingCircuit {logicalWidth degreeBound : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (OutputBinding.circuit (outputBindingInterface interface)) 4076512 4076512
+    (OutputBinding.circuit (outputBindingInterface interface)) 2516416 2516416
     (OutputBinding.localLength_eq (outputBindingInterface interface))
     (OutputBinding.flatConstraints_length (outputBindingInterface interface))
 
@@ -765,7 +765,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : challengeOffset interface offset = offset + 224368 := by
+    (offset : Nat) : challengeOffset interface offset = offset + 140288 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
   rw [statementAbsorptionOffset_eq, FormalCircuit.withConstantFootprint_main,
     StatementAbsorption.localLength_eq]
@@ -795,7 +795,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptOffset interface offset =
-      challengeOffset interface offset + 51504 := by
+      challengeOffset interface offset + 95352 := by
   unfold roundTranscriptOffset nextOffset childLength challengeCircuit
   rw [FormalCircuit.withConstantFootprint_main,
     ChallengeDerivation.localLength_eq]

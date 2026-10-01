@@ -132,7 +132,7 @@ def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
 
 def hashLength (interface : Interface) (offset : Nat) : Nat :=
   ((interface.preimage offset).length + Spec.Poseidon2.rate - 1) /
-    Spec.Poseidon2.rate * 592 + 592
+    Spec.Poseidon2.rate * 1096 + 1096
 
 theorem compiledHashLength_eq_hashLength (interface : Interface) (offset : Nat) :
     compiledHashLength interface offset = hashLength interface offset := by
@@ -142,7 +142,7 @@ theorem compiledHashLength_eq_hashLength (interface : Interface) (offset : Nat) 
 
 theorem hashLength_eq (interface : Interface) (offset : Nat) :
     hashLength interface offset =
-      (Hash.inputChunks (interface.preimage offset)).length * 592 + 592 := by
+      (Hash.inputChunks (interface.preimage offset)).length * 1096 + 1096 := by
   simp only [hashLength, Hash.inputChunks, List.length_map, List.length_range]
 
 def hashEnd (interface : Interface) (offset : Nat) : Nat :=

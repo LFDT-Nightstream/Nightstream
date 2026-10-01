@@ -16,14 +16,14 @@ open NightstreamFPrime.Gadgets.Poseidon2
 private theorem output_nonempty (start : Nat) (state : Permutation.EState)
     (block : List Expr) (rest : List (List Expr)) :
     (Hash.compileAbsorptions start state (block :: rest)).output =
-      Permutation.freshState (start + rest.length * 592 + 584) := by
+      Permutation.freshState (start + rest.length * 1096 + 1080) := by
   induction rest generalizing start state block with
   | nil =>
       simp only [Hash.compileAbsorptions, List.length_nil, Nat.zero_mul,
         Nat.add_zero]
       exact compile_schedule_output_eq start (Hash.absorbE state block)
   | cons next rest induction =>
-      change (Hash.compileAbsorptions (start + 592)
+      change (Hash.compileAbsorptions (start + 1096)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output (next :: rest)).output = _
       rw [induction]
@@ -38,11 +38,11 @@ theorem absorption_rows (env : Env) (start : Nat)
     (rows : ConstraintsHold env (recipeConstraints start
       (Hash.compileAbsorptions start state blocks).recipes))
     (invocation : Nat) (bound : invocation < blocks.length) :
-    ConstraintsHold env (recipeConstraints (start + invocation * 592)
-      (Permutation.compile (start + invocation * 592)
+    ConstraintsHold env (recipeConstraints (start + invocation * 1096)
+      (Permutation.compile (start + invocation * 1096)
         (Hash.absorbE
           (if invocation = 0 then state else
-            Permutation.freshState (start + (invocation - 1) * 592 + 584))
+            Permutation.freshState (start + (invocation - 1) * 1096 + 1080))
           (blocks.getD invocation [])) Permutation.schedule).recipes) := by
   induction blocks generalizing start state invocation with
   | nil => simp at bound
@@ -51,8 +51,8 @@ theorem absorption_rows (env : Env) (start : Nat)
           ConstraintsHold env (recipeConstraints start
             (Permutation.compile start (Hash.absorbE state block)
               Permutation.schedule).recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 592)
-            (Hash.compileAbsorptions (start + 592)
+          ConstraintsHold env (recipeConstraints (start + 1096)
+            (Hash.compileAbsorptions (start + 1096)
               (Permutation.compile start (Hash.absorbE state block)
                 Permutation.schedule).output rest).recipes) := by
         rw [Hash.compileAbsorptions, Permutation.recipeConstraints_append] at rows
@@ -62,7 +62,7 @@ theorem absorption_rows (env : Env) (start : Nat)
       | zero =>
           simpa using separated.1
       | succ index =>
-          have tail := induction (start + 592)
+          have tail := induction (start + 1096)
             (Permutation.compile start (Hash.absorbE state block)
               Permutation.schedule).output separated.2 index (by
                 simp only [List.length_cons] at bound
@@ -71,10 +71,10 @@ theorem absorption_rows (env : Env) (start : Nat)
           by_cases first : index = 0
           · subst index
             simpa using tail
-          · have nextStart : start + 592 + index * 592 =
-                start + (index + 1) * 592 := by omega
-            have previousStart : start + 592 + (index - 1) * 592 + 584 =
-                start + index * 592 + 584 := by omega
+          · have nextStart : start + 1096 + index * 1096 =
+                start + (index + 1) * 1096 := by omega
+            have previousStart : start + 1096 + (index - 1) * 1096 + 1080 =
+                start + index * 1096 + 1080 := by omega
             simp only [if_neg first] at tail
             rw [nextStart, previousStart] at tail
             simpa only [Nat.succ_eq_add_one, Nat.add_sub_cancel,
@@ -88,9 +88,9 @@ theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
     (invocation : Nat) (bound : invocation ≤ (Hash.inputChunks input).length) :
     let blocks := Hash.inputChunks input
     let previous := if invocation = 0 then Hash.zeroE else
-      Permutation.freshState (start + (invocation - 1) * 592 + 584)
-    ConstraintsHold env (recipeConstraints (start + invocation * 592)
-      (Permutation.compile (start + invocation * 592)
+      Permutation.freshState (start + (invocation - 1) * 1096 + 1080)
+    ConstraintsHold env (recipeConstraints (start + invocation * 1096)
+      (Permutation.compile (start + invocation * 1096)
         (if invocation < blocks.length then
           Hash.absorbE previous (blocks.getD invocation [])
         else Hash.padE previous) Permutation.schedule).recipes) := by
@@ -116,7 +116,7 @@ theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
     rw [if_neg (Nat.lt_irrefl _)]
     have previous : (Hash.compileAbsorptions start Hash.zeroE blocks).output =
         if blocks.length = 0 then Hash.zeroE else
-          Permutation.freshState (start + (blocks.length - 1) * 592 + 584) := by
+          Permutation.freshState (start + (blocks.length - 1) * 1096 + 1080) := by
       cases blocks with
       | nil => rfl
       | cons block rest =>

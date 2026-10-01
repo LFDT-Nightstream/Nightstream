@@ -5,7 +5,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns 32 zero-pin rows that bind the four direct PiCCS transcript endpoint
+Owns 64 zero-pin rows that bind the four direct PiCCS transcript endpoint
 states to the exact lifecycle compiler variables. The first three endpoints
 read the actual retained output forms. The output endpoint uses its dedicated
 eight-field retained block.
@@ -35,7 +35,7 @@ def challengeFamily : Fin familyCount := ⟨1, by norm_num [familyCount]⟩
 def roundFamily : Fin familyCount := ⟨2, by norm_num [familyCount]⟩
 def outputFamily : Fin familyCount := ⟨3, by norm_num [familyCount]⟩
 
-@[simp] theorem rowCount_eq : rowCount = 32 := by
+@[simp] theorem rowCount_eq : rowCount = 64 := by
   rfl
 
 def descriptor (row : Fin rowCount) : Fin familyCount × Fin laneCount :=
@@ -250,14 +250,14 @@ def endpointInvocation (family : Fin familyCount) :
 
 def endpointStart (family : Fin familyCount) : Nat :=
   if family.val = 0 then
-    PiCCSInvocations.challengeWitnessStart - 8
+    PiCCSInvocations.challengeWitnessStart - 16
   else if family.val = 1 then
-    PiCCSInvocations.roundWitnessStart - 8
+    PiCCSInvocations.roundWitnessStart - 16
   else if family.val = 2 then
     PiCCSInvocations.roundWitnessStart +
-      PiCCSTranscriptDirectSemantics.roundCount * 592 - 8
+      PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16
   else
-    PiCCSStarts.logicalFreshBase - 8
+    PiCCSStarts.logicalFreshBase - 16
 
 def endpointColumn (family : Fin familyCount) (lane : Fin laneCount) : Nat :=
   endpointStart family + lane.val
@@ -276,9 +276,9 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
       Permutation.scheduleOutput
         (PiCCSInvocations.statementWitnessStart +
           (Invocations.invocationCount
-            PiCCSActionPayloadBlock.statementActions - 1) * 592) at compiled
+            PiCCSActionPayloadBlock.statementActions - 1) * 1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.statementActions = 379 := by
+      PiCCSActionPayloadBlock.statementActions = 128 := by
     exact PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
@@ -286,15 +286,15 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.statementInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (379 - 1) * 592 + 584 =
-        PiCCSInvocations.challengeWitnessStart - 8 := by
+      PiCCSInvocations.statementWitnessStart + (128 - 1) * 1096 + 1080 =
+        PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart statementFamily =
-      PiCCSInvocations.challengeWitnessStart - 8 by rfl]
+      PiCCSInvocations.challengeWitnessStart - 16 by rfl]
   rw [startEq]
 
 private theorem challengeTrace_state_endpoint (lane : Fin laneCount) :
@@ -315,21 +315,21 @@ private theorem challengeTrace_state_endpoint (lane : Fin laneCount) :
       Permutation.scheduleOutput
         (PiCCSInvocations.challengeWitnessStart +
           (Invocations.invocationCount
-            PiCCSActionPayloadBlock.challengeActions - 1) * 592) at compiled
+            PiCCSActionPayloadBlock.challengeActions - 1) * 1096) at compiled
   have endEq := PiCCSInvocations.challengeEnd_eq_roundStart
     Data.logicalWidth Data.publicFits
   rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at compiled
   rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 592 + 584 =
-        PiCCSInvocations.roundWitnessStart - 8 := by
+      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.challengeWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart challengeFamily =
-      PiCCSInvocations.roundWitnessStart - 8 by rfl]
+      PiCCSInvocations.roundWitnessStart - 16 by rfl]
   rw [startEq]
 
 private theorem roundTrace_state_endpoint (lane : Fin laneCount) :
@@ -349,19 +349,19 @@ private theorem roundTrace_state_endpoint (lane : Fin laneCount) :
       Permutation.scheduleOutput
         (PiCCSInvocations.roundWitnessStart +
           (Invocations.invocationCount PiCCSActionPayloadBlock.roundActions - 1) *
-            592) at compiled
+            1096) at compiled
   rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at compiled
   have startEq :
-      PiCCSInvocations.roundWitnessStart + (252 - 1) * 592 + 584 =
-        PiCCSInvocations.roundWitnessStart + 252 * 592 - 8 := by
+      PiCCSInvocations.roundWitnessStart + (140 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 140 * 1096 - 16 := by
     generalize PiCCSInvocations.roundWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart roundFamily =
       PiCCSInvocations.roundWitnessStart +
-        PiCCSTranscriptDirectSemantics.roundCount * 592 - 8 by rfl]
-  rw [show PiCCSTranscriptDirectSemantics.roundCount = 252 by rfl]
+        PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 140 by rfl]
   rw [startEq]
 
 private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
@@ -378,9 +378,9 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
       Permutation.scheduleOutput
         (PiCCSInvocations.outputWitnessStart +
           (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
-            592) at compiled
+            1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.outputActions = 6886 := by
+      PiCCSActionPayloadBlock.outputActions = 2296 := by
     exact PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
@@ -388,21 +388,21 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (6886 - 1) * 592 + 584 =
-        PiCCSStarts.logicalFreshBase - 8 := by
+      PiCCSInvocations.outputWitnessStart + (2296 - 1) * 1096 + 1080 =
+        PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
-  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 8 by rfl]
+  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 16 by rfl]
   rw [startEq]
 
 theorem endpointColumn_lt_source (family : Fin familyCount)
     (lane : Fin laneCount) : endpointColumn family lane < Spartan.SourceColumnCount := by
   have familyBound := family.isLt
   have laneBound := lane.isLt
-  change lane.val < 8 at laneBound
+  change lane.val < 16 at laneBound
   unfold endpointColumn endpointStart familyCount laneCount
   rw [Spartan.sourceColumnCount_eq]
   split <;> try split <;> try split
@@ -421,11 +421,11 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
 def endpointTranscriptInvocation (family : Fin familyCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount :=
   if family.val = 0 then
-    ⟨378, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨127, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else if family.val = 1 then
-    ⟨465, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨214, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else
-    ⟨717, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨354, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
 
 def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
@@ -444,7 +444,7 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
       endpointColumn family lane := by
   have familyBound := family.isLt
   have laneBound := lane.isLt
-  change lane.val < 8 at laneBound
+  change lane.val < 16 at laneBound
   unfold proofLogicalIndex
   rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput]
   unfold endpointTranscriptIndex
@@ -576,7 +576,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (ordinaryGeometry :
       PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (plan poseidonGeometry ordinaryGeometry).rowCount = 32 := by
+    (plan poseidonGeometry ordinaryGeometry).rowCount = 64 := by
   rfl
 
 theorem rowsZero_iff
@@ -933,7 +933,7 @@ private theorem zeroState_eq_evalZero (env : Env) :
     Spec.Poseidon2.zeroState =
       List.ofFn (Layer.evalState env Hash.zeroE) := by
   unfold Spec.Poseidon2.zeroState Layer.evalState Hash.zeroE
-  change List.replicate 8 0 = List.ofFn (fun _ : Fin 8 => (0 : F))
+  change List.replicate 16 0 = List.ofFn (fun _ : Fin 16 => (0 : F))
   norm_num [List.ofFn_succ]
   rfl
 
@@ -976,22 +976,22 @@ private theorem statementTrace_state_endpoint_of_shape
         (PiCCSInvocations.statementWitnessStart +
           (Invocations.invocationCount
             (PiCCSInvocations.statementActions relationLogicalWidth
-              relationPublicFits) - 1) * 592) at compiled
+              relationPublicFits) - 1) * 1096) at compiled
   have count := PiCCSInvocations.statementInvocationCount_eq
     relationLogicalWidth relationPublicFits
   have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (379 - 1) * 592 + 584 =
-        PiCCSInvocations.challengeWitnessStart - 8 := by
+      PiCCSInvocations.statementWitnessStart + (128 - 1) * 1096 + 1080 =
+        PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart statementFamily =
-      PiCCSInvocations.challengeWitnessStart - 8 by rfl]
+      PiCCSInvocations.challengeWitnessStart - 16 by rfl]
   rw [startEq]
 
 /-- The existing C phase source wiring is independent of the relation width. -/
@@ -1063,7 +1063,7 @@ private theorem challengeTrace_state_endpoint_of_shape
             (ChallengeDerivation.actions
               (PiCCSInvocations.challengeInterface relationLogicalWidth
                 relationPublicFits)
-              PiCCSInvocations.challengeWitnessStart) - 1) * 592) at compiled
+              PiCCSInvocations.challengeWitnessStart) - 1) * 1096) at compiled
   have count : Invocations.invocationCount
       (ChallengeDerivation.actions
         (PiCCSInvocations.challengeInterface relationLogicalWidth
@@ -1075,15 +1075,15 @@ private theorem challengeTrace_state_endpoint_of_shape
   rw [count] at compiled
   rw [PiCCSInvocations.challengeInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 592 + 584 =
-        PiCCSInvocations.roundWitnessStart - 8 := by
+      PiCCSInvocations.challengeWitnessStart + (87 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.challengeWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart challengeFamily =
-      PiCCSInvocations.roundWitnessStart - 8 by rfl]
+      PiCCSInvocations.roundWitnessStart - 16 by rfl]
   rw [startEq]
 
 /-- The existing C phase source wiring is independent of the relation width. -/
@@ -1155,25 +1155,25 @@ private theorem roundTrace_state_endpoint_of_shape
             (RoundTranscript.actions
               (PiCCSInvocations.roundInterface relationLogicalWidth
                 relationPublicFits)
-              PiCCSInvocations.roundWitnessStart) - 1) * 592) at compiled
+              PiCCSInvocations.roundWitnessStart) - 1) * 1096) at compiled
   have count : Invocations.invocationCount
       (RoundTranscript.actions
         (PiCCSInvocations.roundInterface relationLogicalWidth
-          relationPublicFits) PiCCSInvocations.roundWitnessStart) = 252 := by
+          relationPublicFits) PiCCSInvocations.roundWitnessStart) = 140 := by
     rw [roundActions_eq_of_shape]
     exact PiCCSActionPayloadBlock.roundInvocationCount_eq
   rw [count] at compiled
   have startEq :
-      PiCCSInvocations.roundWitnessStart + (252 - 1) * 592 + 584 =
-        PiCCSInvocations.roundWitnessStart + 252 * 592 - 8 := by
+      PiCCSInvocations.roundWitnessStart + (140 - 1) * 1096 + 1080 =
+        PiCCSInvocations.roundWitnessStart + 140 * 1096 - 16 := by
     generalize PiCCSInvocations.roundWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
   rw [show endpointStart roundFamily =
       PiCCSInvocations.roundWitnessStart +
-        PiCCSTranscriptDirectSemantics.roundCount * 592 - 8 by rfl]
-  rw [show PiCCSTranscriptDirectSemantics.roundCount = 252 by rfl]
+        PiCCSTranscriptDirectSemantics.roundCount * 1096 - 16 by rfl]
+  rw [show PiCCSTranscriptDirectSemantics.roundCount = 140 by rfl]
   rw [startEq]
 
 /-- The existing C phase source wiring is independent of the relation width. -/
@@ -1234,21 +1234,21 @@ private theorem outputTrace_state_endpoint_of_shape
         (PiCCSInvocations.outputWitnessStart +
           (Invocations.invocationCount
             (PiCCSInvocations.outputActions relationLogicalWidth
-              relationPublicFits) - 1) * 592) at compiled
+              relationPublicFits) - 1) * 1096) at compiled
   have count := PiCCSInvocations.outputInvocationCount_eq
     relationLogicalWidth relationPublicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (6886 - 1) * 592 + 584 =
-        PiCCSStarts.logicalFreshBase - 8 := by
+      PiCCSInvocations.outputWitnessStart + (2296 - 1) * 1096 + 1080 =
+        PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
     omega
   rw [congrFun compiled lane]
   unfold Permutation.scheduleOutput Permutation.freshState endpointColumn
-  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 8 by rfl]
+  rw [show endpointStart outputFamily = PiCCSStarts.logicalFreshBase - 16 by rfl]
   rw [startEq]
 
 private theorem outputTrace_state_matches_of_shape

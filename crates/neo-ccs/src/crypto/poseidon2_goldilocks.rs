@@ -89,7 +89,7 @@ pub fn round_constants() -> Poseidon2RoundConstants {
         WIDTH,
         p3_goldilocks::poseidon1::GOLDILOCKS_S_BOX_DEGREE,
     )
-    .expect("round numbers for Goldilocks width 8");
+    .expect("round numbers for Goldilocks width 16");
     let external = ExternalLayerConstants::<Goldilocks, WIDTH>::new_from_rng(rounds_f, &mut rng);
     let internal: Vec<Goldilocks> = (&mut rng)
         .sample_iter(StandardUniform)
@@ -101,7 +101,7 @@ pub fn round_constants() -> Poseidon2RoundConstants {
         initial: external.get_initial_constants().iter().map(row).collect(),
         internal: internal.iter().map(|c| c.as_canonical_u64()).collect(),
         terminal: external.get_terminal_constants().iter().map(row).collect(),
-        diag: core::array::from_fn(|i| p3_goldilocks::MATRIX_DIAG_8_GOLDILOCKS[i].as_canonical_u64()),
+        diag: core::array::from_fn(|i| p3_goldilocks::MATRIX_DIAG_16_GOLDILOCKS[i].as_canonical_u64()),
     }
 }
 
@@ -111,7 +111,7 @@ pub fn round_constants() -> Poseidon2RoundConstants {
 /// Padding: Add 1 to first state element, then permute.
 ///
 /// # Security
-/// - Input is absorbed in chunks of RATE (8 elements)
+/// - Input is absorbed in chunks of RATE (12 elements)
 /// - Each chunk is XORed into state and permuted
 /// - Final padding prevents length-extension attacks
 /// - Output squeezed from first DIGEST_LEN elements

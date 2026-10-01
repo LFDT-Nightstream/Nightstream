@@ -21,36 +21,36 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def previousRule {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 12350)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 4118)
     (retainedStart : Nat) : PoseidonInput.Rule where
-  region := ⟨1, 12349, 0, 8⟩
+  region := ⟨1, 4117, 0, 16⟩
   term := .external
-    (RetainedBlock.ofSemantic schedule.block retainedStart) 78 86
+    (RetainedBlock.ofSemantic schedule.block retainedStart) 134 150
 
 def previousProgram {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 12350)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 4118)
     (retainedStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart]
 
 def fullInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨0, 12348, 0, 4⟩
-  term := .retained (RetainedBlock.ofSemantic inputBlock inputStart) 0 4 1
+  region := ⟨0, 4116, 0, 12⟩
+  term := .retained (RetainedBlock.ofSemantic inputBlock inputStart) 0 12 1
 
 def tailInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨12348, 1, 0, 1⟩
+  region := ⟨4116, 1, 0, 1⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart)
     49392 0 1
 
 def paddingRule : PoseidonInput.Rule where
-  region := ⟨12349, 1, 0, 1⟩
+  region := ⟨4117, 1, 0, 1⟩
   term := .constant 1
 
 def chainInputProgram {poseidonSourceWidth inputSourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 12350)
+    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 4118)
     (retainedStart : Nat) (inputBlock : LowNormBlock.Block inputSourceWidth)
     (inputStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart,
@@ -86,26 +86,26 @@ def outputBlock {program : Program} {logicalWidth : Nat}
 @[simp] theorem priorBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (priorBlock geometry).rowCount = 1062100 := by
+    (priorBlock geometry).rowCount = 617700 := by
   calc
-    (priorBlock geometry).rowCount = 12350 * 86 := by
+    (priorBlock geometry).rowCount = 4118 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.priorSchedule program)
         (PiRLCRetainedGeometry.priorPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (priorInputProgram program)
-    _ = 1062100 := by norm_num
+    _ = 617700 := by norm_num
 
 @[simp] theorem outputBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (outputBlock geometry).rowCount = 1062100 := by
+    (outputBlock geometry).rowCount = 617700 := by
   calc
-    (outputBlock geometry).rowCount = 12350 * 86 := by
+    (outputBlock geometry).rowCount = 4118 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.outputSchedule program)
         (PiRLCRetainedGeometry.outputPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (outputInputProgram program)
-    _ = 1062100 := by norm_num
+    _ = 617700 := by norm_num
 
 /-- The exact Pilot Poseidon row order: prior-state hash, then output-state
 hash. -/
@@ -118,7 +118,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 2124200 := by
+    (matrixProgram geometry).rowCount = 1235400 := by
   rw [matrixProgram, MatrixProgram.Program.append_rowCount]
   simp only [MatrixProgram.Program.singleton_rowCount]
   change (priorBlock geometry).rowCount + (outputBlock geometry).rowCount = _

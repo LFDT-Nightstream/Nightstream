@@ -55,7 +55,7 @@ def completeLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat 
 
 @[simp] theorem completeLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    completeLogicalWidth program = 131004987 := by
+    completeLogicalWidth program = 84184381 := by
   simp only [completeLogicalWidth, freshStart, outputEndpointStart,
     proofLogicalStart,
     expectedContextStart, outputLastStart, priorLastStart, freshPublicInputStart,

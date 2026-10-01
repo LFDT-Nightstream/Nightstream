@@ -244,10 +244,10 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 107729
-def logicalRowCount : Nat := 84949
+def logicalPrivateCount : Nat := 124865
+def logicalRowCount : Nat := 102085
 
-theorem logicalPrivateCount_eq : logicalPrivateCount = 107729 := by
+theorem logicalPrivateCount_eq : logicalPrivateCount = 124865 := by
   rfl
 
 structure Assumptions

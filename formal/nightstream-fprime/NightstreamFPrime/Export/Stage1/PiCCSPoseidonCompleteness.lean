@@ -77,11 +77,11 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
   refine (retainedSource_sbox application (raw).base (raw).groupValue index row).trans ?_
   apply PerApplicationSourceAssignment.packageEnv_ofCompleted
   have before := PoseidonRetainedBlock.laterWitnessStart_bound (laterIndex index)
-  change (physicalInvocation index).witnessStart + 592 ≤
+  change (physicalInvocation index).witnessStart + 1096 ≤
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
-  change (PoseidonRetainedSlots.localOutput row).val < 592 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 27427444 :=
+  change (PoseidonRetainedSlots.localOutput row).val < 1096 at localBound
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 20252764 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -133,7 +133,7 @@ private theorem encoding : Encoding payload geometry (raw).assignment (raw).reta
 
 include relation physical in
 private theorem payload_absorb_source
-    (index : InvocationIndex) (lane : Fin 8) (block : List Expr)
+    (index : InvocationIndex) (lane : Fin 16) (block : List Expr)
     (found : PiCCSActionPayloadBlock.kindAt index = .absorb block) :
     payloadLaneValue application (raw).retainedSource index lane =
       (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target) := by
@@ -241,7 +241,7 @@ private theorem slice_values
     (assertions : ConstraintsHold (Spartan.pullback target)
       (Formal.compile witnessStart state actions).assertions)
     (index : Fin count) :
-    (∀ lane : Fin 8,
+    (∀ lane : Fin 16,
       (invocationInputCombination
         (physicalInvocation (PoseidonActionSemantics.sliceIndex offset count fits index)) lane.val).toR1CS.eval target =
       canonicalInput geometry (raw).assignment (raw).retainedSource
@@ -261,8 +261,8 @@ private theorem slice_values
   let trace := Invocations.compileActions phase rowStart witnessStart state actions
   let selectedInvocation := fun current : Fin (Invocations.invocationCount actions) => trace.invocations.get
     (Fin.cast (Invocations.compileActions_invocations_length phase rowStart witnessStart state actions).symm current)
-  let outputs := fun current => List.ofFn fun coordinate : Fin 8 =>
-    target ((selectedInvocation current).witnessStart + 584 + coordinate.val)
+  let outputs := fun current => List.ofFn fun coordinate : Fin 16 =>
+    target ((selectedInvocation current).witnessStart + 1080 + coordinate.val)
   let previous := PoseidonActionSemantics.previousState
     (List.ofFn (Layer.evalState (Spartan.pullback target) state)) outputs index
   let globalIndex := PoseidonActionSemantics.sliceIndex offset (Invocations.invocationCount actions) fits index
@@ -278,18 +278,18 @@ private theorem slice_values
       (PiCCSCompletedReadout.outputValue_of_completed application relation target suffix physical
         (PoseidonActionSemantics.sliceIndex offset _ fits current)) lane
     exact (output.trans (congrArg (fun invocation : PermutationInvocation =>
-      target (invocation.witnessStart + 584 + lane.val)) (selectedEq current))).symm
+      target (invocation.witnessStart + 1080 + lane.val)) (selectedEq current))).symm
   have previousEq : previous = List.ofFn (previousValue geometry (raw).assignment globalIndex) := by
     change PoseidonActionSemantics.previousState _ outputs index = _
     rw [initial, outputsEq, PoseidonActionSemantics.previousState_slice]
     exact previousState_eq_previousValue geometry (raw).assignment globalIndex
-  have previousLane (lane : Fin 8) :
+  have previousLane (lane : Fin 16) :
       previous.getD lane.val 0 = previousValue geometry (raw).assignment globalIndex lane := by
     rw [previousEq]
     exact PriorStateHash.ofFn_getD _ lane (0 : F)
   have currentLane : (outputs index).getD 0 0 = outputValue geometry (raw).assignment globalIndex 0 := by
     rw [outputsEq]
-    exact PriorStateHash.ofFn_getD _ (0 : Fin 8) (0 : F)
+    exact PriorStateHash.ofFn_getD _ (0 : Fin 16) (0 : F)
   constructor
   · intro lane
     have inputLaw := InvocationInputLaw.compileActions_input_eval phase rowStart witnessStart
@@ -324,15 +324,15 @@ private theorem slice_values
 
 include relation physical in
 private theorem invocation_values (index : InvocationIndex) :
-    (∀ lane : Fin 8,
+    (∀ lane : Fin 16,
       (invocationInputCombination (physicalInvocation index) lane.val).toR1CS.eval target =
         canonicalInput geometry (raw).assignment (raw).retainedSource index lane) ∧
     (∀ expected : KExpr, PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected →
       expected.eval (Spartan.pullback target) =
         K.mk (previousValue geometry (raw).assignment index 0) (outputValue geometry (raw).assignment index 0)) := by
-  have bounded : index.val < 7604 := by
+  have bounded : index.val < 2651 := by
     simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
-  by_cases inStatement : index.val < 379
+  by_cases inStatement : index.val < 128
   · let current : Fin PiCCSTranscriptDirectSemantics.statementCount := ⟨index.val, inStatement⟩
     have same : PoseidonActionSemantics.sliceIndex
         PiCCSTranscriptDirectSemantics.statementOffset PiCCSTranscriptDirectSemantics.statementCount
@@ -355,15 +355,15 @@ private theorem invocation_values (index : InvocationIndex) :
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)
       (PiCCSCompilerAssertions.statement_assertions (Spartan.pullback target)) current
-  · by_cases inChallenge : index.val < 466
-    · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 379, by
-        change index.val - 379 < 87
+  · by_cases inChallenge : index.val < 215
+    · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 128, by
+        change index.val - 128 < 87
         omega⟩
       have same : PoseidonActionSemantics.sliceIndex
           PiCCSTranscriptDirectSemantics.challengeOffset PiCCSTranscriptDirectSemantics.challengeCount
           PiCCSTranscriptDirectSemantics.challengeFits current = index := by
         apply Fin.ext
-        change 379 + (index.val - 379) = index.val
+        change 128 + (index.val - 128) = index.val
         omega
       rw [← same]
       have affine := PiCCSPhaseInputs.challenge_affine relation
@@ -381,15 +381,15 @@ private theorem invocation_values (index : InvocationIndex) :
         PiCCSTranscriptDirectSemantics.challengeKindAt_eq
         (PiCCSPhaseInputs.challenge_initial application relation target suffix physical)
         (PiCCSCompilerAssertions.challenge_assertions (Spartan.pullback target)) current
-    · by_cases inRound : index.val < 718
-      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 466, by
-          change index.val - 466 < 252
+    · by_cases inRound : index.val < 355
+      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 215, by
+          change index.val - 215 < 140
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.roundOffset PiCCSTranscriptDirectSemantics.roundCount
             PiCCSTranscriptDirectSemantics.roundFits current = index := by
           apply Fin.ext
-          change 466 + (index.val - 466) = index.val
+          change 215 + (index.val - 215) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.round_affine relation
@@ -407,14 +407,14 @@ private theorem invocation_values (index : InvocationIndex) :
           PiCCSTranscriptDirectSemantics.roundKindAt_eq
           (PiCCSPhaseInputs.round_initial application relation target suffix physical)
           (PiCCSCompilerAssertions.round_assertions (Spartan.pullback target)) current
-      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 718, by
-          change index.val - 718 < 6886
+      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 355, by
+          change index.val - 355 < 2296
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.outputOffset PiCCSTranscriptDirectSemantics.outputCount
             PiCCSTranscriptDirectSemantics.outputFits current = index := by
           apply Fin.ext
-          change 718 + (index.val - 718) = index.val
+          change 355 + (index.val - 355) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.output_affine relation

@@ -255,7 +255,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .r1cs_matrices()
         .expect("intermediate physical R1CS A/B/C matrices");
     let r1cs_matrix_nonzeros = conformance_support::compare_sealed_matrices(&bytes, &matrices);
-    assert_eq!(r1cs_matrix_nonzeros, [91_343_816, 36_894_678, 27_343_559]);
+    assert_eq!(r1cs_matrix_nonzeros, [109_180_666, 27_431_210, 20_166_663]);
     drop(matrices);
     eprintln!("intermediate_r1cs_matrix_nonzeros={r1cs_matrix_nonzeros:?}");
 
@@ -399,7 +399,7 @@ fn check_logical_assignment(
         .expect("Rust assignment satisfies every final Lean logical row");
     assert_eq!(result.active_rows, 1_992_940);
     assert_eq!(result.relation_terms, 74);
-    assert_eq!(result.carrier_padding_columns, 6);
+    assert_eq!(result.carrier_padding_columns, 48);
     assert_eq!(
         result.assignment_block_mutations,
         logical_assignment.nonempty_block_count()

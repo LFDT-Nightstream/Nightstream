@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
+import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
 
 /-!
 Skip a complete source sum when its supplied zero flag is true, then retain
@@ -27,6 +28,21 @@ uses the existing single-source range; flattening preserves every port slot. -/
   let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
     if zeroSource source then PiDECEvaluationBatch.zero matrixCount
     else PiDECMatrixSparseRange.sum firstRow point (read source) forms
+  Vector.ofFn fun code =>
+    let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
+    (bySource.get pair.1).get pair.2
+
+/-- The zero branch precedes all source arithmetic. The column weights of rows
+that share their columns are prepared once for every nonzero source. -/
+@[specialize] def weighted {columns arity count : Nat}
+    (zeroSource : Fin productionShape.sourceCount → Bool)
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
+    (forms : Vector (MatrixProgram.RowForms columns) count) : PiCCSOriginalMatrixBatch.Batch :=
+  let prepared := PiDECMatrixWeightedRange.prepare firstRow point forms
+  let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
+    if zeroSource source then PiDECEvaluationBatch.zero matrixCount
+    else PiDECMatrixWeightedRange.evaluate prepared firstRow point (read source) forms
   Vector.ofFn fun code =>
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2

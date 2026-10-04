@@ -737,8 +737,8 @@ private def saveFreshPrefix
       for lo in [start:stop:freshChunkPairs] do
         chunks := chunks.push (part, lo, min stop (lo + freshChunkPairs))
     return chunks
-  IO.FS.withTempDir fun scratch => do
-    let tasks ← ParallelChunks.start workers chunks.size fun index => do
+  ParallelChunks.withScratch workers chunks.size
+    (fun scratch index => do
       let (_, lo, hi) := chunks[index]!
       let path := scratch / s!"{lo}-{hi}.jsonl"
       let output ← IO.FS.Handle.mk path .write
@@ -757,31 +757,32 @@ private def saveFreshPrefix
             .array (values.toList.map extensionValue)]).render)
         else throw (IO.userError "fresh prefix index exceeds Boolean domain")
       output.flush
-      return path
-    let mut index := 0
-    for part in [:parts] do
-      let start := first + (finish - first) * part / parts
-      let stop := first + (finish - first) * (part + 1) / parts
-      let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
-      output.putStrLn ((Value.array [.atom 1, .atom 1, .atom Spec.ProductionRelation.matrixCount,
-        .atom program.rowCount, .atom start, .atom stop, extensionValue challenge]).render)
-      while h : index < tasks.size do
-        if (chunks[index]!).1 != part then break
-        let (path, _, _) ← match ← IO.wait tasks[index] with
-          | .ok result => pure result
-          | .error error => throw error
-        let input ← IO.FS.Handle.mk path .read
-        repeat
-          let block ← input.read 1048576
-          if block.isEmpty then break
-          output.write block
-        IO.FS.removeFile path
-        index := index + 1
-      output.putStrLn "[]"
-      output.flush
-      report [("event", .str "fresh_prefix_range_written"),
-        ("first", Lean.toJson start), ("end", Lean.toJson stop),
-        ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted))]
+      return path)
+    fun tasks => do
+      let mut index := 0
+      for part in [:parts] do
+        let start := first + (finish - first) * part / parts
+        let stop := first + (finish - first) * (part + 1) / parts
+        let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
+        output.putStrLn ((Value.array [.atom 1, .atom 1, .atom Spec.ProductionRelation.matrixCount,
+          .atom program.rowCount, .atom start, .atom stop, extensionValue challenge]).render)
+        while h : index < tasks.size do
+          if (chunks[index]!).1 != part then break
+          let (path, _, _) ← match ← IO.wait tasks[index] with
+            | .ok result => pure result
+            | .error error => throw error
+          let input ← IO.FS.Handle.mk path .read
+          repeat
+            let block ← input.read 1048576
+            if block.isEmpty then break
+            output.write block
+          IO.FS.removeFile path
+          index := index + 1
+        output.putStrLn "[]"
+        output.flush
+        report [("event", .str "fresh_prefix_range_written"),
+          ("first", Lean.toJson start), ("end", Lean.toJson stop),
+          ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted))]
   report [("event", .str "fresh_prefix_complete"), ("first", Lean.toJson first),
     ("end", Lean.toJson finish), ("matrices", Lean.toJson Spec.ProductionRelation.matrixCount),
     ("reference", Lean.toJson reference),

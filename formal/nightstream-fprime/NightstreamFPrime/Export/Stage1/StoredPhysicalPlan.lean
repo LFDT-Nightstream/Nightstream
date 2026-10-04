@@ -291,6 +291,11 @@ private theorem assemble_sound (sources : PreparedPhysicalInputs.Inputs)
   · intro row member
     exact (StoredPhysicalRowCheck.sparseRow_iff _ env).mp (nextPreimageChecks row member)
 
+/-- The selected application's final physical layout. It does not depend on
+the prepared sources, so a caller can be checked against it first. -/
+def layout (_ : Unit) : PhysicalLayout :=
+  PerApplicationPackage.directFinalLayout selectedApplication
+
 /-- Construct each event once. Final checks retain canonical source order;
 only the execution array is sorted by the existing write-target comparison. -/
 def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
@@ -298,7 +303,7 @@ def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
   let canonical : templates.toList = Data.compactRowTemplates () := List.toList_toArray
   let assembled := assemble sources templates canonical
   { pilot := sources.pilot
-    layout := PerApplicationPackage.directFinalLayout selectedApplication
+    layout := layout ()
     templates := templates
     templates_eq := canonical
     rowEvents := assembled.rowEvents

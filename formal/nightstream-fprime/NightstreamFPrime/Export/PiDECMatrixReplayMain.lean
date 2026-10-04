@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.ParallelChunks
 import NightstreamFPrime.Export.PiDECParentInput
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
@@ -227,19 +228,13 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       let mut tasks := #[]
       let mut activeRank := 0
       let mut taskCount := 0
-      -- Shared slices compute every active child; four per worker on dedicated threads,
-      -- which the operating system moves to free cores.
+      -- Shared slices compute every active child; sixteen slices per worker, and each
+      -- of `workers` threads takes the next slice, so the last slices are short.
       let mut sharedSlices := #[]
       if let some all := evaluateAll then
-        let parts := min unitCount (4 * workers)
-        for slice in [:parts] do
-          let lo := unitCount * slice / parts
-          let hi := unitCount * (slice + 1) / parts
-          sharedSlices := sharedSlices.push (← IO.asTask (prio := Task.Priority.dedicated) do
-            let sliceStarted ← IO.monoNanosNow
-            let values ← IO.wait (Task.spawn (prio := Task.Priority.dedicated) fun _ => all lo hi)
-            let sliceFinished ← IO.monoNanosNow
-            return (values, sliceStarted, sliceFinished))
+        let parts := min unitCount (16 * workers)
+        sharedSlices ← ParallelChunks.start workers parts fun slice =>
+          pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
         taskCount := parts
       for child in children do
         let mut childTasks := #[]

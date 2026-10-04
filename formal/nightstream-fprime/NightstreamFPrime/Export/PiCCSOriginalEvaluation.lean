@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.ParallelChunks
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
@@ -200,18 +201,17 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
         ("start", Lean.toJson first), ("end", Lean.toJson finish),
         ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]
       unless 0 < unitCount do throw (IO.userError "empty selected matrix unit range")
-      -- Four slices per worker on dedicated threads, which the operating system moves
-      -- to free cores, so faster cores take more of the range.
-      let parts := min unitCount (4 * workers)
+      -- Sixteen slices per worker; each of `workers` threads takes the next slice, so
+      -- faster cores take more of the range and the last slices are short.
+      let parts := min unitCount (16 * workers)
       let arithmeticStarted ← IO.monoNanosNow
-      let mut tasks := #[]
-      for slice in [:parts] do
-        let lo := unitCount * slice / parts
-        let hi := unitCount * (slice + 1) / parts
-        tasks := tasks.push (Task.spawn (prio := Task.Priority.dedicated) fun _ => evaluate lo hi)
+      let tasks ← ParallelChunks.start workers parts fun slice =>
+        pure (evaluate (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
       let mut total := PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
       for task in tasks do
-        let values ← IO.wait task
+        let (values, _, _) ← match ← IO.wait task with
+          | .ok result => pure result
+          | .error error => throw error
         total := PiDECEvaluationBatch.add total values
       let computeNs := (← IO.monoNanosNow) - arithmeticStarted
       let encodeK := fun value : K => Value.array [.atom value.c0.val, .atom value.c1.val]

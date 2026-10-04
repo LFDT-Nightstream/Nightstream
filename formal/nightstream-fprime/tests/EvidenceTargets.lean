@@ -910,6 +910,18 @@ def PiCCSOriginalEvaluationKernel : Prop :=
         (PiRLCPartialTrace.FixedArray (Layout.ProductionRelation.SparseForm ringDegree)
           ringDegree) ringDegree)
       (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)
+      (forms : Vector (Layout.MatrixProgram.RowForms columns) count)
+      (source : Fin productionShape.sourceCount) (port : Fin Spec.ProductionRelation.matrixCount),
+    ((PiCCSOriginalMatrixSupported.weighted (PiCCSOriginalSupport.isZero masks)
+      firstRow point (PiCCSOriginalReads.read tables masks) forms).get
+        (Fin.encodeProd (source, port))).toRing =
+      ((PiCCSOriginalMatrixBatch.sum firstRow point
+        (PiCCSOriginalReads.read tables masks) forms).get (Fin.encodeProd (source, port))).toRing) ∧
+  (∀ (columns arity count : Nat)
+      (tables : PiRLCPartialTrace.FixedArray
+        (PiRLCPartialTrace.FixedArray (Layout.ProductionRelation.SparseForm ringDegree)
+          ringDegree) ringDegree)
+      (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)
       (interfaces : Vector (Layout.ProductionRelation.PoseidonSboxPlan.Interface columns) count)
       (source : Fin productionShape.sourceCount) (port : Fin Spec.ProductionRelation.matrixCount),
     ((PiCCSOriginalMatrixSupported.invocations (PiCCSOriginalSupport.isZero masks)
@@ -920,7 +932,7 @@ def PiCCSOriginalEvaluationKernel : Prop :=
           (Fin.encodeProd (source, port))).toRing)
 
 theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro columns masks source output
     exact PiCCSOriginalReads.read_eq_kernelRead masks source output
   · intro point masks source
@@ -931,6 +943,9 @@ theorem piCCSOriginalEvaluationKernel : PiCCSOriginalEvaluationKernel := by
 
   · intro columns arity count tables masks firstRow point forms source port
     exact PiCCSOriginalMatrixSupported.sparse_isZero_source_port
+      tables masks firstRow point forms source port
+  · intro columns arity count tables masks firstRow point forms source port
+    exact PiCCSOriginalMatrixSupported.weighted_isZero_source_port
       tables masks firstRow point forms source port
   · intro columns arity count tables masks firstRow point interfaces source port
     exact PiCCSOriginalMatrixSupported.invocations_isZero_source_port

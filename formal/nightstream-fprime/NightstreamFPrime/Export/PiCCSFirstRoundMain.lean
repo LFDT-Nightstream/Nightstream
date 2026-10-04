@@ -328,7 +328,10 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
       else throw (IO.userError "fresh pair exceeds the selected domain")
     return total
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  let parts := min workers (finish - first)
+  -- Eight parts per worker on dedicated threads, which the operating system moves to
+  -- free cores. With one part per worker, 14 of 18 parts took 8 s and the part with
+  -- the Phi81 product rows took 138 s.
+  let parts := min (8 * workers) (finish - first)
   let mut tasks : Array (Task (Except IO.Error (FixedPolynomial K 9 × Nat))) := #[]
   for part in [:parts] do
     let start := first + (finish - first) * part / parts
@@ -353,7 +356,7 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
     .array (total.coefficients.map extensionValue)]).render ++ "\n")
   report [("event", .str "fresh_range_complete"), ("first", Lean.toJson first),
     ("end", Lean.toJson finish), ("reference", Lean.toJson reference),
-    ("workers", Lean.toJson parts),
+    ("workers", Lean.toJson workers), ("parts", Lean.toJson parts),
     ("compute_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted)),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
@@ -725,41 +728,49 @@ private def saveFreshPrefix
     ("rows", Lean.toJson program.rowCount),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   let computeStarted ← IO.monoNanosNow
-  let mut tasks : Array (Task (Except IO.Error Nat)) := #[]
+  let renderSlice (start stop : Nat) : IO (Array String) := do
+    let mut lines := Array.emptyWithCapacity (stop - start)
+    let mut cached := none
+    for index in [start:stop] do
+      if within : index < 2 ^ 27 then
+        let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
+        let (next, low) ← loadRow cached
+          (PiCCSFirstRound.endpointVertex (by decide) false suffix)
+        cached := next
+        let (next, high) ← loadRow cached
+          (PiCCSFirstRound.endpointVertex (by decide) true suffix)
+        cached := next
+        let values := PiCCSFreshPrefix.pairRow (low.map K.embed) (high.map K.embed) challenge
+        lines := lines.push ((Value.array [.atom index,
+          .array (values.toList.map extensionValue)]).render)
+      else throw (IO.userError "fresh prefix index exceeds Boolean domain")
+    return lines
+  -- Each part file comes from eight dedicated slices, which the operating system moves
+  -- to free cores; the lines are written in index order. With one slice per part, the
+  -- part with the Phi81 product rows took 132 s while total work was 271 CPU-seconds.
+  let mut tasks : Array (Nat × Nat × Array (Task (Except IO.Error (Array String)))) := #[]
   for part in [:parts] do
     let start := first + (finish - first) * part / parts
     let stop := first + (finish - first) * (part + 1) / parts
-    tasks := tasks.push (← IO.asTask (prio := Task.Priority.dedicated) do
-      let rangeStarted ← IO.monoNanosNow
-      let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
-      output.putStrLn ((Value.array [.atom 1, .atom 1, .atom Spec.ProductionRelation.matrixCount,
-        .atom program.rowCount, .atom start, .atom stop, extensionValue challenge]).render)
-      let mut cached := none
-      for index in [start:stop] do
-        if within : index < 2 ^ 27 then
-          let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
-          let (next, low) ← loadRow cached
-            (PiCCSFirstRound.endpointVertex (by decide) false suffix)
-          cached := next
-          let (next, high) ← loadRow cached
-            (PiCCSFirstRound.endpointVertex (by decide) true suffix)
-          cached := next
-          let values := PiCCSFreshPrefix.pairRow (low.map K.embed) (high.map K.embed) challenge
-          output.putStrLn ((Value.array [.atom index,
-            .array (values.toList.map extensionValue)]).render)
-        else throw (IO.userError "fresh prefix index exceeds Boolean domain")
-      output.putStrLn "[]"
-      return (← IO.monoNanosNow) - rangeStarted)
-  let mut part := 0
-  for task in tasks do
-    let elapsed ← match ← IO.wait task with
-      | .ok elapsed => pure elapsed
-      | .error error => throw error
+    let mut slices := #[]
+    for slice in [:8] do
+      slices := slices.push (← IO.asTask (prio := Task.Priority.dedicated)
+        (renderSlice (start + (stop - start) * slice / 8) (start + (stop - start) * (slice + 1) / 8)))
+    tasks := tasks.push (start, stop, slices)
+  for (start, stop, slices) in tasks do
+    let output ← IO.FS.Handle.mk (outputDirectory / s!"{start}-{stop}.jsonl") .write
+    output.putStrLn ((Value.array [.atom 1, .atom 1, .atom Spec.ProductionRelation.matrixCount,
+      .atom program.rowCount, .atom start, .atom stop, extensionValue challenge]).render)
+    for slice in slices do
+      let lines ← match ← IO.wait slice with
+        | .ok lines => pure lines
+        | .error error => throw error
+      for line in lines do
+        output.putStrLn line
+    output.putStrLn "[]"
     report [("event", .str "fresh_prefix_range_written"),
-      ("first", Lean.toJson (first + (finish - first) * part / parts)),
-      ("end", Lean.toJson (first + (finish - first) * (part + 1) / parts)),
-      ("elapsed_ns", Lean.toJson elapsed)]
-    part := part + 1
+      ("first", Lean.toJson start), ("end", Lean.toJson stop),
+      ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - computeStarted))]
   report [("event", .str "fresh_prefix_complete"), ("first", Lean.toJson first),
     ("end", Lean.toJson finish), ("matrices", Lean.toJson Spec.ProductionRelation.matrixCount),
     ("reference", Lean.toJson reference),

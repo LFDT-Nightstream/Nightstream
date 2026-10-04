@@ -3,6 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
+import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
 import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
@@ -56,6 +57,30 @@ private def parseRangeRequests : List String → Except String (List RangeReques
       pure ({ outputPath := output, blockIndex := block, firstRow := first, lastRow := last } ::
         remaining)
   | _ => throw "expected complete output/block/first/last groups"
+
+/-- Evaluate product invocations `lo` to `hi` for every active child. The 108 rows
+of one invocation are built from its interface and share their columns, so one
+set of column weights serves all children. Invocation sums are exact field sums,
+so their total is the slice sum. -/
+@[specialize] private def productChildren {columns arity invocations children : Nat}
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
+    (interfaces : Vector (ProductionRelation.Phi81ProductPlan.Interface columns) invocations)
+    (lo hi : Nat) :
+    Vector (Vector MaterializedRingK matrixCount) children := Id.run do
+  let mut totals := Vector.replicate children (PiDECEvaluationBatch.zero matrixCount)
+  for invocation in [lo:hi] do
+    if live : invocation < invocations then
+      let forms := Vector.ofFn fun row : Fin 108 =>
+        (ProductionRelation.Phi81ProductPlan.rowAt (interfaces.get ⟨invocation, live⟩) row).meaningfulForm
+      let start := firstRow + 108 * invocation
+      let prepared := PiDECMatrixWeightedRange.prepare start point forms
+      totals := Vector.ofFn fun child =>
+        if active child then
+          PiDECEvaluationBatch.add (totals.get child)
+            (PiDECMatrixWeightedRange.evaluate prepared start point (read child) forms)
+        else totals.get child
+  return totals
 
 private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
     (parentPaths : List String) (batch : Bool) : IO UInt32 := do
@@ -138,9 +163,12 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
             ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
         else 0
       let loadStarted ← IO.monoNanosNow
-      let (unitCount, evaluate) : Nat × (Nat → Nat →
+      let active := fun child : Fin productionGlobalParams.k => decide (¬ maximum < 2 ^ child.val)
+      let (unitCount, evaluate, evaluateAll) : Nat × (Nat → Nat →
           Fin productionGlobalParams.k →
-          Vector MaterializedRingK matrixCount) ← match selectedEq : selected with
+          Vector MaterializedRingK matrixCount) ×
+          Option (Nat → Nat → Vector (Vector MaterializedRingK matrixCount)
+            productionGlobalParams.k) ← match selectedEq : selected with
         | .poseidon block => do
             unless firstRow % 150 = 0 && lastRow % 150 = 0 do
               throw (IO.userError "Poseidon range must contain complete 150-row invocations")
@@ -158,7 +186,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               pure interface
             pure (invocations, fun lo hi child =>
               PiDECMatrixInvocationRange.sum (first + 150 * lo) phase.point (readChild child)
-                (interfaces.extract lo hi))
+                (interfaces.extract lo hi), none)
         | .phi81Product block => do
             if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then
               let invocations := lastRow / 108 - firstRow / 108
@@ -169,18 +197,9 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
                 let some interface := PiDECProductInterface.interface? block logicalWidth descriptor
                   | throw (IO.userError "selected product interface rejected")
                 pure interface
-              let forms ← Vector.ofFnM fun (index : Fin count) => do
-                have groupBound : index.val / 108 < invocations := by
-                  dsimp only [count] at index
-                  dsimp only [invocations]
-                  omega
-                let some row := PiDECProductRow.row?
-                    (interfaces.get ⟨index.val / 108, groupBound⟩) (index.val % 108)
-                  | throw (IO.userError "selected product row rejected")
-                pure row.meaningfulForm
-              pure (count, fun lo hi child =>
-                PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
-                  (forms.extract lo hi))
+              let all := fun lo hi =>
+                productChildren first phase.point readChild active interfaces lo hi
+              pure (invocations, fun lo hi child => (all lo hi).get child, some all)
             else throw (IO.userError "Phi81 range must contain complete 108-row invocations")
         | other => do
             let cache ← IO.wait (Task.spawn fun _ =>
@@ -192,7 +211,7 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
               pure row
             pure (count, fun lo hi child =>
               PiDECMatrixSparseRange.sum (first + lo) phase.point (readChild child)
-                (forms.extract lo hi))
+                (forms.extract lo hi), none)
       report ([("event", .str "range_begin"), ("block", Lean.toJson blockIndex),
         ("block_rows", Lean.toJson selected.rowCount),
         ("first_local_row", Lean.toJson firstRow), ("last_local_row_exclusive", Lean.toJson lastRow),
@@ -208,21 +227,40 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       let mut tasks := #[]
       let mut activeRank := 0
       let mut taskCount := 0
+      -- Shared slices compute every active child; four per worker on dedicated threads,
+      -- which the operating system moves to free cores.
+      let mut sharedSlices := #[]
+      if let some all := evaluateAll then
+        let parts := min unitCount (4 * workers)
+        for slice in [:parts] do
+          let lo := unitCount * slice / parts
+          let hi := unitCount * (slice + 1) / parts
+          sharedSlices := sharedSlices.push (← IO.asTask (prio := Task.Priority.dedicated) do
+            let sliceStarted ← IO.monoNanosNow
+            let values ← IO.wait (Task.spawn (prio := Task.Priority.dedicated) fun _ => all lo hi)
+            let sliceFinished ← IO.monoNanosNow
+            return (values, sliceStarted, sliceFinished))
+        taskCount := parts
       for child in children do
         let mut childTasks := #[]
         unless maximum < 2 ^ child.val do
-          let parts := min unitCount (max 1
-            (workers / activeCount + if activeRank < workers % activeCount then 1 else 0))
-          for slice in [:parts] do
-            let lo := unitCount * slice / parts
-            let hi := unitCount * (slice + 1) / parts
-            childTasks := childTasks.push (← IO.asTask do
-              let sliceStarted ← IO.monoNanosNow
-              let values ← IO.wait (Task.spawn fun _ => evaluate lo hi child)
-              let sliceFinished ← IO.monoNanosNow
-              return (values, sliceStarted, sliceFinished))
+          if evaluateAll.isSome then
+            childTasks := sharedSlices.map fun slice => slice.map (sync := true) fun result =>
+              result.map fun (values, sliceStarted, sliceFinished) =>
+                (values.get child, sliceStarted, sliceFinished)
+          else
+            let parts := min unitCount (max 1
+              (workers / activeCount + if activeRank < workers % activeCount then 1 else 0))
+            for slice in [:parts] do
+              let lo := unitCount * slice / parts
+              let hi := unitCount * (slice + 1) / parts
+              childTasks := childTasks.push (← IO.asTask do
+                let sliceStarted ← IO.monoNanosNow
+                let values ← IO.wait (Task.spawn fun _ => evaluate lo hi child)
+                let sliceFinished ← IO.monoNanosNow
+                return (values, sliceStarted, sliceFinished))
+            taskCount := taskCount + parts
           activeRank := activeRank + 1
-          taskCount := taskCount + parts
         tasks := tasks.push childTasks
       report [("event", .str "slices_queued"), ("workers", Lean.toJson workers),
         ("active_children", Lean.toJson activeCount), ("units", Lean.toJson unitCount),

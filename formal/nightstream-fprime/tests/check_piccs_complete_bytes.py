@@ -50,7 +50,7 @@ def compare(lean_input_bytes, lean_phase_bytes, lean_words_bytes, rust_input_byt
     value, phase = json.loads(lean_input_bytes), json.loads(lean_phase_bytes)
     require(lean_input == canonical(value), "noncanonical PiCCS input encoding")
     require(len(phase) == 15 and phase[0] == 1, "PiCCS was not accepted")
-    require(len(phase[14]) == 8, "wrong outgoing transcript state width")
+    require(len(phase[14]) == 16, "wrong outgoing transcript state width")
     require(phase[12] == value[4] and phase[13] == value[5], "phase output families differ")
     words = proof_words(value)
     require(lean_words_bytes == canonical(words) + b"\n", "complete proof-input encoding differs")
@@ -82,7 +82,7 @@ def main():
         raise ValueError("changed final proof-input word was accepted")
     print(json.dumps({"event": "independent_piccs_complete_bytes_match",
                       "rounds": 28, "phase_fields": 15, "output_field_words": 27540,
-                      "proof_input_field_words": len(words), "outgoing_state_words": 8,
+                      "proof_input_field_words": len(words), "outgoing_state_words": 16,
                       "input_bytes": len(raw[0]), "phase_bytes": len(raw[1]),
                       "rust_input_bytes": len(raw[3]),
                       "consistent_changed_target": "rejected", "changed_proof_word": "rejected",

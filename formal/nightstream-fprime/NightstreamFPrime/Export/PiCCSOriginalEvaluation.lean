@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.ParallelChunks
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
@@ -56,6 +57,25 @@ private def referenceBatch
   Vector.ofFn fun code =>
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2
+
+/-- Evaluate product invocations `lo` to `hi`. The 108 rows of one invocation are
+built from its interface and share their columns, so one set of column weights
+serves all sources. Invocation sums are exact field sums, so their total is the
+slice sum. -/
+@[specialize] private def productBatch {columns arity invocations : Nat}
+    (zeroSource : Fin productionShape.sourceCount → Bool) (firstRow : Nat)
+    (point : CubePoint K arity)
+    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
+    (interfaces : Vector (ProductionRelation.Phi81ProductPlan.Interface columns) invocations)
+    (lo hi : Nat) : PiCCSOriginalMatrixBatch.Batch := Id.run do
+  let mut total := PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
+  for invocation in [lo:hi] do
+    if live : invocation < invocations then
+      let forms := Vector.ofFn fun row : Fin 108 =>
+        (ProductionRelation.Phi81ProductPlan.rowAt (interfaces.get ⟨invocation, live⟩) row).meaningfulForm
+      total := PiDECEvaluationBatch.add total (PiCCSOriginalMatrixSupported.weighted zeroSource
+        (firstRow + 108 * invocation) point read forms)
+  return total
 
 def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
     (requests : List RangeRequest) (reference : Bool) : IO UInt32 := do
@@ -149,19 +169,21 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
                 let some interface := PiDECProductInterface.interface? block logicalWidth descriptor
                   | throw (IO.userError "selected product interface rejected")
                 pure interface
-              let forms ← Vector.ofFnM fun (index : Fin count) => do
-                have groupBound : index.val / 108 < invocations := by
-                  dsimp only [count] at index
-                  dsimp only [invocations]
-                  omega
-                let some row := PiDECProductRow.row?
-                    (interfaces.get ⟨index.val / 108, groupBound⟩) (index.val % 108)
-                  | throw (IO.userError "selected product row rejected")
-                pure row.meaningfulForm
-              pure (count, fun lo hi =>
-                if reference then referenceBatch fun source =>
-                  PiDECMatrixSparseRange.sum (first + lo) point (read source) (forms.extract lo hi)
-                else PiCCSOriginalMatrixSupported.sparse zeroSources.get (first + lo) point read (forms.extract lo hi))
+              if reference then
+                let forms ← Vector.ofFnM fun (index : Fin count) => do
+                  have groupBound : index.val / 108 < invocations := by
+                    dsimp only [count] at index
+                    dsimp only [invocations]
+                    omega
+                  let some row := PiDECProductRow.row?
+                      (interfaces.get ⟨index.val / 108, groupBound⟩) (index.val % 108)
+                    | throw (IO.userError "selected product row rejected")
+                  pure row.meaningfulForm
+                pure (count, fun lo hi => referenceBatch fun source =>
+                  PiDECMatrixSparseRange.sum (first + lo) point (read source) (forms.extract lo hi))
+              else
+                pure (invocations, fun lo hi =>
+                  productBatch zeroSources.get first point read interfaces lo hi)
             else throw (IO.userError "Phi81 range must contain complete 108-row invocations")
         | other => do
             let cache ← IO.wait (Task.spawn fun _ =>
@@ -179,16 +201,17 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
         ("start", Lean.toJson first), ("end", Lean.toJson finish),
         ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]
       unless 0 < unitCount do throw (IO.userError "empty selected matrix unit range")
-      let parts := min unitCount workers
+      -- Sixteen slices per worker; each of `workers` threads takes the next slice, so
+      -- faster cores take more of the range and the last slices are short.
+      let parts := min unitCount (16 * workers)
       let arithmeticStarted ← IO.monoNanosNow
-      let mut tasks := #[]
-      for slice in [:parts] do
-        let lo := unitCount * slice / parts
-        let hi := unitCount * (slice + 1) / parts
-        tasks := tasks.push (Task.spawn (prio := Task.Priority.dedicated) fun _ => evaluate lo hi)
+      let tasks ← ParallelChunks.start workers parts fun slice =>
+        pure (evaluate (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
       let mut total := PiDECEvaluationBatch.zero (productionShape.sourceCount * matrixCount)
       for task in tasks do
-        let values ← IO.wait task
+        let (values, _, _) ← match ← IO.wait task with
+          | .ok result => pure result
+          | .error error => throw error
         total := PiDECEvaluationBatch.add total values
       let computeNs := (← IO.monoNanosNow) - arithmeticStarted
       let encodeK := fun value : K => Value.array [.atom value.c0.val, .atom value.c1.val]

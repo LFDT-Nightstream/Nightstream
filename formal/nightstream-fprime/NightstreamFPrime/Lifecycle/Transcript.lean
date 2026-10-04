@@ -141,12 +141,27 @@ structure Batch (count : Nat) where
   challenges : Fin count → RingF
   finalState : State
 
+/-- The coefficients of `sampleRingChallenge initial coordinate`. The transcript state, draw
+and scalar are values here. `sampleRingChallenge` is a function of the lane, so each lane read
+replays the whole transcript schedule up to the coordinate. -/
+private def challengeCoefficients (initial : State) (coordinate : Nat) : Array F :=
+  let entered := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.enter
+    (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt initial coordinate) coordinate
+  let reduced := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.reduce
+    (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawIndex
+      (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block entered))
+  let digits := Array.ofFn (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarIndex.symm reduced)
+  Array.ofFn fun position : Fin ringDegree =>
+    Phi81StrongSet.embedCoefficient (digits[(Phi81StrongSet.scalarPosition position).val]'(by
+      simp only [digits, Array.size_ofFn]
+      exact (Phi81StrongSet.scalarPosition position).isLt))
+
 /-- Compute each coefficient once; later ring operations only read the batch. -/
 def piRlcChallengesWithState (initial : State) (count : Nat) : Batch count :=
-  let values := Array.ofFn fun index : Fin count => Array.ofFn (sampleRingChallenge initial index.val)
+  let values := Array.ofFn fun index : Fin count => challengeCoefficients initial index.val
   { challenges := fun index lane =>
       (values[index.val]'(by simp only [values, Array.size_ofFn]; exact index.isLt))[lane.val]'(by
-        simp only [values, Array.getElem_ofFn, Array.size_ofFn]
+        simp only [values, Array.getElem_ofFn, challengeCoefficients, Array.size_ofFn]
         exact lane.isLt)
     finalState := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt initial count }
 
@@ -154,7 +169,8 @@ def piRlcChallengesWithState (initial : State) (count : Nat) : Batch count :=
     (piRlcChallengesWithState initial count).challenges =
       fun index => sampleRingChallenge initial index.val := by
   funext index lane
-  simp [piRlcChallengesWithState]
+  simp only [piRlcChallengesWithState, challengeCoefficients, Array.getElem_ofFn]
+  rfl
 
 def piRlcChallenges (initial : State) (count : Nat) : Fin count → RingF :=
   (piRlcChallengesWithState initial count).challenges

@@ -177,7 +177,7 @@ where
             "crosscheck proof or output values differ".into(),
         ));
     }
-    if optimized_proof.canonical_bytes()
+    if optimized_proof.canonical_bytes()?
         != crate::engines::paper_exact_engine::encode_proof(&reference_proof)
             .map_err(|error| PiCcsError::ProtocolError(format!("PaperExact codec failed: {error}")))?
     {

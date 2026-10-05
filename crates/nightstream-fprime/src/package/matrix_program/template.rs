@@ -12,13 +12,21 @@ use crate::components::{ComponentError, FormulaLibrary, FormulaVariant, SparseFo
 
 use super::{form::normalize_terms, validate_form, Form, MatrixRun, PackageError, RowView, MEANINGFUL_PORTS};
 
-fn variant(id: &str, index: usize) -> Result<&'static FormulaVariant, PackageError> {
+fn library() -> Result<&'static FormulaLibrary, PackageError> {
     static LIBRARY: OnceLock<Result<FormulaLibrary, ComponentError>> = OnceLock::new();
-    let library = LIBRARY
+    LIBRARY
         .get_or_init(|| FormulaLibrary::from_json(include_bytes!("../../../artifacts/shared-formulas-v1.json")))
         .as_ref()
-        .map_err(|_| PackageError::Invalid("compiled Lean formula library"))?;
-    library
+        .map_err(|_| PackageError::Invalid("compiled Lean formula library"))
+}
+
+/// Digest of the embedded formula library that gives package rows their formulas.
+pub(in crate::package) fn formula_digest() -> Result<[u64; 4], PackageError> {
+    Ok(library()?.digest())
+}
+
+fn variant(id: &str, index: usize) -> Result<&'static FormulaVariant, PackageError> {
+    library()?
         .component(id)
         .and_then(|component| component.variant(index))
         .ok_or(PackageError::Invalid("compiled Lean formula component"))

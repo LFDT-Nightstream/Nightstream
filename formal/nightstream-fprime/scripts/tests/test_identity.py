@@ -33,7 +33,7 @@ class IdentityTests(unittest.TestCase):
     def test_boolean_schema_is_rejected(self):
         changed = copy.deepcopy(self.expected)
         changed[0] = True
-        with self.assertRaisesRegex(ValueError, 'schema-1'):
+        with self.assertRaisesRegex(ValueError, 'schema-2'):
             identity.check(changed, self.expected, self.rust)
 
     def test_commented_pin_cannot_hide_a_changed_live_definition(self):

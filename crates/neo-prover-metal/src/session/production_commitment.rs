@@ -99,10 +99,9 @@ impl MetalSession {
         let witnesses_per_group = active
             .len()
             .min(accumulate.maxTotalThreadsPerThreadgroup() / 64);
-        let scratch_words = witnesses_per_group * (2 * D - 1);
+        let scratch_bytes = (witnesses_per_group * (2 * D - 1) * size_of::<u64>()).next_multiple_of(16);
         if witnesses_per_group == 0
-            || scratch_words * size_of::<u64>() + accumulate.staticThreadgroupMemoryLength()
-                > self.device.maxThreadgroupMemoryLength()
+            || scratch_bytes + accumulate.staticThreadgroupMemoryLength() > self.device.maxThreadgroupMemoryLength()
         {
             return Err(MetalError::Shape("device cannot hold production commitment scratch"));
         }
@@ -160,7 +159,7 @@ impl MetalSession {
                 encoder.setBuffer_offset_atIndex(Some(&device_masks), 0, 1);
                 encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
                 encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
-                encoder.setThreadgroupMemoryLength_atIndex(scratch_words * size_of::<u64>(), 0);
+                encoder.setThreadgroupMemoryLength_atIndex(scratch_bytes, 0);
             }
             self.dispatch_threadgroups(&encoder, accumulate, groups * witness_blocks, 64 * witnesses_per_group);
             encoder.endEncoding();

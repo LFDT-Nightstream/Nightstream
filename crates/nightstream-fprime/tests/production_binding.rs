@@ -25,6 +25,10 @@ fn artifact_path() -> PathBuf {
     )
 }
 
+fn formula_library_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("artifacts/shared-formulas-v1.json")
+}
+
 fn binding_artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
         "../../formal/nightstream-fprime/artifacts/\
@@ -33,7 +37,7 @@ fn binding_artifact_path() -> PathBuf {
 }
 
 #[derive(Deserialize)]
-struct RawLeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4]);
+struct RawLeanBinding(u64, [u64; 4], [u64; 4], Vec<u64>, Vec<u64>, [u64; 4], [u64; 4]);
 
 struct LeanBindingFixture {
     structural_identifier: [u64; 4],
@@ -41,6 +45,7 @@ struct LeanBindingFixture {
     descriptor_words: Vec<u64>,
     binding_words: Vec<u64>,
     verification_key_digest: [u64; 4],
+    formula_digest: [u64; 4],
 }
 
 fn read_lean_binding() -> LeanBindingFixture {
@@ -52,16 +57,18 @@ fn read_lean_binding() -> LeanBindingFixture {
         descriptor_words,
         binding_words,
         verification_key_digest,
+        formula_digest,
     ) = serde_json::from_slice(&bytes).expect("strict Lean binding fixture");
-    assert_eq!(schema, 1, "Lean binding fixture schema");
+    assert_eq!(schema, 2, "Lean binding fixture schema");
     assert_eq!(descriptor_words.len(), 86, "Lean descriptor length");
-    assert_eq!(binding_words.len(), 126, "Lean binding length");
+    assert_eq!(binding_words.len(), 131, "Lean binding length");
     LeanBindingFixture {
         structural_identifier,
         package_identity,
         descriptor_words,
         binding_words,
         verification_key_digest,
+        formula_digest,
     }
 }
 
@@ -99,14 +106,73 @@ fn append_value_preimage(value: &Value, output: &mut Vec<u64>) {
             output.extend([0, value & 0xffff_ffff, value >> 32, 0]);
         }
         Value::Array(values) => {
-            let length = u64::try_from(values.len()).expect("array length");
-            output.extend([1, length & 0xffff_ffff, length >> 32, 0]);
+            append_array_header(values.len(), output);
             for child in values {
                 append_value_preimage(child, output);
             }
         }
         _ => panic!("canonical package must contain only numbers and arrays"),
     }
+}
+
+fn append_array_header(length: usize, output: &mut Vec<u64>) {
+    let length = u64::try_from(length).expect("array length");
+    output.extend([1, length & 0xffff_ffff, length >> 32, 0]);
+}
+
+fn append_string(text: &Value, output: &mut Vec<u64>) {
+    let bytes = text.as_str().expect("formula string").bytes();
+    append_value_preimage(&Value::Array(bytes.map(Value::from).collect()), output);
+}
+
+fn append_strings(texts: &Value, output: &mut Vec<u64>) {
+    let texts = texts.as_array().expect("formula string list");
+    append_array_header(texts.len(), output);
+    texts.iter().for_each(|text| append_string(text, output));
+}
+
+/// Lean `SharedFormulas.libraryDigest`: every library field in file order,
+/// with each string as the array of its bytes.
+fn independent_formula_digest(library: &Value) -> [u64; 4] {
+    let mut preimage = words(b"Nightstream/FPrime/formulas/v1");
+    append_array_header(4, &mut preimage);
+    append_string(&library["format"], &mut preimage);
+    append_value_preimage(&library["version"], &mut preimage);
+    append_value_preimage(&library["profile"], &mut preimage);
+    let components = library["components"]
+        .as_array()
+        .expect("formula components");
+    append_array_header(components.len(), &mut preimage);
+    for component in components {
+        append_array_header(6, &mut preimage);
+        append_string(&component["id"], &mut preimage);
+        append_value_preimage(&component["input_count"], &mut preimage);
+        let ports = component["ports"].as_array().expect("formula ports");
+        append_array_header(ports.len(), &mut preimage);
+        for port in ports {
+            append_array_header(4, &mut preimage);
+            append_string(&port["name"], &mut preimage);
+            append_string(&port["role"], &mut preimage);
+            append_value_preimage(&port["start"], &mut preimage);
+            append_value_preimage(&port["count"], &mut preimage);
+        }
+        let variants = component["variants"].as_array().expect("formula variants");
+        append_array_header(variants.len(), &mut preimage);
+        for variant in variants {
+            append_array_header(3, &mut preimage);
+            append_value_preimage(&variant["linear_forms"], &mut preimage);
+            append_value_preimage(&variant["rows"], &mut preimage);
+            append_value_preimage(&variant["output_registers"], &mut preimage);
+        }
+        append_strings(&component["definitions"], &mut preimage);
+        append_strings(&component["contracts"], &mut preimage);
+    }
+    hash(&preimage)
+}
+
+fn read_formula_library() -> Value {
+    serde_json::from_slice(&fs::read(formula_library_path()).expect("shared formula library"))
+        .expect("shared formula library JSON")
 }
 
 fn setup_authority(seed: &[u8; 32]) -> Vec<u64> {
@@ -132,6 +198,7 @@ struct IndependentBinding {
     descriptor_words: Vec<u64>,
     binding_words: Vec<u64>,
     verification_key_digest: [u64; 4],
+    formula_digest: [u64; 4],
     components: [Vec<u64>; 4],
 }
 
@@ -143,7 +210,11 @@ struct RebuiltBinding {
     verification_key_digest: [u64; 4],
 }
 
-fn rebuild_binding(structural_identifier: [u64; 4], component_digests: [[u64; 4]; 4]) -> RebuiltBinding {
+fn rebuild_binding(
+    structural_identifier: [u64; 4],
+    component_digests: [[u64; 4]; 4],
+    formula_digest: [u64; 4],
+) -> RebuiltBinding {
     let mut descriptor = words(b"Nightstream/FPrime/verifier-context/v1_1");
     descriptor.extend(framed(&PROFILE));
     descriptor.extend(framed(&SCHEDULE));
@@ -160,6 +231,7 @@ fn rebuild_binding(structural_identifier: [u64; 4], component_digests: [[u64; 4]
     let mut verification_key_words = words(b"Nightstream/FPrime/verifier-key/v1");
     verification_key_words.extend(framed(&package_identity));
     verification_key_words.extend(framed(&descriptor));
+    verification_key_words.extend(framed(&formula_digest));
     let verification_key_digest = hash(&verification_key_words);
 
     RebuiltBinding {
@@ -198,7 +270,8 @@ fn independent_binding(sealed: &Value, seed: &[u8; 32]) -> IndependentBinding {
     let application_digest = component(2, &application_words);
     let nifs_key_digest = component(3, &nifs_key_words);
     let component_digests = [relation_digest, application_digest, nifs_key_digest, commitment_digest];
-    let rebuilt = rebuild_binding(structural_identifier, component_digests);
+    let formula_digest = independent_formula_digest(&read_formula_library());
+    let rebuilt = rebuild_binding(structural_identifier, component_digests, formula_digest);
 
     IndependentBinding {
         structural_identifier,
@@ -208,6 +281,7 @@ fn independent_binding(sealed: &Value, seed: &[u8; 32]) -> IndependentBinding {
         descriptor_words: rebuilt.descriptor_words,
         binding_words: rebuilt.binding_words,
         verification_key_digest: rebuilt.verification_key_digest,
+        formula_digest,
         components: [relation_words, application_words, nifs_key_words, commitment_words],
     }
 }
@@ -228,6 +302,7 @@ fn production_binding_matches_independent_lean_framing() {
         let start = component_start + index * framed(&[0; 4]).len();
         assert_eq!(&lean.descriptor_words[start..start + 4], digest);
     }
+    assert_eq!(independent.formula_digest, lean.formula_digest);
     assert_eq!(independent.binding_words, lean.binding_words);
     assert_eq!(independent.verification_key_digest, lean.verification_key_digest);
     assert_eq!(hash(&lean.binding_words), lean.verification_key_digest);
@@ -279,7 +354,7 @@ fn production_binding_matches_independent_lean_framing() {
         [5_120, 2_171_564, 5_184, 73]
     );
     assert_eq!(binding.verifier_context().descriptor_words().len(), 86);
-    assert_eq!(binding.verification_key_words().len(), 126);
+    assert_eq!(binding.verification_key_words().len(), 131);
 }
 
 #[test]
@@ -291,7 +366,11 @@ fn self_consistent_application_component_mutation_does_not_match_production() {
 
     let mut changed_components = independent.component_digests;
     changed_components[1][0] ^= 1;
-    let changed = rebuild_binding(independent.structural_identifier, changed_components);
+    let changed = rebuild_binding(
+        independent.structural_identifier,
+        changed_components,
+        independent.formula_digest,
+    );
 
     assert_ne!(changed.descriptor_words, independent.descriptor_words);
     assert_ne!(changed.context_digest, independent.context_digest);
@@ -317,4 +396,42 @@ fn package_identity_word_mutation_changes_recomputed_verification_key_digest() {
     let mut changed = lean.binding_words;
     changed[package_start] ^= 1;
     assert_ne!(hash(&changed), lean.verification_key_digest);
+}
+
+#[test]
+fn formula_coefficient_change_changes_verification_key() {
+    let mut library = read_formula_library();
+    let lean = read_lean_binding();
+    assert_eq!(independent_formula_digest(&library), lean.formula_digest);
+
+    let coefficient = library["components"][0]["variants"][0]["rows"]
+        .as_array_mut()
+        .expect("formula rows")
+        .iter_mut()
+        .flat_map(|row| row.as_array_mut().expect("formula row").iter_mut())
+        .find_map(|form| form.as_array_mut().expect("formula form").first_mut())
+        .map(|entry| &mut entry[1])
+        .expect("one formula coefficient");
+    let original = coefficient.as_u64().expect("canonical coefficient");
+    *coefficient = Value::from(original ^ 1);
+    let changed_digest = independent_formula_digest(&library);
+    assert_ne!(changed_digest, lean.formula_digest);
+
+    let package_start = words(b"Nightstream/FPrime/verifier-key/v1").len() + 1;
+    let package_identity: [u64; 4] = lean.binding_words[package_start..package_start + 4]
+        .try_into()
+        .expect("package identity words");
+    let mut component_digests = [[0; 4]; 4];
+    let component_start =
+        words(b"Nightstream/FPrime/verifier-context/v1_1").len() + framed(&PROFILE).len() + framed(&SCHEDULE).len() + 1;
+    for (index, digest) in component_digests.iter_mut().enumerate() {
+        let start = component_start + index * framed(&[0; 4]).len();
+        digest.copy_from_slice(&lean.descriptor_words[start..start + 4]);
+    }
+    let original = rebuild_binding(lean.structural_identifier, component_digests, lean.formula_digest);
+    let changed = rebuild_binding(lean.structural_identifier, component_digests, changed_digest);
+    assert_eq!(original.package_identity, package_identity);
+    assert_eq!(original.verification_key_digest, lean.verification_key_digest);
+    assert_eq!(changed.package_identity, original.package_identity);
+    assert_ne!(changed.verification_key_digest, original.verification_key_digest);
 }

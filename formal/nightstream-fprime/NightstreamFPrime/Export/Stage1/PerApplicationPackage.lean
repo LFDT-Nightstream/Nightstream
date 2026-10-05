@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.RowSemantics
+import NightstreamFPrime.Export.SharedFormulas
 import NightstreamFPrime.Export.Stage1.ApplicationPackage
 import NightstreamFPrime.Export.Stage1.CompactRows
 import NightstreamFPrime.Export.Stage1.Data
@@ -458,6 +459,7 @@ def verificationKeyBinding (program : Lifecycle.Stage1.Application.Program)
   Lifecycle.Stage1.VerificationKey.ofAuthority
     (packageIdentity program nifsKeyWords commitmentKeyWords)
     (authority program nifsKeyWords commitmentKeyWords)
+    (SharedFormulas.libraryDigest ())
 
 theorem structuralPackageIdentity_recomputed
     (program : Lifecycle.Stage1.Application.Program) :

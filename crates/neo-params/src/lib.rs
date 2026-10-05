@@ -387,7 +387,7 @@ impl NeoParams {
     /// The selected `lambda` charges the exact sum of:
     ///
     /// - the one joint SumCheck degree budget;
-    /// - the paper alpha/gamma mixing degree; and
+    /// - the paper's total gamma and alpha mixing degree; and
     /// - Appendix D.5's conservative coordinate-fork loss over `5^54`.
     pub fn goldilocks_auto_rectangular_ccs_with(
         row_count: usize,
@@ -702,6 +702,8 @@ impl NeoParams {
 
 /// Field numerator of the one-joint PiCCS test error for explicit counts, as
 /// `(sum-check part, mixing part)`. The error is their sum over `q^s`.
+/// The mixing part is the total gamma and alpha degree of SuperNeo v1.2
+/// equation (16): `k·d·(t+1) + 2K + k - 1 + log m`.
 pub fn pi_ccs_padded_row_field_numerator(
     cube_variables: u32,
     verifier_degree: u32,
@@ -726,20 +728,13 @@ pub fn pi_ccs_padded_row_field_numerator(
         .checked_mul(joint_matrix_count)
         .and_then(|v| v.checked_mul(ring_degree))
         .ok_or(ParamsError::ArithmeticOverflow("carried-coordinate count"))?;
-    let alpha_dependent_degree = (cube_variables as u128)
-        .checked_add(
-            carried_offset
-                .checked_sub(1)
-                .ok_or(ParamsError::ArithmeticOverflow("paper mixing offset"))?,
-        )
-        .ok_or(ParamsError::ArithmeticOverflow("alpha-dependent mixing degree"))?;
     let joint_coefficient_count = carried_offset
         .checked_add(carried_count)
         .ok_or(ParamsError::ArithmeticOverflow("joint coefficient count"))?;
-    let carried_mixing_degree = joint_coefficient_count
+    let mixing_factor = joint_coefficient_count
         .checked_sub(1)
-        .ok_or(ParamsError::ArithmeticOverflow("carried mixing degree"))?;
-    let mixing_factor = alpha_dependent_degree.max(carried_mixing_degree);
+        .and_then(|degree| degree.checked_add(cube_variables as u128))
+        .ok_or(ParamsError::ArithmeticOverflow("gamma and alpha mixing degree"))?;
     Ok((sumcheck_factor, mixing_factor))
 }
 

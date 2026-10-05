@@ -10,8 +10,6 @@
 pub mod crypto;
 /// Error types for CCS operations.
 pub mod error;
-/// Cryptographic gadgets for CCS circuits.
-pub mod gadgets;
 /// Compact geometric matrix-row runs.
 pub mod geometric;
 /// Matrix types and operations.

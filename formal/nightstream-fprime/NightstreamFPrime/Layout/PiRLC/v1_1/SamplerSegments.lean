@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiRLC.v1_1.Sampler
 import NightstreamFPrime.Layout.R1CS.Segments
 
 /-! Structural projection of the four opaque scalar children. The checked
-range owns all 1,548 lowering columns; the other three children add none. -/
+range owns all 144 lowering columns; the other three children add none. -/
 
 namespace NightstreamFPrime.Layout.PiRLC.v1_1.Sampler
 
@@ -26,9 +26,9 @@ structure ChildRows (interface : Logical.Interface) (coordinate offset : Nat) (e
   range : R1CS.RowsHold env (R1CS.lowerConstraints
     (Lifecycle.PiRLC.v1_1.Sampler.rangeOp interface coordinate offset).flatConstraints start).rows
   advance : R1CS.RowsHold env (R1CS.lowerConstraints
-    (Lifecycle.PiRLC.v1_1.Sampler.advanceOp interface coordinate offset).flatConstraints (start + 1548)).rows
+    (Lifecycle.PiRLC.v1_1.Sampler.advanceOp interface coordinate offset).flatConstraints (start + 144)).rows
   words : R1CS.RowsHold env (R1CS.lowerConstraints
-    (Lifecycle.PiRLC.v1_1.Sampler.wordsOp offset).flatConstraints (start + 1548)).rows
+    (Lifecycle.PiRLC.v1_1.Sampler.wordsOp offset).flatConstraints (start + 144)).rows
 
 theorem rowsHold_implies_childRows (interface : Logical.Interface) (coordinate offset : Nat)
     (env : Env) (start : Nat) (inputs : ∀ current, InputsAffine interface current)

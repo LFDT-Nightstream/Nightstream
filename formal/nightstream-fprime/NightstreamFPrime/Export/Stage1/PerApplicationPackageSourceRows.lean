@@ -142,7 +142,7 @@ def pilotDigestRows : List Rows.CompiledRow :=
 
 theorem priorExtraRows_rowIndices :
     (PilotData.priorExtraRows ()).map Rows.CompiledRow.rowIndex =
-      List.range' PilotData.priorBindingRowStart 1326 := by
+      List.range' PilotData.priorBindingRowStart 682 := by
   have loweredLength := Pilot.priorExtraRows_length
   unfold PilotData.priorExtraRows at loweredLength
   simp only [List.length_map, Rows.compileRowsTR_length] at loweredLength
@@ -160,7 +160,7 @@ theorem priorExtraRows_rowIndices :
       apply List.map_congr_left
       intro row member
       cases row <;> rfl
-    _ = List.range' PilotData.priorBindingRowStart 1326 := by
+    _ = List.range' PilotData.priorBindingRowStart 682 := by
       simpa [compiled, loweredLength] using
         (Rows.compileRowsTR_rowIndices PilotValues.logicalColumnCount
           PilotData.priorBindingRowStart
@@ -194,7 +194,7 @@ theorem pilotRows_perm :
 
 theorem pilotRows_rowIndices_perm :
     List.Perm (pilotRows.map Rows.CompiledRow.rowIndex)
-      (List.range' PilotData.priorBindingRowStart 1326 ++
+      (List.range' PilotData.priorBindingRowStart 682 ++
         List.range'
           (PilotData.outputChain.rowStart +
             PilotData.outputChain.witnessLength) 4) := by
@@ -203,7 +203,7 @@ theorem pilotRows_rowIndices_perm :
     pilotDigestRows_rowIndices] using mapped
 
 private theorem pilotIndexRanges_nodup :
-    (List.range' PilotData.priorBindingRowStart 1326 ++
+    (List.range' PilotData.priorBindingRowStart 682 ++
       List.range'
         (PilotData.outputChain.rowStart +
           PilotData.outputChain.witnessLength) 4).Nodup := by
@@ -211,8 +211,8 @@ private theorem pilotIndexRanges_nodup :
   refine ⟨List.nodup_range', List.nodup_range', ?_⟩
   intro first firstMember second secondMember equal
   rw [List.mem_range'_1] at firstMember secondMember
-  change 4513328 ≤ first ∧ first < 4514654 at firstMember
-  change 9027982 ≤ second ∧ second < 9027986 at secondMember
+  change 4513328 ≤ first ∧ first < 4514010 at firstMember
+  change 9027338 ≤ second ∧ second < 9027342 at secondMember
   omega
 
 theorem pilotRows_rowIndices_nodup :
@@ -220,7 +220,7 @@ theorem pilotRows_rowIndices_nodup :
   exact pilotRows_rowIndices_perm.nodup_iff.mpr pilotIndexRanges_nodup
 
 private theorem piCcsRowStart_eq :
-    PiCCSArithmetic.statementBindingRowStart = 9027986 := by
+    PiCCSArithmetic.statementBindingRowStart = 9027342 := by
   unfold PiCCSArithmetic.statementBindingRowStart
     PiCCSStarts.statementBindingRowStart PiCCSStarts.rowBase
   exact PilotProduction.physicalRowCountValue_eq
@@ -236,10 +236,10 @@ theorem pilotRows_rowIndex_lt (row : Rows.CompiledRow)
   rw [List.mem_append] at rangesMember
   rcases rangesMember with prior | digest
   · rw [List.mem_range'_1] at prior
-    change 4513328 ≤ row.rowIndex ∧ row.rowIndex < 4514654 at prior
+    change 4513328 ≤ row.rowIndex ∧ row.rowIndex < 4514010 at prior
     omega
   · rw [List.mem_range'_1] at digest
-    change 9027982 ≤ row.rowIndex ∧ row.rowIndex < 9027986 at digest
+    change 9027338 ≤ row.rowIndex ∧ row.rowIndex < 9027342 at digest
     omega
 
 private theorem piDecRowCount_sum : PiDEC.v1_1.exactRowCount =
@@ -365,7 +365,7 @@ private theorem arithmeticIndexRanges_nodup :
   intro piCcs piCcsMember later laterMember equal
   have piCcsBounds := PiCCSOrdinaryMatrixProgram.rowIndexReference_bounds
     piCcs piCcsMember
-  have piRlcStart : PiRLCStarts.phaseRowStart = 12018930 := rfl
+  have piRlcStart : PiRLCStarts.phaseRowStart = 12018286 := rfl
   rw [piRlcStart] at piCcsBounds
   rw [List.mem_append] at laterMember
   rcases laterMember with samplerMember | laterMember
@@ -377,12 +377,12 @@ private theorem arithmeticIndexRanges_nodup :
   · rw [List.mem_append] at laterMember
     rcases laterMember with piDecMember | runningMember
     · have piDecBounds := piDecIndex_bounds later piDecMember
-      have piDecStart : PiDECStarts.phaseRowStart = 19996231 := rfl
+      have piDecStart : PiDECStarts.phaseRowStart = 19971719 := rfl
       rw [piDecStart] at piDecBounds
       omega
     · have runningLower := runningIndex_lower later runningMember
       have runningStart :
-          RunningTransitionArithmetic.rowStart = 20021719 := rfl
+          RunningTransitionArithmetic.rowStart = 19979387 := rfl
       rw [runningStart] at runningLower
       omega
 
@@ -414,22 +414,22 @@ theorem arithmeticRows_rowIndex_ge (index : Nat)
     · have lower :=
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).1
-      have phaseStart : PiRLCStarts.phaseRowStart = 12018930 := rfl
+      have phaseStart : PiRLCStarts.phaseRowStart = 12018286 := rfl
       rw [phaseStart] at lower
       omega
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have lower := (piDecIndex_bounds index piDecMember).1
-        have phaseStart : PiDECStarts.phaseRowStart = 19996231 := rfl
+        have phaseStart : PiDECStarts.phaseRowStart = 19971719 := rfl
         rw [phaseStart] at lower
         omega
       · have lower := runningIndex_lower index runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 20021719 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 19979387 := rfl
         rw [phaseStart] at lower
         omega
 
 private theorem baseRowCount_eq :
-    PerApplicationPackage.basePackage.layout.rowCount = 20071078 := by
+    PerApplicationPackage.basePackage.layout.rowCount = 20028746 := by
   unfold PerApplicationPackage.basePackage
   exact Package.circuitPackage_layout_values.1
 
@@ -449,7 +449,7 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
   rcases normalized with piCcsMember | member
   · have upper := (PiCCSOrdinaryMatrixProgram.rowIndexReference_bounds
       index piCcsMember).2
-    have phaseStart : PiRLCStarts.phaseRowStart = 12018930 := rfl
+    have phaseStart : PiRLCStarts.phaseRowStart = 12018286 := rfl
     rw [phaseStart] at upper
     omega
   · rw [List.mem_append] at member
@@ -458,17 +458,17 @@ theorem arithmeticRows_rowIndex_lt_base (index : Nat)
         (PiRLCSamplerOrdinaryMatrixSchedule.rowIndexReference_bounds
           index samplerMember).2
       change index < PiDECStarts.phaseRowStart at upper
-      have phaseStart : PiDECStarts.phaseRowStart = 19996231 := rfl
+      have phaseStart : PiDECStarts.phaseRowStart = 19971719 := rfl
       rw [phaseStart] at upper
       omega
     · rw [List.mem_append] at member
       rcases member with piDecMember | runningMember
       · have upper := (piDecIndex_bounds index piDecMember).2
-        have phaseStart : RunningTransitionArithmetic.rowStart = 20021719 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 19979387 := rfl
         rw [phaseStart] at upper
         omega
       · have bounds := List.mem_range'_1.mp runningMember
-        have phaseStart : RunningTransitionArithmetic.rowStart = 20021719 := rfl
+        have phaseStart : RunningTransitionArithmetic.rowStart = 19979387 := rfl
         rw [phaseStart] at bounds
         omega
 
@@ -1026,7 +1026,7 @@ theorem samplerPackageSourceRow?_eq_some
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
       Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
         logicalWidth}
-    (application : ApplicationProgram) (index : Fin 38811)
+    (application : ApplicationProgram) (index : Fin 14943)
     (sourceIndex : Nat)
     (selected :
       PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
@@ -1038,7 +1038,7 @@ theorem samplerPackageSourceRow?_eq_some
           (logicalWidth := logicalWidth) (publicFits := publicFits) index)) := by
   let rows := PiRLCSamplerOrdinaryRows.rows
     (logicalWidth := logicalWidth) (publicFits := publicFits)
-  have rowsLength : rows.length = 38811 :=
+  have rowsLength : rows.length = 14943 :=
     PiRLCSamplerOrdinaryRows.rows_length
   have included : ∀ row ∈ rows, row ∈ baseRows := by
     intro row member
@@ -1086,7 +1086,7 @@ theorem samplerPackageSourceRow?_eq_some
   exact recovered
 
 theorem pilotPackageSourceRowAt?_eq_some
-    (application : ApplicationProgram) (index : Fin 1330) :
+    (application : ApplicationProgram) (index : Fin 686) :
     PackageSourceRows.packageSourceRow?
         (PerApplicationPackage.package application)
         (PilotOrdinaryMatrixProgram.rowIndexAt index) =
@@ -1105,7 +1105,7 @@ theorem pilotPackageSourceRowAt?_eq_some
         simp only [List.map_append, List.map_map, Function.comp_def]
       _ = List.ofFn PilotOrdinaryDirectSource.programRow :=
         (PilotOrdinaryDirectSource.programRows_eq).symm
-  have rowsLength : rows.length = 1330 := by
+  have rowsLength : rows.length = 686 := by
     have lengths := congrArg List.length exactRows
     simpa only [List.length_map, List.length_ofFn] using lengths
   have recovered := indexedPilotPackageStoredRow?_eq_some application rows

@@ -142,13 +142,13 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .pilotPoseidon => 1235400
   | .piCcsPoseidon => 402952
   | .piCcsOrdinary => 85448
-  | .pilotOrdinary => 1330
+  | .pilotOrdinary => 686
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
   | .samplerPoseidon => 5100
-  | .samplerOrdinary => 38811
+  | .samplerOrdinary => 14943
   | .piRlc => 104652
-  | .piDec => 25488
+  | .piDec => 7668
   | .runningTransition => 49359
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5

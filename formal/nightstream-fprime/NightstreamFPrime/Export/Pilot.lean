@@ -1426,7 +1426,7 @@ theorem bindingRows_length :
   simp [PilotData.bindingRows, tailBindingRows_length]
 
 theorem priorExtraRows_length :
-    (PilotData.priorExtraRows ()).length = 1326 := by
+    (PilotData.priorExtraRows ()).length = 682 := by
   rw [PilotData.priorExtraRows, List.length_map,
     Stage1.Rows.compileRowsTR_length]
   rw [Stage1.Rows.lowerConstraintsTR_eq,
@@ -1438,7 +1438,7 @@ theorem priorExtraRows_length :
 
 theorem ordinaryRows_length :
     (PilotData.circuitPackage ()).witnessInstructions.length +
-      (PilotData.circuitPackage ()).assertionRows.length = 1330 := by
+      (PilotData.circuitPackage ()).assertionRows.length = 686 := by
   rw [PilotData.circuitPackage,
     PilotData.circuitPackageOf_witnessInstructions,
     PilotData.circuitPackageOf_assertionRows]

@@ -413,7 +413,7 @@ private theorem ordinaryLocation_sourceColumn_ge
   | logical source position => rw [PiRLCSamplerOrdinaryDirectPlan.logicalColumn]; omega
   | word source position => rw [PiRLCSamplerOrdinaryDirectPlan.wordColumn]; omega
   | fresh source position =>
-      change PiRLCStarts.samplerLogicalStart ≤ PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val
+      change PiRLCStarts.samplerLogicalStart ≤ PiRLCStarts.samplerFreshStart + source.val * 144 + position.val
       simp only [PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart,
         PiRLCStarts.samplerLogicalStart, Formal.samplerOffset]
       omega
@@ -523,8 +523,8 @@ private theorem ordinaryMissing (location : StateLocation)
 
       | fresh source position =>
           have selectedLt : source.val < 17 := source.isLt
-          have positionLt : position.val < 1548 := position.isLt
-          change PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val = _ at owns
+          have positionLt : position.val < 144 := position.isLt
+          change PiRLCStarts.samplerFreshStart + source.val * 144 + position.val = _ at owns
           norm_num [StateLocation.sourceColumn, stateOutputOffset, stateStepStride,
             PiRLCStarts.samplerLogicalStart, Formal.samplerOffset, PiRLCStarts.phaseLogicalStart_eq,
             PiRLCStarts.samplerFreshStart, PiRLCStarts.phaseFreshStart_eq,
@@ -633,7 +633,7 @@ theorem baseEnv_eq_transitionEnv
       RunningTransitionDirectPlan.transitionEnv program base
         (Spartan.sourceToSpartan column) := by
   have sourceBound : column < Spartan.SourceColumnCount := by
-    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 20213929 :=
+    have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 20171597 :=
       Package.circuitPackage_layout_values.2.2.1
     rw [constant] at bound
     rw [Spartan.sourceColumnCount_eq]

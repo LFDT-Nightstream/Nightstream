@@ -39,7 +39,7 @@ def wordGrid (program : Program) : SourceGrid :=
 
 def freshGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (freshBlock program) (freshStart program)
-    freshSourceStart 17 1548 1 1548 1548 0 1548 0
+    freshSourceStart 17 144 1 144 144 0 144 0
 
 def substitution (program : Program) : SourceSubstitution where
   ranges := []
@@ -84,8 +84,8 @@ theorem wordTarget (source : Fin sourceCount) (position : Fin ringDegree) :
 
 theorem freshTarget (source : Fin sourceCount) (position : Fin freshCountPerSource) :
     Spartan.sourceToSpartan (Location.fresh source position).sourceColumn =
-      freshSourceStart + source.val * 1548 + position.val := by
-  change Spartan.sourceToSpartan (PiRLCStarts.samplerFreshStart + source.val * 1548 + position.val) = _
+      freshSourceStart + source.val * 144 + position.val := by
+  change Spartan.sourceToSpartan (PiRLCStarts.samplerFreshStart + source.val * 144 + position.val) = _
   rw [Nat.add_assoc, Spartan.sourceToSpartan_add_of_piCcsLocal _ _ samplerFresh_after_piCcs]
   unfold freshSourceStart
   omega
@@ -115,13 +115,13 @@ theorem freshGrid_form? {program : Program} {logicalWidth : Nat}
       some ((Location.fresh source position).form geometry) := by
   rw [freshTarget]
   have sourceLt : source.val < 17 := source.isLt
-  have positionLt : position.val < 1548 := position.isLt
+  have positionLt : position.val < 144 := position.isLt
   have direct := SourceGrid.form?_ofSemantic (freshBlock program) (freshStart program)
-    freshSourceStart 17 1548 1 1548 1548 0 1548 0 (freshFits geometry)
+    freshSourceStart 17 144 1 144 144 0 144 0 (freshFits geometry)
     (by decide) (by decide) source ⟨0, by decide⟩ position (by omega) (by omega)
     (by rw [freshBlock_slotCount]; omega)
   simp only [Nat.zero_add, Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at direct
-  have slot : (⟨source.val * 1548 + position.val, by rw [freshBlock_slotCount]; omega⟩ :
+  have slot : (⟨source.val * 144 + position.val, by rw [freshBlock_slotCount]; omega⟩ :
       Fin (freshBlock program).slotCount) = freshSlot source position := by
     apply Fin.ext
     simp [freshSlot, Fin.encodeProd, freshCountPerSource, Nat.mul_comm]
@@ -250,7 +250,7 @@ private theorem frameGrid_none_fresh (grid : SourceGrid) (logicalWidth start : N
     (origin : grid.sourceStart = frameSourceStart + start)
     (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 4267)
     (startBound : start ≤ 4267) (source : Fin sourceCount) (position : Fin freshCountPerSource) :
-    grid.form? logicalWidth (freshSourceStart + source.val * 1548 + position.val) = none := by
+    grid.form? logicalWidth (freshSourceStart + source.val * 144 + position.val) = none := by
   apply SourceGrid.form?_eq_none_of_after
   · rw [shape.2]
     decide
@@ -386,7 +386,7 @@ variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-private theorem programRow_support (index : Fin 38811) :
+private theorem programRow_support (index : Fin 14943) :
     (PiRLCSamplerOrdinaryDirectSource.programRow
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index).VarsSatisfy
@@ -399,7 +399,7 @@ private theorem programRow_support (index : Fin 38811) :
 
 theorem substitution_agrees_on_programRow
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 38811) :
+    (geometry : Geometry program logicalWidth) (index : Fin 14943) :
     let row := PiRLCSamplerOrdinaryDirectSource.programRow
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index

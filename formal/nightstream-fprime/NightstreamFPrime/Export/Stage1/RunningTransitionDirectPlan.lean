@@ -408,7 +408,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     Spartan.sourceToSpartan source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := Spartan.sourceToSpartan_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 20214208 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 20171876 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
@@ -494,7 +494,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 28 + index.val =
-          9156060 + invocation.val * 1096 + 1080 + lane.val := by
+          9155416 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -515,7 +515,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 49663 + index.val =
-          9156060 + invocation.val * 1096 + 1080 + lane.val := by
+          9155416 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega
@@ -535,8 +535,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 20146867 + index.val =
-          9156060 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 20122355 + index.val =
+          9155416 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSInputs.phaseOffset_eq] using same
       omega

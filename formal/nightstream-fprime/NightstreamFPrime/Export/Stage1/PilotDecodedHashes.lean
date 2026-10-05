@@ -46,7 +46,7 @@ private theorem output_input_lift (index : Fin Data.outputChain.inputLength) :
   have bound : index.val < 49393 := index.isLt
   unfold Spartan.sourceToSpartan
   rw [if_pos (by
-    change 49663 + index.val < 9126768
+    change 49663 + index.val < 9126124
     omega)]
   apply congrArg Spartan.liftPilotColumn
   unfold PilotSpartan.sourceToSpartan

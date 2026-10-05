@@ -29,7 +29,7 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 /-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
-def phaseOffset : Nat := 12146786
+def phaseOffset : Nat := 12146142
 
 /-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
 that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/

@@ -112,29 +112,21 @@ pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-struct LatestInstance {
-    instances: Vec<CcsInstance>,
-}
-impl LatestInstance {
-    fn from_instances(instances: Vec<CcsInstance>) -> Self {
-        Self { instances }
-    }
-}
+/// The selected profile carries exactly one fresh instance per active proof.
 #[derive(Clone, Debug)]
 enum ProofState {
     Initial,
     Active {
         running: RunningInstance,
-        latest: LatestInstance,
+        fresh: CcsInstance,
     },
 }
 impl ProofState {
     fn initial() -> Self {
         Self::Initial
     }
-    fn active(running: RunningInstance, latest: LatestInstance) -> Self {
-        Self::Active { running, latest }
+    fn active(running: RunningInstance, fresh: CcsInstance) -> Self {
+        Self::Active { running, fresh }
     }
     fn is_initial(&self) -> bool {
         matches!(self, Self::Initial)
@@ -145,10 +137,10 @@ impl ProofState {
             Self::Active { running, .. } => Some(running),
         }
     }
-    fn latest(&self) -> Option<&LatestInstance> {
+    fn fresh(&self) -> Option<&CcsInstance> {
         match self {
             Self::Initial => None,
-            Self::Active { latest, .. } => Some(latest),
+            Self::Active { fresh, .. } => Some(fresh),
         }
     }
 }

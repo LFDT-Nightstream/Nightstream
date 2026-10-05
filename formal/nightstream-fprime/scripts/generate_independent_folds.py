@@ -6,9 +6,11 @@ enter only comparison commands. Checkpoints retain exact bytes and capped comman
 receipts; an incomplete run is never reported as complete. Run outside graph locks.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -32,16 +34,40 @@ def write_new(path, value):
         stream.write("\n")
 
 
-def identity(path):
-    path = Path(path)
-    require(not path.is_symlink(), f"unexpected evidence symlink: {path}")
-    if path.is_dir():
-        return {child.name: identity(child) for child in sorted(path.iterdir())}
+# SHA-256 and file reads release the GIL, so threads hash different files in parallel.
+HASHING = ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1))
+
+
+def file_identity(path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+
+
+def pending_identity(path):
+    """Start hashing the files under `path`; the returned function waits for `identity(path)`."""
+    path = Path(path)
+    require(not path.is_symlink(), f"unexpected evidence symlink: {path}")
+    if path.is_dir():
+        children = [(child.name, pending_identity(child)) for child in sorted(path.iterdir())]
+        return lambda: {name: value() for name, value in children}
+    return HASHING.submit(file_identity, path).result
+
+
+def identity(path):
+    return pending_identity(path)()
+
+
+def start_identities(paths):
+    """Start hashing a mapping `{key: path}`; the returned function waits for `{key: identity(path)}`."""
+    pending = {key: pending_identity(path) for key, path in paths.items()}
+    return lambda: {key: value() for key, value in pending.items()}
+
+
+def identities(paths):
+    return start_identities(paths)()
 
 
 def matrix_geometry(package):
@@ -135,14 +161,14 @@ def source_snapshot(root):
         "git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
         "crates", "formal/nightstream-fprime", "scripts", "Cargo.toml", "Cargo.lock",
         "rust-toolchain.toml", ".cargo/config.toml"], cwd=REPO, text=True).splitlines()
-    files = {}
+    sources = {}
     for name in sorted(set(names)):
         path = REPO / name
         if path.is_file() and (path.suffix in (".lean", ".rs", ".py", ".sh", ".toml", ".lock")
                                or path.name in ("lean-toolchain", "lake-manifest.json")):
-            files[name] = identity(path)
+            sources[name] = path
     record = {"base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"],
-              cwd=REPO, text=True).strip(), "files": files, "package": identity(ARTIFACT),
+              cwd=REPO, text=True).strip(), "files": identities(sources), "package": identity(ARTIFACT),
               "lean_toolchain": TOOLCHAIN,
               "compiler_commit": "3019a32cb6f44782ff1e1210676099d683b8d3a8"}
     encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
@@ -157,8 +183,8 @@ def source_snapshot(root):
     return path
 
 
-def command_inputs(argv, request, outputs, cwd):
-    """Bind actual input files and executables; output paths are checked separately."""
+def command_input_paths(argv, request, outputs, cwd):
+    """Actual input files and executables; output paths are checked separately."""
     def strings(value):
         if isinstance(value, str):
             yield value
@@ -178,8 +204,13 @@ def command_inputs(argv, request, outputs, cwd):
             path = cwd / path
         path = path.resolve()
         if path not in excluded and path.exists():
-            result[str(path)] = identity(path)
+            result[str(path)] = path
     return result
+
+
+def command_inputs(argv, request, outputs, cwd):
+    """Bind actual input files and executables; output paths are checked separately."""
+    return identities(command_input_paths(argv, request, outputs, cwd))
 
 
 class Replay:
@@ -211,13 +242,15 @@ class Replay:
         command_receipt = self.logs / f"{name}.command.json"
         def current_inputs():
             if input_paths is not None:
-                return {str(path): identity(path) for path in input_paths}
-            return command_inputs(argv, request, outputs, cwd)
+                return start_identities({str(path): path for path in input_paths})
+            return start_identities(command_input_paths(argv, request, outputs, cwd))
+        def current_outputs():
+            return start_identities({str(path): path for path in outputs})
         def check_native_completion():
             if kind == "rust":
                 require(native_test_completed(argv, (self.logs / f"{name}.log").read_text()),
                         f"native test did not complete: {name}")
-        inputs = current_inputs()
+        inputs = current_inputs()()
         if command_receipt.exists():
             record = read(command_receipt)
             require(record.get("exit") == 0 and record.get("outcome") == "passed",
@@ -226,16 +259,16 @@ class Replay:
                     and record.get("input") == request, f"changed checkpoint command: {name}")
             require(read(input_receipt) == inputs, f"changed checkpoint inputs: {name}")
             check_native_completion()
-            require(read(receipt) == {str(path): identity(path) for path in outputs},
-                    f"changed checkpoint outputs: {name}")
+            require(read(receipt) == current_outputs()(), f"changed checkpoint outputs: {name}")
             return
         print(json.dumps({"event": "stage_started", "step": self.iteration, "stage": name}), flush=True)
         write_new(input_receipt, inputs)
         self.check.phase(name, kind, argv, cwd=cwd, input=request)
         check_native_completion()
-        require(current_inputs() == inputs,
-                f"inputs changed during execution: {name}")
-        write_new(receipt, {str(path): identity(path) for path in outputs})
+        # The inputs are hashed again while the outputs are hashed.
+        after, produced = current_inputs(), current_outputs()
+        require(after() == inputs, f"inputs changed during execution: {name}")
+        write_new(receipt, produced())
         if hasattr(self, "source_snapshot"):
             record = read(command_receipt)
             record["source_snapshot"] = str(self.source_snapshot)
@@ -259,9 +292,9 @@ class Replay:
         if self.iteration == 3:
             require((previous / "handoff.json").is_file(), "first Lean handoff is incomplete")
             handoff = read(previous / "handoff.json")
-            feedback = {name: identity(previous / name) for name in
-                        ("fresh-witness.json", "fresh-claim.json", "children.json",
-                         "digits-0.jsonl", "digits-1.jsonl")}
+            feedback = identities({name: previous / name for name in
+                                   ("fresh-witness.json", "fresh-claim.json", "children.json",
+                                    "digits-0.jsonl", "digits-1.jsonl")})
             require(handoff["from_iteration"] == 2 and handoff["to_iteration"] == 3
                     and handoff["lean_feedback"] == feedback,
                     "first Lean handoff inputs changed")
@@ -556,9 +589,9 @@ class Replay:
             write_new(destination, next_request)
         completed = self.out("handoff.json")
         record = {"from_iteration": prior[0], "to_iteration": next_request[0], "caller": counts,
-                  "next_request": next_request, "lean_feedback": {
-                      name: identity(self.out(name)) for name in
-                      ("fresh-witness.json", "fresh-claim.json", "children.json", "digits-0.jsonl", "digits-1.jsonl")}}
+                  "next_request": next_request, "lean_feedback": identities({
+                      name: self.out(name) for name in
+                      ("fresh-witness.json", "fresh-claim.json", "children.json", "digits-0.jsonl", "digits-1.jsonl")})}
         if completed.exists():
             require(read(completed) == record, "changed completed handoff")
         else:

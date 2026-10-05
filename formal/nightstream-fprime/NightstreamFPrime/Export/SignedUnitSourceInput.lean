@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock
+import NightstreamFPrime.Export.ParallelLines
 
 /-!
 Owns the existing original-witness capture format shared by PiRLC and PiCCS
@@ -59,13 +60,29 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
   | .ok value => pure value
   | .error error => throw (IO.userError error)
 
+/-- One decoded line of a source file. -/
+private inductive SourceLine where
+  | header (line : String)
+  | terminator
+  | block (record : Except String (Nat × Array (Nat × Nat)))
+
+instance : Inhabited SourceLine := ⟨.terminator⟩
+
 /-- Load the same source capture for random matrix-column reads. The caller
 supplies the selected carrier block count. Every input record is validated,
-including records outside the first arithmetic range. -/
+including records outside the first arithmetic range. Lines are decoded on the
+configured worker threads; the header, the strictly increasing block order, the
+terminator and the end of the file are then checked in file order. -/
 def read (path : System.FilePath) (blocks : Nat) :
     IO (Array (Array (Nat × Nat)) × Nat) := do
-  let input ← IO.FS.Handle.mk path .read
-  let header ← checked (Lean.Json.parse (← input.getLine))
+  let lines : Array (Nat × SourceLine) ←
+    ParallelLines.decode path (← ParallelChunks.workers) fun offset line =>
+      if offset == 0 then SourceLine.header line
+      else if line.trimAscii.toString == "[]" then SourceLine.terminator
+      else SourceLine.block (decodeBlock line)
+  let some (_, SourceLine.header headerLine) := lines[0]?
+    | throw (IO.userError "missing source header")
+  let header ← checked (Lean.Json.parse headerLine)
   let header ← checked header.getArr?
   let header ← checked (header.toList.mapM Lean.Json.getNat?)
   unless header == [1, ringDegree, SourceCount, blocks] do
@@ -74,20 +91,19 @@ def read (path : System.FilePath) (blocks : Nat) :
   let mut next := 0
   let mut records := 0
   let mut complete := false
-  while !complete do
-    let line ← input.getLine
-    if line.isEmpty then throw (IO.userError "missing source terminator")
-    if line.trimAscii.toString == "[]" then
-      complete := true
-    else
-      let (block, masks) ← checked (decodeBlock line)
-      unless next ≤ block && block < blocks do
-        throw (IO.userError "duplicate or out-of-range source block")
-      result := result.set! block masks
-      next := block + 1
-      records := records + 1
-  unless (← input.getLine).isEmpty do
-    throw (IO.userError "extra data after source terminator")
+  for (_, line) in lines[1:] do
+    if complete then throw (IO.userError "extra data after source terminator")
+    match line with
+    | SourceLine.terminator => complete := true
+    | SourceLine.block record =>
+        let (block, masks) ← checked record
+        unless next ≤ block && block < blocks do
+          throw (IO.userError "duplicate or out-of-range source block")
+        result := result.set! block masks
+        next := block + 1
+        records := records + 1
+    | SourceLine.header _ => throw (IO.userError "unexpected source header")
+  unless complete do throw (IO.userError "missing source terminator")
   return (result, records)
 
 end NightstreamFPrime.Export.SignedUnitSourceInput

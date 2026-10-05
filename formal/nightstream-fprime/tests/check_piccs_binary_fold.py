@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from array import array
 from concurrent.futures import ProcessPoolExecutor
+import contextlib
 from dataclasses import dataclass
 import json
 import os
@@ -20,6 +21,10 @@ import sys
 P = 18446744069414584321
 NONRESIDUE = 7
 FIELD = struct.Struct("<QQ")
+# Inputs below this size are checked in this process. Measured on an M5 Pro: the
+# in-process check costs about 10 ms per MB, while starting the process pool
+# costs about 0.07 s more than an in-process run of a tiny input.
+POOL_INPUT_BYTES = 4 * 2**20
 
 
 @dataclass(frozen=True)
@@ -199,8 +204,13 @@ def main():
              width, count, tuple(challenge), output) for index, chunk in enumerate(chunks)]
     input_bytes = output_rows = output_bytes = crossing_pairs = 0
     final_tail = None
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        for checked_input, rows, checked_output, crossings, tail in executor.map(check_chunk, jobs):
+    with contextlib.ExitStack() as stack:
+        if count * width * FIELD.size < POOL_INPUT_BYTES:
+            results = map(check_chunk, jobs)
+        else:
+            executor = stack.enter_context(ProcessPoolExecutor(max_workers=os.cpu_count()))
+            results = executor.map(check_chunk, jobs)
+        for checked_input, rows, checked_output, crossings, tail in results:
             input_bytes += checked_input
             output_rows += rows
             output_bytes += checked_output

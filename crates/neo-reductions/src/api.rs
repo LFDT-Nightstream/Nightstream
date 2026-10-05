@@ -1,7 +1,7 @@
 //! Public API for Π_CCS folding and RLC/DEC operations.
 //!
 //! This module exposes the main entry points for:
-//! - Π_CCS proving and verification: `prove`, `prove_simple`, `verify`
+//! - Π_CCS proving and verification: `prove`, `verify`
 //! - RLC/DEC operations with commitments: `rlc_with_commit`, `dec_children_with_commit`
 //! - Public verification helpers: `rlc_public`, `verify_dec_public`
 //!
@@ -159,20 +159,6 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         }
         .prove(tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log),
     }
-}
-
-/// Prove Π_CCS in the simple (k=1) case without ME inputs.
-pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
-    mode: FoldingMode,
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    log: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-    // Delegate to the selected engine with empty ME inputs/witnesses.
-    prove(mode, tr, params, s, mcs_list, mcs_witnesses, &[], &[], log)
 }
 
 /// Verify Π_CCS proof using the selected engine mode.
@@ -476,87 +462,6 @@ where
                 ell_d,
                 child_commitments,
                 &combine_b_pows,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
-}
-
-/// DEC (cached): same as `dec_children_with_commit`, but can reuse a caller-provided CSC cache.
-///
-/// This is intended for high-level coordinators (e.g. neo-fold) that already build
-/// a `SparseCache` for the optimized CCS oracle, and want to avoid re-scanning dense matrices
-/// during Π_DEC.
-pub fn dec_children_with_commit_cached<Comb>(
-    mode: FoldingMode,
-    s: &CcsStructure<F>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, F, K>,
-    Z_split: &[Mat<F>],
-    ell_d: usize,
-    child_commitments: &[Cmt],
-    combine_b_pows: Comb,
-    sparse: Option<&crate::engines::optimized_engine::SparseCache<F>>,
-) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
-where
-    Comb: Fn(&[Cmt], u32) -> Cmt,
-{
-    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
-        eprintln!("dec_children_with_commit_cached input validation failed: {e}");
-        return (Vec::new(), false, false, false);
-    }
-    if let Err(error) = validate_selected_reduction_claims(
-        &mode,
-        "dec_children_with_commit_cached: selected parent",
-        s,
-        std::slice::from_ref(parent),
-    ) {
-        eprintln!("dec_children_with_commit_cached input validation failed: {error}");
-        return (Vec::new(), false, false, false);
-    }
-
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_cached(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-            sparse,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-            s,
-            params,
-            parent,
-            Z_split,
-            ell_d,
-            child_commitments,
-            combine_b_pows,
-        ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_cached(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                sparse,
             );
             let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
                 s,

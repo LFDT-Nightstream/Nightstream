@@ -1,0 +1,14 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+    Finished `release` profile [optimized] target(s) in 5.35s
+     Running unittests src/lib.rs (target/release/deps/neo_ajtai-8c329624e138675a)
+
+running 1 test
+shift sums 410.338125ms
+spectral 358.818917ms
+key cache construction 158.325583ms, bytes 622854144
+cached shift sums 268.685792ms
+frequency key conversion 66.449542ms, bytes 1476395008
+cached spectral 145.717417ms
+test nightstream_fprime_setup::spectral_probe::compare_spectral_with_shift_sums ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 2.07s

@@ -1,0 +1,1897 @@
+{
+  "baseline_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+  "branch": "nico/rust-lifecycle-2x",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "b3c426f6467868d31964c29ef95df7f85dc01d41fd1052604d5a2dcccf96f327",
+    "Cargo.lock": "ed8772a0e258d11ad3057beaeeaec6d2137747ed900a2a85d4f3b490df922310",
+    "crates/neo-ajtai/Cargo.toml": "9d673da21311fab943e130db81ed823a813f52ce00305267ecc67159d1bc10ae",
+    "crates/neo-ajtai/src/nightstream_fprime_setup.rs": "ea009a412bbeb55d118783a7cea5871e9ce7c1b6dd21b02188d59eaadf3d3738",
+    "crates/neo-ajtai/src/nightstream_fprime_setup/key.rs": "d6fea0e920cfd5e6a82b88cf048324ac7c9e6fceb47d3d0896921da9fc9f1f63",
+    "crates/neo-ajtai/tests/unit/key_pair.rs": "4d37709574c8049ad5e44d2470f6b92d7eb33d3523a2a144e6009be359ab1e56",
+    "crates/neo-math/src/signed_sums.rs": "cf35844be29fb72d74b23a861d2b1d517e8f4edd425298b3fd303075c99e510a",
+    "crates/neo-math/tests/signed_sums.rs": "273629785e0feb3b3864c630dcb03bf3edb971506dd7a3990994a2da87648b93",
+    "crates/neo-reductions/src/superneo_eval/openings.rs": "50f33b815ebb2e8534cc3cacec8fa4f48d0cbff1d202a6df9cd35746f2f73e98",
+    "crates/neo-reductions/src/superneo_eval/row_forms.rs": "3bf19b8d593c5e835f291d36caf0d02ed3034459abb3d7c2b2da2b63555a584b",
+    "crates/neo-reductions/src/superneo_eval/window_eval.rs": "07afe21b81c10a5ccfe0797ecfd896e581d190c53c5bf7f8cea665544233fa9b",
+    "crates/neo-reductions/tests/unit/pad_opening.rs": "62a619a4acbdf2b566a8754fd32f3ecbc1fcefc2e205732f766e655d77c19d61"
+  },
+  "hash_scope": "Source identification only; proof comparisons use actual bytes.",
+  "host": {
+    "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+    "checkout": "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)\nbinary: rustc\ncommit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1\ncommit-date: 2026-03-25\nhost: aarch64-apple-darwin\nrelease: 1.94.1\nLLVM version: 21.1.8\n",
+    "os": "macOS-27.0.1-arm64-arm-64bit",
+    "engine": "optimized",
+    "steps": 4,
+    "minimum_security_bits": 114,
+    "timing_scope": "record build and package preparation separately; measure load, base, three extends and terminal verification; separately measure staged native folds",
+    "hw.model": "Mac17,6",
+    "hw.ncpu": "18",
+    "hw.memsize": "137438953472",
+    "machdep.cpu.brand_string": "Apple M5 Max"
+  },
+  "baseline_median_seconds": 77.63382075,
+  "prior_candidate_median_seconds": 60.30794875,
+  "prior_candidate_control": {
+    "elapsed_seconds": 64.50346803665161,
+    "exit": 0,
+    "outcome": "passed",
+    "process_exit": 0,
+    "user_seconds": 878.509291,
+    "system_seconds": 7.359802,
+    "maximum_resident_bytes": 8878817280,
+    "sampled_maximum_resident_bytes": 8878096384,
+    "memory_cap_bytes": 17179869184,
+    "memory_cap_metric": "RSS",
+    "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+    "memory_cap_exceeded": false,
+    "memory_enforcement": "peak RSS acceptance check after exit",
+    "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+    "memory_observation_error": null,
+    "command": [
+      "/private/tmp/nightstream-rust-38s-20261004/baseline-60s-bench",
+      "run",
+      "--package",
+      "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+      "--engine",
+      "optimized",
+      "--steps",
+      "4",
+      "--minimum-security-bits",
+      "114"
+    ],
+    "log": "/private/tmp/nightstream-rust-38s-20261004/prior-candidate-control.log",
+    "records": [
+      {
+        "active_extends": 3,
+        "benchmark": "poseidon2_hash_chain_v1",
+        "engine": "optimized",
+        "event": "benchmark_started",
+        "initial_state": [
+          202,
+          203,
+          204,
+          205
+        ],
+        "message": [
+          7,
+          11,
+          13,
+          17
+        ],
+        "minimum_security_bits": 114,
+        "package": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+        "profile": {
+          "B": 65536,
+          "b": 2,
+          "k_rho": 16
+        },
+        "schema": 2,
+        "steps": 4,
+        "timing_scope": "prepared_package_load_prove_verify"
+      },
+      {
+        "event": "phase_started",
+        "phase": "load",
+        "step": null
+      },
+      {
+        "event": "phase_finished",
+        "phase": "load",
+        "seconds": 1.196832834,
+        "step": null
+      },
+      {
+        "event": "phase_started",
+        "phase": "prove",
+        "step": 1
+      },
+      {
+        "event": "phase_finished",
+        "phase": "prove",
+        "seconds": 3.379741916,
+        "step": 1
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 2
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 12.5944735,
+        "step": 2
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 3
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 16.980123916,
+        "step": 3
+      },
+      {
+        "event": "phase_started",
+        "phase": "extend",
+        "step": 4
+      },
+      {
+        "event": "phase_finished",
+        "phase": "extend",
+        "seconds": 18.123094083,
+        "step": 4
+      },
+      {
+        "event": "phase_started",
+        "phase": "verify",
+        "step": 4
+      },
+      {
+        "event": "phase_finished",
+        "phase": "verify",
+        "seconds": 11.935485208,
+        "step": 4
+      },
+      {
+        "circuit_identity": [
+          7548990011328446471,
+          17135259440128128963,
+          5831077210202460744,
+          9417456504682884501
+        ],
+        "event": "benchmark_finished",
+        "final_state": [
+          7438437859755310059,
+          1083179110255594462,
+          14574150336961053564,
+          911795658819924022
+        ],
+        "schema": 2,
+        "seconds": 64.210161958,
+        "steps": 4,
+        "timing_scope": "prepared_package_load_prove_verify",
+        "verified": true
+      }
+    ]
+  },
+  "candidate_runs": [
+    {
+      "elapsed_seconds": 59.839598178863525,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 816.641535,
+      "system_seconds": 6.481468,
+      "maximum_resident_bytes": 9273933824,
+      "sampled_maximum_resident_bytes": 9273212928,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/nightstream-poseidon2-bench",
+        "run",
+        "--package",
+        "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+        "--engine",
+        "optimized",
+        "--steps",
+        "4",
+        "--minimum-security-bits",
+        "114"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-run-1.log",
+      "records": [
+        {
+          "active_extends": 3,
+          "benchmark": "poseidon2_hash_chain_v1",
+          "engine": "optimized",
+          "event": "benchmark_started",
+          "initial_state": [
+            202,
+            203,
+            204,
+            205
+          ],
+          "message": [
+            7,
+            11,
+            13,
+            17
+          ],
+          "minimum_security_bits": 114,
+          "package": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+          "profile": {
+            "B": 65536,
+            "b": 2,
+            "k_rho": 16
+          },
+          "schema": 2,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify"
+        },
+        {
+          "event": "phase_started",
+          "phase": "load",
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.157784375,
+          "step": null
+        },
+        {
+          "event": "phase_started",
+          "phase": "prove",
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.316700125,
+          "step": 1
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 12.226862875,
+          "step": 2
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.273807416,
+          "step": 3
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 16.3524115,
+          "step": 4
+        },
+        {
+          "event": "phase_started",
+          "phase": "verify",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 11.234133125,
+          "step": 4
+        },
+        {
+          "circuit_identity": [
+            7548990011328446471,
+            17135259440128128963,
+            5831077210202460744,
+            9417456504682884501
+          ],
+          "event": "benchmark_finished",
+          "final_state": [
+            7438437859755310059,
+            1083179110255594462,
+            14574150336961053564,
+            911795658819924022
+          ],
+          "schema": 2,
+          "seconds": 59.562065541,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify",
+          "verified": true
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 57.944535970687866,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 795.174791,
+      "system_seconds": 6.121639,
+      "maximum_resident_bytes": 9347104768,
+      "sampled_maximum_resident_bytes": 9346383872,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/nightstream-poseidon2-bench",
+        "run",
+        "--package",
+        "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+        "--engine",
+        "optimized",
+        "--steps",
+        "4",
+        "--minimum-security-bits",
+        "114"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-run-2.log",
+      "records": [
+        {
+          "active_extends": 3,
+          "benchmark": "poseidon2_hash_chain_v1",
+          "engine": "optimized",
+          "event": "benchmark_started",
+          "initial_state": [
+            202,
+            203,
+            204,
+            205
+          ],
+          "message": [
+            7,
+            11,
+            13,
+            17
+          ],
+          "minimum_security_bits": 114,
+          "package": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+          "profile": {
+            "B": 65536,
+            "b": 2,
+            "k_rho": 16
+          },
+          "schema": 2,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify"
+        },
+        {
+          "event": "phase_started",
+          "phase": "load",
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.117625959,
+          "step": null
+        },
+        {
+          "event": "phase_started",
+          "phase": "prove",
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.24292225,
+          "step": 1
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 11.675105292,
+          "step": 2
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.0397145,
+          "step": 3
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.82829025,
+          "step": 4
+        },
+        {
+          "event": "phase_started",
+          "phase": "verify",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 10.905342209,
+          "step": 4
+        },
+        {
+          "circuit_identity": [
+            7548990011328446471,
+            17135259440128128963,
+            5831077210202460744,
+            9417456504682884501
+          ],
+          "event": "benchmark_finished",
+          "final_state": [
+            7438437859755310059,
+            1083179110255594462,
+            14574150336961053564,
+            911795658819924022
+          ],
+          "schema": 2,
+          "seconds": 57.809367417,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify",
+          "verified": true
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 57.48692779202247,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 787.550762,
+      "system_seconds": 6.183116,
+      "maximum_resident_bytes": 8733851648,
+      "sampled_maximum_resident_bytes": 8733032448,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/nightstream-poseidon2-bench",
+        "run",
+        "--package",
+        "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+        "--engine",
+        "optimized",
+        "--steps",
+        "4",
+        "--minimum-security-bits",
+        "114"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-run-3.log",
+      "records": [
+        {
+          "active_extends": 3,
+          "benchmark": "poseidon2_hash_chain_v1",
+          "engine": "optimized",
+          "event": "benchmark_started",
+          "initial_state": [
+            202,
+            203,
+            204,
+            205
+          ],
+          "message": [
+            7,
+            11,
+            13,
+            17
+          ],
+          "minimum_security_bits": 114,
+          "package": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc",
+          "profile": {
+            "B": 65536,
+            "b": 2,
+            "k_rho": 16
+          },
+          "schema": 2,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify"
+        },
+        {
+          "event": "phase_started",
+          "phase": "load",
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.108134916,
+          "step": null
+        },
+        {
+          "event": "phase_started",
+          "phase": "prove",
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.271493834,
+          "step": 1
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 11.558820834,
+          "step": 2
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 14.894832708,
+          "step": 3
+        },
+        {
+          "event": "phase_started",
+          "phase": "extend",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.8598865,
+          "step": 4
+        },
+        {
+          "event": "phase_started",
+          "phase": "verify",
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 10.671541375,
+          "step": 4
+        },
+        {
+          "circuit_identity": [
+            7548990011328446471,
+            17135259440128128963,
+            5831077210202460744,
+            9417456504682884501
+          ],
+          "event": "benchmark_finished",
+          "final_state": [
+            7438437859755310059,
+            1083179110255594462,
+            14574150336961053564,
+            911795658819924022
+          ],
+          "schema": 2,
+          "seconds": 57.365073208,
+          "steps": 4,
+          "timing_scope": "prepared_package_load_prove_verify",
+          "verified": true
+        }
+      ]
+    }
+  ],
+  "candidate_median_seconds": 57.809367417,
+  "baseline_speedup": 1.3429280446886576,
+  "control_speedup": 1.1107224456346105,
+  "target_seconds": 38.816910375,
+  "target_met": false,
+  "tests": {
+    "signed": {
+      "elapsed_seconds": 3.7951102256774902,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 3.237606,
+      "system_seconds": 0.24953399999999998,
+      "maximum_resident_bytes": 343441408,
+      "sampled_maximum_resident_bytes": 63815680,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-math",
+        "--release",
+        "--locked",
+        "--test",
+        "signed_sums"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-signed-tests.log",
+      "records": []
+    },
+    "pad": {
+      "elapsed_seconds": 13.00108003616333,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 12.41382,
+      "system_seconds": 0.365575,
+      "maximum_resident_bytes": 807682048,
+      "sampled_maximum_resident_bytes": 68976640,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-reductions",
+        "--release",
+        "--locked",
+        "--lib",
+        "superneo_eval::openings::tests::"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-pad-tests.log",
+      "records": []
+    },
+    "matrix": {
+      "elapsed_seconds": 12.059541940689087,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 11.652997,
+      "system_seconds": 0.358419,
+      "maximum_resident_bytes": 507478016,
+      "sampled_maximum_resident_bytes": 69304320,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-reductions",
+        "--release",
+        "--locked",
+        "--test",
+        "matrix_rows"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-matrix-tests.log",
+      "records": []
+    },
+    "key": {
+      "elapsed_seconds": 3.6873867511749268,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 3.397495,
+      "system_seconds": 0.18312599999999998,
+      "maximum_resident_bytes": 394838016,
+      "sampled_maximum_resident_bytes": 65634304,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-ajtai",
+        "--release",
+        "--locked",
+        "--lib",
+        "key::tests"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-key-tests.log",
+      "records": []
+    },
+    "commitment": {
+      "elapsed_seconds": 6.325369119644165,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 21.502451,
+      "system_seconds": 0.9278919999999999,
+      "maximum_resident_bytes": 444317696,
+      "sampled_maximum_resident_bytes": 66060288,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "neo-ajtai",
+        "--release",
+        "--locked",
+        "--test",
+        "nightstream_fprime_setup_parity",
+        "--test",
+        "nightstream_fprime_signed_commitment",
+        "--test",
+        "nightstream_fprime_prefix_commitment",
+        "--test",
+        "nightstream_fprime_matrix_commitment",
+        "--test",
+        "nightstream_fprime_batch_commitment"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-commitment-tests.log",
+      "records": []
+    },
+    "portable-key": {
+      "elapsed_seconds": 4.864187955856323,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 4.436338,
+      "system_seconds": 0.26722799999999997,
+      "maximum_resident_bytes": 393297920,
+      "sampled_maximum_resident_bytes": 65765376,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null,
+      "command": [
+        "env",
+        "RUSTFLAGS=--cfg keccak_backend=\"soft\"",
+        "cargo",
+        "test",
+        "-p",
+        "neo-ajtai",
+        "--release",
+        "--locked",
+        "--lib",
+        "key::tests",
+        "--target-dir",
+        "/tmp/nightstream-rust-2x-20261004/scalar-target"
+      ],
+      "log": "/private/tmp/nightstream-rust-38s-20261004/final-portable-key-tests.log",
+      "records": []
+    }
+  },
+  "test_counts": {
+    "signed": [
+      [
+        3,
+        0,
+        0
+      ]
+    ],
+    "pad": [
+      [
+        2,
+        0,
+        0
+      ]
+    ],
+    "matrix": [
+      [
+        15,
+        0,
+        0
+      ]
+    ],
+    "key": [
+      [
+        1,
+        0,
+        0
+      ]
+    ],
+    "commitment": [
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1
+      ],
+      [
+        4,
+        0,
+        0
+      ]
+    ],
+    "portable-key": [
+      [
+        1,
+        0,
+        0
+      ]
+    ]
+  },
+  "native_checks": [
+    {
+      "phase": "base",
+      "step": null,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "base",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized"
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 12.651178121566772,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 63.89311,
+      "system_seconds": 0.879972,
+      "maximum_resident_bytes": 4140515328,
+      "sampled_maximum_resident_bytes": 4137762816,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "prove",
+      "step": 1,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "prove",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "reference_proof": "/private/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/native/fold-1/proof.native",
+        "engine": "optimized",
+        "step": 1
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 17.669888973236084,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 131.062127,
+      "system_seconds": 1.7059369999999998,
+      "maximum_resident_bytes": 8621441024,
+      "sampled_maximum_resident_bytes": 8615968768,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "successor",
+      "step": 1,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "successor",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized",
+        "step": 1
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 15.655251026153564,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 104.662155,
+      "system_seconds": 1.0434679999999998,
+      "maximum_resident_bytes": 4419584000,
+      "sampled_maximum_resident_bytes": 4417912832,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "prove",
+      "step": 2,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "prove",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "reference_proof": "/private/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/native/fold-2/proof.native",
+        "engine": "optimized",
+        "step": 2
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 23.00122308731079,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 203.354327,
+      "system_seconds": 2.822032,
+      "maximum_resident_bytes": 9332686848,
+      "sampled_maximum_resident_bytes": 9326723072,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "successor",
+      "step": 2,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "successor",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized",
+        "step": 2
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 17.096199989318848,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 125.53227700000001,
+      "system_seconds": 1.154403,
+      "maximum_resident_bytes": 4491689984,
+      "sampled_maximum_resident_bytes": 4489412608,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "prove",
+      "step": 3,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "prove",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "reference_proof": "/private/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/native/fold-3/proof.native",
+        "engine": "optimized",
+        "step": 3
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 24.24821710586548,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 222.914473,
+      "system_seconds": 3.094658,
+      "maximum_resident_bytes": 9430728704,
+      "sampled_maximum_resident_bytes": 9423912960,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "successor",
+      "step": 3,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "successor",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized",
+        "step": 3
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 17.448550939559937,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 129.752598,
+      "system_seconds": 1.180493,
+      "maximum_resident_bytes": 4490870784,
+      "sampled_maximum_resident_bytes": 4489969664,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "terminal",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "terminal",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 21.854697227478027,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 156.774322,
+      "system_seconds": 1.581222,
+      "maximum_resident_bytes": 7774846976,
+      "sampled_maximum_resident_bytes": 7724171264,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "mutation",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "mutation",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 12.899024248123169,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 69.291753,
+      "system_seconds": 0.799731,
+      "maximum_resident_bytes": 3906781184,
+      "sampled_maximum_resident_bytes": 3906273280,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "reject",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::run_phase",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "reject",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "engine": "optimized",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 21.68391227722168,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 154.828779,
+      "system_seconds": 1.603664,
+      "maximum_resident_bytes": 7726120960,
+      "sampled_maximum_resident_bytes": 7725858816,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "opening-k-prepare",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_k_witness",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-k-prepare",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 16.87862777709961,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 126.894398,
+      "system_seconds": 1.056811,
+      "maximum_resident_bytes": 4520099840,
+      "sampled_maximum_resident_bytes": 4519116800,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "opening-k",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_k_after_valid_fresh_relation",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-k",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 22.044820070266724,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 156.310728,
+      "system_seconds": 1.63246,
+      "maximum_resident_bytes": 7718535168,
+      "sampled_maximum_resident_bytes": 7718305792,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "opening-a-prepare",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::opening_tests::prepares_balanced_eval_a_witness",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-a-prepare",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 16.829235076904297,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 127.172071,
+      "system_seconds": 1.060001,
+      "maximum_resident_bytes": 4494770176,
+      "sampled_maximum_resident_bytes": 4493148160,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    },
+    {
+      "phase": "opening-a",
+      "step": 4,
+      "schema": 1,
+      "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+      "source_changes": [
+        " M .github/workflows/ci.yml",
+        " M Cargo.lock",
+        " M crates/neo-ajtai/Cargo.toml",
+        " M crates/neo-ajtai/src/nightstream_fprime_setup.rs",
+        " M crates/neo-math/src/signed_sums.rs",
+        " M crates/neo-math/tests/signed_sums.rs",
+        " M crates/neo-reductions/src/superneo_eval/openings.rs",
+        " M crates/neo-reductions/src/superneo_eval/row_forms.rs",
+        " M crates/neo-reductions/src/superneo_eval/window_eval.rs",
+        " M crates/neo-reductions/tests/unit/pad_opening.rs",
+        "?? crates/neo-ajtai/src/nightstream_fprime_setup/",
+        "?? crates/neo-ajtai/tests/unit/",
+        "?? crates/nightstream/tests/evidence/cpu-key-pairs-20261004/"
+      ],
+      "command": [
+        "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/target/release/deps/nightstream-4f7b9a95600b4ddc",
+        "lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation",
+        "--ignored",
+        "--exact",
+        "--nocapture"
+      ],
+      "request": {
+        "phase": "opening-a",
+        "directory": "/private/tmp/nightstream-rust-38s-20261004/native",
+        "step": 4
+      },
+      "cap_seconds": 300,
+      "elapsed_seconds": 21.718698024749756,
+      "exit": 0,
+      "outcome": "passed",
+      "process_exit": 0,
+      "user_seconds": 156.14237300000002,
+      "system_seconds": 1.4725279999999998,
+      "maximum_resident_bytes": 7747207168,
+      "sampled_maximum_resident_bytes": 7746977792,
+      "memory_cap_bytes": 17179869184,
+      "memory_cap_metric": "RSS",
+      "memory_cap_authority": "NIGHTSTREAM_CRATE_GOAL.md#owner-approved-engine-extension",
+      "memory_cap_exceeded": false,
+      "memory_enforcement": "peak RSS acceptance check after exit",
+      "memory_peak_scope": "maximum driver-child RSS, including test and short git/ps helpers",
+      "memory_observation_error": null
+    }
+  ],
+  "compared_files": [
+    {
+      "file": "fold-1/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-1/actual_result.json",
+      "bytes": 829656
+    },
+    {
+      "file": "fold-1/pi_ccs_input.json",
+      "bytes": 258817
+    },
+    {
+      "file": "fold-1/children.json",
+      "bytes": 337206
+    },
+    {
+      "file": "fold-1/caller-inputs.json",
+      "bytes": 825749
+    },
+    {
+      "file": "fold-1/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-1/digit-0.json",
+      "bytes": 44848379
+    },
+    {
+      "file": "fold-1/digit-1.json",
+      "bytes": 44664820
+    },
+    {
+      "file": "fold-1/digit-2.json",
+      "bytes": 43837686
+    },
+    {
+      "file": "fold-1/digit-3.json",
+      "bytes": 42332184
+    },
+    {
+      "file": "fold-1/digit-4.json",
+      "bytes": 30564320
+    },
+    {
+      "file": "fold-1/digit-5.json",
+      "bytes": 6681221
+    },
+    {
+      "file": "fold-1/digit-6.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-2/actual_result.json",
+      "bytes": 1366971
+    },
+    {
+      "file": "fold-2/pi_ccs_input.json",
+      "bytes": 544971
+    },
+    {
+      "file": "fold-2/children.json",
+      "bytes": 377185
+    },
+    {
+      "file": "fold-2/caller-inputs.json",
+      "bytes": 1191864
+    },
+    {
+      "file": "fold-2/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-2/digit-0.json",
+      "bytes": 46577846
+    },
+    {
+      "file": "fold-2/digit-1.json",
+      "bytes": 46499926
+    },
+    {
+      "file": "fold-2/digit-2.json",
+      "bytes": 46280263
+    },
+    {
+      "file": "fold-2/digit-3.json",
+      "bytes": 45805622
+    },
+    {
+      "file": "fold-2/digit-4.json",
+      "bytes": 44477512
+    },
+    {
+      "file": "fold-2/digit-5.json",
+      "bytes": 33690027
+    },
+    {
+      "file": "fold-2/digit-6.json",
+      "bytes": 6989659
+    },
+    {
+      "file": "fold-2/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-3/actual_result.json",
+      "bytes": 1460796
+    },
+    {
+      "file": "fold-3/pi_ccs_input.json",
+      "bytes": 601788
+    },
+    {
+      "file": "fold-3/children.json",
+      "bytes": 374549
+    },
+    {
+      "file": "fold-3/caller-inputs.json",
+      "bytes": 1243408
+    },
+    {
+      "file": "fold-3/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-3/digit-0.json",
+      "bytes": 49099739
+    },
+    {
+      "file": "fold-3/digit-1.json",
+      "bytes": 49016923
+    },
+    {
+      "file": "fold-3/digit-2.json",
+      "bytes": 48785198
+    },
+    {
+      "file": "fold-3/digit-3.json",
+      "bytes": 48304409
+    },
+    {
+      "file": "fold-3/digit-4.json",
+      "bytes": 46567139
+    },
+    {
+      "file": "fold-3/digit-5.json",
+      "bytes": 35704458
+    },
+    {
+      "file": "fold-3/digit-6.json",
+      "bytes": 7238164
+    },
+    {
+      "file": "fold-3/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "step-1/envelope.json",
+      "bytes": 1121645
+    },
+    {
+      "file": "step-1/fresh-claim.json",
+      "bytes": 39428
+    },
+    {
+      "file": "step-1/fresh-witness.json",
+      "bytes": 45261048
+    },
+    {
+      "file": "step-2/envelope.json",
+      "bytes": 1446032
+    },
+    {
+      "file": "step-2/fresh-claim.json",
+      "bytes": 39422
+    },
+    {
+      "file": "step-2/fresh-witness.json",
+      "bytes": 46720362
+    },
+    {
+      "file": "step-3/envelope.json",
+      "bytes": 1487991
+    },
+    {
+      "file": "step-3/fresh-claim.json",
+      "bytes": 39425
+    },
+    {
+      "file": "step-3/fresh-witness.json",
+      "bytes": 49230630
+    },
+    {
+      "file": "step-4/envelope.json",
+      "bytes": 1485410
+    },
+    {
+      "file": "step-4/fresh-claim.json",
+      "bytes": 39426
+    },
+    {
+      "file": "step-4/fresh-witness.json",
+      "bytes": 49331940
+    }
+  ],
+  "larger_memory_experiment": "Not authorized or run. A bounded key-tile prototype only.",
+  "cache_prototype_source": "/private/tmp/nightstream-rust-38s-20261004/spectral_probe.rs",
+  "new_lean_validation": false,
+  "independent_reviewer": false,
+  "scratch_evidence": "/private/tmp/nightstream-rust-38s-20261004",
+  "original_evidence": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_"
+}

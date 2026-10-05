@@ -1,0 +1,13 @@
+    Finished `release` profile [optimized] target(s) in 0.16s
+     Running unittests src/lib.rs (target/release/deps/neo_ajtai-8c329624e138675a)
+
+running 1 test
+shift sums 210.364375ms
+spectral 249.486792ms
+key cache construction 159.361542ms, bytes 622854144
+cached shift sums 68.427625ms
+frequency key conversion 73.298708ms, bytes 1476395008
+cached spectral 30.9225ms
+test nightstream_fprime_setup::spectral_probe::compare_spectral_with_shift_sums ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.89s

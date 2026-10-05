@@ -1,0 +1,14 @@
+{"active_extends":3,"benchmark":"poseidon2_hash_chain_v1","engine":"optimized","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"minimum_security_bits":114,"package":"/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2,"steps":4,"timing_scope":"prepared_package_load_prove_verify"}
+{"event":"phase_started","phase":"load","step":null}
+{"event":"phase_finished","phase":"load","seconds":1.164946541,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+{"event":"phase_finished","phase":"prove","seconds":3.341857208,"step":1}
+{"event":"phase_started","phase":"extend","step":2}
+{"event":"phase_finished","phase":"extend","seconds":11.816943542,"step":2}
+{"event":"phase_started","phase":"extend","step":3}
+{"event":"phase_finished","phase":"extend","seconds":16.300630291,"step":3}
+{"event":"phase_started","phase":"extend","step":4}
+{"event":"phase_finished","phase":"extend","seconds":17.402818875,"step":4}
+{"event":"phase_started","phase":"verify","step":4}
+{"event":"phase_finished","phase":"verify","seconds":11.601247666999999,"step":4}
+{"circuit_identity":[7548990011328446471,17135259440128128963,5831077210202460744,9417456504682884501],"event":"benchmark_finished","final_state":[7438437859755310059,1083179110255594462,14574150336961053564,911795658819924022],"schema":2,"seconds":61.628835667,"steps":4,"timing_scope":"prepared_package_load_prove_verify","verified":true}

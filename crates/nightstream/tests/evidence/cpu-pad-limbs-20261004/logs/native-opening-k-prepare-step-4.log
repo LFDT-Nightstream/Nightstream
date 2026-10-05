@@ -1,0 +1,9 @@
+
+running 1 test
+staged circuit preparation elapsed=8.894366584s
+complete physical witness elapsed=325.286875ms
+complete logical packing elapsed=198.491541ms
+complete child and fresh commitments elapsed=6.527882375s
+test lifecycle::tests::staged::opening_tests::prepares_balanced_eval_k_witness ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 16.78s

@@ -1,0 +1,10 @@
+   Compiling neo-math v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-math)
+   Compiling neo-ccs v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ccs)
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+    Finished `release` profile [optimized] target(s) in 4.71s
+     Running unittests src/lib.rs (/tmp/nightstream-rust-2x-20261004/scalar-target/release/deps/neo_ajtai-f82a94ccf6ebe810)
+
+running 1 test
+test nightstream_fprime_setup::key::tests::paired_key_coefficients_match_independent_shake128 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

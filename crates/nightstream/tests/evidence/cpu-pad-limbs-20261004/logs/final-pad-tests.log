@@ -1,0 +1,10 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+   Compiling neo-reductions v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 12.80s
+     Running unittests src/lib.rs (target/release/deps/neo_reductions-9785933871fdd7ef)
+
+running 2 tests
+test superneo_eval::openings::tests::batched_pad_openings_match_dense_ring_products_for_every_witness_storage ... ok
+test superneo_eval::openings::tests::tensor_pad_matches_ring_products_across_phases_tasks_and_boolean_points ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.05s

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Codec
+import NightstreamFPrime.Export.PiDECParentRange
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
@@ -42,22 +43,6 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
   | .ok result => pure result
   | .error error => throw (IO.userError error)
 
-private def decodeBlock (line : String) :
-    Except String (Nat × StoredAssignment ringDegree) := do
-  let fields ← (← Lean.Json.parse line).getArr?
-  match fields.toList with
-  | [block, values] =>
-      let block ← block.getNat?
-      let words ← values.getArr?
-      let mut values : Array F := #[]
-      for word in words do
-        let value ← word.getNat?
-        unless value < goldilocksModulus do throw "noncanonical parent coefficient"
-        values := values.push (Radix.fieldOfNat value)
-      if size : values.size = ringDegree then return (block, ⟨values, size⟩)
-      else throw "expected 54 parent coefficients"
-  | _ => throw "expected parent block and coefficient array"
-
 private def computeBlock (initial : NativeProducts) (block : Nat)
     (parent : StoredAssignment ringDegree) : IO NativeProducts := do
   let some children := StoredSplit.splitChecked parent
@@ -67,19 +52,6 @@ private def computeBlock (initial : NativeProducts) (block : Nat)
     return Vector.ofFn fun row => PiDECCommitmentBlock.accumulatePreparedContributions
       Poseidon2HashChainV1Setup.productionSetup row ⟨block, live⟩ preparedChildren (initial.get row)
   else throw (IO.userError "block is outside the selected fixed key")
-
-private def collect (initial : Array NativeProducts)
-    (tasks : Array (Task (Except IO.Error NativeProducts))) : IO (Array NativeProducts) := do
-  let mut result := initial
-  let mut index := 0
-  for task in tasks do
-    match ← IO.wait task with
-    | .ok value =>
-      if slot : index < result.size then result := result.set index value
-      else throw (IO.userError "invalid replay worker slot")
-    | .error error => throw error
-    index := index + 1
-  return result
 
 private def writeResult (outputPath : System.FilePath) (blocks start finish : Nat)
     (accumulated : Products) : IO Unit := do
@@ -137,50 +109,32 @@ private def merge (outputPath : System.FilePath) (paths : List String) : IO UInt
   IO.println s!"pidec_Lean_commitments=passed ranges={parts.size} blocks={blocks} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} coefficients={Poseidon2HashChainV1Setup.verifierRows * productionGlobalParams.k * ringDegree} read_sum_write_ms={finished - started}"
   return 0
 
+/-- Parent blocks per work item: large enough to amortize scheduling, and small
+enough that faster cores take more items. -/
+private def chunkBlocks : Nat := 128
+
+/-- Every chunk sums its contiguous blocks; the chunk sums are added in order.
+All sums are canonical field additions, so the grouping does not change them. -/
 private def replay (parentPath outputPath : System.FilePath) (start finish : Nat) :
     IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let started ← IO.monoMsNow
-  let input ← IO.FS.Handle.mk parentPath .read
-  let headerLine ← input.getLine
-  let header ← checked do
-    (← (← Lean.Json.parse headerLine).getArr?).toList.mapM Lean.Json.getNat?
-  let (blocks, parentStart, parentEnd) ← match header with
-    | [1, blocks, first, last] => pure (blocks, first, last)
-    | _ => throw (IO.userError "expected a Lean PiRLC range header")
-  unless blocks = Poseidon2HashChainV1Setup.messageColumns &&
-      parentStart ≤ start && start < finish && finish ≤ parentEnd && parentEnd ≤ blocks do
-    throw (IO.userError "replay range is outside the selected parent range")
-  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  let mut next := parentStart
-  let mut complete := false
-  let mut computed := 0
-  let mut pending := #[]
-  let mut accumulated := Array.replicate workers zero
-  while !complete do
-    let line ← input.getLine
-    if line.isEmpty then throw (IO.userError "missing parent terminator")
-    if line.trimAscii.toString == "[]" then complete := true
-    else
-      let (block, values) ← checked (decodeBlock line)
-      unless next ≤ block && block < parentEnd do
-        throw (IO.userError "duplicate or out-of-range parent block")
-      next := block + 1
-      if start ≤ block && block < finish then
-        if slot : pending.size < accumulated.size then
-          pending := pending.push (← IO.asTask
-            (computeBlock accumulated[pending.size] block values))
-        else throw (IO.userError "invalid replay worker slot")
-        if pending.size ≥ workers then
-          accumulated ← collect accumulated pending
-          pending := #[]
-        computed := computed + 1
-  unless (← input.getLine).isEmpty do throw (IO.userError "extra data after parent terminator")
-  accumulated ← collect accumulated pending
-  writeResult outputPath blocks start finish
-    (finishProducts (accumulated.foldl add zero))
+  let (blocks, records) ← PiDECParentRange.select parentPath start finish
+  let workers ← ParallelChunks.workers
+  let tasks ← ParallelChunks.start workers ((records.size + chunkBlocks - 1) / chunkBlocks)
+    fun chunk => do
+      let mut sum := zero
+      for (block, values) in records[chunk * chunkBlocks:(chunk + 1) * chunkBlocks] do
+        sum ← computeBlock sum block values
+      return sum
+  let mut accumulated := zero
+  for task in tasks do
+    match ← IO.wait task with
+    | .ok (sum, _, _) => accumulated := add accumulated sum
+    | .error error => throw error
+  writeResult outputPath blocks start finish (finishProducts accumulated)
   let finished ← IO.monoMsNow
-  IO.println s!"pidec_Lean_commitment_range=passed start={start} end={finish} computed_blocks={computed} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} workers={workers} compute_read_write_ms={finished - started}"
+  IO.println s!"pidec_Lean_commitment_range=passed start={start} end={finish} computed_blocks={records.size} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} workers={workers} compute_read_write_ms={finished - started}"
   return 0
 
 end NightstreamFPrime.Export.PiDECCommitmentReplay

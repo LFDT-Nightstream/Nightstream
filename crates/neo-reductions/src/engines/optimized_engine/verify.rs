@@ -37,6 +37,12 @@ pub fn optimized_verify_with_trace(
 
 /// Replay the public protocol against the caller-selected relation header.
 /// Matrix evaluator caches belong to preprocessing and proving.
+///
+/// This checks one reduction, not a complete statement. The transcript binds
+/// the running claims only through their shared fold digest, and it does not
+/// absorb the CCS structure. The caller must authenticate that digest and
+/// must fix the structure before the call, as the lifecycle does with its
+/// state hash and verifier context.
 pub fn optimized_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

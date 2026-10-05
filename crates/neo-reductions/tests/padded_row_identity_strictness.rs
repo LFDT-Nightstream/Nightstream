@@ -5,7 +5,7 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::FoldingMode;
+use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
 use neo_transcript::Poseidon2Transcript;
 use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
@@ -68,8 +68,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
-    let (out_me, mut proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (out_me, mut proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -84,8 +83,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
     proof.sumcheck_rounds.push(vec![K::ZERO]);
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let res = neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    let res = pi_ccs_verify(
         &mut tr_v,
         &params,
         &s,
@@ -109,8 +107,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
             .trailing_zeros() as usize;
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
-    let (out_me, proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (out_me, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -127,8 +124,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
     assert_eq!(out_me[0].r.len(), variables);
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let ok = neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    let ok = pi_ccs_verify(
         &mut tr_v,
         &params,
         &s,
@@ -147,8 +143,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
-    let (mut out_me, proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (mut out_me, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -164,8 +159,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
     out_me[0].eval_k[0] += K::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let result = neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    let result = pi_ccs_verify(
         &mut tr_v,
         &params,
         &s,
@@ -183,8 +177,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
-    let (mut outputs, proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (mut outputs, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -200,8 +193,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
     outputs[0].eval_a[0][0] += K::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let result = neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    let result = pi_ccs_verify(
         &mut tr_v,
         &params,
         &s,
@@ -226,8 +218,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     wit.w.clear();
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs.m_in);
-    let (mut outputs, proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (mut outputs, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -245,8 +236,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     outputs[0].X[(0, 1)] = F::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let result = neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    let result = pi_ccs_verify(
         &mut tr_v,
         &params,
         &s,
@@ -271,8 +261,7 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
     let claims = vec![claim; count];
     let witnesses = vec![witness; count];
 
-    let result = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let result = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,
@@ -306,8 +295,7 @@ fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
     let running_witnesses = vec![seed_witnesses[0].clone(); count];
     let label = b"test/padded_row_identity/redteam/running_count_policy";
     let mut tr_p = Poseidon2Transcript::new(label);
-    let result = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let result = pi_ccs_prove(
         &mut tr_p,
         &params,
         &s,

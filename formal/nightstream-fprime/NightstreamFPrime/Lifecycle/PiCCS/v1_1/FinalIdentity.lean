@@ -20,7 +20,8 @@ Outputs:
 Constraint groups:
 - C1: one opaque owned `PointEquality` child;
 - C2: one opaque owned `Power` child for `gamma^864`;
-- C3: one opaque owned `Power` child for `gamma^12960`;
+- C3: one opaque owned `Power` child that raises `gamma^864` to `15`, giving
+  `gamma^12960`;
 - C4: two extension-component final-identity assertions.
 
 Parent coverage:
@@ -60,6 +61,34 @@ theorem constraintExponent_eq : constraintExponent = 12960 := by
     Phi81MatrixSource.phi81Shape, Shape.constraintOffset,
     Shape.padEvaluationCount, Shape.matrixEvaluationCount, ringDegree]
 
+/-- `gamma^(k d (t + 1)) = (gamma^(k d))^(t + 1)`: the constraint power raises
+the matrix power, not `gamma`. -/
+def constraintFactor : Nat := productionProfile.ccsMatrices + 1
+
+theorem constraintFactor_eq : constraintFactor = 15 := by
+  norm_num [constraintFactor, productionProfile]
+
+theorem constraintExponent_eq_mul :
+    constraintExponent = matrixExponent * constraintFactor := by
+  rw [constraintExponent_eq, matrixExponent_eq, constraintFactor_eq]
+
+private theorem power_mul (value : K) (left right : Nat) :
+    TargetPolynomial.power extensionOps.toOps value (left * right) =
+      TargetPolynomial.power extensionOps.toOps
+        (TargetPolynomial.power extensionOps.toOps value left) right := by
+  have shiftLaws : TargetPolynomial.ShiftLaws extensionOps.toOps :=
+    { one_mul := extensionLaws.one_mul
+      mul_assoc := extensionLaws.mul_assoc
+      mul_zero := extensionLaws.mul_zero
+      mul_add := extensionLaws.left_distrib }
+  induction right with
+  | zero => rfl
+  | succ right inductionHypothesis =>
+      rw [show left * (right + 1) = left + left * right by ring,
+        TargetPolynomial.power_add extensionOps.toOps shiftLaws,
+        inductionHypothesis]
+      rfl
+
 theorem gammaFreshPower_eq (gamma : K) :
     TargetPolynomial.power extensionOps.toOps gamma
       productionShape.freshCount = gamma := by
@@ -85,10 +114,6 @@ def matrixPowerInterfaceAt (interface : Interface) (parentOffset : Nat) :
     Power.Interface where
   point := fun _ => interface.gamma parentOffset
 
-def constraintPowerInterfaceAt (interface : Interface) (parentOffset : Nat) :
-    Power.Interface where
-  point := fun _ => interface.gamma parentOffset
-
 def pointCircuitAt (interface : Interface) (parentOffset : Nat) :
     FormalCircuit :=
   PointEquality.Owned.circuit (pointInterfaceAt interface parentOffset)
@@ -96,11 +121,6 @@ def pointCircuitAt (interface : Interface) (parentOffset : Nat) :
 def matrixPowerCircuitAt (interface : Interface) (parentOffset : Nat) :
     FormalCircuit :=
   Power.circuit matrixExponent (matrixPowerInterfaceAt interface parentOffset)
-
-def constraintPowerCircuitAt (interface : Interface) (parentOffset : Nat) :
-    FormalCircuit :=
-  Power.circuit constraintExponent
-    (constraintPowerInterfaceAt interface parentOffset)
 
 def pointLength (interface : Interface) (offset : Nat) : Nat :=
   localLength (Circuit.ops (pointCircuitAt interface offset).main offset)
@@ -121,6 +141,19 @@ private theorem constraintOffset_eq (interface : Interface) (offset : Nat) :
   unfold constraintOffset matrixOffset
   exact Nat.add_assoc _ _ _
 
+def gammaMatrixOutput (interface : Interface) (offset : Nat) : KExpr :=
+  Power.output matrixExponent (matrixPowerInterfaceAt interface offset)
+    (matrixOffset interface offset)
+
+def constraintPowerInterfaceAt (interface : Interface) (parentOffset : Nat) :
+    Power.Interface where
+  point := fun _ => gammaMatrixOutput interface parentOffset
+
+def constraintPowerCircuitAt (interface : Interface) (parentOffset : Nat) :
+    FormalCircuit :=
+  Power.circuit constraintFactor
+    (constraintPowerInterfaceAt interface parentOffset)
+
 def constraintLength (interface : Interface) (offset : Nat) : Nat :=
   localLength (Circuit.ops (constraintPowerCircuitAt interface offset).main
     (constraintOffset interface offset))
@@ -131,12 +164,8 @@ def finalOffset (interface : Interface) (offset : Nat) : Nat :=
 def pointEqualityOutput (interface : Interface) (offset : Nat) : KExpr :=
   PointEquality.Owned.output (pointInterfaceAt interface offset) offset
 
-def gammaMatrixOutput (interface : Interface) (offset : Nat) : KExpr :=
-  Power.output matrixExponent (matrixPowerInterfaceAt interface offset)
-    (matrixOffset interface offset)
-
 def gammaConstraintOutput (interface : Interface) (offset : Nat) : KExpr :=
-  Power.output constraintExponent (constraintPowerInterfaceAt interface offset)
+  Power.output constraintFactor (constraintPowerInterfaceAt interface offset)
     (constraintOffset interface offset)
 
 def pointName : String := "piccs.v1_1.final.point_equality"
@@ -281,9 +310,9 @@ private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
   rw [Power.localLength_eq, matrixExponent_eq]
 
 private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
-    constraintLength interface offset = 38880 := by
+    constraintLength interface offset = 45 := by
   unfold constraintLength constraintPowerCircuitAt
-  rw [Power.localLength_eq, constraintExponent_eq]
+  rw [Power.localLength_eq, constraintFactor_eq]
 
 private theorem matrixAssumptionsAt (interface : Interface) (offset : Nat)
     (env : Env) {source : Env}
@@ -301,15 +330,19 @@ private theorem matrixAssumptionsAt (interface : Interface) (offset : Nat)
 private theorem constraintAssumptionsAt (interface : Interface) (offset : Nat)
     (env : Env) {source : Env}
     (assumptions : Assumptions interface offset source) :
-    Power.Assumptions constraintExponent
+    Power.Assumptions constraintFactor
       (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env := by
   apply Power.assumptions_of_point_varsBelow
-  have offsetLe : offset ≤ constraintOffset interface offset := by
-    unfold constraintOffset matrixOffset
-    omega
-  simpa [constraintPowerInterfaceAt] using
-    (interface.gamma offset).varsBelow_mono assumptions.gammaBelow offsetLe
+  have below := Power.output_varsBelow matrixExponent
+    (matrixPowerInterfaceAt interface offset) (matrixOffset interface offset)
+      env (matrixAssumptionsAt interface offset env assumptions)
+  have matrixEnd : matrixOffset interface offset + 3 * matrixExponent =
+      constraintOffset interface offset := by
+    unfold constraintOffset matrixLength matrixPowerCircuitAt
+    rw [Power.localLength_eq]
+  rw [matrixEnd] at below
+  exact below
 
 private theorem pointCall_sound (interface : Interface) (offset : Nat)
     (env : Env) (rows : holds env (opsAt interface offset))
@@ -336,7 +369,7 @@ private theorem matrixPowerCall_sound (interface : Interface) (offset : Nat)
 private theorem constraintPowerCall_sound (interface : Interface)
     (offset : Nat) (env : Env) (rows : holds env (opsAt interface offset))
     (assumptions : Assumptions interface offset env) :
-    Power.SpecHolds constraintExponent
+    Power.SpecHolds constraintFactor
       (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env := by
   have callHolds := rows (constraintPowerOp interface offset) (by simp [opsAt])
@@ -363,7 +396,7 @@ private theorem terminalExpr_eval_of_children (interface : Interface)
     (matrixSpec : Power.SpecHolds matrixExponent
       (matrixPowerInterfaceAt interface offset)
       (matrixOffset interface offset) env)
-    (constraintSpec : Power.SpecHolds constraintExponent
+    (constraintSpec : Power.SpecHolds constraintFactor
       (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env) :
     (terminalExpr interface offset).eval env =
@@ -371,7 +404,7 @@ private theorem terminalExpr_eval_of_children (interface : Interface)
   have matrixEq := Power.spec_implies_power matrixExponent
     (matrixPowerInterfaceAt interface offset)
       (matrixOffset interface offset) env matrixSpec
-  have constraintEq := Power.spec_implies_power constraintExponent
+  have constraintEq := Power.spec_implies_power constraintFactor
     (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env constraintSpec
   change (gammaMatrixOutput interface offset).eval env =
@@ -379,7 +412,9 @@ private theorem terminalExpr_eval_of_children (interface : Interface)
       ((interface.gamma offset).eval env) matrixExponent at matrixEq
   change (gammaConstraintOutput interface offset).eval env =
     TargetPolynomial.power extensionOps.toOps
-      ((interface.gamma offset).eval env) constraintExponent at constraintEq
+      ((gammaMatrixOutput interface offset).eval env) constraintFactor
+    at constraintEq
+  rw [matrixEq, ← power_mul, ← constraintExponent_eq_mul] at constraintEq
   unfold gammaMatrixOutput at matrixEq
   unfold gammaConstraintOutput at constraintEq
   unfold PointEquality.Owned.SpecHolds at pointSpec
@@ -677,7 +712,7 @@ private theorem terminalRows_complete (interface : Interface) (offset : Nat)
       (matrixOffset interface offset)
       (matrixAssumptionsAt interface offset completed assumptions)
       (holdsFlat_implies_holds completed _ matrixRows)
-  have constraintSpec := Power.soundness constraintExponent
+  have constraintSpec := Power.soundness constraintFactor
     (constraintPowerInterfaceAt interface offset) completed
       (constraintOffset interface offset)
       (constraintAssumptionsAt interface offset completed assumptions)
@@ -708,7 +743,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
         (matrixLength interface offset) := by
       simpa only [matrixOffset] using! matrixAgrees
     exact pointAgrees.append matrixAgreesAt
-  rcases Power.build constraintExponent
+  rcases Power.build constraintFactor
       (constraintPowerInterfaceAt interface offset) afterMatrix
       (constraintOffset interface offset)
       (constraintAssumptionsAt interface offset afterMatrix assumptions) with
@@ -793,12 +828,12 @@ private theorem constraintOutput_varsBelow (interface : Interface)
     (assumptions : Assumptions interface offset env) :
     (gammaConstraintOutput interface offset).VarsBelow
       (finalOffset interface offset) := by
-  have below := Power.output_varsBelow constraintExponent
+  have below := Power.output_varsBelow constraintFactor
     (constraintPowerInterfaceAt interface offset)
       (constraintOffset interface offset) env
       (constraintAssumptionsAt interface offset env assumptions)
   apply KExpr.varsBelow_mono _ below
-  rw [constraintExponent_eq]
+  rw [constraintFactor_eq]
   unfold finalOffset
   rw [constraintLength_eq]
 
@@ -871,14 +906,14 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         rw [matrixExponent_eq, pointLength_eq, matrixLength_eq,
           constraintLength_eq]
         omega
-    · have below := Power.flatConstraints_varsBelow_exact constraintExponent
+    · have below := Power.flatConstraints_varsBelow_exact constraintFactor
         (constraintPowerInterfaceAt interface offset)
           (constraintOffset interface offset) env
           (constraintAssumptionsAt interface offset env assumptions)
           expression constraintMember
       apply Expr.VarsBelow.mono expression below
       unfold constraintOffset matrixOffset
-      rw [constraintExponent_eq, pointLength_eq, matrixLength_eq,
+      rw [constraintFactor_eq, pointLength_eq, matrixLength_eq,
         constraintLength_eq]
   · exact KExpr.equalities_varsBelow (interface.terminal offset)
       (terminalExpr interface offset)
@@ -894,10 +929,10 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression terminalMember
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 41582
+def privateCount : Nat := 2747
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 41582 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2747 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
@@ -908,7 +943,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      41584 := by
+      2749 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
@@ -927,9 +962,9 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   have constraintFlat :
       (flatConstraints (Circuit.ops
         (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset))).length = 38880 := by
+        (constraintOffset interface offset))).length = 45 := by
     unfold constraintPowerCircuitAt
-    rw [Power.flatConstraints_length, constraintExponent_eq]
+    rw [Power.flatConstraints_length, constraintFactor_eq]
   rw [flatConstraints_opsAt, List.length_append, List.length_append,
     List.length_append, pointFlat, matrixFlat, constraintFlat]
   simp [terminalAssertions, KExpr.equalities]

@@ -45,8 +45,8 @@ theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) :
     physicalRowCount relation program =
-      20109913 + R1CS.totalRowCount (applicationConstraints program) + 5 := by
-  have prefixLength : (Spartan.remappedRows relation).length = 20109913 := by
+      20071078 + R1CS.totalRowCount (applicationConstraints program) + 5 := by
+  have prefixLength : (Spartan.remappedRows relation).length = 20071078 := by
     unfold Spartan.remappedRows Spartan.remapRows
     rw [List.length_map]
     exact Spartan.sourceRowCount_eq relation

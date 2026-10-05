@@ -71,7 +71,7 @@ def CoversFrom {Owner : Type} (start finish : Nat) : List (Span Owner) → Prop
 
 def rowCounts : List Nat :=
   [160, 140288, 95352, 153440, 38877, 812, 3364, 37060,
-    752, 800, 42458, 2516416]
+    752, 800, 3623, 2516416]
 
 /-- The 12 global physical row spans in the sole parent order. -/
 def rowSpans : List
@@ -113,7 +113,7 @@ theorem rowSpans_exact :
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.normRowStart, 800⟩,
        ⟨.finalIdentity,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityRowStart,
-          42458⟩,
+          3623⟩,
        ⟨.outputBinding,
           NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingRowStart,
           2516416⟩] := by
@@ -269,7 +269,7 @@ def columnOrder : List ColumnFamily :=
 
 def columnCounts : List Nat :=
   [9156060, 0, 140288, 95352, 153440, 38877, 756, 2699, 36395, 752,
-    48, 41582, 2516416, 2956]
+    48, 2747, 2516416, 2956]
 
 /-- The 14 global physical column spans. The two zero-count child families
 remain in the ordered vocabulary. -/
@@ -317,9 +317,9 @@ theorem columnSpans_exact :
        ⟨.eval_A, 9587472, 36395⟩,
        ⟨.ccsTerminal, 9623867, 752⟩,
        ⟨.normTerminal, 9624619, 48⟩,
-       ⟨.finalIdentity, 9624667, 41582⟩,
-       ⟨.outputBinding, 9666249, 2516416⟩,
-       ⟨.r1csIntermediate, 12182665, 2956⟩] := by
+       ⟨.finalIdentity, 9624667, 2747⟩,
+       ⟨.outputBinding, 9627414, 2516416⟩,
+       ⟨.r1csIntermediate, 12143830, 2956⟩] := by
   rfl
 
 theorem columnSpans_ownerOrder :
@@ -509,7 +509,7 @@ private theorem outputBindingOffset_eq :
     Formal.outputBindingOffset relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 9666249 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 9627414 := by
   rw [Formal.outputBindingOffset_eq_outputBindingRowOffset,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [Formal.outputBindingRowOffset, Formal.finalIdentityRowOffset,
@@ -527,7 +527,7 @@ private theorem logicalColumnCount_eq :
     NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
         logicalWidth publicFits)
-      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 12182665 := by
+      NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset = 12143830 := by
   rw [← NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase_eq_layout
     relation]
   unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
@@ -536,7 +536,7 @@ private theorem logicalColumnCount_eq :
 private theorem logicalColumnCount_literal_eq :
     NightstreamFPrime.Layout.PiCCS.v1_1.logicalColumnCount relation
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
-        logicalWidth publicFits) 9156060 = 12182665 := by
+        logicalWidth publicFits) 9156060 = 12143830 := by
   simpa only [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] using
     logicalColumnCount_eq
 

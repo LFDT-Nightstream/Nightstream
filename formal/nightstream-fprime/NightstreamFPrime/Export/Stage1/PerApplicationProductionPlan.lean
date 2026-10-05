@@ -141,7 +141,7 @@ def BlockKind.plan (application : ProgramApplication)
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .pilotPoseidon => 1235400
   | .piCcsPoseidon => 402952
-  | .piCcsOrdinary => 124283
+  | .piCcsOrdinary => 85448
   | .pilotOrdinary => 1330
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64

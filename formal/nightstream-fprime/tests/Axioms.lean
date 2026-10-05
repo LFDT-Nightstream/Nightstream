@@ -814,6 +814,9 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.compile_totalFreshCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.compile_totalRowCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.directConstraint_sub_add_eq_none
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.directConstraint_mul_ne_none
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.constraintFreshCount_mul
+#audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.constraintRowCount_mul
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.ownedCircuit_totalFreshCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Horner.ownedCircuit_totalRowCount
 #audit_axioms NightstreamFPrime.Layout.Polynomial.Power.compile_succ_output

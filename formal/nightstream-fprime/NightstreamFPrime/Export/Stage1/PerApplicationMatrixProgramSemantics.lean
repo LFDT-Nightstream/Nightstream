@@ -70,11 +70,11 @@ structure SourceCustody (application : ApplicationProgram)
         (PerApplicationSourceProjection.basePackageRow application
           (PiCCSOrdinaryDirectSource.programRow (relation application fits)
             index))
-  pilotOrdinary : ∀ index : Fin 1330,
+  pilotOrdinary : ∀ index : Fin 686,
     sourceRow (PilotOrdinaryMatrixProgram.rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow application
         (PilotOrdinaryDirectSource.programRow index))
-  samplerOrdinary : ∀ index : Fin 38811, ∀ sourceIndex,
+  samplerOrdinary : ∀ index : Fin 14943, ∀ sourceIndex,
     PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -83,7 +83,7 @@ structure SourceCustody (application : ApplicationProgram)
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application)
             index))
-  piDecPublic : ∀ index : Fin 22680,
+  piDecPublic : ∀ index : Fin 4860,
     sourceRow (PiDECStarts.publicInputRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.publicProgramRow

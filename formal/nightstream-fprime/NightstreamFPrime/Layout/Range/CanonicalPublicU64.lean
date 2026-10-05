@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.Range.CanonicalU64
 
 /-!
 Owns physical lowering for one canonical word bound to 64 caller-owned public
-bits. The canonical child contributes 197 fresh columns and 264 physical rows;
+bits. The canonical child contributes 36 fresh columns and 103 physical rows;
 the 64 equality rows are affine and add no fresh column.
 -/
 
@@ -95,10 +95,10 @@ private theorem bindingRowTotal_eq
 theorem totalFreshCount_eq
     (interface : CanonicalPublicU64.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 197 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 36 := by
   unfold logicalConstraints
   change R1CS.totalFreshCount
-    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 197
+    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 36
   rw [CanonicalPublicU64.flatConstraints_opsAt,
     R1CS.totalFreshCount_append]
   change R1CS.totalFreshCount
@@ -111,10 +111,10 @@ theorem totalFreshCount_eq
 theorem totalRowCount_eq
     (interface : CanonicalPublicU64.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 328 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 167 := by
   unfold logicalConstraints
   change R1CS.totalRowCount
-    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 328
+    (flatConstraints (CanonicalPublicU64.opsAt interface offset)) = 167
   rw [CanonicalPublicU64.flatConstraints_opsAt,
     R1CS.totalRowCount_append]
   change R1CS.totalRowCount

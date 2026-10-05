@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
 /-!
-Owns indexed access and exact source support for the 1,330 non-Poseidon pilot
+Owns indexed access and exact source support for the 686 non-Poseidon pilot
 rows. The source rows remain the canonical pilot witness-instruction rows
 followed by the canonical assertion rows.
 -/
@@ -29,7 +29,7 @@ def assertionRows : List R1CS.Row :=
 /-- Exact canonical package order for all non-Poseidon pilot rows. -/
 def sourceRows : List R1CS.Row := instructionRows ++ assertionRows
 
-theorem sourceRows_length : sourceRows.length = 1330 := by
+theorem sourceRows_length : sourceRows.length = 686 := by
   unfold sourceRows instructionRows assertionRows
   simp only [List.length_append, List.length_map]
   rw [PilotData.witnessInstructions, PilotData.assertionRows,
@@ -69,7 +69,7 @@ private theorem outputDigestStart_eq :
     PilotProduction.outputDigestStart = 99056 := by rfl
 
 private theorem sourceColumnCount_eq :
-    PilotValues.sourceColumnCount = 9126768 := by rfl
+    PilotValues.sourceColumnCount = 9126124 := by rfl
 
 private theorem outputChainAbsorbCount_eq :
     PilotData.outputChain.absorbCount = 4117 := by rfl
@@ -78,7 +78,7 @@ private theorem outputChainWitnessStart_eq :
     PilotData.outputChain.witnessStart = 4612378 := by rfl
 
 private theorem outputChainDigestStart_eq :
-    PilotData.outputChain.digestStart = 9126765 := by rfl
+    PilotData.outputChain.digestStart = 9126121 := by rfl
 
 private theorem outputStateSource_eq (lane : Fin 4) :
     PilotProduction.lifecycleOutputOffset +
@@ -154,7 +154,7 @@ inductive LogicalSource (column : Nat) : Prop where
   | outputDigest : InRange PilotProduction.outputDigestStart 4 column →
       LogicalSource column
 
-/-- Logical sources plus the exact 788 R1CS-fresh interval. -/
+/-- Logical sources plus the exact 144 R1CS-fresh interval. -/
 def PhysicalSource : Nat → Prop :=
   R1CS.SourceOrFresh LogicalSource PilotValues.logicalColumnCount
     PilotValues.sourceColumnCount
@@ -281,7 +281,7 @@ theorem priorLoweredRows_varsSatisfy :
         PilotValues.logicalColumnCount).rows,
       row.VarsSatisfy PhysicalSource := by
   have freshCount :
-      R1CS.totalFreshCount (PilotData.priorExtraConstraints ()) = 788 := by
+      R1CS.totalFreshCount (PilotData.priorExtraConstraints ()) = 144 := by
     rw [PilotData.priorExtraConstraints_eq,
       R1CS.totalFreshCount_append,
       PilotProduction.priorWordConstraints_freshCount,
@@ -466,7 +466,7 @@ theorem target_lt (column : Nat) (support : Target column) :
   exact PilotSpartan.sourceToSpartan_lt source
     (physicalSource_lt source sourceSupport)
 
-def programRow (index : Fin 1330) : R1CS.Row :=
+def programRow (index : Fin 686) : R1CS.Row :=
   sourceRows.get (Fin.cast sourceRows_length.symm index)
 
 private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
@@ -501,14 +501,14 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
   bounded := source.bounded
 
 /-- Stable row-boundedness interface for executable package decoders. -/
-theorem programRow_bounded (index : Fin 1330) :
+theorem programRow_bounded (index : Fin 686) :
     SourceCompiler.RowBounded PilotSpartan.spartanColumnCount
       (programRow index) := by
   exact sourceRows_varsBelow _
     (List.get_mem _ (Fin.cast sourceRows_length.symm index))
 
 def supportedProgram : SupportedProgram sourceRows where
-  rowCount := 1330
+  rowCount := 686
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow
   exactRows := programRows_eq
@@ -517,7 +517,7 @@ def supportedProgram : SupportedProgram sourceRows where
 def program : OrdinarySourcePlan.Program PilotSpartan.spartanColumnCount :=
   supportedProgram.toProgram
 
-@[simp] theorem program_rowCount : program.rowCount = 1330 := by rfl
+@[simp] theorem program_rowCount : program.rowCount = 686 := by rfl
 
 private theorem holds_iff_rowsHold_ofFn {count : Nat}
     (rowAt : Fin count → R1CS.Row) (env : Env) :
@@ -534,7 +534,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
 /-- Indexed canonical pilot rows hold exactly when the complete Lean-lowered
 row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 1330, (programRow index).Holds env) ↔
+    (∀ index : Fin 686, (programRow index).Holds env) ↔
       R1CS.RowsHold env sourceRows := by
   exact (holds_iff_rowsHold_ofFn programRow env).trans
     (predicate_iff_of_eq (R1CS.RowsHold env) programRows_eq)

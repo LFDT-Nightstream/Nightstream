@@ -70,7 +70,7 @@ theorem hashRowCount_eq : hashRowCount = 4513332 := by
   norm_num [hashRowCount, hashWitnessCount_eq, digestWords,
     PilotValues.digestWords]
 
-theorem physicalRowCountValue_eq : physicalRowCountValue = 9027986 := by
+theorem physicalRowCountValue_eq : physicalRowCountValue = 9027342 := by
   norm_num [physicalRowCountValue, hashWitnessCount_eq, hashRowCount_eq,
     priorBindingRowCount, PilotValues.priorBindingRowCount,
     PilotValues.priorExtraRowCount, PilotValues.priorCanonicalRowCount,
@@ -345,13 +345,13 @@ theorem priorWordInputsAffine (word : Fin 4) :
     exact R1CS.isAffine_var _
 
 theorem priorWord_freshCount (word : Fin 4) :
-    R1CS.totalFreshCount (priorWordConstraints word) = 197 := by
+    R1CS.totalFreshCount (priorWordConstraints word) = 36 := by
   rw [priorWordConstraints_eq]
   exact NightstreamFPrime.Layout.Range.CanonicalPublicU64.totalFreshCount_eq
     _ _ (priorWordInputsAffine word)
 
 theorem priorWord_rowCount (word : Fin 4) :
-    R1CS.totalRowCount (priorWordConstraints word) = 328 := by
+    R1CS.totalRowCount (priorWordConstraints word) = 167 := by
   rw [priorWordConstraints_eq]
   exact NightstreamFPrime.Layout.Range.CanonicalPublicU64.totalRowCount_eq
     _ _ (priorWordInputsAffine word)
@@ -386,14 +386,14 @@ private theorem priorWordConstraintsAll_eq :
   rfl
 
 theorem priorWordConstraints_freshCount :
-    R1CS.totalFreshCount (priorWordConstraintsAll ()) = 788 := by
+    R1CS.totalFreshCount (priorWordConstraintsAll ()) = 144 := by
   rw [priorWordConstraintsAll_eq, R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append, priorWord_freshCount,
     priorWord_freshCount, priorWord_freshCount, priorWord_freshCount]
 
 theorem priorWordConstraints_rowCount :
-    R1CS.totalRowCount (priorWordConstraintsAll ()) = 1312 := by
+    R1CS.totalRowCount (priorWordConstraintsAll ()) = 668 := by
   rw [priorWordConstraintsAll_eq, R1CS.totalRowCount_append,
     R1CS.totalRowCount_append,
     R1CS.totalRowCount_append, priorWord_rowCount,
@@ -502,14 +502,14 @@ theorem outputConstraints_rowsOne :
 
 theorem priorConstraints_freshCount :
     R1CS.totalFreshCount
-      (Pilot.priorConstraints interface witnessOffset) = 788 := by
+      (Pilot.priorConstraints interface witnessOffset) = 144 := by
   rw [priorConstraints_decomposition, R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append, priorHash_freshCount,
     priorWordConstraints_freshCount, priorBindingConstraints_freshCount]
 
 theorem priorConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.priorConstraints interface witnessOffset) = 4514654 := by
+      (Pilot.priorConstraints interface witnessOffset) = 4514010 := by
   rw [priorConstraints_decomposition, R1CS.totalRowCount_append,
     R1CS.totalRowCount_append, priorHash_rowCount,
     priorWordConstraints_rowCount, priorBindingConstraints_rowCount]
@@ -526,20 +526,20 @@ theorem outputConstraints_rowCount :
 
 theorem logicalConstraints_freshCount :
     R1CS.totalFreshCount
-      (Pilot.logicalConstraints interface witnessOffset) = 788 := by
+      (Pilot.logicalConstraints interface witnessOffset) = 144 := by
   unfold Pilot.logicalConstraints
   rw [R1CS.totalFreshCount_append, priorConstraints_freshCount,
     outputConstraints_freshCount]
 
 theorem logicalConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.logicalConstraints interface witnessOffset) = 9027986 := by
+      (Pilot.logicalConstraints interface witnessOffset) = 9027342 := by
   unfold Pilot.logicalConstraints
   rw [R1CS.totalRowCount_append, priorConstraints_rowCount,
     outputConstraints_rowCount]
 
 theorem physicalRowCount_eq :
-    Pilot.physicalRowCount interface witnessOffset = 9027986 := by
+    Pilot.physicalRowCount interface witnessOffset = 9027342 := by
   rw [Pilot.physicalRowCount_eq, logicalConstraints_rowCount]
 
 theorem priorHashLogicalLength_eq :
@@ -602,12 +602,12 @@ theorem logicalColumnCount_eq :
   rw [interface_output, outputWitnessCount, outputOffset_eq]
 
 theorem physicalColumnCount_eq :
-    Pilot.physicalColumnCount interface witnessOffset = 9126768 := by
+    Pilot.physicalColumnCount interface witnessOffset = 9126124 := by
   rw [Pilot.physicalColumnCount_eq, logicalConstraints_freshCount,
     logicalColumnCount_eq]
 
 def jointDomain : Nat :=
-  9126768
+  9126124
 
 /-- The materialized executable domain is exactly the semantic pilot domain. -/
 theorem jointDomain_matches :
@@ -617,7 +617,7 @@ theorem jointDomain_matches :
   rw [physicalRowCount_eq, physicalColumnCount_eq]
   rfl
 
-theorem jointDomain_eq : jointDomain = 9126768 := by
+theorem jointDomain_eq : jointDomain = 9126124 := by
   rfl
 
 /-- The complete pilot layout fits the fixed `2^28` production domain. -/
@@ -678,7 +678,7 @@ theorem physical_complete (env : Env)
       (Pilot.logicalConstraints interface witnessOffset)) :
     ∃ completed,
       AgreesOutside env completed
-        (Pilot.logicalColumnCount interface witnessOffset) 788 ∧
+        (Pilot.logicalColumnCount interface witnessOffset) 144 ∧
       Pilot.PhysicalHolds interface witnessOffset completed := by
   rcases R1CS.lowerConstraints_complete env
       (Pilot.logicalConstraints interface witnessOffset)

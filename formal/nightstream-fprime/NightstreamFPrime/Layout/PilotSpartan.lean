@@ -42,19 +42,19 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 9126768 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 9126124 := by
   rfl
 
 theorem publicColumnCount_value : publicColumnCount = 274 := by
   rfl
 
-theorem privateColumnCount_value : privateColumnCount = 9126494 := by
+theorem privateColumnCount_value : privateColumnCount = 9125850 := by
   rfl
 
-theorem constantColumn_value : constantColumn = 9126494 := by
+theorem constantColumn_value : constantColumn = 9125850 := by
   rfl
 
-theorem spartanColumnCount_value : spartanColumnCount = 9126769 := by
+theorem spartanColumnCount_value : spartanColumnCount = 9126125 := by
   rfl
 
 theorem priorPublicStart_value : priorPublicStart = 49393 := by
@@ -75,10 +75,10 @@ theorem secondPrivateStart_value : secondPrivateStart = 49393 := by
 theorem witnessPrivateStart_value : witnessPrivateStart = 98786 := by
   rfl
 
-theorem firstPublicStart_value : firstPublicStart = 9126495 := by
+theorem firstPublicStart_value : firstPublicStart = 9125851 := by
   rfl
 
-theorem secondPublicStart_value : secondPublicStart = 9126765 := by
+theorem secondPublicStart_value : secondPublicStart = 9126121 := by
   rfl
 
 /-- The materialized count is exactly the proved semantic pilot layout count. -/

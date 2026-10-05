@@ -171,7 +171,7 @@ private theorem prior_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 49393 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (0 + index.val) = Spartan.liftPilotColumn 0 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 9126768; omega)]
+  rw [if_pos (by change 0 + index.val < 9126124; omega)]
   unfold PilotSpartan.sourceToSpartan
   rw [if_pos (by change 0 + index.val < 49393; omega)]
   exact Spartan.liftPilotColumn_add_of_input 0 index.val (by
@@ -184,7 +184,7 @@ private theorem output_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 49393 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (49663 + index.val) = Spartan.liftPilotColumn 49393 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 49663 + index.val < 9126768; omega)]
+  rw [if_pos (by change 49663 + index.val < 9126124; omega)]
   unfold PilotSpartan.sourceToSpartan
   rw [if_neg (by change ¬49663 + index.val < 49393; omega)]
   rw [if_neg (by change ¬49663 + index.val < 49663; omega)]
@@ -235,11 +235,11 @@ private theorem prior_local_values (target : Env) (index : Nat)
     rfl
   · exact Nat.le_refl _
   · rw [PilotProduction.witnessOffset_eq]
-    change 99060 + (4117 + 1) * 1096 ≤ 9126768
+    change 99060 + (4117 + 1) * 1096 ≤ 9126124
     norm_num
   · change 98786 ≤ 98786
     exact Nat.le_refl _
-  · change 98786 + (4117 + 1) * 1096 ≤ 9126494
+  · change 98786 + (4117 + 1) * 1096 ≤ 9125850
     norm_num
 
 private theorem output_local_values (target : Env) (index : Nat)
@@ -254,11 +254,11 @@ private theorem output_local_values (target : Env) (index : Nat)
   · rw [PilotProduction.lifecycleOutputOffset_eq, PilotProduction.witnessOffset_eq]
     norm_num
   · rw [PilotProduction.lifecycleOutputOffset_eq]
-    change 4612652 + (4117 + 1) * 1096 ≤ 9126768
+    change 4612652 + (4117 + 1) * 1096 ≤ 9126124
     norm_num
   · change 98786 ≤ 4612378
     norm_num
-  · change 4612378 + (4117 + 1) * 1096 ≤ 9126494
+  · change 4612378 + (4117 + 1) * 1096 ≤ 9125850
     norm_num
 
 private theorem variable_word (env : Env) (start count index : Nat)

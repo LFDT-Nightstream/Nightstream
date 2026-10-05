@@ -186,12 +186,12 @@ private theorem late_column (start index : Nat) (late : Spartan.piCcsPhaseOffset
     Spartan.sourceToSpartan (start + index) =
       Spartan.piCcsLocalStart + (start + index - Spartan.piCcsPhaseOffset) := by
   have first : ¬ start + index < Spartan.pilotSourceColumnCount := by
-    change 9156060 ≤ start at late
-    change ¬ start + index < 9126768
+    change 9155416 ≤ start at late
+    change ¬ start + index < 9126124
     omega
   have second : ¬ start + index < Spartan.proofInputSourceStart := by
-    change 9156060 ≤ start at late
-    change ¬ start + index < 9126772
+    change 9155416 ≤ start at late
+    change ¬ start + index < 9126128
     omega
   have third : ¬ start + index < Spartan.piCcsPhaseOffset := by omega
   simp only [Spartan.sourceToSpartan, if_neg first, if_neg second, if_neg third]
@@ -199,29 +199,29 @@ private theorem late_column (start index : Nat) (late : Spartan.piCcsPhaseOffset
 /-- The constants are the proved selected starts after Spartan's column
 permutation. One constant/index read, add, and return execute here. -/
 private def parentColumn (coordinate : Fin 1188) : Result Nat :=
-  ⟨12238055 + coordinate.val, 4⟩
+  ⟨12237411 + coordinate.val, 4⟩
 
 private theorem parentColumn_value (coordinate : Fin 1188) :
     (parentColumn coordinate).value =
       Spartan.sourceToSpartan (PiDECSourceSupport.parentCommitmentStart + coordinate.val) := by
   rw [late_column _ _ (by rw [PiDECSourceSupport.parentCommitmentStart_eq]; decide)]
   rw [PiDECSourceSupport.parentCommitmentStart_eq]
-  change 12238055 + coordinate.val = 9155782 + (12238333 + coordinate.val - 9156060)
+  change 12237411 + coordinate.val = 9155138 + (12237689 + coordinate.val - 9155416)
   omega
 
 /-- Two literals, the Fin value read, multiplication, two additions, and
 the Result constructor. The child is already a natural argument. -/
 private def childColumn (coordinate : Fin 1188) (child : Nat) : Result Nat :=
-  ⟨20146589 + child * 1188 + coordinate.val, 7⟩
+  ⟨20122077 + child * 1188 + coordinate.val, 7⟩
 
 private theorem childColumn_value (coordinate : Fin 1188) (child : Fin 16) :
     (childColumn coordinate child.val).value =
       Spartan.sourceToSpartan (PiDECInputs.childCommitmentStart child + coordinate.val) := by
   rw [late_column _ _ (by
-    change 9156060 ≤ 20146867 + child.val * 1188
+    change 9155416 ≤ 20122355 + child.val * 1188
     omega)]
-  change 20146589 + child.val * 1188 + coordinate.val =
-    9155782 + (20146867 + child.val * 1188 + coordinate.val - 9156060)
+  change 20122077 + child.val * 1188 + coordinate.val =
+    9155138 + (20122355 + child.val * 1188 + coordinate.val - 9155416)
   omega
 
 /-- The base charges dispatch, its literal, and Result. A step charges

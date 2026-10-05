@@ -78,7 +78,7 @@ private theorem prior_classify_none (index : Fin Data.priorChain.inputLength) :
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
     PilotSpartan.spartanToSource_sourceToSpartan index.val (by
-      change index.val < 9126768
+      change index.val < 9126124
       omega)]
   simp only [classifySource_none_of_input index.val (Or.inl bound)]
 
@@ -96,7 +96,7 @@ private theorem output_classify_none (index : Fin Data.outputChain.inputLength) 
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
     PilotSpartan.spartanToSource_sourceToSpartan (49663 + index.val) (by
-      change 49663 + index.val < 9126768
+      change 49663 + index.val < 9126124
       omega)]
   simp only [classifySource_none_of_input (49663 + index.val) (Or.inr (by omega))]
 

@@ -14,20 +14,20 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 theorem Leaves.SignedSplitScalar.freshColumnCount_value :
-    Leaves.SignedSplitScalar.freshColumnCount = 66 := by rfl
+    Leaves.SignedSplitScalar.freshColumnCount = 0 := by rfl
 
 theorem Leaves.SignedSplitScalar.physicalRowCount_value :
-    Leaves.SignedSplitScalar.physicalRowCount = 84 := by rfl
+    Leaves.SignedSplitScalar.physicalRowCount = 18 := by rfl
 
 theorem Leaves.SignedSplitScalar.physicalPrivateColumnCount_value :
     Lifecycle.PiDEC.v1_1.SignedSplitScalar.exactPrivateCount +
-      Leaves.SignedSplitScalar.freshColumnCount = 67 := by rfl
+      Leaves.SignedSplitScalar.freshColumnCount = 1 := by rfl
 
 theorem PublicInputSplit.freshColumnCount_value :
-    PublicInputSplit.freshColumnCount = 17820 := by rfl
+    PublicInputSplit.freshColumnCount = 0 := by rfl
 
 theorem PublicInputSplit.physicalRowCount_value :
-    PublicInputSplit.physicalRowCount = 22680 := by rfl
+    PublicInputSplit.physicalRowCount = 4860 := by rfl
 
 theorem CommitmentRecomposition.physicalRowCount_value :
     CommitmentRecomposition.physicalRowCount = 1188 := by rfl
@@ -39,22 +39,22 @@ theorem EvalARecomposition.physicalRowCount_value :
     EvalARecomposition.physicalRowCount = 1512 := by rfl
 
 theorem exactFreshDeltas_value :
-    exactFreshDeltas = [0, 17820, 0, 0, 0, 0] := by rfl
+    exactFreshDeltas = [0, 0, 0, 0, 0, 0] := by rfl
 
 theorem exactRowDeltas_value :
-    exactRowDeltas = [0, 22680, 1188, 108, 1512, 0] := by rfl
+    exactRowDeltas = [0, 4860, 1188, 108, 1512, 0] := by rfl
 
 theorem exactPhysicalColumnDeltas_value :
-    exactPhysicalColumnDeltas = [0, 18090, 0, 0, 0, 0] := by rfl
+    exactPhysicalColumnDeltas = [0, 270, 0, 0, 0, 0] := by rfl
 
-theorem exactFreshCount_value : exactFreshCount = 17820 := by rfl
+theorem exactFreshCount_value : exactFreshCount = 0 := by rfl
 
-theorem exactRowCount_value : exactRowCount = 25488 := by rfl
+theorem exactRowCount_value : exactRowCount = 7668 := by rfl
 
 theorem exactPrivateCount_value :
-    Formal.logicalPrivateCount + exactFreshCount = 18090 := by
+    Formal.logicalPrivateCount + exactFreshCount = 270 := by
   rw [exactFreshCount_value]
-  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 17820 = 18090
+  change Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount + 0 = 270
   rw [Lifecycle.PiDEC.v1_1.PublicInputSplit.exactPrivateCount_eq]
 
 variable {logicalWidth : Nat}
@@ -66,11 +66,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 22680, 23868, 23976, 25488, 25488] ∧
+        [0, 4860, 6048, 6156, 7668, 7668] ∧
       cumulativePhysicalColumns relation interface offset =
-        [0, 18090, 18090, 18090, 18090, 18090] ∧
+        [0, 270, 270, 270, 270, 270] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 22680, 23868, 23976, 25488, 25488] := by
+        [0, 4860, 6048, 6156, 7668, 7668] := by
   norm_num [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs, exactRowDeltas_value,
     cumulativePhysicalColumns,

@@ -15,13 +15,13 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 def sourceCount : Nat := PiRLCSamplerInvocations.sourceCount
 def logicalCountPerSource : Nat := 617
-def freshCountPerSource : Nat := 1548
+def freshCountPerSource : Nat := 144
 def logicalSlotCount : Nat := sourceCount * logicalCountPerSource
 def freshSlotCount : Nat := sourceCount * freshCountPerSource
 
 @[simp] theorem sourceCount_eq : sourceCount = 17 := rfl
 @[simp] theorem logicalSlotCount_eq : logicalSlotCount = 10489 := rfl
-@[simp] theorem freshSlotCount_eq : freshSlotCount = 26316 := rfl
+@[simp] theorem freshSlotCount_eq : freshSlotCount = 2448 := rfl
 
 def logicalSlot (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     Fin logicalSlotCount := Fin.encodeProd (source, position)
@@ -81,7 +81,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
     (logicalBlock program).slotCount = 10489 := rfl
 
 @[simp] theorem freshBlock_slotCount (program : Lifecycle.Stage1.Application.Program) :
-    (freshBlock program).slotCount = 26316 := rfl
+    (freshBlock program).slotCount = 2448 := rfl
 
 theorem logicalBlock_source (program : Lifecycle.Stage1.Application.Program)
     (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
@@ -105,15 +105,15 @@ theorem freshBlock_source (program : Lifecycle.Stage1.Application.Program)
   rw [logicalSlotCount_eq]
 
 @[simp] theorem freshBlock_coordinateCount (program : Lifecycle.Stage1.Application.Program) :
-    (freshBlock program).coordinateCount = 1078956 := by
-  change freshSlotCount * 41 = 1078956
+    (freshBlock program).coordinateCount = 100368 := by
+  change freshSlotCount * 41 = 100368
   rw [freshSlotCount_eq]
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (logicalBlock program).coordinateCount + (freshBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 1509005 := by
+    retainedCoordinateCount program = 530417 := by
   unfold retainedCoordinateCount
   rw [logicalBlock_coordinateCount, freshBlock_coordinateCount]
 

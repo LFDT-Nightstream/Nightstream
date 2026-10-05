@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
+import NightstreamFPrime.Export.ParallelLines
 
 /-!
 Read the independently replayed PiRLC parent for indexed PiDEC evaluation.
@@ -46,10 +47,25 @@ private def decodeBlock (line : String) :
       else throw "expected 54 parent coefficients"
   | _ => throw "expected parent block and coefficient array"
 
+/-- One decoded line of a parent range file. -/
+private inductive ParentLine where
+  | header (line : String)
+  | terminator
+  | block (record : Except String (Nat × Vector Int ringDegree))
+
+instance : Inhabited ParentLine := ⟨.terminator⟩
+
+/-- Decode one range file on the configured worker threads, then check its
+header, the increasing record order, the terminator and the end of the file. -/
 private def readRange (path : System.FilePath) :
     IO (Nat × Nat × Array (Vector Int ringDegree) × Nat) := do
-  let input ← IO.FS.Handle.mk path .read
-  let headerLine ← input.getLine
+  let lines : Array (Nat × ParentLine) ←
+    ParallelLines.decode path (← ParallelChunks.workers) fun offset line =>
+      if offset == 0 then ParentLine.header line
+      else if line.trimAscii.toString == "[]" then ParentLine.terminator
+      else ParentLine.block (decodeBlock line)
+  let some (_, ParentLine.header headerLine) := lines[0]?
+    | throw (IO.userError "missing Lean PiRLC range header")
   let header ← checked do
     (← (← Lean.Json.parse headerLine).getArr?).toList.mapM Lean.Json.getNat?
   let (blocks, first, last) ← match header with
@@ -63,48 +79,33 @@ private def readRange (path : System.FilePath) :
   let mut next := first
   let mut records := 0
   let mut complete := false
-  while !complete do
-    let line ← input.getLine
-    if line.isEmpty then throw (IO.userError "missing parent terminator")
-    if line.trimAscii.toString == "[]" then complete := true
-    else
-      let (block, coefficients) ← checked (decodeBlock line)
-      unless next ≤ block && block < last do
-        throw (IO.userError "duplicate or out-of-range parent block")
-      values := values.set! (block - first) coefficients
-      next := block + 1
-      records := records + 1
-  unless (← input.getLine).isEmpty do
-    throw (IO.userError "extra data after parent terminator")
+  for (_, line) in lines[1:] do
+    if complete then throw (IO.userError "extra data after parent terminator")
+    match line with
+    | ParentLine.terminator => complete := true
+    | ParentLine.block record =>
+        let (block, coefficients) ← checked record
+        unless next ≤ block && block < last do
+          throw (IO.userError "duplicate or out-of-range parent block")
+        values := values.set! (block - first) coefficients
+        next := block + 1
+        records := records + 1
+    | ParentLine.header _ => throw (IO.userError "unexpected parent range header")
+  unless complete do throw (IO.userError "missing parent terminator")
   return (first, last, values, records)
 
-/-- Retain one parent, with complete contiguous coverage. Parallel range
-decoding uses the existing Lean runtime worker count; concatenation retains
-the supplied canonical order. No Rust witness or evaluation is read here. -/
+/-- Read the ordered range files one at a time; each file is decoded in parallel. -/
 def read (paths : List String) : IO (ParentBlocks × Nat) := do
-  let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  let mut pending : Array (Task (Except IO.Error
-    (Nat × Nat × Array (Vector Int ringDegree) × Nat))) := #[]
   let mut complete : Array (Vector Int ringDegree) := #[]
   let mut cursor := 0
   let mut records := 0
-  let mut remaining := paths
-  while !remaining.isEmpty do
-    let batch := remaining.take workers
-    remaining := remaining.drop workers
-    for path in batch do
-      pending := pending.push (← IO.asTask (readRange path))
-    for task in pending do
-      let result ← IO.wait task
-      let (first, last, values, count) ← match result with
-        | .ok value => pure value
-        | .error error => throw error
-      unless first = cursor && values.size = last - first do
-        throw (IO.userError "parent ranges have a gap, overlap or wrong length")
-      complete := complete ++ values
-      cursor := last
-      records := records + count
-    pending := #[]
+  for path in paths do
+    let (first, last, values, count) ← readRange path
+    unless first = cursor && values.size = last - first do
+      throw (IO.userError "parent ranges have a gap, overlap or wrong length")
+    complete := complete ++ values
+    cursor := last
+    records := records + count
   unless cursor = Poseidon2HashChainV1Setup.messageColumns do
     throw (IO.userError "parent ranges do not cover the complete carrier")
   if size : complete.size = Poseidon2HashChainV1Setup.messageColumns then

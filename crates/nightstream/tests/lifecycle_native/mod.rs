@@ -515,3 +515,4 @@ mod matrix_workspace;
 mod recursive;
 
 mod staged;
+mod terminal_sweep;

@@ -210,3 +210,17 @@ fn ajtai_s_linearity_positive_control() {
     let rhs = commit(&pp, &Z_lin);
     assert_eq!(lhs, rhs, "S-linearity must hold (positive control)");
 }
+
+#[test]
+fn ajtai_public_parameters_reject_a_short_row() {
+    // A missing key column would act as zero and let a witness column change freely.
+    let element = RqEl(core::array::from_fn(|_| Fq::ONE));
+    assert!(PP::new(D, 1, 2, vec![vec![element]]).is_err());
+    assert!(PP::new(D, 1, 2, vec![vec![element, element]]).is_ok());
+}
+
+#[test]
+fn ajtai_public_parameters_reject_zero_rank() {
+    // Rank zero maps every witness to the same empty commitment.
+    assert!(PP::<RqEl>::new(D, 0, 1, Vec::new()).is_err());
+}

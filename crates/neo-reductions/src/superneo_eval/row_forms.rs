@@ -29,6 +29,11 @@ impl SuperneoMatrixCache {
         );
         let rows = first_row..first_row + out.len();
 
+        if !self.identity && self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
+            out.fill(K::ZERO);
+            return;
+        }
+
         if self.identity {
             for (row, out_row) in rows.clone().zip(out.iter_mut()) {
                 let block = row / D;
@@ -68,6 +73,11 @@ impl SuperneoMatrixCache {
             z_blocks.imag_all_zero,
             "SuperneoMatrixCache::fill_row_dots_base_with_blocks expects a real witness"
         );
+
+        if !self.identity && self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
+            out.fill(F::ZERO);
+            return;
+        }
 
         if self.identity {
             for (row, out_row) in out.iter_mut().enumerate() {
@@ -142,6 +152,20 @@ impl SuperneoMatrixCache {
         weight: impl Fn(usize) -> K,
     ) {
         debug_assert!(row_cap <= self.rows);
+        if self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
+            if self.identity {
+                let blocks = part.blocks();
+                let start = blocks.start.saturating_mul(D).min(row_cap);
+                let end = blocks.end.saturating_mul(D).min(row_cap);
+                for row in start..end {
+                    let [real, imaginary] = weight(row).as_coeffs();
+                    if real != F::ZERO || imaginary != F::ZERO {
+                        part.add_coefficient(row / D, row % D, real, imaginary);
+                    }
+                }
+            }
+            return;
+        }
         // Runs with one shared ratio become start and end events; a single
         // sweep turns them into run sums before any other entry is added.
         let event_ratio = self.event_ratio();

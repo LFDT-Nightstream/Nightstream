@@ -70,8 +70,16 @@ jobs:
     - name: Run packed witness tests
       run: timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
 
+    - name: Run fixed-key arithmetic tests
+      run: |
+        timeout --signal=KILL 300 cargo test -p neo-math --release --test signed_sums
+        timeout --signal=KILL 300 cargo test -p neo-ajtai --release --lib key::tests
+        timeout --signal=KILL 300 cargo test -p neo-ajtai --release --test nightstream_fprime_setup_parity --test nightstream_fprime_signed_commitment --test nightstream_fprime_prefix_commitment --test nightstream_fprime_matrix_commitment --test nightstream_fprime_batch_commitment
+
     - name: Run matrix row tests
-      run: timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+      run: |
+        timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+        timeout --signal=KILL 300 cargo test -p neo-reductions --release --lib superneo_eval::openings::tests::
 
     - name: Run application record and recipe stack tests
       run: timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records

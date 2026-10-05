@@ -67,9 +67,9 @@ impl PreparedLifecycle {
         let running = envelope
             .running()
             .ok_or(VerifyError::Statement("missing running payload"))?;
-        let fresh = envelope
-            .fresh()
-            .ok_or(VerifyError::Statement("missing fresh payload"))?;
+        let fresh = envelope.fresh().ok_or(VerifyError::Statement(
+            "the selected profile requires one fresh instance",
+        ))?;
         if running.claims.len() != PI_DEC_V1_1_CHILD_COUNT || running.witnesses.len() != PI_DEC_V1_1_CHILD_COUNT {
             return Err(VerifyError::Statement(
                 "running claim or witness count differs from the selected profile",

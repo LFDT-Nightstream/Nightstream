@@ -40,6 +40,12 @@ impl Stage1Envelope {
         }
     }
 
+    /// Rebuild an envelope from changed parts for field-level terminal tests.
+    #[cfg(test)]
+    pub(super) fn from_state_and_proof(state: Stage1State, proof: ProofState) -> Self {
+        Self { state, proof }
+    }
+
     /// The exact bottom case has zero iterations and no running or fresh proof.
     pub(crate) fn initial(z0: [F; 4]) -> Self {
         Self {
@@ -56,10 +62,12 @@ impl Stage1Envelope {
         self.proof.running()
     }
 
+    /// The one fresh instance; `None` for any other instance count.
     pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        self.proof
-            .latest()
-            .and_then(|latest| latest.instances.first())
+        match self.proof.latest()?.instances.as_slice() {
+            [fresh] => Some(fresh),
+            _ => None,
+        }
     }
 
     pub(crate) fn is_initial(&self) -> bool {

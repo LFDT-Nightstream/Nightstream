@@ -13,6 +13,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 
+mod zero_running;
+
 fn identity_left(n: usize, m: usize) -> Mat<F> {
     let mut matrix = Mat::zero(n, m, F::ZERO);
     for index in 0..n.min(m) {
@@ -28,6 +30,7 @@ struct HonestProof {
     params: NeoParams,
     structure: CcsStructure<F>,
     claim: CcsClaim<Commitment, F>,
+    running: Vec<OutputClaim>,
     outputs: Vec<OutputClaim>,
     proof: PiCcsProof,
 }
@@ -61,6 +64,8 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         Z: z,
     };
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, 0);
+
     let mut prover_transcript = Poseidon2Transcript::new(label);
     let (outputs, proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
@@ -69,8 +74,8 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         &structure,
         core::slice::from_ref(&claim),
         core::slice::from_ref(&witness),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &commitment_scheme,
     )
     .expect("honest proof");
@@ -80,6 +85,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         params,
         structure,
         claim,
+        running,
         outputs,
         proof,
     }
@@ -93,7 +99,7 @@ fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProo
         &fixture.params,
         &fixture.structure,
         core::slice::from_ref(&fixture.claim),
-        &[],
+        &fixture.running,
         outputs,
         proof,
     )

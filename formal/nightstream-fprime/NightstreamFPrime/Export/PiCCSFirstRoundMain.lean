@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedProductStates
 import NightstreamFPrime.Export.ParallelChunks
 import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
@@ -392,7 +393,7 @@ private def carriedRows (program : MatrixProgram.Program)
             let some interface := PiDECProductInterface.interface? product
                 PiCCSSourceImages.logicalWidth descriptor
               | throw (IO.userError "carried product interface failed to load")
-            let values := PiCCSCarriedReadCache.productInvocation basis blocks interface
+            let values := PiCCSCarriedProductStates.invocation basis blocks interface
             let row : Fin 108 := ⟨localRow % 108, Nat.mod_lt _ (by decide)⟩
             let some value := values.get row
               | throw (IO.userError "carried product row failed to load")

@@ -5,6 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
@@ -93,6 +94,19 @@ slice do not depend on the child, so they are prepared once. -/
   let prepared := PiDECMatrixWeightedRange.prepare (firstRow + lo) point (forms.extract lo hi)
   Vector.ofFn fun child =>
     if active child then PiDECMatrixWeightedRange.evaluate prepared (read child)
+    else PiDECEvaluationBatch.zero matrixCount
+
+/-- Every active child of one slice of Poseidon invocations. The column weights
+of the slice do not depend on the child, so they are prepared once. -/
+@[specialize] private def poseidonChildren {columns arity count children : Nat}
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
+    (interfaces : Vector (ProductionRelation.PoseidonSboxPlan.Interface columns) count)
+    (lo hi : Nat) : Vector (Vector MaterializedRingK matrixCount) children :=
+  let prepared := PiDECPoseidonColumnWeights.prepare (firstRow + 150 * lo) point
+    (interfaces.extract lo hi)
+  Vector.ofFn fun child =>
+    if active child then PiDECPoseidonColumnWeights.evaluate prepared (read child)
     else PiDECEvaluationBatch.zero matrixCount
 
 private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
@@ -197,9 +211,9 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
                   block logicalWidth ⟨firstRow / 150 + index.val, invBound⟩
                 | throw (IO.userError "selected invocation interface rejected")
               pure interface
-            pure (invocations, fun lo hi child =>
-              PiDECMatrixInvocationRange.sum (first + 150 * lo) phase.point (readChild child)
-                (interfaces.extract lo hi), none)
+            let all := fun lo hi =>
+              poseidonChildren first phase.point readChild active interfaces lo hi
+            pure (invocations, fun lo hi child => (all lo hi).get child, some all)
         | .phi81Product block => do
             if aligned : firstRow % 108 = 0 ∧ lastRow % 108 = 0 then
               let invocations := lastRow / 108 - firstRow / 108

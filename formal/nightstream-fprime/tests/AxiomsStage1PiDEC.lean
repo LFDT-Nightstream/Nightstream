@@ -82,6 +82,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
 /-! Axiom audits for the strict production PiDEC public split. -/
 
@@ -631,6 +632,10 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange.evaluate_prepare_toRing
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalPair_eq_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation.nativeEvalTriple_eq_spec
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.externalT_dot
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.internalT_dot
+#audit_axioms NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights.evaluate_prepare_toRing
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedIntSparseRange_eq_range
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECProductRow.blockRow?_of_grouped_loaded
 #audit_axioms NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch.selectedCachedBlockRow_eq_program

@@ -633,6 +633,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.sparse_isZero_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_isZero_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocationsWeighted_source_port
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocationsWeighted_isZero_source_port
 
 -- Selected original-source carried values and complete first-round coefficients.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.matrix_sourceProtocolData

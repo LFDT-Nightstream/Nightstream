@@ -305,6 +305,7 @@ impl LoadedPerApplicationPackage {
             self.logical_column_count(),
             &self.relation_value_words,
             &self.application_identity,
+            super::matrix_program::formula_digest()?,
         )
     }
 

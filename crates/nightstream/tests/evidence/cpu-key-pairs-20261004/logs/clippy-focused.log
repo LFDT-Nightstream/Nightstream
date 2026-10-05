@@ -1,0 +1,18 @@
+    Checking neo-params v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-params)
+    Checking neo-math v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-math)
+    Checking neo-ccs v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ccs)
+    Checking neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+error: manual implementation of `.is_multiple_of()`
+  --> crates/neo-ajtai/src/s_module.rs:79:8
+   |
+79 |     if z_len % d != 0 {
+   |        ^^^^^^^^^^^^^^ help: replace with: `!z_len.is_multiple_of(d)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_is_multiple_of
+   = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: could not compile `neo-ajtai` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `neo-ajtai` (lib) due to 1 previous error
+error: could not compile `neo-ajtai` (lib test) due to 1 previous error

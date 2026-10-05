@@ -1,0 +1,12 @@
+
+running 1 test
+staged request=Successor { directory: "/private/tmp/nightstream-rust-38s-20261004/native", step: 1, engine: Optimized }
+staged circuit preparation elapsed=8.899275833s
+native caller and complete physical export elapsed=434.215959ms
+complete physical witness elapsed=307.175167ms
+complete logical packing elapsed=198.510791ms
+complete child and fresh commitments elapsed=5.156591875s
+staged phase passed elapsed=15.59589975s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 15.60s

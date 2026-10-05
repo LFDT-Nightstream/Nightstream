@@ -97,7 +97,7 @@ fn evaluate_rows(
         ));
     }
     let weights = EqualityWeights::new(point);
-    let mut result = pad_openings(witnesses, &weights)
+    let mut result = pad_openings(witnesses, point)
         .into_iter()
         .map(|eval_k| V1_1Evaluations {
             eval_k: eval_k.to_vec(),

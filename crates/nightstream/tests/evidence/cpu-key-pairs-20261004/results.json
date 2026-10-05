@@ -1,0 +1,632 @@
+{
+  "baseline_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+  "baseline_evidence": "/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_",
+  "local_full_evidence": "/tmp/nightstream-rust-2x-20261004",
+  "host": {
+    "source_commit": "5d79b19d643cbef4f3199d04764bc26587d2769f",
+    "checkout": "/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)\nbinary: rustc\ncommit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1\ncommit-date: 2026-03-25\nhost: aarch64-apple-darwin\nrelease: 1.94.1\nLLVM version: 21.1.8\n",
+    "os": "macOS-27.0.1-arm64-arm-64bit",
+    "engine": "optimized",
+    "steps": 4,
+    "minimum_security_bits": 114,
+    "timing_scope": "record build and package preparation separately; measure load, base, three extends and terminal verification; separately measure staged native folds",
+    "hw.model": "Mac17,6",
+    "hw.ncpu": "18",
+    "hw.memsize": "137438953472",
+    "machdep.cpu.brand_string": "Apple M5 Max"
+  },
+  "baseline_seconds": [
+    77.63382075,
+    78.342498833,
+    74.449617583
+  ],
+  "baseline_median_seconds": 77.63382075,
+  "candidate_runs": [
+    {
+      "seconds": 61.638413,
+      "rss_bytes": 8667840512,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.137528083,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.287522333,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 12.347748334,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 16.122449833,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 17.08020325,
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 11.662623917,
+          "step": 4
+        }
+      ],
+      "circuit_identity": [
+        7548990011328446471,
+        17135259440128128963,
+        5831077210202460744,
+        9417456504682884501
+      ],
+      "final_state": [
+        7438437859755310059,
+        1083179110255594462,
+        14574150336961053564,
+        911795658819924022
+      ]
+    },
+    {
+      "seconds": 60.30794875,
+      "rss_bytes": 8693792768,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.119708084,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.225012958,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 12.0733285,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.604485375,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 16.775321958,
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 11.509748625,
+          "step": 4
+        }
+      ],
+      "circuit_identity": [
+        7548990011328446471,
+        17135259440128128963,
+        5831077210202460744,
+        9417456504682884501
+      ],
+      "final_state": [
+        7438437859755310059,
+        1083179110255594462,
+        14574150336961053564,
+        911795658819924022
+      ]
+    },
+    {
+      "seconds": 60.076042542,
+      "rss_bytes": 8677048320,
+      "phases": [
+        {
+          "event": "phase_finished",
+          "phase": "load",
+          "seconds": 1.119707333,
+          "step": null
+        },
+        {
+          "event": "phase_finished",
+          "phase": "prove",
+          "seconds": 3.256977333,
+          "step": 1
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 12.0949965,
+          "step": 2
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 15.62259275,
+          "step": 3
+        },
+        {
+          "event": "phase_finished",
+          "phase": "extend",
+          "seconds": 16.579843,
+          "step": 4
+        },
+        {
+          "event": "phase_finished",
+          "phase": "verify",
+          "seconds": 11.401615708,
+          "step": 4
+        }
+      ],
+      "circuit_identity": [
+        7548990011328446471,
+        17135259440128128963,
+        5831077210202460744,
+        9417456504682884501
+      ],
+      "final_state": [
+        7438437859755310059,
+        1083179110255594462,
+        14574150336961053564,
+        911795658819924022
+      ]
+    }
+  ],
+  "candidate_median_seconds": 60.30794875,
+  "speedup": 1.2872900232740878,
+  "two_x_target_seconds": 38.816910375,
+  "two_x_target_met": false,
+  "source_sha256": {
+    "Cargo.lock": "ed8772a0e258d11ad3057beaeeaec6d2137747ed900a2a85d4f3b490df922310",
+    "crates/neo-ajtai/Cargo.toml": "9d673da21311fab943e130db81ed823a813f52ce00305267ecc67159d1bc10ae",
+    "crates/neo-ajtai/src/nightstream_fprime_setup.rs": "402223574d0a4b4237b19c3a42950c6cc3064b60af7f46206851a4d4cf4277ff",
+    "crates/neo-ajtai/src/nightstream_fprime_setup/key.rs": "5e251ae3c54194da26242c4a691af12d64128216229e2adcfcce8e27b48a09c0",
+    "crates/neo-math/src/signed_sums.rs": "6fa58070d52b0a668c147ab135118e47d261d8d993872aefc5e60ddf845d36e8",
+    "crates/neo-ajtai/tests/unit/key_pair.rs": "bf1b3f36e027c6b9d5253368b2761fe8acd5862bf8fc2c923a5fa6f6a3beac46"
+  },
+  "hash_scope": "file custody only; correctness comparisons above used actual bytes and production verification",
+  "compared_files": [
+    {
+      "file": "fold-1/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-1/actual_result.json",
+      "bytes": 829656
+    },
+    {
+      "file": "fold-1/pi_ccs_input.json",
+      "bytes": 258817
+    },
+    {
+      "file": "fold-1/children.json",
+      "bytes": 337206
+    },
+    {
+      "file": "fold-1/caller-inputs.json",
+      "bytes": 825749
+    },
+    {
+      "file": "fold-1/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-1/digit-0.json",
+      "bytes": 44848379
+    },
+    {
+      "file": "fold-1/digit-1.json",
+      "bytes": 44664820
+    },
+    {
+      "file": "fold-1/digit-2.json",
+      "bytes": 43837686
+    },
+    {
+      "file": "fold-1/digit-3.json",
+      "bytes": 42332184
+    },
+    {
+      "file": "fold-1/digit-4.json",
+      "bytes": 30564320
+    },
+    {
+      "file": "fold-1/digit-5.json",
+      "bytes": 6681221
+    },
+    {
+      "file": "fold-1/digit-6.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-1/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-2/actual_result.json",
+      "bytes": 1366971
+    },
+    {
+      "file": "fold-2/pi_ccs_input.json",
+      "bytes": 544971
+    },
+    {
+      "file": "fold-2/children.json",
+      "bytes": 377185
+    },
+    {
+      "file": "fold-2/caller-inputs.json",
+      "bytes": 1191864
+    },
+    {
+      "file": "fold-2/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-2/digit-0.json",
+      "bytes": 46577846
+    },
+    {
+      "file": "fold-2/digit-1.json",
+      "bytes": 46499926
+    },
+    {
+      "file": "fold-2/digit-2.json",
+      "bytes": 46280263
+    },
+    {
+      "file": "fold-2/digit-3.json",
+      "bytes": 45805622
+    },
+    {
+      "file": "fold-2/digit-4.json",
+      "bytes": 44477512
+    },
+    {
+      "file": "fold-2/digit-5.json",
+      "bytes": 33690027
+    },
+    {
+      "file": "fold-2/digit-6.json",
+      "bytes": 6989659
+    },
+    {
+      "file": "fold-2/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-2/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/proof.native",
+      "bytes": 945983
+    },
+    {
+      "file": "fold-3/actual_result.json",
+      "bytes": 1460796
+    },
+    {
+      "file": "fold-3/pi_ccs_input.json",
+      "bytes": 601788
+    },
+    {
+      "file": "fold-3/children.json",
+      "bytes": 374549
+    },
+    {
+      "file": "fold-3/caller-inputs.json",
+      "bytes": 1243408
+    },
+    {
+      "file": "fold-3/physical.bin",
+      "bytes": 162068216
+    },
+    {
+      "file": "fold-3/digit-0.json",
+      "bytes": 49099739
+    },
+    {
+      "file": "fold-3/digit-1.json",
+      "bytes": 49016923
+    },
+    {
+      "file": "fold-3/digit-2.json",
+      "bytes": 48785198
+    },
+    {
+      "file": "fold-3/digit-3.json",
+      "bytes": 48304409
+    },
+    {
+      "file": "fold-3/digit-4.json",
+      "bytes": 46567139
+    },
+    {
+      "file": "fold-3/digit-5.json",
+      "bytes": 35704458
+    },
+    {
+      "file": "fold-3/digit-6.json",
+      "bytes": 7238164
+    },
+    {
+      "file": "fold-3/digit-7.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-8.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-9.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-10.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-11.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-12.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-13.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-14.json",
+      "bytes": 91
+    },
+    {
+      "file": "fold-3/digit-15.json",
+      "bytes": 91
+    },
+    {
+      "file": "step-1/envelope.json",
+      "bytes": 1121645
+    },
+    {
+      "file": "step-1/fresh-claim.json",
+      "bytes": 39428
+    },
+    {
+      "file": "step-1/fresh-witness.json",
+      "bytes": 45261048
+    },
+    {
+      "file": "step-2/envelope.json",
+      "bytes": 1446032
+    },
+    {
+      "file": "step-2/fresh-claim.json",
+      "bytes": 39422
+    },
+    {
+      "file": "step-2/fresh-witness.json",
+      "bytes": 46720362
+    },
+    {
+      "file": "step-3/envelope.json",
+      "bytes": 1487991
+    },
+    {
+      "file": "step-3/fresh-claim.json",
+      "bytes": 39425
+    },
+    {
+      "file": "step-3/fresh-witness.json",
+      "bytes": 49230630
+    },
+    {
+      "file": "step-4/envelope.json",
+      "bytes": 1485410
+    },
+    {
+      "file": "step-4/fresh-claim.json",
+      "bytes": 39426
+    },
+    {
+      "file": "step-4/fresh-witness.json",
+      "bytes": 49331940
+    }
+  ],
+  "native_checks": [
+    {
+      "phase": "base",
+      "step": null,
+      "seconds": 12.497297763824463,
+      "rss_bytes": 4237803520,
+      "exit": 0
+    },
+    {
+      "phase": "prove",
+      "step": 1,
+      "seconds": 18.39503812789917,
+      "rss_bytes": 8699559936,
+      "exit": 0
+    },
+    {
+      "phase": "successor",
+      "step": 1,
+      "seconds": 15.549097061157227,
+      "rss_bytes": 4539760640,
+      "exit": 0
+    },
+    {
+      "phase": "prove",
+      "step": 2,
+      "seconds": 23.600311040878296,
+      "rss_bytes": 9333178368,
+      "exit": 0
+    },
+    {
+      "phase": "successor",
+      "step": 2,
+      "seconds": 16.79340386390686,
+      "rss_bytes": 4597334016,
+      "exit": 0
+    },
+    {
+      "phase": "prove",
+      "step": 3,
+      "seconds": 24.937317848205566,
+      "rss_bytes": 9524281344,
+      "exit": 0
+    },
+    {
+      "phase": "successor",
+      "step": 3,
+      "seconds": 17.780205011367798,
+      "rss_bytes": 4538777600,
+      "exit": 0
+    },
+    {
+      "phase": "terminal",
+      "step": 4,
+      "seconds": 23.06594491004944,
+      "rss_bytes": 7792787456,
+      "exit": 0
+    },
+    {
+      "phase": "mutation",
+      "step": 4,
+      "seconds": 12.931121110916138,
+      "rss_bytes": 4029464576,
+      "exit": 0
+    },
+    {
+      "phase": "reject",
+      "step": 4,
+      "seconds": 22.026968240737915,
+      "rss_bytes": 7828406272,
+      "exit": 0
+    },
+    {
+      "phase": "opening-k-prepare",
+      "step": 4,
+      "seconds": 16.65062189102173,
+      "rss_bytes": 4540858368,
+      "exit": 0
+    },
+    {
+      "phase": "opening-k",
+      "step": 4,
+      "seconds": 21.884014129638672,
+      "rss_bytes": 7806943232,
+      "exit": 0
+    },
+    {
+      "phase": "opening-a-prepare",
+      "step": 4,
+      "seconds": 16.695860862731934,
+      "rss_bytes": 4613668864,
+      "exit": 0
+    },
+    {
+      "phase": "opening-a",
+      "step": 4,
+      "seconds": 22.029026985168457,
+      "rss_bytes": 7737131008,
+      "exit": 0
+    }
+  ],
+  "portable_backend_test": {
+    "command": "RUSTFLAGS='--cfg keccak_backend=\"soft\"' cargo test -p neo-ajtai --release --locked --lib key::tests --target-dir /tmp/nightstream-rust-2x-20261004/scalar-target",
+    "exit": 0
+  },
+  "new_lean_validation": false,
+  "independent_reviewer": false,
+  "broad_clippy": {
+    "exit": 101,
+    "pre_existing_failure": "crates/neo-ccs/src/sparse.rs:73 clippy::manual_contains; source unchanged from baseline"
+  },
+  "focused_clippy": {
+    "exit": 101,
+    "pre_existing_failure": "crates/neo-ajtai/src/s_module.rs:79 clippy::manual_is_multiple_of; source unchanged from baseline"
+  },
+  "format_check": "passed",
+  "diff_check": "passed"
+}

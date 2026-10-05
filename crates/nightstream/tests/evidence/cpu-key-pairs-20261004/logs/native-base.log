@@ -1,0 +1,11 @@
+
+running 1 test
+staged request=Base { directory: "/private/tmp/nightstream-rust-2x-20261004/native", engine: Optimized }
+staged circuit preparation elapsed=8.907058708s
+complete physical witness elapsed=314.71ms
+complete logical packing elapsed=186.911041ms
+complete child and fresh commitments elapsed=2.684364875s
+staged phase passed elapsed=12.282315s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 12.28s

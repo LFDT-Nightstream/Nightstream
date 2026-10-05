@@ -1,0 +1,136 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:47:41
+   |
+47 |                 let (left, left_tail) = F::Packing::pack_slice_with_suffix_mut(left);
+   |                                         ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+47 -                 let (left, left_tail) = F::Packing::pack_slice_with_suffix_mut(left);
+47 +                 let (left, left_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix_mut(left);
+   |
+
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:48:43
+   |
+48 |                 let (right, right_tail) = F::Packing::pack_slice_with_suffix_mut(right);
+   |                                           ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+48 -                 let (right, right_tail) = F::Packing::pack_slice_with_suffix_mut(right);
+48 +                 let (right, right_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix_mut(right);
+   |
+
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:49:43
+   |
+49 |                 let (roots, roots_tail) = F::Packing::pack_slice_with_suffix(&self.forward[N - width..N - width / 2]);
+   |                                           ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+49 -                 let (roots, roots_tail) = F::Packing::pack_slice_with_suffix(&self.forward[N - width..N - width / 2]);
+49 +                 let (roots, roots_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix(&self.forward[N - width..N - width / 2]);
+   |
+
+error[E0282]: type annotations needed
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:50:39
+   |
+50 |                 for ((a, b), root) in left.iter_mut().zip(right).zip(roots) {
+   |                                       ^^^^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:55:39
+   |
+55 |                 for ((a, b), root) in left_tail.iter_mut().zip(right_tail).zip(roots_tail) {
+   |                                       ^^^^^^^^^ cannot infer type
+
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:70:41
+   |
+70 |                 let (left, left_tail) = F::Packing::pack_slice_with_suffix_mut(left);
+   |                                         ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+70 -                 let (left, left_tail) = F::Packing::pack_slice_with_suffix_mut(left);
+70 +                 let (left, left_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix_mut(left);
+   |
+
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:71:43
+   |
+71 |                 let (right, right_tail) = F::Packing::pack_slice_with_suffix_mut(right);
+   |                                           ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+71 -                 let (right, right_tail) = F::Packing::pack_slice_with_suffix_mut(right);
+71 +                 let (right, right_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix_mut(right);
+   |
+
+error[E0223]: ambiguous associated type
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:72:43
+   |
+72 |                 let (roots, roots_tail) = F::Packing::pack_slice_with_suffix(&self.inverse[N - width..N - width / 2]);
+   |                                           ^^^^^^^^^^
+   |
+help: use fully-qualified syntax
+   |
+72 -                 let (roots, roots_tail) = F::Packing::pack_slice_with_suffix(&self.inverse[N - width..N - width / 2]);
+72 +                 let (roots, roots_tail) = <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_with_suffix(&self.inverse[N - width..N - width / 2]);
+   |
+
+error[E0282]: type annotations needed
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:73:39
+   |
+73 |                 for ((a, b), root) in left.iter_mut().zip(right).zip(roots) {
+   |                                       ^^^^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:78:39
+   |
+78 |                 for ((a, b), root) in left_tail.iter_mut().zip(right_tail).zip(roots_tail) {
+   |                                       ^^^^^^^^^ cannot infer type
+
+error[E0223]: ambiguous associated type
+   --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:156:60
+    |
+156 | ...                   for ((sum, key), value) in F::Packing::pack_slice_mut(&mut sums[row * count + witness])
+    |                                                  ^^^^^^^^^^
+    |
+help: use fully-qualified syntax
+    |
+156 -                                 for ((sum, key), value) in F::Packing::pack_slice_mut(&mut sums[row * count + witness])
+156 +                                 for ((sum, key), value) in <p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice_mut(&mut sums[row * count + witness])
+    |
+
+error[E0223]: ambiguous associated type
+   --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:158:42
+    |
+158 | ...                   .zip(F::Packing::pack_slice(&key_fft))
+    |                            ^^^^^^^^^^
+    |
+help: use fully-qualified syntax
+    |
+158 -                                     .zip(F::Packing::pack_slice(&key_fft))
+158 +                                     .zip(<p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice(&key_fft))
+    |
+
+error[E0223]: ambiguous associated type
+   --> crates/neo-ajtai/src/../tests/unit/spectral_probe.rs:159:42
+    |
+159 | ...                   .zip(F::Packing::pack_slice(&witnesses_fft[witness][side]))
+    |                            ^^^^^^^^^^
+    |
+help: use fully-qualified syntax
+    |
+159 -                                     .zip(F::Packing::pack_slice(&witnesses_fft[witness][side]))
+159 +                                     .zip(<p3_goldilocks::Goldilocks as p3_field::Field>::Packing::pack_slice(&witnesses_fft[witness][side]))
+    |
+
+Some errors have detailed explanations: E0223, E0282.
+For more information about an error, try `rustc --explain E0223`.
+error: could not compile `neo-ajtai` (lib test) due to 13 previous errors

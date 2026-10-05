@@ -7,7 +7,7 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
 use nightstream_fprime::{
-    load_poseidon2_hash_chain_v1_package, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
+    components::FormulaLibrary, load_poseidon2_hash_chain_v1_package, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY,
     POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER, POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -403,6 +403,9 @@ fn formula_coefficient_change_changes_verification_key() {
     let mut library = read_formula_library();
     let lean = read_lean_binding();
     assert_eq!(independent_formula_digest(&library), lean.formula_digest);
+    let loaded = FormulaLibrary::from_json(&fs::read(formula_library_path()).expect("shared formula library"))
+        .expect("checked shared formula library");
+    assert_eq!(loaded.digest(), lean.formula_digest);
 
     let coefficient = library["components"][0]["variants"][0]["rows"]
         .as_array_mut()

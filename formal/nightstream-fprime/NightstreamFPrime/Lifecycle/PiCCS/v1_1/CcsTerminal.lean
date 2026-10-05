@@ -9,14 +9,14 @@ Obligation: Enforce
 `F = sum_(i=1)^K gamma^(i-1) f(ct(y'_(i,1)), ..., ct(y'_(i,t)))`.
 
 Inputs:
-- all 14 fresh CCS-matrix evaluations for the sole production fresh source;
+- all 7 fresh CCS-matrix evaluations for the sole production fresh source;
 - the relation-owned selective sparse constraint polynomial.
 
 Outputs:
 - the exact symbolic fresh CCS residual term.
 
 Constraint groups:
-- C1: the reusable `Sparse.Owned` polynomial evaluator: 250 stored extension
+- C1: the reusable `Sparse.Owned` polynomial evaluator: 18 stored extension
   products and two result cells.
 
 Parent coverage:
@@ -138,17 +138,17 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   build relation interface env offset assumptions
 
-/-- The 74 production monomials store 250 extension products. -/
+/-- The 8 production monomials store 18 extension products. -/
 theorem productCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    Sparse.Owned.productCount (polynomial relation) = 750 := by
+    Sparse.Owned.productCount (polynomial relation) = 54 := by
   rfl
 
-def privateCount : Nat := 752
-def rowCount : Nat := 752
+def privateCount : Nat := 56
+def rowCount : Nat := 56
 
 theorem localLength_eq
     {logicalWidth : Nat}

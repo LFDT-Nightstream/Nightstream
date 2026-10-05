@@ -65,7 +65,7 @@ def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
   evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
     (forms.portImages assignment)
 
-/-- The complete 74-term polynomial reduces to the selected S-box residual. -/
+/-- The complete 8-term polynomial reduces to the selected S-box residual. -/
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =

@@ -283,9 +283,7 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 
 /-! Axiom audits for the exact production matrix-plan authority. -/
 
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.meaningfulPort?_zeroPort
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.matrixVectorAt_matrix
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.zeroPort_matrix
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.logicalRelation_matrices
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.logicalRelation_system_matrices
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.rowImage_toVertex
@@ -318,18 +316,14 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow.Program.residualAt_live_zero_iff
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial.term_totalDegree_pos
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.polynomial_zeroImages
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.PortValues.get_zeroPort
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_general
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_multiplication
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_boolean
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_sbox
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_centered
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_pin
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.multiplication_zero_of_equal
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_productSum
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.productSum_zero_of_equal
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_canonicalValues
-#audit_axioms NightstreamFPrime.Spec.ProductionRelation.RowSemantics.evaluate_canonicalClass_eq_zero_iff
 #audit_axioms NightstreamFPrime.Layout.BalancedTernary.halfModulus_le_radius
 #audit_axioms NightstreamFPrime.Layout.BalancedTernary.digit_norm
 #audit_axioms NightstreamFPrime.Layout.BalancedTernary.digit_add_three_mul_next

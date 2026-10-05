@@ -19,8 +19,8 @@ const PRIOR_PUBLIC_WORDS: usize = 270;
 const DIGEST_WORDS: usize = 4;
 const PUBLIC_WORDS: usize = PRIOR_PUBLIC_WORDS + DIGEST_WORDS;
 const RUNNING_COUNT: usize = 16;
-const MATRIX_COUNT: usize = 14;
-const RUNNING_GROUP_WORDS: usize = 3_081;
+const MATRIX_COUNT: usize = 7;
+const RUNNING_GROUP_WORDS: usize = 2_325;
 const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
 
 #[derive(Clone, Deserialize)]
@@ -202,7 +202,7 @@ fn fixture_mutation_indices(words: &[u64]) -> Vec<(String, usize)> {
         cursor += 270;
 
         indices.push((format!("source {source} evaluation length prefix"), cursor));
-        expect_prefix(words, &mut cursor, 1_620, "running evaluation");
+        expect_prefix(words, &mut cursor, 864, "running evaluation");
         indices.push((format!("source {source} Eval_K first word"), cursor));
         indices.push((format!("source {source} Eval_K last word"), cursor + 107));
         cursor += 108;
@@ -260,7 +260,7 @@ fn check_zero_running_openings(input: &RawInput) {
         // The zero carrier has norm below b = 2. Its linear commitment,
         // public projection, and separate Pad/matrix evaluations are zero.
         for source in 0..RUNNING_COUNT {
-            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 1_620)] {
+            for (family, length) in [("commitment", 1_188), ("public input", 270), ("evaluations", 864)] {
                 expect_prefix(words, &mut cursor, length, family);
                 assert!(
                     words[cursor..cursor + length].iter().all(|word| *word == 0),

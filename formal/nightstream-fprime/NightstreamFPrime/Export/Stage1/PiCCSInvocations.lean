@@ -900,14 +900,14 @@ theorem outputInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (outputTrace logicalWidth publicFits).invocations.length = 2296 := by
+    (outputTrace logicalWidth publicFits).invocations.length = 1225 := by
   rw [outputTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
     (outputActions logicalWidth publicFits)
   have fixed := OutputBinding.recipeCount_eq
     (outputInterface logicalWidth publicFits) outputWitnessStart
   change Formal.recipeCount (outputActions logicalWidth publicFits) =
-    2516416 at fixed
+    1342600 at fixed
   rw [fixed] at compiled
   omega
 
@@ -915,7 +915,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 2651 := by
+    (invocations logicalWidth publicFits).length = 1580 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -928,7 +928,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 12142908 := by
+theorem invocationCeiling_eq : invocationCeiling = 8685507 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
@@ -966,7 +966,7 @@ theorem roundInvocationCount_eq (logicalWidth : Nat)
 theorem outputInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (outputActions logicalWidth publicFits) = 2296 := by
+    invocationCount (outputActions logicalWidth publicFits) = 1225 := by
   have count := outputInvocations_length logicalWidth publicFits
   rw [outputTrace, compileActions_invocations_length] at count
   exact count
@@ -1041,10 +1041,10 @@ theorem outputFinalState_varsBelow_samplerStart
   have startMatch := outputWitnessStart_matches logicalWidth publicFits relation
   rw [← startMatch] at finalBelow
   rw [OutputBinding.localLength_eq] at finalBelow
-  have endMatch : outputWitnessStart + 2516416 =
+  have endMatch : outputWitnessStart + 1342600 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
-      outputWitnessStart + 2516416 =
+      outputWitnessStart + 1342600 =
           outputWitnessStart +
             invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]

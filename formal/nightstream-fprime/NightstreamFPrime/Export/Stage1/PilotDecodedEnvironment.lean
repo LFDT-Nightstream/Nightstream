@@ -30,16 +30,16 @@ def env (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
         (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment column
 
 private theorem location_not_input (location : PilotOrdinaryDirectPlan.Location)
-    (source : Nat) (input : source < 49393 ∨ 49663 ≤ source ∧ source < 99056) :
+    (source : Nat) (input : source < 37297 ∨ 37567 ≤ source ∧ source < 74864) :
     location.sourceColumn ≠ source := by
   intro same
   cases location with
   | priorDigest lane =>
-      change 4612372 + lane.val = source at same
+      change 3483412 + lane.val = source at same
       omega
   | priorPublic index =>
       have bound := index.isLt
-      change 49393 + index.val = source at same
+      change 37297 + index.val = source at same
       omega
   | canonicalLocal index =>
       change Lifecycle.PriorStateHash.hashEnd PilotProduction.priorInterface
@@ -49,17 +49,17 @@ private theorem location_not_input (location : PilotOrdinaryDirectPlan.Location)
         PilotProduction.witnessOffset_eq] at same
       omega
   | outputState lane =>
-      change 9125964 + lane.val = source at same
+      change 6892236 + lane.val = source at same
       omega
   | canonicalFresh index =>
-      change 9125980 + index.val = source at same
+      change 6892252 + index.val = source at same
       omega
   | outputDigest lane =>
-      change 99056 + lane.val = source at same
+      change 74864 + lane.val = source at same
       omega
 
 private theorem classifySource_none_of_input (source : Nat)
-    (input : source < 49393 ∨ 49663 ≤ source ∧ source < 99056) :
+    (input : source < 37297 ∨ 37567 ≤ source ∧ source < 74864) :
     PilotOrdinaryDirectPlan.classifySource source = none := by
   cases found : PilotOrdinaryDirectPlan.classifySource source with
   | none => rfl
@@ -69,36 +69,36 @@ private theorem classifySource_none_of_input (source : Nat)
 private theorem prior_classify_none (index : Fin Data.priorChain.inputLength) :
     PilotOrdinaryDirectPlan.classifyTarget
       (PilotData.priorChain.inputStart + index.val) = none := by
-  have bound : index.val < 49393 := index.isLt
+  have bound : index.val < 37297 := index.isLt
   have mapped : PilotSpartan.sourceToSpartan index.val =
       PilotData.priorChain.inputStart + index.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_pos (by change index.val < 49393; exact bound)]
+    rw [if_pos (by change index.val < 37297; exact bound)]
     change index.val = 0 + index.val
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
     PilotSpartan.spartanToSource_sourceToSpartan index.val (by
-      change index.val < 9126124
+      change index.val < 6892396
       omega)]
   simp only [classifySource_none_of_input index.val (Or.inl bound)]
 
 private theorem output_classify_none (index : Fin Data.outputChain.inputLength) :
     PilotOrdinaryDirectPlan.classifyTarget
       (PilotData.outputChain.inputStart + index.val) = none := by
-  have bound : index.val < 49393 := index.isLt
-  have mapped : PilotSpartan.sourceToSpartan (49663 + index.val) =
+  have bound : index.val < 37297 := index.isLt
+  have mapped : PilotSpartan.sourceToSpartan (37567 + index.val) =
       PilotData.outputChain.inputStart + index.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬49663 + index.val < 49393; omega)]
-    rw [if_neg (by change ¬49663 + index.val < 49663; omega)]
-    rw [if_pos (by change 49663 + index.val < 99056; omega)]
-    change 49393 + ((49663 + index.val) - 49663) = 49393 + index.val
+    rw [if_neg (by change ¬37567 + index.val < 37297; omega)]
+    rw [if_neg (by change ¬37567 + index.val < 37567; omega)]
+    rw [if_pos (by change 37567 + index.val < 74864; omega)]
+    change 37297 + ((37567 + index.val) - 37567) = 37297 + index.val
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
-    PilotSpartan.spartanToSource_sourceToSpartan (49663 + index.val) (by
-      change 49663 + index.val < 9126124
+    PilotSpartan.spartanToSource_sourceToSpartan (37567 + index.val) (by
+      change 37567 + index.val < 6892396
       omega)]
-  simp only [classifySource_none_of_input (49663 + index.val) (Or.inr (by omega))]
+  simp only [classifySource_none_of_input (37567 + index.val) (Or.inr (by omega))]
 
 private theorem form_eval_of_target
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -232,15 +232,15 @@ theorem outputWord_agrees
   have piCcs := PiCCSAssignmentSoundness.decodedEnv_location
     (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment (.outputInput word)
   rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot] at piCcs
-  have bound : word.val < 49393 := word.isLt
+  have bound : word.val < 37297 := word.isLt
   have mapped : PilotSpartan.sourceToSpartan
       (PilotProduction.outputPreimageStart + word.val) =
         PilotData.outputChain.inputStart + word.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬49663 + word.val < 49393; omega)]
-    rw [if_neg (by change ¬49663 + word.val < 49663; omega)]
-    rw [if_pos (by change 49663 + word.val < 99056; omega)]
-    change 49393 + ((49663 + word.val) - 49663) = 49393 + word.val
+    rw [if_neg (by change ¬37567 + word.val < 37297; omega)]
+    rw [if_neg (by change ¬37567 + word.val < 37567; omega)]
+    rw [if_pos (by change 37567 + word.val < 74864; omega)]
+    change 37297 + ((37567 + word.val) - 37567) = 37297 + word.val
     omega
   unfold PilotSpartan.pullback Spartan.pullback
   rw [mapped, ← pilot]

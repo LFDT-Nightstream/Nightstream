@@ -38,8 +38,8 @@ def compare_terminal(norm, fresh, proof):
         require(len(proof[4][source]) == 54, "wrong Pad coefficient count")
         if norm[source] != proof[4][source][0]:
             raise ValueError(f"sourceAssignment[{source}] differs")
-    require(len(proof[5][0]) == 14, "wrong fresh matrix count")
-    for matrix in range(14):
+    require(len(proof[5][0]) == 7, "wrong fresh matrix count")
+    for matrix in range(7):
         require(len(proof[5][0][matrix]) == 54, "wrong fresh matrix coefficient count")
         if fresh[matrix] != proof[5][0][matrix][0]:
             raise ValueError(f"freshMatrixImage[{matrix}] differs")
@@ -66,7 +66,7 @@ def main():
             changed_phase[12] = copy.deepcopy(changed[4])
             expected = "sourceAssignment[16] differs"
         else:
-            changed[5][0][13][0][1] = (changed[5][0][13][0][1] + 1) % P
+            changed[5][0][6][0][1] = (changed[5][0][6][0][1] + 1) % P
             changed_phase[13] = copy.deepcopy(changed[5])
             expected = "freshMatrixImage[13] differs"
         # A mutually consistent proof/phase mutation must still fail the actual

@@ -5,7 +5,7 @@ import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the ordered direct 14-matrix plan through one verifier-selected
+Owns the ordered direct 7-matrix plan through one verifier-selected
 application. The running prefix comes first; application rows follow and read
 the actual pilot preimage forms. Only application witness/local values add
 retained coordinates.
@@ -100,7 +100,7 @@ theorem rowCount_le
   have packageRows := fits.rows
   rw [PerApplicationPackage.package_rowCount] at packageRows
   have baseRows : PerApplicationPackage.basePackage.layout.rowCount =
-      20028746 := by
+      14654885 := by
     simpa [PerApplicationPackage.basePackage] using
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.1
   rw [baseRows] at packageRows
@@ -182,7 +182,7 @@ def plan
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     (plan relation fits geometry).rowCount =
-      1906280 + (PerApplicationPackage.applicationPlan application).rowCount +
+      1365527 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   simp [plan, throughNextPreimagePlan, prefixApplicationPlan, prefixPlan,
     applicationPlan, nextPreimagePlan, publicOutputPlan]
@@ -235,29 +235,29 @@ theorem applicationSourceWidth_le_baseSourceWidth
   rw [PerApplicationPackage.package_totalColumnCount]
   unfold PerApplicationPackage.addedPrivateColumnCount
   have baseTotal : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      20171876 := by
+      14761727 := by
     exact Package.circuitPackage_layout_values.2.2.2.2
-  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 20171597 := by
+  have privateCount : Layout.Stage1.Spartan.privateColumnCount = 14761448 := by
     exact Layout.Stage1.Spartan.privateColumnCount_eq
   rw [baseTotal, privateCount]
-  change 20171597 + application.witnessWordCount +
+  change 14761448 + application.witnessWordCount +
         localLength (ApplicationPackage.operations application
           (ApplicationPackage.productionColumns application)
-          (20171597 + application.witnessWordCount)) +
+          (14761448 + application.witnessWordCount)) +
         R1CS.totalFreshCount
           (ApplicationPackage.constraints application
             (ApplicationPackage.productionColumns application)
-            (20171597 + application.witnessWordCount)) ≤
-      20171876 + (application.witnessWordCount +
+            (14761448 + application.witnessWordCount)) ≤
+      14761727 + (application.witnessWordCount +
         (PerApplicationPackage.applicationPlan application).privateCount)
-  change _ ≤ 20171876 + (application.witnessWordCount +
+  change _ ≤ 14761727 + (application.witnessWordCount +
     (localLength (ApplicationPackage.operations application
       (ApplicationPackage.productionColumns application)
-      (20171597 + application.witnessWordCount)) +
+      (14761448 + application.witnessWordCount)) +
     R1CS.totalFreshCount
       (ApplicationPackage.constraints application
         (ApplicationPackage.productionColumns application)
-        (20171597 + application.witnessWordCount))))
+        (14761448 + application.witnessWordCount))))
   omega
 
 /-- The application reads the same complete package source assignment as the

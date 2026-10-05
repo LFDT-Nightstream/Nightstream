@@ -144,7 +144,7 @@ latest reviewed cut, the Lean source uses schema 6 while the stored artifact
 and recorded identity use schema 5; the Rust package gates are therefore red.
 
 - `Spec/`: Goldilocks/Φ₈₁ algebra, profile, Poseidon2 reference, sumcheck,
-  exact v1.1 PiCCS with separate Pad and 14-matrix evaluation families,
+  exact v1.1 PiCCS with separate Pad and 7-matrix evaluation families,
   PiRLC/PiDEC verifiers, composed NIFS `Key`/`verify`, Φ₈₁ PiRLC/PiDEC
   algebras, HyperNova Construction 2, and Goldilocks primality.
 - `Lifecycle/`: `Types` (slotCount 1, cubeVariables 28,
@@ -351,7 +351,7 @@ PiCCS
 │   └── the fixed 25-round chain
 ├── final evaluation
 │   ├── Eval_K: the separate Pad family
-│   ├── Eval_A: the separate 14-matrix family
+│   ├── Eval_A: the separate 7-matrix family
 │   └── the v1.1 final joint identity
 ├── output reduced claims
 └── the complete PiCCS FormalCircuit

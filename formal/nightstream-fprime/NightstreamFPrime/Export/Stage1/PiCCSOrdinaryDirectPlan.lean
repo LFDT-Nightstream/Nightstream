@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 /-!
-Owns the executable source resolver and direct 14-matrix plan for the
+Owns the executable source resolver and direct 7-matrix plan for the
 canonical PiCCS ordinary rows.
 
 The resolver decodes each Spartan column back to its Lean source column and
@@ -241,7 +241,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
-      have indexBound : index.val < 49393 := index.isLt
+      have indexBound : index.val < 37297 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSInputs.phaseOffset_eq] <;> omega
   | freshPublicInput index =>
@@ -267,7 +267,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
-      have indexBound : index.val < 49393 := index.isLt
+      have indexBound : index.val < 37297 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSInputs.phaseOffset_eq] <;> omega
   | expectedContext index =>
@@ -313,7 +313,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 29288 := by
+        have indexBound : index.val < 16436 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dif_pos proof]
         rw [PiCCSInputs.proofInputStart_eq, PiCCSInputs.phaseOffset_eq]
@@ -707,7 +707,7 @@ private theorem programRow_support
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 85448) :
+    (index : Fin 48443) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -774,7 +774,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 85448) :
+    (index : Fin 48443) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       Phi81CarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 85448) :
+    (geometry : Geometry program logicalWidth) (index : Fin 48443) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -819,7 +819,7 @@ theorem rowForms_eq_of_same_shape
     (PiCCSOrdinaryDirectSource.programRow_bounded left index)
     (PiCCSOrdinaryDirectSource.programRow_bounded right index)
 
-/-- Canonical direct 14-matrix rows for all PiCCS ordinary constraints. -/
+/-- Canonical direct 7-matrix rows for all PiCCS ordinary constraints. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -840,7 +840,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 85448 := by
+    (plan relation geometry).rowCount = 48443 := by
   rfl
 
 /-- The compiled matrix plan depends only on the relation shape. Matrix

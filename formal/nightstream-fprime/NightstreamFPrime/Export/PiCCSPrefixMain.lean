@@ -811,7 +811,7 @@ private def finishOriginal (publicPath evaluationsPath inputPath phasePath words
           let pad ← checked (PiCCSInputCheck.decodeVector 17
             (PiCCSInputCheck.decodeVector 54 decodeExtension) pad)
           let matrix ← checked (PiCCSInputCheck.decodeVector 17
-            (PiCCSInputCheck.decodeVector 14
+            (PiCCSInputCheck.decodeVector 7
               (PiCCSInputCheck.decodeVector 54 decodeExtension)) matrix)
           pure ({
             commitment := trace.input.commitment

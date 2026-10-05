@@ -20,11 +20,11 @@ open MeasureTheory
 
 /-- The actual selected shape and degree give this test numerator. -/
 theorem test_error_eq : IndependentExecution.testError productionShape 9 =
-    (13257 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+    (7209 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
   rw [Nat.cast_pow]
   change (28 : ℝ) * 9 / (goldilocksModulus : ℝ) ^ 2 +
-    13005 / (goldilocksModulus : ℝ) ^ 2 = _
+    6957 / (goldilocksModulus : ℝ) ^ 2 = _
   ring
 
 /-- Union the actual events in one probability space. The hypotheses can be

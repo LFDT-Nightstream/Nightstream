@@ -18,7 +18,7 @@ compare_round = runpy.run_path(
 def compare_pad(actual, proof, phase):
     require(actual[4] == phase[4], "Pad point differs from Rust target")
     for values in (proof[4], phase[12]):
-        decode("pad", json.dumps([1, 1543989, 0, 1543989, phase[4], values]).encode())
+        decode("pad", json.dumps([1, 1107491, 0, 1107491, phase[4], values]).encode())
         require(actual[5] == values, "complete original Pad values differ")
 
 
@@ -27,7 +27,7 @@ def main():
             "expected original public, Lean Q27, complete Lean Pad, Rust input, Rust phase")
     public, final_round = [json.loads(Path(path).read_bytes()) for path in sys.argv[1:3]]
     actual = decode("pad", Path(sys.argv[3]).read_bytes())
-    require(actual[:4] == [1, 1543989, 0, 1543989], "Pad range is not complete")
+    require(actual[:4] == [1, 1107491, 0, 1107491], "Pad range is not complete")
     proof, phase = [json.loads(Path(path).read_bytes()) for path in sys.argv[4:6]]
     compare_round(public, final_round, proof, phase, 27)
     compare_pad(actual, proof, phase)

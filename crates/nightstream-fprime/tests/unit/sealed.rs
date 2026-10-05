@@ -50,7 +50,7 @@ fn application_plan() -> Value {
 fn assignment_transport_accepts_only_the_lean_owned_order() {
     const PHYSICAL_WIDTH: usize = 60_000;
     const LOGICAL_PUBLIC_WIDTH: usize = 270;
-    const PHI81_INVOCATIONS: usize = 52_326;
+    const PHI81_INVOCATIONS: usize = 39_474;
     const PHI81_QUOTIENT_VALUES: usize = PHI81_INVOCATIONS;
 
     let mut logical_width = LOGICAL_PUBLIC_WIDTH;
@@ -80,7 +80,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             27,
             81,
             54,
-            [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 14, 2]],
+            [[17, 22, 1], [17, 5, 1], [17, 1, 2], [17, 7, 2]],
             4,
             0,
             54,

@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 /-!
 Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `v = Q(r')`.
 Obligation: Enforce
-`E_K + gamma^864 E_A + gamma^12960 eq(r',alpha) (F + gamma N)`.
+`E_K + gamma^864 E_A + gamma^6912 eq(r',alpha) (F + gamma N)`.
 
 Inputs:
 - verifier-derived `r'`, `alpha`, and `gamma`;
@@ -21,7 +21,7 @@ Constraint groups:
 - C1: one opaque owned `PointEquality` child;
 - C2: one opaque owned `Power` child for `gamma^864`;
 - C3: one opaque owned `Power` child that raises `gamma^864` to `15`, giving
-  `gamma^12960`;
+  `gamma^6912`;
 - C4: two extension-component final-identity assertions.
 
 Parent coverage:
@@ -56,7 +56,7 @@ theorem matrixExponent_eq : matrixExponent = 864 := by
     Phi81MatrixSource.phi81Shape, Shape.matrixEvaluationOffset,
     Shape.padEvaluationCount, ringDegree]
 
-theorem constraintExponent_eq : constraintExponent = 12960 := by
+theorem constraintExponent_eq : constraintExponent = 6912 := by
   norm_num [constraintExponent, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.constraintOffset,
     Shape.padEvaluationCount, Shape.matrixEvaluationCount, ringDegree]
@@ -65,7 +65,7 @@ theorem constraintExponent_eq : constraintExponent = 12960 := by
 the matrix power, not `gamma`. -/
 def constraintFactor : Nat := productionProfile.ccsMatrices + 1
 
-theorem constraintFactor_eq : constraintFactor = 15 := by
+theorem constraintFactor_eq : constraintFactor = 8 := by
   norm_num [constraintFactor, productionProfile]
 
 theorem constraintExponent_eq_mul :
@@ -310,7 +310,7 @@ private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
   rw [Power.localLength_eq, matrixExponent_eq]
 
 private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
-    constraintLength interface offset = 45 := by
+    constraintLength interface offset = 24 := by
   unfold constraintLength constraintPowerCircuitAt
   rw [Power.localLength_eq, constraintFactor_eq]
 
@@ -929,10 +929,10 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       expression terminalMember
 
 /-- Private symbolic variables owned by the fixed production leaf. -/
-def privateCount : Nat := 2747
+def privateCount : Nat := 2726
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 2747 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2726 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
@@ -943,7 +943,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      2749 := by
+      2728 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
@@ -962,7 +962,7 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   have constraintFlat :
       (flatConstraints (Circuit.ops
         (constraintPowerCircuitAt interface offset).main
-        (constraintOffset interface offset))).length = 45 := by
+        (constraintOffset interface offset))).length = 24 := by
     unfold constraintPowerCircuitAt
     rw [Power.flatConstraints_length, constraintFactor_eq]
   rw [flatConstraints_opsAt, List.length_append, List.length_append,

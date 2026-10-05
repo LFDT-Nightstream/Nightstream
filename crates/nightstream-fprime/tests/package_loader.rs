@@ -45,13 +45,13 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         .ccs_structure_header()
         .expect("Lean-owned logical CCS header");
 
-    assert_eq!(package.physical_row_count(), 20_034_235);
-    assert_eq!(package.total_column_count(), 20_177_360);
-    assert_eq!(package.private_input_count(), 177_326);
+    assert_eq!(package.physical_row_count(), 14_660_374);
+    assert_eq!(package.total_column_count(), 14_767_211);
+    assert_eq!(package.private_input_count(), 128_186);
     assert_eq!(package.public_input_count(), 278);
-    assert_eq!(relation.row_count(), 1_911_773);
+    assert_eq!(relation.row_count(), 1_371_020);
     // Poseidon2HashChainV1Package.logicalWidth, after shared-value wiring.
-    assert_eq!(relation.column_count(), 83_375_369);
+    assert_eq!(relation.column_count(), 59_804_510);
     assert_eq!(relation.cube_variables(), PI_CCS_V1_1_ROUND_COUNT);
     assert_eq!(
         relation.matrix_sources(),
@@ -62,18 +62,11 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
             CcsMatrixSource::B,
             CcsMatrixSource::C,
             CcsMatrixSource::SboxInput,
-            CcsMatrixSource::CenteredUnit,
             CcsMatrixSource::EvalSelector,
-            CcsMatrixSource::Class0,
-            CcsMatrixSource::Class1,
-            CcsMatrixSource::Class2,
-            CcsMatrixSource::Class3,
-            CcsMatrixSource::Class4,
-            CcsMatrixSource::Zero,
         ]
     );
     assert_eq!(relation.degree_bound(), 9);
-    assert_eq!(relation.terms().len(), 74);
+    assert_eq!(relation.terms().len(), 8);
     assert_eq!(
         relation
             .terms()
@@ -263,7 +256,7 @@ fn rust_v1_1_pi_ccs_transcript_matches_lean_emitted_vector() {
     assert_eq!(state_public_input.len(), PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS);
     assert_eq!(public[0], state_digest, "prior digest statement block");
 
-    let mut output = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT * 1_620);
+    let mut output = Vec::with_capacity(PI_CCS_V1_1_SOURCE_COUNT * 864);
     for source in 0..PI_CCS_V1_1_SOURCE_COUNT {
         for value in &expected_eval_k[source] {
             output.extend(value);

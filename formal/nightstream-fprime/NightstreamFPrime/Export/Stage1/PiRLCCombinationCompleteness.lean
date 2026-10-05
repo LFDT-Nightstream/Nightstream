@@ -653,10 +653,10 @@ private theorem evalKSourceFreshCount
         canonicalSource block lane cell))
 
 private theorem evalASourceFreshCount
-    (source : Fin sourceCount) (block : Fin 14) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 7) (lane : Fin ringDegree)
     (cell : Fin 2) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.evalALogicalStart 14 2 2 source.val
+        (sourceConstraint PiRLCStarts.evalALogicalStart 7 2 2 source.val
           block.val cell.val evalAValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -690,7 +690,7 @@ structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
     PiRLCStarts.evalKRowStart PiRLCStarts.evalKFreshStart 1 2 2
     evalKValueSourceStart env
   evalA : FamilyInvocationRowsHold PiRLCStarts.evalALogicalStart
-    PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 14 2 2
+    PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 7 2 2
     evalAValueSourceStart env
 
 /-- The remapped child packets construct every exact production combination
@@ -761,7 +761,7 @@ theorem remappedPackets_imply_familyInvocationRows
     exact evalKValueSource_affine source.val block.val cell.val offset source.isLt
       cell.isLt offsetLt
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 14) (cellCount := 2)
+      (blockCount := 7) (cellCount := 2)
       PiRLCStarts.evalALogicalStart PiRLCStarts.evalARowStart
       PiRLCStarts.evalAFreshStart 2 evalAValueSourceStart
       evalAFreshStart_local evalASourceFreshCount ?_ env evalARows

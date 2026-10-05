@@ -49,7 +49,7 @@ private theorem physicalInvocation_mem
   rw [List.getElem_append_right]
   · exact List.getElem_mem _
   · rw [PiCCSInvocations.invocations_length]
-    change 2651 ≤ 2651 + current.val
+    change 1580 ≤ 1580 + current.val
     omega
 
 private theorem physicalInvocation_witnessStart

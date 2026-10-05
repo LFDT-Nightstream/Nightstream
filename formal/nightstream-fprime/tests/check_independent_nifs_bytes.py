@@ -37,7 +37,7 @@ def main():
     require(caller[4][3] == result[5][6] and caller[4][4] == result[5][14] and
             caller[4][5] == result[7][9], "caller point or transcript differs")
     changed = copy.deepcopy(children)
-    changed[4][15][13][53][1] = (changed[4][15][13][53][1] + 1) % P
+    changed[4][15][6][53][1] = (changed[4][15][6][53][1] + 1) % P
     try:
         equal_bytes(raw[0], json.dumps(changed, separators=(",", ":")).encode() + b"\n",
                     "children")

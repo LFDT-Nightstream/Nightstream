@@ -40,7 +40,6 @@ pub use crate::common::{
     left_mul_acc,
     rot_rhos_from_mats,
     rot_rhos_to_mats,
-    sample_rot_rhos_n, // Dynamic: samples N rhos with norm bound check
     sample_rot_rhos_n_typed,
     split_b_matrix_k,
     split_b_matrix_k_with_nonzero_flags,

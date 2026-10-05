@@ -226,7 +226,7 @@ pub fn verify_and_export_pi_ccs_receipt(
             claimed_eval_a: claimed_eval_a(running_claims, dims.matrix_count)?,
         },
         proof: PiCcsExecutionProof {
-            proof_bytes: proof.canonical_bytes(),
+            proof_bytes: proof.canonical_bytes()?,
             output_eval_k: output_eval_k(outputs)?,
             output_eval_a: output_eval_a(outputs, dims.matrix_count)?,
         },

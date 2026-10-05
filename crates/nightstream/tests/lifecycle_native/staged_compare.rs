@@ -17,6 +17,9 @@ fn ccs_comparison_includes_output_openings_with_unchanged_sumcheck() {
     let proof = super::super::super::proof(&read(path)).pi_ccs;
     let mut changed = proof.clone();
     changed.outputs[0].eval_a[0][0] += K::ONE;
-    assert_eq!(changed.sumcheck.canonical_bytes(), proof.sumcheck.canonical_bytes());
+    assert_eq!(
+        changed.sumcheck.canonical_bytes().unwrap(),
+        proof.sumcheck.canonical_bytes().unwrap()
+    );
     assert_ne!(changed.canonical_bytes(), proof.canonical_bytes());
 }

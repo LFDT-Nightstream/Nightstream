@@ -42,7 +42,7 @@ that share their columns are prepared once for every nonzero source. -/
   let prepared := PiDECMatrixWeightedRange.prepare firstRow point forms
   let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
     if zeroSource source then PiDECEvaluationBatch.zero matrixCount
-    else PiDECMatrixWeightedRange.evaluate prepared firstRow point (read source) forms
+    else PiDECMatrixWeightedRange.evaluate prepared (read source)
   Vector.ofFn fun code =>
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2

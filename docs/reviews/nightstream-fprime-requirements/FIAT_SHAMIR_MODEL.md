@@ -55,6 +55,18 @@ total query count; the code does not infer `g_d Q p = p`. The conditional
 theorem remains useful for the requested implementation proofs and constraint
 reduction.
 
+Absorption coverage is proved, not assumed.
+`Layout/Stage1/TranscriptCoverage.lean` models each production challenge
+(`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2
+state after an explicit list of duplex calls: zero-padded rate chunks and
+squeezes. Seal theorems tie these lists to `ProductionKey.key`. Equal
+prover-dependent calls before a challenge identify the fresh statement and
+every earlier prover message (`proverCalls_identify`). With the prior-state
+link, they also identify the running statement and the verifier context,
+unless the state hash collides (`calls_identify_view_or_collision`). The
+assumption above still covers the permutation, the duplex construction, and
+the transfer bound.
+
 This is stronger than Poseidon2 collision resistance. Chiesa–Orrù's
 [duplex-sponge result](https://eprint.iacr.org/2025/536) uses overwrite
 absorption; its theorem is not currently matched to our additive absorption

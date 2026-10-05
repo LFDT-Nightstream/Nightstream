@@ -1,7 +1,6 @@
 // nightstream-ajtai-shake128-wide256-v1, with the verifier-owned setup ID
-// and seed supplied by Rust. Key tiles exist only in threadgroup memory and
-// are shared by all witnesses. The output is a partial Phi81 ring product for
-// each witness.
+// and seed supplied by Rust. One key row at a time is expanded into a device
+// slab, then every witness accumulates its signed ring products from that slab.
 
 constant ulong PRODUCTION_KECCAK_RC[24] = {
     0x0000000000000001ul, 0x0000000000008082ul, 0x800000000000808aul, 0x8000000080008000ul,
@@ -103,9 +102,9 @@ inline ulong production_wide_coefficient(ulong q0, ulong q1, ulong q2, ulong q3)
 // The 54 coefficients of key element (row, column):
 // SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 81 input bytes.
 // `prefix` holds input bytes 0..68 as nine little-endian lanes; bytes 69..71
-// of the last lane are zero.
+// of the last lane are zero. Coefficient L is written to out[L * stride].
 inline void production_ajtai_element(
-    device const ulong *prefix, uint row, ulong column, threadgroup ulong *out) {
+    device const ulong *prefix, uint row, ulong column, device ulong *out, ulong stride) {
     ulong st[25];
     for (uint i = 0; i < 25; ++i) st[i] = 0;
     for (uint i = 0; i < 9; ++i) st[i] = prefix[i];
@@ -127,7 +126,7 @@ inline void production_ajtai_element(
             q2 = q3;
             q3 = st[i];
             if (++words == 4) {
-                out[lane] = production_wide_coefficient(q0, q1, q2, q3);
+                out[lane * stride] = production_wide_coefficient(q0, q1, q2, q3);
                 words = 0;
                 if (++lane == RING_DEGREE) return;
             }
@@ -135,70 +134,132 @@ inline void production_ajtai_element(
     }
 }
 
-kernel void production_ajtai_partials(
+// One key row: one thread per occupied column. slab[position * 54 + L] holds
+// coefficient L of key element (row, columns[position]), so the lanes of one
+// witness read one column's coefficients from consecutive words.
+kernel void production_key_row(
     device const ulong *prefix [[buffer(0)]],
     device const uint *columns [[buffer(1)]],
-    device const ulong2 *masks [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    device ulong *partials [[buffer(4)]],
-    threadgroup ulong *key [[threadgroup(0)]],
-    uint chunk [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]]) {
-    ulong column_count = shape[0];
-    ulong count = shape[1];
-    ulong chunks = shape[2];
-    ulong tile = shape[3];
-    uint row = (uint)shape[4];
-    ulong threads = shape[5];
-    ulong start = (ulong)chunk * tile;
-    ulong end = min(start + tile, column_count);
-    ulong width = end - start;
-    threadgroup ulong raw[RING_PRODUCT_COEFFICIENTS];
-    for (ulong column = lane; column < width; column += threads) {
-        production_ajtai_element(prefix, row, columns[start + column], key + column * RING_DEGREE);
+    device const ulong *shape [[buffer(2)]],
+    device ulong *slab [[buffer(3)]],
+    uint position [[thread_position_in_grid]]) {
+    ulong count = shape[0];
+    production_ajtai_element(prefix, (uint)shape[4], columns[position], slab + position * RING_DEGREE, 1);
+}
+
+// Positive or negative sums of the 32-bit key halves for raw coefficients L
+// and L + 54. Each term is below 2^32, so a sum cannot overflow 64 bits before
+// 2^32 terms; a threadgroup adds far fewer.
+struct ProductionHalfSums {
+    ulong low_lo;
+    ulong low_hi;
+    ulong high_lo;
+    ulong high_hi;
+};
+
+// Add the key coefficients that the set bits of `digits` select. Bit s times
+// key coefficient j lands on raw coefficient s + j. Lane L owns raw
+// coefficients L (s <= L) and L + 54 (s > L), so every lane adds once per bit
+// and all lanes of a witness follow the same bits.
+inline void production_add_bits(
+    uint bits, uint offset, device const uint2 *key, uint lane, thread ProductionHalfSums &sums) {
+    while (bits != 0) {
+        uint shift = offset + ctz(bits);
+        bits &= bits - 1;
+        bool low = lane >= shift;
+        uint2 value = key[low ? lane - shift : lane + RING_DEGREE - shift];
+        sums.low_lo += low ? value.x : 0u;
+        sums.low_hi += low ? value.y : 0u;
+        sums.high_lo += low ? 0u : value.x;
+        sums.high_hi += low ? 0u : value.y;
+    }
+}
+
+inline void production_add_digits(
+    ulong digits, device const ulong *key, uint lane, thread ProductionHalfSums &sums) {
+    device const uint2 *halves = (device const uint2 *)key;
+    production_add_bits((uint)digits, 0, halves, lane, sums);
+    production_add_bits((uint)(digits >> 32), 32, halves, lane, sums);
+}
+
+// lo + hi * 2^32 modulo Goldilocks. The high word of the 128-bit value is
+// below 2^32, as gl_reduce_sum requires.
+inline ulong production_join_halves(ulong lo, ulong hi) {
+    ulong low = lo + (hi << 32);
+    ulong high = (hi >> 32) + (low < lo ? 1ul : 0ul);
+    return gl_reduce_sum(low, high);
+}
+
+// One threadgroup sums the signed key products of a block of witnesses over a
+// range of columns; 64 lanes serve one witness. Each group writes one
+// Phi81-reduced partial per witness. The integer work is 32-bit where it can
+// be: the GPU emulates 64-bit operations, and this loop is ALU-bound.
+kernel void production_ajtai_accumulate(
+    device const ulong *slab [[buffer(0)]],
+    device const ulong2 *masks [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *partials [[buffer(3)]],
+    threadgroup ulong *scratch [[threadgroup(0)]],
+    uint group_index [[threadgroup_position_in_grid]],
+    uint thread_index [[thread_index_in_threadgroup]]) {
+    ulong count = shape[0];
+    ulong witnesses = shape[1];
+    ulong groups = shape[2];
+    ulong columns_per_group = shape[3];
+    ulong witnesses_per_group = shape[5];
+    ulong group = group_index % groups;
+    uint lane = thread_index % 64;
+    ulong witness = (group_index / groups) * witnesses_per_group + thread_index / 64;
+    bool active = witness < witnesses && lane < RING_DEGREE;
+    ProductionHalfSums positive = {0, 0, 0, 0};
+    ProductionHalfSums negative = {0, 0, 0, 0};
+    ulong first = group * columns_per_group;
+    ulong end = min(first + columns_per_group, count);
+    if (active) {
+        for (ulong position = first; position < end; ++position) {
+            ulong2 digits = masks[witness * count + position];
+            production_add_digits(digits.x, slab + position * RING_DEGREE, lane, positive);
+            production_add_digits(digits.y, slab + position * RING_DEGREE, lane, negative);
+        }
+    }
+    // Raw-coefficient scratch, one row of 107 per witness.
+    threadgroup ulong *raw = scratch + (thread_index / 64) * RING_PRODUCT_COEFFICIENTS;
+    if (active) {
+        raw[lane] = gl_sub(
+            production_join_halves(positive.low_lo, positive.low_hi),
+            production_join_halves(negative.low_lo, negative.low_hi));
+        if (lane + RING_DEGREE < RING_PRODUCT_COEFFICIENTS) {
+            raw[lane + RING_DEGREE] = gl_sub(
+                production_join_halves(positive.high_lo, positive.high_hi),
+                production_join_halves(negative.high_lo, negative.high_hi));
+        }
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (ulong witness = 0; witness < count; ++witness) {
-        if (lane < RING_PRODUCT_COEFFICIENTS) {
-            uint low = lane >= RING_DEGREE ? lane - (RING_DEGREE - 1) : 0;
-            uint high = min(lane, (uint)RING_DEGREE - 1);
-            ulong valid = (~0ul << low) & ((1ul << (high + 1)) - 1);
-            ulong positive_lo = 0, positive_hi = 0, negative_lo = 0, negative_hi = 0;
-            for (ulong column = 0; column < width; ++column) {
-                ulong2 digits = masks[witness * column_count + start + column];
-                ulong positive = digits.x & valid;
-                ulong negative = digits.y & valid;
-                while (positive != 0) {
-                    uint shift = (uint)ctz(positive);
-                    positive &= positive - 1;
-                    ulong value = key[column * RING_DEGREE + lane - shift];
-                    ulong next = positive_lo + value;
-                    positive_hi += next < positive_lo;
-                    positive_lo = next;
-                }
-                while (negative != 0) {
-                    uint shift = (uint)ctz(negative);
-                    negative &= negative - 1;
-                    ulong value = key[column * RING_DEGREE + lane - shift];
-                    ulong next = negative_lo + value;
-                    negative_hi += next < negative_lo;
-                    negative_lo = next;
-                }
-            }
-            raw[lane] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
+    if (active) {
+        // X^54 = -X^27 - 1 and X^81 = 1.
+        ulong value;
+        if (lane < RING_DEGREE / 2) {
+            value = gl_sub(raw[lane], raw[lane + RING_DEGREE]);
+            if (lane + 81 < RING_PRODUCT_COEFFICIENTS) value = gl_add(value, raw[lane + 81]);
+        } else {
+            value = gl_sub(raw[lane], raw[lane + RING_DEGREE / 2]);
         }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-        if (lane < RING_DEGREE) {
-            // X^54 = -X^27 - 1 and X^81 = 1.
-            ulong value;
-            if (lane < RING_DEGREE / 2) {
-                value = gl_sub(raw[lane], raw[lane + RING_DEGREE]);
-                if (lane + 81 < RING_PRODUCT_COEFFICIENTS) value = gl_add(value, raw[lane + 81]);
-            } else {
-                value = gl_sub(raw[lane], raw[lane + RING_DEGREE / 2]);
-            }
-            partials[(witness * chunks + chunk) * RING_DEGREE + lane] = value;
-        }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
+        partials[(witness * groups + group) * RING_DEGREE + lane] = value;
     }
+}
+
+// One thread per (witness, coefficient): the sum of the group partials.
+kernel void production_ajtai_sum_groups(
+    device const ulong *partials [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *output [[buffer(2)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong groups = shape[2];
+    ulong witness = index / RING_DEGREE;
+    ulong coefficient = index % RING_DEGREE;
+    ulong value = 0;
+    for (ulong group = 0; group < groups; ++group) {
+        value = gl_add(value, partials[(witness * groups + group) * RING_DEGREE + coefficient]);
+    }
+    output[index] = value;
 }

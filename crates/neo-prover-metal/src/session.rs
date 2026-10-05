@@ -72,7 +72,9 @@ pub struct MetalSession {
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
-    production_ajtai_partials: Pipeline,
+    production_key_row: Pipeline,
+    production_ajtai_accumulate: Pipeline,
+    production_ajtai_sum_groups: Pipeline,
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
     sumcheck_reduce_partials: Pipeline,
@@ -154,7 +156,9 @@ impl MetalSession {
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
-        let production_ajtai_partials = pipeline(&device, &library, "production_ajtai_partials")?;
+        let production_key_row = pipeline(&device, &library, "production_key_row")?;
+        let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
+        let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
@@ -200,7 +204,9 @@ impl MetalSession {
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
-            production_ajtai_partials,
+            production_key_row,
+            production_ajtai_accumulate,
+            production_ajtai_sum_groups,
             fold_k_table,
             tensor_point_expand_k,
             sumcheck_reduce_partials,

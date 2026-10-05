@@ -559,7 +559,6 @@ theorem publicInputBlocks_eval {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (publicInputBlocks interface offset).map (Hash.evalList env) =
       ProductionKey.publicInputBlocks
-        (evalRunning (interface.running offset) env)
         (evalFresh (interface.fresh offset) env) := by
   unfold publicInputBlocks ProductionKey.publicInputBlocks
   dsimp only
@@ -637,9 +636,8 @@ theorem absorbedBlocks_eval
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
-      let running := evalRunning (interface.running offset) env
       let fresh := evalFresh (interface.fresh offset) env
-      ProductionKey.publicInputBlocks running fresh := by
+      ProductionKey.publicInputBlocks fresh := by
   dsimp only
   exact publicInputBlocks_eval interface offset env
 
@@ -1275,7 +1273,7 @@ theorem spec_implies_keyInitialState
           (NightstreamFPrime.Lifecycle.Transcript.absorb
             NightstreamFPrime.Lifecycle.Transcript.initialState
             NightstreamFPrime.Lifecycle.Transcript.piCcsDigestDomainTag)
-          (ProductionKey.publicInputBlocks running fresh) :=
+          (ProductionKey.publicInputBlocks fresh) :=
       folded.symm
     _ = key.publicInputState running fresh := publicStateEq.symm
     _ = key.oracle.transcript.initialState context := oracleStateEq.symm

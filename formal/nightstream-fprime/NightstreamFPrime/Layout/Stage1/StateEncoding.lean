@@ -83,11 +83,6 @@ private theorem split_append
   · have selected := congrArg (List.drop leftHead.length) encodedEqual
     simpa [lengthEqual] using selected
 
-private theorem block_injective : Function.Injective block := by
-  intro left right equal
-  unfold block at equal
-  exact (List.cons.inj equal).2
-
 /-- Equal state encodings identify the context prefix without requiring
 injectivity of the later natural counter encoding. -/
 theorem serializePreimage_eq_implies_context_eq

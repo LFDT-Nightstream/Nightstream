@@ -17,50 +17,9 @@ theorem replay_append (initial : Poseidon2.State) (before after : List Draw) :
     replay initial (before ++ after) = replay (replay initial before) after :=
   by simp only [replay, List.foldl_append]
 
-private theorem rounds_length
-    (step : Nat → Poseidon2.State → Poseidon2.State)
-    (lengths : ∀ index state, (step index state).length = Poseidon2.width)
-    (indices : List Nat) (state : Poseidon2.State)
-    (fixed : state.length = Poseidon2.width) :
-    (indices.foldl (fun state index => step index state) state).length = Poseidon2.width := by
-  induction indices generalizing state with
-  | nil => exact fixed
-  | cons index rest ih => exact ih _ (lengths index state)
-
-private theorem permute_length (state : Poseidon2.State) :
-    (Poseidon2.permute state).length = Poseidon2.width := by
-  unfold Poseidon2.permute Poseidon2.rounds
-  apply rounds_length
-  · intro index state
-    simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-  · apply rounds_length
-    · intro index state
-      simp [Poseidon2.partialRound, Poseidon2.internalLayer]
-    · apply rounds_length
-      · intro index state
-        simp [Poseidon2.fullRound, Poseidon2.externalLayer]
-      · simp [Poseidon2.externalLayer]
-
-private theorem absorb_zero (state : Poseidon2.State)
-    (fixed : state.length = Poseidon2.width) :
-    Poseidon2.absorbBlock state (List.ofFn zeroBlock) = Poseidon2.permute state := by
-  unfold Poseidon2.absorbBlock
-  apply congrArg Poseidon2.permute
-  have zeros : List.ofFn zeroBlock = [0, 0, 0, 0] := rfl
-  rw [zeros]
-  have values : (List.range Poseidon2.width).map (fun index =>
-      state.getD index 0 + [0, 0, 0, 0].getD index 0) =
-      (List.range Poseidon2.width).map (fun index => state.getD index 0) := by
-    apply List.map_congr_left
-    intro index member
-    have bound : index < 16 := List.mem_range.mp member
-    interval_cases index <;> simp
-  rw [values, ← fixed]
-  apply List.ext_getElem
-  · simp
-  · intro index _bound bound
-    simp only [List.getElem_map, List.getElem_range]
-    exact (List.getElem_eq_getD 0).symm
+private theorem zeroBlock_getD (index : Nat) : (List.ofFn zeroBlock).getD index 0 = 0 := by
+  rw [show List.ofFn zeroBlock = [0, 0, 0, 0] from rfl]
+  rcases index with _ | _ | _ | _ | index <;> simp
 
 private def domain (coordinate : Nat) : Draw := fun lane =>
   if lane.val = 0 then Poseidon2.ofNat 4
@@ -78,7 +37,7 @@ private theorem absorb_domain (state : Poseidon2.State) (coordinate : Nat) :
 private theorem enter_length (state : Poseidon2.State) (coordinate : Nat) :
     (Transcript.enter state coordinate).length = Poseidon2.width := by
   unfold Transcript.enter Poseidon2.absorbBlock
-  exact permute_length _
+  exact Poseidon2.permute_length _
 
 private theorem historyAt_succ (initial : List Draw) (coordinate : Nat) :
     historyAt initial (coordinate + 1) =
@@ -98,9 +57,9 @@ theorem stateAt_replay (seed : Poseidon2.State) (initial : List Draw) (coordinat
       rw [historyAt_succ, replay_append, ih]
       simp only [replay, List.foldl_cons, List.foldl_nil]
       rw [Transcript.stateAt_succ, absorb_domain]
-      exact absorb_zero
+      exact Poseidon2.absorbBlock_zero
         (Transcript.enter (Transcript.stateAt (replay seed initial) coordinate) coordinate)
-        (enter_length _ _)
+        (enter_length _ _) zeroBlock_getD
 
 def answer (seed : Poseidon2.State) (query : Query) : Draw :=
   Transcript.block (replay seed query.val)

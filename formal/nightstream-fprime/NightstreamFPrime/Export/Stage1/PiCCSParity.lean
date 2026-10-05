@@ -127,7 +127,7 @@ def inputValue (computed : Computed) : Value :=
     outputEval_KValue computed,
     outputEval_AValue computed,
     fieldBlocksValue
-      (ProductionKey.publicInputBlocks running computed.statement.freshValue),
+      (ProductionKey.publicInputBlocks computed.statement.freshValue),
     fieldBlocksValue (Transcript.verifierInputBlocks verifierInput)]
 
 /-- Complete verifier result tuple.

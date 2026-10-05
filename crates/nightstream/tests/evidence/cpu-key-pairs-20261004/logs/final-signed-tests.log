@@ -1,0 +1,8 @@
+    Finished `release` profile [optimized] target(s) in 0.07s
+     Running tests/signed_sums.rs (target/release/deps/signed_sums-da2632436be261a8)
+
+running 2 tests
+test signed_shift_sums_match_ring_products_after_one_reduction ... ok
+test repeated_negative_terms_stay_exact ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

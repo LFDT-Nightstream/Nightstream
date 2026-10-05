@@ -1,0 +1,10 @@
+   Compiling neo-math v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-math)
+    Finished `release` profile [optimized] target(s) in 3.65s
+     Running tests/signed_sums.rs (target/release/deps/signed_sums-da2632436be261a8)
+
+running 3 tests
+test signed_shift_sums_match_ring_products_after_one_reduction ... ok
+test wide_integer_limbs_match_division_and_signed_ring_products ... ok
+test repeated_negative_terms_stay_exact ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

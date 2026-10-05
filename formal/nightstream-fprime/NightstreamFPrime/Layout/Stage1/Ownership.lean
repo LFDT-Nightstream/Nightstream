@@ -58,14 +58,14 @@ def rowRange (program : Lifecycle.Stage1.Application.Program) :
     RowOwner → Interval
   | .priorStateHash => ⟨0, 4514654⟩
   | .outputHash => ⟨4514654, 4513332⟩
-  | .piCcs => ⟨9027986, 3029779⟩
-  | .piRlc => ⟨12057765, 7977301⟩
-  | .piDec => ⟨20035066, 25488⟩
-  | .runningTransition => ⟨20060554, 49359⟩
+  | .piCcs => ⟨9027986, 2990944⟩
+  | .piRlc => ⟨12018930, 7977301⟩
+  | .piDec => ⟨19996231, 25488⟩
+  | .runningTransition => ⟨20021719, 49359⟩
   | .application =>
-      ⟨20109913, applicationRowCount program⟩
+      ⟨20071078, applicationRowCount program⟩
   | .nextPreimage =>
-      ⟨20109913 + applicationRowCount program, 5⟩
+      ⟨20071078 + applicationRowCount program, 5⟩
 
 theorem rowRanges_adjacent
     (program : Lifecycle.Stage1.Application.Program) :
@@ -102,7 +102,7 @@ theorem rowRanges_finish
     (program : Lifecycle.Stage1.Application.Program) :
     (rowRange program .nextPreimage).finish =
       Lowering.physicalRowCount relation program := by
-  change 20109913 + applicationRowCount program + 5 =
+  change 20071078 + applicationRowCount program + 5 =
     Lowering.physicalRowCount relation program
   rw [Lowering.physicalRowCount_eq]
   rw [applicationRowCount_eq]
@@ -111,11 +111,11 @@ def rowOwnerAt (program : Lifecycle.Stage1.Application.Program)
     (row : Nat) : RowOwner :=
   if row < 4514654 then .priorStateHash
   else if row < 9027986 then .outputHash
-  else if row < 12057765 then .piCcs
-  else if row < 20035066 then .piRlc
-  else if row < 20060554 then .piDec
-  else if row < 20109913 then .runningTransition
-  else if row < 20109913 + applicationRowCount program then
+  else if row < 12018930 then .piCcs
+  else if row < 19996231 then .piRlc
+  else if row < 20021719 then .piDec
+  else if row < 20071078 then .runningTransition
+  else if row < 20071078 + applicationRowCount program then
     .application
   else .nextPreimage
 
@@ -134,23 +134,23 @@ theorem selectedRow_in_range
   by_cases h2 : row < 9027986
   · simp [rowOwnerAt, h1, h2, rowRange, Interval.Contains, Interval.finish]
     omega
-  by_cases h3 : row < 12057765
+  by_cases h3 : row < 12018930
   · simp [rowOwnerAt, h1, h2, h3, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h4 : row < 20035066
+  by_cases h4 : row < 19996231
   · simp [rowOwnerAt, h1, h2, h3, h4, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h5 : row < 20060554
+  by_cases h5 : row < 20021719
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, rowRange, Interval.Contains,
       Interval.finish]
     omega
-  by_cases h6 : row < 20109913
+  by_cases h6 : row < 20071078
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, h6, rowRange,
       Interval.Contains, Interval.finish]
     omega
-  by_cases h7 : row < 20109913 + applicationRowCount program
+  by_cases h7 : row < 20071078 + applicationRowCount program
   · simp [rowOwnerAt, h1, h2, h3, h4, h5, h6, h7, rowRange,
       Interval.Contains, Interval.finish]
     omega

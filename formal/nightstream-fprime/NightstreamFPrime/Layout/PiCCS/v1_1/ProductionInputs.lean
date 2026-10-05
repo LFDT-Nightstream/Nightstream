@@ -329,7 +329,7 @@ theorem physicalRowCount_eq
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 3029779 :=
+    physicalRowCount relation interface parentOffset = 2990944 :=
   physicalRowCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -339,7 +339,7 @@ theorem physicalColumnCount_eq
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 3029561 :=
+      parentOffset + 2990726 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -347,7 +347,7 @@ theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 9 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface = 3029779 :=
+    jointDomain relation interface = 2990944 :=
   jointDomain_eq_production relation interface
     (inputShapes relation interface 0 external)
 

@@ -6,14 +6,12 @@
 //! output bytes `32L..32L + 32`, reduced modulo Goldilocks as one
 //! little-endian integer. Lean owns its semantics and authority framing.
 
-use std::{borrow::Borrow, cmp::Reverse, collections::BinaryHeap, ops::Range};
+use std::{borrow::Borrow, ops::Range};
+
+mod key;
 
 use neo_ccs::Mat;
-use neo_math::{
-    balanced::to_balanced_i128,
-    ring::D,
-    signed_sums::{SignedShiftSums, SplitRing},
-};
+use neo_math::{balanced::to_balanced_i128, ring::D, signed_sums::SignedShiftSums};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -46,9 +44,9 @@ pub const PRODUCTION_SEED: [u8; 32] = [
 const _: () = assert!(D == 54);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 // A raw convolution degree has at most 54 terms from each message column.
-// Each term adds one 32-bit half of a key coefficient, so every signed
+// Each term adds one bounded integer limb of a key coefficient, so every signed
 // half-sum fits in i64 before any field reduction.
-const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * (1_u128 << 32) < (1_u128 << 63));
+const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * ((1_u128 << 32) + 3) < (1_u128 << 63));
 
 /// The SHAKE128 input of one key element. Every field has a fixed length,
 /// so distinct `(seed, row, block)` values give distinct inputs.
@@ -128,15 +126,14 @@ impl SignedBlock {
 
 fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     let mut sums = SignedShiftSums::zero();
-    for block in blocks {
-        sums.add_signed_units(&split_key(row, block.index), block.positive, block.negative);
+    for pair in blocks.chunks(2) {
+        let columns = [pair[0].index, pair.last().expect("nonempty pair").index];
+        let keys = key::split_pair(&PRODUCTION_SEED, row, columns);
+        for (block, key) in pair.iter().zip(keys) {
+            sums.add_signed_units(&key, block.positive, block.negative);
+        }
     }
     sums
-}
-
-/// One indexed key element, split for exact signed accumulation.
-fn split_key(row: u32, block: u64) -> SplitRing {
-    SplitRing::new(&coefficient_block(&PRODUCTION_SEED, row, block).map(Goldilocks::from_u64))
 }
 
 /// Key columns per commitment task. The 22 key rows alone leave workers
@@ -350,12 +347,25 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>
         .map(|block| block.index + 1)
         .max()
         .expect("a nonempty witness");
-    let totals = row_totals(column_count, |row, columns| {
+    // The union is independent of the key row. Compute it once instead of
+    // merging witness columns again for each of the 22 key rows.
+    let mut present = vec![false; column_count as usize];
+    for block in blocks.iter().flatten() {
+        present[block.index as usize] = true;
+    }
+    let columns: Vec<_> = present
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, present)| present.then_some(index as u64))
+        .collect();
+    let totals = row_totals(column_count, |row, range| {
         let blocks: Vec<_> = blocks
             .iter()
-            .map(|blocks| column_slice(blocks, &columns))
+            .map(|blocks| column_slice(blocks, &range))
             .collect();
-        batch_sums(row, &blocks)
+        let start = columns.partition_point(|&column| column < range.start);
+        let end = columns.partition_point(|&column| column < range.end);
+        batch_sums(row, &columns[start..end], &blocks)
     });
     for (row, totals) in totals.into_iter().enumerate() {
         for (commitment, total) in commitments.iter_mut().zip(totals) {
@@ -367,27 +377,17 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>
 
 /// Each key block is expanded once per row, then shared by every witness
 /// that uses its column.
-fn batch_sums(row: u32, blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
+fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
     let mut sums = vec![SignedShiftSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
-    let mut next = BinaryHeap::new();
-    for (witness, blocks) in blocks.iter().enumerate() {
-        if let Some(block) = blocks.first() {
-            next.push(Reverse((block.index, witness)));
-        }
-    }
-    while let Some(&Reverse((block_index, _))) = next.peek() {
-        let key = split_key(row, block_index);
-        while let Some(&Reverse((index, witness))) = next.peek() {
-            if index != block_index {
-                break;
-            }
-            next.pop();
-            let block = &blocks[witness][positions[witness]];
-            sums[witness].add_signed_units(&key, block.positive, block.negative);
-            positions[witness] += 1;
-            if let Some(block) = blocks[witness].get(positions[witness]) {
-                next.push(Reverse((block.index, witness)));
+    for pair in columns.chunks(2) {
+        let keys = key::split_pair(&PRODUCTION_SEED, row, [pair[0], *pair.last().expect("nonempty pair")]);
+        for (&column, key) in pair.iter().zip(keys) {
+            for ((witness, position), sum) in blocks.iter().zip(&mut positions).zip(&mut sums) {
+                if let Some(block) = witness.get(*position).filter(|block| block.index == column) {
+                    sum.add_signed_units(&key, block.positive, block.negative);
+                    *position += 1;
+                }
             }
         }
     }

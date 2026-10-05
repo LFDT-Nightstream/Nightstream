@@ -18,7 +18,7 @@ def main():
     directory.mkdir()
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
-    header = [1, 54, 17, 1605616]
+    header = [1, 54, 17, 1543989]
     cases = {
         "zero": [],
         "last-source": [[0, [[16, 2 ** 54 - 1, 0]]]],

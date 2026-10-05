@@ -1,6 +1,6 @@
 use super::*;
 use neo_ajtai::nightstream_fprime_setup::{
-    coefficient, commit_production_signed_unit_prefix_matrices, PRODUCTION_MESSAGE_COLUMNS,
+    coefficient, commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_MESSAGE_COLUMNS,
 };
 use p3_field::PrimeField64;
 
@@ -75,17 +75,22 @@ fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
         positive[column] = 1;
         let witness =
             Mat::compact_signed_unit_from_column_masks(D, column + 1, &positive, &vec![0; column + 1]).unwrap();
-        let actual = session
-            .commit_production_prefixes(&[witness])
-            .unwrap()
-            .remove(0);
-        for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
-            for lane in 0..D {
-                assert_eq!(
-                    actual.data[row * D + lane].as_canonical_u64(),
-                    coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32),
-                    "row={row} column={column} lane={lane}"
-                );
+        // Odd batches exercise Metal's 16-byte threadgroup memory alignment.
+        for count in [1, 3] {
+            let actual = session
+                .commit_production_prefixes(&vec![witness.clone(); count])
+                .unwrap();
+            assert_eq!(actual.len(), count);
+            for commitment in actual {
+                for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
+                    for lane in 0..D {
+                        assert_eq!(
+                            commitment.data[row * D + lane].as_canonical_u64(),
+                            coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32),
+                            "witnesses={count} row={row} column={column} lane={lane}"
+                        );
+                    }
+                }
             }
         }
     }
@@ -112,7 +117,7 @@ fn production_commitment_checks_all_inputs_before_device_work() {
         invalid,
         Mat::virtual_constant(D - 1, 1, F::ZERO),
         Mat::virtual_constant(D, 0, F::ZERO),
-        Mat::virtual_constant(D, PRODUCTION_MESSAGE_COLUMNS as usize + 1, F::ZERO),
+        Mat::virtual_constant(D, MAX_MESSAGE_COLUMNS as usize + 1, F::ZERO),
     ] {
         let expected = signed_unit_prefix_blocks(&invalid).err().unwrap();
         let error = session

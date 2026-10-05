@@ -103,8 +103,10 @@ structure Merged (columns : Nat) where
 /-- Append a column with its weight. -/
 def Merged.push {columns : Nat} (merged : Merged columns) (column : Fin columns) (weight : K) :
     Merged columns :=
+  -- The slot is read before the push, so that both arrays stay unshared and grow in place.
+  let slot := merged.keys.size
   { keys := merged.keys.push column, weights := merged.weights.push weight,
-    slots := merged.slots.insert column.val merged.keys.size }
+    slots := merged.slots.insert column.val slot }
 
 /-- Add `weight` to the weight of `column`. -/
 def Merged.add {columns : Nat} (merged : Merged columns) (column : Fin columns) (weight : K) :

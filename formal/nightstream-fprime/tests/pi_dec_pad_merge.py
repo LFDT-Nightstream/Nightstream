@@ -8,7 +8,7 @@ import sys
 
 
 # Selected Poseidon2HashChainV1Setup message columns and protocol dimensions.
-BLOCKS = 1_605_616
+BLOCKS = 1_543_989
 POINT_COORDINATES = 28
 CHILDREN = 16
 LANES = 54

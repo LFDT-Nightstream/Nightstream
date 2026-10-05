@@ -485,6 +485,60 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
 }
 
 #[test]
+fn verify_dec_public_rejects_malformed_commitment_payloads() {
+    let params = NeoParams::nightstream_goldilocks_k16();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let structure = build_structure(D, D);
+    let r = vec![k(37); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(D, 1), 133_000);
+    let mut children = vec![parent.clone(); params.k_rho as usize];
+    for child in &mut children {
+        child.c.data.clear();
+    }
+
+    assert!(
+        !verify_dec_public(
+            &structure,
+            &params,
+            &parent,
+            &children,
+            combine_commitments_b_pows,
+            ell_d,
+        ),
+        "public DEC accepted commitments whose declared dimensions do not match their payloads"
+    );
+}
+
+#[test]
+fn rlc_public_rejects_malformed_commitment_payloads() {
+    let params = NeoParams::nightstream_goldilocks_k16();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let structure = build_structure(D, D);
+    let r = vec![k(41); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let mut input = build_me_from_z(
+        &params,
+        &structure,
+        &z,
+        &r,
+        ell_d,
+        D,
+        Commitment::zeros(D, params.kappa as usize),
+        133_001,
+    );
+    input.c.data.clear();
+    let rhos = typed_rhos(&params, &[Mat::identity(D)]);
+
+    let result = rlc_public(&structure, &params, &rhos, &[input], mix_commitments_from_rhos, ell_d);
+
+    assert!(
+        result.is_err(),
+        "public RLC accepted a commitment whose declared dimensions do not match its payload"
+    );
+}
+
+#[test]
 fn reduction_policy_rejects_parameter_modulus_different_from_field() {
     let mut actual_field_params = NeoParams::goldilocks_paper_b2();
     actual_field_params.lambda = 100;

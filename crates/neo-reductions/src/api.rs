@@ -1002,7 +1002,8 @@ where
         && recomputed.eval_k == expected.eval_k
         && recomputed.eval_a == expected.eval_a
         && recomputed.m_in == expected.m_in
-        && recomputed.fold_digest == expected.fold_digest;
+        && recomputed.fold_digest == expected.fold_digest
+        && recomputed.adv == expected.adv;
     Ok((
         matches,
         RlcPublicVerifyPerf {

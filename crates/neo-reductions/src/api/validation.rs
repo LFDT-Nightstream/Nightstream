@@ -82,6 +82,17 @@ pub(crate) fn validate_ce_claim_shape(
     s: &CcsStructure<F>,
     ce: &CeClaim<Cmt, F, K>,
 ) -> Result<(), PiCcsError> {
+    if ce.c.d != D || ce.c.d.checked_mul(ce.c.kappa) != Some(ce.c.data.len()) {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: commitment payload does not match its {}x{} shape",
+            ce.c.d, ce.c.kappa
+        )));
+    }
+    if ce.adv.is_some() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: no reduction binds auxiliary lane commitments"
+        )));
+    }
     if ce.m_in > s.m {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} exceeds CCS width m={}",

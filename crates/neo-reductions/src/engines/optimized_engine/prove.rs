@@ -174,23 +174,3 @@ pub fn optimized_prove_with_cache_and_precompute_and_backend_and_perf<
     };
     Ok((outputs, proof, perf, precompute))
 }
-
-pub fn optimized_prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    commitment: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-    optimized_prove(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        &[],
-        &[],
-        commitment,
-    )
-}

@@ -35,6 +35,8 @@ pub trait PiCcsEngine {
         log: &L,
     ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>;
 
+    /// Checks one reduction. The caller must authenticate the running claims'
+    /// fold digest and fix the CCS structure; the transcript binds neither.
     fn verify(
         &self,
         tr: &mut Poseidon2Transcript,

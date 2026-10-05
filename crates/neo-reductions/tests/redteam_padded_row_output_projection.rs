@@ -7,8 +7,8 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::FoldingMode;
 use neo_reductions::optimized_engine::PiCcsProof;
+use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
@@ -67,8 +67,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, 0);
 
     let mut prover_transcript = Poseidon2Transcript::new(label);
-    let (outputs, proof) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
+    let (outputs, proof) = pi_ccs_prove(
         &mut prover_transcript,
         &params,
         &structure,
@@ -93,8 +92,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
 
 fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProof) -> bool {
     let mut verifier_transcript = Poseidon2Transcript::new(fixture.label);
-    neo_reductions::api::verify(
-        FoldingMode::Optimized,
+    pi_ccs_verify(
         &mut verifier_transcript,
         &fixture.params,
         &fixture.structure,

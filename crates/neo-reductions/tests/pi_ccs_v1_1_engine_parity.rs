@@ -8,7 +8,7 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::{dec_children_with_commit, prove, rlc_with_commit, verify, FoldingMode};
+use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove_with_binding, crosscheck_verify_with_binding};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
 use neo_reductions::engines::pi_ccs_joint::{
@@ -16,6 +16,7 @@ use neo_reductions::engines::pi_ccs_joint::{
 };
 use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
+use neo_reductions::engines::{CrossCheckEngine, OptimizedEngine, PaperExactEngine, PiCcsEngine};
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
@@ -130,6 +131,84 @@ fn source(log: &AjtaiSModule, columns: usize, seed: usize) -> (Claim, CcsWitness
     )
 }
 
+/// PiCCS through the public engine that serves `mode`.
+#[allow(clippy::too_many_arguments)]
+fn mode_prove(
+    mode: FoldingMode,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[Claim],
+    witnesses: &[CcsWitness<F>],
+    running: &[Output],
+    running_witnesses: &[Mat<F>],
+    log: &AjtaiSModule,
+) -> Result<(Vec<Output>, PiCcsProof), PiCcsError> {
+    match mode {
+        FoldingMode::Optimized => OptimizedEngine.prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+        FoldingMode::PaperExact => PaperExactEngine.prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+        FoldingMode::OptimizedWithCrosscheck => crosscheck().prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+            log,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mode_verify(
+    mode: FoldingMode,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[Claim],
+    running: &[Output],
+    outputs: &[Output],
+    proof: &PiCcsProof,
+) -> Result<bool, PiCcsError> {
+    match mode {
+        FoldingMode::Optimized => {
+            OptimizedEngine.verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+        FoldingMode::PaperExact => {
+            PaperExactEngine.verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+        FoldingMode::OptimizedWithCrosscheck => {
+            crosscheck().verify(transcript, params, structure, claims, running, outputs, proof)
+        }
+    }
+}
+
+fn crosscheck() -> CrossCheckEngine<OptimizedEngine, PaperExactEngine> {
+    CrossCheckEngine {
+        inner: OptimizedEngine,
+        ref_oracle: PaperExactEngine,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn prove_mode(
     mode: FoldingMode,
@@ -176,7 +255,7 @@ fn prove_mode_and_state(
     PiCcsError,
 > {
     let mut transcript = Poseidon2Transcript::new(label);
-    let (outputs, proof) = prove(
+    let (outputs, proof) = mode_prove(
         mode,
         &mut transcript,
         params,
@@ -261,7 +340,7 @@ fn assert_parity(rows: usize, columns: usize) {
     assert_eq!(paper_proof.canonical_bytes(), optimized_proof.canonical_bytes());
 
     for mode in [FoldingMode::PaperExact, FoldingMode::Optimized] {
-        assert!(verify(
+        assert!(mode_verify(
             mode,
             &mut Poseidon2Transcript::new(label),
             &params,
@@ -370,7 +449,7 @@ fn public_crosscheck_compares_the_complete_execution() {
         &log,
     )
     .expect("crosscheck proof");
-    assert!(verify(
+    assert!(mode_verify(
         mode,
         &mut Poseidon2Transcript::new(label),
         &params,
@@ -596,7 +675,7 @@ fn verifier_matches_the_paper_mutation_boundary() {
     .expect("proof");
     let rejects = |claims: &[Claim], outputs: &[Output], proof: &PiCcsProof| {
         !matches!(
-            verify(
+            mode_verify(
                 FoldingMode::Optimized,
                 &mut Poseidon2Transcript::new(label),
                 &params,

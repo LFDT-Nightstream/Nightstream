@@ -1,0 +1,8 @@
+
+running 1 test
+staged request=Reject { directory: "/private/tmp/nightstream-rust-38s-20261004/native", step: 4, engine: Optimized }
+staged circuit preparation elapsed=8.892849916s
+staged phase passed elapsed=21.569620375s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 21.57s

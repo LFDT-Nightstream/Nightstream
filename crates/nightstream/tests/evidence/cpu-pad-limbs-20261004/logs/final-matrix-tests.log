@@ -1,0 +1,22 @@
+   Compiling neo-reductions v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-reductions)
+    Finished `release` profile [optimized] target(s) in 11.94s
+     Running tests/matrix_rows.rs (target/release/deps/matrix_rows-3b9ae62567da939e)
+
+running 15 tests
+test changed_scalar_encoding_cannot_add_an_uncounted_dense_pattern ... ok
+test malformed_order_range_and_ignored_stop_are_not_workspace_failures ... ok
+test changed_run_counts_cannot_grow_the_fill_allocation ... ok
+test required_workspace_counts_once_and_matches_the_full_requested_window ... ok
+test supplied_workspace_includes_construction_counts_and_reserved_row_values ... ok
+test zero_openings_skip_rows_only_after_point_and_witness_shape_checks ... ok
+test retained_complete_window_is_shared_and_other_requests_load_as_before ... ok
+test workspace_prefixes_charge_offset_families_when_they_first_appear ... ok
+test scalar_runs_use_compact_entries_and_keep_geometric_runs_unexpanded ... ok
+test terminal_checks_share_row_reads_and_still_reject_a_false_fresh_witness ... ok
+test borrowed_cache_preserves_compact_identity_and_geometric_coefficients ... ok
+test original_runs_preserve_global_columns_overlap_and_empty_slots_across_windows ... ok
+test streamed_terminal_check_reports_failure_in_the_last_global_window ... ok
+test streamed_complete_openings_match_resident_with_global_imaginary_weights ... ok
+test run_event_openings_match_expanded_rows_across_block_and_part_boundaries ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

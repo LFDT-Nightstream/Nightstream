@@ -1,0 +1,45 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+    Finished `release` profile [optimized] target(s) in 5.71s
+     Running tests/nightstream_fprime_batch_commitment.rs (target/release/deps/nightstream_fprime_batch_commitment-c454d74cb3458769)
+
+running 4 tests
+test batch_rejects_dimensions_and_nonunit_values_at_their_input_index ... ok
+test empty_and_zero_batches_preserve_order_and_prefix_dimensions ... ok
+test batched_prefix_commitments_match_scalar_and_independent_ring_products ... ok
+test commitments_add_partial_sums_across_key_column_ranges ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/nightstream_fprime_matrix_commitment.rs (target/release/deps/nightstream_fprime_matrix_commitment-d69da15eb6206197)
+
+running 2 tests
+test production_matrix_commitment_rejects_shape_and_nonunit ... ok
+test production_matrix_commitment_matches_sparse_endpoint_key_products ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/nightstream_fprime_prefix_commitment.rs (target/release/deps/nightstream_fprime_prefix_commitment-14a953ad9b455145)
+
+running 2 tests
+test prefix_commitment_checks_bounds_before_zero_or_key_expansion ... ok
+test prefix_commitment_equals_exact_suffix_zero_extension ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/nightstream_fprime_setup_parity.rs (target/release/deps/nightstream_fprime_setup_parity-f69f37fda0fa2a01)
+
+running 2 tests
+test external_lean_setup_vectors_match_current_rust ... ignored, current Lean setup fixture path as JSON on stdin; run under the 300-second cap
+test lean_setup_vectors_match_rust_and_fips202 ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/nightstream_fprime_signed_commitment.rs (target/release/deps/nightstream_fprime_signed_commitment-c39caa89aa270428)
+
+running 4 tests
+test streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases ... ok
+test streamed_key_blocks_match_scalar_for_arbitrary_addresses ... ok
+test signed_commitment_rejects_wrong_lengths_and_out_of_range_units ... ok
+test signed_commitment_matches_the_ordinary_sum_under_the_same_key ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s

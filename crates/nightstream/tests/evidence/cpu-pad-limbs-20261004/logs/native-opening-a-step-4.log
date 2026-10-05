@@ -1,0 +1,6 @@
+
+running 1 test
+staged circuit preparation elapsed=8.907938667s
+test lifecycle::tests::staged::opening_tests::rejects_balanced_eval_a_after_valid_fresh_relation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 21.64s

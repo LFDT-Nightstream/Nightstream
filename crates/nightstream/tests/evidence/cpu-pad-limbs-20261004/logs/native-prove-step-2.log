@@ -1,0 +1,10 @@
+
+running 1 test
+staged request=Prove { directory: "/private/tmp/nightstream-rust-38s-20261004/native", step: 2, engine: Optimized, reference_proof: "/private/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/native/fold-2/proof.native" }
+staged circuit preparation elapsed=8.926876875s
+complete C/R/D engine=Optimized elapsed=12.92223325s
+complete CPU/device proof equality passed: 945983 bytes
+staged phase passed elapsed=22.917150792s
+test lifecycle::tests::staged::run_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 22.92s

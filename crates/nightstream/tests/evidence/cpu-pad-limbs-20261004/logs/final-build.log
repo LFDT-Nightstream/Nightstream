@@ -1,0 +1,5 @@
+   Compiling neo-ajtai v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-ajtai)
+   Compiling nightstream-fprime v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/nightstream-fprime)
+   Compiling neo-reductions v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/neo-reductions)
+   Compiling nightstream v0.1.0 (/Users/nicarq/.codex/worktrees/pr135-review/nightstream-clean-up/crates/nightstream)
+    Finished `release` profile [optimized] target(s) in 18.40s

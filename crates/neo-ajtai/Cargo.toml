@@ -25,6 +25,7 @@ serde = { version = "1.0", features = ["derive"] }
 # The production key expander. `asm` uses the ARMv8 SHA3 instructions on
 # aarch64 after a run-time check and has no effect on other targets.
 sha3 = { version = "0.10.8", features = ["asm"] }
+keccak = { version = "0.2.2", features = ["parallel"] }
 thiserror = "2"
 
 # Plonky3 (field + small dense matrix)

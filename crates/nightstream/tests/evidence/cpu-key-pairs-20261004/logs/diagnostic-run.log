@@ -1,0 +1,31 @@
+{"active_extends":3,"benchmark":"poseidon2_hash_chain_v1","engine":"optimized","event":"benchmark_started","initial_state":[202,203,204,205],"message":[7,11,13,17],"minimum_security_bits":114,"package":"/var/folders/dn/tn3mn1xd40l_vcpknskfwfyr0000gn/T/nightstream-rust-benchmark-20261004-bf0s2x2_/poseidon2.nsc","profile":{"B":65536,"b":2,"k_rho":16},"schema":2,"steps":4,"timing_scope":"prepared_package_load_prove_verify"}
+{"event":"phase_started","phase":"load","step":null}
+{"event":"phase_finished","phase":"load","seconds":1.159875375,"step":null}
+{"event":"phase_started","phase":"prove","step":1}
+MEASURE commitment_batch 17 2.616113
+{"event":"phase_finished","phase":"prove","seconds":3.214094416,"step":1}
+{"event":"phase_started","phase":"extend","step":2}
+MEASURE ccs 2.892671
+MEASURE rlc 0.148986
+MEASURE commitment_batch 16 4.219542
+MEASURE dec 5.909173
+MEASURE commitment_single 1366280 2.964379
+{"event":"phase_finished","phase":"extend","seconds":12.609979709,"step":2}
+{"event":"phase_started","phase":"extend","step":3}
+MEASURE ccs 5.219538
+MEASURE rlc 0.585555
+MEASURE commitment_batch 16 5.303438
+MEASURE dec 7.222588
+MEASURE commitment_single 1450998 3.164397
+{"event":"phase_finished","phase":"extend","seconds":16.848203333,"step":3}
+{"event":"phase_started","phase":"extend","step":4}
+MEASURE ccs 5.724563
+MEASURE rlc 0.742037
+MEASURE commitment_batch 16 5.789718
+MEASURE dec 7.802294
+MEASURE commitment_single 1454336 3.160950
+{"event":"phase_finished","phase":"extend","seconds":18.100303834,"step":4}
+{"event":"phase_started","phase":"verify","step":4}
+MEASURE commitment_batch 17 6.754888
+{"event":"phase_finished","phase":"verify","seconds":11.779805042,"step":4}
+{"circuit_identity":[7548990011328446471,17135259440128128963,5831077210202460744,9417456504682884501],"event":"benchmark_finished","final_state":[7438437859755310059,1083179110255594462,14574150336961053564,911795658819924022],"schema":2,"seconds":63.712481917,"steps":4,"timing_scope":"prepared_package_load_prove_verify","verified":true}

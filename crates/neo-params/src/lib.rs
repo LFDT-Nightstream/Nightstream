@@ -678,39 +678,14 @@ impl NeoParams {
             .checked_mul(2)
             .ok_or(ParamsError::ArithmeticOverflow("norm SumCheck degree"))?;
         let verifier_degree = ccs_degree.max(norm_degree).max(2);
-        let sumcheck_factor = (cube_variables as u128)
-            .checked_mul(verifier_degree as u128)
-            .ok_or(ParamsError::ArithmeticOverflow("joint SumCheck numerator"))?;
-
-        let fresh_count = self.max_fresh_count_from_rlc_guard()? as u128;
-        let running_count = self.k_rho as u128;
-        let source_count = fresh_count
-            .checked_add(running_count)
-            .ok_or(ParamsError::ArithmeticOverflow("paper source count"))?;
-        let carried_offset = fresh_count
-            .checked_add(source_count)
-            .ok_or(ParamsError::ArithmeticOverflow("carried-evaluation offset"))?;
-        let joint_matrix_count = (matrix_count as u128)
-            .checked_add(1)
-            .ok_or(ParamsError::ArithmeticOverflow("identity-first matrix count"))?;
-        let carried_count = running_count
-            .checked_mul(joint_matrix_count)
-            .and_then(|v| v.checked_mul(self.d as u128))
-            .ok_or(ParamsError::ArithmeticOverflow("carried-coordinate count"))?;
-        let alpha_dependent_degree = (cube_variables as u128)
-            .checked_add(
-                carried_offset
-                    .checked_sub(1)
-                    .ok_or(ParamsError::ArithmeticOverflow("paper mixing offset"))?,
-            )
-            .ok_or(ParamsError::ArithmeticOverflow("alpha-dependent mixing degree"))?;
-        let joint_coefficient_count = carried_offset
-            .checked_add(carried_count)
-            .ok_or(ParamsError::ArithmeticOverflow("joint coefficient count"))?;
-        let carried_mixing_degree = joint_coefficient_count
-            .checked_sub(1)
-            .ok_or(ParamsError::ArithmeticOverflow("carried mixing degree"))?;
-        let mixing_factor = alpha_dependent_degree.max(carried_mixing_degree);
+        let (sumcheck_factor, mixing_factor) = pi_ccs_padded_row_field_numerator(
+            cube_variables,
+            verifier_degree,
+            self.max_fresh_count_from_rlc_guard()? as u128,
+            self.k_rho as u128,
+            self.d as u128,
+            matrix_count as u128,
+        )?;
         let field_factor = sumcheck_factor
             .checked_add(mixing_factor)
             .ok_or(ParamsError::ArithmeticOverflow("padded-row field numerator"))?;
@@ -723,6 +698,49 @@ impl NeoParams {
             field_factor,
         ))
     }
+}
+
+/// Field numerator of the one-joint PiCCS test error for explicit counts, as
+/// `(sum-check part, mixing part)`. The error is their sum over `q^s`.
+pub fn pi_ccs_padded_row_field_numerator(
+    cube_variables: u32,
+    verifier_degree: u32,
+    fresh_count: u128,
+    running_count: u128,
+    ring_degree: u128,
+    matrix_count: u128,
+) -> Result<(u128, u128), ParamsError> {
+    let sumcheck_factor = (cube_variables as u128)
+        .checked_mul(verifier_degree as u128)
+        .ok_or(ParamsError::ArithmeticOverflow("joint SumCheck numerator"))?;
+    let source_count = fresh_count
+        .checked_add(running_count)
+        .ok_or(ParamsError::ArithmeticOverflow("paper source count"))?;
+    let carried_offset = fresh_count
+        .checked_add(source_count)
+        .ok_or(ParamsError::ArithmeticOverflow("carried-evaluation offset"))?;
+    let joint_matrix_count = matrix_count
+        .checked_add(1)
+        .ok_or(ParamsError::ArithmeticOverflow("identity-first matrix count"))?;
+    let carried_count = running_count
+        .checked_mul(joint_matrix_count)
+        .and_then(|v| v.checked_mul(ring_degree))
+        .ok_or(ParamsError::ArithmeticOverflow("carried-coordinate count"))?;
+    let alpha_dependent_degree = (cube_variables as u128)
+        .checked_add(
+            carried_offset
+                .checked_sub(1)
+                .ok_or(ParamsError::ArithmeticOverflow("paper mixing offset"))?,
+        )
+        .ok_or(ParamsError::ArithmeticOverflow("alpha-dependent mixing degree"))?;
+    let joint_coefficient_count = carried_offset
+        .checked_add(carried_count)
+        .ok_or(ParamsError::ArithmeticOverflow("joint coefficient count"))?;
+    let carried_mixing_degree = joint_coefficient_count
+        .checked_sub(1)
+        .ok_or(ParamsError::ArithmeticOverflow("carried mixing degree"))?;
+    let mixing_factor = alpha_dependent_degree.max(carried_mixing_degree);
+    Ok((sumcheck_factor, mixing_factor))
 }
 
 // ---------- small helpers ----------

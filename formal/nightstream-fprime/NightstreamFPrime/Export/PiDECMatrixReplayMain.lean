@@ -243,11 +243,12 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       -- Shared slices compute every active child; sixteen slices per worker, and each
       -- of `workers` threads takes the next slice, so the last slices are short.
       let mut sharedSlices := #[]
-      if let some all := evaluateAll then
-        let parts := min unitCount (16 * workers)
-        sharedSlices ← ParallelChunks.start workers parts fun slice =>
-          pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
-        taskCount := parts
+      if 0 < activeCount then
+        if let some all := evaluateAll then
+          let parts := min unitCount (16 * workers)
+          sharedSlices ← ParallelChunks.start workers parts fun slice =>
+            pure (all (unitCount * slice / parts) (unitCount * (slice + 1) / parts))
+          taskCount := parts
       for child in children do
         let mut childTasks := #[]
         unless maximum < 2 ^ child.val do

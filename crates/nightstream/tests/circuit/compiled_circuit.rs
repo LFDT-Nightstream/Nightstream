@@ -382,3 +382,178 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
         other => panic!("expected a false-constraint row after matching state and bindings, got {other:?}"),
     }
 }
+
+/// A well-shaped active proof with signed-unit witnesses. It does not verify.
+fn shaped_proof(prover: &Prover) -> Stage1Envelope {
+    use crate::folding::{CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance};
+    use neo_math::{D, K};
+
+    let structure = prover.lifecycle.structure();
+    let public_width = prover.compiled.package.logical_public_input_count();
+    let columns = structure.m.div_ceil(D);
+    let extension = |value: u64| neo_math::from_complex(F::from_u64(value), F::from_u64(value + 1));
+    let evaluations = |seed: u64| {
+        let mut values: Vec<K> = (0..D as u64).map(|lane| extension(seed + lane)).collect();
+        values.resize(D.next_power_of_two(), K::ZERO);
+        values
+    };
+    let commitment = |seed: u64| neo_ajtai::Commitment {
+        d: D,
+        kappa: 22,
+        data: (0..D as u64 * 22)
+            .map(|word| F::from_u64(seed + word))
+            .collect(),
+    };
+    let claim = |seed: u64| CeClaim {
+        c: commitment(seed),
+        X: neo_ccs::Mat::from_row_major(
+            D,
+            public_width / D,
+            (0..public_width as u64)
+                .map(|word| F::from_u64(seed + word))
+                .collect(),
+        ),
+        r: (0..28).map(|round| extension(seed + round)).collect(),
+        eval_k: evaluations(seed),
+        eval_a: (0..structure.t() as u64)
+            .map(|matrix| evaluations(seed + matrix))
+            .collect(),
+        m_in: public_width,
+        fold_digest: [seed as u8; 32],
+        adv: None,
+    };
+    let witness = |seed: usize| {
+        let mut positive = vec![0; columns];
+        let mut negative = vec![0; columns];
+        positive[seed % columns] = 0b101;
+        negative[(seed * 7) % columns] |= 0b10;
+        neo_ccs::Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
+    };
+    let running = RunningInstance::new(
+        (0..16).map(claim).collect(),
+        (0..16).map(witness).collect(),
+        Some(claim(99)),
+    );
+    let fresh = CcsInstance {
+        claim: CcsClaim {
+            c: commitment(17),
+            x: (0..public_width as u64).map(F::from_u64).collect(),
+            m_in: public_width,
+            adv: None,
+        },
+        witness: CcsWitness {
+            w: Vec::new(),
+            Z: witness(17),
+        },
+    };
+    Stage1Envelope::from_parts(Stage1State::new(3, [F::ONE; 4], [F::TWO; 4]), running, fresh)
+}
+
+/// Offsets computed independently of the codec: magic and kind, the state,
+/// then one running claim and one witness column.
+fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
+    let structure = prover.lifecycle.structure();
+    let public_width = prover.compiled.package.logical_public_input_count();
+    let d = neo_math::D;
+    let header = 16 + 8 + 9 * 8;
+    let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8 + 32;
+    let witness = structure.m.div_ceil(d) * 16;
+    (header, claim, witness)
+}
+
+#[test]
+fn proof_bytes_round_trip_exactly() {
+    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let public_width = prover.compiled.package.logical_public_input_count();
+    let (header, claim, witness) = proof_offsets(&prover);
+
+    let proof = shaped_proof(&prover);
+    let bytes = prover.encode_proof(&proof).unwrap();
+    assert_eq!(
+        bytes.len(),
+        header + 17 * claim + 16 * witness + (neo_math::D * 22 + public_width) * 8 + witness
+    );
+    let decoded = verifier.decode_proof(&bytes).unwrap();
+    assert_eq!(decoded.state(), proof.state());
+    assert_eq!(decoded.running(), proof.running());
+    let (left, right) = (decoded.fresh().unwrap(), proof.fresh().unwrap());
+    assert_eq!(left.claim.c, right.claim.c);
+    assert_eq!(left.claim.x, right.claim.x);
+    assert_eq!(left.witness.Z, right.witness.Z);
+    assert_eq!(prover.encode_proof(&decoded).unwrap(), bytes);
+
+    let initial = Stage1Envelope::initial([F::ONE, F::TWO, F::ZERO, F::ONE]);
+    let bytes = prover.encode_proof(&initial).unwrap();
+    assert_eq!(bytes.len(), 16 + 8 + 4 * 8);
+    let decoded = verifier.decode_proof(&bytes).unwrap();
+    assert!(decoded.is_initial());
+    assert_eq!(decoded.state(), initial.state());
+}
+
+#[test]
+fn proof_decoder_rejects_resized_and_noncanonical_bytes() {
+    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
+    let (header, claim, _) = proof_offsets(&prover);
+    let mut bytes = prover.encode_proof(&shaped_proof(&prover)).unwrap();
+    let rejects = |bytes: &[u8]| matches!(verifier.decode_proof(bytes), Err(Error::ProofBytes(_)));
+
+    assert!(rejects(&bytes[..bytes.len() - 1]), "truncated proof");
+    let mut extended = bytes.clone();
+    extended.push(0);
+    assert!(rejects(&extended), "trailing data");
+    drop(extended);
+
+    let mut mutate = |offset: usize, value: u64, reason: &str| {
+        let original: [u8; 8] = bytes[offset..offset + 8].try_into().unwrap();
+        bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+        assert!(rejects(&bytes), "{reason}");
+        bytes[offset..offset + 8].copy_from_slice(&original);
+    };
+    mutate(0, u64::from_le_bytes(*b"NS-OTHER"), "format tag");
+    mutate(16, 2, "unknown proof kind");
+    mutate(header, 0xffff_ffff_0000_0001, "noncanonical field word");
+    let first_column = header + 17 * claim;
+    mutate(first_column, 1 << 60, "mask bit outside the 54 lanes");
+    mutate(first_column + 8, 0b101, "overlapping masks");
+    assert!(verifier.decode_proof(&bytes).is_ok(), "restored bytes");
+}
+
+#[test]
+fn proof_encoder_rejects_values_outside_the_selected_shape() {
+    let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
+    let parts = |proof: Stage1Envelope| {
+        let running = proof.running().unwrap().clone();
+        let fresh = proof.fresh().unwrap().clone();
+        (*proof.state(), running, fresh)
+    };
+    let rejects = |state, running, fresh| {
+        matches!(
+            prover.encode_proof(&Stage1Envelope::from_parts(state, running, fresh)),
+            Err(Error::ProofBytes(_))
+        )
+    };
+
+    let (state, mut running, fresh) = parts(shaped_proof(&prover));
+    let lane = running.claims[0].c.clone();
+    running.claims[0].adv = Some(neo_ccs::LaneCommitments {
+        ops: lane.clone(),
+        is: lane.clone(),
+        fs: lane,
+    });
+    assert!(rejects(state, running, fresh), "auxiliary lane commitments");
+
+    let (state, mut running, fresh) = parts(shaped_proof(&prover));
+    running.claims[0].eval_k[neo_math::D] = neo_math::K::ONE;
+    assert!(rejects(state, running, fresh), "nonzero evaluation surplus");
+
+    let (state, running, mut fresh) = parts(shaped_proof(&prover));
+    let columns = fresh.witness.Z.cols();
+    fresh.witness.Z = neo_ccs::Mat::virtual_constant(neo_math::D, columns, F::TWO);
+    assert!(rejects(state, running, fresh), "witness value outside the signed units");
+
+    let (state, running, mut fresh) = parts(shaped_proof(&prover));
+    fresh.witness.w = vec![F::ONE];
+    assert!(rejects(state, running, fresh), "redundant private witness copy");
+}

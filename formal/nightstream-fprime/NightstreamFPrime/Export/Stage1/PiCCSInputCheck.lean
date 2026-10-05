@@ -559,7 +559,7 @@ initialClaim, postRoundClaims, terminal[6], commitments[17], public[17],
 Eval_K, Eval_A, outgoingState]]. The supplied execution checks the
 transcript-bound fixed-width chain; opening validity is a separate obligation. -/
 def checkFields (input : Input) (result : Execution) : List Value :=
-  let publicBlocks := ProductionKey.publicInputBlocks (running input) (fresh input)
+  let publicBlocks := ProductionKey.publicInputBlocks (fresh input)
   [.atom 1, inputValue input, runningValue input,
     .array (publicBlocks.map wordsValue),
     .array ((Transcript.verifierInputBlocks (verifierInput input)).map wordsValue),

@@ -123,6 +123,103 @@ theorem stateDomainTag_length : stateDomainTag.length = 23 := by
         productionShape.coefficientCount * 2 := by
   simp [serializeEvaluations, Nat.add_mul, Nat.mul_assoc, Nat.add_comm]
 
+/-! Fixed-width encodings are injective: equal flat maps with equal piece
+lengths agree piece by piece. -/
+
+theorem flatMap_eq_of_lengths {α β : Type*} (indices : List α) (left right : α → List β)
+    (lengths : ∀ index ∈ indices, (left index).length = (right index).length)
+    (same : indices.flatMap left = indices.flatMap right) :
+    ∀ index ∈ indices, left index = right index := by
+  induction indices with
+  | nil => simp
+  | cons head tail inductionHypothesis =>
+      simp only [List.flatMap_cons] at same
+      obtain ⟨headEqual, tailEqual⟩ := List.append_inj same (lengths head (by simp))
+      intro index member
+      rcases List.mem_cons.mp member with rfl | member
+      · exact headEqual
+      · exact inductionHypothesis
+          (fun index member => lengths index (List.mem_cons_of_mem _ member))
+          tailEqual index member
+
+/-- Flat maps with equal piece lengths have equal lengths. -/
+theorem flatMap_length_eq {α β : Type*} (indices : List α) (left right : α → List β)
+    (lengths : ∀ index ∈ indices, (left index).length = (right index).length) :
+    (indices.flatMap left).length = (indices.flatMap right).length := by
+  rw [List.length_flatMap, List.length_flatMap]
+  congr 1
+  exact List.map_congr_left lengths
+
+theorem block_injective : Function.Injective block :=
+  fun _ _ same => (List.cons.inj same).2
+
+theorem serializeK_injective : Function.Injective serializeK := by
+  intro left right same
+  cases left
+  cases right
+  simp only [serializeK, List.cons.injEq, and_true] at same
+  obtain ⟨rfl, rfl⟩ := same
+  rfl
+
+theorem serializeKs_injective {left right : List K}
+    (same : left.flatMap serializeK = right.flatMap serializeK) : left = right := by
+  induction left generalizing right with
+  | nil =>
+      cases right with
+      | nil => rfl
+      | cons _ _ => simp [serializeK] at same
+  | cons value values inductionHypothesis =>
+      cases right with
+      | nil => simp [serializeK] at same
+      | cons other others =>
+          simp only [List.flatMap_cons] at same
+          obtain ⟨headEqual, tailEqual⟩ := List.append_inj same rfl
+          rw [serializeK_injective headEqual, inductionHypothesis tailEqual]
+
+theorem serializeRingF_injective : Function.Injective serializeRingF := by
+  intro left right same
+  funext coefficient
+  exact List.map_inj_left.mp same coefficient (List.mem_finRange coefficient)
+
+theorem serializeCommitment_injective : Function.Injective serializeCommitment := by
+  intro left right same
+  funext row
+  exact serializeRingF_injective (flatMap_eq_of_lengths _ _ _ (fun _ _ => by simp) same row
+    (List.mem_finRange row))
+
+theorem serializePublicInput_injective :
+    Function.Injective
+      (serializePublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
+  intro left right same
+  funext column
+  exact List.map_inj_left.mp same column (List.mem_finRange column)
+
+theorem serializeEvaluations_injective : Function.Injective serializeEvaluations := by
+  intro left right same
+  obtain ⟨padWords, matrixWords⟩ := List.append_inj same (by simp)
+  have pad : left.pad = right.pad := by
+    funext coefficient
+    exact serializeK_injective (flatMap_eq_of_lengths _
+      (fun coefficient => serializeK (left.pad coefficient))
+      (fun coefficient => serializeK (right.pad coefficient))
+      (fun _ _ => rfl) padWords coefficient (List.mem_finRange _))
+  have matrix : left.matrix = right.matrix := by
+    funext matrix coefficient
+    have matrices := flatMap_eq_of_lengths _
+      (fun matrix => (List.finRange productionShape.coefficientCount).flatMap
+        fun coefficient => serializeK (left.matrix matrix coefficient))
+      (fun matrix => (List.finRange productionShape.coefficientCount).flatMap
+        fun coefficient => serializeK (right.matrix matrix coefficient))
+      (fun _ _ => by simp) matrixWords matrix (List.mem_finRange _)
+    exact serializeK_injective (flatMap_eq_of_lengths _
+      (fun coefficient => serializeK (left.matrix matrix coefficient))
+      (fun coefficient => serializeK (right.matrix matrix coefficient))
+      (fun _ _ => rfl) matrices coefficient (List.mem_finRange _))
+  cases left
+  cases right
+  simp only at pad matrix
+  rw [pad, matrix]
+
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeRunning (publicFits := publicFits) value).length = 49353 := by

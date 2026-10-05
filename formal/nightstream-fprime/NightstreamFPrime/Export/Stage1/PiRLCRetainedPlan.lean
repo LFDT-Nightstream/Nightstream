@@ -12,9 +12,9 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open PiRLCRetainedGeometry PiRLCRetainedInputs PiRLCRetainedPreservation
 
-def rowCount : Nat := 104652
+def rowCount : Nat := 78948
 
-@[simp] theorem rowCount_eq : rowCount = 104652 := rfl
+@[simp] theorem rowCount_eq : rowCount = 78948 := rfl
 
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (values : Values logicalWidth)

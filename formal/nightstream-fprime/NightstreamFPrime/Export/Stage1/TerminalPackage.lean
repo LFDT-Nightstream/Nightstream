@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Terminal
 Owns canonical package metadata for the outer Stage 1 terminal verifier.
 
 The terminal verifier reuses the complete F′ relation. It checks 16 running
-CE claims and one fresh CCS claim against the same 14 matrices, so this edge
+CE claims and one fresh CCS claim against the same 7 matrices, so this edge
 adds no circuit row or column. The final package constructor must install this
 metadata after the concrete application and complete relation exist.
 -/

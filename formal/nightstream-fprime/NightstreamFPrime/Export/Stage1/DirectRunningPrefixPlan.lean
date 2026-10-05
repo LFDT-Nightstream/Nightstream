@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 /-!
-Owns the one ordered direct 14-matrix plan through the running-instance
+Owns the one ordered direct 7-matrix plan through the running-instance
 transition. The existing pilot/PiCCS/PiRLC direct prefix comes first, followed
 by the canonical transition rows.
 
@@ -81,7 +81,7 @@ def plan
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
-    (plan relation payloadForms values geometry).rowCount = 1797463 := by
+    (plan relation payloadForms values geometry).rowCount = 1294471 := by
   simp [plan, prefixPlan, transitionPlan]
 
 theorem rowsZero_iff

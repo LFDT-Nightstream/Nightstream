@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 /-!
 Proves row-by-row equality between the compact PiCCS ordinary matrix program
-and the canonical direct 14-matrix plan. The package row accessor is an
+and the canonical direct 7-matrix plan. The package row accessor is an
 explicit identity-checked premise.
 -/
 
@@ -24,7 +24,7 @@ def directForms
     {program : Program} {logicalWidth : Nat}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 85448) :
+    (geometry : Geometry program logicalWidth) (index : Fin 48443) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (PiCCSOrdinaryDirectPlan.sourceMap geometry)
     (oneColumn geometry) (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -34,7 +34,7 @@ theorem plan_forms
     {program : Program} {logicalWidth : Nat}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 85448) :
+    (geometry : Geometry program logicalWidth) (index : Fin 48443) :
     (PiCCSOrdinaryDirectPlan.plan relation geometry).forms index =
       (directForms relation geometry index).meaningfulForm := by
   rfl
@@ -44,7 +44,7 @@ theorem block_row?
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 85448)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin 48443)
     (sourceIndex : Nat)
     (selected : rowSchedule.index? index.val = some sourceIndex)
     (loaded : sourceRow sourceIndex =
@@ -77,7 +77,7 @@ theorem matrixProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 85448, ∀ sourceIndex,
+    (loaded : ∀ index : Fin 48443, ∀ sourceIndex,
       rowSchedule.index? index.val = some sourceIndex →
       sourceRow sourceIndex =
         some (PerApplicationSourceProjection.basePackageRow program
@@ -85,7 +85,7 @@ theorem matrixProgram_row?
     (global : Fin (PiCCSOrdinaryDirectPlan.plan relation geometry).rowCount) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PiCCSOrdinaryDirectPlan.plan relation geometry).forms global) := by
-  change Fin 85448 at global
+  change Fin 48443 at global
   have scheduleBound : global.val < rowSchedule.indices.length := by
     rw [IndexSchedule.indices_length, rowSchedule_count]
     exact global.isLt
@@ -98,7 +98,7 @@ theorem matrixProgram_row?
     rfl
   have blockBound : global.val <
       (MatrixProgram.Block.ordinary (block geometry)).rowCount := by
-    change global.val < 85448
+    change global.val < 48443
     exact global.isLt
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (block geometry)] by rfl]

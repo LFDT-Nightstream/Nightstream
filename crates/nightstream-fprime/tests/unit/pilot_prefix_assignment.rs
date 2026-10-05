@@ -57,7 +57,7 @@ fn check_pilot_preimage(words: &[u64], context: [u64; 4]) {
     // The Lean PilotZeroRunning theorem supplies the bounded zero openings.
     // Check that this serialized input carries those exact running claims.
     let mut cursor = 39;
-    for length in std::iter::once(56).chain((0..16).flat_map(|_| [1_188, 270, 1_620])) {
+    for length in std::iter::once(56).chain((0..16).flat_map(|_| [1_188, 270, 864])) {
         assert_eq!(words[cursor], length as u64, "pilot running-field length");
         cursor += 1;
         assert!(

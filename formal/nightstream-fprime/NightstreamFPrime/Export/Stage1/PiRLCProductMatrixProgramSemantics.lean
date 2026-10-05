@@ -258,9 +258,9 @@ theorem previousInvocation_eq
         (CombinationStep.indexOf block lane cell).val))
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 20196 + (4590 + (1836 + (1512 * source.val +
-        (CombinationStep.indexOf block lane cell).val))) - 1512 =
-      20196 + (4590 + (1836 + (1512 * (source.val - 1) +
+    change 20196 + (4590 + (1836 + (756 * source.val +
+        (CombinationStep.indexOf block lane cell).val))) - 756 =
+      20196 + (4590 + (1836 + (756 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)))
     omega
 
@@ -447,7 +447,7 @@ theorem block_row?
   have bound : ordinal < (block geometry).rowCount := by
     rw [block_rowCount]
     dsimp only [ordinal]
-    have invocationBound : descriptor.invocation.val < 969 := descriptor.invocation.isLt
+    have invocationBound : descriptor.invocation.val < 731 := descriptor.invocation.isLt
     omega
   have quotient : ordinal / 108 = descriptor.invocation.val := by
     dsimp only [ordinal]
@@ -491,7 +491,7 @@ theorem matrixProgram_invocation_row?
       (MatrixProgram.Block.phi81Product (block geometry)).rowCount := by
     change invocation.val * 108 + localRow.val < (block geometry).rowCount
     rw [block_rowCount]
-    have invocationBound : invocation.val < 969 := invocation.isLt
+    have invocationBound : invocation.val < 731 := invocation.isLt
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.phi81Product (block geometry)] by rfl]

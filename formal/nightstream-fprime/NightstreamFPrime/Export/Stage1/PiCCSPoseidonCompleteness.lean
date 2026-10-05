@@ -81,7 +81,7 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 1096 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 20171597 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 14761448 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -330,7 +330,7 @@ private theorem invocation_values (index : InvocationIndex) :
     (∀ expected : KExpr, PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected →
       expected.eval (Spartan.pullback target) =
         K.mk (previousValue geometry (raw).assignment index 0) (outputValue geometry (raw).assignment index 0)) := by
-  have bounded : index.val < 2651 := by
+  have bounded : index.val < 1580 := by
     simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
   by_cases inStatement : index.val < 128
   · let current : Fin PiCCSTranscriptDirectSemantics.statementCount := ⟨index.val, inStatement⟩
@@ -408,7 +408,7 @@ private theorem invocation_values (index : InvocationIndex) :
           (PiCCSPhaseInputs.round_initial application relation target suffix physical)
           (PiCCSCompilerAssertions.round_assertions (Spartan.pullback target)) current
       · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 355, by
-          change index.val - 355 < 2296
+          change index.val - 355 < 1225
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.outputOffset PiCCSTranscriptDirectSemantics.outputCount

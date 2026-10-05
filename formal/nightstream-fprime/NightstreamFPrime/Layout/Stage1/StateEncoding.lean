@@ -37,7 +37,7 @@ def evalKWords (evaluations : EvaluationFamily K productionShape) : List F :=
   (List.finRange productionShape.coefficientCount).flatMap
     (fun coefficient => serializeK (evaluations.pad coefficient))
 
-/-- The 14-matrix `Eval_A` segment of one serialized evaluation family. -/
+/-- The 7-matrix `Eval_A` segment of one serialized evaluation family. -/
 def evalAWords (evaluations : EvaluationFamily K productionShape) : List F :=
   (List.finRange productionShape.matrixCount).flatMap fun matrix =>
     (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
@@ -48,7 +48,7 @@ theorem evalKWords_length (evaluations : EvaluationFamily K productionShape) :
   simp [evalKWords, productionShape, Phi81MatrixSource.phi81Shape, ringDegree]
 
 theorem evalAWords_length (evaluations : EvaluationFamily K productionShape) :
-    (evalAWords evaluations).length = 1512 := by
+    (evalAWords evaluations).length = 756 := by
   simp [evalAWords, productionShape, Phi81MatrixSource.phi81Shape,
     productionProfile, ringDegree]
 

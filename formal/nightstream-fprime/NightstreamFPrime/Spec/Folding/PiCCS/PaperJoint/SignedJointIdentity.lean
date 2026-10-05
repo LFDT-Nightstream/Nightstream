@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
 /-!
 Exact finite SuperNeo v1.1 joint identity from Section 7.3 and Appendix B.2.
-`Pad` and the 14 CCS matrices are separate evaluation families. This file
+`Pad` and the 7 CCS matrices are separate evaluation families. This file
 owns the pointwise four-term `Q`, its claimed target, the four residual
 families, and their signed identity. It emits no constraints.
 -/

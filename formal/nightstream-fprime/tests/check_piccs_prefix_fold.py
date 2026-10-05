@@ -21,8 +21,8 @@ P = 18446744069414584321
 NONRESIDUE = 7
 # Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json, pad and matrix records.
 # Profile.lean fixes ring degree 54 and the 14 separate matrix ports.
-ORIGINAL_ROWS = 1911773
-PAD_RECORDS = 1543989
+ORIGINAL_ROWS = 1371020
+PAD_RECORDS = 1107491
 MATRIX_RECORDS = (ORIGINAL_ROWS + 1) // 2
 FIELD = struct.Struct("<QQ")
 
@@ -49,7 +49,7 @@ class Profile:
 PROFILES = {
     "pad": Profile(0, PAD_RECORDS, 27),
     "matrix": Profile(1, MATRIX_RECORDS, 1),
-    "fresh": Profile(2, MATRIX_RECORDS, 14),
+    "fresh": Profile(2, MATRIX_RECORDS, 7),
 }
 
 

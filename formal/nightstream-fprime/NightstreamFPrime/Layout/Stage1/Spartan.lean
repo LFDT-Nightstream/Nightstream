@@ -26,28 +26,28 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 /-- Fixed completed pilot source interval. -/
-def pilotSourceColumnCount : Nat := 9126124
+def pilotSourceColumnCount : Nat := 6892396
 
 /-- Fixed completed pilot private interval. -/
-def pilotPrivateColumnCount : Nat := 9125850
+def pilotPrivateColumnCount : Nat := 6892122
 
 /-- Caller-supplied pilot private inputs precede all generated witnesses. -/
-def pilotInputPrivateColumnCount : Nat := 98786
+def pilotInputPrivateColumnCount : Nat := 74594
 
 /-- Caller-supplied PiCCS proof inputs. -/
-def proofInputColumnCount : Nat := 29288
+def proofInputColumnCount : Nat := 16436
 
 /-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
 
 /-- Source boundary between public context and private PiCCS proof inputs. -/
-def proofInputSourceStart : Nat := 9126128
+def proofInputSourceStart : Nat := 6892400
 
 /-- Source boundary between proof inputs and PiCCS local witnesses. -/
-def piCcsPhaseOffset : Nat := 9155416
+def piCcsPhaseOffset : Nat := 6908836
 
 /-- Target boundary after proof inputs and shifted pilot witnesses. -/
-def piCcsLocalStart : Nat := 9155138
+def piCcsLocalStart : Nat := 6908558
 
 /-- All source columns before Spartan inserts its constant column. -/
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
@@ -635,7 +635,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 9126125 := by
+        have mappedBoundNumeric : mapped < 6892397 := by
           rw [PilotSpartan.spartanColumnCount_eq,
             PilotSpartan.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound

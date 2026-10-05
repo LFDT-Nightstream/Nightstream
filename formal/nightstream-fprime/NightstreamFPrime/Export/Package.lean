@@ -153,14 +153,7 @@ inductive CcsMatrixSource where
   | b
   | c
   | sboxInput
-  | centeredUnit
   | evalSelector
-  | class0
-  | class1
-  | class2
-  | class3
-  | class4
-  | zero
 deriving Repr
 
 def CcsMatrixSource.format : Format CcsMatrixSource where
@@ -171,14 +164,7 @@ def CcsMatrixSource.format : Format CcsMatrixSource where
     | .b => .atom 3
     | .c => .atom 4
     | .sboxInput => .atom 5
-    | .centeredUnit => .atom 6
-    | .evalSelector => .atom 7
-    | .class0 => .atom 8
-    | .class1 => .atom 9
-    | .class2 => .atom 10
-    | .class3 => .atom 11
-    | .class4 => .atom 12
-    | .zero => .atom 13
+    | .evalSelector => .atom 6
   decode
     | .atom 0 => .ok .bit
     | .atom 1 => .ok .generalSelector
@@ -186,14 +172,7 @@ def CcsMatrixSource.format : Format CcsMatrixSource where
     | .atom 3 => .ok .b
     | .atom 4 => .ok .c
     | .atom 5 => .ok .sboxInput
-    | .atom 6 => .ok .centeredUnit
-    | .atom 7 => .ok .evalSelector
-    | .atom 8 => .ok .class0
-    | .atom 9 => .ok .class1
-    | .atom 10 => .ok .class2
-    | .atom 11 => .ok .class3
-    | .atom 12 => .ok .class4
-    | .atom 13 => .ok .zero
+    | .atom 6 => .ok .evalSelector
     | _ => .error "invalid CCS matrix source"
   decode_encode := by
     intro value
@@ -253,8 +232,7 @@ def CcsRelation.format : Format CcsRelation where
 
 /-- Exact selective matrix-slot order. Pad remains outside this list. -/
 def productionMatrixSources : List CcsMatrixSource :=
-  [.bit, .generalSelector, .a, .b, .c, .sboxInput, .centeredUnit,
-    .evalSelector, .class0, .class1, .class2, .class3, .class4, .zero]
+  [.bit, .generalSelector, .a, .b, .c, .sboxInput, .evalSelector]
 
 def encodeProductionTerm
     (term : NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.Monomial
@@ -289,10 +267,10 @@ def productionCcsRelation
   rfl
 
 @[simp] theorem productionMatrixSources_length :
-    productionMatrixSources.length = 14 := by
+    productionMatrixSources.length = 7 := by
   rfl
 
-@[simp] theorem productionTerms_length : productionTerms.length = 74 := by
+@[simp] theorem productionTerms_length : productionTerms.length = 8 := by
   unfold productionTerms
   rw [List.length_map, Spec.ProductionRelation.polynomial_terms]
   exact Spec.ProductionRelation.SelectivePolynomial.terms_length

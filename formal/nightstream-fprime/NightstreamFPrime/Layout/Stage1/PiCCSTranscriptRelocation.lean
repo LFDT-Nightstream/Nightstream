@@ -345,7 +345,7 @@ theorem outputFinalState_localSupport
     (initialSupport : Duplex.Formal.StateSupported
       (interface.initialState offset) (Extend (fun _ => False) base offset)) :
     Duplex.Formal.StateSupported (OutputBinding.finalState interface offset)
-      (Extend (fun _ => False) base (offset + 2516416)) := by
+      (Extend (fun _ => False) base (offset + 1342600)) := by
   have projected := Duplex.Formal.compileWiring_supported (fun _ => False)
     base offset (interface.initialState offset)
     (OutputBinding.actions interface offset) baseLeOffset initialSupport
@@ -358,11 +358,11 @@ theorem outputFinalState_localSupport
   exact projected.2
 
 /-- Output binding is one nonempty absorb action, so its final symbolic state
-is the output of the last permutation in the fixed 2,296-block schedule. -/
+is the output of the last permutation in the fixed 1,225-block schedule. -/
 theorem outputFinalState_direct
     (interface : OutputBinding.Interface) (offset : Nat) :
     OutputBinding.finalState interface offset =
-      Permutation.scheduleOutput (offset + 2515320) := by
+      Permutation.scheduleOutput (offset + 1341504) := by
   rw [OutputBinding.finalState_eq_compile]
   rw [← (Duplex.Formal.compileWiring_matches offset
     (interface.initialState offset) (OutputBinding.actions interface offset)).2]
@@ -576,15 +576,15 @@ theorem formalRoundOutputs_localSupport
     (∀ coordinate,
       Duplex.Formal.KSupported
         (Formal.roundPoint (Formal.atOffset interface offset) offset coordinate)
-        (Extend (fun _ => False) offset (offset + 2987770))) ∧
+        (Extend (fun _ => False) offset (offset + 1776949))) ∧
       Duplex.Formal.StateSupported
         (Formal.roundTranscriptFinalState
           (Formal.atOffset interface offset) offset)
-        (Extend (fun _ => False) offset (offset + 2987770)) := by
+        (Extend (fun _ => False) offset (offset + 1776949)) := by
   let shared := Formal.atOffset interface offset
   have roundSupport := formalRoundOutputs_exactLocalSupport interface offset
   have finishLe : formalRoundEnd interface offset ≤
-      offset + 2987770 := by
+      offset + 1776949 := by
     simp [formalRoundEnd, Formal.roundTranscriptStart, Formal.atOffset]
   constructor
   · intro coordinate
@@ -595,7 +595,7 @@ theorem formalRoundOutputs_localSupport
   · change Duplex.Formal.StateSupported
       (RoundTranscript.finalState (Formal.roundTranscriptInterface shared)
         (Formal.roundTranscriptStart shared))
-      (Extend (fun _ => False) offset (offset + 2987770))
+      (Extend (fun _ => False) offset (offset + 1776949))
     intro lane
     have support := roundSupport.2 lane
     exact Expr.VarsSatisfy.mono _ support
@@ -617,7 +617,7 @@ theorem evalRoundPoint_eq_of_shift_agreement
     (left right : Formal.Interface logicalWidth 9 publicFits)
     (leftOffset delta : Nat) (leftEnv rightEnv : Env)
     (agrees : ∀ index,
-      Extend (fun _ => False) leftOffset (leftOffset + 2987770) index →
+      Extend (fun _ => False) leftOffset (leftOffset + 1776949) index →
         rightEnv (index + delta) = leftEnv index) :
     RoundTranscript.evalRoundPoint
         (Formal.roundTranscriptInterface
@@ -643,7 +643,7 @@ theorem evalRoundPoint_eq_of_shift_agreement
   exact quadratic_eval_eq_of_shift_agreement delta
     (Formal.roundPoint (Formal.atOffset left leftOffset)
       leftOffset coordinate)
-    (Extend (fun _ => False) leftOffset (leftOffset + 2987770))
+    (Extend (fun _ => False) leftOffset (leftOffset + 1776949))
     leftEnv rightEnv
     ((formalRoundOutputs_localSupport left leftOffset).1 coordinate) agrees
 

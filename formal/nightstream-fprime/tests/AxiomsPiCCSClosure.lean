@@ -50,6 +50,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
+import NightstreamFPrime.Export.Stage1.PiCCSCarriedProductStates
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
@@ -541,7 +542,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.sparseRow_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.row?_eq
-#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache.productInvocation_value
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedProductStates.invocation_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.carriedPair_combined
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.full_components_eq_firstRound
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector.selector_evaluate

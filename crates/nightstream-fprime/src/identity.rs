@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
-use crate::package::{PackageError, PI_CCS_V1_1_ROUND_COUNT};
+use crate::package::{PackageError, PI_CCS_V1_1_MATRIX_COUNT, PI_CCS_V1_1_ROUND_COUNT};
 
 mod native;
 pub(crate) use native::{
@@ -29,13 +29,24 @@ const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     16,
     17,
     16,
-    14,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
     PI_CCS_V1_1_ROUND_COUNT as u64,
     9,
     54,
     22,
 ];
-const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [1, 1, 1, PI_CCS_V1_1_ROUND_COUNT as u64, 10, 17, 14, 54, 4, 1];
+const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
+    1,
+    1,
+    1,
+    PI_CCS_V1_1_ROUND_COUNT as u64,
+    10,
+    17,
+    PI_CCS_V1_1_MATRIX_COUNT as u64,
+    54,
+    4,
+    1,
+];
 const VERIFIER_CONTEXT_COMPONENT_DOMAIN: &[u8] = b"Nightstream/FPrime/context/v1_1";
 const VERIFIER_CONTEXT_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-context/v1_1";
 const NIFS_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/nifs-key/v1_1";

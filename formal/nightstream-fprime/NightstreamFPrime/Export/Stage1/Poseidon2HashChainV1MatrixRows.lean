@@ -1,11 +1,12 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Layout.MatrixProgram.PortCensus
 
 /-!
 Owns theorem-only conformance evidence for the final 14-matrix
 `Poseidon2HashChainV1` logical relation. The evidence connects the compact
-program carried by the sealed package to the exact structural plan, covers
-the explicit zero matrix in slot 13, and proves the complete Boolean-domain
-padding suffix is zero.
+program carried by the sealed package to the exact structural plan, proves
+that matrix slots 6 and 8–13 are zero matrices, and proves the complete
+Boolean-domain padding suffix is zero.
 
 This module does not expand matrix entries, emit an artifact, or define a
 second relation.
@@ -118,6 +119,61 @@ theorem slot13_matrix_zero :
       fun _ _ => 0 := by
   rw [PerApplicationFixedPoint.relation_matrices]
   exact ProductionRelation.Plan.zeroPort_matrix _
+
+private theorem deadPort_form_empty_of_row?
+    {logicalWidth : Nat} (plan : ProductionRelation.Plan logicalWidth)
+    (program : MatrixProgram.Program) (sourceRow : Nat → Option R1CS.Row)
+    (decoded : ∀ row : Fin plan.rowCount,
+      program.row? logicalWidth sourceRow row.val = some (plan.forms row))
+    (row : Fin plan.rowCount) (port : Fin Spec.ProductionRelation.matrixCount)
+    (dead : port.val = 6 ∨ 8 ≤ port.val) :
+    plan.portForm row port = ProductionRelation.SparseForm.empty := by
+  unfold ProductionRelation.Plan.portForm ProductionRelation.meaningfulPort?
+  by_cases stored : port.val < Spec.ProductionRelation.meaningfulPortCount
+  · rw [dif_pos stored]
+    exact MatrixProgram.Program.row?_deadPortsEmpty program logicalWidth
+      sourceRow row.val (decoded row) ⟨port.val, stored⟩ dead
+  · rw [dif_neg stored]
+
+private theorem matrix_zero_of_form_empty
+    {logicalWidth : Nat} (plan : ProductionRelation.Plan logicalWidth)
+    (port : Fin Spec.ProductionRelation.matrixCount)
+    (empty : ∀ row, plan.portForm row port = ProductionRelation.SparseForm.empty) :
+    plan.matrix port = fun _ _ => 0 := by
+  funext vertex column
+  unfold ProductionRelation.Plan.matrix
+  split
+  · next row _ =>
+      rw [empty row]
+      exact ProductionRelation.SparseForm.empty_coefficient column
+  · rfl
+
+/-- Matrix slots 6 and 8–13 are empty at every active row: no compact block
+fills slots 6 or 8–12, and slot 13 has no stored port. -/
+theorem deadPort_form_empty
+    (row : Fin (PerApplicationFixedPoint.structuralPlan
+      Poseidon2HashChainV1Package.application
+      Poseidon2HashChainV1Package.fits).rowCount)
+    (port : Fin Spec.ProductionRelation.matrixCount)
+    (dead : port.val = 6 ∨ 8 ≤ port.val) :
+    (PerApplicationFixedPoint.structuralPlan
+        Poseidon2HashChainV1Package.application
+        Poseidon2HashChainV1Package.fits).portForm row port =
+      ProductionRelation.SparseForm.empty :=
+  deadPort_form_empty_of_row? _ _ _ compactProgram_row?_eq_structuralPlan_forms
+    row port dead
+
+/-- Seven of the 14 production matrices are zero on the complete Boolean
+domain: slots 6 and 8–13 carry no constraint. -/
+theorem deadPort_matrix_zero
+    (port : Fin Spec.ProductionRelation.matrixCount)
+    (dead : port.val = 6 ∨ 8 ≤ port.val) :
+    (PerApplicationFixedPoint.relation
+        Poseidon2HashChainV1Package.application
+        Poseidon2HashChainV1Package.fits).matrices port =
+      fun _ _ => 0 := by
+  rw [PerApplicationFixedPoint.relation_matrices]
+  exact matrix_zero_of_form_empty _ port (fun row => deadPort_form_empty row port dead)
 
 /-- Every matrix coefficient is zero after the active-row prefix and through
 the end of the exact `2^28` Boolean row domain. -/

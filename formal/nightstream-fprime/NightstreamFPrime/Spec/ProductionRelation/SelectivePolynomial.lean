@@ -1,6 +1,7 @@
 import Mathlib.Tactic
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
+import NightstreamFPrime.Spec.Profile
 
 /-!
 Paper authority: SuperNeo v1.1, Definitions 18--20 and Section 7.3.
@@ -28,8 +29,8 @@ namespace NightstreamFPrime.Spec.ProductionRelation.SelectivePolynomial
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-- The fixed SuperNeo v1.1 `Eval_A` arity. The final slot is zero. -/
-def matrixCount : Nat := 14
+/-- The `Eval_A` arity, read from the production profile. The final slot is zero. -/
+def matrixCount : Nat := productionProfile.ccsMatrices
 
 /-- Number of matrix slots that carry selective compiler ports. -/
 def meaningfulPortCount : Nat := 13
@@ -121,7 +122,7 @@ def Term.toMonomial (term : Term) : Monomial F matrixCount :=
   rfl
 
 /-- Matrix slot 13 is the canonical zero matrix. -/
-def zeroPort : Fin matrixCount := ⟨13, by norm_num [matrixCount]⟩
+def zeroPort : Fin matrixCount := ⟨13, by decide⟩
 
 @[simp] theorem monomial_zeroPort
     (coefficient : F) (portPowers : PortExponents) :

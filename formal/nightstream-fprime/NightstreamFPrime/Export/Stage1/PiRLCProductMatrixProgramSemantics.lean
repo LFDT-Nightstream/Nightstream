@@ -82,7 +82,8 @@ def wireDescriptor : PiRLCProductSchedule.Descriptor →
       commitmentFamily, publicInputFamily, evalKFamily, evalAFamily,
       MatrixProgram.Phi81Product.Family.invocationCount,
       MatrixProgram.Phi81Product.Family.privateCount,
-      CombinationStep.privateCount, Fin.encodeProd, ringDegree] <;> omega
+      CombinationStep.privateCount, Fin.encodeProd, ringDegree,
+      productionProfile] <;> omega
 
 theorem challengeSlot_eq
     (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :
@@ -155,7 +156,8 @@ theorem challengeState?
       MatrixProgram.Phi81Product.Descriptor.cell,
       MatrixProgram.Phi81Product.Descriptor.coordinates,
       coordinates_indexOf,
-      CombinationStep.privateCount, Fin.encodeProd, ringDegree] <;> omega
+      CombinationStep.privateCount, Fin.encodeProd, ringDegree,
+      productionProfile] <;> omega
 
 theorem input_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

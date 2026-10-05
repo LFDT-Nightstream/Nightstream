@@ -1,10 +1,22 @@
 //! Tests for rotation matrix sampling (ΠRLC challenges)
 
+use neo_ccs::Mat;
 use neo_math::D;
+use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::PiCcsError;
-use neo_reductions::{sample_rot_rhos_n, RotRing};
+use neo_reductions::{rot_rhos_to_mats, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
+
+/// The checked sampler, as matrices.
+fn sample_rot_rhos_n(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    ring: &RotRing,
+    count: usize,
+) -> Result<Vec<Mat<F>>, PiCcsError> {
+    sample_rot_rhos_n_typed(transcript, params, ring, count).map(|rhos| rot_rhos_to_mats(&rhos))
+}
 
 #[test]
 #[allow(non_snake_case)]
@@ -208,5 +220,23 @@ fn test_parameter_t_consistency() {
     assert_eq!(
         params.T as u64, T_computed,
         "NeoParams.T should match computed expansion factor"
+    );
+}
+
+#[test]
+fn public_sampler_rejects_a_ring_without_the_strong_set_property() {
+    // F_q[X]/(X^54): X is nonzero and nilpotent, so the difference of two
+    // challenges with the same constant term need not be a unit.
+    const NILPOTENT_PHI: [i32; D] = [0; D];
+    let ring = RotRing {
+        phi_coeffs: &NILPOTENT_PHI,
+        alphabet: &goldilocks_paper_b2::CHALLENGE_ALPHABET,
+        binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
+    };
+    let params = NeoParams::goldilocks_paper_b2();
+    let mut transcript = Poseidon2Transcript::new_v1_1();
+    assert!(
+        sample_rot_rhos_n(&mut transcript, &params, &ring, 6).is_err(),
+        "the only public sampler must reject a quotient ring other than Phi81"
     );
 }

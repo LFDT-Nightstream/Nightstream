@@ -31,7 +31,7 @@ def evalKFamily : ProductFamily :=
   { sourceCount := 17, blockCount := 1, cellCount := 2 }
 
 def evalAFamily : ProductFamily :=
-  { sourceCount := 17, blockCount := 14, cellCount := 2 }
+  { sourceCount := 17, blockCount := productionProfile.ccsMatrices, cellCount := 2 }
 
 /-- Exact SuperNeo family order: commitment, public input, Eval_K, Eval_A. -/
 def families : List ProductFamily :=
@@ -43,13 +43,13 @@ def families : List ProductFamily :=
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily,
     MatrixProgram.Phi81Product.Family.invocationCount,
     MatrixProgram.Phi81Product.Family.privateCount,
-    CombinationStep.privateCount, ringDegree]
+    CombinationStep.privateCount, ringDegree, productionProfile]
 
 @[simp] theorem families_ringCount :
     MatrixProgram.Phi81Product.ringCount families = 969 := by
   norm_num [families, MatrixProgram.Phi81Product.ringCount,
     MatrixProgram.Phi81Product.Family.ringCount,
-    commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
+    commitmentFamily, publicInputFamily, evalKFamily, evalAFamily, productionProfile]
 
 /-- First checked coefficient word of source zero. -/
 def challengeSlotStart : Nat := 0

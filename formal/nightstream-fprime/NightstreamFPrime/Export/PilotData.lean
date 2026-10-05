@@ -241,7 +241,7 @@ def profile : Profile where
   runningSources := 16
   piRlcInputs := 17
   piDecChildren := 16
-  ccsMatrices := 14
+  ccsMatrices := productionProfile.ccsMatrices
   cubeVariables := 28
 
 def poseidonSchedule : PoseidonSchedule where

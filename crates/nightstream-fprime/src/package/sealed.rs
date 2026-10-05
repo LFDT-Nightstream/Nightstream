@@ -35,7 +35,7 @@ use crate::WitnessAssignment;
 
 const SEALED_PACKAGE_SCHEMA: u64 = 6;
 pub(super) const INNER_PACKAGE_SCHEMA: u64 = 8;
-const MATRIX_COUNT: usize = 14;
+const MATRIX_COUNT: usize = super::PI_CCS_V1_1_MATRIX_COUNT;
 const APPLICATION_PLAN_SCHEMA: u64 = 1;
 const APPLICATION_STATE_WORDS: usize = 4;
 const NEXT_PREIMAGE_ROW_COUNT: usize = 5;

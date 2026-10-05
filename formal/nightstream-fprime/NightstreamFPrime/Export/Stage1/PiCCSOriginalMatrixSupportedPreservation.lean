@@ -127,4 +127,40 @@ theorem invocations_isZero_source_port {columns arity count : Nat}
   apply invocations_source_port
   exact PiCCSOriginalSupport.read_eq_zero tables masks source
 
+/-- The same flag preserves complete numeric invocation ranges through column
+weights that are prepared once for every nonzero source. -/
+theorem invocationsWeighted_source_port {columns arity count : Nat}
+    (zeroSource : Fin productionShape.sourceCount → Bool)
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
+    (interfaces : Vector (PoseidonSboxPlan.Interface columns) count)
+    (source : Fin productionShape.sourceCount) (port : Fin matrixCount)
+    (zeroRead : zeroSource source = true → read source = fun _ _ => 0) :
+    ((invocationsWeighted zeroSource firstRow point read interfaces).get
+        (Fin.encodeProd (source, port))).toRing =
+      ((PiCCSOriginalMatrixBatch.sumInvocations firstRow point read interfaces).get
+        (Fin.encodeProd (source, port))).toRing := by
+  rw [PiCCSOriginalMatrixBatch.sumInvocations_source_port]
+  simp only [invocationsWeighted, get_ofFn, Fin.decodeProd_encodeProd]
+  by_cases zero : zeroSource source = true
+  · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
+      PiDECMatrixZeroRead.invocation_sum_zero]
+  · simp only [if_neg zero, Bool.false_eq_true, ↓reduceIte]
+    exact PiDECPoseidonColumnWeights.evaluate_prepare_toRing firstRow point (read source)
+      interfaces port
+
+/-- Full-mask flags preserve every source of the numeric invocation batch
+through prepared column weights. -/
+theorem invocationsWeighted_isZero_source_port {columns arity count : Nat}
+    (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
+    (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)
+    (interfaces : Vector (PoseidonSboxPlan.Interface columns) count)
+    (source : Fin productionShape.sourceCount) (port : Fin matrixCount) :
+    ((invocationsWeighted (PiCCSOriginalSupport.isZero masks) firstRow point
+      (PiCCSOriginalReads.read tables masks) interfaces).get (Fin.encodeProd (source, port))).toRing =
+      ((PiCCSOriginalMatrixBatch.sumInvocations firstRow point
+        (PiCCSOriginalReads.read tables masks) interfaces).get (Fin.encodeProd (source, port))).toRing := by
+  apply invocationsWeighted_source_port
+  exact PiCCSOriginalSupport.read_eq_zero tables masks source
+
 end NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported

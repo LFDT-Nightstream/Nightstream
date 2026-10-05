@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
 import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
+import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
 /-!
 Skip a complete source sum when its supplied zero flag is true, then retain
@@ -57,6 +58,22 @@ The stored numeric evaluator and complete output shape remain unchanged. -/
   let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
     if zeroSource source then PiDECEvaluationBatch.zero matrixCount
     else PiDECMatrixInvocationRange.sum firstRow point (read source) interfaces
+  Vector.ofFn fun code =>
+    let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
+    (bySource.get pair.1).get pair.2
+
+/-- The zero branch precedes all source arithmetic. The column weights of the
+invocations are prepared once for every nonzero source. -/
+@[specialize] def invocationsWeighted {columns arity count : Nat}
+    (zeroSource : Fin productionShape.sourceCount → Bool)
+    (firstRow : Nat) (point : CubePoint K arity)
+    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
+    (interfaces : Vector (PoseidonSboxPlan.Interface columns) count) :
+    PiCCSOriginalMatrixBatch.Batch :=
+  let prepared := PiDECPoseidonColumnWeights.prepare firstRow point interfaces
+  let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
+    if zeroSource source then PiDECEvaluationBatch.zero matrixCount
+    else PiDECPoseidonColumnWeights.evaluate prepared (read source)
   Vector.ofFn fun code =>
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2

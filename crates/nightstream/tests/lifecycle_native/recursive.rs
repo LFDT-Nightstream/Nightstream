@@ -49,11 +49,9 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("fresh recursive source elapsed={:?}", started.elapsed());
 
     let (state, proof_state) = base_proof.into_parts();
-    let ProofState::Active { running, mut latest } = proof_state else {
+    let ProofState::Active { running, fresh } = proof_state else {
         panic!("base generation must produce an active source");
     };
-    assert_eq!(latest.instances.len(), 1);
-    let fresh = latest.instances.pop().unwrap();
     let prior = running.claims_only();
     let fresh_claim = fresh.claim.clone();
     let first_fold = Instant::now();
@@ -186,14 +184,9 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
 pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_proof: Stage1Envelope) -> Stage1Envelope {
     let expected_state = *final_proof.state();
     let (_, proof_state) = final_proof.into_parts();
-    let ProofState::Active {
-        mut running,
-        mut latest,
-    } = proof_state
-    else {
+    let ProofState::Active { mut running, mut fresh } = proof_state else {
         panic!("recursive output must remain active");
     };
-    let mut fresh = latest.instances.pop().unwrap();
     running.claims[0].eval_k[0] += K::ONE;
     let preimage = serialize_pi_ccs_v1_1_state_preimage(
         package.binding.verifier_context().digest().map(F::from_u64),

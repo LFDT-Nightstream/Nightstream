@@ -66,17 +66,7 @@ impl PreparedLifecycle {
                 let (inputs, witnesses) = self.base_inputs(params, state.z0(), application_witness, output)?;
                 Ok(self.complete_step(inputs, witnesses, application_values)?)
             }
-            ProofState::Active {
-                mut running,
-                mut latest,
-            } => {
-                if latest.instances.len() != 1 {
-                    return Err(ExtendError::Input("the selected profile requires one fresh instance"));
-                }
-                let mut fresh = latest
-                    .instances
-                    .pop()
-                    .ok_or(ExtendError::Input("missing fresh instance"))?;
+            ProofState::Active { mut running, mut fresh } => {
                 let (_, digest) = self.checked_prior_state(&state, &running, &fresh.claim)?;
                 prepare_running(&mut running, params, digest);
                 nifs::validate_running_parent_authority(params, &self.structure, ajtai_dec_mixer, &running)

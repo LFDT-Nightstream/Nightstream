@@ -10,7 +10,7 @@ use neo_reductions::common::project_x_from_witness_mat;
 use nightstream_fprime::{PackageError, PI_DEC_V1_1_CHILD_COUNT};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{LatestInstance, ProofState};
+use super::ProofState;
 use super::{PreparedLifecycle, Stage1State, Stage1StepInputs};
 use crate::folding::{CcsClaim, CcsInstance, CcsWitness, RunningInstance};
 
@@ -36,7 +36,7 @@ impl Stage1Envelope {
     pub(crate) fn from_parts(state: Stage1State, running: RunningInstance, fresh: CcsInstance) -> Self {
         Self {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::active(running, fresh),
         }
     }
 
@@ -62,12 +62,8 @@ impl Stage1Envelope {
         self.proof.running()
     }
 
-    /// The one fresh instance; `None` for any other instance count.
     pub(crate) fn fresh(&self) -> Option<&CcsInstance> {
-        match self.proof.latest()?.instances.as_slice() {
-            [fresh] => Some(fresh),
-            _ => None,
-        }
+        self.proof.fresh()
     }
 
     pub(crate) fn is_initial(&self) -> bool {
@@ -256,7 +252,7 @@ impl PreparedLifecycle {
         running.witnesses = child_witnesses;
         Ok(Stage1Envelope {
             state,
-            proof: ProofState::active(running, LatestInstance::from_instances(vec![fresh])),
+            proof: ProofState::active(running, fresh),
         })
     }
 }

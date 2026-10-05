@@ -14,6 +14,8 @@ use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+mod zero_running;
+
 fn identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![Mat::identity(n)], SparsePoly::new(1, vec![])).expect("valid CCS")
 }
@@ -87,6 +89,7 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/k_mcs_e2e");
     let (out, proof) = prove(
         FoldingMode::Optimized,
@@ -95,8 +98,8 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -108,7 +111,7 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
         &params,
         &ccs,
         &mcs_list,
-        &[],
+        &running,
         &out,
         &proof,
     )
@@ -165,6 +168,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
     let (out, proof) = prove(
         FoldingMode::Optimized,
@@ -173,8 +177,8 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -186,7 +190,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
         &params,
         &ccs,
         &mcs_list,
-        &[],
+        &running,
         &out,
         &proof,
     )
@@ -245,6 +249,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x");
     let (mut out, proof) = prove(
         FoldingMode::Optimized,
@@ -253,8 +258,8 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -268,7 +273,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
         &params,
         &ccs,
         &mcs_list,
-        &[],
+        &running,
         &out,
         &proof,
     )
@@ -293,6 +298,7 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     mcs_list.push(inst);
     mcs_wits.push(wit);
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x_permute");
     let (mut out, proof) = prove(
         FoldingMode::Optimized,
@@ -301,8 +307,8 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -321,7 +327,7 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
         &params,
         &ccs,
         &mcs_list,
-        &[],
+        &running,
         &out,
         &proof,
     )

@@ -11,6 +11,8 @@ use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 
+mod zero_running;
+
 fn identity_left(n: usize, m: usize) -> Mat<F> {
     let mut mat = Mat::zero(n, m, F::ZERO);
     for i in 0..n.min(m) {
@@ -65,6 +67,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
     let label = b"test/padded_row_identity/second_sumcheck";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (out_me, mut proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -72,8 +75,8 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
         &s,
         core::slice::from_ref(&mcs_inst),
         core::slice::from_ref(&mcs_wit),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove");
@@ -87,7 +90,7 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
         &params,
         &s,
         core::slice::from_ref(&mcs_inst),
-        &[],
+        &running,
         &out_me,
         &proof,
     );
@@ -105,6 +108,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
             .max(2)
             .trailing_zeros() as usize;
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (out_me, proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -112,8 +116,8 @@ fn padded_row_identity_uses_one_joint_row_cube() {
         &s,
         core::slice::from_ref(&mcs_inst),
         core::slice::from_ref(&mcs_wit),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove");
@@ -129,7 +133,7 @@ fn padded_row_identity_uses_one_joint_row_cube() {
         &params,
         &s,
         core::slice::from_ref(&mcs_inst),
-        &[],
+        &running,
         &out_me,
         &proof,
     )
@@ -142,6 +146,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
     let label = b"test/padded_row_identity/eval_k_mutation";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (mut out_me, proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -149,8 +154,8 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
         &s,
         core::slice::from_ref(&mcs_inst),
         core::slice::from_ref(&mcs_wit),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove");
@@ -165,7 +170,7 @@ fn padded_row_identity_verify_rejects_eval_k_mutation() {
         &params,
         &s,
         core::slice::from_ref(&mcs_inst),
-        &[],
+        &running,
         &out_me,
         &proof,
     );
@@ -177,6 +182,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
     let label = b"test/padded_row_identity/redteam/eval_a_mutation";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (mut outputs, proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -184,8 +190,8 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
         &s,
         core::slice::from_ref(&mcs_inst),
         core::slice::from_ref(&mcs_wit),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove");
@@ -200,7 +206,7 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
         &params,
         &s,
         core::slice::from_ref(&mcs_inst),
-        &[],
+        &running,
         &outputs,
         &proof,
     );
@@ -219,6 +225,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     mcs.x = vec![F::ZERO; D];
     wit.w.clear();
 
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs.m_in);
     let (mut outputs, proof) = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -226,8 +233,8 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
         &s,
         core::slice::from_ref(&mcs),
         core::slice::from_ref(&wit),
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove");
@@ -244,7 +251,7 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
         &params,
         &s,
         core::slice::from_ref(&mcs),
-        &[],
+        &running,
         &outputs,
         &proof,
     );
@@ -260,6 +267,7 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
     let label = b"test/padded_row_identity/redteam/fresh_count_policy";
     let (params, s, l, claim, witness, mut tr_p) = build_fixture(label, 4, D);
     let count = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize + 1;
+    let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
     let claims = vec![claim; count];
     let witnesses = vec![witness; count];
 
@@ -270,14 +278,18 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
         &s,
         &claims,
         &witnesses,
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     );
 
+    let error = result
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
     assert!(
-        result.is_err(),
-        "raw Pi_CCS accepted {} fresh claims under a profile capped at {}",
+        error.contains(&format!("fresh source count {count} exceeds")),
+        "raw Pi_CCS accepted {} fresh claims under a profile capped at {}: {error}",
         count,
         neo_params::goldilocks_paper_b2::MAX_FRESH_K
     );
@@ -286,24 +298,12 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
 #[test]
 fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
     let seed_label = b"test/padded_row_identity/redteam/running_count_seed";
-    let (params, s, l, claim, witness, mut seed_tr) = build_fixture(seed_label, 4, D);
-    let running_witness = witness.Z.clone();
-    let (seed_outputs, _) = neo_reductions::api::prove(
-        FoldingMode::Optimized,
-        &mut seed_tr,
-        &params,
-        &s,
-        core::slice::from_ref(&claim),
-        core::slice::from_ref(&witness),
-        &[],
-        &[],
-        &l,
-    )
-    .expect("seed one valid running claim");
+    let (params, s, l, claim, witness, _) = build_fixture(seed_label, 4, D);
+    let (seed, seed_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
 
     let count = params.k_rho as usize + 1;
-    let running = vec![seed_outputs[0].clone(); count];
-    let running_witnesses = vec![running_witness; count];
+    let running = vec![seed[0].clone(); count];
+    let running_witnesses = vec![seed_witnesses[0].clone(); count];
     let label = b"test/padded_row_identity/redteam/running_count_policy";
     let mut tr_p = Poseidon2Transcript::new(label);
     let result = neo_reductions::api::prove(

@@ -13,6 +13,8 @@ use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+mod zero_running;
+
 fn identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![Mat::identity(n)], SparsePoly::new(1, vec![])).expect("valid CCS")
 }
@@ -98,6 +100,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         m_in: 0,
     }];
     let mcs_witnesses = vec![CcsWitness { w, Z }];
+    let (running, running_witnesses) = zero_running::zero_running(&params, &ccs, 1, 0);
 
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/packed_range_accept");
     let (out, proof) = prove(
@@ -107,8 +110,8 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         &ccs,
         &mcs_list,
         &mcs_witnesses,
-        &[],
-        &[],
+        &running,
+        &running_witnesses,
         &l,
     )
     .expect("prove should accept NC-range packed witness values");
@@ -120,7 +123,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         &params,
         &ccs,
         &mcs_list,
-        &[],
+        &running,
         &out,
         &proof,
     )

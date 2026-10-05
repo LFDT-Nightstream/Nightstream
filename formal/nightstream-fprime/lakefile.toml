@@ -142,6 +142,11 @@ root = "tests.PiDECActualMutations"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "emitPiCCSTestErrorParity"
+root = "NightstreamFPrime.Export.PiCCSTestErrorParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitPiRlcSamplerParity"
 root = "NightstreamFPrime.Export.PiRlcSamplerParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

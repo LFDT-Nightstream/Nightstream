@@ -35,8 +35,21 @@ pub trait PiCcsEngine {
         log: &L,
     ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>;
 
-    /// Checks one reduction. The caller must authenticate the running claims'
-    /// fold digest and fix the CCS structure; the transcript binds neither.
+    /// Check one reduction. Acceptance does not establish the full statement.
+    ///
+    /// # Caller contract
+    ///
+    /// The caller must authenticate the complete supplied running claims
+    /// against their shared fold digest. Recompute this binding from
+    /// authoritative inputs or establish it through verifier-driven proof
+    /// replay that binds those claims. Comparing the digest to a trusted value
+    /// alone is insufficient.
+    ///
+    /// The caller must also fix the verifier context, including the CCS
+    /// structure, protocol parameters, and commitment key, independently of
+    /// the proof. The transcript absorbs the prior digest but does not
+    /// establish these caller obligations. The lifecycle enforces them through
+    /// its state hash and verifier context.
     fn verify(
         &self,
         tr: &mut Poseidon2Transcript,

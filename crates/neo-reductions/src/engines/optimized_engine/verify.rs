@@ -13,6 +13,8 @@ use crate::error::PiCcsError;
 use super::{OptimizedStructureCache, PiCcsProof, PiCcsVerifyPerf};
 
 /// Verify PiCCS and return every verifier-computed conformance value.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn optimized_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -38,11 +40,9 @@ pub fn optimized_verify_with_trace(
 /// Replay the public protocol against the caller-selected relation header.
 /// Matrix evaluator caches belong to preprocessing and proving.
 ///
-/// This checks one reduction, not a complete statement. The transcript binds
-/// the running claims only through their shared fold digest, and it does not
-/// absorb the CCS structure. The caller must authenticate that digest and
-/// must fix the structure before the call, as the lifecycle does with its
-/// state hash and verifier context.
+/// Authenticate the complete running claims against their shared fold digest
+/// and fix the verifier context as required by the
+/// [caller contract](crate::engines::PiCcsEngine::verify).
 pub fn optimized_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -64,6 +64,9 @@ pub fn optimized_verify(
     .0)
 }
 
+/// Verify PiCCS using a structure cache.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn optimized_verify_with_cache(
     transcript: &mut Poseidon2Transcript,
@@ -88,6 +91,9 @@ pub fn optimized_verify_with_cache(
     .0)
 }
 
+/// Verify PiCCS using a structure cache and return timing data.
+///
+/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 #[allow(clippy::too_many_arguments)]
 pub fn optimized_verify_with_cache_and_perf(
     transcript: &mut Poseidon2Transcript,

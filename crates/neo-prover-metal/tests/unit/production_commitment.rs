@@ -5,11 +5,11 @@ use neo_ajtai::nightstream_fprime_setup::{
 use p3_field::PrimeField64;
 
 #[test]
-fn production_key_commitments_match_cpu_across_tiles_and_representations() {
+fn production_key_commitments_match_cpu_across_groups_blocks_and_representations() {
     let session = MetalSession::new().unwrap();
-    // Two full hardware tiles and one column exercise a partial key tile and
-    // an odd reduction level. All signed sums include carries beyond 64 bits.
-    let columns = 2 * session.production_ajtai_partials.threadExecutionWidth() + 1;
+    // Two full column ranges and one column give three group partials, the
+    // last one short. All signed sums exceed 64 bits before reduction.
+    let columns = 2 * COLUMNS_PER_GROUP + 1;
     let positive = Mat::virtual_constant(D, columns, F::ONE);
     let negative = Mat::virtual_constant(D, columns, -F::ONE);
     let mut dense = Mat::zero(D, columns, F::ZERO);
@@ -43,7 +43,7 @@ fn production_key_commitments_match_cpu_across_tiles_and_representations() {
     )
     .unwrap();
     let short = Mat::virtual_constant(D, 1, -F::ONE);
-    let witnesses = [
+    let mut witnesses = vec![
         positive,
         Mat::virtual_constant(D, columns, F::ZERO),
         negative,
@@ -51,6 +51,15 @@ fn production_key_commitments_match_cpu_across_tiles_and_representations() {
         packed,
         short,
     ];
+    // More active witnesses than one threadgroup serves, so a second witness
+    // block reads the same key row.
+    let block = session
+        .production_ajtai_accumulate
+        .maxTotalThreadsPerThreadgroup()
+        / 64;
+    while witnesses.len() <= block + 2 {
+        witnesses.push(witnesses[3 + witnesses.len() % 3].clone());
+    }
     let expected = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
     let actual = session.commit_production_prefixes(&witnesses).unwrap();
     assert_eq!(actual, expected);
@@ -113,4 +122,42 @@ fn production_commitment_checks_all_inputs_before_device_work() {
     }
     assert_eq!(session.activity().dispatches, before.dispatches);
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
+}
+
+/// Commit time for 1, 4 and 16 dense random witnesses at production width,
+/// for comparing commitment kernels. It only prints timings.
+#[test]
+#[ignore = "timing evidence at production width; run on its own under the 300 s cap"]
+fn production_commitment_cost_per_witness() {
+    let session = MetalSession::new().unwrap();
+    let columns = 1_605_616;
+    let mut state = 0x9e3779b97f4a7c15u64;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let lanes = (1u64 << D) - 1;
+    let witnesses: Vec<Mat<F>> = (0..16)
+        .map(|_| {
+            let (positive, negative): (Vec<_>, Vec<_>) = (0..columns)
+                .map(|_| {
+                    let (signs, nonzero) = (next(), next() & lanes);
+                    (nonzero & signs, nonzero & !signs)
+                })
+                .unzip();
+            Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
+        })
+        .collect();
+    for count in [1usize, 1, 4, 16] {
+        let started = std::time::Instant::now();
+        session
+            .commit_production_prefixes(&witnesses[..count])
+            .unwrap();
+        eprintln!(
+            "commit witnesses={count} seconds={:.3}",
+            started.elapsed().as_secs_f64()
+        );
+    }
 }

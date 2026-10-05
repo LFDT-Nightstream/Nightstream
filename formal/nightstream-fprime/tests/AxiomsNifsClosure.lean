@@ -523,6 +523,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCExtractionPrimitives.program_correct
 
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq_selected
+#audit_axioms NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator.numerator_eq
 
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsFiatShamir.finishValue_probability_and_expected_work
 #audit_axioms NightstreamFPrime.Export.Stage1.NifsInvalidSource.source_event_probability_eq_zero

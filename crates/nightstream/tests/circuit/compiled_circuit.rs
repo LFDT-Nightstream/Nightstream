@@ -233,6 +233,52 @@ fn compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data(
 }
 
 #[test]
+fn compiled_load_rejects_identity_unbound_output_form_substitution() {
+    let original = compiled_fixture();
+    let directory = TestDirectory::new();
+    let path = directory.path("changed-output-form.package");
+    original.write(&path).unwrap();
+
+    // Lane zero is a variable output and therefore uses C=2. A=0 is also a
+    // recognized tag, but it reads the wrong side of this saved equality row.
+    let mut file = OpenOptions::new().write(true).open(&path).unwrap();
+    file.seek(SeekFrom::Start(8)).unwrap();
+    file.write_all(&[0]).unwrap();
+    drop(file);
+
+    let loaded = Circuit::load(&path);
+    if let Ok(changed) = &loaded {
+        assert_eq!(changed.identity(), original.identity());
+        assert_eq!(changed.compiled.binding, original.compiled.binding);
+        assert_eq!(
+            changed
+                .compiled
+                .application
+                .prepared_output_forms()
+                .unwrap(),
+            [0, 0, 2, 0]
+        );
+
+        let input = [2, 3, 5, 7].map(F::from_u64);
+        let private = [11, 13].map(F::from_u64);
+        assert!(original
+            .compiled
+            .application
+            .execute(input, &private)
+            .is_ok());
+        assert!(changed
+            .compiled
+            .application
+            .execute(input, &private)
+            .is_err());
+    }
+    assert!(
+        loaded.is_err(),
+        "an output-form change outside the circuit identity must not load"
+    );
+}
+
+#[test]
 fn loaded_execution_and_resaving_use_private_snapshots_after_external_mutation() {
     let original = compiled_fixture();
     let directory = TestDirectory::new();

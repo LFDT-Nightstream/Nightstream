@@ -124,10 +124,11 @@ theorem source_law_eq_supported_extension
 /-- Apply the additive retry bound to the same fixed operational source
 law through its exact supported-provider equality. -/
 theorem source_probability_linear_bound
+    (contextDigest : KeyDigest)
     (law : PMF (Context × Option (FiatShamirTransfer.RealOutput relation)))
     (originalFirstPhase : Context → InteractivePrefix.Prover State productionShape 9)
     (abortTape : Tape) (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-    (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+    (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey contextDigest
       (fun context => PiCCSInputCheck.running (inputs context))
       (fun context => PiCCSInputCheck.fresh (inputs context)) law originalFirstPhase abortTape
       (supportedProvider inputs tapes rawCall checkClock storageClock parentClock storageBound
@@ -155,7 +156,7 @@ theorem source_probability_linear_bound
       storageBound storageBounded baseSummable contexts checked
     let extended := SupportedContinuation.extension relation productionAjtaiKey running fresh contexts checked
       abortTape provider
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey running fresh law) - deltaFS Q -
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation productionAjtaiKey -
       IndependentExecution.testError productionShape 9 -
       AdaptiveBindingProbability.successProbability relation productionAjtaiKey program running fresh
@@ -171,7 +172,7 @@ theorem source_probability_linear_bound
   rw [source_law_eq_supported_extension inputs tapes rawCall checkClock storageClock parentClock
     storageBound storageBounded baseSummable (FiatShamirTransfer.contextLaw relation law)
     originalFirstPhase abortTape]
-  exact NifsClosure.source_probability_linear_bound inputs law originalFirstPhase abortTape
+  exact NifsClosure.source_probability_linear_bound inputs contextDigest law originalFirstPhase abortTape
     (fun context coins output state _ => tapes context coins output state)
     (fun context coins output state _ => rawCall context coins output state)
     (fun context coins output state _ => checkClock context coins output state)

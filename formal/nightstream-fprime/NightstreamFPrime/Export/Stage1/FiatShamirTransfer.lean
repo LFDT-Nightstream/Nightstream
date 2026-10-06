@@ -1,3 +1,4 @@
+import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.Nifs.SupportedExtraction
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
@@ -9,6 +10,11 @@ The real event runs the actual ProductionKey verifier: additive Poseidon2
 absorption, existing domain labels, complete C output absorption, total four-field
 R sampling, and the actual PiDEC attempt. It includes valid witnesses for
 all sixteen returned children; bare public acceptance is not this event.
+The event also requires the prior-state link (owner decision 2026-10-06): the
+absorbed prior digest hashes a well-formed prior preimage that names the
+verifier context and whose running vector is the NIFS running statement. No
+challenge depends on the running statement, so without the link a prover could
+choose it after γ and keep the claimed sum; that event has no useful transfer.
 
 The translated side is the existing checked causal prefix and supported
 R/D provider under the real law's context marginal, with the same public
@@ -27,12 +33,14 @@ extractor clocks; it makes no machine-time or unprovided-translator claim.
 
 set_option autoImplicit false
 
-namespace NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
+namespace NightstreamFPrime.Export.Stage1.FiatShamirTransfer
 
 open scoped BigOperators
 attribute [local instance] Classical.propDecidable
 
 open NightstreamFPrime.Spec
+open NightstreamFPrime.Lifecycle
+open NightstreamFPrime.Lifecycle.Nifs
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open StrongReduction ConcreteCarrier
@@ -55,9 +63,11 @@ structure RealOutput (relation : ProductionKey.LogicalRelation logicalWidth publ
 variable
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+  (contextDigest : KeyDigest)
 
-/-- The actual NIFS verifier accepts, and the supplied witnesses open its
-exact sixteen returned children. The same proof supplies the PiDEC attempt. -/
+/-- The prior-state link binds the running statement and the verifier context,
+the actual NIFS verifier accepts, and the supplied witnesses open its exact
+sixteen returned children. The same proof supplies the PiDEC attempt. -/
 def RealSuccess
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -65,6 +75,7 @@ def RealSuccess
   | none => False
   | some output =>
       let key := ProductionKey.key relation ajtai
+      (∃ prior, Layout.Stage1.PiCCSSecurity.PriorLink prior running fresh contextDigest) ∧
       ∃ result attempt,
         PaperNonInteractive.verify key running fresh output.proof = some result ∧
         key.piDecAttempt running fresh output.proof = some attempt ∧
@@ -76,7 +87,7 @@ children, in their original order, with no assumed output correspondence. -/
 theorem realSuccess_implies_exact_children
     (running : Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (output : RealOutput relation) (success : RealSuccess relation ajtai running fresh (some output)) :
+    (output : RealOutput relation) (success : RealSuccess relation ajtai contextDigest running fresh (some output)) :
     let key := ProductionKey.key relation ajtai
     ∃ result attempt,
       PaperNonInteractive.verify key running fresh output.proof = some result ∧
@@ -85,7 +96,7 @@ theorem realSuccess_implies_exact_children
         (PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt child)
         (output.children (Fin.cast key.outputCount_eq child)) := by
   dsimp only
-  rcases success with ⟨result, attempt, accepted, attemptEq, valid⟩
+  rcases success with ⟨_, result, attempt, accepted, attemptEq, valid⟩
   refine ⟨result, attempt, accepted, attemptEq, ?_⟩
   intro child
   rw [← PiDEC.OutputWitnessConsumer.runningStatement_eq_child
@@ -102,7 +113,7 @@ variable {Context : Type*}
 There is no caller-supplied scalar standing in for verifier success. -/
 noncomputable def realSuccessProbability
     (law : PMF (Context × Option (RealOutput relation))) : ℝ :=
-  ∑' outcome, if RealSuccess relation ajtai (running outcome.1) (fresh outcome.1) outcome.2
+  ∑' outcome, if RealSuccess relation ajtai contextDigest (running outcome.1) (fresh outcome.1) outcome.2
     then (law outcome).toReal else 0
 
 /-- The translated experiment keeps the same context and hence the same
@@ -138,7 +149,7 @@ specified in FIAT_SHAMIR_MODEL.md. Neither a model instance nor numerical
 functions g and deltaFS are supplied by this module. -/
 structure FiatShamirModel (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat) : Prop where
   successTransfer :
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
+    g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q ≤
       originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider
 
 /-- Separate the proved sampler loss from the externally supplied FS error.
@@ -160,7 +171,7 @@ theorem FiatShamirModel.of_blockOracle {OracleState : Type*}
     (test : NonInteractive.PiRlcSampler.OracleModel.Outcome OracleState → ℝ)
     (nonnegative : ∀ outcome, 0 ≤ test outcome) (atMostOne : ∀ outcome, test outcome ≤ 1)
     (rawTransfer :
-      g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q ≤
+      g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q ≤
         NonInteractive.PiRlcSampler.average (fun tape => test
           (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
             NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)))
@@ -169,7 +180,7 @@ theorem FiatShamirModel.of_blockOracle {OracleState : Type*}
         (NonInteractive.PiRlcSampler.OracleModel.run experiment initial
           NonInteractive.PiRlcSampler.OracleModel.empty (sampleQueries Q) tape)) ≤
         originalSuccessProbability relation ajtai running fresh law originalFirstPhase abortTape provider) :
-    FiatShamirModel relation ajtai running fresh law originalFirstPhase abortTape provider
+    FiatShamirModel relation ajtai contextDigest running fresh law originalFirstPhase abortTape provider
       g (samplerTransferError deltaFS sampleQueries) Q := by
   constructor
   have comparison := (abs_le.mp (NonInteractive.PiRlcSampler.OracleModel.run_bias_bound
@@ -189,7 +200,7 @@ theorem samplerTransferError_sum {depth : Nat} (deltaFS : Nat → ℝ)
 
 variable
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirModel relation ajtai running fresh law originalFirstPhase abortTape provider g deltaFS Q)
+  (model : FiatShamirModel relation ajtai contextDigest running fresh law originalFirstPhase abortTape provider g deltaFS Q)
   (program : Primitives RingF
     (PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)))
   (sourceProgram : Context → CheckedWitnessExtraction.Program productionShape
@@ -209,7 +220,7 @@ theorem returned_source_bound_with_binding :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (InteractiveAgreement.bindingProbability relation ajtai running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation program
@@ -231,7 +242,7 @@ theorem returned_source_bound_with_msis :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (BindingProbability.successProbability ajtai program relation running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation
@@ -255,7 +266,7 @@ theorem returned_source_bound_with_adaptive_msis :
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai - IndependentExecution.testError productionShape 9 -
       AdaptiveBindingProbability.successProbability relation ajtai program running fresh
         originalFirstPhase (SupportedExtraction.publicCheck running) continuation sourceProgram
@@ -285,13 +296,13 @@ theorem returned_source_bound_of_msis
     let continuation := SupportedContinuation.extension relation ajtai running fresh (contextLaw relation law)
       (InteractiveComposition.firstPhase originalFirstPhase (SupportedExtraction.publicCheck running))
       abortTape provider
-    g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt (epsilonMSIS * PaperProfile.arity.total + IndependentExecution.testError productionShape 9) ≤
       InteractiveOutput.returnedSourceProbability relation ajtai running fresh originalFirstPhase
         (SupportedExtraction.publicCheck running) continuation program sourceProgram (contextLaw relation law) := by
   dsimp only at msisBound ⊢
-  have extracted := returned_source_bound_with_msis relation ajtai running fresh law
+  have extracted := returned_source_bound_with_msis relation ajtai contextDigest running fresh law
     originalFirstPhase abortTape provider g deltaFS Q model program sourceProgram correct bounds
     bounded sourceCorrect
   have errorBound := Real.sqrt_le_sqrt (_root_.add_le_add
@@ -342,7 +353,7 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
     (accessBound : ℝ) ≤ accessPolynomial.eval (securityParameter : ℝ) →
     (∑' tape, (setupTapes tape).toReal * (prepare tape).work) ≤
       preparationPolynomial.eval (securityParameter : ℝ) →
-    (g Q (realSuccessProbability relation ajtai running fresh law) - deltaFS Q -
+    (g Q (realSuccessProbability relation ajtai contextDigest running fresh law) - deltaFS Q -
       InteractiveComposition.weakLoss relation ajtai -
       Real.sqrt ((∑' tape, (setupTapes tape).toReal * BindingProbability.localSuccessProbability ajtai program
         (sourceProgram (prepare tape).value).access relation running fresh originalFirstPhase
@@ -367,4 +378,4 @@ theorem prepared_probability_and_expected_work {SetupTape : Type*}
   unfold originalSuccessProbability at transfer
   exact ⟨(sub_le_sub_right (sub_le_sub_right transfer _) _).trans checked.2.1, checked.2.2⟩
 
-end NightstreamFPrime.Lifecycle.Nifs.FiatShamirTransfer
+end NightstreamFPrime.Export.Stage1.FiatShamirTransfer

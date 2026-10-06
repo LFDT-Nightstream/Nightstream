@@ -306,7 +306,9 @@ def HyperNovaLinearSecurity : Prop :=
       SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest Poseidon2HashChainV1Package.fits
+          Poseidon2HashChainV1Setup.productionSetup) running fresh
         (realLaw (visits j)) firstPhase abortTape (provider j) g
           (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
     (initial.toOuterMeasure {input |
@@ -403,7 +405,9 @@ def HyperNovaTerminalFalseAcceptance : Prop :=
       SupportedContinuation.extension relation productionAjtaiKey running fresh (contexts j) checked
         abortTape (provider j)
     (∀ j : Fin depth,
-      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey running fresh
+      FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+        (PerApplicationCanonicalPackage.verifierContextDigest Poseidon2HashChainV1Package.fits
+          Poseidon2HashChainV1Setup.productionSetup) running fresh
         (realLaw (visits j)) firstPhase abortTape (provider j) g
           (FiatShamirTransfer.samplerTransferError deltaFS sampleQueries) (queries j)) →
     (initial.toOuterMeasure {input | HyperNovaFalseAcceptance.FalseAcceptance input}).toReal ≤

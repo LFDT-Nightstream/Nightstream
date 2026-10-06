@@ -95,6 +95,7 @@ theorem source_event_probability_eq_zero {Context State Endpoint : Type*}
 
 variable {Context State Tape : Type*}
   (inputs : Context → PiCCSInputCheck.Input)
+  (contextDigest : KeyDigest)
   [DecidableEq RingF]
   [Fintype (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
   [Nonempty (Challenge (ProductionKey.key relation productionAjtaiKey).piRlcAlgebra)]
@@ -108,7 +109,7 @@ variable {Context State Tape : Type*}
     (InteractiveComposition.firstPhase originalFirstPhase
       (SupportedExtraction.publicCheck (fun context => PiCCSInputCheck.running (inputs context)))))
   (g : Nat → ℝ → ℝ) (deltaFS : Nat → ℝ) (Q : Nat)
-  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey
+  (model : FiatShamirTransfer.FiatShamirModel relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context))
     law originalFirstPhase abortTape provider g deltaFS Q)
@@ -149,13 +150,13 @@ theorem real_success_bound_of_invalid_source
         (fun context => (PiCCSStoredSourceProbability.sourceProgram
           (inputs context) (checkClock context) (accessClock context)).access)
         (FiatShamirTransfer.contextLaw relation law) ≤ epsilonMSIS) :
-    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey
+    g Q (FiatShamirTransfer.realSuccessProbability relation productionAjtaiKey contextDigest
       (fun context => PiCCSInputCheck.running (inputs context))
       (fun context => PiCCSInputCheck.fresh (inputs context)) law) ≤
         deltaFS Q + InteractiveComposition.weakLoss relation productionAjtaiKey +
           Real.sqrt (epsilonMSIS * 17 + IndependentExecution.testError productionShape 9) := by
   have extracted := FiatShamirTransfer.returned_source_bound_of_msis
-    relation productionAjtaiKey
+    relation productionAjtaiKey contextDigest
     (fun context => PiCCSInputCheck.running (inputs context))
     (fun context => PiCCSInputCheck.fresh (inputs context))
     law originalFirstPhase abortTape provider g deltaFS Q model

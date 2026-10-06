@@ -9,7 +9,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
 use neo_transcript::Poseidon2Transcript;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
@@ -23,16 +23,6 @@ const DOMAIN_TAG: &[u64] = &[
     78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47, 83, 117, 112, 101, 114, 78, 101, 111, 47, 80, 105, 67, 67,
     83, 47, 100, 105, 103, 101, 115, 116, 45, 111, 110, 108, 121, 47, 118, 49, 95, 49,
 ];
-
-/// The one Lean-owned PaperExact statement binding.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PaperTranscriptBinding;
-
-impl PaperTranscriptBinding {
-    pub(crate) const fn digest_only() -> Self {
-        Self
-    }
-}
 
 fn k_fields(output: &mut Vec<F>, value: K) {
     output.extend_from_slice(&value.as_coeffs());
@@ -51,31 +41,21 @@ fn append_block(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace,
     trace.events.push(TraceEvent::Absorb(framed));
 }
 
-fn prior_digest_fields(running: &[CeClaim<Cmt, F, K>]) -> Result<Vec<F>, PiCcsError> {
-    let first = running.first().ok_or_else(|| {
-        PiCcsError::InvalidInput("PaperExact v1_1 digest-only statement requires a running claim".into())
-    })?;
-    if running
-        .iter()
-        .any(|claim| claim.fold_digest != first.fold_digest)
-    {
-        return Err(PiCcsError::InvalidInput(
-            "PaperExact v1_1 running claims do not share the prior digest".into(),
-        ));
-    }
-    first
-        .fold_digest
-        .chunks_exact(8)
-        .map(|chunk| {
-            let word = u64::from_le_bytes(chunk.try_into().expect("digest lane width"));
-            if word >= F::ORDER_U64 {
-                return Err(PiCcsError::InvalidInput(
-                    "PaperExact v1_1 prior digest has a noncanonical field word".into(),
-                ));
+/// Lean `decodeHashWord` for each of the four digest words, read from the
+/// bit cells after the marker of the first fresh public input. A cell past a
+/// shorter input reads as zero; the input itself is absorbed in full next.
+fn prior_digest_fields(fresh: &CcsClaim<Cmt, F>) -> Vec<F> {
+    let mut words = vec![F::ZERO; 4];
+    for (word, value) in words.iter_mut().enumerate() {
+        let mut weight = F::ONE;
+        for bit in 0..64 {
+            if let Some(&cell) = fresh.x.get(1 + word * 64 + bit) {
+                *value += weight * cell;
             }
-            Ok(F::from_u64(word))
-        })
-        .collect()
+            weight = weight.double();
+        }
+    }
+    words
 }
 
 fn squeeze(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
@@ -160,7 +140,6 @@ pub(super) fn bind_and_sample(
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
     dims: JointDims,
-    _binding: PaperTranscriptBinding,
 ) -> Result<Challenges, PiCcsError> {
     if fresh.is_empty() {
         return Err(PiCcsError::InvalidInput(
@@ -191,7 +170,7 @@ pub(super) fn bind_and_sample(
         DOMAIN_TAG.iter().map(|&word| F::from_u64(word)).collect(),
     );
 
-    append_block(transcript, trace, prior_digest_fields(running)?);
+    append_block(transcript, trace, prior_digest_fields(&fresh[0]));
     for claim in fresh {
         append_block(transcript, trace, commitment_fields(&claim.c)?);
         append_block(transcript, trace, claim.x.clone());

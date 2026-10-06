@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS input evaluation claims.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS input evaluation claims.
 Obligation: Prove that the zero-copy columns selected by `PiCCSInputs`
 represent the typed prior running instance and fresh PiCCS statement.
 

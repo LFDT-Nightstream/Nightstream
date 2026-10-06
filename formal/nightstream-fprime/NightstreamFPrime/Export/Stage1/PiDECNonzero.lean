@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
 /-!
-Owns one deterministic nonzero PiDEC v1.1 conformance fixture. It consumes
+Owns one deterministic nonzero PiDEC v1.2 conformance fixture. It consumes
 the exact accepted PiRLC output, computes the verifier-owned signed public
 digits, and solves child zero after choosing nonzero prover messages for
 children one through fifteen. No transcript state is changed by PiDEC.

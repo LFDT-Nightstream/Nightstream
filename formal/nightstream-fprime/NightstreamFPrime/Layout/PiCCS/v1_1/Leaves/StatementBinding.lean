@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS input statement.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS input statement.
 Obligation: Share the prior point and separate Eval_K / Eval_A input families.
 
 Inputs:

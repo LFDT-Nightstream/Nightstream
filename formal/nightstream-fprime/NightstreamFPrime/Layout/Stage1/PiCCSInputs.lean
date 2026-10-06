@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS input and output messages.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS input and output messages.
 Obligation: Own the concrete parent columns read by the production PiCCS
 circuit.
 

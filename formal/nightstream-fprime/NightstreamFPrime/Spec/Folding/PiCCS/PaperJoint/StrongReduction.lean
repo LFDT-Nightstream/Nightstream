@@ -4,12 +4,14 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
 /-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/StrongReduction.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.1 Pad and 7-matrix evaluation families. -/
+SuperNeo v1.2 Pad and 7-matrix evaluation families. -/
 
 /-!
 Operational public-coin core of the paper's strong `Pi_CCS` reduction.
 
-Protocol: SuperNeo v1.1 `Pi_CCS` (Section 7.3 and Appendix B.2).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 and Appendix B.2).
+Reduction class: strong, SuperNeo v1.2 Definition 18, as v1.2 Lemma 7
+states.
 Phase: one explicit public-coin probe and extraction from an ambient output
 witness.
 Constraint family: paper semantics only; this file emits no rows.
@@ -63,13 +65,13 @@ open UnifiedSources
 
 universe uExtension uCommitment uPublicInput
 
-/-- One source's complete v1.1 CE evaluation value: canonical Pad and every
+/-- One source's complete v1.2 CE evaluation value: canonical Pad and every
 CCS matrix, with typed coefficient coordinates. -/
 structure EvaluationFamily (Extension : Type uExtension) (shape : Shape) where
   pad : Fin shape.coefficientCount -> Extension
   matrix : Fin shape.matrixCount -> Fin shape.coefficientCount -> Extension
 
-/-- Public structure data needed by the v1.1 relation: the canonical Pad
+/-- Public structure data needed by the v1.2 relation: the canonical Pad
 layout and all CCS matrices have distinct owners. -/
 structure RelationSource (shape : Shape) (columns blockCount : Nat) where
   cubeLayout : ColumnLayout shape.cubeVariables columns
@@ -130,7 +132,7 @@ def paperRelationSemantics
           assignment vertex)).evaluate extensionOps point
   }]
 
-/-- The public input to one v1.1 `Pi_CCS` execution. Source assignments are
+/-- The public input to one v1.2 `Pi_CCS` execution. Source assignments are
 deliberately absent. Canonical Pad is derived from `cubeLayout`; all CCS
 matrices remain in `matrixSource`. -/
 structure Statement
@@ -242,7 +244,7 @@ theorem sourceProtocolData_toVerifierInput
       statement.verifierInput lift := by
   rfl
 
-/-- Verifier projection of one complete v1.1 response. Assignment values use
+/-- Verifier projection of one complete v1.2 response. Assignment values use
 the Pad constant coordinate; fresh CCS values use matrix constants. -/
 def projectOutput
     {Extension : Type uExtension}
@@ -422,7 +424,7 @@ def publicOutput
     same public instance and is stated by `CorrectedAmbientHolds`, which
     deliberately ignores this tag.  Marking the instance itself `.ambient`
     would make it unusable as the literal input of `Pi_RLC` and would conflate
-    `R₂` with `R₂'` in Theorem 6. -/
+    `R₂` with `R₂'` in SuperNeo v1.2 Theorem 12. -/
     stage := .fresh
   }
 

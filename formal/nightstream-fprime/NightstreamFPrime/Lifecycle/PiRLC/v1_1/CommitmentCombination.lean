@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1, equation
+Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
 `c = sum_i rho_i c_i`.
 
 This leaf instantiates the generic 17-source Phi81 combination for all 22

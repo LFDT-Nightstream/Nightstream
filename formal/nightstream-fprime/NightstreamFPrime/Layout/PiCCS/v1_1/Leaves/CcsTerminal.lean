@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, Step 4, `F`.
+Paper authority: SuperNeo v1.2, section 7.3, Step 4, `F`.
 Obligation: Lower the materialized evaluation of the fixed 8-term selective
 constraint polynomial over all 7 `Eval_A` matrix images.
 

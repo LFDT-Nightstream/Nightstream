@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Statement
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, public input and Step 1;
+Paper authority: SuperNeo v1.2, Section 7.3, public input and Step 1;
 Fiat–Shamir transform of the public-coin verifier transcript.
 Obligation: Absorb the pilot-bound prior-state digest and the fresh public
 claim before deriving `α`, `γ`, or any SumCheck challenge.
@@ -42,7 +42,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 
-/-- Symbolic form of one complete v1.1 CE evaluation family. -/
+/-- Symbolic form of one complete v1.2 CE evaluation family. -/
 structure EvaluationExpr where
   eval_K : Fin productionShape.coefficientCount → KExpr
   eval_A : Fin productionShape.matrixCount →
@@ -274,7 +274,7 @@ private theorem publicInputActions_eq {logicalWidth : Nat}
   dsimp only
   simp [List.map_flatMap]
 
-/-- Verifier-owned claim words in exact v1.1 `Eval_K`, then `Eval_A`, order. -/
+/-- Verifier-owned claim words in exact v1.2 `Eval_K`, then `Eval_A`, order. -/
 def verifierClaimWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -602,7 +602,7 @@ private theorem verifierClaimWords_eval {logicalWidth : Nat}
         coordinate.matrix coordinate.coefficient)
 
 /-- The symbolic verifier blocks evaluate exactly to the production key's
-canonical v1.1 verifier input blocks. -/
+canonical v1.2 verifier input blocks. -/
 theorem verifierInputBlocks_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

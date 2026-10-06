@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, `Pi_CCS` input and output.
+Paper authority: SuperNeo v1.2, Section 7.3, `Pi_CCS` input and output.
 Obligation: Bind the prior evaluation point and keep `Eval_K` (Pad) separate
 from `Eval_A` (all CCS matrices).
 
@@ -18,7 +18,7 @@ Parent coverage:
 - `ProtocolPolynomial.VerifierInput.claimedMatrixCoefficient`.
 
 This module owns the canonical named statement contract for the production
-v1.1 verifier. It emits no circuit constraints.
+v1.2 verifier. It emits no circuit constraints.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.Statement
@@ -37,7 +37,7 @@ CCS matrix. `Pad` is not in this index. -/
 abbrev Eval_A (Extension : Type uExtension) (shape : Shape) :=
   Fin shape.matrixCount → Fin shape.coefficientCount → Extension
 
-/-- The existing complete v1.1 evaluation carrier. -/
+/-- The existing complete v1.2 evaluation carrier. -/
 abbrev Evaluation (Extension : Type uExtension) (shape : Shape) :=
   EvaluationFamily Extension shape
 

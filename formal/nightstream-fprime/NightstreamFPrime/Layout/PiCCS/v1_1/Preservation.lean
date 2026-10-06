@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Lowering
 import NightstreamFPrime.Layout.R1CS.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS steps 1--5.
 Obligation: Physical satisfaction implies the exact PiCCS phase relation.
 
 Inputs:

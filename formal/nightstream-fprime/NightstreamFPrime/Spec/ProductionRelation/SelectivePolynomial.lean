@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 import NightstreamFPrime.Spec.Profile
 
 /-!
-Paper authority: SuperNeo v1.1, Definitions 18--20 and Section 7.3.
+Paper authority: SuperNeo v1.2, Definitions 19--21 and Section 7.3.
 Compiler obligation: one low-norm CCS gate for the fixed Nightstream circuit.
 
 Inputs:
@@ -18,7 +18,7 @@ Constraint groups:
 
 Parent coverage:
 - `ProductionRelation.polynomial`;
-- the `F` term in SuperNeo v1.1 PiCCS;
+- the `F` term in SuperNeo v1.2 PiCCS;
 - the production CCS matrix family, without Pad-as-matrix-zero compression.
 -/
 

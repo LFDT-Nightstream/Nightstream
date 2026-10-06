@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, claimed SumCheck total `T`.
+Paper authority: SuperNeo v1.2, section 7.3, claimed SumCheck total `T`.
 Obligation: Evaluate the separate `Eval_K`, then `Eval_A`, coefficient sequence
 at `γ` and expose the verifier-owned initial SumCheck claim.
 

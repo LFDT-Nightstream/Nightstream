@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, input/output declarations and
+Paper authority: SuperNeo v1.2, Section 7.5, input/output declarations and
 verifier Step 2.
 
 Obligation: bind one combined parent claim and exactly sixteen prover child

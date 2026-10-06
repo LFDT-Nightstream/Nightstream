@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.RadixRecomposition
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, verifier evaluation equations.
+Paper authority: SuperNeo v1.2, Section 7.5, verifier evaluation equations.
 
 Obligation: enforce fixed-radix recomposition for a typed family of `RingK`
 evaluations. Each `K` coefficient uses the canonical `c0, c1` field order.

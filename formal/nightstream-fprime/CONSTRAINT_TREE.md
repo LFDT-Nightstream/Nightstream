@@ -214,7 +214,7 @@ rerun for this compiler equality change, and no phase status was promoted.
 
 ## Fixed profile and semantic authority
 
-Lean is the semantic authority for exact SuperNeo v1_1. The fixed Nightstream
+Lean is the semantic authority for exact SuperNeo v1.2. The fixed Nightstream
 Goldilocks profile is:
 
 | Parameter | Value |
@@ -1394,7 +1394,7 @@ The older compressed emitter remains reference code. The native NIFS
 composition and its helper calls are test-only. The header guard regression
 checks its error and unchanged circuit/transcript; the normal
 `neo-fold-clean` and `neo-wasm` release checks pass. These focused checks do
-not grant a new complete Stage 1 conformance verdict. Current tests that serve the Stage 1 v1.1 contract use
+not grant a new complete Stage 1 conformance verdict. Current tests that serve the Stage 1 v1.2 contract use
 separate `Eval_K` / `Eval_A` and the canonical nonempty running accumulator.
 
 ## Open authority and assembly edges

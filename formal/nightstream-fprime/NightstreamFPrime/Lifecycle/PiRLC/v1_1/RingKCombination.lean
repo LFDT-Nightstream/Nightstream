@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.CombinationFamily
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1, evaluation
+Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, evaluation
 equations `y_j = sum_i rho_i y_(i,j)`.
 
 This reusable leaf proves that the generic two-cell circuit representation is

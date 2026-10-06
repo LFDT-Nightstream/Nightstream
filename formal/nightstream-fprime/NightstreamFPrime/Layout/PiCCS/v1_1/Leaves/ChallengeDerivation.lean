@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Fiat–Shamir challenges.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Fiat–Shamir challenges.
 Obligation: Derive all 28 `α` coordinates and `γ` from the exact labelled
 Poseidon2 transcript schedule.
 

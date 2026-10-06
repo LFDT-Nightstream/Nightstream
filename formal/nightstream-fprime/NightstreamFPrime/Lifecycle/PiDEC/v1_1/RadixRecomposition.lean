@@ -2,7 +2,7 @@ import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, verifier Step 2, equations
+Paper authority: SuperNeo v1.2, Section 7.5, verifier Step 2, equations
 `c = sum_i b^i c_i`, `y = sum_i b^i y_i`, and
 `y_j = sum_i b^i y_{i,j}`.
 

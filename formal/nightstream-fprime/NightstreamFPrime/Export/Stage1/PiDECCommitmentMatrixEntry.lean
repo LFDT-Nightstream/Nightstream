@@ -5,9 +5,9 @@ import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
 /-!
 Counted coefficient entries for the selected PiDEC commitment row packet.
-All 14 matrix ports and 54 coefficient lanes reach the actual selected
+All 7 matrix ports and 54 coefficient lanes reach the actual selected
 matrix source. The packet starts at global logical row 1326212.
-SuperNeo v1.1 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
+SuperNeo v1.2 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
 Section 7.5 and Appendix B.4 own these commitment recomposition rows.
 
 The caller supplies a typed local row. This program constructs its forms

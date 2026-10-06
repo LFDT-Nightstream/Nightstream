@@ -1,7 +1,8 @@
 /-!
-Owns the semantic shape of norm-bounded CCS and CE membership (SuperNeo
-Definitions 12–14) and the verifier-owned global parameters. The algebra,
-commitment, projection, norm, and evaluation operations are the
+Owns the semantic shape of norm-bounded CCS and CE membership and the
+verifier-owned global parameters (SuperNeo v1.2 Definitions
+20–22). The algebra, commitment, projection, norm, and
+evaluation operations are the
 `RelationSemantics` record; `Spec.Profile` instantiates it. Does not own
 folding, transcripts, or circuits.
 
@@ -14,7 +15,7 @@ namespace NightstreamFPrime.Spec
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- Verifier-owned global reduction parameters (SuperNeo Definition 14).
+/-- Verifier-owned global reduction parameters (SuperNeo v1.2 Definition 22).
 The inequality is stated at maximum arity so every smaller fold inherits it. -/
 structure GlobalParams where
   q : Nat
@@ -113,7 +114,7 @@ end Opening
 
 namespace CCS
 
-/-- Norm-bounded CCS instance (Definition 12). -/
+/-- Norm-bounded CCS instance (SuperNeo v1.2 Definition 20). -/
 structure Instance
     (Structure : Type uStructure) (PublicInput : Type uPublicInput)
     (Commitment : Type uCommitment) where
@@ -136,7 +137,7 @@ end CCS
 
 namespace CE
 
-/-- Norm-bounded CCS evaluation instance (Definition 13). -/
+/-- Norm-bounded CCS evaluation instance (SuperNeo v1.2 Definition 21). -/
 structure Instance
     (Structure : Type uStructure) (PublicInput : Type uPublicInput)
     (Point : Type uPoint) (Evaluation : Type uEvaluation)

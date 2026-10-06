@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.Formal
 
 /-!
-Owns the semantic closure of the logical PiDEC v1.1 assembler.
+Owns the semantic closure of the logical PiDEC v1.2 assembler.
 
 The six child specifications imply the exact operational
 `PiDEC.PaperVerifier.OutputAccepted` predicate instantiated by

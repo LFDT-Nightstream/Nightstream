@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 2; Fiat–Shamir transform.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 2; Fiat–Shamir transform.
 Obligation: For every SumCheck round, absorb the fixed-width prover message
 before deriving that round's verifier challenge.
 

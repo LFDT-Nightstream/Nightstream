@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongExtraction
 
 /-!
-Definition 17 for the selected NIFS PiCCS prefix. Every statement, opening
+SuperNeo v1.2 Definition 18 for the selected NIFS PiCCS prefix. Every statement, opening
 map, field law, and degree comes from ProductionKey. The probability-only
 entry supports a mathematical suffix coupling. The costed entry charges an
 actual one-call implementation; it does not charge sampling a coupling table.

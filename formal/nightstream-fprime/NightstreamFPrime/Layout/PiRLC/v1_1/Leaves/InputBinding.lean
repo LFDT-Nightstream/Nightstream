@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.InputBinding
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, PiRLC input and output.
+Paper authority: SuperNeo v1.2, Section 7.4, PiRLC input and output.
 Obligation: Lower the definitionally shared 17-claim input-binding leaf.
 
 Inputs and outputs:

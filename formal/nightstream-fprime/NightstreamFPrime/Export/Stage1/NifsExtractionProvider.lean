@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.SupportedContinuation
 import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
 
 /-!
-Selected PiRLC/PiDEC continuation checks for SuperNeo v1.1 Section 7.5 and
+Selected PiRLC/PiDEC continuation checks for SuperNeo v1.2 Section 7.5 and
 Appendix B.4. Each raw reply is checked against its verifier-computed parent
 and all sixteen exact child claims. Stored binary recomposition and the
 parent CE check use the existing production key and relation.

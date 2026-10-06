@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.EvalKRecomposition
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, the separate matrix-evaluation
+Paper authority: SuperNeo v1.2, Section 7.5, the separate matrix-evaluation
 equations `y_A,j = sum_i b^i y_A,j,i`.
 
 Obligation: enforce fixed-radix recomposition for every one of the 14

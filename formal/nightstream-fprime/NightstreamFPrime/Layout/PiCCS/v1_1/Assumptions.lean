@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.PiCCS.v1_1.ProductionInputs
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS transcript order.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS transcript order.
 Obligation: Discharge the syntactic range assumptions of the production
 PiCCS parent from its one layout-owned external-input range.
 

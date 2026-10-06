@@ -1174,7 +1174,7 @@ theorem circuitPackage_implies_selectedVerifierContext
     rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
     exact selected lane
 
-/-- Authoritative emitted-package soundness edge for the exact SuperNeo v1_1
+/-- Authoritative emitted-package soundness edge for the exact SuperNeo v1.2
 PiCCS phase. -/
 theorem circuitPackage_implies_piCcsPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)

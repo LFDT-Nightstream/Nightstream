@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.InputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.5, PiDEC output.
+Paper authority: SuperNeo v1.2, Section 7.5, PiDEC output.
 
 Obligation: package exactly sixteen fresh child claims. Each child reuses the
 prover message commitment and evaluation, the verifier-computed public digit,

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3 `Eval_K`; Appendix B.2,
+Paper authority: SuperNeo v1.2, Section 7.3 `Eval_K`; Appendix B.2,
 Equation (9) and Item 3.
 Obligation: Every carried Pad coefficient equals the multilinear evaluation
 of the canonical Pad image at the prior point.

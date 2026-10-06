@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 4, `E_A`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `E_A`.
 Obligation: Enforce
 `E_A = eq(r', r) * sum_(i,j,l) gamma^I_A(i,j,l) cf(y'_(i,j))_l`.
 
@@ -22,7 +22,7 @@ Constraint groups:
 Parent coverage:
 - `ProtocolPolynomial.matrixAtMessage` in the production PiCCS terminal.
 
-This file owns only the v1.1 CCS-matrix coordinate order and production-key
+This file owns only the v1.2 CCS-matrix coordinate order and production-key
 wiring. The global `gamma^(k*d)` shift belongs to the final identity.
 -/
 

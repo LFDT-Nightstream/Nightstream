@@ -7,7 +7,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_1.PublicInputCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.SamplerChain
 
 /-!
-Owns the exact logical PiRLC v1.1 parent assembler.
+Owns the exact logical PiRLC v1.2 parent assembler.
 
 Child order:
 1. zero-row input binding;

@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.StatementBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.Completeness
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS steps 1--5.
 Obligation: Lower the sole exact PiCCS logical circuit to physical R1CS rows.
 
 Inputs:

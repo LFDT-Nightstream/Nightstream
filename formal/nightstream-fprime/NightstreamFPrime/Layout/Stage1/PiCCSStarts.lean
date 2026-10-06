@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Lifecycle.PiCCS.v1_1.FormalRows
 
 /-!
-Paper authority: SuperNeo v1_1, section 7.3, PiCCS Steps 1--5.
+Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Own the cumulative physical starts of the twelve PiCCS leaves in
 the same order as the logical parent and physical lowering.
 

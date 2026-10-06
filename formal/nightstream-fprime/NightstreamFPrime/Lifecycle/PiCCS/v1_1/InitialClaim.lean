@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.ChallengeDerivation
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Step 2, claimed sum `T`.
+Paper authority: SuperNeo v1.2, Section 7.3, Step 2, claimed sum `T`.
 Obligation: Enforce the exact initial SumCheck claim
 `T_K + γ^(k*d) · T_A`.
 
@@ -60,7 +60,7 @@ abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.Assumptions (ownedInterface interface) offset env
 
 /-- Named semantic predicate: the owned output is the canonical Horner
-evaluation of the separate v1.1 target families. -/
+evaluation of the separate v1.2 target families. -/
 abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.SpecHolds (ownedInterface interface) offset env
 

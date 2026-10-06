@@ -7,7 +7,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.PublicInputSplit
 
 /-!
-Owns the exact logical PiDEC v1.1 parent assembler.
+Owns the exact logical PiDEC v1.2 parent assembler.
 
 Child order:
 1. zero-row operational input binding;

@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StateBinding
 import NightstreamFPrime.Spec.Folding.PiCCS.Statement
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, `Pi_CCS` input.
+Paper authority: SuperNeo v1.2, Section 7.3, `Pi_CCS` input.
 Obligation: The verifier input reuses the statement's prior point, `Eval_K`,
 and `Eval_A` values without a witness-controlled copy.
 
@@ -55,7 +55,7 @@ def verifierEval_K (interface : Interface) := interface.eval_K
 /-- The verifier view of `Eval_A`. -/
 def verifierEval_A (interface : Interface) := interface.eval_A
 
-/-- Symbolic form of the three exact v1.1 statement-binding conjuncts. -/
+/-- Symbolic form of the three exact v1.2 statement-binding conjuncts. -/
 structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop where
   state : StateBinding.SpecHolds interface.state offset env
   priorPoint : forall coordinate,
@@ -152,7 +152,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     env assumptions expression member
 
 /-- Exact parent coverage: the production verifier input is constructed from
-the production statement, so it satisfies the canonical v1.1 binding
+the production statement, so it satisfies the canonical v1.2 binding
 predicate. The circuit proves that both symbolic views use the same wires. -/
 theorem spec_implies_keyStatement
     {logicalWidth : Nat}

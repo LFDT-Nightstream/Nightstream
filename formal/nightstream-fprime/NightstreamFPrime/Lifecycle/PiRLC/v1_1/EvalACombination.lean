@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_1.EvalKCombination
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.4, verifier Step 1, the 14 separate
+Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, the 7 separate
 matrix evaluation equations. This leaf preserves `Eval_A` independently from
 the Pad `Eval_K` family.
 -/

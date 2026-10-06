@@ -57,7 +57,7 @@ def publicInputMatches {shape : Shape}
     (assignment : Assignment shape) (publicInput : PublicInput shape) : Prop :=
   projectPublicInput assignment = publicInput
 
-/-- Definition 12's CCS predicate over the sole original matrix family and
+/-- SuperNeo v1.2 Definition 20's CCS predicate over the sole original matrix family and
 explicit sparse constraint polynomial. -/
 def ccsSatisfied {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape) : Prop :=

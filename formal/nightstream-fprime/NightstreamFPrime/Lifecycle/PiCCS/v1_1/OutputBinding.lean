@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_1.StatementAbsorption
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
 /-!
-Paper authority: SuperNeo v1.1, Section 7.3, Steps 3 and 5; the
+Paper authority: SuperNeo v1.2, Section 7.3, Steps 3 and 5; the
 Fiat–Shamir handoff to `Pi_RLC`.
 Obligation: Reuse the complete prover `y′` family as the 17 reduced CE
 evaluation families, absorb it in canonical source/Pad/matrix order, and
@@ -29,7 +29,7 @@ Parent coverage:
 - `Key.piCcsExecution.outgoingState`.
 
 The generic Duplex child owns Poseidon2 operations. This leaf owns only the
-exact v1.1 output order and the zero-copy protocol handoff.
+exact v1.2 output order and the zero-copy protocol handoff.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_1.OutputBinding
@@ -525,7 +525,7 @@ theorem spec_implies_keyOutgoingState
         ).piCcsExecution_outgoingState_eq_absorbPiCcsOutput
           running fresh proof).symm
 
-/-- Exact output-Pad conjunct used by the canonical v1.1 coverage map. -/
+/-- Exact output-Pad conjunct used by the canonical v1.2 coverage map. -/
 theorem key_output_eval_K
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -545,7 +545,7 @@ theorem key_output_eval_K
           (runningSourceIndex coordinate.running) coordinate.coefficient := by
   rfl
 
-/-- Exact output-matrix conjunct used by the canonical v1.1 coverage map. -/
+/-- Exact output-matrix conjunct used by the canonical v1.2 coverage map. -/
 theorem key_output_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

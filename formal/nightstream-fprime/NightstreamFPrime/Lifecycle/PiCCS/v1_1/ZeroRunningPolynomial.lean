@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
 /-!
-Owns the SuperNeo v1.1 Section 7.3 polynomial reduction for the production
+Owns the SuperNeo v1.2 Section 7.3 polynomial reduction for the production
 shape with literal zero running assignments. All tables come from the same
 connected matrix source. Pad retains its complete coefficient family. No CCS
 validity premise is used.

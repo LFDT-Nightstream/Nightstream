@@ -2,7 +2,7 @@
 /-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiRLC/PaperForkAlgebra.lean`
 at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
 /-!
-Generic fork algebra for the paper `Pi_RLC` extractor (Appendix D.5).
+Generic fork algebra for the paper `Pi_RLC` extractor (SuperNeo v1.2 Appendix B.3).
 
 Protocol: SuperNeo `Pi_RLC` weak reduction.
 Phase: algebra of a complete coordinate-wise fork.
@@ -26,8 +26,8 @@ namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 
 universe uScalar uValue
 
-/-- Operations of the commutative scalar ring used by Definition 15.  An
-inverse is deliberately not a total operation: Appendix D.5 receives a unit
+/-- Operations of the commutative scalar ring used by v1.2 Definition 12.  An
+inverse is deliberately not a total operation: Appendix B.3 receives a unit
 witness only for a forked challenge difference. -/
 structure CommutativeRingOps (Scalar : Type uScalar) where
   zero : Scalar
@@ -327,7 +327,7 @@ theorem coordinateIsolation
           tail tailsAgree
 
 /-- Applying the inverse of a unit scalar cancels its action.  This is the
-algebraic final step in Appendix D.5's coordinate extractor. -/
+algebraic final step in Appendix B.3's coordinate extractor. -/
 theorem inverseActionCancellation
     {Scalar : Type uScalar}
     {Value : Type uValue}

@@ -7,7 +7,7 @@ at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherw
 /-!
 The actual off-cube polynomial and terminal authority for paper joint `Pi_CCS`.
 
-Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
 Phase: one-joint SumCheck truth path and post-SumCheck output evaluation check.
 Constraint family: semantic polynomial ownership only; this file emits no rows.
 
@@ -174,7 +174,7 @@ def vertexMessage
 
 namespace VerifierInput
 
-/-- The v1.1 target polynomial is constructed solely from the separate public
+/-- The v1.2 target polynomial is constructed solely from the separate public
 Pad and matrix coefficients. -/
 def targetCoefficients
     {Field : Type uField}
@@ -184,7 +184,7 @@ def targetCoefficients
   pad := input.claimedPadCoefficient
   matrix := input.claimedMatrixCoefficient
 
-/-- Verifier-owned v1.1 initial claim `T_K + gamma^(k*d) * T_A`.
+/-- Verifier-owned v1.2 initial claim `T_K + gamma^(k*d) * T_A`.
 Hidden semantic tables cannot affect this value. -/
 def initial
     {Field : Type uField}

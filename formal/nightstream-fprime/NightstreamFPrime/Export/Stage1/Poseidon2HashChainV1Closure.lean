@@ -104,7 +104,7 @@ and authority, or exhibit one named Poseidon2 binding collision. Claimed
 values are adversarial inputs, not verifier choices. -/
 theorem expectedBindingAndRowsZero_implies_securityOrCollision
     {claimedProgram : Lifecycle.Stage1.Application.Program}
-    (claimedFits : PerApplicationFixedPoint.FitsTwoPow28 claimedProgram)
+    (claimedFits : PerApplicationFixedPoint.FitsTwoPow27 claimedProgram)
     (claimedSetup : PerApplicationCanonicalPackage.CommitmentSetup
       claimedProgram)
     (raw : PerApplicationCanonicalAssignment.RawValues claimedProgram)

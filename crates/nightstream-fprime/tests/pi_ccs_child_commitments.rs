@@ -117,7 +117,7 @@ fn independent_actual_child_commitments() {
     let native_width = package.logical_column_count().div_ceil(DEGREE) * DEGREE;
     assert_eq!(meta[4], json!(native_width));
     let point: Vec<[u64; 2]> = serde_json::from_value(meta[12].clone()).expect("child point");
-    assert_eq!(point.len(), 28);
+    assert_eq!(point.len(), 27);
     assert!(point
         .iter()
         .flatten()

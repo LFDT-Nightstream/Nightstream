@@ -17,7 +17,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 
 def invocationCount : Nat := PiCCSActionPayloadBlock.invocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 1580 := by
+@[simp] theorem invocationCount_eq : invocationCount = 1572 := by
   exact PiCCSActionPayloadBlock.invocationCount_eq
 
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
@@ -36,13 +36,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).slotCount = 237000 := by
+    (retainedBlock program).slotCount = 235800 := by
   rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 9717000 := by
+    (retainedBlock program).coordinateCount = 9667800 := by
   rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
 

@@ -137,7 +137,7 @@ private theorem indexed_value (rows : List Rows.CompiledRow)
 /-- The index preserves every canonical lookup, including missing indices.
 Canonical ownership proves distinct keys; map overwrite behavior is unused. -/
 theorem stored_value (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application) (source : Nat) :
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application) (source : Nat) :
     (stored application)[source]? =
       PerApplicationCanonicalPackage.sourceRow application fits source := by
   rw [stored, rows_eq_canonicalRows,

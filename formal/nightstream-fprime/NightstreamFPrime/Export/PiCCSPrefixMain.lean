@@ -753,7 +753,7 @@ private def finalPoint (publicPath : System.FilePath) (rounds : List String) :
   let trace ← readTrace publicPath rounds
   if complete : trace.challenges.length = cubeVariables then
     return ⟨trace.challenges, complete⟩
-  else throw (IO.userError "original final evaluations require all 28 Lean rounds")
+  else throw (IO.userError "original final evaluations require all 27 Lean rounds")
 
 private def originalMatrix (publicPath sourcePath : System.FilePath)
     (arguments : List String) (reference : Bool) : IO UInt32 := do
@@ -799,13 +799,13 @@ private def finishOriginal (publicPath evaluationsPath inputPath phasePath words
   for path in outputs do
     unless !(← path.pathExists) do throw (IO.userError "output already exists")
   let trace ← readTrace publicPath roundPaths
-  if complete : trace.rounds.length = 28 ∧ trace.challenges.length = 28 then
+  if complete : trace.rounds.length = 27 ∧ trace.challenges.length = 27 then
     let fields ← checked ((← readJson evaluationsPath).getArr?)
     let input ← match fields.toList with
       | [schema, point, pad, matrix] => do
           unless (← checked schema.getNat?) == 1 do
             throw (IO.userError "unexpected complete original evaluation schema")
-          let point ← checked (PiCCSInputCheck.decodeVector 28 decodeExtension point)
+          let point ← checked (PiCCSInputCheck.decodeVector 27 decodeExtension point)
           unless decide (point.toList = trace.challenges) do
             throw (IO.userError "original evaluation point differs from the Lean transcript")
           let pad ← checked (PiCCSInputCheck.decodeVector 17
@@ -839,7 +839,7 @@ private def finishOriginal (publicPath evaluationsPath inputPath phasePath words
         (productionProfile.piRlcInputs * (1 + Spec.ProductionRelation.matrixCount) * ringDegree * 2)),
       ("accepted", .bool result.accepted)]
     return 0
-  else throw (IO.userError "final PiCCS replay requires all 28 Lean rounds")
+  else throw (IO.userError "final PiCCS replay requires all 27 Lean rounds")
 
 private def family (name : String) : IO Nat :=
   match name with

@@ -32,7 +32,7 @@ private theorem findOrdinal_value (schedule : IndexSchedule) (source ordinal : N
 /-- Select the existing PiCCS packet from range headers before constructing
 its rows. The complete source index space retains the canonical result. -/
 def sourceRow (program : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 program)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 program)
     (source : Nat) : Option R1CS.Row :=
   match findOrdinal PiCCSOrdinaryMatrixProgram.rowSchedule source with
   | none => PerApplicationCanonicalPackage.sourceRow program fits source
@@ -46,7 +46,7 @@ def sourceRow (program : Lifecycle.Stage1.Application.Program)
 /-- The optimized source accessor is equal at every index to the canonical
 package accessor. No caller supplies a row or a source-agreement premise. -/
 theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 program) :
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 program) :
     sourceRow program fits = PerApplicationCanonicalPackage.sourceRow program fits := by
   funext source
   unfold sourceRow
@@ -56,7 +56,7 @@ theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
       dsimp only
       by_cases bounded : ordinal < PiCCSOrdinaryMatrixProgram.rowSchedule.count
       · rw [if_pos bounded]
-        have bound : ordinal < 48443 := by
+        have bound : ordinal < 48330 := by
           simpa only [PiCCSOrdinaryMatrixProgram.rowSchedule_count] using bounded
         have selected := findOrdinal_value PiCCSOrdinaryMatrixProgram.rowSchedule
           source ordinal found

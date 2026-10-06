@@ -20,7 +20,7 @@ def canonical(value):
 
 def proof_words(value):
     require(len(value) == 7 and value[0] == 2, "wrong PiCCS input schema")
-    require(len(value[1]) == 1188 and len(value[3]) == 28, "wrong commitment or round count")
+    require(len(value[1]) == 1188 and len(value[3]) == 27, "wrong commitment or round count")
     words = list(value[1])
     for polynomial in value[3]:
         require(len(polynomial) == 10, "wrong polynomial width")
@@ -35,7 +35,7 @@ def proof_words(value):
             for coefficient in lanes:
                 require(len(coefficient) == 2, "wrong extension width")
                 words.extend(coefficient)
-    require(len(words) == 16436, "wrong complete proof-input word count")
+    require(len(words) == 16416, "wrong complete proof-input word count")
     require(all(type(word) is int and 0 <= word < P for word in words),
             "noncanonical proof-input field")
     return words
@@ -81,7 +81,7 @@ def main():
     else:
         raise ValueError("changed final proof-input word was accepted")
     print(json.dumps({"event": "independent_piccs_complete_bytes_match",
-                      "rounds": 28, "phase_fields": 15, "output_field_words": 14688,
+                      "rounds": 27, "phase_fields": 15, "output_field_words": 14688,
                       "proof_input_field_words": len(words), "outgoing_state_words": 16,
                       "input_bytes": len(raw[0]), "phase_bytes": len(raw[1]),
                       "rust_input_bytes": len(raw[3]),

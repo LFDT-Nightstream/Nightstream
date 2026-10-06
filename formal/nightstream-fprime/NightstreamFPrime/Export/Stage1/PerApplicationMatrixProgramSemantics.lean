@@ -28,7 +28,7 @@ open NightstreamFPrime.Layout.Stage1
 abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 
 def relation (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application) :=
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application) :=
   PerApplicationProductionPlan.relation application fits
 
 /-- Exact compact interpretation of one semantic plan. -/
@@ -61,9 +61,9 @@ theorem Exact.append {logicalWidth : Nat}
 /-- The final source-row accessor must return the exact Lean-selected source
 row for every ordinary family. -/
 structure SourceCustody (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 48443, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 48330, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -121,7 +121,7 @@ structure SourceCustody (application : ApplicationProgram)
       some (NextPreimageDirectPlan.program.row index)
 
 theorem piCcsPoseidonExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .piCcsPoseidon)
@@ -140,7 +140,7 @@ theorem piCcsPoseidonExact (application : ApplicationProgram)
         sourceRow row
 
 theorem samplerPoseidonExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .samplerPoseidon)
@@ -162,7 +162,7 @@ theorem samplerPoseidonExact (application : ApplicationProgram)
         sourceRow row
 
 theorem piRlcExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application .piRlc)
       (PerApplicationProductionPlan.BlockKind.piRlc.plan application fits)
@@ -184,7 +184,7 @@ theorem piRlcExact (application : ApplicationProgram)
         (PerApplicationMatrixProgram.piCcsOrdinaryGeometry application) sourceRow row
 
 theorem pilotDigestBindingExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .pilotDigestBinding)
@@ -201,7 +201,7 @@ theorem pilotDigestBindingExact (application : ApplicationProgram)
         (PerApplicationMatrixProgram.piDecGeometry application) sourceRow row
 
 theorem piCcsEndpointExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .piCcsEndpoint)
@@ -218,7 +218,7 @@ theorem piCcsEndpointExact (application : ApplicationProgram)
         (PerApplicationMatrixProgram.piDecGeometry application) sourceRow row
 
 theorem pilotPoseidonExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .pilotPoseidon)
@@ -262,7 +262,7 @@ theorem pilotPoseidonExact (application : ApplicationProgram)
       exactRow row
 
 theorem piCcsOrdinaryExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application
@@ -284,7 +284,7 @@ theorem piCcsOrdinaryExact (application : ApplicationProgram)
         sourceRow custody.piCcsOrdinary row
 
 theorem pilotOrdinaryExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application
@@ -304,7 +304,7 @@ theorem pilotOrdinaryExact (application : ApplicationProgram)
     sourceRow custody.pilotOrdinary row
 
 theorem samplerOrdinaryExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application
@@ -325,7 +325,7 @@ theorem samplerOrdinaryExact (application : ApplicationProgram)
         sourceRow custody.samplerOrdinary row
 
 theorem piDecExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application .piDec)
@@ -346,7 +346,7 @@ theorem piDecExact (application : ApplicationProgram)
         custody.piDecEvalA row
 
 theorem runningTransitionExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application
@@ -369,7 +369,7 @@ theorem runningTransitionExact (application : ApplicationProgram)
         custody.runningTransition row
 
 theorem applicationExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application .application)
@@ -388,7 +388,7 @@ theorem applicationExact (application : ApplicationProgram)
         sourceRow custody.applicationRows row
 
 theorem nextPreimageExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.blockProgram application .nextPreimage)
@@ -409,7 +409,7 @@ theorem nextPreimageExact (application : ApplicationProgram)
         sourceRow custody.nextPreimage row
 
 theorem recursivePublicOutputExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row) :
     Exact (PerApplicationMatrixProgram.blockProgram application
         .recursivePublicOutput)
@@ -428,7 +428,7 @@ theorem recursivePublicOutputExact (application : ApplicationProgram)
         sourceRow row
 
 theorem blockExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow)
     (kind : PerApplicationProductionPlan.BlockKind) :
@@ -460,7 +460,7 @@ theorem blockExact (application : ApplicationProgram)
 /-- Any successfully compiled Lean production tree has an exact compact
 matrix interpretation. -/
 theorem compileMatrixExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow)
     (program : PerApplicationProductionPlan.Program)
@@ -496,7 +496,7 @@ theorem compileMatrixExact (application : ApplicationProgram)
 /-- The canonical compact matrix program is exactly the self-derived
 per-application structural plan, row for row. -/
 theorem matrixProgramExact (application : ApplicationProgram)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (sourceRow : Nat → Option R1CS.Row)
     (custody : SourceCustody application fits sourceRow) :
     Exact (PerApplicationMatrixProgram.matrixProgram application)

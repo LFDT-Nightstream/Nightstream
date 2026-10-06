@@ -57,7 +57,7 @@ theorem rowsZero_implies_specHolds
 hash contracts. No raw packet, encoding, or representation is supplied. -/
 theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)

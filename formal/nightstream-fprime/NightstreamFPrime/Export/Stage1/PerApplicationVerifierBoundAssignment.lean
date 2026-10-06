@@ -26,17 +26,17 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev RawValues := PerApplicationCanonicalAssignment.RawValues
-abbrev FitsTwoPow28 (application : Program) :=
-  PerApplicationFixedPoint.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : Program) :=
+  PerApplicationFixedPoint.FitsTwoPow27 application
 abbrev CommitmentSetup (application : Program) :=
   PerApplicationCanonicalPackage.CommitmentSetup application
 
-def relation (application : Program) (fits : FitsTwoPow28 application) :=
+def relation (application : Program) (fits : FitsTwoPow27 application) :=
   PerApplicationFixedPoint.relation application fits
 
 /-- Exact four-word verifier-context digest carried by recursive state. -/
 def verifierContextDigest {application : Program}
-    (fits : FitsTwoPow28 application)
+    (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application) :
     KeyDigest :=
   PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
@@ -58,7 +58,7 @@ def bindContextBase (application : Program) (digest : KeyDigest)
       base column
 
 /-- Canonical raw packet with verifier-owned context words. -/
-def bind {application : Program} (fits : FitsTwoPow28 application)
+def bind {application : Program} (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application) : RawValues application :=
   { raw with
@@ -80,7 +80,7 @@ private theorem expectedContextTargetBound (lane : Fin 4) :
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have bound := lane.isLt
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      14761727 :=
+      14750632 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   norm_num [Spartan.expectedContextPublicStart] at bound ⊢
@@ -96,7 +96,7 @@ private theorem shiftedExpectedContext
   have lower : ¬ Spartan.expectedContextPublicStart + lane.val <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        14761448 :=
+        14750353 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart] at laneBound ⊢
@@ -104,7 +104,7 @@ private theorem shiftedExpectedContext
   have startLower : ¬ Spartan.expectedContextPublicStart <
       PerApplicationPackage.basePackage.layout.constantColumn := by
     have constant : PerApplicationPackage.basePackage.layout.constantColumn =
-        14761448 :=
+        14750353 :=
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]
@@ -112,7 +112,7 @@ private theorem shiftedExpectedContext
   omega
 
 private theorem boundBase_expectedContext
-    {application : Program} (fits : FitsTwoPow28 application)
+    {application : Program} (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application) (lane : Fin 4) :
     (bind fits commitmentSetup raw).base
@@ -140,7 +140,7 @@ private theorem boundBase_expectedContext
     exact ⟨by omega, by have bound := lane.isLt; omega⟩
 
 theorem transitionExpectedContext
-    {application : Program} (fits : FitsTwoPow28 application)
+    {application : Program} (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application) (lane : Fin 4) :
     PerApplicationDecodedIO.transitionEnv (bind fits commitmentSetup raw)
@@ -164,7 +164,7 @@ theorem transitionExpectedContext
 /-- Accepted rows bind the decoded state context to the exact canonical
 per-application verifier-context digest. -/
 theorem semantics_imply_contextKey
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application)
     (semantics : DirectApplicationPrefixPlan.Semantics

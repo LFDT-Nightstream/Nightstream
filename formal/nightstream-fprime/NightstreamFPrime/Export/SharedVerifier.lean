@@ -306,7 +306,7 @@ private def contracts : List String := [
   "NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram.matrixProgram_blocks",
   "NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage.matrixProgram_exact",
   "NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts",
-  "NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.carrierWidth_le_twoPow28_iff",
+  "NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry.carrierWidth_le_twoPow27_iff",
   "NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.plan_fixedPoint",
   "NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks.sourceRuns_expand"]
 
@@ -345,7 +345,7 @@ def value (_ : Unit) : Except String Lean.Json := do
     ("terminal", Lean.Json.mkObj [("running_claims", jsonNat productionShape.runningCount),
       ("fresh_claims", jsonNat productionShape.freshCount), ("all_final_rows", Lean.toJson true)]),
     ("contracts", strings contracts),
-    ("proof_scope", .str "Existing theorems require a Lean Application.Program, FitsTwoPow28, and their encoding hypotheses. This manifest does not prove Rust application semantics, relocation, or assembly.")])
+    ("proof_scope", .str "Existing theorems require a Lean Application.Program, FitsTwoPow27, and their encoding hypotheses. This manifest does not prove Rust application semantics, relocation, or assembly.")])
 
 def write (path : System.FilePath) : IO Unit := do
   match value () with

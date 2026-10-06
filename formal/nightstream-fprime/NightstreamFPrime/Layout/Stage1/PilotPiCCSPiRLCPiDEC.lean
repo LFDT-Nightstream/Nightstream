@@ -22,7 +22,7 @@ variable {logicalWidth : Nat}
 
 def piDecOffset : Nat := PiDECInputs.phaseOffset
 
-theorem piDecOffset_eq : piDecOffset = 14761454 := by
+theorem piDecOffset_eq : piDecOffset = 14750359 := by
   rfl
 
 def physicalRows
@@ -92,9 +92,9 @@ theorem jointDomain_eq
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
 
-theorem jointDomain_le_twoPow28
+theorem jointDomain_le_twoPow27
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation ≤ 2 ^ 28 := by
+    jointDomain relation ≤ 2 ^ 27 := by
   rw [jointDomain_eq relation]
   decide
 

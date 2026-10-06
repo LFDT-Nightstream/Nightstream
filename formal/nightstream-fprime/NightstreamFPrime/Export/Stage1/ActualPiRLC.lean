@@ -107,7 +107,7 @@ theorem productChallenge_eq
 batch from the actual PiCCS execution. No sampler premise is supplied by the caller. -/
 theorem selectedRowsAndPublic_imply_batch
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (template : Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)))
@@ -156,7 +156,7 @@ theorem selectedRowsAndPublic_imply_batch
 /-- The actual product challenges are precisely the production NIFS key response. -/
 theorem selectedRowsAndPublic_imply_keyChallenges
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (template : Proof (ProductionKey.degreeBound (PerApplicationFixedPoint.relation application fits)))

@@ -326,7 +326,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.physicalRowCount_eq_production
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.physicalColumnCount_eq_production
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_eq_production
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow28
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.jointDomain_le_twoPow27
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.CcsTerminal.output_varsBelow_norm
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.CcsTerminal.output_linear
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_1.Leaves.CcsTerminal.physical_implies_logicalConstraints

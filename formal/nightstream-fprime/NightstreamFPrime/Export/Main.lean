@@ -613,7 +613,7 @@ artifact-sized codec tree. The selected application remains a Lean value; no
 runtime field selects its rows or layout. -/
 def writePerApplicationSealedPackage
     (program : Lifecycle.Stage1.Application.Program)
-    (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow28 program)
+    (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow27 program)
     (handle : IO.FS.Handle) : IO Unit := do
   progress "emitter_stage=per_application_parallel_preparation"
   let permutationTask ← IO.asTask preparePermutationBlocks
@@ -645,7 +645,7 @@ def writePerApplicationSealedPackage
 
 def emitPerApplication
     (program : Lifecycle.Stage1.Application.Program)
-    (fits : Stage1.PerApplicationFixedPoint.FitsTwoPow28 program)
+    (fits : Stage1.PerApplicationFixedPoint.FitsTwoPow27 program)
     (path : System.FilePath) : IO Unit := do
   progress "emitter_stage=per_application_stream"
   if let some parent := path.parent then
@@ -661,7 +661,7 @@ This is the Lean-owned row-expansion reference for exact Rust A/B/C
 comparison. -/
 def emitPerApplicationExpanded
     (program : Lifecycle.Stage1.Application.Program)
-    (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow28 program)
+    (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow27 program)
     (path : System.FilePath) : IO Unit := do
   progress "emitter_stage=per_application_expanded_stream"
   if let some parent := path.parent then

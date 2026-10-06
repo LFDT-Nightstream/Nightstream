@@ -226,7 +226,7 @@ theorem selectedOutputRunning_eq_running
 This projection preserves the arbitrary assignment and the existing layout. -/
 theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)
@@ -256,7 +256,7 @@ accepted rows: the initial/current states agree and the hashed running output
 is the complete default value. This is one branch of the full step target. -/
 theorem selectedRowsAndPublic_imply_baseState
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (digest : Digest)
     (publicEqual : Phi81Relation.projectPublicInput

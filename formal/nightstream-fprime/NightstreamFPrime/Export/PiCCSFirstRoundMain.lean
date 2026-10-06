@@ -157,8 +157,8 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
   let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
   let mut cached : Option CachedInvocation := none
   for index in [first:finish] do
-    if within : index < 2 ^ 27 then
-      let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
+    if within : index < 2 ^ 26 then
+      let suffix := NumericBooleanDomain.vertex 26 ⟨index, within⟩
       let imageStarted ← IO.monoNanosNow
       let (next, low) ← cachedImages program (fun row => cache[row]?) basis.1 basis.2 blocks power
         assignments cached
@@ -182,13 +182,13 @@ private def replay (publicPath sourcePath outputPath : System.FilePath)
       report [("event", .str "pair_complete"), ("pair", Lean.toJson index),
         ("image_ns", Lean.toJson imageNs),
         ("kernel_ns", Lean.toJson ((← IO.monoNanosNow) - kernelStarted))]
-    else throw (IO.userError "pair exceeds the selected 27-bit suffix domain")
+    else throw (IO.userError "pair exceeds the selected 26-bit suffix domain")
   let value := Value.array [.atom 1, .atom first, .atom finish,
     .array (total.coefficients.map extensionValue)]
   IO.FS.writeFile outputPath (value.render ++ "\n")
   report [("event", .str "first_round_range_complete"),
     ("first", Lean.toJson first), ("end", Lean.toJson finish),
-    ("complete_round", Lean.toJson (first == 0 && finish == 2 ^ 27)),
+    ("complete_round", Lean.toJson (first == 0 && finish == 2 ^ 26)),
     ("coefficients", Lean.toJson total.coefficients.length),
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
@@ -312,8 +312,8 @@ private def replayFresh (publicPath sourcePath outputPath : System.FilePath)
     let mut total : FixedPolynomial K 9 := FixedPolynomial.zero extensionOps.toOps 9
     let mut cached := none
     for index in [first:finish] do
-      if within : index < 2 ^ 27 then
-        let suffix := NumericBooleanDomain.vertex 27 ⟨index, within⟩
+      if within : index < 2 ^ 26 then
+        let suffix := NumericBooleanDomain.vertex 26 ⟨index, within⟩
         let lowVertex := PiCCSFirstRound.endpointVertex (by decide) false suffix
         let highVertex := PiCCSFirstRound.endpointVertex (by decide) true suffix
         let (next, low) ← freshRows program (fun row => sourceRows[row]?) assignments cached lowVertex
@@ -463,7 +463,7 @@ private def replayCarriedMatrix (publicPath sourcePath outputPath : System.FileP
         let mut high := K.zero
         let mut retained := none
         for index in [start:stop] do
-          if index / 2 < 2 ^ 27 then
+          if index / 2 < 2 ^ 26 then
             let (next, values) ← carriedRows program (fun row => cache[row]?) basis blocks retained index cacheSparse
             retained := next
             let combined := FiniteSumAlgebra.sumMap extensionOps
@@ -745,8 +745,8 @@ private def saveFreshPrefix
       let output ← IO.FS.Handle.mk path .write
       let mut cached := none
       for pairIndex in [lo:hi] do
-        if within : pairIndex < 2 ^ 27 then
-          let suffix := NumericBooleanDomain.vertex 27 ⟨pairIndex, within⟩
+        if within : pairIndex < 2 ^ 26 then
+          let suffix := NumericBooleanDomain.vertex 26 ⟨pairIndex, within⟩
           let (next, low) ← loadRow cached
             (PiCCSFirstRound.endpointVertex (by decide) false suffix)
           cached := next

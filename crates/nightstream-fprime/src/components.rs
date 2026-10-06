@@ -18,7 +18,7 @@ const PROFILE: [u64; 8] = [
     16,
     65536,
     54,
-    28,
+    crate::PI_CCS_V1_1_ROUND_COUNT as u64,
     crate::PI_CCS_V1_1_MATRIX_COUNT as u64,
     7,
 ];

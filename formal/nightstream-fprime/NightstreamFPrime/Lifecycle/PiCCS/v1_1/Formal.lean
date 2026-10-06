@@ -274,7 +274,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 140288 + 95352
+  interface.baseOffset + 140288 + 92064
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -616,7 +616,7 @@ def challengeCircuit {logicalWidth degreeBound : Nat}
   let childInterface :=
     challengeInterface (atOffset interface parentOffset) parentOffset
   FormalCircuit.withConstantFootprint
-    (ChallengeDerivation.circuit childInterface) 95352 95352
+    (ChallengeDerivation.circuit childInterface) 92064 92064
     (ChallengeDerivation.localLength_eq childInterface)
     (ChallengeDerivation.flatConstraints_length childInterface)
 
@@ -649,7 +649,7 @@ def sumcheckCircuit {logicalWidth degreeBound : Nat}
   FormalCircuit.withConstantFootprint
     (SumcheckChain.circuit (sumcheckInterface interface))
       (SumcheckChain.privateCount degreeBound)
-      (SumcheckChain.privateCount degreeBound + 56)
+      (SumcheckChain.privateCount degreeBound + 54)
     (SumcheckChain.localLength_eq (sumcheckInterface interface))
     (SumcheckChain.flatConstraints_length (sumcheckInterface interface))
 
@@ -703,7 +703,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 2728
+      FinalIdentity.privateCount 2724
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -795,7 +795,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptOffset interface offset =
-      challengeOffset interface offset + 95352 := by
+      challengeOffset interface offset + 92064 := by
   unfold roundTranscriptOffset nextOffset childLength challengeCircuit
   rw [FormalCircuit.withConstantFootprint_main,
     ChallengeDerivation.localLength_eq]

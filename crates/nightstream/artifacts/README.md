@@ -36,14 +36,15 @@ compiler can be selected with `elan run TOOLCHAIN`. All artifacts use
 The reference application has four witness words, 5,480 local words, and 5,484
 rows. Application state has four input words and four output words. The manifest
 exports the existing source-row, source-column, and retained-carrier conditions
-for the `2^28` Nightstream Goldilocks profile with `k_rho = 16`.
+for the `2^27` Nightstream Goldilocks profile with `k_rho = 16`.
 
-The current selected application has 59,804,510 logical coordinates and
-59,804,514 padded coordinates, using 1,107,491 columns of the unchanged fixed
-key. The approved maximum is 4,708,530 columns. With logical width
-`59579666 + 41 * (witness_words + local_words)`, that maximum permits 4,748,315
-application witness and local fields together. Source rows, source columns,
-and the padded carrier must also fit the declared domain.
+The selected application has 59,732,227 logical coordinates and 59,732,262
+padded coordinates, using 1,106,153 columns of the fixed key. The approved
+maximum remains 4,708,530 columns. The smaller domain permits at most
+134,217,702 coordinates in complete 54-coordinate blocks. With logical width
+`59507383 + 41 * (witness_words + local_words)`, this permits 1,822,202
+application witness and local fields together. The selected application uses
+5,484 of those fields. Source rows and source columns must also fit the domain.
 
 From `formal/nightstream-fprime`, run the maintainer commands one at a time.
 The wrapper enforces that project's 1,500-second cap.

@@ -114,7 +114,7 @@ fn ownership_inventory(bytes: &[u8], expected_structural_identity: [u64; 4]) -> 
 }
 
 fn reference_layout(raw: &RawPackage) -> ReferenceLayout {
-    let domain_size = 1usize << 28;
+    let domain_size = 1usize << nightstream_fprime::PI_CCS_V1_1_ROUND_COUNT;
     ReferenceLayout {
         unpadded_rows: word(raw.3 .0),
         unpadded_constant: word(raw.3 .2),

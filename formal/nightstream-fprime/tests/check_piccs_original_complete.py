@@ -42,12 +42,12 @@ def schema(value, length, version, name):
 
 def validate(merged, proof, phase):
     schema(merged, 4, 1, "Lean evaluations")
-    tensor(merged[1], (28, 2), "Lean point")
+    tensor(merged[1], (27, 2), "Lean point")
     tensor(merged[2], (17, 54, 2), "Lean Pad")
     tensor(merged[3], (17, 7, 54, 2), "Lean matrix")
     schema(proof, 7, 2, "Rust PiCCS input")
     schema(phase, 15, 1, "Rust PiCCS phase")
-    tensor(phase[4], (28, 2), "Rust point")
+    tensor(phase[4], (27, 2), "Rust point")
     tensor(proof[4], (17, 54, 2), "Rust proof Pad")
     tensor(phase[12], (17, 54, 2), "Rust phase Pad")
     tensor(proof[5], (17, 7, 54, 2), "Rust proof matrix")
@@ -77,7 +77,7 @@ def main():
     public, final_round, merged, proof, phase = [
         json.loads(Path(path).read_bytes()) for path in sys.argv[1:]
     ]
-    compare_round(public, final_round, proof, phase, 27)
+    compare_round(public, final_round, proof, phase, 26)
     compare_evaluations(merged, proof, phase)
     for family in ("pad", "matrix"):
         changed, changed_phase = copy.deepcopy(proof), copy.deepcopy(phase)
@@ -93,7 +93,7 @@ def main():
             expected = "matrix[16][6][53][1] differs"
         # Both Rust target copies change consistently. The round comparison
         # must still pass, and only the actual field comparison must reject.
-        compare_round(public, final_round, changed, changed_phase, 27)
+        compare_round(public, final_round, changed, changed_phase, 26)
         try:
             compare_evaluations(merged, changed, changed_phase)
         except ValueError as error:
@@ -107,7 +107,7 @@ def main():
         "matrix_K_values": 17 * 7 * 54,
         "compared_K_values": 7344,
         "compared_field_words": 14688,
-        "point_K_values": 28,
+        "point_K_values": 27,
         "fresh_source_nonconstant_K_values": (54 - 1) * (1 + 7),
         "pad_target_mutation": "rejected",
         "matrix_target_mutation": "rejected",

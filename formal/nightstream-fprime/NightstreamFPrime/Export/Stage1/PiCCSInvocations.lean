@@ -508,7 +508,7 @@ theorem roundTrace_eq_semantic
       roundWitnessStart)
     (roundActions_shape_matches logicalWidth publicFits)
 
-/-- Held compact round invocations imply the exact indexed 28-round
+/-- Held compact round invocations imply the exact indexed 27-round
 Fiat--Shamir predicate under the proved Spartan pullback. -/
 theorem roundTrace_implies_spec
     (logicalWidth : Nat)
@@ -850,7 +850,7 @@ theorem challengeInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (challengeTrace logicalWidth publicFits).invocations.length = 87 := by
+    (challengeTrace logicalWidth publicFits).invocations.length = 84 := by
   rw [challengeTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
     (ChallengeDerivation.actions (challengeInterface logicalWidth publicFits)
@@ -864,7 +864,7 @@ theorem challengeInvocations_length
     (challengeInterface logicalWidth publicFits) challengeWitnessStart
   change Formal.recipeCount
     (ChallengeDerivation.actions (challengeInterface logicalWidth publicFits)
-      challengeWitnessStart) = 95352 at fixed
+      challengeWitnessStart) = 92064 at fixed
   rw [fixed] at compiled
   rw [← sameCount]
   omega
@@ -873,7 +873,7 @@ theorem roundInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (roundTrace logicalWidth publicFits).invocations.length = 140 := by
+    (roundTrace logicalWidth publicFits).invocations.length = 135 := by
   rw [roundTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
     (RoundTranscript.actions (roundInterface logicalWidth publicFits)
@@ -915,7 +915,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 1580 := by
+    (invocations logicalWidth publicFits).length = 1572 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -928,7 +928,7 @@ mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 8685507 := by
+theorem invocationCeiling_eq : invocationCeiling = 8674484 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan,
@@ -952,14 +952,14 @@ theorem statementInvocationCount_eq (logicalWidth : Nat)
 theorem challengeInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (challengeActions logicalWidth publicFits) = 87 := by
+    invocationCount (challengeActions logicalWidth publicFits) = 84 := by
   have count := challengeInvocations_length logicalWidth publicFits
   rw [challengeTrace, compileActions_invocations_length] at count
   exact count
 theorem roundInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (roundActions logicalWidth publicFits) = 140 := by
+    invocationCount (roundActions logicalWidth publicFits) = 135 := by
   have count := roundInvocations_length logicalWidth publicFits
   rw [roundTrace, compileActions_invocations_length] at count
   exact count

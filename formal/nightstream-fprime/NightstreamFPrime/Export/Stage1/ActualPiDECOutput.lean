@@ -21,7 +21,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 variable (application : Lifecycle.Stage1.Application.Program)
-  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+  (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
   (ajtai : AjtaiKey (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
     (publicFits := PerApplicationFixedPoint.publicFits application))
   (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))

@@ -21,7 +21,7 @@ compare_round = runpy.run_path(
 
 def values(directory, kind, width, point):
     manifest, chunks = read_prefix(directory)
-    require(manifest == [1, 28, kind, width, 1, point, [[0, 1]]],
+    require(manifest == [1, 27, kind, width, 1, point, [[0, 1]]],
             f"{directory}: not the complete selected final prefix")
     require(len(chunks) == 1, f"{directory}: expected one final row")
     data = chunks[0].path.read_bytes()
@@ -51,7 +51,7 @@ def main():
     public, final_round = [json.loads(Path(path).read_bytes()) for path in sys.argv[1:3]]
     fresh_dir, norm_dir = map(Path, sys.argv[3:5])
     proof, phase = [json.loads(Path(path).read_bytes()) for path in sys.argv[5:7]]
-    compare_round(public, final_round, proof, phase, 27)
+    compare_round(public, final_round, proof, phase, 26)
     point = phase[4]  # Comparison target only; no producer runs in this script.
     fresh = values(fresh_dir, 2, 7, point)
     require({path.name for path in norm_dir.iterdir()} ==
@@ -71,7 +71,7 @@ def main():
             expected = "freshMatrixImage[6] differs"
         # A mutually consistent proof/phase mutation must still fail the actual
         # field comparison. It must not reject only for mismatched target copies.
-        compare_round(public, final_round, changed, changed_phase, 27)
+        compare_round(public, final_round, changed, changed_phase, 26)
         try:
             compare_terminal(norm, fresh, changed)
         except ValueError as error:

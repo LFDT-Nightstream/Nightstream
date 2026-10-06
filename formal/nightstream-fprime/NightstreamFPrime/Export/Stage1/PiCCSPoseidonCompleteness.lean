@@ -81,7 +81,7 @@ private theorem source_sbox (index : InvocationIndex) (row : Fin PoseidonRetaine
     PoseidonRetainedBlock.basePackage.layout.constantColumn at before
   have localBound := (PoseidonRetainedSlots.localOutput row).isLt
   change (PoseidonRetainedSlots.localOutput row).val < 1096 at localBound
-  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 14761448 :=
+  have constant : PoseidonRetainedBlock.basePackage.layout.constantColumn = 14750353 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   rw [constant] at before
   change (physicalInvocation index).witnessStart +
@@ -330,7 +330,7 @@ private theorem invocation_values (index : InvocationIndex) :
     (∀ expected : KExpr, PiCCSActionPayloadBlock.kindAt index = .squeezeFirst expected →
       expected.eval (Spartan.pullback target) =
         K.mk (previousValue geometry (raw).assignment index 0) (outputValue geometry (raw).assignment index 0)) := by
-  have bounded : index.val < 1580 := by
+  have bounded : index.val < 1572 := by
     simpa only [PiCCSPoseidonPlan.invocationCount_eq] using index.isLt
   by_cases inStatement : index.val < 128
   · let current : Fin PiCCSTranscriptDirectSemantics.statementCount := ⟨index.val, inStatement⟩
@@ -355,9 +355,9 @@ private theorem invocation_values (index : InvocationIndex) :
       PiCCSTranscriptDirectSemantics.statementKindAt_eq
       (PiCCSPhaseInputs.statement_initial application target suffix)
       (PiCCSCompilerAssertions.statement_assertions (Spartan.pullback target)) current
-  · by_cases inChallenge : index.val < 215
+  · by_cases inChallenge : index.val < 212
     · let current : Fin PiCCSTranscriptDirectSemantics.challengeCount := ⟨index.val - 128, by
-        change index.val - 128 < 87
+        change index.val - 128 < 84
         omega⟩
       have same : PoseidonActionSemantics.sliceIndex
           PiCCSTranscriptDirectSemantics.challengeOffset PiCCSTranscriptDirectSemantics.challengeCount
@@ -381,15 +381,15 @@ private theorem invocation_values (index : InvocationIndex) :
         PiCCSTranscriptDirectSemantics.challengeKindAt_eq
         (PiCCSPhaseInputs.challenge_initial application relation target suffix physical)
         (PiCCSCompilerAssertions.challenge_assertions (Spartan.pullback target)) current
-    · by_cases inRound : index.val < 355
-      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 215, by
-          change index.val - 215 < 140
+    · by_cases inRound : index.val < 347
+      · let current : Fin PiCCSTranscriptDirectSemantics.roundCount := ⟨index.val - 212, by
+          change index.val - 212 < 135
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.roundOffset PiCCSTranscriptDirectSemantics.roundCount
             PiCCSTranscriptDirectSemantics.roundFits current = index := by
           apply Fin.ext
-          change 215 + (index.val - 215) = index.val
+          change 212 + (index.val - 212) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.round_affine relation
@@ -407,14 +407,14 @@ private theorem invocation_values (index : InvocationIndex) :
           PiCCSTranscriptDirectSemantics.roundKindAt_eq
           (PiCCSPhaseInputs.round_initial application relation target suffix physical)
           (PiCCSCompilerAssertions.round_assertions (Spartan.pullback target)) current
-      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 355, by
-          change index.val - 355 < 1225
+      · let current : Fin PiCCSTranscriptDirectSemantics.outputCount := ⟨index.val - 347, by
+          change index.val - 347 < 1225
           omega⟩
         have same : PoseidonActionSemantics.sliceIndex
             PiCCSTranscriptDirectSemantics.outputOffset PiCCSTranscriptDirectSemantics.outputCount
             PiCCSTranscriptDirectSemantics.outputFits current = index := by
           apply Fin.ext
-          change 355 + (index.val - 355) = index.val
+          change 347 + (index.val - 347) = index.val
           omega
         rw [← same]
         have affine := PiCCSPhaseInputs.output_affine relation

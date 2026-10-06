@@ -75,7 +75,7 @@ private theorem output_eq_forms
 /-- Arbitrary accepted application rows force the decoded next current state
 to be the selected application step on the decoded prior state and witness. -/
 theorem rowsZero_implies_decodedStep
-    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (fits : PerApplicationPackage.FitsTwoPow27 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
     (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
@@ -94,7 +94,7 @@ theorem rowsZero_implies_decodedStep
 equation. This theorem needs no canonical raw packet or representation. -/
 theorem selectedRowsZero_implies_decodedStep
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (one : assignment (ApplicationRetainedGeometry.oneColumn
       (PerApplicationFixedPoint.geometry application)) = 1)

@@ -25,7 +25,7 @@ private theorem previousRule_zero
 private theorem previousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocationOffset : Fin 1579) (lane : Fin 16) :
+    (invocationOffset : Fin 1571) (lane : Fin 16) :
     (previousRule program).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -57,7 +57,7 @@ private theorem previousRule_succ
               slotBound selected⟩) lane)) by
     simpa [previousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 1579 0 16)
+        (region := PoseidonInput.Region.mk 1 1571 0 16)
         invocationOffset lane lane.isLt
         (PiCCSPoseidonPlan.schedule program).block
         (PiCCSPoseidonPlan.retainedStart program)
@@ -95,9 +95,9 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero geometry lane
   · rw [if_neg first]
-    let invocationOffset : Fin 1579 :=
+    let invocationOffset : Fin 1571 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 1580 := by
+        have bound : invocation.val < 1572 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -142,7 +142,7 @@ private theorem payloadRule_absorb
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 1580 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 1572 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only
@@ -168,7 +168,7 @@ private theorem payloadRule_notAbsorb
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 1580 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 1572 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only

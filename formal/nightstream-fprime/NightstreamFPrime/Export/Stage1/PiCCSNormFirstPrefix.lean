@@ -92,7 +92,7 @@ private theorem oneChallenge_endpoint (input : PiCCSPublicReplay.Input)
     SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
     if_false, if_true] using! value
 
--- Symbolic data keeps all coefficient tactics outside the selected 2^28 table.
+-- Symbolic data keeps all coefficient tactics outside the selected 2^27 table.
 private theorem inner_pair_of_endpoints
     (values : Fin productionShape.sourceCount → Array K) (gamma weight : K)
     (low high : ProtocolPolynomial.OutputMessage K productionShape) (index : Nat)

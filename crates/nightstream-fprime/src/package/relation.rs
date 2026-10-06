@@ -89,7 +89,7 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
         .and_then(|blocks| blocks.checked_mul(54))
         .ok_or(PackageError::Invalid("CCS relation carrier width"))?;
     if row_count > MAX_JOINT_DOMAIN || carrier_width > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("CCS relation 2^28 domain"));
+        return Err(PackageError::Invalid("CCS relation 2^27 domain"));
     }
     if cube_variables != PI_CCS_V1_1_ROUND_COUNT {
         return Err(PackageError::Invalid("CCS relation cube variables"));

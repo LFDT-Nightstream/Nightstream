@@ -33,13 +33,13 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev RawValues := PerApplicationCanonicalAssignment.RawValues
 
-abbrev FitsTwoPow28 (application : Program) :=
-  PerApplicationFixedPoint.FitsTwoPow28 application
+abbrev FitsTwoPow27 (application : Program) :=
+  PerApplicationFixedPoint.FitsTwoPow27 application
 
 abbrev CommitmentSetup (application : Program) :=
   PerApplicationCanonicalPackage.CommitmentSetup application
 
-def relation (application : Program) (fits : FitsTwoPow28 application) :=
+def relation (application : Program) (fits : FitsTwoPow27 application) :=
   PerApplicationFixedPoint.relation application fits
 
 def geometry (application : Program) :=
@@ -81,7 +81,7 @@ private theorem slot_eq_functionIndex (slot : Fin slotCount) :
 an ABI equality. No field assumes application correctness, hash correctness,
 NIFS acceptance, or a terminal relation. -/
 private structure Represents
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -174,7 +174,7 @@ private structure Represents
 /-- Internal typed-ABI proof. The public theorem below derives every input to
 this lemma from one canonical raw packet and accepted rows. -/
 private theorem representedSemantics_imply_stepHoldsFor
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -394,7 +394,7 @@ retained-block encoding proof. The immediate key is the context key decoded
 from the constrained prior state; final package closure must identify it with
 the verifier-owned canonical verifier-context digest. -/
 theorem rowsZero_implies_stepHoldsFor
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -476,7 +476,7 @@ theorem rowsZero_implies_stepHoldsFor
 /-- Accepted final rows force both the augmented step and the exact recursive
 public output exposed by the complete Phi81 assignment. -/
 theorem rowsZero_implies_stepHoldsFor_and_publicOutput
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -501,7 +501,7 @@ into the state. Acceptance therefore forces the augmented step under that
 digest; the prover cannot select the application, package, or static authority.
 -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
-    (application : Program) (fits : FitsTwoPow28 application)
+    (application : Program) (fits : FitsTwoPow27 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application)
     (accepted : (PerApplicationFixedPoint.structuralPlan application fits

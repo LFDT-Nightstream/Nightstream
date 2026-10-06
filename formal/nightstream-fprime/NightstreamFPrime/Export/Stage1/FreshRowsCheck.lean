@@ -323,7 +323,7 @@ theorem rowsZero_of_blockChecks {columns : Nat}
 
 theorem canonical_blocks_rowsZero
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (read : Fin (PerApplicationFixedPoint.logicalWidth application) → F)
     (checked : ∀ block ∈ (PerApplicationMatrixProgram.matrixProgram application).blocks,
       checkBlock block (fun source => (PiDECCanonicalSourceCache.stored application)[source]?)
@@ -341,7 +341,7 @@ theorem canonical_blocks_rowsZero
 
 theorem checkProgram_rowsZero
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+    (fits : PerApplicationFixedPoint.FitsTwoPow27 application)
     (read : Fin (PerApplicationFixedPoint.logicalWidth application) → F)
     (checked : checkProgram (PerApplicationMatrixProgram.matrixProgram application)
       (fun source => (PiDECCanonicalSourceCache.stored application)[source]?) read = true) :

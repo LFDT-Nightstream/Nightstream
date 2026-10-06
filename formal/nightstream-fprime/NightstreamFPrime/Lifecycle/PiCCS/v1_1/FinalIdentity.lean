@@ -20,8 +20,8 @@ Outputs:
 Constraint groups:
 - C1: one opaque owned `PointEquality` child;
 - C2: one opaque owned `Power` child for `gamma^864`;
-- C3: one opaque owned `Power` child that raises `gamma^864` to `15`, giving
-  `gamma^6912`;
+- C3: one opaque owned `Power` child that raises `gamma^864` to `t + 1 = 8`,
+  giving `gamma^6912`;
 - C4: two extension-component final-identity assertions.
 
 Parent coverage:

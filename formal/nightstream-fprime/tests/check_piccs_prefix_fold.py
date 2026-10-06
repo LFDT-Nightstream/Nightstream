@@ -20,7 +20,7 @@ import sys
 P = 18446744069414584321
 NONRESIDUE = 7
 # Selected geometry: PICCS_CARRIED_PREFIX_REPLAY.json, pad and matrix records.
-# Profile.lean fixes ring degree 54 and the 14 separate matrix ports.
+# Profile.lean fixes ring degree 54 and the 7 separate matrix ports.
 ORIGINAL_ROWS = 1371020
 PAD_RECORDS = 1107491
 MATRIX_RECORDS = (ORIGINAL_ROWS + 1) // 2

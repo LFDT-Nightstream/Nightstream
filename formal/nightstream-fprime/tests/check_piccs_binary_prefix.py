@@ -32,7 +32,7 @@ def main():
     validate = package / "scripts" / "validate.sh"
     require(not results.is_relative_to(prefix), "results must be outside the original prefix")
     manifest = json.loads((prefix / "manifest.json").read_text())
-    require(len(manifest) == 7 and manifest[:4] == [1, 2, 2, 14], "expected a fresh second prefix")
+    require(len(manifest) == 7 and manifest[:4] == [1, 2, 2, 7], "expected a fresh second prefix")
     ranges = manifest[6]
     require(len(ranges) >= 2, "the overlap test needs adjacent source files")
     filenames = [f"{first}-{finish}.bin" for first, finish in ranges]

@@ -44,14 +44,14 @@ def validate(merged, proof, phase):
     schema(merged, 4, 1, "Lean evaluations")
     tensor(merged[1], (28, 2), "Lean point")
     tensor(merged[2], (17, 54, 2), "Lean Pad")
-    tensor(merged[3], (17, 14, 54, 2), "Lean matrix")
+    tensor(merged[3], (17, 7, 54, 2), "Lean matrix")
     schema(proof, 7, 2, "Rust PiCCS input")
     schema(phase, 15, 1, "Rust PiCCS phase")
     tensor(phase[4], (28, 2), "Rust point")
     tensor(proof[4], (17, 54, 2), "Rust proof Pad")
     tensor(phase[12], (17, 54, 2), "Rust phase Pad")
-    tensor(proof[5], (17, 14, 54, 2), "Rust proof matrix")
-    tensor(phase[13], (17, 14, 54, 2), "Rust phase matrix")
+    tensor(proof[5], (17, 7, 54, 2), "Rust proof matrix")
+    tensor(phase[13], (17, 7, 54, 2), "Rust phase matrix")
 
 
 def compare_evaluations(merged, proof, phase):
@@ -104,11 +104,11 @@ def main():
         "event": "piccs_original_complete_comparison_passed",
         "sources": 17,
         "Pad_K_values": 17 * 54,
-        "matrix_K_values": 17 * 14 * 54,
-        "compared_K_values": 13770,
+        "matrix_K_values": 17 * 7 * 54,
+        "compared_K_values": 7344,
         "compared_field_words": 14688,
         "point_K_values": 28,
-        "fresh_source_nonconstant_K_values": (54 - 1) * (1 + 14),
+        "fresh_source_nonconstant_K_values": (54 - 1) * (1 + 7),
         "pad_target_mutation": "rejected",
         "matrix_target_mutation": "rejected",
         "scope": "complete individual evaluation families; proof encoding and post-output transcript excluded",

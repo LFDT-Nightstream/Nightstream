@@ -642,11 +642,11 @@ impl<'a> PartialLogicalAssignment<'a> {
     /// Keep the sealed pilot's proof-input gap and non-pilot public context
     /// unavailable. This uses the same independent schema-6 transport.
     pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
-        if private_prefix.len() != 14_751_526 {
+        if private_prefix.len() != 6_908_558 {
             return Err("pilot physical-assignment prefix has the wrong length".into());
         }
         let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
-        assignment.physical.unavailable_private = Some(74_594..128_074);
+        assignment.physical.unavailable_private = Some(74_594..91_030);
         assignment.physical.public = &public_values[..274];
         Ok(assignment)
     }

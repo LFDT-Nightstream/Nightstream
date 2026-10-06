@@ -835,7 +835,8 @@ private def finishOriginal (publicPath evaluationsPath inputPath phasePath words
     report [("event", .str "independent_piccs_complete"),
       ("rounds", Lean.toJson trace.rounds.length),
       ("proof_words", Lean.toJson words.length),
-      ("output_field_words", Lean.toJson (17 * (1 + 14) * 54 * 2)),
+      ("output_field_words", Lean.toJson
+        (productionProfile.piRlcInputs * (1 + Spec.ProductionRelation.matrixCount) * ringDegree * 2)),
       ("accepted", .bool result.accepted)]
     return 0
   else throw (IO.userError "final PiCCS replay requires all 28 Lean rounds")

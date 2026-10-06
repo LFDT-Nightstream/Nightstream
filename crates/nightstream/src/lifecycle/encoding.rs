@@ -3,8 +3,8 @@
 //! Owns the proof byte layout. Does not own acceptance: a decoded proof still
 //! needs `verify`. The prepared circuit fixes every size, so the decoder
 //! checks the exact byte length before it allocates. The bytes carry exactly
-//! the values that `verify` reads: no frame digest, PiRLC parent claim or
-//! private witness copy, which `extend` rebuilds. Each proof has one
+//! the values that `verify` reads: no frame digest and no private witness
+//! copy `w`, which no reduction reads. Each proof has one
 //! encoding: field words are below the modulus, evaluations carry exactly
 //! `D` coefficients, and each witness column is a pair of disjoint `+1` and
 //! `-1` lane masks. The fixed-key commitment already rejects witness values
@@ -168,11 +168,10 @@ impl PreparedLifecycle {
                 Z: input.witness(&shape)?,
             },
         };
-        // The frame digests and the PiRLC parent are left empty; `extend`
-        // rebuilds them from these claims before it folds.
+        // The frame digests stay zero: no reduction reads them.
         Ok(Stage1Envelope::from_parts(
             state,
-            RunningInstance::new(claims, witnesses, None),
+            RunningInstance::new(claims, witnesses),
             fresh,
         ))
     }

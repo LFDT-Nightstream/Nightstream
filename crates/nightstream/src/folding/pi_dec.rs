@@ -139,40 +139,47 @@ pub fn verify(
 }
 
 fn validate_verifier_inputs(pp: &Params, s: &Structure, parent: &CeClaim, proof: &Proof) -> Result<(), Error> {
-    validate_child_count(pp, proof.children.len())?;
+    validate_children(pp, s, &proof.children)?;
+    validate_claim("parent", s, parent)?;
     validate_fold_digest_canonical("parent", parent)?;
     for child in &proof.children {
         validate_fold_digest_canonical("child", child)?;
     }
-    validate_r_shape(s, parent, &proof.children)?;
-    validate_evaluation_shape(s, parent, &proof.children)?;
-    validate_canonical_x_shape(parent, &proof.children)?;
-    validate_child_x_low_norm(pp, &proof.children)?;
-    validate_evaluation_padding_zero(parent, &proof.children)?;
-    validate_fold_digest_consistency(parent, &proof.children)?;
-    if parent.adv.is_some() || proof.children.iter().any(|c| c.adv.is_some()) {
-        return Err(Error::Auxiliary);
-    }
-    Ok(())
+    validate_fold_digest_consistency(parent, &proof.children)
 }
 
-fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_r_shape_one("parent", s, parent)?;
+/// The child-family checks that need no parent: the selected count, each
+/// claim's point, evaluation and public shapes, and unit-norm public inputs.
+/// Frames are not checked here.
+pub(crate) fn validate_children(pp: &Params, s: &Structure, children: &[CeClaim]) -> Result<(), Error> {
+    validate_child_count(pp, children.len())?;
     for child in children {
-        validate_r_shape_one("child", s, child)?;
+        validate_claim("child", s, child)?;
     }
-    Ok(())
+    validate_child_x_low_norm(pp, children)
 }
 
-fn validate_r_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected = s
+fn validate_claim(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let point = s
         .domain_rows()
         .max(neo_reductions::common::superneo_carrier_width(s.m))
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
-    if claim.r.len() != expected {
+    if claim.r.len() != point {
         return Err(Error::RShape(owner));
+    }
+    if !has_evaluation_shape(claim, s.t()) {
+        return Err(Error::EvaluationShape(owner));
+    }
+    if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
+        return Err(Error::NoncanonicalXShape(owner));
+    }
+    if !has_zero_evaluation_padding(claim) {
+        return Err(Error::EvaluationPadding(owner));
+    }
+    if claim.adv.is_some() {
+        return Err(Error::Auxiliary);
     }
     Ok(())
 }
@@ -181,18 +188,6 @@ fn validate_child_count(pp: &Params, got: usize) -> Result<(), Error> {
     let expected = pp.k_rho() as usize;
     if got != expected {
         return Err(Error::ChildCount { expected, got });
-    }
-    Ok(())
-}
-
-fn validate_canonical_x_shape(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    if !superneo_has_canonical_x_shape(&parent.X, parent.m_in) {
-        return Err(Error::NoncanonicalXShape("parent"));
-    }
-    for child in children {
-        if !superneo_has_canonical_x_shape(&child.X, child.m_in) {
-            return Err(Error::NoncanonicalXShape("child"));
-        }
     }
     Ok(())
 }
@@ -230,36 +225,6 @@ fn validate_fold_digest_canonical(owner: &'static str, claim: &CeClaim) -> Resul
         if value >= F::ORDER_U64 {
             return Err(Error::FoldDigestCanonicality { owner, lane });
         }
-    }
-    Ok(())
-}
-
-fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_evaluation_shape_one("parent", s, parent)?;
-    for child in children {
-        validate_evaluation_shape_one("child", s, child)?;
-    }
-    Ok(())
-}
-
-fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    if !has_evaluation_shape(claim, s.t()) {
-        return Err(Error::EvaluationShape(owner));
-    }
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_evaluation_padding_zero_one("parent", parent)?;
-    for child in children {
-        validate_evaluation_padding_zero_one("child", child)?;
-    }
-    Ok(())
-}
-
-fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !has_zero_evaluation_padding(claim) {
-        return Err(Error::EvaluationPadding(owner));
     }
     Ok(())
 }

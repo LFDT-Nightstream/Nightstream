@@ -139,13 +139,6 @@ pub fn check_claim_mutations(
             // Zero running openings remain valid at every common point.
             // The parent pilot hashes that point; its preimage-mutation gate
             // owns rejection of a changed point with the old public digest.
-            // PiCCS reads the prior digest from the fresh public input's bit
-            // cells (after the marker), not from the running frames.
-            for lane in 0..4 {
-                let mut changed = fresh.clone();
-                changed.x[1 + 64 * lane] += F::ONE;
-                rejects(&changed, running, outputs, &format!("prior-digest lane {lane}"));
-            }
             let mut changed = running.to_vec();
             changed[1].r[0] += K::ONE;
             rejects(fresh, &changed, outputs, "one inconsistent prior-point");
@@ -178,7 +171,7 @@ pub fn check_claim_mutations(
             let mut changed = fresh.clone();
             changed.x[0] += F::ONE;
             rejects(&changed, running, outputs, "fresh public input");
-            assert_eq!(checked.get(), 4 + 3 + running.len() * claim_families + 2);
+            assert_eq!(checked.get(), 3 + running.len() * claim_families + 2);
         }
         "output-mutations" => {
             let mutations_per_source = claim_families + 28 + 4;

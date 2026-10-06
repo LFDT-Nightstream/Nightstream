@@ -117,7 +117,7 @@ fn replay_ccs(
     proof: &pi_ccs::Proof,
 ) -> (Transcript, Vec<CeClaim>) {
     let params = params(package);
-    folding::validate_running_parent_authority(&params, &package.structure, ajtai_dec_mixer, running).unwrap();
+    folding::validate_running_children(&params, &package.structure, running).unwrap();
     let mut transcript = Transcript::session();
     let outputs = pi_ccs::verify(&mut transcript, &params, &package.structure, fresh, running, proof).unwrap();
     (transcript, outputs)
@@ -388,7 +388,6 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     )
     .unwrap();
     assert_eq!(next.claims, verified.claims);
-    assert_eq!(next.parent_authority, verified.parent_authority);
     lean::export(
         &directory,
         &package,

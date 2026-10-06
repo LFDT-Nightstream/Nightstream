@@ -30,7 +30,7 @@ class RecursiveComparisonTests(unittest.TestCase):
         envelope = {
             "schema": 1, "package_identity": [2], "iteration": 3, "z0": [0],
             "current": [13], "child_witness_count": 16,
-            "running_claims": list(range(16)), "running_parent": [3],
+            "running_claims": list(range(16)),
         }
         self.write(self.cpu / "step-2/envelope.json", dict(envelope, iteration=2))
         self.write(self.cpu / "step-3/envelope.json", envelope)

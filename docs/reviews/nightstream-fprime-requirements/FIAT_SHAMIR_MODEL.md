@@ -62,9 +62,11 @@ absorption; its theorem is not currently matched to our additive absorption
 and initialization. The note makes no ideal-permutation proof, quantum
 security, machine-time, or full-history extraction claim.
 
-The transfer assumption is stated over the real production key, and its
-statement does not change. What is proved is which data the key's transcript
-absorbs, and in which order. `Lifecycle/TranscriptCoverage.lean` models each
+The transfer assumption is stated over the real production key. Its statement
+changed once since the 2026-09-11 approval: the owner decision of 2026-10-06,
+below, adds the prior-state link and a verifier context digest to the success
+event. What is proved is which data the key's transcript absorbs, and in which
+order. `Lifecycle/TranscriptCoverage.lean` models each
 production challenge (`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a
 read of the Poseidon2 state after an explicit list of permutation inputs:
 zero-padded rate chunks, with a squeeze as the zero chunk. `challenge_seal` ties
@@ -117,10 +119,11 @@ acceptance.
 
 Both native Rust PiCCS engines read the prior digest from the first fresh
 public input with Lean's `decodeHash` formula, as `ProductionKey.priorDigest`
-does. The transcript does not read the running frames (`fold_digest`); they
-are caches, and the proof codec does not carry them or the PiRLC parent.
-`extend` rebuilds both. `prior_digest_comes_from_the_fresh_public_input` in
-`neo-reductions` tests both engines.
+does. No check reads a running claim's frame (`fold_digest`), and the proof
+codec does not carry it; the running instance holds only the 16 PiDEC children
+and their openings. `prior_digest_comes_from_the_fresh_public_input` in
+`neo-reductions` tests both engines, and the native fixtures fold with
+noncanonical running frames.
 `PerApplicationSecurity.replayInput_authority_identifies_or_collision` links the
 older committed-statement reductions to this contract: equal replay authority
 identifies the fresh statement and every SumCheck round polynomial, or exhibits

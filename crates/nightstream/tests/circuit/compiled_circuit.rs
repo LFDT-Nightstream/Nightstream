@@ -475,11 +475,7 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
         negative[(seed * 7) % columns] |= 0b10;
         neo_ccs::Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
     };
-    let running = RunningInstance::new(
-        (0..16).map(claim).collect(),
-        (0..16).map(witness).collect(),
-        Some(claim(99)),
-    );
+    let running = RunningInstance::new((0..16).map(claim).collect(), (0..16).map(witness).collect());
     let fresh = CcsInstance {
         claim: CcsClaim {
             c: commitment(17),
@@ -524,14 +520,13 @@ fn proof_bytes_round_trip_exactly() {
     assert_eq!(decoded.state(), proof.state());
     let (decoded_running, decoded_fresh) = decoded.active_parts().unwrap();
     let (running, fresh) = proof.active_parts().unwrap();
-    // The bytes carry only what `verify` reads; the frame and parent caches stay empty.
+    // The bytes carry only what `verify` reads; the frame caches stay zero.
     let mut claims = running.claims.clone();
     claims
         .iter_mut()
         .for_each(|claim| claim.fold_digest = [0; 32]);
     assert_eq!(decoded_running.claims, claims);
     assert_eq!(decoded_running.witnesses, running.witnesses);
-    assert_eq!(decoded_running.parent_authority, None);
     assert_eq!(decoded_fresh.claim.c, fresh.claim.c);
     assert_eq!(decoded_fresh.claim.x, fresh.claim.x);
     assert_eq!(decoded_fresh.witness.Z, fresh.witness.Z);
@@ -539,7 +534,6 @@ fn proof_bytes_round_trip_exactly() {
 
     // Values that `verify` does not read do not change the bytes.
     let (mut running, mut fresh) = (running.clone(), fresh.clone());
-    running.parent_authority = None;
     running
         .claims
         .iter_mut()

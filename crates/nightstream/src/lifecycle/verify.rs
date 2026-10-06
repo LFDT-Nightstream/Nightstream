@@ -1,7 +1,7 @@
 //! Selected terminal verification against an external state statement.
 //! The exact running and fresh openings use the package relation and fixed
-//! key. Parent caches, carried frame digests and redundant `w` storage are
-//! non-authoritative; every witness check uses the complete matrix `Z`.
+//! key. Carried frame digests and redundant `w` storage are not read; every
+//! witness check uses the complete matrix `Z`.
 //! Evaluation vectors have exactly the padded folding width.
 
 use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
@@ -123,7 +123,7 @@ impl PreparedLifecycle {
         }
 
         // The formal terminal preimage contains the semantic running claims,
-        // not parent_authority or fold_digest. The single selected pc is one.
+        // not their fold_digest frames. The single selected pc is one.
         let preimage = serialize_pi_ccs_v1_1_state_preimage(
             self.binding.verifier_context().digest().map(F::from_u64),
             expected_state.iteration(),

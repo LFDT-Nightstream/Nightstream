@@ -264,7 +264,6 @@ struct SavedEnvelope {
     current: [u64; 4],
     child_witness_count: usize,
     running_claims: Vec<CeClaim>,
-    running_parent: Option<CeClaim>,
 }
 struct Sources {
     state: Stage1State,
@@ -280,11 +279,12 @@ fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Sta
     let state = Stage1State::new(saved.iteration, saved.z0.map(field), saved.current.map(field));
     assert_eq!(state, expected_state(step), "external source state");
     let fresh: CcsClaim = load(&directory.join("fresh-claim.json"));
-    let mut running = RunningInstance::new(saved.running_claims, Vec::new(), saved.running_parent);
-    // Use the production normalization; supplied parent/frame caches are not authority.
-    package.prepare_prior(&state, &mut running, &fresh).unwrap();
-    folding::validate_running_parent_authority(&params(package), &package.structure, ajtai_dec_mixer, &running)
+    let running = RunningInstance::new(saved.running_claims, Vec::new());
+    // The production checks; frame caches are not read.
+    package
+        .checked_prior_state(&state, &running, &fresh)
         .unwrap();
+    folding::validate_running_children(&params(package), &package.structure, &running).unwrap();
     (state, fresh, running)
 }
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
@@ -353,7 +353,6 @@ fn save_envelope(
             current: state.current().map(|value| value.as_canonical_u64()),
             child_witness_count: running.witnesses.len(),
             running_claims: running.claims.clone(),
-            running_parent: running.parent_authority.clone(),
         },
     );
 }

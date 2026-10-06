@@ -1,21 +1,18 @@
-//! Selected application lifecycle. State and semantic claims determine the
-//! native frame and parent cache; retained witness matrices enter the existing
+//! Selected application lifecycle. The state and the semantic running claims
+//! are the prior authority; retained witness matrices enter the existing
 //! prover, checked caller packet and emitted fresh-assignment construction.
 
-use neo_ccs::Mat;
-use neo_math::{D, F, K};
+use neo_math::F;
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{PackageError, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use nightstream_fprime::PackageError;
+use p3_field::PrimeField64;
 
 use super::ProofState;
 use super::{
-    step_inputs::digest_bytes, CompleteStepError, PiCcsV1_1PackageBridgeError, PreparedLifecycle, ProveError,
-    Stage1Envelope, Stage1State, StepInputError,
+    CompleteStepError, PiCcsV1_1PackageBridgeError, PreparedLifecycle, ProveError, Stage1Envelope, Stage1State,
+    StepInputError,
 };
-use crate::folding::{
-    self as nifs, ajtai_dec_mixer, CcsClaim, CcsInstance, CeClaim, Params, RunningInstance, EVALUATION_WIDTH,
-};
+use crate::folding::{self as nifs, CcsClaim, CcsInstance, RunningInstance};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExtendError {
@@ -42,8 +39,8 @@ pub enum ExtendError {
 impl PreparedLifecycle {
     /// Apply one message to an initial or active envelope. Active inputs use
     /// the canonical PiDEC child families produced by this lifecycle; this
-    /// native family check runs before proving. The supplied parent cache,
-    /// frame digests and redundant `w` values do not establish authority.
+    /// native family check runs before proving. The supplied frame digests and
+    /// redundant `w` values are not read.
     /// The returned envelope retains the actual witnesses and requires final
     /// verification against the caller's expected state.
     pub(crate) fn extend_with_output(
@@ -75,17 +72,16 @@ impl PreparedLifecycle {
         }
     }
 
-    /// Prove the NIFS fold of an active envelope from its normalized prior
-    /// claims. The supplied parent cache, frame digests and `w` are not used.
+    /// Prove the NIFS fold of an active envelope after the prior state check
+    /// and the child-family check. The frame digests and `w` are not read.
     pub(super) fn prove_active(
         &self,
         state: Stage1State,
-        mut running: RunningInstance,
+        running: RunningInstance,
         mut fresh: CcsInstance,
     ) -> Result<ProvedFold, ExtendError> {
-        self.prepare_prior(&state, &mut running, &fresh.claim)?;
-        nifs::validate_running_parent_authority(&self.params, &self.structure, ajtai_dec_mixer, &running)
-            .map_err(ExtendError::PriorFamily)?;
+        self.checked_prior_state(&state, &running, &fresh.claim)?;
+        nifs::validate_running_children(&self.params, &self.structure, &running).map_err(ExtendError::PriorFamily)?;
         // The complete Z opening is the source; w is a redundant cache.
         fresh.witness.w.clear();
         let prior = running.claims_only();
@@ -119,21 +115,6 @@ impl PreparedLifecycle {
         )?;
         Ok(self.complete_proved_step(inputs, fold.next, application_values)?)
     }
-
-    /// Check the prior state against the running claims, then rebuild their
-    /// frames and PiRLC parent from it. The state serializer checks every
-    /// shape, the exact width and the zero surplus before any coordinate is
-    /// read, so normalization never runs on unchecked claims.
-    pub(super) fn prepare_prior(
-        &self,
-        state: &Stage1State,
-        running: &mut RunningInstance,
-        fresh: &CcsClaim,
-    ) -> Result<(), StepInputError> {
-        let (_, digest) = self.checked_prior_state(state, running, fresh)?;
-        prepare_running(running, &self.params, digest);
-        Ok(())
-    }
 }
 
 /// One proved active fold before its caller packet and fresh witness exist.
@@ -144,44 +125,4 @@ pub(super) struct ProvedFold {
     pub(super) fresh: CcsClaim,
     pub(super) next: RunningInstance,
     pub(super) proof: nifs::NifsProof,
-}
-
-/// Callers reach this only through `prepare_prior`, after the state check.
-fn prepare_running(running: &mut RunningInstance, params: &Params, digest: [u64; 4]) {
-    let frame = digest_bytes(digest);
-    for claim in &mut running.claims {
-        claim.fold_digest = frame;
-    }
-    let commitments = running
-        .claims
-        .iter()
-        .map(|claim| claim.c.clone())
-        .collect::<Vec<_>>();
-    let mut parent = CeClaim {
-        c: ajtai_dec_mixer(&commitments, params.b()),
-        X: Mat::zero(D, PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS / D, F::ZERO),
-        r: running.claims[0].r.clone(),
-        eval_k: vec![K::ZERO; EVALUATION_WIDTH],
-        eval_a: vec![vec![K::ZERO; EVALUATION_WIDTH]; running.claims[0].eval_a.len()],
-        m_in: PI_CCS_V1_1_PRIOR_PUBLIC_INPUT_WORDS,
-        fold_digest: frame,
-        adv: None,
-    };
-    let mut weight = F::ONE;
-    for claim in &running.claims {
-        for column in 0..parent.X.cols() {
-            for lane in 0..D {
-                parent.X[(lane, column)] += weight * claim.X[(lane, column)];
-            }
-        }
-        let extension_weight = K::from(weight);
-        for lane in 0..D {
-            parent.eval_k[lane] += extension_weight * claim.eval_k[lane];
-            for (sum, values) in parent.eval_a.iter_mut().zip(&claim.eval_a) {
-                sum[lane] += extension_weight * values[lane];
-            }
-        }
-        weight *= F::from_u64(u64::from(params.b()));
-    }
-    running.parent_authority = Some(parent);
 }

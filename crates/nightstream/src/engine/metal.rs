@@ -87,7 +87,7 @@ pub(crate) fn prove(
     let d = pi_dec::Proof { children };
     let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
     Ok((
-        RunningInstance::new(children, digits, Some(parent)),
+        RunningInstance::new(children, digits),
         NifsProof {
             pi_ccs: c,
             pi_rlc: r,

@@ -22,7 +22,6 @@ impl PreparedLifecycle {
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
         self.validate_prover_sources(&fresh, &running)?;
-        let fresh = vec![fresh];
         let params = &self.params;
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();

@@ -78,7 +78,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         &package.structure,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
-        std::slice::from_ref(&fresh_claim),
+        &fresh_claim,
         &prior,
         &proof,
     )

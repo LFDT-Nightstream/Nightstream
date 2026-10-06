@@ -10,8 +10,6 @@ use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superne
 pub enum Error {
     #[error("PiCCS shape: {0}")]
     Shape(&'static str),
-    #[error("PiCCS auxiliary forwarding mismatch")]
-    AdvForwarding,
     #[error(transparent)]
     Engine(#[from] engine::Error),
 }
@@ -20,8 +18,8 @@ pub struct Proof {
     pub sumcheck: SumcheckProof,
     pub outputs: Vec<CeClaim>,
 }
-fn reject_auxiliary(fresh: &[CcsClaim], running: &[CeClaim]) -> Result<(), Error> {
-    if fresh.iter().any(|c| c.adv.is_some()) || running.iter().any(|c| c.adv.is_some()) {
+fn reject_auxiliary(fresh: &CcsClaim, running: &[CeClaim]) -> Result<(), Error> {
+    if fresh.adv.is_some() || running.iter().any(|c| c.adv.is_some()) {
         return Err(Error::Shape("plain claims cannot carry auxiliary commitments"));
     }
     Ok(())
@@ -32,18 +30,18 @@ pub(crate) fn prove_from_parts_with_rows(
     s: &Structure,
     rows: &dyn MatrixRows,
     workspace_bytes: usize,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
+    fresh_claim: &CcsClaim,
+    fresh_witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
-    reject_auxiliary(fresh_claims, &running.claims)?;
-    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
-    let (mut outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    reject_auxiliary(fresh_claim, &running.claims)?;
+    validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
+    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
         tr.inner_mut(),
         pp.inner(),
         s,
-        fresh_claims,
-        fresh_witnesses,
+        std::slice::from_ref(fresh_claim),
+        std::slice::from_ref(fresh_witness),
         &running.claims,
         &running.witnesses,
         rows,
@@ -51,60 +49,28 @@ pub(crate) fn prove_from_parts_with_rows(
         None,
     )
     .map_err(engine::Error::from)?;
-    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_v1_1_claims(s, &outputs)?;
     Ok(Proof { sumcheck, outputs })
-}
-
-fn forward_adv(fresh: &[CcsClaim], running: &[CeClaim], outputs: &mut [CeClaim]) -> Result<(), Error> {
-    if outputs.len() != fresh.len() + running.len() {
-        return Err(Error::Shape("|outputs| \u{2260} K + k in adv forwarding"));
-    }
-    let inputs = fresh
-        .iter()
-        .map(|c| &c.adv)
-        .chain(running.iter().map(|c| &c.adv));
-    for (output, adv) in outputs.iter_mut().zip(inputs) {
-        output.adv = adv.clone();
-    }
-    Ok(())
-}
-
-fn validate_adv_forwarding(fresh: &[CcsClaim], running: &[CeClaim], outputs: &[CeClaim]) -> Result<(), Error> {
-    if outputs.len() != fresh.len() + running.len() {
-        return Err(Error::Shape("|outputs| \u{2260} K + k in adv forwarding"));
-    }
-    let inputs = fresh
-        .iter()
-        .map(|c| &c.adv)
-        .chain(running.iter().map(|c| &c.adv));
-    for (output, adv) in outputs.iter().zip(inputs) {
-        if output.adv != *adv {
-            return Err(Error::AdvForwarding);
-        }
-    }
-    Ok(())
 }
 
 pub fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
-    fresh_claims: &[CcsClaim],
+    fresh_claim: &CcsClaim,
     running: &RunningInstance,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    reject_auxiliary(fresh_claims, &running.claims)?;
+    reject_auxiliary(fresh_claim, &running.claims)?;
     if proof.outputs.iter().any(|c| c.adv.is_some()) {
         return Err(Error::Shape("plain outputs cannot carry auxiliary commitments"));
     }
-    validate_verifier_shape(pp, s, fresh_claims, running, &proof.outputs)?;
-    validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
+    validate_verifier_shape(pp, s, running, &proof.outputs)?;
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
         s,
-        fresh_claims,
+        fresh_claim,
         running,
         &proof.outputs,
         &proof.sumcheck,
@@ -127,36 +93,27 @@ fn validate_canonical_x_shape(claims: &[CeClaim], label: &'static str) -> Result
 fn validate_input_shape(
     pp: &Params,
     s: &Structure,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
+    fresh_claim: &CcsClaim,
+    fresh_witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<(), Error> {
-    if fresh_claims.is_empty() {
-        return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
-    }
-    validate_fresh_count_within_rlc_guard(pp, fresh_claims.len())?;
-    if fresh_claims.len() != fresh_witnesses.len() {
-        return Err(Error::Shape("|fresh_claims| \u{2260} |fresh_witnesses|"));
-    }
     if !running.prover_shape_is_valid() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
     }
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
-    for (idx, claim) in fresh_claims.iter().enumerate() {
-        if claim.m_in > s.m {
-            return Err(Error::Shape("fresh m_in exceeds structure.m"));
-        }
-        if claim.m_in % D != 0 {
-            return Err(Error::Shape("fresh m_in must contain whole degree-D ring elements"));
-        }
-        if claim.x.len() != claim.m_in {
-            return Err(Error::Shape("fresh x length does not match m_in"));
-        }
-        if fresh_witnesses[idx].private_len(claim.m_in, s.m).is_none() {
-            return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
-        }
+    if fresh_claim.m_in > s.m {
+        return Err(Error::Shape("fresh m_in exceeds structure.m"));
+    }
+    if fresh_claim.m_in % D != 0 {
+        return Err(Error::Shape("fresh m_in must contain whole degree-D ring elements"));
+    }
+    if fresh_claim.x.len() != fresh_claim.m_in {
+        return Err(Error::Shape("fresh x length does not match m_in"));
+    }
+    if fresh_witness.private_len(fresh_claim.m_in, s.m).is_none() {
+        return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
     }
     validate_canonical_x_shape(
         &running.claims,
@@ -169,21 +126,15 @@ fn validate_input_shape(
 fn validate_verifier_shape(
     pp: &Params,
     s: &Structure,
-    fresh_claims: &[CcsClaim],
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
 ) -> Result<(), Error> {
     let running_claims = &running.claims;
-    if fresh_claims.is_empty() {
-        return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
-    }
-    validate_fresh_count_within_rlc_guard(pp, fresh_claims.len())?;
     if !running_claims.is_empty() && running_claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
-    let expected_outputs = fresh_claims.len() + running_claims.len();
-    if fold_outputs.len() != expected_outputs {
-        return Err(Error::Shape("|fold_outputs| \u{2260} K + k"));
+    if fold_outputs.len() != 1 + running_claims.len() {
+        return Err(Error::Shape("|fold_outputs| \u{2260} 1 + k"));
     }
     validate_canonical_x_shape(running_claims, "running X must use the canonical coefficient embedding")?;
     validate_canonical_x_shape(
@@ -192,13 +143,6 @@ fn validate_verifier_shape(
     )?;
     validate_v1_1_claims(s, running_claims)?;
     validate_v1_1_claims(s, fold_outputs)?;
-    Ok(())
-}
-
-fn validate_fresh_count_within_rlc_guard(pp: &Params, fresh_len: usize) -> Result<(), Error> {
-    if fresh_len > pp.max_fresh_count() {
-        return Err(Error::Shape("K (fresh) exceeds params.max_fresh_count()"));
-    }
     Ok(())
 }
 

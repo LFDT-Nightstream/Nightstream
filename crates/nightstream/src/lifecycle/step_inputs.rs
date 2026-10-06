@@ -157,7 +157,7 @@ impl PreparedLifecycle {
             &self.structure,
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
-            std::slice::from_ref(fresh),
+            fresh,
             running,
             proof,
         )?;

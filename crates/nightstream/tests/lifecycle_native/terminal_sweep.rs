@@ -1,17 +1,19 @@
 //! Terminal tamper sweep on a folded proof. Each case changes one envelope
 //! field and checks the exact decision: the first check that fails, or
-//! acceptance for a documented non-authoritative field. The cases stop at the
-//! statement, shape, projection, state-hash and commitment checks. The
-//! relation check is covered by the recursive and staged terminal tests; the
-//! opening checks only by the manual `staged_opening_tests`. The patterns
+//! acceptance for a documented non-authoritative field. These cases stop at
+//! the statement, shape, projection, state-hash and commitment checks. Two
+//! balanced `Π_DEC` opening changes with a rebuilt fresh witness pass all of
+//! these and reach the `Eval_K` and `Eval_A` opening checks. The relation
+//! check is covered by the recursive and staged terminal tests. The patterns
 //! below name every proof variant and every claim, instance, witness and
 //! commitment field, so a new field must at least be named here. The
 //! `Stage1State` and `Stage1Envelope` fields are private; `Parts` and the
 //! state cases cover them.
+use super::staged::opening_tests::{change_openings, labels, Opening};
 use super::*;
 use crate::engine::Backend;
 use crate::folding::{CcsInstance, CcsWitness};
-use crate::lifecycle::{ProofState, Stage1Envelope, VerifyError};
+use crate::lifecycle::{extend::prepare_running, ProofState, Stage1Envelope, VerifyError};
 use nightstream_fprime::PI_DEC_V1_1_CHILD_COUNT;
 use std::time::Instant;
 
@@ -200,7 +202,17 @@ fn cases() -> Vec<Case> {
         ),
         rejected(
             "last running Eval_K surplus",
-            |parts| parts.last_claim().eval_k.push(K::ONE),
+            |parts| parts.last_claim().eval_k[D] = K::ONE,
+            Running(LAST, "evaluation shape or nonzero surplus coefficients"),
+        ),
+        rejected(
+            "last running Eval_K width",
+            |parts| parts.last_claim().eval_k.push(K::ZERO),
+            Running(LAST, "evaluation shape or nonzero surplus coefficients"),
+        ),
+        rejected(
+            "last running Eval_A width",
+            |parts| parts.last_claim().eval_a[0].push(K::ZERO),
             Running(LAST, "evaluation shape or nonzero surplus coefficients"),
         ),
         rejected(
@@ -310,20 +322,70 @@ fn cases() -> Vec<Case> {
                 None => Some(parts.running.claims[0].clone()),
             }
         }),
-        ignored("running Eval_K zero padding", |parts| {
-            for claim in &mut parts.running.claims {
-                claim.eval_k.push(K::ZERO);
-            }
-        }),
-        ignored("running Eval_A zero padding", |parts| {
-            for claim in &mut parts.running.claims {
-                claim.eval_a[0].push(K::ZERO);
-            }
-        }),
         ignored("fresh private witness cache w", |parts| {
             parts.fresh.witness.w = vec![F::ONE]
         }),
     ]
+}
+
+/// The second fold, proved once as in the active branch of
+/// `extend_with_output`. The honest envelope and the balanced opening changes
+/// complete from this one proof.
+struct SecondFold {
+    state: Stage1State,
+    prior: RunningInstance,
+    fresh: CcsClaim,
+    next: RunningInstance,
+    proof: NifsProof,
+}
+
+impl SecondFold {
+    fn prove(package: &PreparedLifecycle, base: Stage1Envelope) -> Self {
+        let (state, proof) = base.into_parts();
+        let ProofState::Active { mut running, mut fresh } = proof else {
+            panic!("the base proof is active");
+        };
+        let (_, digest) = package
+            .checked_prior_state(&state, &running, &fresh.claim)
+            .unwrap();
+        prepare_running(&mut running, &package.params, digest);
+        fresh.witness.w.clear();
+        let prior = running.claims_only();
+        let fresh_claim = fresh.claim.clone();
+        let (next, proof) = package.prove(fresh, running).unwrap();
+        Self {
+            state,
+            prior,
+            fresh: fresh_claim,
+            next,
+            proof,
+        }
+    }
+
+    fn complete(
+        &self,
+        package: &PreparedLifecycle,
+        proof: &NifsProof,
+        words: &[u64],
+        output: [F; 4],
+    ) -> Stage1Envelope {
+        let inputs = package
+            .step_inputs(&self.state, &self.prior, &self.fresh, proof, words, output)
+            .unwrap();
+        package
+            .complete_proved_step(inputs, self.next.clone(), None)
+            .unwrap()
+    }
+
+    /// A balanced change to two `Π_DEC` child openings keeps the weighted
+    /// recomposition, so the NIFS verifier accepts it and the fresh witness is
+    /// valid; only the terminal opening checks can reject the result.
+    fn balanced(&self, package: &PreparedLifecycle, opening: Opening, words: &[u64], output: [F; 4]) -> Stage1Envelope {
+        let mut changed = self.proof.clone();
+        let radix = K::from(F::from_u64(package.params.b() as u64));
+        change_openings(&mut changed.pi_dec.children, opening, radix);
+        self.complete(package, &changed, words, output)
+    }
 }
 
 #[test]
@@ -344,9 +406,8 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)
         .unwrap();
     let second = output(first, message);
-    let proof = package
-        .extend_with_output(base, &words, second, None)
-        .unwrap();
+    let fold = SecondFold::prove(&package, base);
+    let proof = fold.complete(&package, &fold.proof, &words, second);
     let expected = Stage1State::new(2, initial, second);
     package.verify(&expected, &proof).unwrap();
     eprintln!("honest folded proof accepted elapsed={:?}", started.elapsed());
@@ -401,6 +462,14 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         let actual = package.verify(&state, &parts.envelope()).map_err(rejection);
         eprintln!("{}: {actual:?} elapsed={:?}", case.name, timer.elapsed());
         assert_eq!(actual, case.expected, "{}", case.name);
+    }
+    for opening in [Opening::K, Opening::A] {
+        let (name, reason) = labels(opening);
+        let envelope = fold.balanced(&package, opening, &words, second);
+        let timer = Instant::now();
+        let actual = package.verify(&expected, &envelope).map_err(rejection);
+        eprintln!("balanced {name}: {actual:?} elapsed={:?}", timer.elapsed());
+        assert_eq!(actual, Err(Rejection::Running(0, reason)), "balanced {name}");
     }
     let bottom = Stage1Envelope::from_state_and_proof(expected.clone(), ProofState::Initial);
     assert_eq!(

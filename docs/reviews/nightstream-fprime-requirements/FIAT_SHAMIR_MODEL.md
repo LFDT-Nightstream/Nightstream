@@ -62,29 +62,32 @@ and initialization. The note makes no ideal-permutation proof, quantum
 security, machine-time, or full-history extraction claim.
 
 The transfer assumption is stated over the real production key, and its
-statement does not change. What is proved is that this key's transcript
-absorbs every verifier input before the challenges that depend on it.
-`Layout/Stage1/TranscriptCoverage.lean` models each production challenge
-(`α`, `γ`, the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2
-state after an explicit list of permutation inputs: zero-padded rate chunks,
-with a squeeze as the zero chunk. `challenge_seal` ties every key challenge to
-its prover-dependent inputs followed by inputs that admit no prover data, and
-`coins_eq_reads` states that the PiCCS coin record is exactly these reads.
-Equal prover-dependent inputs before a challenge identify the fresh statement
-and every earlier prover message (`proverCalls_identify`). The running
-statement is not absorbed; the challenges do not depend on it. It is bound
-only through the prior digest. The prior-state link states that the fresh
-public input carries the hash of a well-formed prior preimage whose running
-vector is the NIFS running statement. With that link, equal inputs also
-identify the prior preimage and the running statement, unless the state hash
-collides (`calls_identify_view_or_collision`). Terminal acceptance builds the
-link (`terminal_implies_nifsOrBaseOrCollision`), and
+statement does not change. What is proved is that this key's transcript absorbs
+every verifier input before the challenges that depend on it.
+`Lifecycle/TranscriptCoverage.lean` models each production challenge (`α`, `γ`,
+the SumCheck points, the `Π_RLC` scalars) as a read of the Poseidon2 state after
+an explicit list of permutation inputs: zero-padded rate chunks, with a squeeze
+as the zero chunk. `challenge_seal` ties every key challenge to its
+prover-dependent inputs followed by inputs that admit no prover data, and
+`coins_eq_reads` states that the PiCCS coin record is exactly these reads. Equal
+prover-dependent inputs before a challenge identify the fresh statement and
+every earlier prover message (`proverCalls_identify`). The running statement is
+not absorbed; the challenges do not depend on it. It is bound only through the
+prior digest. The prior-state link states that the fresh public input carries
+the hash of a well-formed prior preimage whose running vector is the NIFS
+running statement. With that link, equal inputs also identify the prior preimage
+and the running statement, unless the state hash collides
+(`PiCCSSecurity.calls_identify_view_or_collision`). Terminal acceptance builds
+the link (`terminal_implies_nifsOrBaseOrCollision`), and
 `terminal_calls_identify_view_or_collision` applies the result to two accepted
-terminals. The `Π_RLC` reads reuse only the replay of the sampler's fixed
-suffix calls, not its ideal-oracle law. No theorem consumes these results yet;
-they are a proved check on the transcript that the assumption ranges over.
-The assumption above still covers the permutation, the duplex construction,
-and the transfer bound.
+terminals. The `Π_RLC` reads reuse only the replay of the sampler's fixed suffix
+calls, not its ideal-oracle law.
+`PerApplicationSecurity.replayInput_authority_eq_coverage` links the older
+committed-statement reductions to this contract: their absorbed replay authority
+is the state after the statement calls plus the same round messages. The
+transfer statement does not consume these results; they are a proved check on
+the transcript that the assumption ranges over. The assumption above still
+covers the permutation, the duplex construction, and the transfer bound.
 
 The separate finite sampler laws and `VerifierErrorBudget` are checked.
 Under the stated per-call laws, the selected PiCCS test and sampler-abort

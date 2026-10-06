@@ -6,7 +6,7 @@
 //! or verify a relation.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use neo_math::{KExtensions, F, K};
+use neo_math::{KExtensions, D, F, K};
 use nightstream_fprime::{
     PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
@@ -260,7 +260,7 @@ fn push_block(output: &mut Vec<u64>, block: &[u64]) {
 }
 
 fn validate_family(values: &[K]) -> Result<(), PiCcsV1_1PackageBridgeError> {
-    if values.len() < PI_CCS_V1_1_COEFFICIENT_COUNT
+    if values.len() != D.next_power_of_two()
         || values[PI_CCS_V1_1_COEFFICIENT_COUNT..]
             .iter()
             .any(|value| *value != K::ZERO)

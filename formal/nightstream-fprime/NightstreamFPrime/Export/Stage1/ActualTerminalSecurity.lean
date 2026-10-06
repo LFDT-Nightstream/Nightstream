@@ -1,7 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Lifecycle.PiDEC.v1_1.OutputWitnessConsumer
-import NightstreamFPrime.Layout.Stage1.TranscriptCoverage
 
 /-!
 Connect the arbitrary terminal opening to the authenticated NIFS inputs and
@@ -50,7 +49,7 @@ theorem terminal_implies_nifsOrBaseOrCollision
       (input.iteration = 0 ∨
         (0 < input.iteration ∧
           input.fresh.publicInputs ⟨0, by decide⟩ = encHash (stateHash prior) ∧
-          TranscriptCoverage.PriorLink prior (input.running functionIndex) input.fresh ∧
+          PiCCSSecurity.PriorLink prior (input.running functionIndex) input.fresh ∧
           Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
             (input.running functionIndex) input.fresh input.nifsProof =
               some (payload.running functionIndex)))) ∨
@@ -156,7 +155,7 @@ theorem terminal_calls_identify_view_or_collision
   · rcases terminal_implies_nifsOrBaseOrCollision application fits commitmentSetup
       statement' payload' terminal' with ⟨_, base' | ⟨_, _, link', _⟩⟩ | collision'
     · exact Or.inr (Or.inl base')
-    · rcases TranscriptCoverage.calls_identify_view_or_collision challenge link link' same with
+    · rcases PiCCSSecurity.calls_identify_view_or_collision challenge link link' same with
         view | collision
       · exact Or.inr (Or.inr (Or.inl view))
       · exact Or.inr (Or.inr (Or.inr (Or.inl collision)))

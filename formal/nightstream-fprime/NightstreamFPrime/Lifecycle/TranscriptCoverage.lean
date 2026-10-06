@@ -1,4 +1,3 @@
-import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory
@@ -11,8 +10,7 @@ scalars) is a read of the Poseidon2 state after an explicit list of
 permutation inputs. One input is one zero-padded rate chunk, and a squeeze is
 the zero chunk, so a list of inputs is exactly what the permutation sees.
 
-Inputs: the production key, the fresh statement, the NIFS proof, and the prior
-hash preimage.
+Inputs: the production key, the fresh statement, and the NIFS proof.
 
 Outputs:
 - `challenge_seal`: each key challenge reads the state after
@@ -22,11 +20,13 @@ Outputs:
 - `proverCalls_identify`: equal prover-dependent calls give equal fresh
   statements and equal earlier prover messages; before `Π_RLC` they give equal
   proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
-- `calls_identify_view_or_collision`: with the prior-state link, equal calls
-  also identify the prior preimage (iteration, application states, program
-  counter, running vector) and the NIFS running statement, unless the state
-  hash collides. `ActualTerminalSecurity.terminal_calls_identify_view_or_collision`
-  applies it to accepted terminals.
+- `publicInputState_eq_run`: the state before `α` is the run of the statement
+  calls; `PerApplicationSecurity.replayInput_authority_eq_coverage` uses it to
+  link the committed-statement reductions to this contract.
+
+`PiCCSSecurity.calls_identify_view_or_collision` adds the prior-state link and
+identifies the prior preimage and the NIFS running statement, unless the state
+hash collides.
 
 The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
 fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
@@ -42,7 +42,7 @@ statement enters only through the prior digest. The `Π_DEC` child messages
 follow the last challenge; the next state hash binds them.
 -/
 
-namespace NightstreamFPrime.Layout.Stage1.TranscriptCoverage
+namespace NightstreamFPrime.Lifecycle.TranscriptCoverage
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
@@ -457,7 +457,8 @@ noncomputable def keyChallenge :
   | .rho index => ((ProductionKey.key relation ajtai).piRlcChallenges running fresh
       proof).map fun challenges => challenges index
 
-private theorem publicInputState_eq_run :
+/-- The state before `α` is the run of the statement calls. -/
+theorem publicInputState_eq_run :
     (ProductionKey.key relation ajtai).publicInputState running fresh =
       run Transcript.initialState (statementCalls fresh) := by
   rw [ProductionKey.key_publicInputState_eq, absorbBlocks_eq_run, absorb_eq_run,
@@ -774,7 +775,7 @@ def AgreeOnAbsorbed {degree : Nat}
         piDecCommitments := proof'.piDecCommitments
         piDecEvaluations := proof'.piDecEvaluations } = proof'
 
-private theorem AgreeOnAbsorbed.fresh_eq {degree : Nat}
+theorem AgreeOnAbsorbed.fresh_eq {degree : Nat}
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {proof proof' : Proof degree} {challenge : Challenge}
     (agree : AgreeOnAbsorbed fresh fresh' proof proof' challenge) : fresh = fresh' := by
@@ -797,43 +798,6 @@ theorem proverCalls_identify {degree : Nat}
   | round => exact roundPrefixCalls_identify same
   | rho => exact outputCalls_identify same
 
-/-- The HyperNova prior-state link: the fresh public input carries the hash of
-the well-formed prior preimage, and the NIFS running statement is the
-preimage's running vector. `ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`
-supplies it on the positive, collision-free branch of an accepted recursive
-terminal. -/
-structure PriorLink
-    (prior : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop where
-  digest : ProductionKey.priorDigest fresh = stateHash (publicFits := publicFits) prior
-  running_eq : prior.running functionIndex = running
-  wellFormed : StateEncoding.WellFormed prior
-
-/-- The coverage contract. If two executions present equal prover-dependent
-calls before a challenge, they agree on the prior preimage, the NIFS running
-statement, the fresh statement, and every earlier prover message, unless the
-state hash collides. -/
-theorem calls_identify_view_or_collision {degree : Nat} (challenge : Challenge)
-    {prior prior' : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    {proof proof' : Proof degree}
-    (link : PriorLink prior running fresh) (link' : PriorLink prior' running' fresh')
-    (same : proverCalls fresh proof challenge = proverCalls fresh' proof' challenge) :
-    (prior = prior' ∧ running = running' ∧
-        AgreeOnAbsorbed fresh fresh' proof proof' challenge) ∨
-      PiCCSSecurity.StateHashCollision prior prior' := by
-  have agree := proverCalls_identify challenge same
-  have digestEqual : stateHash (publicFits := publicFits) prior =
-      stateHash (publicFits := publicFits) prior' := by
-    rw [← link.digest, ← link'.digest, agree.fresh_eq]
-  rcases PiCCSSecurity.stateHash_identifies_statement_or_collision prior prior'
-      link.wellFormed link'.wellFormed digestEqual with priorEqual | collision
-  · refine Or.inl ⟨priorEqual, ?_, agree⟩
-    rw [← link.running_eq, ← link'.running_eq, priorEqual]
-  · exact Or.inr collision
-
 end Contract
 
-end NightstreamFPrime.Layout.Stage1.TranscriptCoverage
+end NightstreamFPrime.Lifecycle.TranscriptCoverage

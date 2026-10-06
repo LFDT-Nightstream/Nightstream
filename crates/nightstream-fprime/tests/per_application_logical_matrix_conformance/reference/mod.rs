@@ -22,7 +22,7 @@ pub mod relation;
 pub mod source;
 
 pub const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-pub const MATRIX_COUNT: usize = 14;
+pub const MATRIX_COUNT: usize = 7;
 
 pub type Result<T> = std::result::Result<T, String>;
 pub type RowForms = [Form; MATRIX_COUNT];

@@ -4,9 +4,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 /-!
 Owns the one production CCS polynomial for the Nightstream F-prime relation.
 
-The relation uses the Lean-owned selective low-norm compiler gate. Its first
-13 matrix slots are named selective ports. Slot 13 is a canonical zero matrix.
-SuperNeo v1.1 Pad is not a CCS matrix and remains the separate `Eval_K`
+The relation uses the Lean-owned selective low-norm compiler gate. Its 7
+matrix slots are named selective ports. SuperNeo v1.1 Pad is not a CCS matrix and remains the separate `Eval_K`
 family.
 -/
 
@@ -22,17 +21,14 @@ def matrixCount : Nat := SelectivePolynomial.matrixCount
 /-- Number of matrix slots used by the selective compiler. -/
 def meaningfulPortCount : Nat := SelectivePolynomial.meaningfulPortCount
 
-/-- Final canonical-zero matrix slot. -/
-def zeroPort : Fin matrixCount := SelectivePolynomial.zeroPort
-
 /-- The sole production CCS polynomial. -/
 def polynomial : ConstraintPolynomial F matrixCount :=
   SelectivePolynomial.polynomial
 
-@[simp] theorem matrixCount_eq : matrixCount = 14 := by
+@[simp] theorem matrixCount_eq : matrixCount = 7 := by
   rfl
 
-@[simp] theorem meaningfulPortCount_eq : meaningfulPortCount = 13 := by
+@[simp] theorem meaningfulPortCount_eq : meaningfulPortCount = 7 := by
   rfl
 
 @[simp] theorem polynomial_terms :
@@ -45,12 +41,6 @@ def polynomial : ConstraintPolynomial F matrixCount :=
 theorem polynomial_canonicalEqualityGatedDegreeBound :
     polynomial.canonicalEqualityGatedDegreeBound = 9 :=
   SelectivePolynomial.polynomial_canonicalEqualityGatedDegreeBound
-
-theorem polynomial_zeroPort
-    (candidate : Monomial F matrixCount)
-    (member : candidate ∈ polynomial.terms) :
-    candidate.exponents zeroPort = 0 :=
-  SelectivePolynomial.polynomial_zeroPort candidate member
 
 private theorem exists_pos_of_sum_pos :
     ∀ values : List Nat, 0 < values.sum →

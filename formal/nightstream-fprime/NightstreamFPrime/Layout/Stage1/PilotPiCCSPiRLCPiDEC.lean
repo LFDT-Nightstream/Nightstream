@@ -3,8 +3,8 @@ import NightstreamFPrime.Layout.Stage1.PiDECStarts
 /-!
 Owns the Stage 1 prefix through the exact PiDEC v1_1 phase.
 
-The 49,248-word PiDEC input ABI follows the completed PiRLC physical endpoint.
-The PiDEC packet then adds 7,668 rows and 18,090 logical-plus-R1CS private
+The 37,152-word PiDEC input ABI follows the completed PiRLC physical endpoint.
+The PiDEC packet then adds 6,912 rows and 18,090 logical-plus-R1CS private
 columns. No public column, copy row, or boundary row is added.
 -/
 
@@ -22,7 +22,7 @@ variable {logicalWidth : Nat}
 
 def piDecOffset : Nat := PiDECInputs.phaseOffset
 
-theorem piDecOffset_eq : piDecOffset = 20171603 := by
+theorem piDecOffset_eq : piDecOffset = 14761454 := by
   rfl
 
 def physicalRows

@@ -1,4 +1,4 @@
-//! Exact final 14-matrix comparison from the sealed Lean package alone.
+//! Exact final 7-matrix comparison from the sealed Lean package alone.
 //!
 //! The expected path has its own raw package decoder, source-row custody,
 //! Goldilocks sparse arithmetic, and interpreter for every matrix-program
@@ -70,12 +70,12 @@ use reference::{
     RowForms, GOLDILOCKS_MODULUS,
 };
 
-const EXPECTED_ACTIVE_ROWS: usize = 1_911_773;
-const EXPECTED_LOGICAL_COLUMNS: usize = 83_375_369;
+const EXPECTED_ACTIVE_ROWS: usize = 1_371_020;
+const EXPECTED_LOGICAL_COLUMNS: usize = 59_804_510;
 const EXPECTED_CUBE_VARIABLES: usize = 28;
 const EXPECTED_PADDED_ROWS: usize = 268_435_456;
-const EXPECTED_PHYSICAL_ROWS: usize = 20_034_235;
-const EXPECTED_PHYSICAL_COLUMNS: usize = 20_177_360;
+const EXPECTED_PHYSICAL_ROWS: usize = 14_660_374;
+const EXPECTED_PHYSICAL_COLUMNS: usize = 14_767_211;
 const EXPECTED_PUBLIC_COLUMNS: usize = 278;
 const EXPECTED_LOGICAL_PUBLIC_INPUTS: usize = 270;
 const MAX_OPCODE_ROWS_PER_INVOCATION: usize = 108;
@@ -282,7 +282,7 @@ pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes
 
 #[test]
 #[ignore = "full independent 6,377,559-row matrix interpretation; run the documented release target under the 300-second cap"]
-fn final_fourteen_matrices_equal_the_independent_sealed_interpretation() {
+fn final_seven_matrices_equal_the_independent_sealed_interpretation() {
     let sealed_bytes = fs::read(artifact_path()).expect("Lean-emitted sealed package");
     let package = load_poseidon2_hash_chain_v1_package(&sealed_bytes).expect("production package decoder");
     check_logical_matrices(package, sealed_bytes);
@@ -315,7 +315,7 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
     assert_eq!(relation.matrix_sources().len(), PI_CCS_V1_1_MATRIX_COUNT);
     assert_eq!(
         relation.matrix_sources()[PI_CCS_V1_1_MATRIX_COUNT - 1],
-        CcsMatrixSource::Zero
+        CcsMatrixSource::EvalSelector
     );
     assert_eq!(
         1usize << u32::try_from(artifact.cube_variables).expect("cube variables fit u32"),
@@ -345,10 +345,6 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
             program
                 .visit_rows(start, end, &artifact.sources, |ordinal, row| {
                     assert_eq!(ordinal, expected_next, "independent row order");
-                    assert!(
-                        row[PI_CCS_V1_1_MATRIX_COUNT - 1].entries().is_empty(),
-                        "independent zero slot at row {ordinal}"
-                    );
                     expected_rows.push(row);
                     expected_next += 1;
                     Ok(())
@@ -411,6 +407,5 @@ pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes
     assert!(package
         .visit_matrix_rows(EXPECTED_PADDED_ROWS..EXPECTED_PADDED_ROWS + 1, |_, _| Ok(()))
         .is_err());
-    assert_eq!(nonzeros[PI_CCS_V1_1_MATRIX_COUNT - 1], 0);
     eprintln!("independent_final_logical_matrix_nonzeros={nonzeros:?}");
 }

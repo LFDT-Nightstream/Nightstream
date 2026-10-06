@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
-Owns the executable source resolver and direct 14-matrix plan for the exact
+Owns the executable source resolver and direct 7-matrix plan for the exact
 686 non-Poseidon pilot rows. The resolver is fixed by the Lean source
 support proof and the canonical lifted pilot environment.
 -/
@@ -344,14 +344,14 @@ theorem sourceAssignment_at
 
 private theorem priorLastWitnessStart_eq :
     PoseidonRetainedBlock.priorWitnessStart
-      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 4640306 := by rfl
+      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 3498494 := by rfl
 
 private theorem outputLastWitnessStart_eq :
     PoseidonRetainedBlock.outputWitnessStart
-      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 9153898 := by rfl
+      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 6907318 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (4612098 + lane.val) = 4641386 + lane.val := by
+    Spartan.liftPilotColumn (3483138 + lane.val) = 3499574 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -360,7 +360,7 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (9125690 + lane.val) = 9154978 + lane.val := by
+    Spartan.liftPilotColumn (6891962 + lane.val) = 6908398 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
   rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
@@ -385,7 +385,7 @@ private theorem priorFinalColumn_eq (lane : Fin 4) :
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
-  change 4640306 + (1080 + lane.val) = 4641386 + lane.val
+  change 3498494 + (1080 + lane.val) = 3499574 + lane.val
   omega
 
 private theorem outputFinalColumn_eq (lane : Fin 4) :
@@ -406,7 +406,7 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
         PilotValues.absorbCount * 1096 + 1080 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
     liftOutputStateTarget, outputLastWitnessStart_eq]
-  change 9153898 + (1080 + lane.val) = 9154978 + lane.val
+  change 6907318 + (1080 + lane.val) = 6908398 + lane.val
   omega
 
 private theorem priorFinalColumn_bound (lane : Fin 4) :
@@ -416,9 +416,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      20171876 := Package.circuitPackage_layout_values.2.2.2.2
+      14761727 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 4640306 + (1080 + lane.val) < 20171876
+  change 3498494 + (1080 + lane.val) < 14761727
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -428,9 +428,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      20171876 := Package.circuitPackage_layout_values.2.2.2.2
+      14761727 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 9153898 + (1080 + lane.val) < 20171876
+  change 6907318 + (1080 + lane.val) < 14761727
   omega
 
 private theorem priorLastBlock_source
@@ -726,7 +726,7 @@ def rowForms
     (PilotOrdinaryDirectSource.programRow index)
     (PilotOrdinaryDirectSource.programRow_bounded index)
 
-/-- Canonical direct 14-matrix rows for all 686 non-Poseidon pilot rows. -/
+/-- Canonical direct 7-matrix rows for all 686 non-Poseidon pilot rows. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :

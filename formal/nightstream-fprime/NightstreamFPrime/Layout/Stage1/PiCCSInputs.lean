@@ -225,7 +225,7 @@ private theorem serializeRunning_point_getD_c1
 
 /-- End of the completed pilot source-column interval and start of the
 verifier-owned expected-context words. -/
-def expectedContextStart : Nat := 9126124
+def expectedContextStart : Nat := 6892396
 
 def expectedContextWords : Nat := 4
 
@@ -238,32 +238,32 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 9126124 := by
+theorem expectedContextStart_eq : expectedContextStart = 6892396 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 9126128 := by
+theorem proofInputStart_eq : proofInputStart = 6892400 := by
   rfl
 
 /-- Fixed serialized running-state positions inside the prior preimage. -/
 def runningPointStart : Nat := priorRunningStart + 1
 def runningGroupsStart : Nat := priorRunningStart + 57
-def runningGroupWords : Nat := 3081
+def runningGroupWords : Nat := 2325
 def runningCommitmentWords : Nat := 1188
 def runningPublicWords : Nat := 270
-def runningEvaluationWords : Nat := 1620
+def runningEvaluationWords : Nat := 864
 
 /-- A word position in the fixed serialized running-instance payload. -/
-def priorRunningIndex (index : Fin 49353) :
+def priorRunningIndex (index : Fin 37257) :
     Fin PilotProduction.stateHashWords :=
   ⟨priorRunningStart + index.val, by
     have indexBound := index.isLt
     norm_num [priorRunningStart, PilotProduction.stateHashWords_eq] at *
     omega⟩
 
-@[simp] theorem priorRunningIndex_val (index : Fin 49353) :
+@[simp] theorem priorRunningIndex_val (index : Fin 37257) :
     (priorRunningIndex index).val = priorRunningStart + index.val := by
   rfl
 
@@ -285,7 +285,7 @@ def freshCommitmentWords : Nat := 1188
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 560
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
-def outputEvaluationWords : Nat := 27540
+def outputEvaluationWords : Nat := 14688
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
 def phaseOffset : Nat := proofInputStart + proofInputColumnCount
@@ -307,10 +307,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 29288 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 16436 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 9155416 := by
+theorem phaseOffset_eq : phaseOffset = 6908836 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -595,7 +595,7 @@ theorem protocolValues_runningWord
     (priorFixed : PilotProduction.FixedPreimage prior)
     (outputFixed : PilotProduction.FixedPreimage output)
     (digestFixed : digest.length = PilotProduction.digestWords)
-    (index : Fin 49353) :
+    (index : Fin 37257) :
     let values := PilotProduction.protocolValues prior priorPublic output digest
       priorFixed outputFixed digestFixed
     values.priorPreimage (priorRunningIndex index) =
@@ -820,13 +820,13 @@ def roundCoefficient
 def outputEval_K
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 1620 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 864 + coefficient.val * 2)
 
 def outputEval_A
     (source : Fin productionShape.sourceCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 1620 + 108 +
+  pairAt (outputEvaluationStart + source.val * 864 + 108 +
     matrix.val * 108 + coefficient.val * 2)
 
 def freshExpr
@@ -902,8 +902,8 @@ private theorem round_lt_28
     Phi81MatrixSource.phi81Shape] at bound
   exact bound
 
-private theorem matrix_lt_14
-    (matrix : Fin productionShape.matrixCount) : matrix.val < 14 := by
+private theorem matrix_lt_7
+    (matrix : Fin productionShape.matrixCount) : matrix.val < 7 := by
   have bound := matrix.isLt
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape] at bound
@@ -1021,7 +1021,7 @@ theorem externalInputsBelow
     change (runningEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [runningEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
     have sourceBound := runningSource_lt_16 source
-    have matrixBound := matrix_lt_14 matrix
+    have matrixBound := matrix_lt_7 matrix
     have coefficientBound := coefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [runningEvaluationStart, runningGroupStart,
@@ -1072,7 +1072,7 @@ theorem externalInputsBelow
     change (outputEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [outputEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
     have sourceBound := allSource_lt_17 source
-    have matrixBound := matrix_lt_14 matrix
+    have matrixBound := matrix_lt_7 matrix
     have coefficientBound := coefficient_lt_54 coefficient
     rw [phaseOffset_eq]
     norm_num [outputEvaluationStart, roundMessageStart,

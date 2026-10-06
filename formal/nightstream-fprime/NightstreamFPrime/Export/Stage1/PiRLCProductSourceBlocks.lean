@@ -37,7 +37,7 @@ private theorem challengeSource_lt (position : Challenge) :
       PiRLCProductPlan.basePackage.layout.constantColumn := by
   have sourceBound := position.1.isLt
   have laneBound := position.2.isLt
-  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 20171597 :=
+  have constant : PiRLCProductPlan.basePackage.layout.constantColumn = 14761448 :=
     Package.circuitPackage_layout_values.2.2.1
   rw [constant, PiRLCStarts.challengeWordStart_eq, PiRLCStarts.phaseLogicalStart_eq]
   norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree] at sourceBound laneBound
@@ -74,7 +74,7 @@ theorem challengeBlock_source (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).slotCount = 52326 := by
+    (outputBlock program).slotCount = 39474 := by
   exact PiRLCProductSchedule.invocationCount_eq
 
 theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
@@ -86,8 +86,8 @@ theorem outputBlock_source (program : Lifecycle.Stage1.Application.Program)
 
 @[simp] theorem outputBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).coordinateCount = 2145366 := by
-  change PiRLCProductSchedule.invocationCount * 41 = 2145366
+    (outputBlock program).coordinateCount = 1618434 := by
+  change PiRLCProductSchedule.invocationCount * 41 = 1618434
   rw [PiRLCProductSchedule.invocationCount_eq]
 
 def retainedCoordinateCount
@@ -96,7 +96,7 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 2183004 := by
+    retainedCoordinateCount program = 1656072 := by
   simp [retainedCoordinateCount]
 
 end NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks

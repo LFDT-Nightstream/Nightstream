@@ -7,7 +7,7 @@ Owns the semantic result of the exact PiRLC v1.1 logical assembler.
 The public attempt uses the production `K + k = 17` arity. Its inputs are
 the input-binding values, its challenges are replayed sampler outputs, and
 its output is the verifier-computed commitment, public input, separate Pad
-evaluation, and separate 14-matrix evaluation family. This file emits no
+evaluation, and separate 7-matrix evaluation family. This file emits no
 rows and defines no second PiRLC relation.
 -/
 

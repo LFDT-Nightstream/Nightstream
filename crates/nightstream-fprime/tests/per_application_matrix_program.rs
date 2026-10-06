@@ -8,9 +8,8 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::load_poseidon2_hash_chain_v1_package;
 
-const LOGICAL_ROWS: usize = 1_911_773;
-const LOGICAL_COLUMNS: usize = 83_375_369;
-const ZERO_MATRIX: usize = 13;
+const LOGICAL_ROWS: usize = 1_371_020;
+const LOGICAL_COLUMNS: usize = 59_804_510;
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
@@ -31,6 +30,7 @@ fn every_sealed_logical_matrix_row_is_canonical_and_in_range() {
         .validate_all_matrix_rows()
         .expect("every Lean-authored logical matrix row");
 
-    assert_eq!(nonzeros[ZERO_MATRIX], 0);
+    // Every production matrix carries a constraint; no slot is dead.
+    assert!(nonzeros.iter().all(|&count| count > 0));
     eprintln!("sealed_logical_matrix_nonzeros={nonzeros:?}");
 }

@@ -194,8 +194,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.singleton_row?
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.two_first_row?
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.two_second_row?
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Block.row?_deadPortsEmpty
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Program.row?_deadPortsEmpty
 #audit_axioms NightstreamFPrime.Export.Stage1.Rows.compileRow_rowIndex
 #audit_axioms NightstreamFPrime.Export.Stage1.Rows.compileRows_rowIndices
 #audit_axioms NightstreamFPrime.Export.Stage1.Rows.compileRowsTR_rowIndices
@@ -1392,8 +1390,4 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_1.CommitmentCombination.physical_implies_spec
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.compactProgram_row?_eq_structuralPlan_forms
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.allPort_coefficient_eq_logicalRelation_matrix
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_form_empty
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.slot13_matrix_zero
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.deadPort_form_empty
-#audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.deadPort_matrix_zero
 #audit_axioms NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows.padding_matrix_coefficient_zero

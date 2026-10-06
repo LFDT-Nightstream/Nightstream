@@ -2,7 +2,7 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.ProductionRelation
 
 /-!
-Owns ordered composition for production 14-matrix plans. `append` places one
+Owns ordered composition for production 7-matrix plans. `append` places one
 plan after another. `indexed` places fixed-size blocks in block-major order.
 Both constructors select only sparse forms and do not materialize matrices.
 -/

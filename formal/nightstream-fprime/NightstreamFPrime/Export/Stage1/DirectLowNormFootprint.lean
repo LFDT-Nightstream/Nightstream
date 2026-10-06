@@ -15,7 +15,7 @@ def poseidonAndProductCoordinates : Nat :=
     DirectPiRLCProductFootprint.retainedCoordinateCount
 
 @[simp] theorem poseidonAndProductCoordinates_eq :
-    poseidonAndProductCoordinates = 69309516 := by
+    poseidonAndProductCoordinates = 49797534 := by
   unfold poseidonAndProductCoordinates
   rw [PoseidonRetainedBlock.retainedCoordinateCount_eq,
     DirectPiRLCProductFootprint.retainedCoordinateCount_eq]
@@ -33,7 +33,7 @@ def throughPiRLCProductSourcesCoordinates
 
 @[simp] theorem throughPiRLCProductSourcesCoordinates_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    throughPiRLCProductSourcesCoordinates program = 71492520 := by
+    throughPiRLCProductSourcesCoordinates program = 51453606 := by
   simp [throughPiRLCProductSourcesCoordinates]
 
 theorem throughPiRLCProductSourcesCoordinates_le_cube

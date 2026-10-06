@@ -26,27 +26,9 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- A sound zero flag preserves the complete sparse result for this source
-and port, including both field coordinates of all 54 ring coefficients. -/
-theorem sparse_source_port {columns arity count : Nat}
-    (zeroSource : Fin productionShape.sourceCount → Bool)
-    (firstRow : Nat) (point : CubePoint K arity)
-    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
-    (forms : Vector (MatrixProgram.RowForms columns) count)
-    (source : Fin productionShape.sourceCount) (port : Fin matrixCount)
-    (zeroRead : zeroSource source = true → read source = fun _ _ => 0) :
-    ((sparse zeroSource firstRow point read forms).get (Fin.encodeProd (source, port))).toRing =
-      ((PiCCSOriginalMatrixBatch.sum firstRow point read forms).get
-        (Fin.encodeProd (source, port))).toRing := by
-  rw [PiCCSOriginalMatrixBatch.sum_source_port]
-  simp only [sparse, get_ofFn, Fin.decodeProd_encodeProd]
-  by_cases zero : zeroSource source = true
-  · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
-      PiDECMatrixZeroRead.sparse_sum_zero]
-  · simp only [if_neg zero]
-
 /-- A sound zero flag preserves the complete weighted result for this source
-and port. Shared column weights give the existing single-source range. -/
+and port, including both field coordinates of all 54 ring coefficients.
+Prepared column weights give the existing single-source range. -/
 theorem weighted_source_port {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -86,21 +68,8 @@ theorem invocations_source_port {columns arity count : Nat}
   · simp only [if_neg zero]
 
 /-- Flags computed from every original mask preserve the unguarded sparse
-batch for arbitrary supplied basis tables, forms, offsets and source indices. -/
-theorem sparse_isZero_source_port {columns arity count : Nat}
-    (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
-    (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)
-    (forms : Vector (MatrixProgram.RowForms columns) count)
-    (source : Fin productionShape.sourceCount) (port : Fin matrixCount) :
-    ((sparse (PiCCSOriginalSupport.isZero masks) firstRow point
-      (PiCCSOriginalReads.read tables masks) forms).get (Fin.encodeProd (source, port))).toRing =
-      ((PiCCSOriginalMatrixBatch.sum firstRow point (PiCCSOriginalReads.read tables masks) forms).get
-        (Fin.encodeProd (source, port))).toRing := by
-  apply sparse_source_port
-  exact PiCCSOriginalSupport.read_eq_zero tables masks source
-
-/-- Flags computed from every original mask preserve the unguarded sparse
-batch through shared column weights, for arbitrary tables, forms and offsets. -/
+batch through prepared column weights, for arbitrary supplied basis tables,
+forms, offsets and source indices. -/
 theorem weighted_isZero_source_port {columns arity count : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)

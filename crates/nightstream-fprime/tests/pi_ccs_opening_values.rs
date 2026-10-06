@@ -23,7 +23,7 @@ mod commitment;
 mod opening_family;
 
 use opening::{evaluate_block, EqualityTensor, Extension, Ring, DEGREE};
-use reference::{matrix::MatrixProgram, source::SourcePackage};
+use reference::{matrix::MatrixProgram, source::SourcePackage, MATRIX_COUNT};
 
 #[test]
 fn independent_phi81_product_and_dual_basis_cover_all_basis_pairs() {
@@ -196,10 +196,10 @@ fn check_positive_opening(sources: OpeningSources) {
             let matrix: usize = paths
                 .family
                 .strip_prefix('A')
-                .expect("family K or A0..A13")
+                .expect("family K or A0..A6")
                 .parse()
                 .expect("matrix index");
-            assert!(matrix < 7);
+            assert!(matrix < MATRIX_COUNT);
             Some(matrix)
         };
     let bytes = fs::read(&paths.package).expect("Lean canonical package");
@@ -220,7 +220,7 @@ fn check_positive_opening(sources: OpeningSources) {
     assert_eq!(metadata[2], json!(context));
     assert_eq!(metadata[3], json!(logical_width));
     assert_eq!(metadata[5], json!(row_count));
-    assert_eq!(metadata[6], 7);
+    assert_eq!(metadata[6], MATRIX_COUNT);
     assert_eq!(metadata[7], 28);
     assert_eq!(metadata[9], input[2], "same public projection");
     assert_eq!(
@@ -399,7 +399,7 @@ fn check_positive_opening(sources: OpeningSources) {
             signs.is_none(),
             "ALL checks the fresh source; distinct running openings keep their own gate"
         );
-        for selected in std::iter::once(None).chain((0..7).map(Some)) {
+        for selected in std::iter::once(None).chain((0..MATRIX_COUNT).map(Some)) {
             let name = selected.map_or_else(|| "K".to_owned(), |matrix| format!("A{matrix}"));
             let expected: Ring = extension_array(match selected {
                 None => &input[4][0],
@@ -413,15 +413,15 @@ fn check_positive_opening(sources: OpeningSources) {
                 actual, expected,
                 "all 54 independent fresh opening coefficients for {name}"
             );
-            if selected == Some(13) {
-                assert_eq!(actual, [Extension::ZERO; DEGREE]);
-            }
             println!(
                 "independent_fresh_opening_family={name} coefficients={DEGREE} elapsed={:?}",
                 started.elapsed()
             );
         }
-        println!("independent_fresh_opening_families=15 shared_package_and_carrier=true");
+        println!(
+            "independent_fresh_opening_families={} shared_package_and_carrier=true",
+            MATRIX_COUNT + 1
+        );
         return;
     }
     let actual = opening_family::evaluate_family(&bytes, logical_width, row_count, &carrier, &weights, selected);

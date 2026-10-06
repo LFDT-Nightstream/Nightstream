@@ -76,8 +76,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_1_evaluations() {
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
         let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_1-evaluations");
-        neo_reductions::api::verify(
-            neo_reductions::api::FoldingMode::Optimized,
+        neo_reductions::pi_ccs_verify(
             &mut transcript,
             &params,
             &structure,

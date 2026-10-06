@@ -304,7 +304,7 @@ required inputs. Missing inputs keep their gates open.
 The base PiCCS input has valid zero-running openings. The recursive input uses
 the sixteen actual children of its first fold. The child commitment directory
 contains `child-0.json` through `child-15.json`; each evaluation directory
-contains `family-K.json` and `family-A0.json` through `family-A13.json`.
+contains `family-K.json` and `family-A0.json` through `family-A3.json`.
 The folded directory contains `folded.json` and the complete `folded.i16`
 carrier. The base and recursive opening caches contain their complete carriers,
 matrix images, and metadata. `verifier_context` contains four words; the pilot
@@ -312,11 +312,10 @@ and opening tests compare them with the context recomputed from the package.
 
 Fixture generation is separate from these conformance checks. If a complete
 child-family batch reaches the 300-second cap, use the generator's existing
-family selectors to partition the measured work. On the current recursive
-input, `K`, `A0`–`A5`, and `A6`–`A13` passed in separate jobs; the split follows
-the measured cost of `A4` and `A5`. Keep the input and point fixed, retain the
-failed log, compare completed output bytes, and still supply every family to
-the independent checks. This partition is not a protocol parameter or a new gate.
+family selectors to partition the measured work. Keep the input and point
+fixed, retain the failed log, compare completed output bytes, and still supply
+every family to the independent checks. This partition is not a protocol
+parameter or a new gate.
 
 Run `checkpoint pilot-conformance` first. It regenerates the current Lean pilot
 result, checks its complete values and input mutations, and evaluates the raw
@@ -335,11 +334,10 @@ python3 scripts/lean_graph/evidence.py --store /tmp/nightstream-evidence \
 
 Registered gates call the existing package checker, complete PiCCS result
 checker, mutation implementations, and independent opening evaluator.
-The opening gates cover `K`, `A0` through `A13`, the CCS rows, and all commitment
+The opening gates cover `K`, `A0` through `A3`, the CCS rows, and all commitment
 rows. `opening-commitment` checks rows 0 through 21 and all 1,188 coefficients
 in one invocation. It replaces the repeated per-row package loads.
-A valid zero-matrix evaluation is retained. No generic nonzero-value check is
-added.
+Zero-valued evaluations are valid.
 
 The actual-child gates independently check all sixteen commitments and all
 child evaluation families at both points. Output-family gates require the
@@ -365,9 +363,10 @@ This consistency check does not decide whether the branch set is sufficient;
 the independent formula review must make that decision.
 
 Base mutation completion requires the same exact counts as the recursive
-case: 562 proof, 282 statement, and 843 output mutations, each in both Rust
-engines. These counts come from the fixed-profile loops and assertions in
-`pi_ccs_positive_mutations.rs`. The common-point case requires 56 limb
+case: 562 proof, 170 statement, and 724 output mutations using the optimized
+Rust verifier. These counts come from the selected claim shape and assertions
+in `crates/nightstream/tests/lifecycle_native/golden_ccs_mutations.rs`.
+The common-point case requires 56 limb
 mutations with nonzero running openings. For zero running openings, the
 parent hash owns rejection with the old public digest. No direct point
 rejection check is claimed for that zero-running relation.

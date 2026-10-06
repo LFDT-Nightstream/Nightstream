@@ -14,10 +14,6 @@
 //! // Hash field elements
 //! let input = [Goldilocks::from_u64(42); 10];
 //! let digest = p2::poseidon2_hash(&input);
-//!
-//! // Hash bytes (packed efficiently)
-//! let bytes = b"hello world";
-//! let digest = p2::poseidon2_hash_packed_bytes(bytes);
 //! ```
 
 use once_cell::sync::Lazy;
@@ -170,51 +166,6 @@ impl Poseidon2Hasher {
             .try_into()
             .expect("digest fits state")
     }
-}
-
-/// Hash raw bytes by converting each byte to a field element.
-///
-/// WARNING: This is inefficient (1 field element per byte).
-/// Use `poseidon2_hash_packed_bytes` for better performance.
-///
-/// Useful for compatibility with byte-oriented APIs.
-pub fn poseidon2_hash_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
-    let felts: Vec<Goldilocks> = input
-        .iter()
-        .map(|&b| Goldilocks::from_u64(b as u64))
-        .collect();
-    poseidon2_hash(&felts)
-}
-
-/// Hash bytes with injective packing (7 bytes per field element).
-///
-/// Packs input bytes into field elements below `2^56`, which is smaller than
-/// the Goldilocks modulus. This prevents different byte strings from becoming
-/// the same field sequence during reduction.
-/// Appends length as final element for unambiguous padding.
-///
-/// # Performance
-/// - Up to 7× more efficient than `poseidon2_hash_bytes`
-/// - Preferred for hashing arbitrary byte strings
-///
-/// # Security
-/// - Length encoding prevents length-extension attacks
-/// - Little-endian packing is canonical and deterministic
-pub fn poseidon2_hash_packed_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
-    const LIMB: usize = 7;
-    let mut felts = Vec::with_capacity(input.len().div_ceil(LIMB) + 1);
-
-    // A 7-byte limb is always smaller than the Goldilocks modulus.
-    for chunk in input.chunks(LIMB) {
-        let mut buf = [0u8; 8];
-        buf[..chunk.len()].copy_from_slice(chunk);
-        felts.push(Goldilocks::from_u64(u64::from_le_bytes(buf)));
-    }
-
-    // Append length for unambiguous framing
-    felts.push(Goldilocks::from_u64(input.len() as u64));
-
-    poseidon2_hash(&felts)
 }
 
 /// Hash a single field element.

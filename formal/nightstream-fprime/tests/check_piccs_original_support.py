@@ -86,7 +86,7 @@ def main():
         run(name, source, error=error)
     print(json.dumps({"event": "original_source_support_checks_passed",
                       "byte_matched_cases": matched, "ranges_per_case": 3,
-                      "field_words_compared": len(matched) * 3 * 17 * 14 * 54 * 2,
+                      "field_words_compared": len(matched) * 3 * 17 * 4 * 54 * 2,
                       "rejections": [name for name, _, _ in invalid],
                       "scope": "synthetic source-selection regression; not production proof evidence"}))
 

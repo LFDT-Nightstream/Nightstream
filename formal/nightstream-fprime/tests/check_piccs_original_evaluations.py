@@ -47,7 +47,7 @@ def main():
     require(len(sys.argv) > 2 and len(sys.argv) % 2 == 0 and
             sys.argv[1] in ("matrix", "pad"), "expected matrix|pad and reference/result path pairs")
     kind = sys.argv[1]
-    coefficient_count = 17 * 54 * (14 if kind == "matrix" else 1)
+    coefficient_count = 17 * 54 * (4 if kind == "matrix" else 1)
     results = []
     for offset in range(2, len(sys.argv), 2):
         reference_path, actual_path = map(Path, sys.argv[offset:offset + 2])

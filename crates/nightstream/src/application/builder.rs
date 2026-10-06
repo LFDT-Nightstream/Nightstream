@@ -279,14 +279,22 @@ impl ApplicationCircuit {
             form: ApplicationForm::A,
         }; 4];
         for (lane, tag) in forms.into_iter().enumerate() {
-            outputs[lane] = OutputRow {
-                row: first + lane,
-                form: match tag {
-                    0 => ApplicationForm::A,
-                    2 => ApplicationForm::C,
-                    _ => return Err(PackageError::Invalid("prepared output form").into()),
-                },
+            let row = first + lane;
+            let form = match tag {
+                0 => ApplicationForm::A,
+                2 => ApplicationForm::C,
+                _ => return Err(PackageError::Invalid("prepared output form").into()),
             };
+            // `equality_row` puts a variable output on the C side; otherwise C is zero.
+            let derived = if records.row_header(row)?.term_counts[2] == 0 {
+                ApplicationForm::A
+            } else {
+                ApplicationForm::C
+            };
+            if form != derived {
+                return Err(PackageError::Invalid("prepared output form differs from its row").into());
+            }
+            outputs[lane] = OutputRow { row, form };
         }
         let mut private_inputs = Vec::new();
         private_inputs

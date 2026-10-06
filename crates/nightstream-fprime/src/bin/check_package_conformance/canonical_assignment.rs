@@ -772,7 +772,7 @@ pub fn evaluate_pilot_assignment(
         public_values: &public_values[..PILOT_PUBLIC_COUNT],
         constant_column: word(raw.3 .2),
         total_columns: word(raw.3 .4),
-        unavailable_private: Some(64_226..128_074),
+        unavailable_private: Some(word(output.3 + output.4)..word(prior.5)),
         changed_column: None,
     };
     let rows = evaluate_event_range(&raw, &schedule, &assignment, 0..PILOT_ROW_END)?;

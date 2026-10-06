@@ -108,7 +108,7 @@ theorem realSuccess_of_terminal
       application fits productionSetup statement payload accepted with
     ⟨_context, base | recursive⟩ | collision
   · exact False.elim ((Nat.ne_of_gt positive) base)
-  · rcases recursive with ⟨_positive, _priorPublic, _priorDigest, verified⟩
+  · rcases recursive with ⟨_positive, _priorPublic, _link, verified⟩
     rcases (PerApplicationTerminal.holds_recursive_iff application fits
       productionSetup statement payload).mp accepted with
       ⟨_statementValid, _pcValid, _iteration, _publicLink, runningValid, _freshValid⟩
@@ -128,6 +128,31 @@ theorem realSuccess_of_terminal
       (payload.runningWitness functionIndex) success
     simpa only [output, HyperNovaHistory.sourceInput,
       HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using selected
+  · exact False.elim (safe collision)
+
+/-- The same accepted, collision-free, non-base terminal opening supplies the
+prior-state link for the real input: its fresh public input carries the hash of
+a well-formed prior preimage with the selected verifier context and the NIFS
+running statement. -/
+theorem priorLink_of_terminal
+    (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload)
+    (accepted : PerApplicationTerminal.Holds application fits productionSetup
+      statement (.recursive payload))
+    (safe : ¬ HyperNovaHistory.Collision statement payload)
+    (positive : 0 < (HyperNovaHistory.decodedInput payload).iteration) :
+    ∃ prior, PiCCSSecurity.PriorLink prior
+      (PiCCSInputCheck.running (HyperNovaHistory.sourceInput payload))
+      (PiCCSInputCheck.fresh (HyperNovaHistory.sourceInput payload))
+      (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup) := by
+  dsimp only [HyperNovaHistory.decodedInput] at positive
+  dsimp only [HyperNovaHistory.Collision] at safe
+  rcases ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision
+      application fits productionSetup statement payload accepted with
+    ⟨_context, base | ⟨_positive, _priorPublic, link, _verified⟩⟩ | collision
+  · exact False.elim ((Nat.ne_of_gt positive) base)
+  · simp only [HyperNovaHistory.sourceInput, HyperNovaInput.running_ofClaims,
+      HyperNovaInput.fresh_ofClaims]
+    exact ⟨_, link⟩
   · exact False.elim (safe collision)
 
 end NightstreamFPrime.Export.Stage1.HyperNovaRealInput

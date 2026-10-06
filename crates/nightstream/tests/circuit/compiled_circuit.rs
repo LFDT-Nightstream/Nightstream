@@ -96,7 +96,7 @@ fn extension_errors_leave_the_supplied_proof_unchanged() {
     let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
     let original = Stage1Envelope::initial([F::ZERO; 4]);
     assert!(matches!(prover.extend(&original, &[]), Err(Error::Application(_))));
-    assert!(original.is_initial());
+    assert!(original.active_parts().is_none());
     assert_eq!(original.state().iteration(), 0);
     // This reaches lifecycle validation after valid application execution.
     let invalid = Stage1Envelope::from_parts(

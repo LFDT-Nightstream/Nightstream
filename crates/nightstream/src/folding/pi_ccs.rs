@@ -1,9 +1,9 @@
 //! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
 use super::{
-    kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim, CcsWitness, CeClaim, Params,
-    RunningInstance, Structure,
+    has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
+    CcsWitness, CeClaim, Params, RunningInstance, Structure, EVALUATION_WIDTH,
 };
-use neo_math::{D, K};
+use neo_math::D;
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
 use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
 #[derive(Debug, thiserror::Error)]
@@ -154,7 +154,6 @@ fn validate_v1_1_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> 
 }
 
 fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let d_pad = D.next_power_of_two();
     let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
     let ell_n = s
         .domain_rows()
@@ -166,25 +165,20 @@ fn validate_v1_1_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
-    if claim.eval_k.len() != d_pad {
+    if claim.eval_k.len() != EVALUATION_WIDTH {
         return Err(Error::Shape("CE Eval_K must use the padded ring degree"));
     }
-    if claim
-        .eval_k
-        .iter()
-        .skip(D)
-        .any(|&lane| lane != K::default())
-    {
+    if !has_zero_evaluation_padding(&claim.eval_k) {
         return Err(Error::Shape("CE Eval_K padding lanes must be zero"));
     }
     if claim.eval_a.len() != s.t() {
         return Err(Error::Shape("CE Eval_A count must equal the CCS matrix count"));
     }
     for row in &claim.eval_a {
-        if row.len() != d_pad {
+        if row.len() != EVALUATION_WIDTH {
             return Err(Error::Shape("CE Eval_A rows must use the padded ring degree"));
         }
-        if row.iter().skip(D).any(|&lane| lane != K::default()) {
+        if !has_zero_evaluation_padding(row) {
             return Err(Error::Shape("CE Eval_A padding lanes must be zero"));
         }
     }

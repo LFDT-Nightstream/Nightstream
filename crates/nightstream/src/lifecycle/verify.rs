@@ -14,6 +14,8 @@ use neo_reductions::{
 use nightstream_fprime::{PackageError, PI_CCS_V1_1_ROUND_COUNT, PI_DEC_V1_1_CHILD_COUNT};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+use crate::folding::is_canonical_evaluation;
+
 use super::{
     encode_pi_ccs_v1_1_public_input, pi_ccs_v1_1_state_hash, serialize_pi_ccs_v1_1_state_preimage,
     PiCcsV1_1PackageBridgeError, PreparedLifecycle, Stage1Envelope, Stage1State,
@@ -91,12 +93,12 @@ impl PreparedLifecycle {
                     reason: "running claims must share the selected evaluation point",
                 });
             }
-            if !evaluation_has_selected_shape(&claim.eval_k)
+            if !is_canonical_evaluation(&claim.eval_k)
                 || claim.eval_a.len() != self.structure.t()
                 || claim
                     .eval_a
                     .iter()
-                    .any(|values| !evaluation_has_selected_shape(values))
+                    .any(|values| !is_canonical_evaluation(values))
             {
                 return Err(VerifyError::Running {
                     index,
@@ -253,10 +255,6 @@ fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
 }
 
-fn evaluation_has_selected_shape(values: &[K]) -> bool {
-    values.len() == D.next_power_of_two() && values[D..].iter().all(|value| *value == K::ZERO)
-}
-
 fn evaluation_matches(recorded: &[K], expected: &[K]) -> bool {
-    evaluation_has_selected_shape(recorded) && expected.len() == D && recorded[..D] == *expected
+    is_canonical_evaluation(recorded) && expected.len() == D && recorded[..D] == *expected
 }

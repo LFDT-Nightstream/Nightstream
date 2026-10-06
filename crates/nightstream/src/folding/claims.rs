@@ -5,6 +5,18 @@ use neo_math::ring::{cf_inv, Rq};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+/// Evaluation vectors use the padded ring degree; the lanes from `D` on are zero.
+pub(crate) const EVALUATION_WIDTH: usize = D.next_power_of_two();
+
+pub(crate) fn has_zero_evaluation_padding(values: &[K]) -> bool {
+    values.iter().skip(D).all(|lane| *lane == K::ZERO)
+}
+
+/// The one canonical encoding of an `Eval_K` vector or an `Eval_A` row.
+pub(crate) fn is_canonical_evaluation(values: &[K]) -> bool {
+    values.len() == EVALUATION_WIDTH && has_zero_evaluation_padding(values)
+}
+
 #[derive(Clone, Debug)]
 pub struct CcsInstance {
     pub claim: CcsClaim,
@@ -47,8 +59,8 @@ impl RunningInstance {
             c: Commitment::zeros(D, pp.kappa() as usize),
             X: Mat::virtual_constant(D, superneo_public_x_cols(m_in), F::ZERO),
             r: vec![K::ZERO; ell],
-            eval_k: vec![K::ZERO; D.next_power_of_two()],
-            eval_a: vec![vec![K::ZERO; D.next_power_of_two()]; s.t()],
+            eval_k: vec![K::ZERO; EVALUATION_WIDTH],
+            eval_a: vec![vec![K::ZERO; EVALUATION_WIDTH]; s.t()],
             m_in,
             fold_digest: [0; 32],
             adv: None,

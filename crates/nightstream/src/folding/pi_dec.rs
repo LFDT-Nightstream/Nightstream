@@ -1,13 +1,13 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
-    ajtai_dec_mixer, kernels as engine, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer,
-    Params, Structure,
+    ajtai_dec_mixer, has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape,
+    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure, EVALUATION_WIDTH,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
-use neo_math::{balanced::within_nc_bound, D, F, K};
+use neo_math::{balanced::within_nc_bound, D, F};
 use neo_reductions::superneo_eval::{eval_real_v1_1_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
@@ -243,8 +243,10 @@ fn validate_evaluation_shape(s: &Structure, parent: &CeClaim, children: &[CeClai
 }
 
 fn validate_evaluation_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let width = D.next_power_of_two();
-    if claim.eval_k.len() != width || claim.eval_a.len() != s.t() || claim.eval_a.iter().any(|row| row.len() != width) {
+    if claim.eval_k.len() != EVALUATION_WIDTH
+        || claim.eval_a.len() != s.t()
+        || claim.eval_a.iter().any(|row| row.len() != EVALUATION_WIDTH)
+    {
         return Err(Error::EvaluationShape(owner));
     }
     Ok(())
@@ -259,20 +261,13 @@ fn validate_evaluation_padding_zero(parent: &CeClaim, children: &[CeClaim]) -> R
 }
 
 fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if claim
-        .eval_k
-        .iter()
-        .skip(D)
-        .any(|&lane| lane != K::default())
+    if !has_zero_evaluation_padding(&claim.eval_k)
+        || !claim
+            .eval_a
+            .iter()
+            .all(|row| has_zero_evaluation_padding(row))
     {
         return Err(Error::EvaluationPadding(owner));
-    }
-    for row in &claim.eval_a {
-        for &lane in row.iter().skip(D) {
-            if lane != K::default() {
-                return Err(Error::EvaluationPadding(owner));
-            }
-        }
     }
     Ok(())
 }

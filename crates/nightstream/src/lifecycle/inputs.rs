@@ -6,7 +6,7 @@
 //! or verify a relation.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{KExtensions, F, K};
 use nightstream_fprime::{
     PackageError, PiCcsV1_1OutputEvaluations, PiCcsV1_1PackageInputs, PiCcsV1_1VerifierContext,
     PI_CCS_V1_1_COEFFICIENT_COUNT, PI_CCS_V1_1_FRESH_COMMITMENT_WORDS, PI_CCS_V1_1_MATRIX_COUNT,
@@ -17,7 +17,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::folding::pi_ccs;
-use crate::folding::{CcsClaim, CeClaim};
+use crate::folding::{is_canonical_evaluation, CcsClaim, CeClaim};
 
 const STATE_DOMAIN_TAG: [u64; 23] = [
     72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67, 47, 115, 116, 97, 116, 101, 47, 118, 49,
@@ -260,11 +260,7 @@ fn push_block(output: &mut Vec<u64>, block: &[u64]) {
 }
 
 fn validate_family(values: &[K]) -> Result<(), PiCcsV1_1PackageBridgeError> {
-    if values.len() != D.next_power_of_two()
-        || values[PI_CCS_V1_1_COEFFICIENT_COUNT..]
-            .iter()
-            .any(|value| *value != K::ZERO)
-    {
+    if !is_canonical_evaluation(values) {
         return Err(PiCcsV1_1PackageBridgeError::Shape("evaluation family width or padding"));
     }
     Ok(())

@@ -1,6 +1,11 @@
 //! Native migration checks. Saved Lean inputs are test data, never producer input.
-use super::{PreparedLifecycle, Stage1State, Stage1StepInputs, StepInputError};
-use crate::folding::{self, pi_ccs, pi_dec, pi_rlc, CcsClaim, CeClaim, NifsProof, Params, RunningInstance};
+use super::{
+    serialize_pi_ccs_v1_1_state_preimage, PiCcsV1_1PackageBridgeError, PiCcsV1_1ProofInputs, PreparedLifecycle,
+    Stage1State, Stage1StepInputs, StepInputError,
+};
+use crate::folding::{
+    self, pi_ccs, pi_dec, pi_rlc, CcsClaim, CeClaim, NifsProof, Params, RunningInstance, EVALUATION_WIDTH,
+};
 use neo_ajtai::Commitment;
 use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{from_complex, D, F, K};
@@ -462,6 +467,47 @@ fn selected_plain_step_rejects_auxiliary_commitments() {
         reject(&running, &fixture.fresh, "supplied parent claim");
     }
 }
+#[test]
+fn state_and_proof_bridges_require_the_padded_evaluation_width() {
+    let fixture = Fixture::load();
+    let context = fixture
+        .package
+        .binding
+        .verifier_context()
+        .digest()
+        .map(F::from_u64);
+    let serialize = |running: &RunningInstance| {
+        serialize_pi_ccs_v1_1_state_preimage(
+            context,
+            fixture.state.iteration(),
+            fixture.state.z0(),
+            fixture.state.current(),
+            &running.claims,
+            1,
+        )
+        .map(|_| ())
+    };
+    let width_error = |result: Result<(), PiCcsV1_1PackageBridgeError>| {
+        matches!(
+            result,
+            Err(PiCcsV1_1PackageBridgeError::Shape("evaluation family width or padding"))
+        )
+    };
+    assert!(serialize(&fixture.running).is_ok());
+    assert!(PiCcsV1_1ProofInputs::from_proof(&fixture.fresh, &fixture.proof.pi_ccs).is_ok());
+    for width in [D, EVALUATION_WIDTH + 1] {
+        let mut running = fixture.running.claims_only();
+        running.claims[0].eval_k.resize(width, K::ZERO);
+        assert!(width_error(serialize(&running)), "state preimage, width {width}");
+        let mut proof = fixture.proof.pi_ccs.clone();
+        proof.outputs[0].eval_a[0].resize(width, K::ZERO);
+        assert!(
+            width_error(PiCcsV1_1ProofInputs::from_proof(&fixture.fresh, &proof).map(|_| ())),
+            "proof outputs, width {width}"
+        );
+    }
+}
+
 #[test]
 fn saved_proof_and_transcript_match_lean() {
     let fixture = Fixture::load();

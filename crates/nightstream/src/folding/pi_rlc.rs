@@ -1,10 +1,11 @@
 //! Selected PiRLC. Public verification recomputes every parent coordinate.
 //! Legacy projection advice used a cloned transcript and is not part of this path.
 use super::{
-    kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim, Params, RlcMixer, Structure,
+    has_zero_evaluation_padding, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
+    Params, RlcMixer, Structure, EVALUATION_WIDTH,
 };
 use neo_ccs::Mat;
-use neo_math::{D, F, K};
+use neo_math::F;
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -201,10 +202,9 @@ fn validate_evaluation_shape_one(
     s: &crate::folding::Structure,
     claim: &CeClaim,
 ) -> Result<(), Error> {
-    let expected_lanes = D.next_power_of_two();
-    if claim.eval_k.len() != expected_lanes
+    if claim.eval_k.len() != EVALUATION_WIDTH
         || claim.eval_a.len() != s.t()
-        || claim.eval_a.iter().any(|row| row.len() != expected_lanes)
+        || claim.eval_a.iter().any(|row| row.len() != EVALUATION_WIDTH)
     {
         return Err(Error::EvaluationShape(owner));
     }
@@ -220,18 +220,13 @@ fn validate_evaluation_padding_zero(inputs: &[CeClaim], combined: &CeClaim) -> R
 }
 
 fn validate_evaluation_padding_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if claim
-        .eval_k
-        .iter()
-        .skip(D)
-        .any(|&lane| lane != K::default())
+    if !has_zero_evaluation_padding(&claim.eval_k)
+        || !claim
+            .eval_a
+            .iter()
+            .all(|row| has_zero_evaluation_padding(row))
     {
         return Err(Error::EvaluationPadding(owner));
-    }
-    for row in &claim.eval_a {
-        if row.iter().skip(D).any(|&lane| lane != K::default()) {
-            return Err(Error::EvaluationPadding(owner));
-        }
     }
     Ok(())
 }

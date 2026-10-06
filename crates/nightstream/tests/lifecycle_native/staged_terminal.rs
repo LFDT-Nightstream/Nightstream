@@ -95,8 +95,8 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
             "schema":1, "package_identity":package.package_identity(), "iteration":step,
             "z0":expected.z0().map(|value| value.as_canonical_u64()),
             "current":expected.current().map(|value| value.as_canonical_u64()),
-            "running_claims":&envelope.running().unwrap().claims,
-            "fresh_claim":&envelope.fresh().unwrap().claim,
+            "running_claims":&envelope.active_parts().unwrap().0.claims,
+            "fresh_claim":&envelope.active_parts().unwrap().1.claim,
             "engine":format!("{engine:?}"),
             "scope":"new Rust terminal execution on its own generated successor; Lean comparison is a separate check"
         }),

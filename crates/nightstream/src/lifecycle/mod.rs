@@ -124,21 +124,6 @@ enum ProofState {
         fresh: CcsInstance,
     },
 }
-impl ProofState {
-    fn initial() -> Self {
-        Self::Initial
-    }
-    fn active(running: RunningInstance, fresh: CcsInstance) -> Self {
-        Self::Active { running, fresh }
-    }
-    fn parts(&self) -> Option<(&RunningInstance, &CcsInstance)> {
-        match self {
-            Self::Initial => None,
-            Self::Active { running, fresh } => Some((running, fresh)),
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "../../tests/lifecycle_native/mod.rs"]
 mod tests;

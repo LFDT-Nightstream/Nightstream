@@ -18,22 +18,8 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle (productionShape)
 
-/-- The zero branch precedes all sparse source arithmetic. Each nonzero source
-uses the existing single-source range; flattening preserves every port slot. -/
-@[specialize] def sparse {columns arity count : Nat}
-    (zeroSource : Fin productionShape.sourceCount → Bool)
-    (firstRow : Nat) (point : CubePoint K arity)
-    (read : Fin productionShape.sourceCount → Fin ringDegree → Fin columns → F)
-    (forms : Vector (MatrixProgram.RowForms columns) count) : PiCCSOriginalMatrixBatch.Batch :=
-  let bySource := Vector.ofFn fun source : Fin productionShape.sourceCount =>
-    if zeroSource source then PiDECEvaluationBatch.zero matrixCount
-    else PiDECMatrixSparseRange.sum firstRow point (read source) forms
-  Vector.ofFn fun code =>
-    let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
-    (bySource.get pair.1).get pair.2
-
-/-- The zero branch precedes all source arithmetic. The column weights of rows
-that share their columns are prepared once for every nonzero source. -/
+/-- The zero branch precedes all source arithmetic. The column weights of the
+rows are prepared once for every nonzero source. -/
 @[specialize] def weighted {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)

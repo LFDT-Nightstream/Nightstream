@@ -7,10 +7,11 @@ columns. The 108 rows of one Phi81 product invocation list the same columns in
 the same order with different coefficients, so for each port and lane
 `Σ_r w_r Σ_j c_rj x_j = Σ_j (Σ_r w_r c_rj) x_j`: one pass over the columns
 replaces one pass per row. The column weights do not depend on the read, so
-`prepare` computes them once for every source or child, as one native-word
-sparse form per extension coordinate. Rows that do not list the same columns
-merge the weighted coefficients of each column instead, so each distinct column
-is read once per port and lane rather than once per row that uses it. Every
+`prepare` computes them once for every source or child, as one entry list that
+carries both extension coordinates; `evaluate` reads each listed column once
+for both. Rows that do not list the same columns merge the weighted
+coefficients of each column instead, so each distinct column is read once per
+port and lane rather than once per row that uses it. Every
 port and lane equals `PiDECMatrixSparseRange.sum` for every read; no row, read
 or alignment premise is needed.
 -/

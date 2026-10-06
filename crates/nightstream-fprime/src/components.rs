@@ -19,9 +19,9 @@ const PROFILE: [u64; 8] = [
     54,
     28,
     crate::PI_CCS_V1_1_MATRIX_COUNT as u64,
-    13,
+    7,
 ];
-const MATRIX_PORTS: usize = 13;
+const MATRIX_PORTS: usize = 7;
 
 #[derive(Debug, Error)]
 pub enum ComponentError {
@@ -176,7 +176,6 @@ pub struct MatrixRow {
 }
 
 impl MatrixRow {
-    /// The fourteenth matrix is fixed to zero by the exported production relation.
     pub fn ports(&self) -> &[SparseForm; MATRIX_PORTS] {
         &self.ports
     }

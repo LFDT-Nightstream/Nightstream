@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.PiDEC.v1_1.Values
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
-Owns the compact Lean instruction program for one per-application 14-matrix
+Owns the compact Lean instruction program for one per-application 7-matrix
 relation. Each opcode denotes one proved direct-plan constructor. The ordered
 program is the transport authority; consumers may interpret it but may not
 select block order, row counts, geometry, or application rows.
@@ -139,17 +139,17 @@ def BlockKind.plan (application : ProgramApplication)
 
 /-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 1235400
-  | .piCcsPoseidon => 402952
-  | .piCcsOrdinary => 85448
+  | .pilotPoseidon => 933000
+  | .piCcsPoseidon => 240160
+  | .piCcsOrdinary => 48443
   | .pilotOrdinary => 686
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
   | .samplerPoseidon => 5100
   | .samplerOrdinary => 14943
-  | .piRlc => 104652
-  | .piDec => 7668
-  | .runningTransition => 49359
+  | .piRlc => 78948
+  | .piDec => 6912
+  | .runningTransition => 37263
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
@@ -662,7 +662,7 @@ private theorem compile_throughNextPreimageProgram
       rfl
 
 /-- The compact instruction program expands to the exact self-derived
-14-matrix plan. -/
+7-matrix plan. -/
 theorem compile_canonical (application : ProgramApplication)
     (fits : FitsTwoPow28 application) :
     canonical.compile application fits =

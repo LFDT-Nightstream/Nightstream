@@ -261,7 +261,7 @@ theorem rowsZero_implies_parentEvalA_sum
     (assignment : Assignment F logicalWidth)
     (one : assignment (inputs geometry).oneColumn = 1)
     (rows : (PiRLCProductPlan.plan (inputs geometry)).RowsZero assignment)
-    (index : Fin 1512) :
+    (index : Fin 756) :
     ((PiDECDirectPlan.Location.parentEvalA index).form geometry).eval assignment =
       (Finset.range PiRLCCombinationInvocations.sourceCount).sum
         (contributionAt geometry assignment (PiDECValueWiring.finalDescriptor .evalA index)) := by

@@ -5,7 +5,7 @@
 use super::{PI_CCS_V1_1_ROUND_COUNT, STATE_PREIMAGE_WORDS};
 
 const RUNNING_COUNT: usize = 16;
-const MATRIX_COUNT: usize = 14;
+const MATRIX_COUNT: usize = 7;
 const PRIOR_PUBLIC_WORDS: usize = 270;
 const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_1_ROUND_COUNT;
 

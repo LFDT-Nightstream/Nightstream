@@ -23,7 +23,7 @@ use opening::{EqualityTensor, Extension, Ring, DEGREE};
 use reference::{matrix::MatrixProgram, source::SourcePackage};
 
 const CHILDREN: usize = 16;
-const MATRICES: usize = 14;
+const MATRICES: usize = 7;
 const PUBLIC: usize = 270;
 type Values = [Ring; CHILDREN];
 
@@ -377,13 +377,6 @@ fn independent_actual_child_evaluation_family() {
                 .iter()
                 .all(|&word| word < reference::GOLDILOCKS_MODULUS));
             expected[child] = ring(&family[8][child]);
-            if selected == Some(MATRICES - 1) {
-                assert_eq!(
-                    expected[child],
-                    [Extension::ZERO; DEGREE],
-                    "canonical zero matrix claim"
-                );
-            }
         }
         println!(
             "independent_child_evaluation_family={} children={CHILDREN} input_time={:?}",

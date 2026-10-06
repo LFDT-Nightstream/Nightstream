@@ -29,13 +29,13 @@ def proof_words(value):
             words.extend(coefficient)
     require(len(value[4]) == len(value[5]) == 17, "wrong output source count")
     for pad, matrices in zip(value[4], value[5]):
-        require(len(pad) == 54 and len(matrices) == 14, "wrong output family width")
+        require(len(pad) == 54 and len(matrices) == 7, "wrong output family width")
         for lanes in [pad, *matrices]:
             require(len(lanes) == 54, "wrong coefficient width")
             for coefficient in lanes:
                 require(len(coefficient) == 2, "wrong extension width")
                 words.extend(coefficient)
-    require(len(words) == 29288, "wrong complete proof-input word count")
+    require(len(words) == 16436, "wrong complete proof-input word count")
     require(all(type(word) is int and 0 <= word < P for word in words),
             "noncanonical proof-input field")
     return words
@@ -81,7 +81,7 @@ def main():
     else:
         raise ValueError("changed final proof-input word was accepted")
     print(json.dumps({"event": "independent_piccs_complete_bytes_match",
-                      "rounds": 28, "phase_fields": 15, "output_field_words": 27540,
+                      "rounds": 28, "phase_fields": 15, "output_field_words": 14688,
                       "proof_input_field_words": len(words), "outgoing_state_words": 16,
                       "input_bytes": len(raw[0]), "phase_bytes": len(raw[1]),
                       "rust_input_bytes": len(raw[3]),

@@ -35,15 +35,15 @@ def main():
     ccs, commitments, evaluations = original
     require(len(ccs) == 7 and ccs[0] == 2 and len(ccs[3]) == 28,
             "expected a complete baseline C input")
-    require(len(commitments) == 5 and commitments[:4] == [1, 1543989, 0, 1543989],
+    require(len(commitments) == 5 and commitments[:4] == [1, 1107491, 0, 1107491],
             "expected complete selected baseline commitments")
-    require(len(evaluations) == 5 and evaluations[:2] == [1, 1543989],
+    require(len(evaluations) == 5 and evaluations[:2] == [1, 1107491],
             "expected complete selected baseline evaluations")
     require(len(commitments[4]) == 22 and len(commitments[4][21]) == 16 and
             len(commitments[4][21][15]) == 54, "wrong baseline commitment shape")
     require(len(evaluations[2]) == 28 and len(evaluations[3]) == 16 and
             len(evaluations[3][15]) == 54 and len(evaluations[4]) == 16 and
-            len(evaluations[4][15]) == 14 and len(evaluations[4][15][13]) == 54,
+            len(evaluations[4][15]) == 7 and len(evaluations[4][15][6]) == 54,
             "wrong baseline evaluation shape")
     directory.mkdir()
     rejected = []
@@ -114,14 +114,14 @@ def main():
     run("pad-lanes", "expected array length 54", 2, lambda value: value[3][15].pop())
     run("pad-extension", "expected array length 2", 2, lambda value: value[3][15][53].pop())
     run("matrix-children", "expected array length 16", 2, lambda value: value[4].pop())
-    run("matrix-ports", "expected array length 14", 2, lambda value: value[4][15].pop())
-    run("matrix-lanes", "expected array length 54", 2, lambda value: value[4][15][13].pop())
+    run("matrix-ports", "expected array length 7", 2, lambda value: value[4][15].pop())
+    run("matrix-lanes", "expected array length 54", 2, lambda value: value[4][15][6].pop())
     run("matrix-extension", "expected array length 2", 2,
-        lambda value: value[4][15][13][53].pop())
+        lambda value: value[4][15][6][53].pop())
     run("pad-noncanonical-tail", "noncanonical Goldilocks word", 2,
         lambda value: value[3][15][53].__setitem__(1, P))
     run("matrix-noncanonical-tail", "noncanonical Goldilocks word", 2,
-        lambda value: value[4][15][13][53].__setitem__(1, P))
+        lambda value: value[4][15][6][53].__setitem__(1, P))
     run("wrong-derived-point", "Lean evaluation point differs from the derived parent", 2,
         lambda value: value[2][27].__setitem__(1, (value[2][27][1] + 1) % P))
     # These keep complete canonical framing. Only the existing D recomposition
@@ -129,8 +129,8 @@ def main():
     run("changed-last-commitment", "independent PiDEC replay rejected", 1,
         lambda value: value[4][21][15].__setitem__(53, (value[4][21][15][53] + 1) % P))
     run("changed-last-matrix", "independent PiDEC replay rejected", 2,
-        lambda value: value[4][15][13][53].__setitem__(1,
-                                                   (value[4][15][13][53][1] + 1) % P))
+        lambda value: value[4][15][6][53].__setitem__(1,
+                                                   (value[4][15][6][53][1] + 1) % P))
     # Changing the last round's constant term changes its endpoint sum by two,
     # while all prior challenges and the incoming final-round claim stay fixed.
     run("changed-C-round", "PiCCS/PiRLC rejected or returned no parent", 0,

@@ -3,7 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
 /-!
 Owns the generic executable interpreter for small explicit zero-pin families
-in a compact sparse 14-matrix program. The package supplies the selector
+in a compact sparse 7-matrix program. The package supplies the selector
 column and each value form in order.
 
 This module does not select Stage 1 pin families or their order.

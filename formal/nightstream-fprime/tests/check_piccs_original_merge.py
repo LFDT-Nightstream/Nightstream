@@ -9,8 +9,8 @@ import sys
 
 from check_piccs_binary_fold import P, require
 
-PAD_BLOCKS = 1543989
-MATRIX_ROWS = 1911773
+PAD_BLOCKS = 1107491
+MATRIX_ROWS = 1371020
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     formal = Path(__file__).resolve().parents[1]
     validator = formal / "scripts" / "validate.sh"
     zero_pad = [[[0, 0] for _ in range(54)] for _ in range(17)]
-    zero_matrix = [[[[0, 0] for _ in range(54)] for _ in range(14)] for _ in range(17)]
+    zero_matrix = [[[[0, 0] for _ in range(54)] for _ in range(7)] for _ in range(17)]
 
     def write(name, value):
         path = directory / (name + ".json")
@@ -41,8 +41,8 @@ def main():
     pads[1][5][16][53] = [6, 7]
     matrices[0][5][0][0][1] = [P - 1, 8]
     matrices[1][5][0][0][1] = [4, 11]
-    matrices[0][5][16][13][53] = [5, P - 3]
-    matrices[1][5][16][13][53] = [12, 10]
+    matrices[0][5][16][6][53] = [5, P - 3]
+    matrices[1][5][16][6][53] = [12, 10]
     pad_paths = [write(f"pad-{index}", value) for index, value in enumerate(pads)]
     matrix_paths = [write(f"matrix-{index}", value) for index, value in enumerate(matrices)]
 
@@ -74,7 +74,7 @@ def main():
             expected_pad[source][lane] = [
                 (pads[0][5][source][lane][part] + pads[1][5][source][lane][part]) % P
                 for part in range(2)]
-        for matrix in range(14):
+        for matrix in range(7):
             for lane in range(54):
                 expected_matrix[source][matrix][lane] = [
                     (matrices[0][5][source][matrix][lane][part] +
@@ -100,15 +100,15 @@ def main():
     reject("wrong-point", "pad", 0, lambda value: value[4][0].__setitem__(0, (value[4][0][0] + 1) % P),
            "range point differs")
     reject("source-width", "pad", 0, lambda value: value[5].pop(), "expected array length 17")
-    reject("matrix-width", "matrix", 0, lambda value: value[5][16].pop(), "expected array length 14")
-    reject("noncanonical", "matrix", 0, lambda value: value[5][16][13][53].__setitem__(1, P),
+    reject("matrix-width", "matrix", 0, lambda value: value[5][16].pop(), "expected array length 7")
+    reject("noncanonical", "matrix", 0, lambda value: value[5][16][6][53].__setitem__(1, P),
            "noncanonical Goldilocks word")
     run("incomplete", pad_paths, matrix_paths[:1], "ranges are incomplete")
     invalid.append("incomplete")
     run("existing", pad_paths, matrix_paths, "output already exists", existing=True)
     invalid.append("existing")
     print(json.dumps({"event": "original_merge_checks_passed",
-                      "synthetic_field_words_checked": 27540, "rejections": invalid,
+                      "synthetic_field_words_checked": 14688, "rejections": invalid,
                       "scope": "assembly and rejection only; synthetic values are not prover evidence"}))
 
 

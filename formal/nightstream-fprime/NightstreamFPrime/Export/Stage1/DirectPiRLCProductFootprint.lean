@@ -11,24 +11,24 @@ Stage 1 fit.
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 
-def invocationCount : Nat := 52326
+def invocationCount : Nat := 39474
 def rowCount : Nat := invocationCount * 2
 def retainedFieldCount : Nat := invocationCount * 1
 def retainedCoordinateCount : Nat := retainedFieldCount * 41
 
-@[simp] theorem invocationCount_eq : invocationCount = 52326 := by
+@[simp] theorem invocationCount_eq : invocationCount = 39474 := by
   rfl
 
-@[simp] theorem rowCount_eq : rowCount = 104652 := by
+@[simp] theorem rowCount_eq : rowCount = 78948 := by
   unfold rowCount
   rw [invocationCount_eq]
 
-@[simp] theorem retainedFieldCount_eq : retainedFieldCount = 52326 := by
+@[simp] theorem retainedFieldCount_eq : retainedFieldCount = 39474 := by
   unfold retainedFieldCount
   rw [invocationCount_eq]
 
 @[simp] theorem retainedCoordinateCount_eq :
-    retainedCoordinateCount = 2145366 := by
+    retainedCoordinateCount = 1618434 := by
   unfold retainedCoordinateCount
   rw [retainedFieldCount_eq]
 

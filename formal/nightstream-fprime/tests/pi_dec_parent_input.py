@@ -184,7 +184,7 @@ def accept_batch(binary, ccs, directory, parent, first_output, second_output):
         assert [event["child"] for event in children] == list(range(16)), "incomplete children"
         assert all(event["zero_from_parent_bound"] is True for event in children)
         assert end["children"] == 16 and end["matrices"] == 7
-        assert end["field_words"] == 16 * 14 * LANES * 2
+        assert end["field_words"] == 16 * 7 * LANES * 2
         assert end["timing_scope"] == "range_after_shared_load", "wrong range timing scope"
         assert type(end["total_ns"]) is int and end["total_ns"] >= 0
         completions.append(end)

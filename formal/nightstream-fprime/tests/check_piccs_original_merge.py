@@ -100,7 +100,7 @@ def main():
     reject("wrong-point", "pad", 0, lambda value: value[4][0].__setitem__(0, (value[4][0][0] + 1) % P),
            "range point differs")
     reject("source-width", "pad", 0, lambda value: value[5].pop(), "expected array length 17")
-    reject("matrix-width", "matrix", 0, lambda value: value[5][16].pop(), "expected array length 14")
+    reject("matrix-width", "matrix", 0, lambda value: value[5][16].pop(), "expected array length 7")
     reject("noncanonical", "matrix", 0, lambda value: value[5][16][6][53].__setitem__(1, P),
            "noncanonical Goldilocks word")
     run("incomplete", pad_paths, matrix_paths[:1], "ranges are incomplete")

@@ -38,6 +38,30 @@ class LeanMutationGenerationTests(unittest.TestCase):
             {case["case"]: case["expected_owner"] for case in manifest["cases"][:-1]},
             {case["name"]: case["expected_owner"] for case in retained if case["name"] not in removed},
         )
+        children = json.loads(originals[1])
+        public_changes = {
+            **{f"public_child_{child}_commitment": (1, child, 0) for child in range(16)},
+            "public_child_public": (2, 0, 0),
+            "public_shared_point": (0, 0, 0),
+            "public_child_eval_K": (3, 0, 0, 0),
+            **{f"public_child_eval_A{matrix}": (4, 0, matrix, 0, 0) for matrix in range(7)},
+            "public_child_digit_range": (2, 0, 0),
+        }
+        for case in manifest["cases"][:-1]:
+            name = case["case"]
+            if name not in public_changes:
+                continue
+            with self.subTest(case=name):
+                changed = json.loads((output / case["file"]).read_bytes())
+                indices = public_changes[name]
+                parent, original = changed, children
+                for index in indices[:-1]:
+                    parent, original = parent[index], original[index]
+                field = indices[-1]
+                expected = 2 if name == "public_child_digit_range" else (original[field] + 1) % mutations.MODULUS
+                self.assertEqual(parent[field], expected)
+                parent[field] = original[field]
+                self.assertEqual(changed, children, "mutation changed a different field")
         changed = json.loads((output / manifest["changed_ccs_input"]).read_text())
         source = json.loads(originals[0])
         self.assertEqual(changed[3][0][0][0], (source[3][0][0][0] + 1) % mutations.MODULUS)

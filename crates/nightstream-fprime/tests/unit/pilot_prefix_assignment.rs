@@ -141,6 +141,30 @@ fn check_logical_family_mutations(
 }
 
 #[test]
+fn pilot_checkers_read_generated_witness_columns() {
+    let sealed_bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"))
+        .expect("sealed canonical Stage 1 package");
+    let raw_bytes = inner_raw_package_bytes(&sealed_bytes);
+    let mut private_values = vec![0; 6_908_558];
+    let public_values = vec![0; 278];
+    // A zero assignment fails a constraint; reading its generated columns must not panic.
+    assert!(conformance_support::evaluate_pilot_assignment(&raw_bytes, &private_values, &public_values).is_err());
+
+    // The first retained S-box output is the first logical private field.
+    private_values[91_049] = 1;
+    let assignment = logical_reference::assignment::PartialLogicalAssignment::decode_pilot(
+        &sealed_bytes,
+        &private_values,
+        &public_values,
+    )
+    .expect("current pilot assignment prefix");
+    assert_eq!(
+        assignment.value(270).expect("generated S-box output"),
+        logical_reference::Field::ONE
+    );
+}
+
+#[test]
 #[ignore = "exact standalone pilot physical and logical assignment gate; run explicitly under the 300-second cap"]
 fn sealed_package_checks_the_standalone_pilot_assignment() {
     let sealed_bytes = fs::read(artifact_path("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"))

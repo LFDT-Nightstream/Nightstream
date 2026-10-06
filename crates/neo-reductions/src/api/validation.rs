@@ -4,7 +4,7 @@
 //! replay, algebraic acceptance, commitment binding, or protocol selection.
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
+use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -29,52 +29,6 @@ pub(crate) fn ell_n_for_ccs(s: &CcsStructure<F>) -> usize {
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize
-}
-
-pub(crate) fn validate_mcs_claims(
-    label: &str,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-) -> Result<(), PiCcsError> {
-    for (idx, inst) in mcs_list.iter().enumerate() {
-        if inst.m_in > s.m {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}].m_in={} exceeds CCS width m={}",
-                inst.m_in, s.m
-            )));
-        }
-        if inst.m_in % D != 0 {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}].m_in={} is not a whole number of degree-{D} ring elements",
-                inst.m_in
-            )));
-        }
-        if inst.x.len() != inst.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}].x.len()={} does not match m_in={}",
-                inst.x.len(),
-                inst.m_in
-            )));
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_mcs_witnesses(
-    label: &str,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-) -> Result<(), PiCcsError> {
-    for (idx, (inst, wit)) in mcs_list.iter().zip(mcs_witnesses.iter()).enumerate() {
-        if wit.private_len(inst.m_in, s.m).is_none() {
-            return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}] private witness does not complete m_in={} to CCS width m={}",
-                inst.m_in, s.m
-            )));
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn validate_ce_claim_shape(

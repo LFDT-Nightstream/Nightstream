@@ -72,7 +72,9 @@ def main():
             "manifest.json", "public.bin", *(row["file"] for row in local)}
         for row in local:
             assert row["file"] == f'block-{row["ordinal"]}.bin'
-            assert public_width <= row["first"] < row["finish"] <= logical_width
+            # A block kind without slots, such as the PiDEC fresh block, has an empty block.
+            assert public_width <= row["first"] <= row["finish"] <= logical_width
+            assert row["first"] < row["finish"] or row["slots"] == 0
             actual = (directory / row["file"]).read_bytes()
             assert len(actual) == row["finish"] - row["first"]
             expected = target.interval(row["first"], row["finish"])

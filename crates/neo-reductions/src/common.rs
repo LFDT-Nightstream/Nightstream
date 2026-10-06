@@ -739,7 +739,7 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
 ///
 /// # Returns
 /// `count` rotation matrices ρ_i ∈ S ⊆ F^{D×D}, or error if soundness checks fail.
-pub fn sample_rot_rhos_n(
+fn sample_rot_rhos_n(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     ring: &RotRing,

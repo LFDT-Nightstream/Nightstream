@@ -42,9 +42,9 @@ pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
 pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiResult<Vec<Vec<Fq>>> {
     use rayon::prelude::*;
 
-    let d = pp.d;
-    let m = pp.m;
-    let kappa = pp.kappa;
+    let d = pp.d();
+    let m = pp.m();
+    let kappa = pp.kappa();
 
     // Validate dimensions to prevent binding bugs
     if D != d {
@@ -69,7 +69,7 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
 
     for commit_col in 0..kappa {
         for j in 0..m {
-            let a_ij = pp.m_rows[commit_col][j];
+            let a_ij = pp.rows()[commit_col][j];
             let canonical_key = cf(a_ij);
 
             let idx = *unique_map.entry(canonical_key).or_insert_with(|| {
@@ -132,9 +132,9 @@ pub fn compute_single_ajtai_row(
     z_len: usize,
     num_coords: usize,
 ) -> AjtaiResult<Vec<Fq>> {
-    let d = pp.d;
-    let m = pp.m;
-    let kappa = pp.kappa;
+    let d = pp.d();
+    let m = pp.m();
+    let kappa = pp.kappa();
 
     // Validation
     if D != d {
@@ -165,7 +165,7 @@ pub fn compute_single_ajtai_row(
     let mut row = vec![Fq::ZERO; z_len];
 
     for j in 0..m {
-        let a_ij = pp.m_rows[commit_col][j];
+        let a_ij = pp.rows()[commit_col][j];
         let mut col = cf(a_ij);
         let mut nxt = [Fq::ZERO; D];
 
@@ -202,14 +202,14 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 #[allow(non_snake_case)]
 #[allow(dead_code)]
 pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
-    let d = pp.d;
-    let m = pp.m;
-    let mut c = Commitment::zeros(d, pp.kappa);
+    let d = pp.d();
+    let m = pp.m();
+    let mut c = Commitment::zeros(d, pp.kappa());
 
-    for i in 0..pp.kappa {
+    for i in 0..pp.kappa() {
         let acc_i = c.col_mut(i);
         for j in 0..m {
-            let s = SAction::from_ring(pp.m_rows[i][j]);
+            let s = SAction::from_ring(pp.rows()[i][j]);
             let v: [Fq; D] = Z[j * d..(j + 1) * d].try_into().unwrap();
             let w = s.apply_vec(&v);
             for (a, &x) in acc_i.iter_mut().zip(&w) {

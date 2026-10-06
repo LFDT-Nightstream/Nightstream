@@ -7,12 +7,14 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::api::{prove, verify, FoldingMode};
+use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
 use neo_transcript::Poseidon2Transcript;
 use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+
+mod zero_running;
 
 fn identity_ccs(n: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![Mat::identity(n)], SparsePoly::new(1, vec![])).expect("valid CCS")
@@ -87,32 +89,22 @@ fn run_case_with_n(n: usize, k_mcs: usize) {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/k_mcs_e2e");
-    let (out, proof) = prove(
-        FoldingMode::Optimized,
+    let (out, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/k_mcs_e2e");
-    let ok = verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &ccs,
-        &mcs_list,
-        &[],
-        &out,
-        &proof,
-    )
-    .expect("pi_ccs verify");
+    let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("pi_ccs verify");
     assert!(ok, "pi_ccs verify should pass for k_mcs={k_mcs}");
 }
 
@@ -165,32 +157,22 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
-    let (out, proof) = prove(
-        FoldingMode::Optimized,
+    let (out, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
-    let ok = verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &ccs,
-        &mcs_list,
-        &[],
-        &out,
-        &proof,
-    )
-    .expect("pi_ccs verify");
+    let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("pi_ccs verify");
     assert!(ok, "pi_ccs verify should pass for SuperNeo packed witness");
 }
 
@@ -210,8 +192,7 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
     let me_witnesses = vec![Mat::zero(D, ccs.m / D, F::ZERO), Mat::zero(D, ccs.m / D, F::ZERO)];
 
     let mut tr = Poseidon2Transcript::new(b"neo.reductions/non_shared_r");
-    let err = prove(
-        FoldingMode::Optimized,
+    let err = pi_ccs_prove(
         &mut tr,
         &params,
         &ccs,
@@ -225,7 +206,7 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
 
     assert!(
         err.to_string()
-            .contains("all ME inputs must share the same r"),
+            .contains("running claims must share the complete prior point"),
         "unexpected error: {err}"
     );
 }
@@ -245,16 +226,16 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
         mcs_wits.push(wit);
     }
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x");
-    let (mut out, proof) = prove(
-        FoldingMode::Optimized,
+    let (mut out, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -262,20 +243,12 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
     out[0].X[(0, 0)] += F::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x");
-    let err = verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &ccs,
-        &mcs_list,
-        &[],
-        &out,
-        &proof,
-    )
-    .expect_err("verify must reject tampered MCS output X");
+    let err = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof)
+        .expect_err("verify must reject tampered MCS output X");
 
     assert!(
-        err.to_string().contains("does not match mcs_list"),
+        err.to_string()
+            .contains("fresh output changed a public input coordinate"),
         "unexpected error: {err}"
     );
 }
@@ -293,16 +266,16 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     mcs_list.push(inst);
     mcs_wits.push(wit);
 
+    let (running, running_wits) = zero_running::zero_running(&params, &ccs, mcs_list.len(), D);
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x_permute");
-    let (mut out, proof) = prove(
-        FoldingMode::Optimized,
+    let (mut out, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
         &ccs,
         &mcs_list,
         &mcs_wits,
-        &[],
-        &[],
+        &running,
+        &running_wits,
         &l,
     )
     .expect("pi_ccs prove");
@@ -315,17 +288,12 @@ fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     }
 
     let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/tamper_mcs_x_permute");
-    let err = verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &ccs,
-        &mcs_list,
-        &[],
-        &out,
-        &proof,
-    )
-    .expect_err("verify must reject permuted MCS output X columns");
+    let err = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof)
+        .expect_err("verify must reject permuted MCS output X columns");
 
-    assert!(err.to_string().contains("X has shape"), "unexpected error: {err}");
+    assert!(
+        err.to_string()
+            .contains("does not have the one-joint shape"),
+        "unexpected error: {err}"
+    );
 }
